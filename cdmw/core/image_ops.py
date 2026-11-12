@@ -18,9 +18,8 @@ OpenCV is imported here and nowhere else. Three groups:
   on a 4096 x 4096 layer, and these run per stroke or per composite, so they
   call OpenCV while it is installed and fall back to numpy without it (gray,
   HSV, the lookup table, addWeighted, Gaussian blur, resize, affine warp,
-  both flood fills, Canny);
-- OpenCV only, not written yet (antialiased polygon fill, contours,
-  bilateral and median filters).
+  both flood fills, Canny, the median and bilateral filters, contours);
+- OpenCV only, not written yet (antialiased polygon fill).
 
 ``uses_opencv`` lists the last two groups; a test keeps it complete.
 """
@@ -88,9 +87,6 @@ uses_opencv: Tuple[str, ...] = (
 # Of those, the ones with no numpy version yet: they need OpenCV to run at all.
 opencv_only: Tuple[str, ...] = (
     "fill_polygon_antialiased",
-    "find_outer_contours_ccomp",
-    "bilateral_filter",
-    "median_blur",
 )
 
 
@@ -809,8 +805,145 @@ def fill_polygon_antialiased(canvas: np.ndarray, polygon: np.ndarray, value: int
 def find_outer_contours_ccomp(binary: np.ndarray):
     """``cv2.findContours(binary, RETR_CCOMP, CHAIN_APPROX_SIMPLE)``: (contours, hierarchy)."""
 
-    cv2 = _cv2()
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _find_contours_ccomp_numpy(binary)
     return cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+
+
+# Chain code directions (x, y): 0 right, then counter-clockwise in image space.
+_CHAIN_DELTAS = ((1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1))
+_MARK = 2
+_MARK_RIGHT = 130  # OpenCV's (schar)(2 | -128), stored unsigned
+
+
+def _trace_border(image: bytearray, stride: int, start: int, is_hole: bool) -> list:
+    """OpenCV's icvFetchContour with CHAIN_APPROX_SIMPLE on a 0/1 image framed by 0.
+
+    Marks the border it follows (2, or 130 where the pixel to its right is 0)
+    and returns the flat positions where the chain changes direction, and the
+    positions it marked.
+    """
+
+    deltas = [1, -stride + 1, -stride, -stride - 1, -1, stride - 1, stride, stride + 1]
+    deltas = deltas + deltas
+    points = []
+    i0 = start
+    s_end = s = 0 if is_hole else 4
+    while True:
+        s = (s - 1) & 7
+        i1 = i0 + deltas[s]
+        if image[i1] != 0 or s == s_end:
+            break
+    if s == s_end:
+        image[i0] = _MARK_RIGHT
+        points.append(i0)
+        return points, [i0]
+    i3 = i0
+    prev_s = s ^ 4
+    position = i0
+    marked = []
+    while True:
+        s_end = s
+        i4 = i3
+        while s < 15:
+            s += 1
+            i4 = i3 + deltas[s]
+            if image[i4] != 0:
+                break
+        s &= 7
+        if ((s - 1) & 0xFFFFFFFF) < s_end:
+            image[i3] = _MARK_RIGHT
+            marked.append(i3)
+        elif image[i3] == 1:
+            image[i3] = _MARK
+            marked.append(i3)
+        if s != prev_s:
+            points.append(position)
+            prev_s = s
+        position += deltas[s]
+        if i4 == i0 and i3 == i1:
+            break
+        i3 = i4
+        s = (s + 4) & 7
+    return points, marked
+
+
+def _find_contours_ccomp_numpy(binary: np.ndarray):
+    """OpenCV's findContours, RETR_CCOMP and CHAIN_APPROX_SIMPLE, for an 8-bit image (exact).
+
+    Suzuki and Abe's border following as OpenCV implements it, on the image
+    framed by one row and column of 0, scanned in raster order. In the
+    two-level hierarchy a hole's parent is the outer border of the 8-connected
+    component it is cut out of. That component is found from the leftmost pixel
+    of the run the hole starts in: it lies on a border already followed, and
+    the contour that marked it belongs to the same component. Siblings come
+    newest first, each outer border followed by its holes, as OpenCV lists them.
+    """
+
+    source = np.asarray(binary)
+    height, width = source.shape[:2]
+    padded = np.zeros((height + 2, width + 2), dtype=np.uint8)
+    padded[1:-1, 1:-1] = source != 0
+    stride = width + 2
+    image = bytearray(padded.tobytes())
+    foreground = padded.astype(bool)
+    owner = np.full(padded.size, -1, dtype=np.int64)  # outer contour (component) that marked a pixel
+    # Columns where a row changes between 0 and not 0: the only places a border can start.
+    changes = np.flatnonzero((foreground[:, 1:] != foreground[:, :-1]).reshape(-1))
+    outers: list = []
+    holes: list = []  # (points, parent outer index)
+    run_start = -1
+    for flat in changes:
+        y, x0 = divmod(int(flat), stride - 1)
+        x = x0 + 1
+        position = y * stride + x
+        if image[position] != 0 and image[position - 1] == 0:
+            run_start = position
+        if x >= stride - 1:  # OpenCV scans columns 1 .. width - 2 of the framed image
+            continue
+        prev, current = image[position - 1], image[position]
+        if prev == 0 and current == 1:
+            points, marked = _trace_border(image, stride, position, False)
+            owner[marked] = len(outers)
+            outers.append(points)
+        elif current == 0 and prev in (1, _MARK):
+            parent = int(owner[run_start])
+            points, marked = _trace_border(image, stride, position - 1, True)
+            owner[marked] = parent
+            holes.append((points, parent))
+    if not outers:
+        return (), None
+    children: dict = {}
+    for hole_index in range(len(holes) - 1, -1, -1):
+        children.setdefault(holes[hole_index][1], []).append(hole_index)
+    order = []
+    for index in range(len(outers) - 1, -1, -1):
+        order.append((outers[index], -1))
+        order.extend((holes[h][0], index) for h in children.get(index, ()))
+    position_of_outer = {}
+    cursor = 0
+    for index in range(len(outers) - 1, -1, -1):
+        position_of_outer[index] = cursor
+        cursor += 1 + len(children.get(index, ()))
+    hierarchy = np.full((len(order), 4), -1, dtype=np.int32)
+    top = [position_of_outer[index] for index in range(len(outers) - 1, -1, -1)]
+    for rank, at in enumerate(top):
+        hierarchy[at, 0] = top[rank + 1] if rank + 1 < len(top) else -1
+        hierarchy[at, 1] = top[rank - 1] if rank > 0 else -1
+    for index, at in position_of_outer.items():
+        kids = list(range(at + 1, at + 1 + len(children.get(index, ()))))
+        if kids:
+            hierarchy[at, 2] = kids[0]
+        for rank, kid in enumerate(kids):
+            hierarchy[kid, 0] = kids[rank + 1] if rank + 1 < len(kids) else -1
+            hierarchy[kid, 1] = kids[rank - 1] if rank > 0 else -1
+            hierarchy[kid, 3] = at
+    contours = tuple(
+        np.array([(q % stride - 1, q // stride - 1) for q in points], dtype=np.int32).reshape(-1, 1, 2)
+        for points, _parent in order
+    )
+    return contours, hierarchy.reshape(1, -1, 4)
 
 
 def contour_arc_length(contour: np.ndarray, closed: bool) -> float:
@@ -1051,11 +1184,90 @@ def _canny_numpy(gray: np.ndarray, low: float, high: float) -> np.ndarray:
 
 
 def bilateral_filter(rgb: np.ndarray, diameter: int, sigma_colour: float, sigma_space: float) -> np.ndarray:
-    return _cv2().bilateralFilter(rgb, diameter, sigma_colour, sigma_space)
+    """``cv2.bilateralFilter(rgb, diameter, sigma_colour, sigma_space)`` for 8-bit images."""
+
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _bilateral_filter_numpy(rgb, diameter, sigma_colour, sigma_space)
+    return cv2.bilateralFilter(rgb, diameter, sigma_colour, sigma_space)
 
 
 def median_blur(rgb: np.ndarray, size: int) -> np.ndarray:
-    return _cv2().medianBlur(rgb, int(size))
+    """``cv2.medianBlur(rgb, size)`` for 8-bit images."""
+
+    cv2 = _opencv_or_none()
+    return _median_blur_numpy(rgb, size) if cv2 is None else cv2.medianBlur(rgb, int(size))
+
+
+_MEDIAN_CHUNK_BYTES = 64 << 20
+
+
+def _median_blur_numpy(image: np.ndarray, size: int) -> np.ndarray:
+    """The exact median of each size x size window, border replicated, as OpenCV."""
+
+    source = np.asarray(image, dtype=np.uint8)
+    k = int(size)
+    if k < 3 or k % 2 == 0:
+        raise ValueError("The median filter size must be odd and at least 3.")
+    radius = k // 2
+    planar = source.ndim == 2
+    work = source[..., None] if planar else source
+    height, width, channels = work.shape
+    padded = np.pad(work, ((radius, radius), (radius, radius), (0, 0)), mode="edge")
+    out = np.empty_like(work)
+    rows = max(1, _MEDIAN_CHUNK_BYTES // max(1, width * channels * k * k))
+    middle = (k * k) // 2
+    for top in range(0, height, rows):
+        bottom = min(height, top + rows)
+        block = padded[top : bottom + 2 * radius]
+        windows = np.lib.stride_tricks.sliding_window_view(block, (k, k), axis=(0, 1))
+        flat = windows.reshape(windows.shape[:3] + (k * k,))
+        out[top:bottom] = np.partition(flat, middle, axis=-1)[..., middle]
+    return out[..., 0] if planar else out
+
+
+def _bilateral_filter_numpy(image: np.ndarray, diameter: int, sigma_colour: float, sigma_space: float) -> np.ndarray:
+    """OpenCV 4.13's 8-bit bilateral filter.
+
+    The same float32 colour and space weight tables over a circular window, a
+    reflect-101 border, float32 sums taken offset by offset, and the rounded
+    ratio at the end. For three channels (the brush's only use) it matches
+    OpenCV except about one value in 100,000, by 1 level (OpenCV's vector
+    sums). For one channel with a diameter of 3 or 5 OpenCV takes another
+    routine and about 4 % of values are 1 level higher here.
+    """
+
+    source = np.asarray(image, dtype=np.uint8)
+    planar = source.ndim == 2
+    work = source[..., None] if planar else source
+    channels = work.shape[2]
+    sigma_colour = float(sigma_colour) if sigma_colour > 0 else 1.0
+    sigma_space = float(sigma_space) if sigma_space > 0 else 1.0
+    colour_coeff = -0.5 / (sigma_colour * sigma_colour)
+    space_coeff = -0.5 / (sigma_space * sigma_space)
+    radius = int(np.rint(sigma_space * 1.5)) if int(diameter) <= 0 else int(diameter) // 2
+    radius = max(radius, 1)
+    index = np.arange(256 * channels, dtype=np.float64)
+    colour_weight = np.exp(index * index * colour_coeff).astype(np.float32)
+    padded = np.pad(work, ((radius, radius), (radius, radius), (0, 0)), mode="reflect").astype(np.int32)
+    height, width = work.shape[:2]
+    centre = work.astype(np.int32)
+    weight_sum = np.zeros((height, width), dtype=np.float32)
+    sums = np.zeros((height, width, channels), dtype=np.float32)
+    for dy in range(-radius, radius + 1):
+        for dx in range(-radius, radius + 1):
+            r = math.sqrt(float(dy * dy) + float(dx * dx))
+            if r > radius:
+                continue
+            space_weight = np.float32(math.exp(r * r * space_coeff))
+            shifted = padded[radius + dy : radius + dy + height, radius + dx : radius + dx + width]
+            distance = np.abs(shifted - centre).sum(axis=-1)
+            w = (space_weight * colour_weight[distance]).astype(np.float32)
+            weight_sum += w
+            sums += (shifted.astype(np.float32) * w[..., None]).astype(np.float32)
+    result = np.rint(sums * (np.float32(1.0) / weight_sum)[..., None])
+    out = np.clip(result, 0, 255).astype(np.uint8)
+    return out[..., 0] if planar else out
 
 
 def rotation_matrix(center: Tuple[float, float], angle: float, scale: float) -> np.ndarray:

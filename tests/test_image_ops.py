@@ -237,12 +237,11 @@ def test_canny(backend):
 
 
 def test_median_and_bilateral(backend):
-    _only_on_opencv(backend, "median_blur")
     for size in (3, 5, 9):
         _exact(f"median_{size}", image_ops.median_blur(RGB, size))
-    _only_on_opencv(backend, "bilateral_filter")
+    # Within 1: OpenCV's vector sums meet a rounding boundary on about one value in 100,000.
     for diameter, colour, space in ((3, 12.0, 6.0), (7, 30.0, 16.0), (15, 48.0, 26.0)):
-        _exact(f"bilateral_{diameter}", image_ops.bilateral_filter(RGB, diameter, colour, space))
+        _within(f"bilateral_{diameter}", image_ops.bilateral_filter(RGB, diameter, colour, space), 1)
 
 
 def test_warp_affine(backend):
@@ -355,6 +354,45 @@ def test_flood_fills_and_canny_match_opencv_on_random_images():
             assert np.array_equal(image_ops._canny_numpy(gray, low, high), cv2.Canny(gray, low, high))
 
 
+def test_median_and_bilateral_match_opencv_on_random_images():
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(10)
+    differing = total = 0
+    for trial in range(30):
+        height, width = (int(value) for value in rng.integers(1, 50, 2))
+        rgb = rng.integers(0, 256, (height, width, 3)).astype(np.uint8)
+        if trial % 2:
+            rgb = cv2.GaussianBlur(rgb, (0, 0), 2.0)
+        for size in (3, 5, 7, 11):
+            assert np.array_equal(image_ops._median_blur_numpy(rgb, size), cv2.medianBlur(rgb, size))
+            assert np.array_equal(image_ops._median_blur_numpy(rgb[..., 0].copy(), size), cv2.medianBlur(rgb[..., 0].copy(), size))
+        for diameter, colour, space in ((3, 12.0, 6.0), (7, 30.0, 16.0), (13, 40.0, 20.0)):
+            expected = cv2.bilateralFilter(rgb, diameter, colour, space).astype(np.int16)
+            actual = image_ops._bilateral_filter_numpy(rgb, diameter, colour, space).astype(np.int16)
+            assert int(np.abs(actual - expected).max()) <= 1
+            differing += int(np.count_nonzero(actual != expected))
+            total += expected.size
+    assert differing <= total // 10000
+
+
+def test_find_contours_matches_opencv_on_random_masks():
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(12)
+    for trial in range(80):
+        height, width = (int(value) for value in rng.integers(1, 60, 2))
+        mask = (rng.random((height, width)) > rng.uniform(0.1, 0.95)).astype(np.uint8)
+        if trial % 3 == 0:
+            mask = (cv2.GaussianBlur(mask * 255, (0, 0), float(rng.uniform(0.7, 3.0))) > 128).astype(np.uint8)
+        expected, expected_hierarchy = cv2.findContours(mask.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        actual, actual_hierarchy = image_ops._find_contours_ccomp_numpy(mask)
+        assert len(actual) == len(expected)
+        assert all(np.array_equal(a, b) for a, b in zip(actual, expected))
+        if expected_hierarchy is None:
+            assert actual_hierarchy is None
+        else:
+            assert np.array_equal(actual_hierarchy, expected_hierarchy)
+
+
 def test_morphology_matches_opencv_on_random_masks():
     cv2 = pytest.importorskip("cv2")
     rng = np.random.default_rng(8)
@@ -396,7 +434,7 @@ def test_without_opencv_the_replaced_functions_answer_and_the_rest_say_what_is_m
     assert image_ops.resize(RGBA, 20, 15, "area").shape == (15, 20, 4)
     assert image_ops.gaussian_blur(RGB_F, 1.3).dtype == np.float32
     with pytest.raises(ImportError, match="still needs OpenCV"):
-        image_ops.median_blur(RGB, 3)
+        image_ops.fill_polygon_antialiased(np.zeros((8, 8), np.uint8), inputs.polygons()[0] // 25)
 
 
 def test_the_list_of_functions_still_on_opencv_is_complete():
