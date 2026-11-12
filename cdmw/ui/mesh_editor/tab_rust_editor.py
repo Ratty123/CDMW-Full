@@ -619,18 +619,23 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             if key != "label"
         }
         window_colour = QColor(palette.get("window", "#1e1e1e"))
+        # The sizes and density every other surface uses (P11): clamped to the one
+        # range, with Compact forced on small screens.
+        from cdmw.constants import UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN
+        from cdmw.ui.shell.theme_controller import _resolved_app_fonts
+
+        density = str(self.settings.value("appearance/ui_density", "compact") or "compact")
         font_point_size = float(font.pointSizeF())
         if font_point_size <= 0.0:
             font_point_size = float(DEFAULT_UI_FONT_SIZE)
-        try:
-            data_font_point_size = float(
-                self.settings.value(
-                    "appearance/data_font_size",
-                    DEFAULT_UI_DATA_FONT_SIZE,
-                )
-            )
-        except (TypeError, ValueError):
-            data_font_point_size = float(DEFAULT_UI_DATA_FONT_SIZE)
+        data_font_point_size = float(DEFAULT_UI_DATA_FONT_SIZE)
+        if isinstance(application, QApplication):
+            try:
+                resolved_font, resolved_data, density, _scale = _resolved_app_fonts(application, self.settings)
+                font_point_size = float(resolved_font.pointSizeF()) or font_point_size
+                data_font_point_size = float(resolved_data.pointSizeF()) or data_font_point_size
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
         return {
             "schema": "cdmw_ui_theme_v1",
             "language": language,
@@ -647,7 +652,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             "font_family": font.family(),
             "font_point_size": font_point_size,
             "data_font_point_size": data_font_point_size,
-            "density": str(self.settings.value("appearance/ui_density", "compact") or "compact"),
+            "font_min_points": UI_FONT_SIZE_MIN,
+            "font_max_points": UI_FONT_SIZE_MAX,
+            "density": density,
             "scale": float(screen.devicePixelRatio()) if screen is not None else 1.0,
         }
 

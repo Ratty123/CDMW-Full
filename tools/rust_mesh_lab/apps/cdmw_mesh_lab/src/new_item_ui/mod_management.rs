@@ -33,7 +33,10 @@ fn line(ui: &Ui) -> Stroke {
 }
 
 fn font(ui: &Ui, points: f32) -> FontId {
-    FontId::proportional((points * scale(ui)).max(11.0))
+    // CDMW's one minimum (P11), not a floor of this page's own.
+    FontId::proportional(
+        (points * scale(ui)).max(crate::new_item_ui::view::min_font_pixels(ui.ctx())),
+    )
 }
 
 fn galley(ui: &Ui, text: &str, points: f32, color: Color32, width: f32) -> Arc<egui::Galley> {

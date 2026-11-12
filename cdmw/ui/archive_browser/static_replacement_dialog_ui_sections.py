@@ -48,11 +48,11 @@ def _alignment_dialog_font_sizes(context: dict[str, object]) -> dict[str, int]:
             value = int(settings.value(key, default))  # type: ignore[attr-defined]
         except (AttributeError, TypeError, ValueError):
             value = int(default)
-        return max(UI_FONT_SIZE_MIN, min(UI_FONT_SIZE_MAX, value))
+        return clamp_font_points(value, default)
 
     ui_size = _read_size("appearance/ui_font_size", DEFAULT_UI_FONT_SIZE)
     data_size = _read_size("appearance/data_font_size", DEFAULT_UI_DATA_FONT_SIZE)
-    return {"ui": ui_size, "data": data_size, "hint": max(UI_FONT_SIZE_MIN, ui_size - 1)}
+    return {"ui": ui_size, "data": data_size, "hint": int(small_font_points(ui_size))}
 
 from cdmw.ui.archive_browser.static_replacement_dialog_factory_owners import (
     create_alignment_setup_options_transform_section as _create_alignment_setup_options_transform_section,
@@ -60,6 +60,7 @@ from cdmw.ui.archive_browser.static_replacement_dialog_factory_owners import (
     create_alignment_texture_material_section as _create_alignment_texture_material_section,
     create_alignment_source_parts_outliner_section as _create_alignment_source_parts_outliner_section,
 )
+from cdmw.ui.layout_metrics import clamp_font_points, small_font_points
 
 def create_alignment_setup_options_transform_section(context: dict[str, object]) -> SimpleNamespace:
     return _create_alignment_setup_options_transform_section(context, globals())

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QFrame, QWidget
 from cdmw.constants import DEFAULT_UI_THEME
 from cdmw.services.active_ui_translation import translate_active_ui_text
 from cdmw.ui.themes import UI_THEME_SCHEMES, get_theme
+from cdmw.ui.layout_metrics import clamp_font_points, title_font_points
 
 
 class ThemeChangeBusyOverlay(QFrame):
@@ -110,7 +111,7 @@ class ThemeChangeBusyOverlay(QFrame):
 
         title_font = QFont(self.font())
         title_font.setBold(True)
-        title_font.setPointSize(max(10, title_font.pointSize() + 1))
+        title_font.setPointSize(int(title_font_points(title_font.pointSize(), 1)))
         painter.setFont(title_font)
         painter.setPen(QColor(str(theme.get("text_strong", "#f3f3f3"))))
         text_left = spinner_rect.right() + 18.0
@@ -122,7 +123,7 @@ class ThemeChangeBusyOverlay(QFrame):
         )
 
         body_font = QFont(self.font())
-        body_font.setPointSize(max(9, body_font.pointSize()))
+        body_font.setPointSize(clamp_font_points(body_font.pointSize()))
         painter.setFont(body_font)
         painter.setPen(QColor(str(theme.get("text_muted", "#9da0a6"))))
         body_rect = QRectF(text_left, panel.top() + 60.0, panel.right() - text_left - 22.0, 34.0)

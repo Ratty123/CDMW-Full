@@ -170,10 +170,12 @@ fn grouped_management_controls_fit_widths_fonts_and_translated_captions() {
                         pos2(first.rect[0], first.rect[1]),
                         vec2(first.rect[2], first.rect[3]),
                     );
+                    // Read outside the fonts lock: both use the context's.
+                    let floor = super::super::min_font_pixels(&ctx);
                     let text = ctx.fonts_mut(|fonts| {
                         fonts.layout(
                             first.label.clone(),
-                            FontId::proportional((13.0 * font / 14.0).max(11.0)),
+                            FontId::proportional((13.0 * font / 14.0).max(floor)),
                             Color32::WHITE,
                             (first.rect[2] - 60.0 * font / 14.0).max(1.0),
                         )

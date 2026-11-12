@@ -47,6 +47,7 @@ from cdmw.domain.archives.item_catalogue import (
 from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
 from cdmw.ui.archive_browser.failure_report import ArchiveFailurePanel
 from cdmw.ui.wrapping_layout import WrappingLayout
+from cdmw.ui.layout_metrics import title_font_points
 
 
 class _ItemFinderGrid(QListWidget):
@@ -494,7 +495,7 @@ class RemoteArchiveFinderDialog(QDialog):
         if prominent:
             font = label.font()
             font.setBold(True)
-            font.setPointSize(max(font.pointSize() + 2, 11))
+            font.setPointSize(int(title_font_points(font.pointSize(), 2)))
             label.setFont(font)
         return label
 

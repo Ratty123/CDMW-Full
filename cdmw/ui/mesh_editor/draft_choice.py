@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from cdmw.models import ArchiveEntry
 from cdmw.services.mesh_saved_work_service import draft_lineage, read_draft_manifest
 from cdmw.ui.mesh_editor.saved_work_launch import default_session_draft_request
+from cdmw.ui.layout_metrics import MIN_FONT_PIXELS, title_font_points
 
 
 class _DraftChoiceCard(QFrame):
@@ -105,9 +106,9 @@ class MeshEditorDraftChoiceMixin:
 
         title = QFont(font)
         if title.pointSizeF() > 0:
-            title.setPointSizeF(title.pointSizeF() + 2)
+            title.setPointSizeF(title_font_points(title.pointSizeF(), 2))
         elif title.pixelSize() > 0:
-            title.setPixelSize(title.pixelSize() + 3)
+            title.setPixelSize(max(MIN_FONT_PIXELS, title.pixelSize() + 3))
         title.setBold(True)
         self.draft_choice_title.setFont(title)
 

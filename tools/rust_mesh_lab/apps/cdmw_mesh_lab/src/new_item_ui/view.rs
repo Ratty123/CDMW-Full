@@ -2110,6 +2110,15 @@ impl PresentationView {
     }
 }
 
+/// Where the page theme keeps CDMW's smallest font size, in pixels (P11).
+pub(crate) const MIN_FONT_PIXELS_KEY: &str = "cdmw_min_font_pixels";
+
+/// The smallest font this page may draw, as CDMW sent it.
+pub(crate) fn min_font_pixels(ctx: &egui::Context) -> f32 {
+    ctx.data(|data| data.get_temp::<f32>(egui::Id::new(MIN_FONT_PIXELS_KEY)))
+        .unwrap_or(8.0)
+}
+
 fn readable_color(mut foreground: Color32, background: Color32) -> Color32 {
     let luminance = |color: Color32| {
         let linear = |value: u8| {
@@ -2488,16 +2497,22 @@ pub fn apply_theme(context: &egui::Context, theme: &Value) {
         "border",
         style.visuals.widgets.noninteractive.bg_stroke.color,
     );
+    // One font range on every surface (P11): CDMW sends its minimum in pixels.
+    let min_font = theme["min_font_pixels"]
+        .as_f64()
+        .unwrap_or(8.0)
+        .clamp(1.0, 64.0) as f32;
     let font = theme["font_pixels"]
         .as_f64()
         .unwrap_or(14.0)
-        .clamp(8.0, 64.0) as f32;
+        .clamp(f64::from(min_font), 64.0) as f32;
+    context.data_mut(|data| data.insert_temp(egui::Id::new(MIN_FONT_PIXELS_KEY), min_font));
     for kind in [TextStyle::Body, TextStyle::Button, TextStyle::Monospace] {
         style.text_styles.insert(kind, FontId::proportional(font));
     }
     style.text_styles.insert(
         TextStyle::Small,
-        FontId::proportional((font - 1.0).max(8.0)),
+        FontId::proportional((font - 96.0 / 72.0).max(min_font)),
     );
     style
         .text_styles

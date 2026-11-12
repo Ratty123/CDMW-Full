@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication, QLabel, QPlainTextEdit, QTabWidget, 
 
 from cdmw.constants import DEFAULT_UI_THEME
 from cdmw.ui.themes import get_theme
+from cdmw.ui.layout_metrics import clamp_font_points
 
 
 def _active_editor_colors() -> dict[str, QColor]:
@@ -209,7 +210,7 @@ class PacXmlCodeEditor(QPlainTextEdit):
         self.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.setUndoRedoEnabled(False)
         fixed_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        fixed_font.setPointSize(max(9, fixed_font.pointSize()))
+        fixed_font.setPointSize(clamp_font_points(fixed_font.pointSize()))
         self.setFont(fixed_font)
         self.setTabStopDistance(QFontMetricsF(fixed_font).horizontalAdvance(" ") * 4)
 

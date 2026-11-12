@@ -1637,6 +1637,21 @@ pub(crate) fn cdmw_legend(
     response
 }
 
+/// The font range CDMW sends (points); 6 to 16 when an older host sends none.
+fn cdmw_font_range(theme: &Value) -> (f64, f64) {
+    let min = theme
+        .get("font_min_points")
+        .and_then(Value::as_f64)
+        .unwrap_or(6.0)
+        .clamp(1.0, 72.0);
+    let max = theme
+        .get("font_max_points")
+        .and_then(Value::as_f64)
+        .unwrap_or(16.0)
+        .clamp(min, 96.0);
+    (min, max)
+}
+
 fn cdmw_theme_colour(theme: &Value, key: &str, fallback: Color32) -> Color32 {
     let Some(value) = theme
         .get("palette")
@@ -1767,18 +1782,21 @@ impl LabApplication {
         // Qt point sizes are typographic points; egui sizes are logical pixels.
         // At the Windows 96-DPI baseline this 4/3 conversion makes the embedded
         // text match the surrounding PySide controls instead of appearing tiny.
+        // One font range on every surface (P11): CDMW sends it with the sizes.
+        let (min_points, max_points) = cdmw_font_range(theme);
         let font_size = (theme
             .get("font_point_size")
             .and_then(Value::as_f64)
             .unwrap_or(10.0)
-            .clamp(8.0, 18.0) as f32)
+            .clamp(min_points, max_points) as f32)
             * (96.0 / 72.0);
         let data_font_size = (theme
             .get("data_font_point_size")
             .and_then(Value::as_f64)
             .unwrap_or(f64::from(font_size) * 72.0 / 96.0)
-            .clamp(8.0, 18.0) as f32)
+            .clamp(min_points, max_points) as f32)
             * (96.0 / 72.0);
+        let min_font_size = min_points as f32 * (96.0 / 72.0);
         let window = cdmw_theme_colour(theme, "window", Color32::from_rgb(30, 30, 30));
         let dark = cdmw_theme_is_dark(theme, window);
         let active_theme = if dark {
@@ -1797,11 +1815,13 @@ impl LabApplication {
             };
         style.spacing.item_spacing = item_spacing;
         style.spacing.button_padding = button_padding;
-        style.spacing.interact_size.y = interaction_height.max(font_size + 8.0);
+        // Controls follow the text and its padding, not a fixed height.
+        let _ = interaction_height;
+        style.spacing.interact_size.y = font_size + 2.0 * button_padding.y;
         for (text_style, size, family) in [
             (
                 egui::TextStyle::Small,
-                (font_size - 1.4).max(9.0),
+                (font_size - 96.0 / 72.0).max(min_font_size),
                 egui::FontFamily::Proportional,
             ),
             (
@@ -6472,11 +6492,16 @@ mod tests {
             Color32::from_rgb(17, 24, 39)
         );
         assert_eq!(style.spacing.item_spacing, egui::vec2(10.0, 8.0));
-        assert_eq!(style.spacing.interact_size.y, 34.0);
         let body = style
             .text_styles
             .get(&egui::TextStyle::Body)
             .expect("body font");
+        // Controls follow the text and its padding (P11), not a fixed height.
+        assert!(
+            (style.spacing.interact_size.y - (body.size + 2.0 * style.spacing.button_padding.y))
+                .abs()
+                < 1.0e-3
+        );
         let monospace = style
             .text_styles
             .get(&egui::TextStyle::Monospace)

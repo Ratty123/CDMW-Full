@@ -196,26 +196,26 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         appearance_layout.addRow("Density", self.density_combo)
         self.ui_font_size_spin = QSpinBox()
         self.ui_font_size_spin.setRange(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX)
-        self.ui_font_size_spin.setSuffix(" px")
+        self.ui_font_size_spin.setSuffix(" pt")
         self.ui_font_size_spin.setKeyboardTracking(False)
         self.ui_font_size_spin.setAccelerated(True)
         self.ui_font_size_spin.setToolTip(
-            f"Global UI font size. Minimum {UI_FONT_SIZE_MIN} px, maximum {UI_FONT_SIZE_MAX} px."
+            f"Global UI font size. Minimum {UI_FONT_SIZE_MIN} pt, maximum {UI_FONT_SIZE_MAX} pt."
         )
         appearance_layout.addRow(
-            f"Global font size ({UI_FONT_SIZE_MIN}-{UI_FONT_SIZE_MAX} px)",
+            f"Global font size ({UI_FONT_SIZE_MIN}-{UI_FONT_SIZE_MAX} pt)",
             self.ui_font_size_spin,
         )
         self.data_font_size_spin = QSpinBox()
         self.data_font_size_spin.setRange(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX)
-        self.data_font_size_spin.setSuffix(" px")
+        self.data_font_size_spin.setSuffix(" pt")
         self.data_font_size_spin.setKeyboardTracking(False)
         self.data_font_size_spin.setAccelerated(True)
         self.data_font_size_spin.setToolTip(
-            f"Used for dense lists, trees, tables, and column-heavy views. Minimum {UI_FONT_SIZE_MIN} px, maximum {UI_FONT_SIZE_MAX} px."
+            f"Used for dense lists, trees, tables, and column-heavy views. Minimum {UI_FONT_SIZE_MIN} pt, maximum {UI_FONT_SIZE_MAX} pt."
         )
         appearance_layout.addRow(
-            f"Lists / columns font size ({UI_FONT_SIZE_MIN}-{UI_FONT_SIZE_MAX} px)",
+            f"Lists / columns font size ({UI_FONT_SIZE_MIN}-{UI_FONT_SIZE_MAX} pt)",
             self.data_font_size_spin,
         )
         self.log_font_family_combo = QComboBox()
@@ -224,8 +224,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.log_font_family_combo.setToolTip("Used for logs and code/text preview panes.")
         appearance_layout.addRow("Log / code font", self.log_font_family_combo)
         self.log_font_size_spin = QSpinBox()
-        self.log_font_size_spin.setRange(8, 18)
-        self.log_font_size_spin.setSuffix(" px")
+        self.log_font_size_spin.setRange(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX)
+        self.log_font_size_spin.setSuffix(" pt")
         self.log_font_size_spin.setKeyboardTracking(False)
         self.log_font_size_spin.setAccelerated(True)
         appearance_layout.addRow("Log / code size", self.log_font_size_spin)

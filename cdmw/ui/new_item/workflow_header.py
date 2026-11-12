@@ -27,6 +27,7 @@ from PySide6.QtWidgets import QAbstractButton, QApplication, QSizePolicy, QWidge
 
 from cdmw.constants import DEFAULT_UI_THEME
 from cdmw.ui.themes import get_theme
+from cdmw.ui.layout_metrics import small_font_points
 
 
 DEFAULT_STEP_LABELS = (
@@ -180,7 +181,7 @@ class _StepButton(QAbstractButton):
             painter.drawEllipse(badge)
             badge_font = QFont(self.font())
             badge_font.setBold(True)
-            badge_font.setPointSizeF(max(6.0, badge_font.pointSizeF() - 1.0))
+            badge_font.setPointSizeF(small_font_points(badge_font.pointSizeF()))
             painter.setFont(badge_font)
             painter.setPen(owner._warning_text)
             painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "!")

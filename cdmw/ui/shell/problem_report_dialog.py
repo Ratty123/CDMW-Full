@@ -32,6 +32,7 @@ from cdmw.ui.shell.problem_report_catalog import (
     REPORT_TOOLS, decode_item, decode_mod_setup, decode_tool, encode_item,
     encode_mod_setup, encode_tool, report_tool, tool_actions,
 )
+from cdmw.ui.layout_metrics import title_font_points
 
 
 class _ReportComboBox(QComboBox):
@@ -185,7 +186,7 @@ class ProblemReportDialog(QDialog):
         title = QLabel("Report a problem")
         title.setObjectName("ProblemReportTitle")
         title_font = title.font()
-        title_font.setPointSizeF(max(12.0, title_font.pointSizeF() + 5))
+        title_font.setPointSizeF(title_font_points(title_font.pointSizeF(), 5))
         title_font.setBold(True)
         title.setFont(title_font)
         title_layout.addWidget(title)
@@ -515,7 +516,7 @@ class ProblemReportDialog(QDialog):
         heading = QLabel(title)
         heading.setObjectName("ProblemReportTitle")
         font = heading.font()
-        font.setPointSizeF(max(11.0, font.pointSizeF() + 3))
+        font.setPointSizeF(title_font_points(font.pointSizeF(), 3))
         font.setBold(True)
         heading.setFont(font)
         heading.setWordWrap(True)

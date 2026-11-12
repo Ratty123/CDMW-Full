@@ -219,17 +219,17 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         help_button_size = max(16, ui_font_size + 8)
         return f"""
         QDialog#MeshReplacementAlignmentDialog {{
-            font-size: {ui_font_size}px;
+            font-size: {ui_font_size}pt;
         }}
         QDialog#MeshReplacementAlignmentDialog QLabel {{
-            font-size: {ui_font_size}px;
+            font-size: {ui_font_size}pt;
         }}
         QDialog#MeshReplacementAlignmentDialog QLabel#HintLabel {{
             color: {theme["text_muted"]};
-            font-size: {hint_font_size}px;
+            font-size: {hint_font_size}pt;
         }}
         QDialog#MeshReplacementAlignmentDialog QGroupBox {{
-            font-size: {ui_font_size}px;
+            font-size: {ui_font_size}pt;
             font-weight: 600;
             margin-top: 5px;
             padding-top: 5px;
@@ -240,15 +240,15 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             padding: 0 2px;
         }}
         QDialog#MeshReplacementAlignmentDialog QTabBar::tab {{
-            font-size: {ui_font_size}px;
+            font-size: {ui_font_size}pt;
             padding: 2px 7px;
         }}
         QDialog#MeshReplacementAlignmentDialog QCheckBox {{
-            font-size: {ui_font_size}px;
+            font-size: {ui_font_size}pt;
             spacing: 3px;
         }}
         QDialog#MeshReplacementAlignmentDialog QPushButton {{
-            font-size: {ui_font_size}px;
+            font-size: {ui_font_size}pt;
             padding: 1px 5px;
             min-height: {button_min_height}px;
         }}
@@ -256,27 +256,27 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         QDialog#MeshReplacementAlignmentDialog QLineEdit,
         QDialog#MeshReplacementAlignmentDialog QSpinBox,
         QDialog#MeshReplacementAlignmentDialog QDoubleSpinBox {{
-            font-size: {data_font_size}px;
+            font-size: {data_font_size}pt;
             min-height: {field_min_height}px;
         }}
         QDialog#MeshReplacementAlignmentDialog QTreeWidget {{
-            font-size: {data_font_size}px;
+            font-size: {data_font_size}pt;
         }}
         QDialog#MeshReplacementAlignmentDialog QTreeWidget::item {{
             padding: 0 2px;
         }}
         QDialog#MeshReplacementAlignmentDialog QHeaderView::section {{
-            font-size: {data_font_size}px;
+            font-size: {data_font_size}pt;
             padding: 0 3px;
         }}
         QDialog#MeshReplacementAlignmentDialog QTextBrowser,
         QDialog#MeshReplacementAlignmentDialog QTextEdit,
         QDialog#MeshReplacementAlignmentDialog QPlainTextEdit {{
-            font-size: {data_font_size}px;
+            font-size: {data_font_size}pt;
             line-height: 1.08;
         }}
         QDialog#MeshReplacementAlignmentDialog QProgressBar {{
-            font-size: {ui_font_size}px;
+            font-size: {ui_font_size}pt;
             min-height: {button_min_height}px;
         }}
         QDialog#MeshReplacementAlignmentDialog QPushButton#InlineHelpButton {{
@@ -296,7 +296,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             padding: 2px;
         }}
         QDialog#MeshReplacementAlignmentDialog QFrame#MeshEditVerticalToolPalette QToolButton {{
-            font-size: {ui_font_size}px;
+            font-size: {ui_font_size}pt;
             text-align: left;
             padding: 2px 6px;
             color: {theme["text"]};
@@ -316,7 +316,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             border-radius: 4px;
         }}
         QDialog#MeshReplacementAlignmentDialog QFrame#ClassicMeshEditPreviewActionBar QToolButton {{
-            font-size: {hint_font_size}px;
+            font-size: {hint_font_size}pt;
             padding: 1px 3px;
             min-width: 40px;
         }}
@@ -328,7 +328,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         }}
         QDialog#MeshReplacementAlignmentDialog QWidget#ClassicMeshEditPreviewOptions QLabel,
         QDialog#MeshReplacementAlignmentDialog QWidget#ClassicMeshEditPreviewOptions QCheckBox {{
-            font-size: {hint_font_size}px;
+            font-size: {hint_font_size}pt;
         }}
         """
 

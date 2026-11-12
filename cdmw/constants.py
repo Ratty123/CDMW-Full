@@ -208,8 +208,12 @@ MODEL_PREVIEW_GRID_COLOR = "#2f3740"
 DEFAULT_UI_FONT_FAMILY = "Segoe UI"
 DEFAULT_UI_FONT_SIZE = 10
 DEFAULT_UI_DATA_FONT_SIZE = 10
-UI_FONT_SIZE_MIN = 8
-UI_FONT_SIZE_MAX = 15
+# One font range for the UI, data and log fonts on every surface (P11 step 2).
+# The floor of 6 is the recommendation Fredric left open (decision 16).
+UI_FONT_SIZE_MIN = 6
+UI_FONT_SIZE_MAX = 16
+#: The text viewer's own zoom may go further than the UI fonts.
+TEXT_PREVIEW_FONT_SIZE_MAX = 22
 DEFAULT_UI_DENSITY = "compact"
 DEFAULT_UI_LOG_FONT_FAMILY = "Consolas"
 DEFAULT_UI_LOG_FONT_SIZE = 8

@@ -18,14 +18,6 @@ def get_theme(key: str) -> Dict[str, str]:
     return UI_THEME_SCHEMES.get(key, UI_THEME_SCHEMES[DEFAULT_UI_THEME])
 
 
-def _clamp_font_size(value: int, default: int) -> int:
-    try:
-        numeric = int(value)
-    except (TypeError, ValueError):
-        return int(default)
-    return max(9, min(16, numeric))
-
-
 def _density_metrics(density_key: str) -> Dict[str, int]:
     density = (density_key or DEFAULT_UI_DENSITY).strip().lower()
     if density == "comfortable":

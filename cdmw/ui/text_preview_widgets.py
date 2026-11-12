@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QSyntaxHighlighter, QTextChar
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
 from cdmw.ui.themes import get_theme
+from cdmw.constants import TEXT_PREVIEW_FONT_SIZE_MAX, UI_FONT_SIZE_MIN
 
 def _theme_is_light(theme_key: str) -> bool:
     theme = get_theme(theme_key)
@@ -466,7 +467,7 @@ class CodePreviewEditor(QPlainTextEdit):
         self._current_search_index = -1
         self._text_offset_revision = -1
         self._supplementary_positions: list[int] = []
-        self._editor_font_size = max(8, self.font().pointSize())
+        self._editor_font_size = max(UI_FONT_SIZE_MIN, self.font().pointSize())
         self.line_number_area = _LineNumberArea(self)
         self.syntax_highlighter = PreviewSyntaxHighlighter(
             self.document(),
@@ -718,14 +719,14 @@ class CodePreviewEditor(QPlainTextEdit):
         return cursor
 
     def adjust_font_size(self, delta: int) -> int:
-        self._editor_font_size = max(8, min(22, self._editor_font_size + delta))
+        self._editor_font_size = max(UI_FONT_SIZE_MIN, min(TEXT_PREVIEW_FONT_SIZE_MAX, self._editor_font_size + delta))
         font = self.font()
         font.setPointSize(self._editor_font_size)
         self._apply_editor_font(font)
         return self._editor_font_size
 
     def set_font_size(self, size: int) -> int:
-        self._editor_font_size = max(8, min(22, size))
+        self._editor_font_size = max(UI_FONT_SIZE_MIN, min(TEXT_PREVIEW_FONT_SIZE_MAX, size))
         font = self.font()
         font.setPointSize(self._editor_font_size)
         self._apply_editor_font(font)
@@ -736,11 +737,11 @@ class CodePreviewEditor(QPlainTextEdit):
         if preserve_size:
             updated_font.setPointSize(self._editor_font_size)
         else:
-            updated_font.setPointSize(max(8, min(22, updated_font.pointSize())))
+            updated_font.setPointSize(max(UI_FONT_SIZE_MIN, min(TEXT_PREVIEW_FONT_SIZE_MAX, updated_font.pointSize())))
         if self.font().toString() == updated_font.toString():
-            self._editor_font_size = max(8, min(22, updated_font.pointSize()))
+            self._editor_font_size = max(UI_FONT_SIZE_MIN, min(TEXT_PREVIEW_FONT_SIZE_MAX, updated_font.pointSize()))
             return
-        self._editor_font_size = max(8, min(22, updated_font.pointSize()))
+        self._editor_font_size = max(UI_FONT_SIZE_MIN, min(TEXT_PREVIEW_FONT_SIZE_MAX, updated_font.pointSize()))
         self._apply_editor_font(updated_font)
 
     def center_on_span(self, start: int, end: int) -> None:
