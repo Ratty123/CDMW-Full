@@ -78,6 +78,7 @@ def test_restore_backup_asks_and_puts_back_what_an_older_cdmw_changed(app, windo
     monkeypatch.setattr(patch_actions.QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(backup_dir))
     monkeypatch.setattr(patch_actions.QMessageBox, "question",
                         lambda *args, **kwargs: asked.append(args[2]) or answer)
+    window.archive.archive_package_root_edit.setText(str(tmp_path / "game"))
     button = window.archive.archive_restore_patch_backup_button
     assert button.text() == "Restore Backup..."
     button.click()
@@ -91,3 +92,22 @@ def test_restore_backup_asks_and_puts_back_what_an_older_cdmw_changed(app, windo
             app.processEvents()
             time.sleep(0.01)
         assert entry.paz_file.read_bytes() == b"what an older CDMW patched in"
+
+
+def test_restore_backup_refuses_a_backup_made_for_another_game_folder(app, window, tmp_path, monkeypatch):
+    """Decision 41: with CDMW pointed at another game folder, nothing is asked or written."""
+    entry, originals, backup_dir = _older_cdmw_backup(tmp_path)
+    (tmp_path / "other-game").mkdir()
+    window.archive.archive_package_root_edit.setText(str(tmp_path / "other-game"))
+    warned, asked = [], []
+    monkeypatch.setattr(patch_actions.QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(backup_dir))
+    monkeypatch.setattr(patch_actions.QMessageBox, "question", lambda *args, **kwargs: asked.append(args) or None)
+    monkeypatch.setattr(patch_actions.QMessageBox, "warning", lambda *args, **kwargs: warned.append(args[2]))
+    window.archive.archive_restore_patch_backup_button.click()
+    for _ in range(20):
+        app.processEvents()
+        time.sleep(0.01)
+    assert not asked
+    assert warned and "game folder the backup was made for" in warned[0]
+    assert str(tmp_path / "game") in warned[0]
+    assert entry.paz_file.read_bytes() == b"what an older CDMW patched in"

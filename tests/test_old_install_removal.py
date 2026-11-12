@@ -111,7 +111,7 @@ def _remove(plan, root, **overrides):
     options = dict(
         confirmed=True, configured_root=root, running_check=lambda: "",
         backup=lambda paths, label: service.backup_files(paths, description=label),
-        restore_backup=lambda path: service.restore_backup(path, confirmed=True),
+        restore_backup=lambda path: service.restore_backup(path, confirmed=True, game_root=root),
     )
     options.update(overrides)
     return removal.remove_old_install(plan, **options)
@@ -145,7 +145,7 @@ def test_an_overlay_install_is_removed_with_its_mount_and_registry_entries_and_c
     assert table.index_of(pathc_checksum(SHIPPED_DDS)) is not None and table.index_of(pathc_checksum(SHARED_DDS)) is not None
     assert (root / ".cdmw/independent-items.json").is_file()  # Send to DMM still uses it
     # The removal is itself undone by Restore Backup.
-    ArchiveMutationService().restore_backup(result.backup_dir, confirmed=True)
+    ArchiveMutationService().restore_backup(result.backup_dir, confirmed=True, game_root=root)
     assert _fingerprint(root) == before
 
 

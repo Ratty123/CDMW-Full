@@ -150,7 +150,8 @@ class OldInstallRemoval:
             return remove_old_install(
                 plan, confirmed=True, configured_root=configured,
                 backup=lambda paths, label: mutations.backup_files(paths, description=label, on_log=log),
-                restore_backup=lambda path: mutations.restore_backup(path, confirmed=True, on_log=log),
+                restore_backup=lambda path: mutations.restore_backup(path, confirmed=True, game_root=configured,
+                                                                     on_log=log),
                 on_log=log, stop_event=stop_event,
             )
 

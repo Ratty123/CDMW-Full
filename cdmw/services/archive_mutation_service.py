@@ -28,6 +28,63 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
 
 
+class RestoreOutsideGameFolder(PermissionError):
+    """Restore Backup refused a backup before writing anything (decision 41)."""
+
+
+def _inside(path: Path, folder: Path) -> bool:
+    try:
+        path.relative_to(folder)
+    except ValueError:
+        return False
+    return True
+
+
+def check_backup_targets(backup: Path | str, game_root: Path | str | None) -> list[tuple[Path, Path]]:
+    """Every (copy, target) pair of ``backup``, or a refusal naming the first path that is not allowed.
+
+    A target is allowed when its recorded path, with every link resolved, lies inside
+    ``game_root`` (also resolved). The copy it is restored from must lie inside the
+    backup folder itself. Nothing is written here.
+    """
+
+    import json
+
+    if game_root is None or not str(game_root).strip() or not Path(game_root).is_dir():
+        raise RestoreOutsideGameFolder(
+            "Choose the game folder in Browse Archives first. Restore Backup only writes inside it.")
+    root = Path(game_root).expanduser().resolve()
+    folder = Path(backup).expanduser().resolve()
+    manifest_path = folder / "backup_manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Backup manifest was not found under {folder}.")
+    try:
+        rows = json.loads(manifest_path.read_text(encoding="utf-8")).get("files", [])
+    except (OSError, ValueError, AttributeError) as error:
+        raise ValueError(f"The backup manifest in {folder} cannot be read: {error}") from error
+    pairs = []
+    for row in rows if isinstance(rows, list) else ():
+        recorded = str((row or {}).get("original_path", "")) if isinstance(row, dict) else ""
+        copy = str((row or {}).get("backup_path", "")) if isinstance(row, dict) else ""
+        if not recorded or not Path(recorded).is_absolute():
+            raise RestoreOutsideGameFolder(
+                f"Restore Backup refused {folder.name}: it names a file without a full path ({recorded or 'empty'}). "
+                "Nothing was written.")
+        target = Path(recorded).resolve()
+        if not _inside(target, root):
+            raise RestoreOutsideGameFolder(
+                f"Restore Backup refused {folder.name}: it would write {recorded}, which is outside the game folder "
+                f"CDMW is set to ({root}). Nothing was written. Point CDMW at the game folder the backup was made "
+                "for, then try again.")
+        source = Path(copy).resolve() if copy else None
+        if source is None or not _inside(source, folder):
+            raise RestoreOutsideGameFolder(
+                f"Restore Backup refused {folder.name}: the copy of {recorded} is not inside the backup folder "
+                f"({copy or 'empty'}). Nothing was written.")
+        pairs.append((source, target))
+    return pairs
+
+
 def _archive_patching():
     from cdmw.core import archive_patching
 
@@ -104,12 +161,22 @@ class ArchiveMutationService:
         backup: Path | str,
         *,
         confirmed: bool = False,
+        game_root: Path | str | None = None,
         on_log: Optional[Callable[[str], None]] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> Path:
+        """Put back the files ``backup`` holds, but only inside ``game_root`` (decision 41).
+
+        Every file the manifest names is checked before the first write: its recorded
+        path, links resolved, must lie inside the configured game folder, and its copy
+        inside the backup folder. Otherwise the whole backup is refused
+        (``RestoreOutsideGameFolder``) and nothing is written.
+        """
+
         if not confirmed:
             raise PermissionError("Archive backup restore requires explicit confirmation.")
         raise_if_cancelled(stop_event, "Archive backup restore cancelled before writing game files.")
+        check_backup_targets(backup, game_root)
         # A partial multi-file restore can break the checksum chain, so finish once started.
         from cdmw.services.installation_lane import backup_installation_lanes
         with backup_installation_lanes(Path(backup)):
@@ -121,4 +188,6 @@ __all__ = [
     "ArchiveMutationService",
     "ArchivePatchRequest",
     "ArchivePatchResult",
+    "RestoreOutsideGameFolder",
+    "check_backup_targets",
 ]

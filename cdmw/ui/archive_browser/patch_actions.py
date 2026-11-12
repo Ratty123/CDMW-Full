@@ -253,6 +253,17 @@ class ArchivePatchActionsMixin:
             )
             return
 
+        # Decision 41: a backup is put back only inside the game folder CDMW is set to.
+        game_root = str(getattr(getattr(self, "archive_package_root_edit", None), "text", lambda: "")() or "").strip()
+        from cdmw.services.archive_mutation_service import check_backup_targets
+
+        try:
+            check_backup_targets(backup_dir, game_root or None)
+        except (PermissionError, FileNotFoundError, ValueError) as refused:
+            self.shell.set_status_message(str(refused), error=True)
+            QMessageBox.warning(self, "Restore Backup", str(refused))
+            return
+
         confirmation = QMessageBox.question(
             self,
             "Restore Archive Patch Backup",
@@ -274,6 +285,7 @@ class ArchivePatchActionsMixin:
             return mutation_service.restore_backup(
                 backup_dir,
                 confirmed=True,
+                game_root=game_root,
                 on_log=log,
                 stop_event=stop_event,
             )
