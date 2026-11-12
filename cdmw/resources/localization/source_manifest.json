@@ -5536,7 +5536,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 364,
+          "line": 366,
           "sink": "_handle_failure"
         }
       ]
@@ -13206,7 +13206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 286,
+          "line": 288,
           "sink": "_begin_pending"
         }
       ]
@@ -13276,7 +13276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 327,
+          "line": 329,
           "sink": "_begin_pending"
         }
       ]
@@ -14501,12 +14501,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 904,
+          "line": 906,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 905,
+          "line": 907,
           "sink": "append_archive_log"
         }
       ]
@@ -14611,17 +14611,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 264,
+          "line": 266,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 265,
+          "line": 267,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 266,
+          "line": 268,
           "sink": "append_archive_log"
         }
       ]
@@ -14656,22 +14656,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 742,
+          "line": 744,
           "sink": "_set_archive_list_status"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 744,
+          "line": 746,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 745,
+          "line": 747,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 746,
+          "line": 748,
           "sink": "append_archive_log"
         }
       ]
@@ -14786,7 +14786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 176,
+          "line": 178,
           "sink": "ValueError"
         }
       ]
@@ -15861,17 +15861,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 264,
+          "line": 266,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 265,
+          "line": 267,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 266,
+          "line": 268,
           "sink": "append_archive_log"
         }
       ]
@@ -25036,7 +25036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 737,
+          "line": 739,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -25076,7 +25076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 737,
+          "line": 739,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -25116,12 +25116,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 259,
+          "line": 261,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 893,
+          "line": 895,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -25191,7 +25191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 899,
+          "line": 901,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -25211,7 +25211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 252,
+          "line": 254,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -25881,7 +25881,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 667,
+          "line": 669,
           "sink": "setText"
         },
         {
@@ -26136,7 +26136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 668,
+          "line": 670,
           "sink": "setToolTip"
         }
       ]
@@ -26476,7 +26476,7 @@
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 309,
+          "line": 311,
           "sink": "ValueError"
         }
       ]
@@ -26506,7 +26506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 268,
+          "line": 270,
           "sink": "ValueError"
         }
       ]
@@ -26541,7 +26541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 291,
+          "line": 293,
           "sink": "ValueError"
         }
       ]
@@ -46366,7 +46366,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 691,
+          "line": 693,
           "sink": "addTab"
         },
         {
@@ -52101,7 +52101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 913,
+          "line": 922,
           "sink": "set_status_message"
         }
       ]
@@ -53131,7 +53131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_d3d11_parts.py",
-          "line": 246,
+          "line": 254,
           "sink": "setToolTip"
         }
       ]
@@ -61291,7 +61291,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 627,
+          "line": 629,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -71011,7 +71011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_d3d11_parts.py",
-          "line": 219,
+          "line": 227,
           "sink": "addAction"
         }
       ]
@@ -73261,7 +73261,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 668,
+          "line": 670,
           "sink": "setToolTip"
         }
       ]
@@ -75676,7 +75676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 332,
+          "line": 334,
           "sink": "_push_history"
         },
         {
@@ -79746,7 +79746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 38,
+          "line": 64,
           "sink": "QPushButton"
         },
         {
@@ -80816,7 +80816,7 @@
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 127,
+          "line": 129,
           "sink": "ValueError"
         }
       ]
@@ -80826,7 +80826,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 159,
+          "line": 161,
           "sink": "ValueError"
         }
       ]
@@ -80836,7 +80836,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 62,
+          "line": 64,
           "sink": "ValueError"
         },
         {
@@ -80856,7 +80856,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 168,
+          "line": 170,
           "sink": "ValueError"
         }
       ]
@@ -80916,7 +80916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 331,
+          "line": 333,
           "sink": "ValueError"
         }
       ]
@@ -80931,17 +80931,17 @@
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 70,
+          "line": 72,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 99,
+          "line": 101,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 108,
+          "line": 110,
           "sink": "raise_if_cancelled"
         },
         {
@@ -80991,7 +80991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 125,
+          "line": 127,
           "sink": "ValueError"
         }
       ]
@@ -81021,7 +81021,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 281,
+          "line": 283,
           "sink": "ValueError"
         }
       ]
@@ -85802,6 +85802,16 @@
       ]
     },
     {
+      "key": "Load the game's archives before opening several files.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
+          "line": 181,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Load the optional recipe index.",
       "origins": [
         {
@@ -86041,12 +86051,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 663,
+          "line": 682,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 664,
+          "line": 683,
           "sink": "show_loading"
         }
       ]
@@ -86121,7 +86131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 214,
+          "line": 216,
           "sink": "_begin_pending"
         }
       ]
@@ -86141,17 +86151,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 290,
+          "line": 292,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 291,
+          "line": 293,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 390,
+          "line": 392,
           "sink": "setText"
         }
       ]
@@ -90736,7 +90746,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/documents.py",
-          "line": 234,
+          "line": 245,
           "sink": "python-return:document_label"
         },
         {
@@ -91051,7 +91061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1072,
+          "line": 1081,
           "sink": "set_status_message"
         }
       ]
@@ -91111,7 +91121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1070,
+          "line": 1079,
           "sink": "set_status_message"
         }
       ]
@@ -91196,17 +91206,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 460,
+          "line": 479,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 464,
+          "line": 483,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 465,
+          "line": 484,
           "sink": "emit"
         }
       ]
@@ -91246,7 +91256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 435,
+          "line": 438,
           "sink": "emit"
         }
       ]
@@ -91271,7 +91281,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 801,
+          "line": 820,
           "sink": "_stop_rust_editor_process"
         }
       ]
@@ -91281,12 +91291,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 539,
+          "line": 558,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 569,
+          "line": 588,
           "sink": "RuntimeError"
         }
       ]
@@ -91301,22 +91311,22 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 183,
+          "line": 185,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 184,
+          "line": 186,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 611,
+          "line": 630,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 612,
+          "line": 631,
           "sink": "emit"
         }
       ]
@@ -91571,7 +91581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 686,
+          "line": 705,
           "sink": "_set_rust_status"
         }
       ]
@@ -91656,22 +91666,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 961,
+          "line": 970,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 981,
+          "line": 990,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 988,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1008,
+          "line": 997,
           "sink": "set_status_message"
         },
         {
@@ -91681,7 +91686,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1031,
+          "line": 1026,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
+          "line": 1040,
           "sink": "set_status_message"
         }
       ]
@@ -91881,7 +91891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 735,
+          "line": 754,
           "sink": "emit"
         }
       ]
@@ -91891,7 +91901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 300,
+          "line": 302,
           "sink": "emit"
         }
       ]
@@ -91901,7 +91911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 667,
+          "line": 686,
           "sink": "emit"
         }
       ]
@@ -92171,7 +92181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 427,
+          "line": 430,
           "sink": "emit"
         }
       ]
@@ -92346,7 +92356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1074,
+          "line": 1083,
           "sink": "set_status_message"
         }
       ]
@@ -92436,12 +92446,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 221,
+          "line": 223,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 625,
+          "line": 644,
           "sink": "emit"
         }
       ]
@@ -102241,7 +102251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 326,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -105777,6 +105787,16 @@
       "manual": true
     },
     {
+      "key": "None of the ticked files is part of this preview.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
+          "line": 209,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "None selected",
       "origins": [
         {
@@ -107678,6 +107698,16 @@
           "path": "cdmw/ui/texture_workflow/setup_panel.py",
           "line": 387,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "One Mesh Editor session holds at most {value_0} files.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
+          "line": 212,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -109888,11 +109918,6 @@
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 508,
           "sink": "addAction"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 43,
-          "sink": "QPushButton"
         }
       ]
     },
@@ -110312,6 +110337,16 @@
       ]
     },
     {
+      "key": "Open ticked parts in Mesh Editor",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/item_set_components.py",
+          "line": 69,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Open values",
       "origins": [
         {
@@ -110656,7 +110691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 947,
+          "line": 956,
           "sink": "set_status_message"
         }
       ]
@@ -110946,7 +110981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 916,
+          "line": 925,
           "sink": "set_status_message"
         }
       ]
@@ -114371,7 +114406,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1019,
+          "line": 1028,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -115766,7 +115801,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 218,
+          "line": 220,
           "sink": "ValueError"
         }
       ]
@@ -120861,7 +120896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 171,
+          "line": 173,
           "sink": "ValueError"
         }
       ]
@@ -121076,7 +121111,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 627,
+          "line": 629,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -121116,7 +121151,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 633,
+          "line": 635,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -121356,7 +121391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 322,
+          "line": 324,
           "sink": "setText"
         }
       ]
@@ -121506,7 +121541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 83,
+          "line": 85,
           "sink": "progress"
         }
       ]
@@ -121656,7 +121691,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 100,
+          "line": 102,
           "sink": "progress"
         },
         {
@@ -122141,7 +122176,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 733,
+          "line": 752,
           "sink": "show_loading"
         }
       ]
@@ -122751,7 +122786,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 690,
+          "line": 692,
           "sink": "addTab"
         },
         {
@@ -122771,7 +122806,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1010,
+          "line": 1019,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -123791,7 +123826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_d3d11_parts.py",
-          "line": 246,
+          "line": 254,
           "sink": "setToolTip"
         }
       ]
@@ -125536,7 +125571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 914,
+          "line": 933,
           "sink": "setText"
         }
       ]
@@ -125546,7 +125581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 905,
+          "line": 924,
           "sink": "setText"
         }
       ]
@@ -130131,12 +130166,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 264,
+          "line": 266,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 744,
+          "line": 746,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -131081,7 +131116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 998,
+          "line": 1007,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -131136,7 +131171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 996,
+          "line": 1005,
           "sink": "set_status_message"
         }
       ]
@@ -133231,7 +133266,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 667,
+          "line": 669,
           "sink": "setText"
         },
         {
@@ -133531,7 +133566,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 214,
+          "line": 216,
           "sink": "_begin_pending"
         }
       ]
@@ -141301,12 +141336,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 233,
+          "line": 235,
           "sink": "_begin_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 235,
+          "line": 237,
           "sink": "set_status_message"
         }
       ]
@@ -146732,6 +146767,16 @@
       ]
     },
     {
+      "key": "Scene",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/item_set_components.py",
+          "line": 55,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Scene import cancelled.",
       "origins": [
         {
@@ -146791,7 +146836,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 318,
+          "line": 320,
           "sink": "setText"
         }
       ]
@@ -149961,7 +150006,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 955,
+          "line": 964,
           "sink": "set_status_message"
         }
       ]
@@ -150026,7 +150071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1079,
+          "line": 1088,
           "sink": "set_status_message"
         }
       ]
@@ -151883,6 +151928,16 @@
           "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
           "line": 235,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Select the file in Browse Archives before opening it in Mesh Editor.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
+          "line": 171,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -154347,16 +154402,6 @@
       ]
     },
     {
-      "key": "Set components",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 31,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Set for This Animation",
       "origins": [
         {
@@ -156316,7 +156361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 37,
+          "line": 63,
           "sink": "QPushButton"
         }
       ]
@@ -156336,7 +156381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_d3d11_parts.py",
-          "line": 218,
+          "line": 226,
           "sink": "addAction"
         }
       ]
@@ -169251,7 +169296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
-          "line": 90,
+          "line": 92,
           "sink": "emit"
         }
       ]
@@ -170506,7 +170551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 571,
+          "line": 590,
           "sink": "RuntimeError"
         }
       ]
@@ -170516,7 +170561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 541,
+          "line": 560,
           "sink": "RuntimeError"
         }
       ]
@@ -175146,7 +175191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 633,
+          "line": 635,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -176007,6 +176052,16 @@
       ]
     },
     {
+      "key": "These files could not be found in the archives: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
+          "line": 194,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "These files do not contain a unique path match, so you need to choose the correct original DDS for each one.",
       "origins": [
         {
@@ -176811,12 +176866,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
-          "line": 47,
+          "line": 49,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
-          "line": 67,
+          "line": 69,
           "sink": "_failed"
         }
       ]
@@ -178652,6 +178707,16 @@
       ]
     },
     {
+      "key": "Tick at least one part in the Scene panel to open it in Mesh Editor.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
+          "line": 159,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Tick every shop that should sell the new item, then choose Add selected shops.",
       "origins": [
         {
@@ -178678,6 +178743,16 @@
           "path": "cdmw/ui/new_item/component_list.py",
           "line": 73,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Tick to load this prefab component: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/item_set_components.py",
+          "line": 148,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -179866,7 +179941,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 293,
+          "line": 295,
           "sink": "ValueError"
         }
       ]
@@ -189551,7 +189626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 876,
+          "line": 878,
           "sink": "append_archive_log"
         }
       ]
@@ -189601,7 +189676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 765,
+          "line": 767,
           "sink": "append_archive_log"
         }
       ]
@@ -189621,7 +189696,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 718,
+          "line": 720,
           "sink": "append_archive_log"
         },
         {
@@ -200631,7 +200706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 162,
+          "line": 164,
           "sink": "TypeError"
         }
       ]
@@ -203021,17 +203096,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 259,
+          "line": 261,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 737,
+          "line": 739,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 893,
+          "line": 895,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -205666,7 +205741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 535,
+          "line": 554,
           "sink": "TypeError"
         }
       ]
@@ -209691,12 +209766,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 960,
+          "line": 979,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 961,
+          "line": 980,
           "sink": "emit"
         }
       ]
@@ -209706,12 +209781,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 956,
+          "line": 975,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 957,
+          "line": 976,
           "sink": "emit"
         }
       ]
@@ -209771,7 +209846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 935,
+          "line": 954,
           "sink": "emit"
         }
       ]
@@ -209781,7 +209856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 932,
+          "line": 951,
           "sink": "setText"
         }
       ]
@@ -209916,7 +209991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1040,
+          "line": 1059,
           "sink": "setText"
         }
       ]
@@ -210006,12 +210081,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1033,
+          "line": 1052,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1034,
+          "line": 1053,
           "sink": "emit"
         }
       ]
@@ -210056,7 +210131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 942,
+          "line": 961,
           "sink": "emit"
         }
       ]
@@ -216021,7 +216096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 899,
+          "line": 901,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -216101,7 +216176,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 252,
+          "line": 254,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -218496,7 +218571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/documents.py",
-          "line": 239,
+          "line": 250,
           "sink": "python-return:document_label"
         }
       ]
@@ -218906,7 +218981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/documents.py",
-          "line": 239,
+          "line": 250,
           "sink": "python-return:document_label"
         },
         {
@@ -222076,7 +222151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 998,
+          "line": 1007,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -222661,7 +222736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 998,
+          "line": 1007,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -225026,7 +225101,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 440,
+          "line": 443,
           "sink": "emit"
         },
         {

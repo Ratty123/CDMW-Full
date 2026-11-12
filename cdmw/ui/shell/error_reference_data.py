@@ -7735,7 +7735,7 @@ MESSAGE_REFERENCE = [
     "message": "A set preview supports at most 32 additional model files.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_window_bridge.py": 364
+      "cdmw/ui/archive_browser/remote_window_bridge.py": 366
     }
   },
   {
@@ -17741,7 +17741,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: archive folder filters could not be loaded from the worker: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_window_bridge.py": 876
+      "cdmw/ui/archive_browser/remote_window_bridge.py": 878
     }
   },
   {
@@ -43941,7 +43941,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive dependencies belong to a different mesh source",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 176
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 178
     }
   },
   {
@@ -43949,7 +43949,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive loader returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 406
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 408
     }
   },
   {
@@ -45587,7 +45587,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_asset_context.py": 81,
-      "cdmw/services/mesh_item_set_editing.py": 309
+      "cdmw/services/mesh_item_set_editing.py": 311
     }
   },
   {
@@ -45651,7 +45651,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot finish sculpted normals for source file: {asset.entry.basename}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 268
+      "cdmw/services/mesh_item_set_editing.py": 270
     }
   },
   {
@@ -45675,7 +45675,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot paste geometry between source files; select its original file",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 291
+      "cdmw/services/mesh_item_set_editing.py": 293
     }
   },
   {
@@ -51260,7 +51260,7 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/mesh_asset_context.py": 62,
-      "cdmw/services/mesh_item_set_editing.py": 127
+      "cdmw/services/mesh_item_set_editing.py": 129
     }
   },
   {
@@ -51268,7 +51268,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set contains no editable files",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 159
+      "cdmw/services/mesh_item_set_editing.py": 161
     }
   },
   {
@@ -51276,9 +51276,9 @@ MESSAGE_REFERENCE = [
     "message": "Item set dependencies do not match the selected mesh",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 62,
+      "cdmw/services/mesh_item_set_editing.py": 64,
       "cdmw/services/mesh_item_set_references.py": 24,
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 168
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 170
     }
   },
   {
@@ -51302,7 +51302,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set inclusion no longer matches its parts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 331
+      "cdmw/services/mesh_item_set_editing.py": 333
     }
   },
   {
@@ -51326,7 +51326,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set needs an original game mesh: {entry.basename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 125
+      "cdmw/services/mesh_item_set_editing.py": 127
     }
   },
   {
@@ -51342,7 +51342,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set selection no longer matches its parts",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 281
+      "cdmw/services/mesh_item_set_editing.py": 283
     }
   },
   {
@@ -52344,7 +52344,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1072
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1081
     }
   },
   {
@@ -52376,7 +52376,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor archive load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 460
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 479
     }
   },
   {
@@ -52393,7 +52393,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/ui/mesh_editor/tab_rust_process.py": 822,
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 801
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 820
     }
   },
   {
@@ -52401,7 +52401,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 539
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 558
     }
   },
   {
@@ -52410,7 +52410,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/shell_bridge.py": 706,
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 183
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 185
     }
   },
   {
@@ -52540,7 +52540,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor file load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 686
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 705
     }
   },
   {
@@ -52573,7 +52573,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 961
+      "cdmw/ui/mesh_editor/shell_bridge.py": 970
     }
   },
   {
@@ -55772,7 +55772,7 @@ MESSAGE_REFERENCE = [
     "message": "No editable item set is open",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 326
+      "cdmw/services/mesh_item_set_editing.py": 328
     }
   },
   {
@@ -58062,7 +58062,7 @@ MESSAGE_REFERENCE = [
     "message": "Part rig differs from its source file: {asset.entry.basename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 218
+      "cdmw/services/mesh_item_set_editing.py": 220
     }
   },
   {
@@ -58353,7 +58353,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared editor geometry belongs to another archive target",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 171
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 173
     }
   },
   {
@@ -59301,7 +59301,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status parse failed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 914
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 933
     }
   },
   {
@@ -59309,7 +59309,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status read failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 905
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 924
     }
   },
   {
@@ -59654,7 +59654,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 996
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1005
     }
   },
   {
@@ -62885,7 +62885,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive catalogue changed while preparing the item set.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/item_set_preparation.py": 90
+      "cdmw/ui/mesh_editor/item_set_preparation.py": 92
     }
   },
   {
@@ -63165,7 +63165,7 @@ MESSAGE_REFERENCE = [
     "message": "The current Finish must stop before another mesh file can open.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 571
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 590
     }
   },
   {
@@ -63173,7 +63173,7 @@ MESSAGE_REFERENCE = [
     "message": "The current Finish must stop before another mesh session can open.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 541
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 560
     }
   },
   {
@@ -63924,6 +63924,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "These files could not be found in the archives: {missing}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/ui/mesh_editor/item_set_preparation.py": 194
+    }
+  },
+  {
+    "area": "mesh",
     "message": "This .NET helper cannot update materials in place. Update the helper to enable Textured view; the current untextured scene remains active.",
     "recovery": "input",
     "sources": {
@@ -64008,7 +64016,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/mesh_editor/hair_reference_picker.py": 384,
-      "cdmw/ui/mesh_editor/item_set_preparation.py": 47
+      "cdmw/ui/mesh_editor/item_set_preparation.py": 49
     }
   },
   {
@@ -64355,7 +64363,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology edits must stay within one source file",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 293
+      "cdmw/services/mesh_item_set_editing.py": 295
     }
   },
   {
@@ -66944,7 +66952,7 @@ MESSAGE_REFERENCE = [
     "message": "entry must be ArchiveEntry",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 162
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 164
     }
   },
   {
@@ -69932,7 +69940,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh must be ParsedMesh",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 535
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 554
     }
   },
   {
@@ -72959,7 +72967,7 @@ MESSAGE_REFERENCE = [
     "message": "preview error: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 956
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 975
     }
   },
   {
@@ -73041,7 +73049,7 @@ MESSAGE_REFERENCE = [
     "message": "preview process error; retry scheduled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1040
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1059
     }
   },
   {
@@ -112298,6 +112306,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/mesh_editor/icons.py": {},
   "cdmw/ui/mesh_editor/item_set_preparation.py": {
+    "display": 1,
     "failure": 1,
     "signal": 3
   },

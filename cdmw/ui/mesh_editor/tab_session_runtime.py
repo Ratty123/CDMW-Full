@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from cdmw.domain.archives.item_sets import MAX_SET_FILES
+
 import copy
 import json
 from pathlib import Path
@@ -162,7 +164,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             raise TypeError("entry must be ArchiveEntry")
         item_set_contexts = tuple(item_set_contexts)
         if item_set_contexts and (
-                len(item_set_contexts) > 33
+                len(item_set_contexts) > MAX_SET_FILES
                 or item_set_contexts[0].selected_entry.identity != entry.identity
                 or len({context.selected_entry.identity for context in item_set_contexts}) != len(item_set_contexts)):
             raise ValueError("Item set dependencies do not match the selected mesh")
@@ -413,6 +415,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             result.view.session_id,
             result.skeleton_resolution_reason if result.source_skeleton is None else "",
         )
+        self._apply_pending_view_hidden_parts(result, entry)
         view = self.standalone_controller.attach_session(result.view.session_id)
         self._show_standalone_session(view, mesh=result.mesh, target_entry=entry)
         self._restore_cached_mesh_character_context(entry)
@@ -438,6 +441,22 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             )
         if result.appearance_warning:
             self.status_message_requested.emit(f"{entry.basename}: {result.appearance_warning}", False)
+
+    def _apply_pending_view_hidden_parts(self, result: object, entry: object) -> None:
+        """Parts left unticked in the Scene panel start with View off (P5); output is unchanged."""
+
+        pending = getattr(self, "pending_view_hidden_parts", None)
+        self.pending_view_hidden_parts = None
+        if not pending:
+            return
+        key = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().casefold()
+        locals_hidden = tuple(int(index) for index in pending.get(key, ()))
+        try:
+            session = result.service._session(result.view.session_id)
+        except (AttributeError, KeyError):
+            return
+        count = len(session.working_mesh.submeshes)
+        session.viewport_hidden_parts = tuple(sorted({index for index in locals_hidden if 0 <= index < count}))
 
     @staticmethod
     def _discard_archive_session_result(result: object) -> None:

@@ -1,6 +1,8 @@
 """Compose an editable set, then return each part to its captured PAC owner."""
 from __future__ import annotations
 
+from cdmw.domain.archives.item_sets import MAX_SET_FILES
+
 import copy
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import replace
@@ -55,7 +57,7 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
 
     stop_event = stop_event or threading.Event()
     primary = service.capture_export_snapshot(session_id, stop_event=stop_event)
-    if (not 1 <= len(contexts) <= 33 or contexts[0].selected_entry.path.casefold() != primary.mesh.path.casefold()
+    if (not 1 <= len(contexts) <= MAX_SET_FILES or contexts[0].selected_entry.path.casefold() != primary.mesh.path.casefold()
             or len({context.selected_entry.identity for context in contexts}) != len(contexts)
             or (contexts[0].selected_entry.prepared_sha256 and contexts[0].selected_entry.prepared_sha256.casefold()
                 != hashlib.sha256(primary.original_data).hexdigest())):

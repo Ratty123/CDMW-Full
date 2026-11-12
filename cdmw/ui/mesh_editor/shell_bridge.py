@@ -909,6 +909,15 @@ class MeshEditorShellBridgeMixin:
             archive_dependencies=archive_dependencies,
             **session_options,
         )
+        # P5: parts left unticked in the Scene panel start with View off.
+        pending = getattr(self, "_mesh_editor_pending_hidden_parts", None)
+        self._mesh_editor_pending_hidden_parts = None
+        if pending:
+            from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+            document = created_tool_widget(self.mesh_editor_tab)
+            if document is not None:
+                document.pending_view_hidden_parts = dict(pending)
         if binding is not None:
             self.set_status_message(f"Editing {entry.basename} in Browse Archives.")
             return

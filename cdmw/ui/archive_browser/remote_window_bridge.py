@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from cdmw.domain.archives.item_sets import MAX_SET_FILES
+
 from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -360,7 +362,7 @@ class ArchiveRemoteWindowBridge(QObject):
                 or getattr(self._window.shell, "_shutting_down", False)):
             return
         members = worn_set_members(tuple(entries))
-        if len(members) > 33:
+        if len(members) > MAX_SET_FILES:
             self._handle_failure("item_set_scope", "A set preview supports at most 32 additional model files.")
             return
         self.item_set_members = members

@@ -136,14 +136,8 @@ class ArchivePreviewD3D11PartsMixin:
             return
         bridge = getattr(self, "archive_remote_bridge", None)
         panel = getattr(self, "archive_item_set_components", None)
-        if panel is not None:
-            if bridge is not None and bridge.item_set_contains(getattr(self, "archive_preview_request_entry", None)):
-                panel.set_parts(batches, tuple(entry.path for entry in bridge.item_set_members))
-                self._archive_item_set_visibility_active = panel.active
-                selected = self._current_archive_entry()
-                panel.highlight_path(str(getattr(selected, "path", "")))
-            else:
-                panel.reset()
+        is_set = bool(bridge is not None
+                      and bridge.item_set_contains(getattr(self, "archive_preview_request_entry", None)))
         current_entry_getter = getattr(self, "_current_archive_entry", None)
         current_entry = current_entry_getter() if callable(current_entry_getter) else None
         self._sync_archive_character_context_source(current_entry)
@@ -212,7 +206,21 @@ class ArchivePreviewD3D11PartsMixin:
             if isinstance(source_indices, list) and source_index not in source_indices:
                 source_indices.append(source_index)
         self.archive_character_context_loaded_indices = tuple(sorted(set(context_indices)))
+        if panel is not None:
+            # P5: the Scene panel beside every 3D preview, not only Item Finder sets.
+            prefab_components = tuple(
+                (str(row.get("model_path") or ""), str(row.get("label") or ""))
+                for key, row in rows.items() if key.startswith("prefab|") and row.get("model_path")
+            )
+            members = tuple(entry.path for entry in bridge.item_set_members) if is_set else ()
+            panel.set_parts(batches, members, prefab_components=prefab_components)
+            self._archive_item_set_visibility_active = panel.active
+            if is_set:
+                selected = self._current_archive_entry()
+                panel.highlight_path(str(getattr(selected, "path", "")))
         if len(rows) <= 1:
+            if getattr(self, "_archive_item_set_visibility_active", False):
+                self._set_archive_d3d11_hidden_parts_from_menu()
             return
         menu = self.archive_d3d11_part_visibility_menu
         show_all_action = menu.addAction("Show all parts")
@@ -314,6 +322,36 @@ class ArchivePreviewD3D11PartsMixin:
             self._archive_item_set_visibility_changed()
         else:
             self._set_archive_d3d11_hidden_parts_from_menu()
+
+    def _archive_scene_open_file(self, path: str) -> None:
+        """Open in Mesh Editor on one file of the Scene panel (P5)."""
+
+        key = str(path or "").replace("\\", "/").strip().casefold()
+        current = self._current_archive_entry()
+        entry = current if str(getattr(current, "path", "")).replace("\\", "/").casefold() == key else None
+        if entry is None:
+            entries = tuple((getattr(self, "archive_entries_by_normalized_path", {}) or {}).get(key, ()))
+            entry = entries[0] if entries else None
+        launch = getattr(getattr(self, "shell", None), "_launch_archive_mesh_editor_for_entry", None)
+        if entry is not None and callable(launch):
+            launch(entry)
+
+    def _archive_scene_prefab_toggled(self, path: str, checked: bool) -> None:
+        """A prefab component file ticked in the Scene panel loads, as its Parts entry does (P5)."""
+
+        path_key = self._archive_d3d11_prefab_component_path_key(path)
+        group_key = f"prefab|{path_key}"
+        group = (getattr(self, "archive_d3d11_part_visibility_groups", {}) or {}).get(group_key)
+        if group is not None and hasattr(group[0], "setChecked"):
+            group[0].setChecked(bool(checked))  # its toggle loads or unloads it
+            return
+        selected_paths = set(self._archive_d3d11_enabled_prefab_component_paths())
+        if checked and path_key:
+            selected_paths.add(path_key)
+        else:
+            selected_paths.discard(path_key)
+        if self._set_archive_d3d11_enabled_prefab_component_paths(selected_paths):
+            self._reload_archive_d3d11_prefab_components()
 
     def _handle_archive_d3d11_part_toggled(self, group_key: str, checked: bool) -> None:
         if bool(getattr(self, "archive_d3d11_part_visibility_bulk_update", False)):

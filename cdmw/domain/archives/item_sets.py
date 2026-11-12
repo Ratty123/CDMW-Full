@@ -3,6 +3,10 @@ from pathlib import PurePosixPath
 
 from cdmw.domain.archives.catalogue import ArchiveEntryDto
 
+#: Model files one set session holds at most: the file the edit starts from and
+#: 32 more (P5: one constant for the preview, the preparation and the session).
+MAX_SET_FILES = 33
+
 
 def worn_set_members(entries: tuple[ArchiveEntryDto, ...]) -> tuple[ArchiveEntryDto, ...]:
     models = tuple(entry for entry in entries if entry.extension.casefold() == ".pac")
