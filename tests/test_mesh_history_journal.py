@@ -225,3 +225,21 @@ def test_the_journal_keeps_no_more_than_the_history_limit(tmp_path) -> None:
     on_disk = sorted(path.name for path in project_root.iterdir() if path.name.startswith("generation-"))
     assert on_disk == sorted({record.generation for record in records} | {descriptor["previous_generation"]})
     service.close_edit_session(session_id)
+
+
+def test_the_recovery_point_survives_pruning_and_replaces_its_predecessor(tmp_path) -> None:
+    kept = _record(tmp_path, 0)
+    _put(tmp_path, kept)
+    first = _generation(tmp_path, "generation-2000-aaaaaaaa", payload='{"r":1}')
+    journal.write_editor_recovery(tmp_path, first, base_generation=kept.generation)
+    stray = _generation(tmp_path, "generation-2001-bbbbbbbb")
+    journal.prune_unjournaled_generations(tmp_path, keep=(kept.generation,))
+    assert (tmp_path / first).is_dir() and not (tmp_path / stray).exists()
+    second = _generation(tmp_path, "generation-2002-cccccccc", payload='{"r":2}')
+    journal.write_editor_recovery(tmp_path, second, base_generation=kept.generation)
+    assert not (tmp_path / first).exists()
+    recovery = journal.read_editor_recovery(tmp_path)
+    assert recovery["generation"] == second and recovery["base_generation"] == kept.generation
+    journal.clear_editor_recovery(tmp_path)
+    assert journal.read_editor_recovery(tmp_path) is None and not (tmp_path / second).exists()
+    assert (tmp_path / kept.generation).is_dir()

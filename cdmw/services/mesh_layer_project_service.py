@@ -364,9 +364,23 @@ def load_mesh_layer_project(
 
     stop = stop_event or threading.Event()
     target = Path(project_path).expanduser().resolve()
-    if not target.is_file():
+    if generation is not None:
+        # One named generation: it says what it holds itself. The project may
+        # point elsewhere (an unfinished editor state) or not exist yet.
+        manifest = (target.parent / str(generation[0] or "")).resolve() / "generation.json"
+        if target.parent.resolve() not in manifest.parents:
+            raise ValueError("Layer generation path escapes the project")
+        raw_generation = json.loads(manifest.read_text(encoding="utf-8"))
+        if not isinstance(raw_generation, Mapping):
+            raise ValueError("unsupported layer generation")
+        descriptor = {
+            "format": str(raw_generation.get("format") or "").replace("_generation_", "_project_"),
+            "source_asset_sha256": raw_generation.get("source_asset_sha256"),
+        }
+    elif not target.is_file():
         return None
-    descriptor = json.loads(target.read_text(encoding="utf-8"))
+    else:
+        descriptor = json.loads(target.read_text(encoding="utf-8"))
     if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT, MESH_JIGGLE_PROJECT_FORMAT, MESH_MORPH_PROJECT_FORMAT}:
         raise ValueError("Unsupported Mesh Editor layer project descriptor")
     expected_hash = str(expected_source_asset_sha256 or "").strip().lower()

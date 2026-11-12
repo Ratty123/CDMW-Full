@@ -1218,3 +1218,97 @@ def test_resumed_refit_primary_follows_the_moved_game_file_only_for_its_own_byte
         assert not rebase_restored_archive_locations(service, session_id, moved)
     finally:
         loaded.service.close_edit_session(loaded.view.session_id, force_without_saving=True)
+
+
+# ------------------------------------------------- P14: unfinished editor edits
+
+
+def _editor(loaded, root: Path) -> RustMeshAuthoringSession:
+    return RustMeshAuthoringSession.create(
+        SimpleNamespace(mesh_service=loaded.service, active_session_id=loaded.view.session_id),
+        root, process_generation=11,
+    )
+
+
+def _move_in_editor(editor: RustMeshAuthoringSession, x: float, request_id: int = 1) -> None:
+    request = _request(editor, "transaction_request", request_id)
+    request["candidate"] = _candidate_reference(editor, request_id=request_id, first_x=x)
+    request["label"] = "Move"
+    editor.apply_candidate(request)
+
+
+def _wait_for_recovery(project: Path, timeout: float = 20.0) -> dict:
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        recovery = read_editor_recovery(project)
+        if recovery is not None:
+            return recovery
+        time.sleep(0.05)
+    raise AssertionError("the Mesh Editor kept no recovery point")
+
+
+def _shadow_x(editor: RustMeshAuthoringSession) -> float:
+    return editor.shadow_service.working_mesh(editor.shadow_session_id, clone=False).submeshes[0].vertices[0][0]
+
+
+def test_unfinished_editor_edits_come_back_after_a_crash(game, tmp_path):
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    manifest = first.draft_manifest_path
+    original_x = _first_x(first)
+    editor = _editor(first, tmp_path / "rust-first")
+    assert editor.recovered_edits_at == 0.0
+    _move_in_editor(editor, original_x + 0.25)
+    project = manifest.parent / "mesh_layers"
+    recovery = _wait_for_recovery(project)
+    assert recovery["base_generation"] == ""  # the draft had no finished state yet
+    # The draft itself still holds what was last finished: nothing.
+    assert not (project / "mesh_layer_project.json").exists()
+    # A crash: neither Finish nor Discard runs.
+    editor.shadow_service.close_edit_session(editor.shadow_session_id, force_without_saving=True)
+    first.service.close_edit_session(first.view.session_id, force_without_saving=True)
+
+    rows = list_saved_work(game.drafts)
+    launch = prepare_saved_work_launch(game.drafts, rows[0], game.entry, edited_note=EDITED_RESULT_NOTE)
+    resumed = _load(launch.selected_entry, game.context, game.drafts, draft_request=launch.draft_request)
+    try:
+        assert _first_x(resumed) == pytest.approx(original_x, abs=2e-5)
+        again = _editor(resumed, tmp_path / "rust-again")
+        assert again.recovered_edits_at > 0.0
+        assert _shadow_x(again) == pytest.approx(original_x + 0.25, abs=2e-5)
+        view = again.shadow_service.session_view(again.shadow_session_id)
+        assert [entry.label for entry in view.history_entries] == ["Recovered edits"]
+        again.shadow_service.undo(again.shadow_session_id)
+        assert _shadow_x(again) == pytest.approx(original_x, abs=2e-5)
+        again.shadow_service.redo(again.shadow_session_id)
+        again.finish(_request(again, "finish_request", 2))
+        _wait_for_autosave(resumed)
+        assert _first_x(resumed) == pytest.approx(original_x + 0.25, abs=2e-5)
+        from cdmw.services.mesh_history_journal import read_editor_recovery
+        assert read_editor_recovery(project) is None  # finished: the draft holds the edits now
+    finally:
+        resumed.service.close_edit_session(resumed.view.session_id, force_without_saving=True)
+
+
+def test_discarded_editor_edits_leave_no_recovery_point(game, tmp_path):
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    try:
+        original_x = _first_x(first)
+        _finish_move(first, tmp_path / "rust-first", original_x + 0.1)
+        _wait_for_autosave(first)
+        project = first.draft_manifest_path.parent / "mesh_layers"
+        editor = _editor(first, tmp_path / "rust-second")
+        _move_in_editor(editor, original_x + 0.5)
+        recovery = _wait_for_recovery(project)
+        descriptor = json.loads((project / "mesh_layer_project.json").read_text(encoding="utf-8"))
+        assert recovery["base_generation"] == descriptor["current_generation"]
+        assert (project / recovery["generation"]).is_dir()
+        editor.cancel()
+        assert read_editor_recovery(project) is None
+        assert not (project / recovery["generation"]).exists()
+        assert _first_x(first) == pytest.approx(original_x + 0.1, abs=2e-5)
+    finally:
+        _close(first)

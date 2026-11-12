@@ -7746,6 +7746,8 @@ class RustMeshAuthoringSession:
     #: service for about two seconds; ``query_deferred_morph_state`` sends it later.
     defer_morph_state: bool = field(default=False, repr=False)
     deferred_morph_ready: bool = field(default=False, repr=False)
+    #: P14: when the unfinished edits this editor continued from were saved (0.0: none).
+    recovered_edits_at: float = 0.0
     # Copied from the opened session: where Finish Edit Mesh sends the edit back to.
     handoff_target: str = ""
     state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
@@ -7997,6 +7999,7 @@ class RustMeshAuthoringSession:
             )
             if authoritative_morph_root is not None:
                 (authoritative_morph_root.parent / "mesh_presets").mkdir(parents=True, exist_ok=True)
+            instance.recovered_edits_at = instance._attach_editor_recovery(authoritative_session)
             report("Preparing Mesh Editor files...")
             instance.defer_morph_state = bool(defer_morph_state)
             instance.open_stage_ms.update(stage_marks)
@@ -8021,6 +8024,40 @@ class RustMeshAuthoringSession:
             raise
         finally:
             _dispose_shadow_morph_seed(authoritative_service, authoritative_morph_state)
+
+    def _attach_editor_recovery(self, authoritative_session: object) -> float:
+        """Keep the shadow's unfinished state beside the draft, and pick one up (P14)."""
+
+        project_path = getattr(authoritative_session, "mesh_layer_project_path", None)
+        source_hash = str(getattr(authoritative_session, "mesh_asset_source_hash", "") or "")
+        if project_path is None or len(source_hash) != 64:
+            return 0.0
+        plan = getattr(authoritative_session, "mesh_draft_plan", None)
+        draft = (plan, bytes(getattr(authoritative_session, "original_data", b"") or b"")) if plan is not None else None
+        try:
+            return self.shadow_service.attach_editor_recovery(
+                self.shadow_session_id, Path(project_path), source_hash,
+                base_generation=str(getattr(authoritative_session, "mesh_layer_loaded_generation", "") or ""),
+                draft=draft,
+            )
+        except Exception:
+            # Recovery is a safety net; the editor opens without it.
+            return 0.0
+
+    def _end_editor_recovery(self) -> None:
+        """The edits were finished or discarded: their recovery point goes."""
+
+        from cdmw.services import mesh_history_journal as journal
+
+        try:
+            self.shadow_service.detach_editor_recovery(self.shadow_session_id, clear=False)
+            project_path = self.authoritative_service._session(self.authoritative_session_id).mesh_layer_project_path
+            if project_path is not None:
+                project_root = Path(project_path).parent
+                with journal.project_lock(project_root):
+                    journal.clear_editor_recovery(project_root)
+        except Exception:
+            pass
 
     def _require_open(self) -> None:
         if self.closed:
@@ -9245,6 +9282,10 @@ class RustMeshAuthoringSession:
             ):
                 session.revision += 1
             self.state_cache.transition(session, before_revision=before_revision, change=mesh_change)
+            if (mesh_change != "none" and session.revision != int(before_revision)
+                    and session.history_recovery_target is not None):
+                # The unfinished state goes beside the draft on autosave's delay (P14).
+                self.shadow_service._schedule_mesh_layer_autosave(session)
             return int(session.revision)
 
     def _apply_candidate_geometry(self, candidate, raw_submeshes, operations, active_lod_index):
@@ -10863,6 +10904,7 @@ class RustMeshAuthoringSession:
                 ) from commit_error
             raise
         result = self._complete_accepted_finish(cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication, exact_output_validation, free_edit_output_validation)
+        self._end_editor_recovery()  # the draft holds these edits now (P14)
         # Keep the typed host report with the revision actually committed. The
         # control payload may be staged on disk and describes a disposed shadow;
         # neither the Rust reply nor an old UI report is export authority.
@@ -10886,6 +10928,7 @@ class RustMeshAuthoringSession:
             return
         if not self.request_cancel():
             return
+        self._end_editor_recovery()  # discarded (P14)
         with self._protocol_lock:
             if not self.closed:
                 self._dispose_shadow()

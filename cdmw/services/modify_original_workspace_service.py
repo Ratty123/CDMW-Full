@@ -132,8 +132,15 @@ def _read_modify_original_draft(manifest_path: Path) -> ModifyOriginalDraft | No
         "mesh_layer_project",
         workspace / "mesh_layers" / "mesh_layer_project.json",
     )
-    if layer_project is None or not layer_project.is_file():
+    if layer_project is None:
         return None
+    if not layer_project.is_file():
+        # A first Mesh Editor session that never finished (a crash) left only
+        # its unfinished edits; the draft opens to continue from them (P14).
+        from cdmw.services.mesh_history_journal import read_editor_recovery
+
+        if not session_draft or read_editor_recovery(layer_project.parent) is None:
+            return None
     if not session_draft and (editable_obj is None or not editable_obj.is_file()):
         return None
     source_hash = str(payload.get("source_asset_sha256") or "").strip().lower()

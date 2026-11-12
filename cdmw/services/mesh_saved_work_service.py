@@ -428,7 +428,12 @@ def _draft_row(workspace: Path) -> SavedWorkRow | None:
     if not project.is_absolute():
         project = workspace / project
     if not project.is_file():
-        return None
+        # A draft whose first Mesh Editor session never finished, as after a
+        # crash, still has its unfinished edits to continue from (P14).
+        from cdmw.services.mesh_history_journal import read_editor_recovery
+
+        if read_editor_recovery(project.parent) is None:
+            return None
     source_hash = _clean_sha(manifest.get("source_asset_sha256"))
     if not source_hash:
         return None

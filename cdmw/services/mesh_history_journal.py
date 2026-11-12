@@ -14,8 +14,10 @@ line, which is ignored. Replacing or dropping records rewrites the file
 atomically.
 
 ``draft`` records are states the draft itself was at (the descriptor pointed at
-them). ``editor`` records are Mesh Editor states that were not finished yet; a
-draft reopened after a crash continues from the newest of them.
+them). The Mesh Editor edits a shadow session, and the draft receives its work
+at Finish; until then the newest unfinished state is kept as one recovery point
+(``editor_recovery.json`` and its generation), which a Mesh Editor reopened on
+the same draft state after a crash continues from.
 """
 
 from __future__ import annotations
@@ -34,6 +36,8 @@ from cdmw.core.atomic_file import atomic_write_text
 
 JOURNAL_NAME = "history_journal.jsonl"
 JOURNAL_FORMAT = "cdmw_mesh_history_journal_v1"
+RECOVERY_NAME = "editor_recovery.json"
+RECOVERY_FORMAT = "cdmw_mesh_editor_recovery_v1"
 KIND_DRAFT = "draft"
 KIND_EDITOR = "editor"
 _KINDS = frozenset({KIND_DRAFT, KIND_EDITOR})
@@ -251,10 +255,78 @@ def prune_unjournaled_generations(project_root: Path, keep: Iterable[str] = ()) 
 
     root = Path(project_root)
     named = {record.generation for record in read_journal(root).records} | {name for name in keep if name}
+    recovery = read_editor_recovery(root)
+    if recovery is not None:
+        named.add(recovery["generation"])
     _delete_generations(root, {
         path.name for path in root.iterdir()
         if path.is_dir() and not path.is_symlink() and path.name.startswith("generation-") and path.name not in named
     })
+
+
+def read_editor_recovery(project_root: Path) -> dict[str, object] | None:
+    """The unfinished Mesh Editor state kept for this draft, or None."""
+
+    try:
+        item = json.loads((Path(project_root) / RECOVERY_NAME).read_text(encoding="utf-8"))
+        if not isinstance(item, dict) or item.get("format") != RECOVERY_FORMAT:
+            return None
+        return {
+            "generation": _generation_name(item.get("generation")),
+            "digest": _digest(item.get("digest")),
+            "base_generation": str(item.get("base_generation") or ""),
+            "saved_at": float(item.get("saved_at") or 0.0),
+        }
+    except (OSError, TypeError, ValueError):
+        return None
+
+
+def write_editor_recovery(project_root: Path, generation: str, *, base_generation: str) -> None:
+    """Keep ``generation`` as the recovery point; the one it replaces is deleted.
+
+    ``base_generation`` is the draft state the editor started from: a recovery
+    point is offered only to an editor opened on that same state.
+    """
+
+    root = Path(project_root)
+    previous = read_editor_recovery(root)
+    atomic_write_text(root / RECOVERY_NAME, json.dumps({
+        "format": RECOVERY_FORMAT,
+        "generation": generation,
+        "digest": generation_digest(root, generation),
+        "base_generation": str(base_generation or ""),
+        "saved_at": time.time(),
+    }, indent=2, sort_keys=True))
+    if previous is not None and previous["generation"] != generation:
+        _delete_generations(root, (previous["generation"],))
+
+
+def clear_editor_recovery(project_root: Path) -> None:
+    """Drop the recovery point: its edits were finished or discarded."""
+
+    root = Path(project_root)
+    previous = read_editor_recovery(root)
+    try:
+        (root / RECOVERY_NAME).unlink()
+    except FileNotFoundError:
+        pass
+    if previous is not None and journal_path(root).is_file():
+        if read_journal(root).record_for(previous["generation"]) is not None:
+            return
+    if previous is not None:
+        descriptor = _published_generations(root)
+        if previous["generation"] not in descriptor:
+            _delete_generations(root, (previous["generation"],))
+
+
+def _published_generations(root: Path) -> set[str]:
+    try:
+        descriptor = json.loads((root / "mesh_layer_project.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(descriptor, dict):
+        return set()
+    return {str(descriptor.get(key) or "") for key in ("current_generation", "previous_generation")} - {""}
 
 
 def _append_line(root: Path, line: str) -> None:

@@ -291,6 +291,10 @@ class _MeshEditSession:
     history_journal_parts: set[int] = field(default_factory=set)
     history_journal_edited: bool = False
     history_journal_error: str = ""
+    # P14: a Mesh Editor shadow keeps its unfinished state beside the draft it
+    # edits: (project path, source SHA-256, the draft generation it started from).
+    history_recovery_target: tuple[Path, str, str] | None = None
+    history_recovery_draft: tuple[object, bytes] | None = field(default=None, repr=False)
     history_journal_cache: tuple[object, object] | None = field(default=None, repr=False)
     skeleton: object | None = None
     skeleton_source: str = ""
