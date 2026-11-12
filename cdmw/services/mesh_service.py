@@ -676,6 +676,8 @@ def _open_history_journal(session: _MeshEditSession, project_path: Path) -> None
     if journal.unreadable_lines:
         session.history_journal_readonly = f"{journal.unreadable_lines} line(s) of the history could not be read"
     record = journal.record_for(session.mesh_layer_loaded_generation) if session.mesh_layer_loaded_generation else None
+    if record is None and not journal.records and session.mesh_layer_loaded_generation:
+        session.history_journal_base_generation = str(session.mesh_layer_loaded_generation)
     if record is not None:
         session.history_journal_depth = record.depth
     elif journal.records:
@@ -1664,6 +1666,17 @@ class _MeshServiceSessionLayerCore(
             return
         _reconcile_journal_depth(session)
         try:
+            base = session.history_journal_base_generation
+            if base and base != generation and session.history_journal_depth >= 1:
+                # The state the draft opened with, one step below the first saved one.
+                journal.record_state(
+                    project_root,
+                    journal.new_record(project_root, base, depth=session.history_journal_depth - 1,
+                                       kind=journal.KIND_DRAFT),
+                    future_valid=True, max_steps=self.max_history, max_bytes=self.max_history_bytes,
+                    keep=(base, *keep),
+                )
+                session.history_journal_base_generation = ""
             record = journal.new_record(
                 project_root, generation, depth=session.history_journal_depth, kind=journal.KIND_DRAFT,
                 labels=session.history_journal_labels, part_ids=session.history_journal_parts,

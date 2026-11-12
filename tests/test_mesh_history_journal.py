@@ -565,3 +565,27 @@ def test_a_failed_redo_save_puts_the_position_back(tmp_path, monkeypatch) -> Non
     finally:
         monkeypatch.undo()
         service.close_edit_session(session_id)
+
+
+def test_the_first_saved_step_can_be_undone_after_a_restart(tmp_path) -> None:
+    """Section 8.7 D3: the state the draft opened with was never journalled. Here a
+    draft saved before its journal existed (P14) is reopened, edited and reopened."""
+
+    service, session_id = _open(tmp_path)
+    _move(service, session_id, 0.25)
+    service.retry_mesh_layer_autosave(session_id)
+    service.close_edit_session(session_id)
+    journal.journal_path(tmp_path / "mesh_layers").unlink()  # a draft from before P14
+    service, session_id = _open(tmp_path)
+    opened = _x(service, session_id)
+    _move(service, session_id, 0.25)
+    service.retry_mesh_layer_autosave(session_id)
+    service.close_edit_session(session_id)
+    service, session_id = _open(tmp_path)  # a real reopen, at the first saved step
+    try:
+        assert _x(service, session_id) == pytest.approx(opened + 0.25)
+        result = service.step_history_journal(session_id, -1)
+        assert result.status != "noop", "the first saved step could not be undone after the restart"
+        assert _x(service, session_id) == pytest.approx(opened)
+    finally:
+        service.close_edit_session(session_id)

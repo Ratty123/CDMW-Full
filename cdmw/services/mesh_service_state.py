@@ -299,6 +299,9 @@ class _MeshEditSession:
     #: The draft's journal could not be read fully when it opened: this session
     #: neither rewrites nor prunes it, and adds no step to it (section 8.8 R8).
     history_journal_readonly: str = ""
+    #: The generation the draft opened with when the journal names no step yet: it
+    #: is journalled with the first record, so that step can be undone (8.7 D3).
+    history_journal_base_generation: str = ""
     # P15 repair A1: Finish ended an editor session; the next draft save removes
     # its recovery point, once the draft holds the edits.
     history_recovery_clear_on_save: bool = False
