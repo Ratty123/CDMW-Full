@@ -3045,6 +3045,16 @@ impl PendingFrameCapture {
     }
 }
 
+/// The handles of a renderer's device, for off-screen work on another thread
+/// of the same process (P4 V5): wgpu's adapter, device and queue are shared
+/// handles, so a capture reuses the device instead of creating its own.
+#[derive(Clone, Debug)]
+pub struct SharedGpu {
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+}
+
 pub struct WindowRenderer {
     gpu_faults: GpuFaults,
     texture_cache: BTreeMap<String, Weak<wgpu::Texture>>,
@@ -3123,6 +3133,16 @@ pub struct WindowRenderer {
 }
 
 impl WindowRenderer {
+    /// This renderer's device, for off-screen captures on another thread.
+    #[must_use]
+    pub fn shared_gpu(&self) -> SharedGpu {
+        SharedGpu {
+            adapter: self.adapter.clone(),
+            device: self.device.clone(),
+            queue: self.queue.clone(),
+        }
+    }
+
     pub fn set_lighting_depth_settings(&mut self, settings: LightingDepthSettings) {
         self.lighting_depth_settings = settings;
     }
@@ -5174,6 +5194,7 @@ pub async fn run_headless_layered_material_capture_with_lighting(
     output: HeadlessMaterialCaptureOutput<'_>,
 ) -> Result<HeadlessMaterialCaptureReport, RenderError> {
     material_capture_batch(
+        None,
         snapshot,
         textures,
         factors,
@@ -5196,6 +5217,7 @@ pub async fn run_headless_material_capture_batch(
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     material_capture_batch(
+        None,
         snapshot,
         textures,
         factors,
@@ -5217,6 +5239,7 @@ pub async fn run_headless_layered_material_capture_batch(
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     material_capture_batch(
+        None,
         snapshot,
         textures,
         factors,
@@ -5239,10 +5262,34 @@ pub async fn run_headless_verified_layered_material_capture_batch(
     requests: &[HeadlessMaterialCaptureRequest<'_>],
     verified_sha256: &[&str],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
+    run_headless_verified_layered_material_capture_batch_on(
+        None,
+        snapshot,
+        textures,
+        factors,
+        layers,
+        requests,
+        verified_sha256,
+    )
+    .await
+}
+
+/// As `run_headless_verified_layered_material_capture_batch`, on `gpu` when
+/// given (a renderer's device in the same process) instead of a device of its own.
+pub async fn run_headless_verified_layered_material_capture_batch_on(
+    gpu: Option<&SharedGpu>,
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    layers: &[MaterialLayerSet],
+    requests: &[HeadlessMaterialCaptureRequest<'_>],
+    verified_sha256: &[&str],
+) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     if verified_sha256.len() != textures.len() {
         return Err(RenderError::ResourceLimit);
     }
     material_capture_batch(
+        gpu,
         snapshot,
         textures,
         factors,
@@ -5275,6 +5322,7 @@ pub async fn run_headless_motion_capture(
         timings: vec![],
     };
     let mut reports = material_capture_batch(
+        None,
         snapshot,
         textures,
         factors,
@@ -5295,7 +5343,48 @@ struct MotionCapture<'a> {
     timings: Vec<[f64; 2]>,
 }
 
+impl SharedGpu {
+    /// A device without a window, as a capture process creates.
+    pub async fn headless() -> Result<Self, RenderError> {
+        material_capture_device().await
+    }
+}
+
+/// A device of the capture's own, for a capture process.
+async fn material_capture_device() -> Result<SharedGpu, RenderError> {
+    let mut instance_descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+    instance_descriptor.backends = wgpu::Backends::DX12;
+    let instance = wgpu::Instance::new(instance_descriptor);
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            force_fallback_adapter: false,
+            compatible_surface: None,
+            apply_limit_buckets: false,
+        })
+        .await
+        .map_err(|_| RenderError::NoAdapter)?;
+    let required_features = requested_renderer_features(adapter.features());
+    let (device, queue) = adapter
+        .request_device(&wgpu::DeviceDescriptor {
+            label: Some("CDMW Rust Mesh Lab material capture device"),
+            required_features,
+            required_limits: material_layers::limits(&adapter),
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+            memory_hints: wgpu::MemoryHints::Performance,
+            trace: wgpu::Trace::Off,
+        })
+        .await
+        .map_err(|error| RenderError::Device(error.to_string()))?;
+    Ok(SharedGpu {
+        adapter,
+        device,
+        queue,
+    })
+}
+
 async fn material_capture_batch(
+    gpu: Option<&SharedGpu>,
     snapshot: &DrawSnapshot,
     textures: &[HeadlessMaterialTexture<'_>],
     factors: &[HeadlessMaterialFactors<'_>],
@@ -5323,30 +5412,14 @@ async fn material_capture_batch(
         return Err(RenderError::ResourceLimit);
     }
     let lod_index = first_request.options.lod_index;
-    let mut instance_descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-    instance_descriptor.backends = wgpu::Backends::DX12;
-    let instance = wgpu::Instance::new(instance_descriptor);
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: None,
-            apply_limit_buckets: false,
-        })
-        .await
-        .map_err(|_| RenderError::NoAdapter)?;
-    let required_features = requested_renderer_features(adapter.features());
-    let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            label: Some("CDMW Rust Mesh Lab material capture device"),
-            required_features,
-            required_limits: material_layers::limits(&adapter),
-            experimental_features: wgpu::ExperimentalFeatures::disabled(),
-            memory_hints: wgpu::MemoryHints::Performance,
-            trace: wgpu::Trace::Off,
-        })
-        .await
-        .map_err(|error| RenderError::Device(error.to_string()))?;
+    let SharedGpu {
+        adapter,
+        device,
+        queue,
+    } = match gpu {
+        Some(gpu) => gpu.clone(),
+        None => material_capture_device().await?,
+    };
     let renderer_device_ready_ms = batch_started.elapsed().as_secs_f64() * 1_000.0;
     let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     let format = wgpu::TextureFormat::Bgra8UnormSrgb;

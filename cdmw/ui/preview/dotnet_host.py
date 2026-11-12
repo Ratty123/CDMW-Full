@@ -246,6 +246,9 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self.controller.set_ui_localizer(
             ui_localizer or self._find_ui_localizer(parent)
         )
+        # Its process may take Character Finder's thumbnails (P4 V5).
+        from cdmw.services.engine_capture import engine_capture_router
+        engine_capture_router().register(self.controller)
         self._terminate_on_close = bool(terminate_on_close)
         self.controller.state_changed.connect(self._handle_controller_state)
         self.controller.protocol_event.connect(self._handle_protocol_event)

@@ -69,6 +69,7 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "ui_localization_v1",
     "dialog_prewarm_hold_v1",
     "edit_in_place_v1",
+    "package_capture_v1",
 ];
 
 pub(crate) fn control_contract() -> Value {
@@ -93,6 +94,7 @@ pub(crate) fn control_contract() -> Value {
         ("prewarm_hold_request", "both", "prewarm_held"),
         ("reembed_request", "both", "reembedded"),
         ("capture_request", "both", "capture_result"),
+        ("package_capture_request", "both", "package_capture_result"),
         ("ui_localization_state", "both", "ui_localization_state_ack"),
         ("ui_theme_state", "both", "ui_theme_state_ack"),
         ("tool_state", "static_replacement", "tool_state_ack"),
@@ -485,6 +487,10 @@ pub struct PreviewApplication {
     lent: bool,
     /// Icon captures draw textured whatever view mode is chosen (P4 V3).
     icon_capture: bool,
+    /// Off-screen captures of other packages on this device (P4 V5).
+    package_captures: Option<crate::package_capture::PackageCaptures>,
+    /// The device's handles while an edit holds the renderer.
+    lent_gpu: Option<cdmw_render_wgpu::SharedGpu>,
 }
 
 /// The mode drawn: an icon capture is always textured, so a view mode chosen
@@ -595,6 +601,8 @@ impl PreviewApplication {
             newest_package_request_id: 0,
             package_waiting_for_interaction: false,
             lent: false,
+            package_captures: None,
+            lent_gpu: None,
             icon_capture: false,
         };
         application.refresh_visible_snapshot();
@@ -702,6 +710,7 @@ impl PreviewApplication {
         }
         let window = self.window.clone().expect("checked above");
         let renderer = self.renderer.take().expect("checked above");
+        self.lent_gpu = Some(renderer.shared_gpu());
         self.lent = true;
         self.next_frame = None;
         self.texture_uploads.pending = false;
@@ -1107,6 +1116,53 @@ impl PreviewApplication {
         changed
     }
 
+    /// `package_capture_request {request_id, manifest, output, report, size}`:
+    /// render another package off screen on this device (P4 V5).
+    fn start_package_capture(&mut self, value: &Value) {
+        let refuse = |bridge: &PreviewBridge, message: String| {
+            bridge.send(json!({
+                "event": "package_capture_result",
+                "request_id": value.get("request_id").cloned().unwrap_or(Value::Null),
+                "status": "error",
+                "message": message,
+            }));
+        };
+        let job = match crate::package_capture::parse_package_capture(value) {
+            Ok(job) => job,
+            Err(message) => return refuse(&self.bridge, message),
+        };
+        if self.package_captures.is_none() {
+            let gpu = self
+                .renderer
+                .as_ref()
+                .map(WindowRenderer::shared_gpu)
+                .or_else(|| self.lent_gpu.clone());
+            let Some(gpu) = gpu else {
+                return refuse(&self.bridge, "the renderer is not ready".to_owned());
+            };
+            let outbound = self.bridge.outbound.clone();
+            let session_id = self.bridge.session_id.clone();
+            let generation = self.bridge.process_generation;
+            let send = move |mut line: Value| {
+                if let Some(object) = line.as_object_mut() {
+                    object.insert("protocol".to_owned(), json!(PREVIEW_PROTOCOL));
+                    object.insert("session_id".to_owned(), json!(session_id));
+                    object.insert("process_generation".to_owned(), json!(generation));
+                }
+                let _ = outbound.try_send(line);
+            };
+            match crate::package_capture::PackageCaptures::start(gpu, send) {
+                Ok(captures) => self.package_captures = Some(captures),
+                Err(message) => return refuse(&self.bridge, message),
+            }
+        }
+        if let Some(captures) = &self.package_captures
+            && let Err(message) = captures.submit(job)
+        {
+            refuse(&self.bridge, message);
+        }
+    }
+
     fn start_capture(&mut self, value: &Value) {
         // A texture-delayed capture retains the requested icon background even
         // if its host restores ordinary display options while it is waiting.
@@ -1455,6 +1511,7 @@ impl PreviewApplication {
                     .send(json!({"event": "reembedded", "parent_hwnd": self.parent_hwnd}));
             }
             "capture_request" => self.start_capture(&value),
+            "package_capture_request" => self.start_package_capture(&value),
             "close_request" | "cancel" => self.exit_requested = true,
             "ui_localization_state" => self.bridge.send(json!({
                 "event": "ui_localization_state_ack",

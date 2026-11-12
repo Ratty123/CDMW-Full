@@ -40,6 +40,7 @@ mod headless_ui_tests;
 mod loader;
 mod localization;
 mod new_item_ui;
+mod package_capture;
 mod preview_core_material;
 mod preview_effect_lightning;
 mod preview_effect_mesh;
@@ -147,6 +148,7 @@ fn main() -> Result<()> {
                 options.capture_camera(),
                 options.capture_material_index,
                 options.capture_size.unwrap_or(1_024),
+                None,
             )?;
         }
         return Ok(());
@@ -734,7 +736,10 @@ fn frame_stats_json(stats: &HeadlessFrameStats) -> Value {
     })
 }
 
-fn capture_cdmw_session(
+/// `gpu` is a renderer's device in this process (P4 V5's package captures);
+/// without it the capture creates a device of its own, as a capture process does.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn capture_cdmw_session(
     manifest_path: &Path,
     output_path: &Path,
     report_path: Option<&Path>,
@@ -742,6 +747,7 @@ fn capture_cdmw_session(
     camera: Option<HeadlessMaterialCaptureCamera>,
     isolated_material_index: Option<u32>,
     size: u32,
+    gpu: Option<&cdmw_render_wgpu::SharedGpu>,
 ) -> Result<()> {
     let requested_paths = cdmw_capture_paths(output_path, report_path)?;
     let loaded = if preview_package {
@@ -832,7 +838,8 @@ fn capture_cdmw_session(
         .map(|texture| texture.metadata.source_sha256.as_str())
         .collect::<Vec<_>>();
     let report = pollster::block_on(
-        cdmw_render_wgpu::run_headless_verified_layered_material_capture_batch(
+        cdmw_render_wgpu::run_headless_verified_layered_material_capture_batch_on(
+            gpu,
             &snapshot,
             &texture_uploads,
             &factor_uploads,

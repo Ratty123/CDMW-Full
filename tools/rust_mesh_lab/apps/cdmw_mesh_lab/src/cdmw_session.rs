@@ -4327,7 +4327,7 @@ fn sha256_matches_once(path: &Path, metadata: &fs::Metadata, bytes: &[u8], expec
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use cdmw_formats::{MeshFormat, MeshLod, SourceRange, Submesh};
     use tempfile::tempdir;
@@ -4780,7 +4780,7 @@ mod tests {
         );
     }
 
-    fn write_preview_core_package_fixture(root: &Path) -> PathBuf {
+    pub(crate) fn write_preview_core_package_fixture(root: &Path) -> PathBuf {
         let manifest_path = write_loaded_package_fixture(root);
         let mut vertex_bytes = Vec::new();
         for (position, uv) in [
