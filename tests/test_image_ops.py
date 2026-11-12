@@ -314,6 +314,22 @@ def test_contour_length_and_simplification_match_opencv_on_random_contours():
             assert np.array_equal(image_ops.approx_polygon(path, 0.35, closed), cv2.approxPolyDP(path, 0.35, closed))
 
 
+def test_warp_affine_matches_opencv_on_random_rotations():
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(6)
+    for trial in range(40):
+        height, width = (int(value) for value in rng.integers(1, 70, 2))
+        channels = (None, 3, 4)[trial % 3]
+        image = rng.integers(0, 256, (height, width) if channels is None else (height, width, channels)).astype(np.uint8)
+        matrix = cv2.getRotationMatrix2D((width / 2.0, height / 2.0), float(rng.uniform(-360, 360)),
+                                         float(rng.choice([1.0, rng.uniform(0.3, 2.5)])))
+        matrix[:, 2] += rng.uniform(-10, 10, 2)
+        out_w, out_h = (int(value) for value in rng.integers(1, 110, 2))
+        expected = cv2.warpAffine(image, matrix, (out_w, out_h), flags=cv2.INTER_LINEAR,
+                                  borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+        assert np.array_equal(image_ops._warp_affine_linear_numpy(image, matrix, out_w, out_h), expected)
+
+
 def test_morphology_matches_opencv_on_random_masks():
     cv2 = pytest.importorskip("cv2")
     rng = np.random.default_rng(8)

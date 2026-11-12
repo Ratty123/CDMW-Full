@@ -17,9 +17,9 @@ OpenCV is imported here and nowhere else. Three groups:
 - written and pinned, but OpenCV first: the numpy version is many times slower
   on a 4096 x 4096 layer, and these run per stroke or per composite, so they
   call OpenCV while it is installed and fall back to numpy without it (gray,
-  HSV, the lookup table, addWeighted, Gaussian blur, resize);
+  HSV, the lookup table, addWeighted, Gaussian blur, resize, affine warp);
 - OpenCV only, not written yet (flood fill, antialiased polygon fill,
-  contours, Canny, bilateral and median filters, affine warp).
+  contours, Canny, bilateral and median filters).
 
 ``uses_opencv`` lists the last two groups; a test keeps it complete.
 """
@@ -93,7 +93,6 @@ opencv_only: Tuple[str, ...] = (
     "canny_edges",
     "bilateral_filter",
     "median_blur",
-    "warp_affine_linear",
 )
 
 
@@ -907,6 +906,65 @@ def rotation_matrix(center: Tuple[float, float], angle: float, scale: float) -> 
 def warp_affine_linear(image: np.ndarray, matrix: np.ndarray, width: int, height: int) -> np.ndarray:
     """``cv2.warpAffine(image, matrix, (width, height), INTER_LINEAR, BORDER_CONSTANT, 0)``."""
 
-    cv2 = _cv2()
+    cv2 = _opencv_or_none()
+    if cv2 is None:
+        return _warp_affine_linear_numpy(image, matrix, width, height)
     return cv2.warpAffine(image, matrix, (int(width), int(height)), flags=cv2.INTER_LINEAR,
                           borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+
+
+_AB_BITS = 10
+_INTER_BITS = 5
+_INTER_TAB = 1 << _INTER_BITS
+
+
+def _warp_affine_linear_numpy(image: np.ndarray, matrix: np.ndarray, width: int, height: int) -> np.ndarray:
+    """OpenCV 4.13's 8-bit warpAffine, linear, constant 0 border (exact).
+
+    The matrix is inverted as ``invertAffineTransform`` does; source positions
+    are stepped in 10-bit fixed point, cut to 1/32 pixel, and blended with
+    OpenCV's 15-bit weights. Taps outside the source read 0.
+    """
+
+    source = np.asarray(image, dtype=np.uint8)
+    out_w, out_h = max(1, int(width)), max(1, int(height))
+    m = np.asarray(matrix, dtype=np.float64).reshape(-1)
+    det = m[0] * m[4] - m[1] * m[3]
+    det = 1.0 / det if det != 0 else 0.0
+    a11, a22 = m[4] * det, m[0] * det
+    a12, a21 = -m[1] * det, -m[3] * det
+    b1 = -a11 * m[2] - a12 * m[5]
+    b2 = -a21 * m[2] - a22 * m[5]
+    scale = float(1 << _AB_BITS)
+    round_delta = (1 << _AB_BITS) // _INTER_TAB // 2
+    xs = np.arange(out_w, dtype=np.float64)
+    ys = np.arange(out_h, dtype=np.float64)
+    adelta = np.rint(a11 * xs * scale).astype(np.int64)
+    bdelta = np.rint(a21 * xs * scale).astype(np.int64)
+    x0 = np.rint((a12 * ys + b1) * scale).astype(np.int64) + round_delta
+    y0 = np.rint((a22 * ys + b2) * scale).astype(np.int64) + round_delta
+    shift = _AB_BITS - _INTER_BITS
+    fixed_x = (x0[:, None] + adelta[None, :]) >> shift
+    fixed_y = (y0[:, None] + bdelta[None, :]) >> shift
+    sx = fixed_x >> _INTER_BITS
+    sy = fixed_y >> _INTER_BITS
+    fx = fixed_x & (_INTER_TAB - 1)
+    fy = fixed_y & (_INTER_TAB - 1)
+    src_h, src_w = source.shape[:2]
+    channels = source.shape[2:]
+    total = np.zeros((out_h, out_w) + channels, dtype=np.int64)
+    taps = (
+        (0, 0, (_INTER_TAB - fy) * (_INTER_TAB - fx)),
+        (0, 1, (_INTER_TAB - fy) * fx),
+        (1, 0, fy * (_INTER_TAB - fx)),
+        (1, 1, fy * fx),
+    )
+    weight_scale = (1 << 15) // (_INTER_TAB * _INTER_TAB)  # OpenCV's table is these products times 32
+    for dy, dx, weight in taps:
+        tx = sx + dx
+        ty = sy + dy
+        inside = (tx >= 0) & (tx < src_w) & (ty >= 0) & (ty < src_h)
+        values = source[np.clip(ty, 0, src_h - 1), np.clip(tx, 0, src_w - 1)].astype(np.int64)
+        w = np.where(inside, weight * weight_scale, 0)
+        total += values * (w[..., None] if channels else w)
+    return np.clip((total + (1 << 14)) >> 15, 0, 255).astype(np.uint8)
