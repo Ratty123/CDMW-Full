@@ -155,3 +155,31 @@ def test_journey_6_edit_in_browse_in_its_own_process_and_return(run):
     run.wait(lambda: any(e["event"] == "preview:edit_left" for e in run.call("events", since=index)),
              timeout=30, what="the helper to leave edit mode")
     assert run.state()["browse_process_id"] == browse_pid
+
+
+def test_journey_7_two_documents_edit_in_one_process(run):
+    """P15: a second mesh opens beside an open edit as a document tab, in Browse's process."""
+
+    run.select(driver.SWORD)
+    browse_pid = run.state()["browse_process_id"]
+    run.open_mesh_editor()
+    run.wait(lambda: run.state()["mesh_editor"]["ready"], timeout=60, what="the first edit to be ready")
+    run.select(driver.UPPER)
+    run.open_mesh_editor()
+
+    def two_ready():
+        documents = run.state()["mesh_documents"]["documents"]
+        return len(documents) == 2 and all(document["ready"] for document in documents) and documents
+
+    documents = run.wait(two_ready, timeout=90, what="both documents to be ready")
+    # Both edits are in Browse's process: one in its view, one in a window of its own.
+    assert {document["process_id"] for document in documents} == {browse_pid}, documents
+    assert [document["in_browse"] for document in documents].count(True) <= 1
+    assert run.call("show_document", index=0)
+    assert run.state()["mesh_documents"]["shown"] == 0
+    assert run.state()["mesh_editor"]["ready"]  # the first document kept its edit loaded
+    assert run.call("show_document", index=1)
+    assert run.call("end_edit", answer="discard")
+    assert run.call("show_document", index=0)
+    assert run.call("end_edit", answer="discard")
+    assert run.state()["browse_process_id"] == browse_pid

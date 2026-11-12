@@ -18,7 +18,11 @@ from tests.journeys import driver, targets
 
 pytestmark = [pytest.mark.real_game, pytest.mark.timing,
               pytest.mark.skipif(bool(driver.skip_reason()), reason=driver.skip_reason() or "-")]
-RUNS = 5
+import os
+
+#: Five runs a case for the full batches (end of P4, P8, P9 and P10); a milestone's
+#: own batch runs three (plan, section 0): CDMW_BUDGET_RUNS=3.
+RUNS = max(1, int(os.environ.get("CDMW_BUDGET_RUNS", "5") or 5))
 
 
 def _sample_processes(run: driver.Run, stop: threading.Event, rows: list) -> None:

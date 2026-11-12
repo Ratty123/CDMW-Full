@@ -29,6 +29,8 @@ MAX_OPEN_DOCUMENTS = 12
 EMPTY_DOCUMENT_LABEL = "Mesh Editor"
 #: Calls every document receives, not only the shown one.
 _BROADCAST = frozenset({"set_theme", "sync_ui_font", "set_archive_selection"})
+#: The view's own attributes; every other write goes to the shown document.
+_OWN = frozenset({"_build_document", "_documents", "_shown", "tab_bar", "stack"})
 
 
 class MeshDocumentsView(QWidget):
@@ -185,6 +187,15 @@ class MeshDocumentsView(QWidget):
         if parked:
             self.refresh_labels()
         return parked
+
+    def __setattr__(self, name: str, value) -> None:
+        # The shell also writes the Mesh Editor's state (material context, texture
+        # reasons): a name this view does not own goes to the shown document.
+        documents = self.__dict__.get("_documents")
+        if name in _OWN or not documents or hasattr(type(self), name):
+            object.__setattr__(self, name, value)
+            return
+        setattr(self.active, name, value)
 
     def _show_document(self, index: int) -> None:
         if 0 <= index < len(self._documents) and self.stack.currentIndex() != index:

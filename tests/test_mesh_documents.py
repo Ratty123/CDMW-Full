@@ -220,3 +220,14 @@ def test_a_real_editor_parks_its_view_and_keeps_its_session(tmp_path, monkeypatc
     finally:
         tab.standalone_rust_authoring_session = None
         _dispose(tab)
+
+
+def test_writes_through_the_mesh_editor_reach_the_shown_document(view) -> None:
+    first = view.active
+    first.open_file("sword.pac", edited=True)
+    second = view.open_new_document()
+    assert second is not first
+    view.archive_material_context_package_path = "package-b"
+    assert second.archive_material_context_package_path == "package-b"
+    assert not hasattr(first, "archive_material_context_package_path")
+    assert "archive_material_context_package_path" not in view.__dict__

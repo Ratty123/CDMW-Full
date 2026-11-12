@@ -153,6 +153,7 @@ class AutomationBridge(QObject):
             "resize": self._resize,
             "end_edit": self._end_edit,
             "promote_edit": self._promote_edit,
+            "show_document": self._show_document,
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -328,7 +329,38 @@ class AutomationBridge(QObject):
                 "session_manifest": self._editor_session_manifest(tab),
             },
             "preview_settings": self._preview_settings(archive, tab),
+            # P15: the Mesh Editor's open documents, the shown one first by index.
+            "mesh_documents": self._mesh_documents(tab),
         }
+
+    @classmethod
+    def _mesh_documents(cls, view) -> dict:
+        from cdmw.ui.mesh_editor.documents import document_label
+
+        documents = tuple(getattr(view, "documents", ()) or ())
+        active = getattr(view, "active", None)
+        return {
+            "shown": documents.index(active) if active in documents else -1,
+            "documents": [{
+                "label": document_label(document),
+                "parked": bool(getattr(document, "standalone_rust_parked", False)),
+                "ready": bool(getattr(document, "standalone_rust_ready", False)),
+                "process_id": cls._editor_process_id(document),
+                "in_browse": getattr(getattr(document, "live_edit", None), "viewport_binding", None) is not None,
+            } for document in documents],
+        }
+
+    def _show_document(self, args: dict) -> bool:
+        """Show one open Mesh Editor document, as clicking its tab does (P15)."""
+
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        view = created_tool_widget(self.window.shell.mesh_editor_tab)
+        index = int(args.get("index", -1))
+        if view is None or not 0 <= index < len(getattr(view, "documents", ())):
+            return False
+        view.set_active(index)
+        return True
 
     @staticmethod
     def _editor_process_id(tab) -> int:
