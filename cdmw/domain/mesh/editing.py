@@ -321,6 +321,9 @@ class MeshEditSessionView:
     # P14: a saved step before or after the in-memory history, in the draft's journal.
     journal_undo_available: bool = False
     journal_redo_available: bool = False
+    # P14: the draft is at the state last finished or built (or, without a
+    # draft, nothing was done yet).
+    history_clean: bool = False
     history_entries: tuple[MeshEditHistoryEntry, ...] = ()
     history_cursor: int = 0
     object_transform: MeshObjectTransformState = field(default_factory=MeshObjectTransformState)

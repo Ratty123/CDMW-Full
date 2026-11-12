@@ -705,6 +705,18 @@ def _history_journal_of(session: _MeshEditSession):
     return journal
 
 
+def _history_clean(session: _MeshEditSession) -> bool:
+    if session.mesh_layer_project_path is None:
+        return not session.undo_stack
+    if (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key:
+        return False
+    try:
+        clean = _history_journal_of(session).clean_generation
+    except OSError:
+        return False
+    return bool(clean) and clean == session.mesh_layer_loaded_generation
+
+
 def _journal_step_target(session: _MeshEditSession, direction: int):
     """The draft step a journal undo (-1) or redo (+1) would load, or None (P14)."""
 
@@ -726,6 +738,26 @@ def _journal_step_target(session: _MeshEditSession, direction: int):
         return earlier[-1] if earlier else None
     later = [record for record in candidates if record.depth > depth]
     return later[0] if later else None
+
+
+def _install_journal_state(session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> _MeshRestoreOutcome:
+    """Install a loaded journal state; unlike an undo, nothing is captured to return to."""
+
+    before_signature = _mesh_structure_signature(session.working_mesh)
+    session.working_mesh = snapshot.mesh
+    session.mode = snapshot.mode
+    session.selection = snapshot.selection
+    session.edit_operations = tuple(snapshot.edit_operations)
+    if snapshot.object_transform is not None:
+        session.object_transform = snapshot.object_transform
+    session.native_editor_selection_signature = ()
+    _restore_history_session_state(session, snapshot)
+    after_signature = _mesh_structure_signature(session.working_mesh)
+    topology_changed, affected, delta = _restore_topology_delta(before_signature, after_signature)
+    return _MeshRestoreOutcome(
+        snapshot=None, topology_changed=topology_changed, affected_submesh_indices=affected,
+        submesh_count_delta=delta, submesh_counts=after_signature,
+    )
 
 
 def _journal_snapshot(session: _MeshEditSession, mesh: ParsedMesh, loaded: Mapping[str, object]) -> _MeshHistorySnapshot:
@@ -1356,7 +1388,9 @@ class _MeshServiceSessionLayerCore(
         if session.mesh_draft_plan is not None:
             from cdmw.services.mesh_saved_work_service import ensure_session_draft_workspace
             ensure_session_draft_workspace(session.mesh_draft_plan, session.original_data, stop_event=stop_event)
-        if (session.replacement_state is not None or session.edit_operations) and not session.native_editor_session_ready:
+        # The generation is an export of the native session, which a journal step
+        # or a change that never needed one (a layer rename) has not opened (P14).
+        if not session.native_editor_session_ready:
             if session.native_editor_mesh_dirty:
                 raise RuntimeError("Replacement draft cannot save stale resident geometry.")
             opened = open_native_mesh_editor_session(session.working_mesh, session.session_id,
@@ -1545,8 +1579,7 @@ class _MeshServiceSessionLayerCore(
             # The state the editor opened at stays one undo away.
             self._push_history(session, action="recovered_edits", label="Recovered edits")
             _close_native_editor_session(session)
-            outcome = _restore_snapshot(session, _journal_snapshot(session, template, loaded))
-            _dispose_history_snapshot_without_state_failure(outcome.snapshot)
+            _install_journal_state(session, _journal_snapshot(session, template, loaded))
             session.viewport_hidden_parts = _loaded_viewport_hidden_parts(loaded, len(session.working_mesh.submeshes))
             refresh_mesh_totals(session.working_mesh)
             session.revision += 1
@@ -1604,6 +1637,47 @@ class _MeshServiceSessionLayerCore(
         session.history_journal_labels.clear()
         session.history_journal_parts.clear()
         session.history_journal_edited = False
+        if session.history_journal_clean_pending:
+            session.history_journal_clean_pending = False
+            journal.mark_clean(project_root, generation)
+
+    def _step_history_journal_if_any(self, session: _MeshEditSession, direction: int) -> MeshEditResult | None:
+        if session.mesh_layer_project_path is None or _journal_step_target(session, direction) is None:
+            return None
+        return self.step_history_journal(session.session_id, direction)
+
+    def mark_history_clean(self, session_id: str) -> None:
+        """Record the draft's current state as finished or built (P14).
+
+        When that state is not on disk yet, the next autosave records it.
+        """
+
+        from cdmw.services.mesh_history_journal import mark_clean, project_lock
+
+        session = self._session(session_id)
+        with session.export_lock:
+            if session.mesh_layer_project_path is None:
+                return
+            saved = (session.revision, session.geometry_layer_revision) == session.mesh_layer_autosave_saved_key
+            if not saved or not session.mesh_layer_loaded_generation:
+                session.history_journal_clean_pending = True
+                return
+            project_root = Path(session.mesh_layer_project_path).parent
+            with project_lock(project_root):
+                mark_clean(project_root, session.mesh_layer_loaded_generation)
+
+    def closing_loses_work(self, session_id: str) -> bool:
+        """Whether closing the session now would lose an edit (P14).
+
+        A draft's state is saved on close (or was autosaved), so only a failed
+        save loses it; a mesh opened from disk has no draft and loses its edits.
+        """
+
+        session = self._session(session_id)
+        with session.export_lock:
+            if session.mesh_layer_project_path is None:
+                return bool(session.undo_stack)
+            return bool(session.mesh_layer_autosave_error)
 
     def step_history_journal(self, session_id: str, direction: int) -> MeshEditResult:
         """Load the draft's saved step before (-1) or after (+1) this one (P14).
@@ -1662,8 +1736,7 @@ class _MeshServiceSessionLayerCore(
             if session.native_editor_mesh_dirty:
                 self._working_mesh_locked(session, clone=False)
             _close_native_editor_session(session)
-            outcome = _restore_snapshot(session, _journal_snapshot(session, template, loaded))
-            _dispose_history_snapshot_without_state_failure(outcome.snapshot)
+            outcome = _install_journal_state(session, _journal_snapshot(session, template, loaded))
             # The in-memory history led to and from the state that was left.
             _clear_history_stack(session.undo_stack)
             _clear_history_stack(session.redo_stack)
@@ -1937,6 +2010,7 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
             redo_count=len(session.redo_stack),
             journal_undo_available=_journal_step_target(session, -1) is not None,
             journal_redo_available=_journal_step_target(session, 1) is not None,
+            history_clean=_history_clean(session),
             history_entries=_history_entries(session),
             history_cursor=len(session.undo_stack),
             object_transform=session.object_transform,

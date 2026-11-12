@@ -954,6 +954,14 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         safety_layout.addWidget(self.confirm_archive_cleanup_checkbox)
         safety_layout.addWidget(self.capture_crash_details_checkbox)
         safety_layout.addWidget(self.verbose_archive_logs_checkbox)
+        self.history_limits_label = QLabel(
+            "Mesh Editor drafts keep their undo history after CDMW closes: up to 64 steps and 256 MiB a draft. "
+            "Edits that were not finished are kept until you finish or discard them. A mesh opened from disk "
+            "keeps its history only while it is open."
+        )
+        self.history_limits_label.setWordWrap(True)
+        self.history_limits_label.setObjectName("HintLabel")
+        safety_layout.addWidget(self.history_limits_label)
         self.safety_page_layout.addWidget(safety_group)
 
         profile_group = QGroupBox("Profile")

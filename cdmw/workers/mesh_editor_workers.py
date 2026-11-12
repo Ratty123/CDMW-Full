@@ -756,6 +756,8 @@ class MeshDirectOutputWorker(QObject):
                 draft = self.service.save_mesh_draft_for_revision(
                     self.session_id, expected_mesh_revision=snapshot.mesh_revision,
                 )
+                if draft is not None:
+                    self.service.mark_history_clean(self.session_id)  # P14: this state was built
                 record = register_built_mod(
                     self.saved_work_root,
                     mod_root=result.output_path,

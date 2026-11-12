@@ -349,6 +349,12 @@ class MeshHistoryServiceMixin:
         session = self._session(session_id)
         with session.export_lock:
             self._require_no_pending_refit_shape_restore_locked(session)
+            if not session.undo_stack:
+                # Past the in-memory history: the draft's saved steps (P14).
+                journal_step = getattr(self, "_step_history_journal_if_any", None)
+                stepped = journal_step(session, -1) if callable(journal_step) else None
+                if stepped is not None:
+                    return stepped
             snapshot = session.undo_stack[-1] if session.undo_stack else None
             profile_lock = self._history_profile_lock(snapshot)
             with profile_lock:
@@ -451,6 +457,12 @@ class MeshHistoryServiceMixin:
         session = self._session(session_id)
         with session.export_lock:
             self._require_no_pending_refit_shape_restore_locked(session)
+            if not session.redo_stack:
+                # Past the in-memory history: the draft's saved steps (P14).
+                journal_step = getattr(self, "_step_history_journal_if_any", None)
+                stepped = journal_step(session, 1) if callable(journal_step) else None
+                if stepped is not None:
+                    return stepped
             snapshot = session.redo_stack[-1] if session.redo_stack else None
             profile_lock = self._history_profile_lock(snapshot)
             with profile_lock:

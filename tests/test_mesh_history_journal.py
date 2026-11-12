@@ -105,7 +105,10 @@ def test_a_clean_mark_survives_a_rewrite(tmp_path) -> None:
     first = _record(tmp_path, 0)
     _put(tmp_path, first)
     journal.mark_clean(tmp_path, first.generation)
-    _put(tmp_path, _record(tmp_path, 0), future_valid=True)  # replaces the record, so the mark goes with it
+    again = _record(tmp_path, 0)
+    _put(tmp_path, again, future_valid=True)  # the same state saved again by an undo: still clean
+    assert journal.read_journal(tmp_path).clean_generation == again.generation
+    _put(tmp_path, _record(tmp_path, 0), future_valid=False)  # an edit at that depth: no longer clean
     assert journal.read_journal(tmp_path).clean_generation == ""
     second = _record(tmp_path, 1)
     _put(tmp_path, second)
@@ -243,3 +246,61 @@ def test_the_recovery_point_survives_pruning_and_replaces_its_predecessor(tmp_pa
     journal.clear_editor_recovery(tmp_path)
     assert journal.read_editor_recovery(tmp_path) is None and not (tmp_path / second).exists()
     assert (tmp_path / kept.generation).is_dir()
+
+
+def test_finished_or_built_states_are_clean_and_closing_a_draft_loses_nothing(tmp_path) -> None:
+    from tests.test_mesh_geometry_layers import _layer_mesh
+
+    service, session_id = _open(tmp_path)
+    _move(service, session_id, 0.25)
+    assert not service.session_view(session_id).history_clean
+    service.mark_history_clean(session_id)  # as Build does
+    assert service.session_view(session_id).history_clean
+    assert journal.read_journal(tmp_path / "mesh_layers").clean_generation
+    _move(service, session_id, 0.25)
+    assert not service.session_view(session_id).history_clean
+    assert not service.closing_loses_work(session_id)  # the draft holds the edit
+    service.undo(session_id)
+    service.retry_mesh_layer_autosave(session_id)
+    assert service.session_view(session_id).history_clean  # back at the built state
+    _move(service, session_id, 0.5)
+    service.close_edit_session(session_id)
+    service, session_id = _open(tmp_path)
+    service.step_history_journal(session_id, -1)
+    assert service.session_view(session_id).history_clean  # and after a restart
+    service.close_edit_session(session_id)
+
+    disk = MeshService()
+    disk_id = disk.open_edit_session(_layer_mesh(), session_id=f"disk-{uuid4().hex}", mode="edit").session_id
+    assert not disk.closing_loses_work(disk_id) and disk.session_view(disk_id).history_clean
+    disk.apply_command(disk_id, MeshEditCommand(
+        "transform", selection=MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)}),
+        params={"translate": (0.5, 0.0, 0.0)}))
+    assert disk.closing_loses_work(disk_id) and not disk.session_view(disk_id).history_clean
+    disk.close_edit_session(disk_id)
+
+
+def test_settings_names_the_service_history_limits() -> None:
+    import ast
+
+    from cdmw.services.mesh_service import _DEFAULT_MESH_HISTORY_BYTES
+
+    source = Path("cdmw/ui/settings_tab.py").read_text(encoding="utf-8")
+    texts = [node.value for node in ast.walk(ast.parse(source))
+             if isinstance(node, ast.Constant) and isinstance(node.value, str) and "undo history" in node.value]
+    limits = " ".join(texts)
+    assert f"{MeshService().max_history} steps" in limits
+    assert f"{_DEFAULT_MESH_HISTORY_BYTES // (1024 * 1024)} MiB" in limits
+
+
+def test_undo_and_redo_continue_into_the_saved_steps(tmp_path) -> None:
+    service, session_id = _open(tmp_path)
+    _move(service, session_id, 0.25)
+    _move(service, session_id, 0.25)
+    service.close_edit_session(session_id)
+    service, session_id = _open(tmp_path)
+    result = service.undo(session_id)  # the in-memory history is empty: the journal answers
+    assert result.ok and result.action == "journal_undo" and _x(service, session_id) == pytest.approx(0.25)
+    assert service.undo(session_id).status == "noop"  # nothing before the first saved step
+    assert service.redo(session_id).action == "journal_redo" and _x(service, session_id) == pytest.approx(0.5)
+    service.close_edit_session(session_id)

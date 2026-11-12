@@ -143,7 +143,7 @@ def read_journal(project_root: Path) -> Journal:
         try:
             item = json.loads(line)
             if not isinstance(item, dict) or item.get("format") != JOURNAL_FORMAT:
-                raise ValueError("not a journal line")
+                raise ValueError
             if item.get("type") == "clean":
                 journal.clean_generation = str(item.get("generation") or "")
                 continue
@@ -202,6 +202,11 @@ def record_state(
     before = list(journal.records)
     records = [item for item in before if item.depth != record.depth
                and (future_valid or item.depth < record.depth)]
+    replaced = next((item for item in before if item.depth == record.depth), None)
+    if future_valid and replaced is not None and journal.clean_generation == replaced.generation:
+        # An undo or redo back to the finished state saves it again under a new
+        # name; it is still the state that was finished.
+        journal.clean_generation = record.generation
     records.append(record)
     records.sort(key=lambda item: item.depth)
     limit_steps = max(1, int(max_steps or 1))
@@ -215,7 +220,7 @@ def record_state(
         records.pop(victim)
     journal.records = records
     appended = (len(records) == len(before) + 1 and records[:-1] == before and records[-1] is record)
-    if appended and journal.ignored_lines == 0:
+    if appended and journal.ignored_lines == 0 and (replaced is None or not journal.clean_generation):
         _append_line(root, record.line())
     else:
         _rewrite(root, journal)
@@ -380,10 +385,10 @@ def _digest(value: object) -> str:
 
 def _non_negative(value: object) -> int:
     if isinstance(value, bool):
-        raise ValueError("not a count")
+        raise ValueError
     number = int(value)
     if number < 0:
-        raise ValueError("negative count")
+        raise ValueError
     return number
 
 

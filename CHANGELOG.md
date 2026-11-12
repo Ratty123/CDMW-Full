@@ -17,7 +17,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Character Finder's thumbnails are drawn by the 3D preview that is already running instead of starting a renderer for each, so fewer programs run in the background while you browse.
 
-- If CDMW closes unexpectedly while you edit a mesh, the next start tells you which drafts were saved and offers to open **Drafts & Mods** on them. Meshes opened from a file on disk are not autosaved, so there is nothing to offer for them.
+- If CDMW closes unexpectedly while you edit a mesh, the next start tells you which drafts were saved and offers to open **Drafts & Mods** on them. Edits still open in the Mesh Editor are no longer lost: the editor continues from them the next time you open the draft, one **Undo** away from the draft as you last finished it. A draft also keeps its **Undo history** after CDMW closes (up to 64 steps and 256 MiB a draft, as **Settings > Safety** says), so Undo steps back through the edits you finished before. Meshes opened from a file on disk are not autosaved, so there is nothing to offer for them and their history ends when they close.
 
 - **Settings > Shortcuts** shows the keys of every command, including the Mesh Editor's and the Texture Editor's, in one list. Search it, change, unbind or reset a key, or reset all; a key already used where it would clash is named before you save it. Keys you set in the Mesh Editor's or the Texture Editor's own shortcut windows appear here and carry over.
 

@@ -540,3 +540,35 @@ def test_set_pieces_use_browse_s_preview_core_cache_when_the_session_is_in_the_w
     elsewhere = tmp_path / "temp" / "cdmw-rust-mesh-editor" / "session-2"
     elsewhere.mkdir(parents=True)
     assert item_set_material_cache(elsewhere) == elsewhere.parent / "item-set-native-cache"
+
+
+def test_a_saved_history_step_restores_into_the_set(tmp_path):
+    """P14: a journal step back keeps the set's assets and part identities."""
+    from cdmw.services.mesh_history_journal import read_journal
+
+    source, service, key, context = _set(tmp_path)
+    try:
+        session = service._session(key)
+        session.mesh_layer_project_path = tmp_path / "draft" / "mesh_layer_project.json"
+        service._save_mesh_layer_project_locked(session)  # the set as opened
+        before = [getattr(part, PART_ATTRIBUTE) for part in service.working_mesh(key).submeshes]
+        assert service.apply_command(key, MeshEditCommand("separate", mode="edit",
+            selection=MeshEditSelection.from_maps(faces_by_submesh={1: (0,)}))).ok
+        identity = getattr(service.working_mesh(key).submeshes[2], PART_ATTRIBUTE)
+        set_item_set_inclusion(service, key, [identity], False)
+        service._save_mesh_layer_project_locked(session)
+        assert len(read_journal(tmp_path / "draft").records) == 2
+        # Drop the in-memory history, as a restart does.
+        while session.undo_stack:
+            session.undo_stack.pop()
+        result = service.undo(key)
+        assert result.action == "journal_undo"
+        after = [getattr(part, PART_ATTRIBUTE) for part in service.working_mesh(key).submeshes]
+        assert after == before
+        restored = service._session(key).archive_refit_context
+        assert restored.draft_identity == context.draft_identity and not restored.excluded_part_ids
+        assert len(item_set_bindings(service.working_mesh(key), restored)[context.assets[1].asset_id]) == 1
+        assert service.redo(key).action == "journal_redo"
+        assert service._session(key).archive_refit_context.excluded_part_ids == {identity}
+    finally:
+        service.close_edit_session(key, force_without_saving=True)

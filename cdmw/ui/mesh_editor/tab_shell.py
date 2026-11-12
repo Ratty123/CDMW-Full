@@ -970,7 +970,13 @@ class MeshEditorTabShellMixin(
             if callable(choice_showing) and choice_showing():
                 self.show_empty_state()
             return
-        if int(getattr(self, "current_undo_count", 0) or 0) > 0:
+        controller = self.standalone_controller
+        closing = getattr(controller, "closing_loses_work", None)
+        try:
+            loses_work = bool(closing()) if callable(closing) else True
+        except Exception:
+            loses_work = True
+        if loses_work and int(getattr(self, "current_undo_count", 0) or 0) > 0:
             confirmed = _tab.QMessageBox.question(
                 self,
                 "Discard Unsaved Mesh Editor Changes?",

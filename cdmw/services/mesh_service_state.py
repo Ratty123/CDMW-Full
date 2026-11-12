@@ -291,6 +291,8 @@ class _MeshEditSession:
     history_journal_parts: set[int] = field(default_factory=set)
     history_journal_edited: bool = False
     history_journal_error: str = ""
+    # P14: the next journal record is the state the user finished.
+    history_journal_clean_pending: bool = False
     # P14: a Mesh Editor shadow keeps its unfinished state beside the draft it
     # edits: (project path, source SHA-256, the draft generation it started from).
     history_recovery_target: tuple[Path, str, str] | None = None

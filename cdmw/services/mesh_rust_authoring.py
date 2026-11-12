@@ -10905,6 +10905,10 @@ class RustMeshAuthoringSession:
             raise
         result = self._complete_accepted_finish(cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication, exact_output_validation, free_edit_output_validation)
         self._end_editor_recovery()  # the draft holds these edits now (P14)
+        try:
+            self.authoritative_service.mark_history_clean(self.authoritative_session_id)
+        except Exception:
+            pass  # a clean mark is a hint for prompts, never a reason to fail Finish
         # Keep the typed host report with the revision actually committed. The
         # control payload may be staged on disk and describes a disposed shadow;
         # neither the Rust reply nor an old UI report is export authority.
