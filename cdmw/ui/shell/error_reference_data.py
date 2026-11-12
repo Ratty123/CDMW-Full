@@ -59542,7 +59542,7 @@ MESSAGE_REFERENCE = [
     "message": "Python mesh edit fallback blocked while native mesh core is available",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 131
+      "cdmw/modding/mesh_edit_ops.py": 132
     }
   },
   {
@@ -71254,7 +71254,7 @@ MESSAGE_REFERENCE = [
     "message": "native UV transform unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2808
+      "cdmw/modding/mesh_edit_ops.py": 2940
     }
   },
   {
@@ -71270,7 +71270,7 @@ MESSAGE_REFERENCE = [
     "message": "native auto UV unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2834
+      "cdmw/modding/mesh_edit_ops.py": 2966
     }
   },
   {
@@ -71294,7 +71294,7 @@ MESSAGE_REFERENCE = [
     "message": "native bridge unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2334
+      "cdmw/modding/mesh_edit_ops.py": 2466
     }
   },
   {
@@ -71302,7 +71302,7 @@ MESSAGE_REFERENCE = [
     "message": "native brush history delta unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 882
+      "cdmw/modding/mesh_edit_ops.py": 886
     }
   },
   {
@@ -71310,7 +71310,7 @@ MESSAGE_REFERENCE = [
     "message": "native brush unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 883
+      "cdmw/modding/mesh_edit_ops.py": 887
     }
   },
   {
@@ -71318,7 +71318,7 @@ MESSAGE_REFERENCE = [
     "message": "native compact orphans unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2128
+      "cdmw/modding/mesh_edit_ops.py": 2132
     }
   },
   {
@@ -71326,7 +71326,7 @@ MESSAGE_REFERENCE = [
     "message": "native copy normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2702
+      "cdmw/modding/mesh_edit_ops.py": 2834
     }
   },
   {
@@ -71334,7 +71334,7 @@ MESSAGE_REFERENCE = [
     "message": "native delete unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 958
+      "cdmw/modding/mesh_edit_ops.py": 962
     }
   },
   {
@@ -71342,7 +71342,7 @@ MESSAGE_REFERENCE = [
     "message": "native display triangulate unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2213
+      "cdmw/modding/mesh_edit_ops.py": 2345
     }
   },
   {
@@ -71350,7 +71350,7 @@ MESSAGE_REFERENCE = [
     "message": "native dissolve unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 986
+      "cdmw/modding/mesh_edit_ops.py": 990
     }
   },
   {
@@ -71358,7 +71358,7 @@ MESSAGE_REFERENCE = [
     "message": "native duplicate unavailable",
     "recovery": "conflict",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1325
+      "cdmw/modding/mesh_edit_ops.py": 1329
     }
   },
   {
@@ -71374,7 +71374,7 @@ MESSAGE_REFERENCE = [
     "message": "native edge split unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1801
+      "cdmw/modding/mesh_edit_ops.py": 1805
     }
   },
   {
@@ -71390,7 +71390,7 @@ MESSAGE_REFERENCE = [
     "message": "native extrude unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1471
+      "cdmw/modding/mesh_edit_ops.py": 1475
     }
   },
   {
@@ -71414,7 +71414,7 @@ MESSAGE_REFERENCE = [
     "message": "native fill holes unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2174
+      "cdmw/modding/mesh_edit_ops.py": 2306
     }
   },
   {
@@ -71422,7 +71422,7 @@ MESSAGE_REFERENCE = [
     "message": "native fill unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2032
+      "cdmw/modding/mesh_edit_ops.py": 2036
     }
   },
   {
@@ -71430,7 +71430,7 @@ MESSAGE_REFERENCE = [
     "message": "native fix winding unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2142
+      "cdmw/modding/mesh_edit_ops.py": 2274
     }
   },
   {
@@ -71454,7 +71454,7 @@ MESSAGE_REFERENCE = [
     "message": "native in-place mirror unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1380
+      "cdmw/modding/mesh_edit_ops.py": 1384
     }
   },
   {
@@ -71462,7 +71462,7 @@ MESSAGE_REFERENCE = [
     "message": "native inset unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1578
+      "cdmw/modding/mesh_edit_ops.py": 1582
     }
   },
   {
@@ -71486,7 +71486,7 @@ MESSAGE_REFERENCE = [
     "message": "native loop cut unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1659
+      "cdmw/modding/mesh_edit_ops.py": 1663
     }
   },
   {
@@ -71494,7 +71494,7 @@ MESSAGE_REFERENCE = [
     "message": "native merge unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1898
+      "cdmw/modding/mesh_edit_ops.py": 1902
     }
   },
   {
@@ -71783,7 +71783,7 @@ MESSAGE_REFERENCE = [
     "message": "native mirror unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1422
+      "cdmw/modding/mesh_edit_ops.py": 1426
     }
   },
   {
@@ -71815,7 +71815,7 @@ MESSAGE_REFERENCE = [
     "message": "native normal recompute unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2423
+      "cdmw/modding/mesh_edit_ops.py": 2555
     }
   },
   {
@@ -71823,7 +71823,7 @@ MESSAGE_REFERENCE = [
     "message": "native normal recompute unavailable after binary transform",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 602
+      "cdmw/modding/mesh_edit_ops.py": 606
     }
   },
   {
@@ -71831,7 +71831,7 @@ MESSAGE_REFERENCE = [
     "message": "native normal recompute unavailable after in-place mirror",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1374
+      "cdmw/modding/mesh_edit_ops.py": 1378
     }
   },
   {
@@ -71839,7 +71839,7 @@ MESSAGE_REFERENCE = [
     "message": "native normal recompute unavailable after transform",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 628
+      "cdmw/modding/mesh_edit_ops.py": 632
     }
   },
   {
@@ -71967,7 +71967,7 @@ MESSAGE_REFERENCE = [
     "message": "native refine smooth unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1135
+      "cdmw/modding/mesh_edit_ops.py": 1139
     }
   },
   {
@@ -71980,10 +71980,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "native remove collapsed faces unavailable",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/modding/mesh_edit_ops.py": 2252
+    }
+  },
+  {
+    "area": "mesh",
     "message": "native remove doubles unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2107
+      "cdmw/modding/mesh_edit_ops.py": 2111
     }
   },
   {
@@ -71999,7 +72007,7 @@ MESSAGE_REFERENCE = [
     "message": "native selected-face flip normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2577
+      "cdmw/modding/mesh_edit_ops.py": 2709
     }
   },
   {
@@ -72031,7 +72039,7 @@ MESSAGE_REFERENCE = [
     "message": "native separate unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1271
+      "cdmw/modding/mesh_edit_ops.py": 1275
     }
   },
   {
@@ -72039,7 +72047,7 @@ MESSAGE_REFERENCE = [
     "message": "native sharpen normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2644
+      "cdmw/modding/mesh_edit_ops.py": 2776
     }
   },
   {
@@ -72063,7 +72071,7 @@ MESSAGE_REFERENCE = [
     "message": "native split unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1194
+      "cdmw/modding/mesh_edit_ops.py": 1198
     }
   },
   {
@@ -72095,7 +72103,7 @@ MESSAGE_REFERENCE = [
     "message": "native subdivide unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1093
+      "cdmw/modding/mesh_edit_ops.py": 1097
     }
   },
   {
@@ -72103,7 +72111,7 @@ MESSAGE_REFERENCE = [
     "message": "native submesh flip normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2606
+      "cdmw/modding/mesh_edit_ops.py": 2738
     }
   },
   {
@@ -72111,7 +72119,7 @@ MESSAGE_REFERENCE = [
     "message": "native tangent generation unavailable",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2494
+      "cdmw/modding/mesh_edit_ops.py": 2626
     }
   },
   {
@@ -72143,7 +72151,7 @@ MESSAGE_REFERENCE = [
     "message": "native transform history delta unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 635
+      "cdmw/modding/mesh_edit_ops.py": 639
     }
   },
   {
@@ -72151,7 +72159,7 @@ MESSAGE_REFERENCE = [
     "message": "native transform unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 669
+      "cdmw/modding/mesh_edit_ops.py": 673
     }
   },
   {
@@ -72199,7 +72207,7 @@ MESSAGE_REFERENCE = [
     "message": "native weighted normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2442
+      "cdmw/modding/mesh_edit_ops.py": 2574
     }
   },
   {
@@ -72207,7 +72215,7 @@ MESSAGE_REFERENCE = [
     "message": "native weld unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1959
+      "cdmw/modding/mesh_edit_ops.py": 1963
     }
   },
   {
@@ -76652,7 +76660,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 494
+      "cdmw/automation/bridge.py": 530
     }
   },
   {
@@ -86276,7 +86284,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 400
+      "cdmw/automation/bridge.py": 436
     }
   },
   {
@@ -87668,7 +87676,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 498
+      "cdmw/automation/bridge.py": 534
     }
   },
   {
@@ -88004,7 +88012,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 382
+      "cdmw/automation/bridge.py": 414
     }
   },
   {
@@ -88701,7 +88709,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown automation command: {command or '(none)'}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 269
+      "cdmw/automation/bridge.py": 270
     }
   },
   {
@@ -91866,7 +91874,7 @@ MESSAGE_REFERENCE = [
     "message": "no {name} event within the timeout",
     "recovery": "timeout",
     "sources": {
-      "cdmw/automation/bridge.py": 235
+      "cdmw/automation/bridge.py": 236
     }
   },
   {
@@ -93117,7 +93125,7 @@ MESSAGE_REFERENCE = [
     "message": "{command} did not finish on the UI thread",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 273
+      "cdmw/automation/bridge.py": 274
     }
   },
   {
@@ -109899,7 +109907,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/modding/mesh_edit_ops.py": {
     "raise": 4,
-    "report": 42
+    "report": 43
   },
   "cdmw/modding/mesh_export_source_identity.py": {},
   "cdmw/modding/mesh_exporter.py": {
