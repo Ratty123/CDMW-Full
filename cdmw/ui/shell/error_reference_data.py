@@ -28689,7 +28689,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply the imported placement for {state.appearance.model_path} in step 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 636
+      "cdmw/ui/new_item/controller.py": 637
     }
   },
   {
@@ -33199,7 +33199,7 @@ MESSAGE_REFERENCE = [
     "message": "This template or its prefab overrides cannot be changed safely with this control.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/new_item/wearer_editor.py": 76
+      "cdmw/ui/new_item/wearer_editor.py": 124
     }
   },
   {
@@ -33504,7 +33504,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/new_item/panels_template.py": 251
+      "cdmw/ui/new_item/panels_template.py": 300
     }
   },
   {
@@ -34417,7 +34417,7 @@ MESSAGE_REFERENCE = [
     "message": "inherited",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_wearers.py": 152
+      "cdmw/services/new_item_wearers.py": 156
     }
   },
   {
@@ -34577,7 +34577,7 @@ MESSAGE_REFERENCE = [
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 387
+      "cdmw/ui/new_item/controller.py": 388
     }
   },
   {
@@ -35759,7 +35759,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 628
+      "cdmw/ui/new_item/controller.py": 629
     }
   },
   {
@@ -105243,7 +105243,7 @@ SOURCE_COVERAGE = {
     "raise": 17
   },
   "cdmw/services/new_item_wearers.py": {
-    "raise": 10
+    "raise": 11
   },
   "cdmw/services/old_install_removal.py": {
     "diagnostic_field": 1,
@@ -106959,6 +106959,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/new_item/wearer_editor.py": {
     "display": 1
   },
+  "cdmw/ui/new_item/wearer_labels.py": {},
   "cdmw/ui/new_item/workflow_header.py": {
     "raise": 1
   },
