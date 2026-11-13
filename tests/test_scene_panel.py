@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtWidgets import QApplication
 
@@ -167,16 +169,22 @@ def test_a_refused_open_leaves_no_unticked_parts_for_the_next_open() -> None:
     assert shell._mesh_editor_hidden_parts_for_open is None
 
 
-def test_preview_core_lists_the_sword_s_scabbard_and_tests_it() -> None:
-    """P5: the sheath beside a weapon (`<stem>_in.pac`) is an optional component; the self-test runs it."""
+def test_preview_core_lists_the_sword_s_scabbard_after_its_prefab_components() -> None:
+    """P5: the sheath beside a weapon (`<stem>_in.pac`) is an optional component, listed
+    after the prefab's own and taking none of their slots. The built Preview Core runs
+    those cases (run_weapon_sheath_component_self_test) in its material self-test."""
+
+    import json
+    import subprocess
     from pathlib import Path
 
-    lookup = Path("native/cdmw_preview_core/src/owners/material_archive_lookup.cpp").read_text(encoding="utf-8")
-    tests = Path("native/cdmw_preview_core/src/owners/material_surface_self_tests.cpp").read_text(encoding="utf-8")
-    assert 'for (const char* suffix : {"_in"})' in lookup
-    runner = tests[tests.index("static void run_material_contract_self_test()"):]
-    assert "run_weapon_sheath_component_self_test();" in runner[:400]
-    assert "cd_phm_02_sword_0015_in.pac" in tests
+    helper = Path(__file__).resolve().parents[1] / "native/cdmw_preview_core/build/Release/cdmw-preview-core.exe"
+    if not helper.is_file():
+        pytest.skip("Native Preview Core build is required")
+    run = subprocess.run([str(helper), "self-test-materials"], capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0, run.stderr
+    result = json.loads(run.stdout.strip().splitlines()[-1])
+    assert result["ok"] and result["material_contracts"], result
 
 
 def test_a_set_s_unticked_parts_survive_an_open_started_while_it_prepares(monkeypatch) -> None:

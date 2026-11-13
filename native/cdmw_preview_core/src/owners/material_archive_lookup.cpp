@@ -486,6 +486,24 @@ static bool prefab_component_enabled_for_job(
         });
 }
 
+// A model's own companions (a weapon's sheath) follow the components its prefab
+// lists and take no slot of theirs: the limit is for the prefab's guess (P5).
+static std::vector<ArchiveEntryRef> with_companions_after(
+    std::vector<ArchiveEntryRef> components,
+    const std::vector<ArchiveEntryRef>& companions
+) {
+    std::set<std::string> seen;
+    for (const ArchiveEntryRef& component : components) {
+        seen.insert(lower_copy(path_utf8(component.pamt_path) + "|" + component.path));
+    }
+    for (const ArchiveEntryRef& companion : companions) {
+        if (seen.insert(lower_copy(path_utf8(companion.pamt_path) + "|" + companion.path)).second) {
+            components.push_back(companion);
+        }
+    }
+    return components;
+}
+
 static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
     const EntryJob& job,
     const PamtIndex& index,
@@ -515,10 +533,12 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
     }
 
     std::set<std::string> seen_components;
+    std::vector<ArchiveEntryRef> companions;
     // A weapon's sheath is a model of its own beside it (`<stem>_in.pac`), and the
     // item prefab the stem guess finds does not always list it: the sword
     // `cd_phm_02_sword_0015.pac` lost its scabbard row that way (P5). List the
-    // companion as an optional component; it loads only when it is enabled.
+    // companion as an optional component, after the prefab's own; it loads only
+    // when it is enabled.
     {
         std::string folder = job.path;
         std::replace(folder.begin(), folder.end(), '\\', '/');
@@ -530,11 +550,11 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
             if (!resolved.has_value() || prefab_component_path_key(resolved->path) != prefab_component_path_key(companion)) {
                 continue;
             }
-            const std::string key = lower_copy(path_utf8(resolved->pamt_path) + "|" + resolved->path);
-            if (seen_components.insert(key).second) components.push_back(*resolved);
+            companions.push_back(*resolved);
         }
     }
     for (const ArchiveEntryRef& prefab : prefab_candidates) {
+        if (components.size() >= max_components) break;
         std::vector<char> prefab_bytes;
         try {
             prefab_bytes = read_archive_ref_decoded_bytes(prefab);
@@ -556,10 +576,10 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
             const std::string key = lower_copy(path_utf8(resolved.pamt_path) + "|" + resolved.path);
             if (!seen_components.insert(key).second) continue;
             components.push_back(resolved);
-            if (components.size() >= max_components) return components;
+            if (components.size() >= max_components) break;
         }
     }
-    return components;
+    return with_companions_after(std::move(components), companions);
 }
 
 // The prefab search above guesses item prefab names from the model stem

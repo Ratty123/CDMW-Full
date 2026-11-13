@@ -863,6 +863,20 @@ static void run_weapon_sheath_component_self_test() {
         "the sword's own scabbard beside it was not listed as its component");
     require_material_contract(!prefab_component_enabled_for_job(components.front(), job),
         "the scabbard loaded without being enabled");
+    // With the prefab's guess at its limit, the sheath still comes after its
+    // eight components, and one the prefab lists already is not listed twice.
+    std::vector<ArchiveEntryRef> listed;
+    for (int part = 0; part < 8; ++part) {
+        ArchiveEntryRef component;
+        component.path = "character/model/1_pc/1_phm/weapon/part_" + std::to_string(part) + ".pac";
+        listed.push_back(component);
+    }
+    const auto ordered = with_companions_after(listed, {sheath});
+    require_material_contract(ordered.size() == 9 && ordered.front().path == listed.front().path
+        && ordered.back().path == sheath.path, "the scabbard took a slot of the prefab's components");
+    listed.push_back(sheath);
+    require_material_contract(with_companions_after(listed, {sheath}).size() == 9,
+        "a scabbard the prefab lists was listed twice");
 }
 
 static void run_material_contract_self_test() {
