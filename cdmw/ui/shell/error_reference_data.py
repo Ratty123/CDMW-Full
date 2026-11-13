@@ -37370,7 +37370,7 @@ MESSAGE_REFERENCE = [
     "message": "Material sidecar export preparation returned invalid data.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py": 789
+      "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py": 792
     }
   },
   {
@@ -38131,7 +38131,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview material preview rejected the canonical package.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py": 484
+      "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py": 487
     }
   },
   {
@@ -92873,7 +92873,7 @@ MESSAGE_REFERENCE = [
     "message": "No placement package payloads could be built.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 1004
+      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 1007
     }
   },
   {
@@ -92913,7 +92913,7 @@ MESSAGE_REFERENCE = [
     "message": "No source-copy rows were resolved. Add a numeric adjustment if you only want to write socket XML.",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 925
+      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 928
     }
   },
   {
@@ -93572,7 +93572,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview package failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 544
+      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 547
     }
   },
   {
@@ -93580,7 +93580,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview placement model load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 668
+      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 671
     }
   },
   {
@@ -93588,7 +93588,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview placement preview could not build a renderable model.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 685
+      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 688
     }
   },
   {
@@ -93604,7 +93604,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview rejected the placement package.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 505
+      "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 508
     }
   },
   {

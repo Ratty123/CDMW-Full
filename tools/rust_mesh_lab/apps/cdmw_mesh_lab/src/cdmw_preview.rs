@@ -4645,183 +4645,6 @@ fn grid_plane_axes(grid: &Value) -> (Vec3, Vec3) {
     }
 }
 
-/// (index in `source_path`, index in the package) for each package part from that
-/// file, as its batch's `editor_identity` names them.
-pub(crate) fn follow_map(batches: &[Value], source_path: &str) -> Vec<(u32, usize)> {
-    batches
-        .iter()
-        .enumerate()
-        .filter_map(|(position, batch)| {
-            let identity = batch.get("editor_identity")?;
-            let path = identity.get("source_model_path")?.as_str()?;
-            if !crate::engine::same_source(path, source_path) {
-                return None;
-            }
-            let local = identity.get("source_local_submesh_index")?.as_u64()?;
-            let index = identity
-                .get("source_submesh_index")
-                .and_then(Value::as_u64)
-                .unwrap_or(position as u64);
-            Some((u32::try_from(local).ok()?, usize::try_from(index).ok()?))
-        })
-        .collect()
-}
-
-/// `document` with the parts `map` names drawn as `edit` has them (P5).
-pub(crate) fn followed_document(
-    document: &MeshDocument,
-    lod: usize,
-    map: &[(u32, usize)],
-    edit: &WorkingMesh,
-) -> std::result::Result<MeshDocument, String> {
-    let mut document = document.clone();
-    let parts = &mut document
-        .lods
-        .get_mut(lod)
-        .ok_or("the preview has no such LOD")?
-        .submeshes;
-    let edited = edit.submesh_indices();
-    let template = map
-        .first()
-        .and_then(|(_, index)| parts.get(*index).cloned());
-    for (local, index) in map {
-        let Some(part) = parts.get_mut(*index) else {
-            continue;
-        };
-        let shown = if edited.contains(local) {
-            HashSet::from([*local])
-        } else {
-            HashSet::new()
-        };
-        fill_followed_part(part, &edit.draw_snapshot_for_submeshes(&shown));
-    }
-    let shown: HashSet<u32> = map.iter().map(|(local, _)| *local).collect();
-    let mut added: Vec<u32> = edited.difference(&shown).copied().collect();
-    added.sort_unstable();
-    if let Some(template) = template {
-        for local in added {
-            let mut part = template.clone();
-            part.name = format!("{}_{local}", template.name);
-            fill_followed_part(
-                &mut part,
-                &edit.draw_snapshot_for_submeshes(&HashSet::from([local])),
-            );
-            parts.push(part);
-        }
-    }
-    Ok(document)
-}
-
-/// A part of the preview's document, drawn as the edit's snapshot of it.
-fn fill_followed_part(part: &mut Submesh, snapshot: &cdmw_mesh::DrawSnapshot) {
-    part.positions.clone_from(&snapshot.positions);
-    part.normals.clone_from(&snapshot.normals);
-    part.uvs.clone_from(&snapshot.uvs);
-    part.shader_masks.clone_from(&snapshot.shader_masks);
-    part.indices.clone_from(&snapshot.indices);
-    part.source_vertex_indices = vec![-1; snapshot.positions.len()];
-}
-
-#[cfg(test)]
-mod follow_tests {
-    //! P5: a preview that shows the edited file with others follows that file's parts.
-    use super::*;
-    use cdmw_formats::{MeshFormat, MeshLod};
-
-    fn part(name: &str, x: f32) -> Submesh {
-        Submesh {
-            name: name.to_owned(),
-            material: format!("{name}_material"),
-            positions: vec![[x, 0.0, 0.0], [x + 1.0, 0.0, 0.0], [x, 1.0, 0.0]],
-            normals: vec![[0.0, 0.0, 1.0]; 3],
-            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
-            indices: vec![0, 1, 2],
-            shader_masks: Vec::new(),
-            source_vertex_indices: vec![0, 1, 2],
-            source_range: SourceRange {
-                offset: 0,
-                length: 0,
-            },
-            vertex_stride: 0,
-            layout: "test".to_owned(),
-        }
-    }
-
-    fn document(parts: Vec<Submesh>) -> MeshDocument {
-        MeshDocument {
-            format: MeshFormat::Pac,
-            source_sha256: String::new(),
-            parser: "test".to_owned(),
-            lod_count_reported: 1,
-            lods: vec![MeshLod {
-                level: 0,
-                submeshes: parts,
-            }],
-            warnings: Vec::new(),
-            structural_fingerprint: String::new(),
-        }
-    }
-
-    fn batch(index: u64, path: &str, local: u64) -> Value {
-        json!({"index": index, "editor_identity": {
-            "source_model_path": path, "source_submesh_index": index, "source_local_submesh_index": local}})
-    }
-
-    #[test]
-    fn a_package_s_parts_map_to_the_edited_file_by_identity() {
-        let batches = vec![
-            batch(0, "character/sword.pac", 0),
-            batch(1, "Character\\Sword.PAC", 1),
-            batch(2, "character/sword_in.pac", 0),
-            json!({"index": 3}),
-        ];
-        assert_eq!(
-            follow_map(&batches, "character/sword.pac"),
-            vec![(0, 0), (1, 1)]
-        );
-        assert_eq!(follow_map(&batches, "character/sword_in.pac"), vec![(0, 2)]);
-        assert!(follow_map(&batches, "character/other.pac").is_empty());
-    }
-
-    #[test]
-    fn only_the_edited_file_s_parts_change_and_added_parts_are_shown() {
-        // The preview: the sheath (its own file) at index 0, the sword's two parts after it.
-        let preview = document(vec![
-            part("sheath", 10.0),
-            part("blade", 0.0),
-            part("hilt", 2.0),
-        ]);
-        let map = vec![(0, 1), (1, 2)];
-        // The edit of the sword: its blade moved, its hilt deleted, a new part added.
-        let mut edit_parts = vec![part("blade", 5.0), part("hilt", 2.0), part("guard", 7.0)];
-        edit_parts[1].indices.clear();
-        let edit = WorkingMesh::from_document_lod(&document(edit_parts), 0).expect("edit mesh");
-        let followed = followed_document(&preview, 0, &map, &edit).expect("followed");
-        let parts = &followed.lods[0].submeshes;
-        assert_eq!(
-            parts.len(),
-            4,
-            "the added part is shown after the package's own"
-        );
-        assert_eq!(
-            parts[0], preview.lods[0].submeshes[0],
-            "another file's part is left as it is"
-        );
-        assert!(
-            parts[1].positions.iter().any(|p| (p[0] - 5.0).abs() < 1e-6),
-            "the moved part follows"
-        );
-        assert_eq!(
-            parts[1].material, "blade_material",
-            "the preview keeps its own materials"
-        );
-        assert!(
-            parts[3].positions.iter().any(|p| (p[0] - 7.0).abs() < 1e-6),
-            "the added part is drawn"
-        );
-        WorkingMesh::from_document_lod(&followed, 0).expect("the followed document builds");
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -5629,5 +5452,183 @@ mod view_mode_tests {
         }
 
         fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+    }
+}
+
+/// (index in `source_path`, index in the package) for each package part from that
+/// file, as its batch's `editor_identity` names them.
+pub(crate) fn follow_map(batches: &[Value], source_path: &str) -> Vec<(u32, usize)> {
+    batches
+        .iter()
+        .enumerate()
+        .filter_map(|(position, batch)| {
+            let identity = batch.get("editor_identity")?;
+            let path = identity.get("source_model_path")?.as_str()?;
+            if !crate::engine::same_source(path, source_path) {
+                return None;
+            }
+            let local = identity.get("source_local_submesh_index")?.as_u64()?;
+            let index = identity
+                .get("source_submesh_index")
+                .and_then(Value::as_u64)
+                .unwrap_or(position as u64);
+            Some((u32::try_from(local).ok()?, usize::try_from(index).ok()?))
+        })
+        .collect()
+}
+
+/// `document` with the parts `map` names drawn as `edit` has them (P5).
+pub(crate) fn followed_document(
+    document: &MeshDocument,
+    lod: usize,
+    map: &[(u32, usize)],
+    edit: &WorkingMesh,
+) -> std::result::Result<MeshDocument, String> {
+    let mut document = document.clone();
+    let parts = &mut document
+        .lods
+        .get_mut(lod)
+        .ok_or("the preview has no such LOD")?
+        .submeshes;
+    let edited = edit.submesh_indices();
+    let template = map
+        .first()
+        .and_then(|(_, index)| parts.get(*index).cloned());
+    for (local, index) in map {
+        let Some(part) = parts.get_mut(*index) else {
+            continue;
+        };
+        let shown = if edited.contains(local) {
+            HashSet::from([*local])
+        } else {
+            HashSet::new()
+        };
+        fill_followed_part(part, &edit.draw_snapshot_for_submeshes(&shown));
+    }
+    let shown: HashSet<u32> = map.iter().map(|(local, _)| *local).collect();
+    let mut added: Vec<u32> = edited.difference(&shown).copied().collect();
+    added.sort_unstable();
+    if let Some(template) = template {
+        for local in added {
+            let mut part = template.clone();
+            part.name = format!("{}_{local}", template.name);
+            fill_followed_part(
+                &mut part,
+                &edit.draw_snapshot_for_submeshes(&HashSet::from([local])),
+            );
+            parts.push(part);
+        }
+    }
+    Ok(document)
+}
+
+/// A part of the preview's document, drawn as the edit's snapshot of it.
+fn fill_followed_part(part: &mut Submesh, snapshot: &cdmw_mesh::DrawSnapshot) {
+    part.positions.clone_from(&snapshot.positions);
+    part.normals.clone_from(&snapshot.normals);
+    part.uvs.clone_from(&snapshot.uvs);
+    part.shader_masks.clone_from(&snapshot.shader_masks);
+    part.indices.clone_from(&snapshot.indices);
+    part.source_vertex_indices = vec![-1; snapshot.positions.len()];
+}
+
+#[cfg(test)]
+mod follow_tests {
+    //! P5: a preview that shows the edited file with others follows that file's parts.
+    use super::*;
+    use cdmw_formats::{MeshFormat, MeshLod};
+
+    fn part(name: &str, x: f32) -> Submesh {
+        Submesh {
+            name: name.to_owned(),
+            material: format!("{name}_material"),
+            positions: vec![[x, 0.0, 0.0], [x + 1.0, 0.0, 0.0], [x, 1.0, 0.0]],
+            normals: vec![[0.0, 0.0, 1.0]; 3],
+            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+            indices: vec![0, 1, 2],
+            shader_masks: Vec::new(),
+            source_vertex_indices: vec![0, 1, 2],
+            source_range: SourceRange {
+                offset: 0,
+                length: 0,
+            },
+            vertex_stride: 0,
+            layout: "test".to_owned(),
+        }
+    }
+
+    fn document(parts: Vec<Submesh>) -> MeshDocument {
+        MeshDocument {
+            format: MeshFormat::Pac,
+            source_sha256: String::new(),
+            parser: "test".to_owned(),
+            lod_count_reported: 1,
+            lods: vec![MeshLod {
+                level: 0,
+                submeshes: parts,
+            }],
+            warnings: Vec::new(),
+            structural_fingerprint: String::new(),
+        }
+    }
+
+    fn batch(index: u64, path: &str, local: u64) -> Value {
+        json!({"index": index, "editor_identity": {
+            "source_model_path": path, "source_submesh_index": index, "source_local_submesh_index": local}})
+    }
+
+    #[test]
+    fn a_package_s_parts_map_to_the_edited_file_by_identity() {
+        let batches = vec![
+            batch(0, "character/sword.pac", 0),
+            batch(1, "Character\\Sword.PAC", 1),
+            batch(2, "character/sword_in.pac", 0),
+            json!({"index": 3}),
+        ];
+        assert_eq!(
+            follow_map(&batches, "character/sword.pac"),
+            vec![(0, 0), (1, 1)]
+        );
+        assert_eq!(follow_map(&batches, "character/sword_in.pac"), vec![(0, 2)]);
+        assert!(follow_map(&batches, "character/other.pac").is_empty());
+    }
+
+    #[test]
+    fn only_the_edited_file_s_parts_change_and_added_parts_are_shown() {
+        // The preview: the sheath (its own file) at index 0, the sword's two parts after it.
+        let preview = document(vec![
+            part("sheath", 10.0),
+            part("blade", 0.0),
+            part("hilt", 2.0),
+        ]);
+        let map = vec![(0, 1), (1, 2)];
+        // The edit of the sword: its blade moved, its hilt deleted, a new part added.
+        let mut edit_parts = vec![part("blade", 5.0), part("hilt", 2.0), part("guard", 7.0)];
+        edit_parts[1].indices.clear();
+        let edit = WorkingMesh::from_document_lod(&document(edit_parts), 0).expect("edit mesh");
+        let followed = followed_document(&preview, 0, &map, &edit).expect("followed");
+        let parts = &followed.lods[0].submeshes;
+        assert_eq!(
+            parts.len(),
+            4,
+            "the added part is shown after the package's own"
+        );
+        assert_eq!(
+            parts[0], preview.lods[0].submeshes[0],
+            "another file's part is left as it is"
+        );
+        assert!(
+            parts[1].positions.iter().any(|p| (p[0] - 5.0).abs() < 1e-6),
+            "the moved part follows"
+        );
+        assert_eq!(
+            parts[1].material, "blade_material",
+            "the preview keeps its own materials"
+        );
+        assert!(
+            parts[3].positions.iter().any(|p| (p[0] - 7.0).abs() < 1e-6),
+            "the added part is drawn"
+        );
+        WorkingMesh::from_document_lod(&followed, 0).expect("the followed document builds");
     }
 }

@@ -287,6 +287,9 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         placement_d3d11_host.setMinimumSize(QSize(520, 360))
         placement_d3d11_host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         d3d11_layout.addWidget(placement_d3d11_host, 1)
+        from cdmw.ui.preview.scene_panel_binding import attach_scene_panel
+
+        attach_scene_panel(placement_d3d11_host)  # P5: the scene's files and parts
         placement_d3d11_status = QLabel("Preview placement preview is available.")
         placement_d3d11_status.setObjectName("HintLabel")
         placement_d3d11_status.setWordWrap(True)
