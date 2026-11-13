@@ -50945,7 +50945,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod folder not found",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/saved_work_page.py": 93
+      "cdmw/ui/mesh_editor/saved_work_page.py": 98
     }
   },
   {
@@ -51121,7 +51121,7 @@ MESSAGE_REFERENCE = [
     "message": "Model row preparation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/controller.py": 181
+      "cdmw/ui/model_library/controller.py": 205
     }
   },
   {
@@ -54292,7 +54292,7 @@ MESSAGE_REFERENCE = [
     "message": "Package file not found",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/saved_work_page.py": 101
+      "cdmw/ui/mesh_editor/saved_work_page.py": 106
     }
   },
   {
@@ -57685,7 +57685,7 @@ MESSAGE_REFERENCE = [
     "message": "Saved work could not be read: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/saved_work_page.py": 542
+      "cdmw/ui/mesh_editor/saved_work_page.py": 556
     }
   },
   {
@@ -58518,7 +58518,7 @@ MESSAGE_REFERENCE = [
     "message": "Source file not found",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/saved_work_page.py": 91
+      "cdmw/ui/mesh_editor/saved_work_page.py": 96
     }
   },
   {
@@ -59211,7 +59211,7 @@ MESSAGE_REFERENCE = [
     "message": "That did not work: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/saved_work_page.py": 533
+      "cdmw/ui/mesh_editor/saved_work_page.py": 545
     }
   },
   {
@@ -60673,7 +60673,7 @@ MESSAGE_REFERENCE = [
     "message": "This replacement requires companion files. Use Build Mod.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 736
+      "cdmw/services/mesh_service_rebuild.py": 744
     }
   },
   {
@@ -60946,7 +60946,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn outfit corrections back on before exporting the mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 350
+      "cdmw/services/mesh_service_rebuild.py": 358
     }
   },
   {
@@ -61172,7 +61172,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown resident texture resource: {resource_id}:{channel}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 223
+      "cdmw/services/mesh_service_rebuild.py": 231
     }
   },
   {
@@ -61678,7 +61678,7 @@ MESSAGE_REFERENCE = [
     "message": "Use Build Mod to save all body and armor archive assets together",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 771
+      "cdmw/services/mesh_service_rebuild.py": 779
     }
   },
   {
@@ -62846,7 +62846,7 @@ MESSAGE_REFERENCE = [
     "message": "committed texture source is missing: {source}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 291
+      "cdmw/services/mesh_service_rebuild.py": 299
     }
   },
   {
@@ -66394,7 +66394,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh export session changed before capture: expected revision {int(expected_mesh_revision)}, current revision {session.revision}",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 344
+      "cdmw/services/mesh_service_rebuild.py": 352
     }
   },
   {
@@ -66402,7 +66402,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh export session changed during native snapshot capture",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 389
+      "cdmw/services/mesh_service_rebuild.py": 397
     }
   },
   {
@@ -66410,7 +66410,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh export session changed during snapshot capture",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 398
+      "cdmw/services/mesh_service_rebuild.py": 406
     }
   },
   {
@@ -66467,7 +66467,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh rebuild blocked: {codes}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 793
+      "cdmw/services/mesh_service_rebuild.py": 801
     }
   },
   {
@@ -66475,7 +66475,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh rebuild output must not overwrite the original source asset",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 725,
+      "cdmw/services/mesh_service_rebuild.py": 733,
       "cdmw/workers/mesh_editor_workers.py": 383
     }
   },
@@ -66484,7 +66484,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh rebuild output path is required",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 721
+      "cdmw/services/mesh_service_rebuild.py": 729
     }
   },
   {
@@ -66492,7 +66492,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh rebuild report requires original source bytes",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 773
+      "cdmw/services/mesh_service_rebuild.py": 781
     }
   },
   {
@@ -68012,7 +68012,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor export snapshot failed",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 361
+      "cdmw/services/mesh_service_rebuild.py": 369
     }
   },
   {
@@ -68060,7 +68060,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session export failed",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 380
+      "cdmw/services/mesh_service_rebuild.py": 388
     }
   },
   {
@@ -68069,7 +68069,7 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/services/mesh_service.py": 2307,
-      "cdmw/services/mesh_service_rebuild.py": 571
+      "cdmw/services/mesh_service_rebuild.py": 579
     }
   },
   {
@@ -68157,7 +68157,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh export revision mismatch: service={captured_revision}, native={native_revision}",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 364
+      "cdmw/services/mesh_service_rebuild.py": 372
     }
   },
   {
@@ -70397,7 +70397,7 @@ MESSAGE_REFERENCE = [
     "message": "resident texture patch row pitch is smaller than BGRA8 width",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 239
+      "cdmw/services/mesh_service_rebuild.py": 247
     }
   },
   {
@@ -70429,7 +70429,7 @@ MESSAGE_REFERENCE = [
     "message": "resident texture region exceeds the texture bounds",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 236
+      "cdmw/services/mesh_service_rebuild.py": 244
     }
   },
   {
@@ -70437,7 +70437,7 @@ MESSAGE_REFERENCE = [
     "message": "resident texture region is empty or outside the texture",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 234
+      "cdmw/services/mesh_service_rebuild.py": 242
     }
   },
   {
@@ -70445,7 +70445,7 @@ MESSAGE_REFERENCE = [
     "message": "resident texture region must contain four integer coordinates",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 232
+      "cdmw/services/mesh_service_rebuild.py": 240
     }
   },
   {
@@ -70501,7 +70501,7 @@ MESSAGE_REFERENCE = [
     "message": "resident texture working copy is missing: {target}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 243
+      "cdmw/services/mesh_service_rebuild.py": 251
     }
   },
   {
@@ -70509,7 +70509,7 @@ MESSAGE_REFERENCE = [
     "message": "resident texture working copy is truncated",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 250
+      "cdmw/services/mesh_service_rebuild.py": 258
     }
   },
   {
@@ -70517,7 +70517,7 @@ MESSAGE_REFERENCE = [
     "message": "resident texture working copy is truncated: {raw_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 498
+      "cdmw/services/mesh_service_rebuild.py": 506
     }
   },
   {
@@ -70978,10 +70978,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "stale resident texture revision: expected {int(expected_revision)}, current {current}",
+    "recovery": "stale",
+    "sources": {
+      "cdmw/services/mesh_service_rebuild.py": 193
+    }
+  },
+  {
+    "area": "mesh",
     "message": "stale resident texture revision: expected {int(expected_revision)}, current {resource.revision}",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 225
+      "cdmw/services/mesh_service_rebuild.py": 233
     }
   },
   {
@@ -74556,7 +74564,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a source image and an existing target icon path.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/tab.py": 216
+      "cdmw/ui/item_icons/tab.py": 217
     }
   },
   {
@@ -74580,7 +74588,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an existing folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/tab.py": 189
+      "cdmw/ui/item_icons/tab.py": 190
     }
   },
   {
@@ -76448,7 +76456,7 @@ MESSAGE_REFERENCE = [
       "cdmw/ui/replace_assistant/build.py": 210,
       "cdmw/ui/replace_assistant/queue.py": 225,
       "cdmw/ui/shell/utility_controller.py": 194,
-      "cdmw/ui/text_search/controller.py": 577,
+      "cdmw/ui/text_search/controller.py": 611,
       "cdmw/ui/text_search/export_actions.py": 140
     }
   },
@@ -76530,7 +76538,7 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/item_icon.py": 663,
-      "cdmw/ui/item_icons/tab.py": 334
+      "cdmw/ui/item_icons/tab.py": 335
     }
   },
   {
@@ -77107,7 +77115,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated Mesh Editor icon was not found: {source}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/item_icons/tab.py": 374
+      "cdmw/ui/item_icons/tab.py": 375
     }
   },
   {
@@ -78276,7 +78284,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon export failed: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/item_icons/tab.py": 226
+      "cdmw/ui/item_icons/tab.py": 227
     }
   },
   {
@@ -78292,7 +78300,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon library scan failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 386
+      "cdmw/ui/item_icons/workers.py": 388
     }
   },
   {
@@ -78300,7 +78308,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon metadata save failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 449
+      "cdmw/ui/item_icons/workers.py": 451
     }
   },
   {
@@ -78316,7 +78324,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon {request.action} failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 424
+      "cdmw/ui/item_icons/workers.py": 426
     }
   },
   {
@@ -79438,7 +79446,7 @@ MESSAGE_REFERENCE = [
     "message": "No matching file was found for the current query.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/text_search/controller.py": 493
+      "cdmw/ui/text_search/controller.py": 526
     }
   },
   {
@@ -82002,7 +82010,7 @@ MESSAGE_REFERENCE = [
     "message": "The current Archive Browser selection is not a loaded existing item icon target.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/item_icons/controller.py": 358
+      "cdmw/ui/item_icons/controller.py": 383
     }
   },
   {
@@ -82075,6 +82083,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/effect_recipe.py": 65
+    }
+  },
+  {
+    "area": "other",
+    "message": "The empty state's step failed",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/ui/empty_states.py": 149
     }
   },
   {
@@ -83532,7 +83548,7 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/core/item_icon.py": 665,
-      "cdmw/ui/item_icons/tab.py": 336,
+      "cdmw/ui/item_icons/tab.py": 337,
       "cdmw/workers/item_icon_workers.py": 314
     }
   },
@@ -83942,7 +83958,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: {record.warning}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/workers.py": 477
+      "cdmw/ui/item_icons/workers.py": 479
     }
   },
   {
@@ -97459,6 +97475,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "A stroke needs one pressure per point ({len(points)} points, {len(values)} pressures).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/textures/editor_brush.py": 86
+    }
+  },
+  {
+    "area": "textures",
     "message": "A texture export is already running.",
     "recovery": "locked",
     "sources": {
@@ -97531,6 +97555,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "An edited texture needs a positive size.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/textures/original_output.py": 91
+    }
+  },
+  {
+    "area": "textures",
     "message": "An update must retain its existing texture target. Create a new package for another target.",
     "recovery": "input",
     "sources": {
@@ -97599,6 +97631,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/texture_workflow/workers.py": 234
+    }
+  },
+  {
+    "area": "textures",
+    "message": "CDMW cannot read this texture, so it cannot edit it: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/textures/original_output.py": 125
     }
   },
   {
@@ -98515,6 +98555,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Make unique needs at least one part.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/model_textures.py": 280
+    }
+  },
+  {
+    "area": "textures",
     "message": "Match {asset.label} to its original DDS in Review & Export first.",
     "recovery": "internal",
     "sources": {
@@ -98622,7 +98670,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DirectXTex DDS export failed.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 169
+      "cdmw/services/texture_editor_service.py": 188
     }
   },
   {
@@ -98630,7 +98678,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DirectXTex compressed preview failed.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 203
+      "cdmw/services/texture_editor_service.py": 325
     }
   },
   {
@@ -98638,7 +98686,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DirectXTex texture backend cd-texture-dx is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 143
+      "cdmw/services/texture_editor_service.py": 162
     }
   },
   {
@@ -98755,6 +98803,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "No open texture document for {key.resource_id}:{key.channel}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/texture_document_authority.py": 183
+    }
+  },
+  {
+    "area": "textures",
     "message": "No renderable model preview is available.",
     "recovery": "internal",
     "sources": {
@@ -98767,6 +98823,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/core/chainner.py": 318
+    }
+  },
+  {
+    "area": "textures",
+    "message": "None of the chosen parts' materials uses {source_path}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/model_textures.py": 302
     }
   },
   {
@@ -99022,6 +99086,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/research_texture_analysis.py": 726
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Pen pressure must be between 0 and 1.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/textures/editor_brush.py": 88
     }
   },
   {
@@ -99594,6 +99666,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Texture output already exists: {dds_path}",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 231
+    }
+  },
+  {
+    "area": "textures",
     "message": "Texture output cannot replace an original DDS directory.",
     "recovery": "input",
     "sources": {
@@ -99874,10 +99954,74 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "The edit of {texture.source_path} has no output path.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_draft_textures.py": 90
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The encoder wrote an incomplete texture ({exc}); nothing was saved.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 276
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The encoder wrote {'sRGB' if written_srgb else 'linear'} colour instead of {'sRGB' if original.srgb else 'linear'}; nothing was saved.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 284
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The encoder wrote {header.width}x{header.height} instead of {original.width}x{original.height}; nothing was saved.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 279
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The encoder wrote {normalized.get('mip_count')} mips instead of {original.mip_count}; nothing was saved.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 290
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The encoder wrote {written} instead of {original.dds_format}; nothing was saved.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 261
+    }
+  },
+  {
+    "area": "textures",
     "message": "The logical texture replacement size limit is exhausted.",
     "recovery": "limits",
     "sources": {
       "cdmw/services/independent_texture_package.py": 225
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The model's material file is not readable text.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/model_textures.py": 277
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The output settings were made for another size; make them again for this document.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 223
     }
   },
   {
@@ -100042,6 +100186,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "This draft's texture list was saved by a newer CDMW.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_draft_textures.py": 148
+    }
+  },
+  {
+    "area": "textures",
     "message": "This editor updates one texture replacement at a time. Combined packages require their owning editor.",
     "recovery": "input",
     "sources": {
@@ -100058,10 +100210,50 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "This texture is a {kind}. The editor edits one flat image, so it stays as it is.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/textures/original_output.py": 127
+    }
+  },
+  {
+    "area": "textures",
+    "message": "This texture is stored as {dds_format}, which CDMW's texture encoder cannot write. Editing it would change its format, so it stays as it is.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/domain/textures/original_output.py": 70
+    }
+  },
+  {
+    "area": "textures",
+    "message": "This texture is stored as {dds_format}, which holds more than 8 bits per channel or negative values. The editor works in 8 bits, so editing it would lose detail, and it stays as it is.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/textures/original_output.py": 78
+    }
+  },
+  {
+    "area": "textures",
     "message": "This texture package has additional dependencies that this editor cannot update.",
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_texture_authoring.py": 99
+    }
+  },
+  {
+    "area": "textures",
+    "message": "This texture's format is unknown, so CDMW cannot write it back unchanged.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/domain/textures/original_output.py": 68
+    }
+  },
+  {
+    "area": "textures",
+    "message": "This {dds_format} texture can only be kept as it is; CDMW does not rebuild it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/textures/original_output.py": 84
     }
   },
   {
@@ -100524,6 +100716,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "export_matching_original needs an OriginalTextureOutput.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 221
+    }
+  },
+  {
+    "area": "textures",
     "message": "failed to write report",
     "recovery": "write",
     "sources": {
@@ -100622,6 +100822,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/texture_view.rs": 213
+    }
+  },
+  {
+    "area": "textures",
+    "message": "its project is outside the draft",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_draft_textures.py": 293
     }
   },
   {
@@ -101393,10 +101601,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "{len(data) - offset} of {expected} payload bytes",
+    "recovery": "format",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 274
+    }
+  },
+  {
+    "area": "textures",
     "message": "{line} Final preview uses the rebuilt game draw/material slots, so separate source textures cannot be shown on one merged target slot. Split the added parts across separate original draw slots, or bake/atlas those source textures into one material before export.",
     "recovery": "input",
     "sources": {
       "cdmw/core/final_package_texture_plan.py": 589
+    }
+  },
+  {
+    "area": "textures",
+    "message": "{new_path} already exists, so a unique copy cannot take that name.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/model_textures.py": 273
     }
   },
   {
@@ -101421,6 +101645,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/textures/editor_presets.py": 151
+    }
+  },
+  {
+    "area": "textures",
+    "message": "{self.source_path} is not known to be this model's own, so the edit cannot be written at its own path. Make it unique first.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_draft_textures.py": 64
     }
   },
   {
@@ -101464,6 +101696,14 @@ MESSAGE_REFERENCE = [
     }
   },
   {
+    "area": "textures",
+    "message": "{texture.source_path} is not known to be this model's own, so the edit cannot be written at its own path. Make it unique first.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_draft_textures.py": 92
+    }
+  },
+  {
     "area": "translations",
     "message": "Archive mount table is unexpectedly large: {mount_file}",
     "recovery": "input",
@@ -101476,7 +101716,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not list languages: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/tab.py": 539
+      "tools/translation_studio/tab.py": 558
     }
   },
   {
@@ -101508,7 +101748,7 @@ MESSAGE_REFERENCE = [
     "message": "Export failed: {error}",
     "recovery": "write",
     "sources": {
-      "tools/translation_studio/tab.py": 912
+      "tools/translation_studio/tab.py": 977
     }
   },
   {
@@ -101516,7 +101756,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game language code. Use a code such as eng, rus, or zho-cn.",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/tab.py": 596
+      "tools/translation_studio/tab.py": 618
     }
   },
   {
@@ -101524,7 +101764,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid table path. Choose a .paloc path under gamedata/stringtable/binary__.",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/tab.py": 589
+      "tools/translation_studio/tab.py": 611
     }
   },
   {
@@ -101548,7 +101788,7 @@ MESSAGE_REFERENCE = [
     "message": "Load failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/tab.py": 635
+      "tools/translation_studio/tab.py": 657
     }
   },
   {
@@ -101556,7 +101796,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to export: no lines have been changed.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 902
+      "tools/translation_studio/tab.py": 967
     }
   },
   {
@@ -101564,7 +101804,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to translate: no lines are in view.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 870
+      "tools/translation_studio/tab.py": 935
     }
   },
   {
@@ -102575,6 +102815,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/texture_pipeline/preview.py",
     "cdmw/domain/textures/editor_presets.py",
     "cdmw/domain/textures/policy.py",
+    "cdmw/services/texture_document_authority.py",
     "cdmw/services/texture_editor_service.py",
     "cdmw/services/texture_workflow_service.py",
     "cdmw/ui/archive_browser/mesh_dds_preview.py",
@@ -103981,7 +104222,9 @@ SOURCE_COVERAGE = {
   "cdmw/domain/preview_view_modes.py": {},
   "cdmw/domain/texture_editor_shortcuts.py": {},
   "cdmw/domain/textures/__init__.py": {},
-  "cdmw/domain/textures/editor_brush.py": {},
+  "cdmw/domain/textures/editor_brush.py": {
+    "raise": 2
+  },
   "cdmw/domain/textures/editor_common.py": {},
   "cdmw/domain/textures/editor_composite.py": {},
   "cdmw/domain/textures/editor_document.py": {},
@@ -104000,6 +104243,9 @@ SOURCE_COVERAGE = {
     "validation": 1
   },
   "cdmw/domain/textures/material_parameters.py": {},
+  "cdmw/domain/textures/original_output.py": {
+    "raise": 7
+  },
   "cdmw/domain/textures/output.py": {
     "raise": 1,
     "report": 3
@@ -104850,6 +105096,9 @@ SOURCE_COVERAGE = {
     "raise": 10
   },
   "cdmw/services/mesh_draft_relocation.py": {},
+  "cdmw/services/mesh_draft_textures.py": {
+    "raise": 5
+  },
   "cdmw/services/mesh_edit_session_state.py": {},
   "cdmw/services/mesh_editor_error_codes.py": {
     "report": 1
@@ -105079,7 +105328,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/mesh_service_rebuild.py": {
     "diagnostic_field": 3,
-    "raise": 36
+    "raise": 37
   },
   "cdmw/services/mesh_service_refit_recovery.py": {
     "raise": 25
@@ -105146,6 +105395,9 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "cdmw/services/model_library_service.py": {},
+  "cdmw/services/model_textures.py": {
+    "raise": 4
+  },
   "cdmw/services/modify_original_workspace_service.py": {
     "raise": 3
   },
@@ -105377,9 +105629,12 @@ SOURCE_COVERAGE = {
   "cdmw/services/text_search_service.py": {
     "raise": 1
   },
+  "cdmw/services/texture_document_authority.py": {
+    "raise": 9
+  },
   "cdmw/services/texture_editor_service.py": {
     "diagnostic_field": 1,
-    "raise": 3
+    "raise": 14
   },
   "cdmw/services/texture_job_service.py": {
     "raise": 10
@@ -106394,6 +106649,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/commands/shortcuts_page.py": {},
   "cdmw/ui/display_scaling.py": {},
+  "cdmw/ui/empty_states.py": {
+    "log": 1
+  },
   "cdmw/ui/item_icons/__init__.py": {},
   "cdmw/ui/item_icons/controller.py": {
     "dialog": 1

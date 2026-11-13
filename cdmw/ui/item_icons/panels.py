@@ -58,18 +58,34 @@ def build_roots_panel(tab: object) -> QWidget:
     return panel
 
 
+#: The icon sources' empty states (P11 step 6).
+ICON_SOURCES_NO_FOLDER_TEXT = "Add a folder of icon images to build your icon library."
+ICON_SOURCES_NONE_FOUND_TEXT = "No icon images were found in your folders. Add another folder, or rescan after adding images."
+
+
 def build_library_panel(tab: object) -> QWidget:
     panel = QWidget()
     layout = QVBoxLayout(panel)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(6)
+    # P11 step 6: with no icon sources, the filter and the list give their place to an
+    # empty state that adds a folder (or rescans the folders already added).
+    from cdmw.ui.empty_states import ActionEmptyState, EmptyStateSwitch
+
+    sources_area = QWidget()
+    sources_layout = QVBoxLayout(sources_area)
+    sources_layout.setContentsMargins(0, 0, 0, 0)
+    sources_layout.setSpacing(layout.spacing())
+    tab.sources_empty_state = ActionEmptyState(ICON_SOURCES_NO_FOLDER_TEXT, "Add Folder", run=tab.add_library_root)
+    tab.sources_switch = EmptyStateSwitch(sources_area, tab.sources_empty_state)
+    layout.addWidget(tab.sources_switch, stretch=1)
     filter_row = QHBoxLayout()
     tab.filter_edit = QLineEdit()
     tab.filter_edit.setPlaceholderText("Filter name, path, tags, or notes")
     tab.favorite_only_checkbox = QCheckBox("Favorites")
     filter_row.addWidget(tab.filter_edit, stretch=1)
     filter_row.addWidget(tab.favorite_only_checkbox)
-    layout.addLayout(filter_row)
+    sources_layout.addLayout(filter_row)
     tab.records_tree = QTreeWidget()
     tab.records_tree.setColumnCount(5)
     tab.records_tree.setHeaderLabels(["Name", "Size", "Tags", "Kind", "Path"])
@@ -84,7 +100,7 @@ def build_library_panel(tab: object) -> QWidget:
     tab.records_tree.header().resizeSection(1, 80)
     tab.records_tree.header().resizeSection(2, 140)
     tab.records_tree.header().resizeSection(3, 80)
-    layout.addWidget(tab.records_tree, stretch=1)
+    sources_layout.addWidget(tab.records_tree, stretch=1)
     tab.library_status_label = QLabel("No icon sources loaded.")
     tab.library_status_label.setObjectName("HintLabel")
     tab.library_status_label.setWordWrap(True)

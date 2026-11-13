@@ -68,14 +68,15 @@ def test_sources_lane_and_filters_toggle_and_survive_a_restart(tmp_path: Path) -
         lane = tab._model_library_controls_panel
         assert lane.isVisibleTo(tab)
         assert not tab.filters_strip.isVisibleTo(tab)
-        assert not tab.column_filter_row.isVisibleTo(tab)
+        # The row is inside the results area, which an empty state may replace (P11 step 6).
+        assert not tab.column_filter_row.isVisibleTo(tab.results_switch.content)
 
         tab.sources_toggle_button.click()
         tab.filters_toggle_button.click()
         _app().processEvents()
         assert not lane.isVisibleTo(tab)
         assert tab.filters_strip.isVisibleTo(tab)
-        assert tab.column_filter_row.isVisibleTo(tab)
+        assert tab.column_filter_row.isVisibleTo(tab.results_switch.content)
     finally:
         _close(tab)
 
@@ -145,15 +146,21 @@ def test_column_filters_sit_over_their_columns_through_resize_and_scroll(tab) ->
 
 
 def test_empty_states_name_the_next_step(tab) -> None:
-    assert tab.empty_results_label.isVisibleTo(tab)
+    # Nothing loaded: the next step replaces the filters and the list (P11 step 6).
+    assert tab.results_switch.is_empty() and not tab.results_tree.isVisibleTo(tab)
+    assert "Build the search index under Sources" in tab.results_empty_state.sentence_label.text()
+    assert tab.results_empty_state.button.text() == "Build Search Index"
     assert "Build the search index under Sources" in tab.empty_results_label.text()
 
     tab._set_active_results_view("local", persist=False)
     tab._update_empty_results_message(0, 0)
     assert tab.empty_results_label.text() == "No local models are loaded. Add a model folder under Sources."
+    assert tab.results_switch.is_empty() and tab.results_empty_state.button.text() == "Add Folder"
 
+    # Rows that the filters hide keep the list and say so above it.
     tab._update_empty_results_message(0, 5)
     assert tab.empty_results_label.text() == "No results match the current filters."
+    assert not tab.results_switch.is_empty() and tab.empty_results_label.isVisibleTo(tab)
 
 
 def test_disabled_primary_button_paints_as_disabled() -> None:

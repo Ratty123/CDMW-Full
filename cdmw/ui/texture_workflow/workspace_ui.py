@@ -128,10 +128,20 @@ class TextureJobUiMixin:
         sidebar.setMaximumWidth(460)
         side_layout = QVBoxLayout(sidebar)
         side_layout.setContentsMargins(0, 0, 0, 0)
+        # P11 step 6: with no textures in the job, the filter, the list and Remove give
+        # their place to an empty state that adds them.
+        from cdmw.ui.empty_states import ActionEmptyState, EmptyStateSwitch
+
+        assets_area = QWidget()
+        assets_layout = QVBoxLayout(assets_area)
+        assets_layout.setContentsMargins(0, 0, 0, 0)
+        self.assets_empty_state = ActionEmptyState(TEXTURES_EMPTY_TEXT, "Add Textures", run=self._choose_texture_sources)
+        self.assets_switch = EmptyStateSwitch(assets_area, self.assets_empty_state)
+        side_layout.addWidget(self.assets_switch, stretch=1)
         self.asset_search = QLineEdit()
         self.asset_search.setPlaceholderText("Filter textures and material targets")
         self.asset_search.textChanged.connect(self._filter_texture_assets)
-        side_layout.addWidget(self.asset_search)
+        assets_layout.addWidget(self.asset_search)
         self.asset_list = QTreeWidget()
         self.asset_list.setObjectName("TextureJobAssets")
         self.asset_list.setHeaderLabels(["Asset", "Target"])
@@ -141,11 +151,16 @@ class TextureJobUiMixin:
         self.asset_list.setMaximumHeight(260)
         self.asset_list.currentItemChanged.connect(self._select_texture_asset)
         self.asset_list.itemChanged.connect(self._change_texture_selection)
-        side_layout.addWidget(self.asset_list, stretch=1)
+        assets_layout.addWidget(self.asset_list, stretch=1)
         self.remove_texture_button = QPushButton("Remove")
         self.remove_texture_button.setToolTip("Remove the active asset from this texture job.")
         self.remove_texture_button.clicked.connect(self._remove_texture_asset)
-        side_layout.addWidget(self.remove_texture_button)
+        assets_layout.addWidget(self.remove_texture_button)
+        # Keep the list's own cap: the space below it stays the mode controls'.
+        self.assets_switch.setMaximumHeight(
+            self.asset_list.maximumHeight() + self.asset_search.sizeHint().height()
+            + self.remove_texture_button.sizeHint().height() + 2 * max(0, assets_layout.spacing()))
+        self.assets_switch.set_empty(not self.job.assets)
         self.mode_controls = QStackedWidget()
         self.mode_controls.addWidget(QLabel("Opening texture controls..."))
         self.mode_controls.addWidget(self.upscale_controls)
@@ -369,6 +384,7 @@ class TextureJobUiMixin:
         finally:
             self.asset_list.blockSignals(False)
             self._syncing_texture_assets = False
+        self.assets_switch.set_empty(not self.job.assets)
         self._filter_texture_assets()
 
     def _filter_texture_assets(self, *_args) -> None:
@@ -540,3 +556,7 @@ class TextureJobUiMixin:
             self.show_texture_review(operation="replacement")
         elif key == "recolor":
             self.recolor_container.request_widget()
+
+
+#: The asset list's empty state (P11 step 6).
+TEXTURES_EMPTY_TEXT = "Add the textures you want to edit, recolor or upscale, from files or from a mod."

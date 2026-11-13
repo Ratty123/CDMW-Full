@@ -34,14 +34,26 @@ def texture_editor_stroke_points_for_symmetry(
     height: int,
     symmetry_mode: str,
 ) -> List[Tuple[int, int]]:
+    return _symmetry_samples(points, None, width, height, symmetry_mode)[0]
+
+
+def _symmetry_samples(
+    points: Sequence[Tuple[int, int]],
+    values: Optional[Sequence[float]],
+    width: int,
+    height: int,
+    symmetry_mode: str,
+) -> Tuple[List[Tuple[int, int]], Optional[List[float]]]:
+    """Mirror the stroke; each mirrored point keeps its source sample's value (pressure)."""
     if not points:
-        return []
+        return [], ([] if values is not None else None)
     mode = (symmetry_mode or "off").strip().lower()
     if mode == "off" or width <= 0 or height <= 0:
-        return [(int(x), int(y)) for x, y in points]
+        return [(int(x), int(y)) for x, y in points], (list(values) if values is not None else None)
     unique_points: List[Tuple[int, int]] = []
+    unique_values: List[float] = []
     seen: set[Tuple[int, int]] = set()
-    for x, y in points:
+    for index, (x, y) in enumerate(points):
         candidates = [(int(x), int(y))]
         if mode in {"horizontal", "both"}:
             candidates.append((max(0, width - 1 - int(x)), int(y)))
@@ -53,7 +65,28 @@ def texture_editor_stroke_points_for_symmetry(
             if point not in seen:
                 seen.add(point)
                 unique_points.append(point)
-    return unique_points
+                if values is not None:
+                    unique_values.append(values[index])
+    return unique_points, (unique_values if values is not None else None)
+
+
+def texture_editor_stroke_pressures(
+    points: Sequence[Tuple[int, int]],
+    pressures: Optional[Sequence[float]],
+) -> Optional[Tuple[float, ...]]:
+    """Validate per-sample pen pressure for a stroke: one value in [0, 1] per point, or None.
+
+    None means full pressure everywhere, which leaves every stroke exactly as it was
+    before pressure existed. A pointer that reports no pressure sends None, not 1.0s.
+    """
+    if pressures is None:
+        return None
+    values = tuple(float(value) for value in pressures)
+    if len(values) != len(points):
+        raise ValueError(f"A stroke needs one pressure per point ({len(points)} points, {len(values)} pressures).")
+    if any(not math.isfinite(value) or value < 0.0 or value > 1.0 for value in values):
+        raise ValueError("Pen pressure must be between 0 and 1.")
+    return values
 
 def _load_custom_brush_tip_alpha(path_text: str, mtime_ns: int) -> Optional[np.ndarray]:
     try:
@@ -237,15 +270,28 @@ def _interpolate_stroke(
     *,
     smoothing: int = 0,
 ) -> List[Tuple[int, int]]:
+    return _interpolate_stroke_samples(points, None, spacing, smoothing=smoothing)[0]
+
+
+def _interpolate_stroke_samples(
+    points: Sequence[Tuple[int, int]],
+    values: Optional[Sequence[float]],
+    spacing: int,
+    *,
+    smoothing: int = 0,
+) -> Tuple[List[Tuple[int, int]], Optional[List[float]]]:
+    """Space the stroke's stamps; `values` (pressure) are interpolated linearly with them."""
     if not points:
-        return []
+        return [], ([] if values is not None else None)
     smoothed = _smooth_stroke_points(points, smoothing)
     if len(smoothed) == 1:
-        return [(int(round(smoothed[0][0])), int(round(smoothed[0][1])))]
+        return [(int(round(smoothed[0][0])), int(round(smoothed[0][1])))], (
+            [float(values[0])] if values is not None else None)
     output = [(int(round(smoothed[0][0])), int(round(smoothed[0][1])))]
+    output_values = [float(values[0])] if values is not None else []
     step = max(1.0, float(spacing))
     distance_to_next = step
-    for start, end in zip(smoothed[:-1], smoothed[1:]):
+    for index, (start, end) in enumerate(zip(smoothed[:-1], smoothed[1:])):
         x0, y0 = start
         x1, y1 = end
         dx = float(x1 - x0)
@@ -257,14 +303,21 @@ def _interpolate_stroke(
         while distance_to_next <= distance:
             t = distance_to_next / distance
             output.append((int(round(x0 + dx * t)), int(round(y0 + dy * t))))
+            if values is not None:
+                output_values.append(float(values[index]) + (float(values[index + 1]) - float(values[index])) * t)
             distance_to_next += step
         distance_to_next -= distance
     output.append((int(round(smoothed[-1][0])), int(round(smoothed[-1][1]))))
+    if values is not None:
+        output_values.append(float(values[-1]))
     deduped: List[Tuple[int, int]] = []
-    for point in output:
+    deduped_values: List[float] = []
+    for position, point in enumerate(output):
         if not deduped or deduped[-1] != point:
             deduped.append(point)
-    return deduped
+            if values is not None:
+                deduped_values.append(output_values[position])
+    return deduped, (deduped_values if values is not None else None)
 
 def _clip_stamp_region(
     point: Tuple[int, int],
@@ -394,6 +447,8 @@ class _StrokeContext:
     clone_delta: Optional[Tuple[int, int]]
     layer_width: int
     layer_height: int
+    #: Pen pressure per stroke point (0 to 1), or None for full pressure (the stroke as before).
+    stroke_pressures: Optional[Tuple[float, ...]] = None
 
 
 def _stroke_sample_snapshot(
@@ -435,6 +490,7 @@ def _prepare_stroke_context(
     *,
     source_snapshot: Optional[np.ndarray],
     mutate_active_layer: bool,
+    pressures: Optional[Sequence[float]] = None,
 ) -> Tuple[Dict[str, np.ndarray], Optional[_StrokeContext]]:
     if not document.active_layer_id or document.active_layer_id not in layer_pixels:
         return layer_pixels, None
@@ -449,16 +505,23 @@ def _prepare_stroke_context(
     layer_height, layer_width = active.shape[:2]
     effective_size = _effective_brush_size(tool_settings)
     spacing = max(1, int(round(effective_size * max(0.05, tool_settings.spacing / 100.0))))
-    stroke_points = _interpolate_stroke(
+    samples = texture_editor_stroke_pressures(points, pressures)
+    if samples is None:
+        constant = float(getattr(tool_settings, "pressure", 1.0))
+        if constant != 1.0:
+            samples = texture_editor_stroke_pressures(points, (constant,) * len(points))
+    stroke_points, stroke_pressures = _interpolate_stroke_samples(
         points,
+        samples,
         spacing,
         smoothing=max(0, int(getattr(tool_settings, "smoothing", 0))),
     )
     if not stroke_points:
         return updated, None
     if tool_settings.tool in {"paint", "erase", "sharpen", "soften", "smudge", "dodge_burn"}:
-        stroke_points = texture_editor_stroke_points_for_symmetry(
+        stroke_points, stroke_pressures = _symmetry_samples(
             stroke_points,
+            stroke_pressures,
             document.width,
             document.height,
             getattr(tool_settings, "symmetry_mode", "off"),
@@ -484,6 +547,7 @@ def _prepare_stroke_context(
         clone_delta=_stroke_clone_delta(tool_settings, stroke_points[0]),
         layer_width=layer_width,
         layer_height=layer_height,
+        stroke_pressures=tuple(stroke_pressures) if stroke_pressures is not None else None,
     )
 
 
@@ -514,10 +578,13 @@ def _selected_stamp_alpha(
     context: _StrokeContext,
     layer_bounds: Tuple[int, int, int, int],
     stamp_bounds: Tuple[int, int, int, int],
+    pressure: float = 1.0,
 ) -> np.ndarray:
     lx0, ly0, lx1, ly1 = layer_bounds
     sx0, sy0, sx1, sy1 = stamp_bounds
     alpha = context.stamp[sy0:sy1, sx0:sx1]
+    if pressure != 1.0:
+        alpha = alpha * np.float32(pressure)
     if context.selection_mask is None:
         return alpha
     gx0 = context.active_layer.offset_x + lx0
@@ -527,15 +594,21 @@ def _selected_stamp_alpha(
     return alpha * (context.selection_mask[gy0:gy1, gx0:gx1].astype(np.float32) / 255.0)
 
 
+def _point_pressure(context: _StrokeContext, index: int) -> float:
+    if context.stroke_pressures is None:
+        return 1.0
+    return float(context.stroke_pressures[index])
+
+
 def _stroke_coverage(context: _StrokeContext) -> np.ndarray:
     coverage = np.zeros((context.layer_height, context.layer_width), dtype=np.float32)
-    for point in context.stroke_points:
+    for index, point in enumerate(context.stroke_points):
         clipped = _clip_stroke_to_active_layer(context, point)
         if clipped is None:
             continue
         layer_bounds, stamp_bounds = clipped
         lx0, ly0, lx1, ly1 = layer_bounds
-        alpha = _selected_stamp_alpha(context, layer_bounds, stamp_bounds)
+        alpha = _selected_stamp_alpha(context, layer_bounds, stamp_bounds, _point_pressure(context, index))
         if np.any(alpha):
             coverage[ly0:ly1, lx0:lx1] = np.maximum(coverage[ly0:ly1, lx0:lx1], alpha)
     return coverage
@@ -678,7 +751,7 @@ def _apply_stroke_point(
         return
     bounds, stamp_bounds = clipped
     lx0, ly0, lx1, ly1 = bounds
-    alpha = _selected_stamp_alpha(context, bounds, stamp_bounds)
+    alpha = _selected_stamp_alpha(context, bounds, stamp_bounds, _point_pressure(context, point_index))
     if not np.any(alpha):
         return
     region = context.active[ly0:ly1, lx0:lx1]
@@ -711,7 +784,14 @@ def apply_texture_editor_stroke(
     *,
     source_snapshot: Optional[np.ndarray] = None,
     mutate_active_layer: bool = False,
+    pressures: Optional[Sequence[float]] = None,
 ) -> Dict[str, np.ndarray]:
+    """Apply one stroke.
+
+    `pressures`, when given, holds the pen pressure (0 to 1) of each point and scales
+    each stamp's strength. Without it, the tool settings' `pressure` (default 1.0)
+    applies to every point, so existing callers paint exactly as before.
+    """
     updated, context = _prepare_stroke_context(
         document,
         layer_pixels,
@@ -719,6 +799,7 @@ def apply_texture_editor_stroke(
         points,
         source_snapshot=source_snapshot,
         mutate_active_layer=mutate_active_layer,
+        pressures=pressures,
     )
     if context is None:
         return updated
