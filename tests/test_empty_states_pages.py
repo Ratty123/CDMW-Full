@@ -193,3 +193,35 @@ def test_textures_offers_to_add_textures_in_the_asset_lists_place(app, tmp_path,
         window.close()
         window.deleteLater()
         app.processEvents()
+
+
+# ----- Item Icons -----------------------------------------------------------------------
+def test_item_icons_asks_for_a_folder_then_offers_a_rescan(app, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+
+    from cdmw.ui.item_icons import panels
+    from tests.test_item_icon_workers import _make_tab as _tab, _record
+
+    asked = []
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: (asked.append(True), "")[1])
+    tab = _tab(tmp_path)
+    try:
+        state = tab.sources_empty_state
+        assert tab.sources_switch.is_empty() and not tab.records_tree.isVisibleTo(tab)
+        assert state.sentence_label.text() == panels.ICON_SOURCES_NO_FOLDER_TEXT
+        state.button.click()
+        assert asked
+
+        tab.library_roots = [tmp_path]
+        tab._sync_sources_empty_state()
+        assert state.sentence_label.text() == panels.ICON_SOURCES_NONE_FOUND_TEXT and state.button.text() == "Rescan"
+
+        image = tmp_path / "icon.png"
+        from PIL import Image
+
+        Image.new("RGBA", (4, 4), (10, 20, 30, 255)).save(image)
+        tab.records = [_record(image)]
+        tab._sync_sources_empty_state()
+        assert not tab.sources_switch.is_empty() and tab.records_tree.isVisibleTo(tab)
+    finally:
+        tab.deleteLater()
