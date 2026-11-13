@@ -324,6 +324,19 @@ public sealed class ArchiveIndex : IDisposable
             checked((int)_view.ReadUInt32(record + 52)));
     }
 
+    internal ArchiveIndexStringRange GetPazPathRange(long entryId)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (entryId < 0 || entryId >= EntryCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entryId));
+        }
+        var record = checked(_recordsOffset + entryId * RecordSize);
+        return new ArchiveIndexStringRange(
+            checked((long)_view.ReadUInt64(record + 16)),
+            checked((int)_view.ReadUInt32(record + 56)));
+    }
+
     internal string ReadString(ArchiveIndexStringRange range) => ReadString(range.Offset, range.Length);
 
     /// <summary>The <see cref="ArchiveEntryDto.OriginalSize"/> <see cref="ReadEntry"/> would report.</summary>

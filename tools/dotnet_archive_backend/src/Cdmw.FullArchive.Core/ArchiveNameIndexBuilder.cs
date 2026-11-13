@@ -82,9 +82,17 @@ internal static class ArchiveNameIndexBuilder
     [
         "itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_",
     ];
+    internal const int MaximumJoinedDisplayNames = 4096;  // the game joins up to 428 names on one key
     private static readonly Regex PrefabModelPathPattern = new(
         "(?<path>(?:character|object|vehicle|environment|effect)[/\\\\][A-Za-z0-9_./\\\\-]+\\.(?:pamlod|pami|pac|pam|prefab))",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        // NonBacktracking: linear in the text. The backtracking engine retried the
+        // greedy run from every start, hours on a 16 MiB prefab of "object/"
+        // (the review of rr/parity-deps-p20, F1). The matches are the same for this
+        // pattern (no lookarounds or backreferences); the test runner's
+        // name_index_prefab_paths_linear compares both engines.
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+    internal static readonly Regex PrefabModelPathPatternBacktracking = new(
+        PrefabModelPathPattern.ToString(), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly HashSet<string> GenericItemModelTokens = new(StringComparer.OrdinalIgnoreCase)
     {
         "abyss", "armor", "armour", "character", "common", "customize", "default", "equip", "equipment",
@@ -938,13 +946,15 @@ internal static class ArchiveNameIndexBuilder
         }
     }
 
-    private static string[] ExtractPrefabModelPaths(byte[] bytes)
+    internal static string[] ExtractPrefabModelPaths(byte[] bytes) => ExtractPrefabModelPaths(bytes, PrefabModelPathPattern);
+
+    internal static string[] ExtractPrefabModelPaths(byte[] bytes, Regex pattern)
     {
         if (bytes.Length == 0) return [];
         var text = Encoding.UTF8.GetString(bytes);
         var paths = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (Match match in PrefabModelPathPattern.Matches(text))
+        foreach (Match match in pattern.Matches(text))
         {
             var path = match.Groups["path"].Value.Replace('\\', '/').Trim();
             if (path.Length == 0 || !seen.Add(path)) continue;
@@ -1031,9 +1041,15 @@ internal static class ArchiveNameIndexBuilder
         {
             map[key] = value;
         }
-        else if (!existing.Split(" / ", StringSplitOptions.None).Contains(value, StringComparer.OrdinalIgnoreCase))
+        else
         {
-            map[key] = $"{existing} / {value}";
+            var names = existing.Split(" / ", StringSplitOptions.None);
+            // At most MaximumJoinedDisplayNames names per key (the review of
+            // rr/parity-deps-p20, F6; the native host has the same bound).
+            if (!names.Contains(value, StringComparer.OrdinalIgnoreCase) && names.Length < MaximumJoinedDisplayNames)
+            {
+                map[key] = $"{existing} / {value}";
+            }
         }
     }
 

@@ -22,6 +22,7 @@ public sealed class ArchiveExportService(
         var destination = Path.TrimEndingDirectorySeparator(Path.GetFullPath(request.Destination));
         var parent = Path.GetDirectoryName(destination)
             ?? throw new InvalidDataException("Export destination has no parent directory.");
+        RejectProtectedDestination(destination, session.PackageRoot, sessions.CacheRoot, request.ReplaceDestination);
         Directory.CreateDirectory(parent);
         var destinationName = Path.GetFileName(destination);
         if (string.IsNullOrWhiteSpace(destinationName))
@@ -43,6 +44,8 @@ public sealed class ArchiveExportService(
         var decodes = new ExportDecodePipeline(native, request.FlushToDisk, cancellationToken);
         try
         {
+            // Before the first write: the staging folder is where it should be.
+            RejectOpenedFolder(stagingRoot, destination, session.PackageRoot, sessions.CacheRoot, request.ReplaceDestination);
             if (progress is not null)
             {
                 await progress(new ProgressUpdate(0, entryIds.Count, "export_decode")).ConfigureAwait(false);
@@ -168,6 +171,8 @@ public sealed class ArchiveExportService(
                 await progress(new ProgressUpdate(0, publishFiles.Count, "export_publish")).ConfigureAwait(false);
             }
             cancellationToken.ThrowIfCancellationRequested();
+            // Right before the move or the first write into the destination.
+            RejectOpenedFolder(stagingRoot, destination, session.PackageRoot, sessions.CacheRoot, request.ReplaceDestination);
             if (request.ReplaceDestination && Directory.Exists(destination))
             {
                 PublishReplacingDestination(destination, stagingRoot, rollbackRoot);
@@ -455,6 +460,81 @@ public sealed class ArchiveExportService(
             {
                 return candidate;
             }
+        }
+    }
+
+    // CDMW never writes into a game installation. An export destination comes
+    // from the request, and publishing it may move the folder there aside and
+    // delete it (ReplaceDestination) or write over files in it (Overwrite), so
+    // it may not be, hold or sit inside the archive source or the archive
+    // cache, sit inside a game installation, or hold game archives; and no
+    // folder on its path may be a link. Every check runs on the path as written
+    // and on where it really leads (a junction on the way can point into the
+    // game), and runs again on the folders actually opened before the first
+    // write and before publishing (RejectOpenedFolder).
+    internal static void RejectProtectedDestination(
+        string destination,
+        string packageRoot,
+        string cacheRoot,
+        bool replaceDestination)
+    {
+        try
+        {
+            if (GameFolderPolicy.HasLinkOnPath(destination))
+            {
+                throw new ExportDestinationRefusedException(
+                    "Export destination's path goes through a link (a junction or symbolic link). Choose a folder whose path has no links, outside the game folder.");
+            }
+            var source = File.Exists(packageRoot) ? Path.GetDirectoryName(packageRoot) ?? packageRoot : packageRoot;
+            var resolved = GameFolderPolicy.FinalPath(destination);
+            var resolvedSource = GameFolderPolicy.FinalPath(source);
+            var resolvedCache = GameFolderPolicy.FinalPath(cacheRoot);
+            if (GameFolderPolicy.Overlaps(destination, source) || GameFolderPolicy.Overlaps(resolved, resolvedSource))
+            {
+                throw new ExportDestinationRefusedException(
+                    "Export destination overlaps the archive source. CDMW does not write into the game folder; choose a folder outside it.");
+            }
+            if (GameFolderPolicy.Overlaps(destination, cacheRoot) || GameFolderPolicy.Overlaps(resolved, resolvedCache))
+            {
+                throw new ExportDestinationRefusedException("Export destination overlaps the archive cache; choose a folder outside it.");
+            }
+            if (GameFolderPolicy.IsInsideGameInstallation(resolved)
+                || GameFolderPolicy.HoldsArchiveFiles(resolved)
+                || (replaceDestination && Directory.Exists(resolved)
+                    && Directory.EnumerateDirectories(resolved).Any(GameFolderPolicy.IsGameRoot)))
+            {
+                throw new ExportDestinationRefusedException(
+                    "Export destination is inside a game installation or holds game archives. CDMW does not write into the game folder; choose a folder outside it.");
+            }
+        }
+        catch (Exception exception) when (exception is (IOException and not ExportDestinationRefusedException) or UnauthorizedAccessException)
+        {
+            throw new ExportDestinationRefusedException($"Export destination could not be checked: {exception.Message}");
+        }
+    }
+
+    // The folder an export has just opened or is about to publish into, checked
+    // where it really is: nothing may have put a link on the way since the
+    // destination was checked.
+    internal static void RejectOpenedFolder(string folder, string destination, string packageRoot, string cacheRoot,
+        bool replaceDestination)
+    {
+        RejectProtectedDestination(destination, packageRoot, cacheRoot, replaceDestination);
+        try
+        {
+            var resolved = GameFolderPolicy.FinalPath(folder);
+            var expected = GameFolderPolicy.FinalPath(Path.GetDirectoryName(Path.GetFullPath(destination))!);
+            if (!string.Equals(Path.GetDirectoryName(resolved), expected, StringComparison.OrdinalIgnoreCase)
+                || GameFolderPolicy.HasLinkOnPath(folder)
+                || GameFolderPolicy.IsInsideGameInstallation(resolved))
+            {
+                throw new ExportDestinationRefusedException(
+                    "Export destination changed while the export ran and now leads elsewhere. Nothing was published; choose a folder outside the game folder and export again.");
+            }
+        }
+        catch (Exception exception) when (exception is (IOException and not ExportDestinationRefusedException) or UnauthorizedAccessException)
+        {
+            throw new ExportDestinationRefusedException($"Export destination could not be checked: {exception.Message}");
         }
     }
 

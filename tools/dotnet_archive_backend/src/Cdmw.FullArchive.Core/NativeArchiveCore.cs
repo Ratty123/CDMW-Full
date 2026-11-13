@@ -90,7 +90,10 @@ public sealed class NativeArchiveCore
         ArgumentNullException.ThrowIfNull(entry);
         EnsureCompatible();
         var expectedSize = entry.IsCompressed ? entry.OriginalSize : entry.StoredSize;
-        if (expectedSize < 0 || expectedSize > MaximumDecodedEntryBytes || expectedSize > Array.MaxLength)
+        // The core reads the stored bytes into a buffer of their own first, so they
+        // are bounded as the output is (the review of rr/parity-deps-p20, F2).
+        if (expectedSize < 0 || expectedSize > MaximumDecodedEntryBytes || expectedSize > Array.MaxLength
+            || entry.StoredSize < 0 || entry.StoredSize > MaximumDecodedEntryBytes)
         {
             throw new InvalidDataException("Archive entry exceeds the one GiB decoded resource limit.");
         }
