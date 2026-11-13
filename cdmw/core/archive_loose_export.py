@@ -21,6 +21,7 @@ from cdmw.core.archive_mesh_types import (
     MeshImportPreviewResult,
     MeshImportSupplementalFileSpec,
 )
+from cdmw.core.protected_roots import check_removable, check_writable
 from cdmw.core.archive_patching import (
     ArchivePatchRequest,
     _detect_archive_game_metadata,
@@ -237,6 +238,7 @@ def export_archive_payloads_to_mod_ready_loose(
         str(getattr(active_export_options, "output_profile_suffix", "") or profile),
         multi_profile=bool(getattr(active_export_options, "output_profile_suffix", "")),
     )
+    check_writable(package_root)  # never into a game folder (decision 46)
     package_root.mkdir(parents=True, exist_ok=True)
 
     written_files: List[Path] = []
@@ -379,6 +381,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
     )
     _safe_log(on_log, f"Mod-ready mesh package root: {package_root}")
     _clear_existing_mesh_loose_package_root(package_root, resolved_parent_root, on_log=on_log)
+    check_writable(package_root)  # never into a game folder (decision 46)
     package_root.mkdir(parents=True, exist_ok=True)
 
     written_files: List[Path] = []
@@ -682,6 +685,8 @@ def _clear_existing_mesh_loose_package_root(
     resolved_package_root = package_root.expanduser().resolve()
     if not resolved_package_root.exists():
         return
+    # Decision 46: never a game folder, a folder inside one, or a folder that holds one.
+    check_removable(resolved_package_root)
     if resolved_package_root == resolved_parent_root:
         raise ValueError(f"Refusing to clear loose export parent directory: {resolved_package_root}")
     try:

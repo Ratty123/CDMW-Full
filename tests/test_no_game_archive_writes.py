@@ -291,10 +291,10 @@ def test_both_routes_need_confirmation(tmp_path):
 @pytest.fixture
 def protected(tmp_path):
     game = tmp_path / "game"
-    game.mkdir()
-    protected_roots.set_configured_game_root(game)
+    (game / "meta").mkdir(parents=True)
+    (game / "meta" / "0.papgt").write_bytes(b"papgt")
+    assert protected_roots.set_configured_game_root(game) is not None
     yield game
-    protected_roots.set_configured_game_root(None)
 
 
 def _bytes(root: Path) -> dict[str, str]:
@@ -323,7 +323,7 @@ def test_every_shared_writer_refuses_the_game_folder_without_the_permit(protecte
         with pytest.raises(ProtectedGameFolderWrite):
             with writer(target):
                 pass
-    assert list(protected.iterdir()) == [] and staged.read_bytes() == b"x"
+    assert sorted(p.name for p in protected.rglob("*")) == ["0.papgt", "meta"] and staged.read_bytes() == b"x"
 
 
 def test_the_permit_is_only_for_the_two_routes_and_only_while_held(protected):

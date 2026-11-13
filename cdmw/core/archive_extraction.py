@@ -27,6 +27,7 @@ from cdmw.constants import (
 )
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
 from cdmw.core.filesystem import filesystem_path
+from cdmw.core.protected_roots import check_removable, check_writable
 from cdmw.core.archive_format import try_decrypt_archive_entry_data
 from cdmw.core.dds_resource_limits import (
     DDS_MAX_DIMENSION,
@@ -651,6 +652,7 @@ def extract_archive_entry(
     data, decompressed, note = read_archive_entry_data(entry, stop_event=stop_event)
     raise_if_cancelled(stop_event)
     out_path = output_root
+    check_writable(out_path)  # never into a game folder (decision 46)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(data)
     return out_path, decompressed, note
@@ -666,6 +668,7 @@ def extract_archive_entries(
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> Dict[str, int]:
+    check_writable(output_root)  # never into a game folder (decision 46)
     output_root.mkdir(parents=True, exist_ok=True)
     total = len(entries)
     extracted = 0
@@ -783,6 +786,8 @@ def _background_delete_directory(path: Path) -> None:
 
 
 def clear_directory_contents(path: Path) -> None:
+    # Decision 46: never a game folder, a folder inside one, or a folder that holds one.
+    check_removable(path)
     resolved = path.resolve()
     if resolved == Path(resolved.anchor):
         raise ValueError(f"Refusing to clear root directory: {resolved}")

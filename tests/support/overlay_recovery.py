@@ -10,7 +10,7 @@ import hashlib
 import json
 from pathlib import Path
 from uuid import uuid4
-from cdmw.core.atomic_file import atomic_copy_file, atomic_write_bytes
+from tests.support.fixture_writes import atomic_copy_file, atomic_write_bytes
 from cdmw.domain.cancellation import raise_if_cancelled
 
 def file_digest(path):

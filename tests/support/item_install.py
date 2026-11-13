@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 from cdmw import constants
 from cdmw.core.archive_format import calculate_pa_checksum, parse_archive_pamt
-from cdmw.core.atomic_file import atomic_binary_writer, atomic_write_bytes
+from tests.support.fixture_writes import atomic_binary_writer, atomic_write_bytes
 from cdmw.core.papgt_format import read_papgt_directories
 from cdmw.core.stringinfo_table import stringinfo_key
 from cdmw.domain.archives.overlay_merge import _table
@@ -281,7 +281,7 @@ def prepare_profile_import(source, root, *, stop_event=None, on_log=None):
 def export_profile(root, destination, *, stop_event=None):
     """Write the identity registry as a ``.cdprofile`` (Item identities > Export, removed)."""
     from copy import deepcopy
-    from cdmw.core.atomic_file import atomic_binary_writer
+    from tests.support.fixture_writes import atomic_binary_writer
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.domain.new_item.independent import IndependentItemError as _IndependentItemError
     from cdmw.services.independent_item_package import canonical as _canonical

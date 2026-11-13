@@ -698,6 +698,11 @@ def autodetect_archive_package_roots(
         else:
             on_log("No valid Crimson Desert archive package roots were auto-detected.")
 
+    # Decision 46: every install found is protected for the session, configured or not.
+    from cdmw.core.protected_roots import add_game_root
+
+    for candidate in candidates:
+        add_game_root(candidate)
     return sorted(candidates)
 
 

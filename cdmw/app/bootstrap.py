@@ -45,6 +45,11 @@ def _reap_stranded_helpers() -> None:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
+    # Decision 46: every process protects the game folders its parent protected before
+    # it can write anything. Each helper mode and --cli passes through here.
+    from cdmw.core.protected_roots import adopt_environment
+
+    adopt_environment()
 
     if args.mcp_bridge:
         # An AI client's MCP server: no window, no helpers, no single-instance

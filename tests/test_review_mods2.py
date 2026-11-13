@@ -19,15 +19,6 @@ from tests.test_old_install_removal import (  # noqa: E402,F401  (the autouse fi
     OVERLAY_DDS, _fingerprint, _game, _group, _mount, _owned_backups, _remove,
 )
 
-_CONTENTS = "Review of rr/parity-mods-2 (REPORT-review.md): the owner mark proves the folder, not its files"
-_BACKUP = "Review of rr/parity-mods-2 (REPORT-review.md): backup copies of same-named files overwrite each other"
-
-
-_AI_TOOL = ("Review of rr/parity-mods-2 (REPORT-review.md): user_only sets nothing, so after MCP the "
-            "removal and Restore Backup are AI tools")
-_TRANSACTION = ("Review of rr/parity-mods-2 (REPORT-review.md): an interrupted old transaction blocks "
-                "the removal, and the recovery it asks for was removed")
-
 
 def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -119,3 +110,205 @@ def test_no_ai_tool_lists_the_removal_or_restore_backup():
     finally:
         for name in (ui.REMOVE_COMMAND_ID, ui.RESTORE_COMMAND_ID):
             registry._commands.pop(name, None)
+
+
+def _send_twice_fixture(tmp_path):
+    from tests.support.game_fixtures import packages
+    from tests.test_dmm_send import _dmm
+
+    root, files = packages(tmp_path)
+    _install, mods = _dmm(tmp_path)
+    return root, files, mods
+
+
+def _identities(root):
+    from cdmw.services import game_records
+
+    registry = json.loads(game_records.registry_source(root).read_text(encoding="utf-8"))
+    return {identity: row.get("values") for identity, row in registry["items"].items()}
+
+
+def test_send_to_dmm_reads_an_older_registry_in_the_game_and_changes_no_byte(tmp_path):
+    """Decision 46's carry-over through the real Mods page route: an older CDMW's registry
+    in <game>/.cdmw is read, the same identities come out, and the game folder (that
+    file included) keeps every byte."""
+
+    from cdmw.core import protected_roots
+    from cdmw.services import game_records
+    from cdmw.services.dmm_send import send_item_packages
+
+    root, files, mods = _send_twice_fixture(tmp_path)
+    protected_roots.set_configured_game_root(root)
+    try:
+        send_item_packages(files, root, mods, "Two items")
+        kept = game_records.registry_path(root)
+        first = _identities(root)
+        legacy = root / game_records.LEGACY_REGISTRY_PATH  # as an older CDMW left it
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_bytes(kept.read_bytes())
+        kept.unlink()
+        before = {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+        send_item_packages(files, root, mods, "Two items")
+        after = {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+    finally:
+        protected_roots.set_configured_game_root(None)
+    assert after == before, "Send to DMM changed the game folder"
+    assert kept.is_file(), "the carried-over registry was not kept in the CDMW folder"
+    assert _identities(root) == first, "the carried-over identities changed"
+
+
+def test_a_game_folder_moved_to_another_library_keeps_its_item_identities(tmp_path):
+    """Before decision 46 the registry travelled with the game folder. Now its key is the
+    folder's resolved path, so after Steam moves the game the next send finds no registry.
+    It holds: the same packages against the same game come out with the same identities."""
+
+    import os
+
+    from cdmw.core import protected_roots
+    from cdmw.services.dmm_send import send_item_packages
+
+    root, files, mods = _send_twice_fixture(tmp_path)
+    protected_roots.set_configured_game_root(root)
+    try:
+        send_item_packages(files, root, mods, "Two items")
+        first = _identities(root)
+        moved = tmp_path / "Other Library" / "game"
+        moved.parent.mkdir()
+        os.rename(root, moved)
+        protected_roots.set_configured_game_root(moved)
+        send_item_packages(files, moved, mods, "Two items")
+        after = _identities(moved)
+    finally:
+        protected_roots.set_configured_game_root(None)
+    assert after == first, "the moved game's items were given new identities"
+
+
+def test_the_removals_backup_is_kept_in_the_cdmw_folder():
+    """The removal deletes the game's whole .cdmw folder (retained item packages and an
+    older registry among it) after backing it up with backup_files. Those backups go to
+    ARCHIVE_PATCH_BACKUP_ROOT, <system temp>/<app>/archive_patch_backups: outside the CDMW
+    folder, where Windows' temp cleanup can empty them and Restore Backup then has nothing."""
+
+    import importlib.util
+
+    from cdmw.app.app_folder import cdmw_folder
+    from cdmw.core import archive_patching
+
+    # The removal tests' autouse fixture points the live module at tmp_path; read the
+    # module's own default from a fresh copy of it.
+    spec = importlib.util.spec_from_file_location("archive_patching_default", archive_patching.__file__)
+    fresh = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fresh)
+    root = fresh.ARCHIVE_PATCH_BACKUP_ROOT.resolve()
+    assert root.is_relative_to(cdmw_folder().resolve()), f"backups go to {root}"
+
+
+def test_the_mods_pages_send_refuses_a_dmm_mods_folder_inside_the_game(tmp_path, monkeypatch):
+    """The Mods page sends through send_item_packages_in_subprocess. The protected root is
+    a module global of the GUI process; the --dmm-send-worker child starts with none, and
+    the parent never checks the destination. With DMM's modsPath inside the game, the
+    child stages and publishes the mod there."""
+
+    from cdmw.core import protected_roots
+    from cdmw.services import dmm_send_process
+    from tests.support.game_fixtures import packages
+    from tests.test_dmm_send import _dmm
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local-app-data"))
+    root, files = packages(tmp_path)
+    _install, mods = _dmm(tmp_path, mods_path=root / "mods")
+    before = {path.relative_to(root).as_posix() for path in root.rglob("*")}
+    protected_roots.set_configured_game_root(root)  # as Browse's game folder field does
+    try:
+        try:
+            dmm_send_process.send_item_packages_in_subprocess(files, root, mods, "Two items")
+        except Exception:
+            pass  # a refusal is the right outcome; what counts is the game folder
+    finally:
+        protected_roots.set_configured_game_root(None)
+    added = sorted({path.relative_to(root).as_posix() for path in root.rglob("*")} - before - {"mods"})
+    assert not added, f"Send to DMM wrote into the game folder: {added[:5]}"
+
+
+@pytest.mark.parametrize("pick", ["the game folder", "a folder that holds the game"])
+def test_clearing_an_output_folder_never_empties_the_game(tmp_path, pick):
+    """Browse's Clear Root (extraction.py) and Clear Workflow Roots call
+    clear_directory_contents on the folder the user picked. It refuses only a drive root,
+    and never asks the protected root, so picking the game folder, or the library that
+    holds it, deletes the game."""
+
+    from cdmw.core import protected_roots
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    game = tmp_path / "library" / "Crimson Desert"
+    (game / "meta").mkdir(parents=True)
+    (game / "meta" / "0.papgt").write_bytes(b"papgt")
+    picked = game if pick == "the game folder" else game.parent
+    protected_roots.set_configured_game_root(game)
+    try:
+        try:
+            clear_directory_contents(picked)
+        except Exception:
+            pass  # a refusal is the right outcome
+    finally:
+        protected_roots.set_configured_game_root(None)
+    assert (game / "meta" / "0.papgt").is_file(), f"clearing {pick} deleted the game"
+
+
+@pytest.mark.parametrize("older_registry", [False, True], ids=["no-older-registry", "older-registry"])
+def test_the_mods_pages_send_in_its_child_process_changes_no_byte_in_the_game(tmp_path, monkeypatch, older_registry):
+    """The live Mods page route (a --dmm-send-worker child) with DMM's mods folder outside
+    the game, with and without an older CDMW's registry in <game>/.cdmw."""
+
+    from cdmw.core import protected_roots
+    from cdmw.services import dmm_send_process, game_records
+    from tests.support.game_fixtures import packages
+    from tests.test_dmm_send import _dmm
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local-app-data"))
+    root, files = packages(tmp_path)
+    _install, mods = _dmm(tmp_path)
+    if older_registry:
+        from cdmw.services.dmm_send import send_item_packages
+
+        send_item_packages(files, root, mods, "Two items")  # makes a real registry
+        kept = game_records.registry_path(root)
+        legacy = root / game_records.LEGACY_REGISTRY_PATH
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_bytes(kept.read_bytes())
+        kept.unlink()
+    before = {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+    protected_roots.set_configured_game_root(root)
+    try:
+        result = dmm_send_process.send_item_packages_in_subprocess(files, root, mods, "Two items")
+    finally:
+        protected_roots.set_configured_game_root(None)
+    after = {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+    assert result.folder.is_dir()
+    assert after == before, "Send to DMM changed the game folder"
+
+
+def test_an_overlay_recorded_only_by_the_older_install_receipt_is_removed(tmp_path):
+    """Before the overlay index (0f521e245, 2026-09-09), and in its single-overlay route,
+    CDMW recorded an install only in .cdmw/last-overlay-install.json, which names the
+    folder and the mount lists but no file digests. fc120763d proves each 0.pamt/0.paz by
+    the index's published digests only, so such an install is listed as not CDMW's and
+    stays mounted: the action can no longer take out what it was made for."""
+
+    from tests.test_old_install_removal import _group as group, _mount as mount
+
+    root = _game(tmp_path)
+    checksum = group(root / "0036", [OVERLAY_DDS])
+    (root / "0036" / removal.OVERLAY_OWNER_MARKER).write_bytes(removal.OVERLAY_OWNER_BYTES)
+    shipped = (root / "meta" / "0.papgt").read_bytes()
+    mount(root, [("0036", checksum), ("0009", 0)])
+    (root / ".cdmw").mkdir(exist_ok=True)
+    (root / ".cdmw" / "last-overlay-install.json").write_text(json.dumps({
+        "format": "cdmw_overlay_install_receipt_v1", "package_root": str(root), "overlay_directory": "0036",
+        "mesh_paths": [OVERLAY_DDS], "mount_list_before": ["0009"], "mount_list_after": ["0036", "0009"],
+        "carried_forward": [], "backup_dir": "", "backup_targets": [], "created_files": []}), encoding="utf-8")
+    del shipped
+    plan = removal.find_old_install(root)
+    assert plan.can_remove and "0036/0.pamt" in plan.delete_files, plan.review_lines()
+    _remove(plan, root)
+    assert not (root / "0036" / "0.pamt").exists() and not (root / "0036" / "0.paz").exists()

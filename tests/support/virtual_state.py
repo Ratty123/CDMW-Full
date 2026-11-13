@@ -10,7 +10,7 @@ import json
 import logging
 from pathlib import Path
 import re
-from cdmw.core.atomic_file import atomic_write_bytes
+from tests.support.fixture_writes import atomic_write_bytes
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.compilation import validate_compiler_stamp, validate_compilation
 from tests.support.virtual_domain import VirtualLoaderError

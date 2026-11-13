@@ -14,11 +14,21 @@ from cdmw.workers.game_executable_fingerprint import GameExecutableFingerprintTa
 
 
 class ArchiveScanLifecycleMixin:
-    def _archive_package_root_changed(self, _text: str) -> None:
-        # Decision 46: CDMW's writers refuse the configured game folder from here on.
-        from cdmw.core.protected_roots import set_configured_game_root
+    def _protect_archive_package_root(self) -> None:
+        # Decision 46: CDMW's writers refuse every game folder this field has named,
+        # for the rest of the session. Only a folder that holds the game's archive index
+        # is added, and none is removed, so a half-typed value neither protects a whole
+        # drive nor drops the previous game folder.
+        from cdmw.core.protected_roots import add_game_root
 
-        set_configured_game_root(_text)
+        add_game_root(self.archive_package_root_edit.text())
+
+    def _archive_package_root_changed(self, _text: str) -> None:
+        # A value set by Browse..., a detected install or the saved settings arrives
+        # without editingFinished; adding it here is safe for the same reasons.
+        from cdmw.core.protected_roots import add_game_root
+
+        add_game_root(_text)
         self.archive_game_fingerprint_stop.set()
         self.archive_open_generation += 1
         self.archive_open_game_fingerprints = None

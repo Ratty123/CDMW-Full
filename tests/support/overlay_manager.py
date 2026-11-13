@@ -17,7 +17,7 @@ import zipfile
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
-from cdmw.core.atomic_file import atomic_write_bytes
+from tests.support.fixture_writes import atomic_write_bytes
 from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, parse_papgt, papgt_with_directory, read_papgt_directories, serialize_papgt
 from cdmw.domain.archives.overlay_merge import (
     OverlayConflict, legacy_texture_baseline, merge_overlay_files, owned_item_references,

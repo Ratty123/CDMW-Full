@@ -9,14 +9,25 @@ from pathlib import Path
 from typing import BinaryIO, Iterator, TextIO
 from uuid import uuid4
 
-# Every writer here refuses a path inside the configured game folder unless the caller
-# holds the permit only Restore Backup and the removal action have (decision 46).
-from cdmw.core.protected_roots import check_writable
+# Every writer here refuses a path in a game folder unless the caller holds the permit
+# only Restore Backup and the removal action have, and never replaces a game folder or
+# a folder that holds one (decision 46). Targets are checked before anything is made,
+# again after their folder is made, and right before each move into place; staged
+# sources are checked too, since moving them takes them out of where they are.
+from cdmw.core.protected_roots import check_removable, check_writable
+
+
+def _replace(staged: Path, target: Path, *, folder: bool = False) -> None:
+    check = check_removable if folder else check_writable
+    check(staged)
+    check(target)
+    os.replace(staged, target)
 
 
 def _temporary_file(target: Path) -> tuple[int, Path]:
     check_writable(target)
     target.parent.mkdir(parents=True, exist_ok=True)
+    check_writable(target)
     descriptor, name = tempfile.mkstemp(
         prefix=f".{target.name}.",
         suffix=".tmp",
@@ -43,7 +54,7 @@ def atomic_binary_writer(path: Path | str, *, durable: bool = True) -> Iterator[
             handle.flush()
             if durable:
                 os.fsync(handle.fileno())
-        os.replace(temporary, target)
+        _replace(temporary, target)
     finally:
         if descriptor >= 0:
             os.close(descriptor)
@@ -68,7 +79,7 @@ def atomic_text_writer(
             handle.flush()
             if durable:
                 os.fsync(handle.fileno())
-        os.replace(temporary, target)
+        _replace(temporary, target)
     finally:
         if descriptor >= 0:
             os.close(descriptor)
@@ -96,7 +107,8 @@ def atomic_publish_files(files: Mapping[Path | str, Path | str]) -> None:
     """Publish staged files as one rollback-capable operation."""
 
     pairs = [(Path(staged), Path(target)) for staged, target in files.items()]
-    for _staged, target in pairs:
+    for staged, target in pairs:
+        check_writable(staged)
         check_writable(target)
     if len({target for _staged, target in pairs}) != len(pairs):
         raise ValueError("atomic publication targets must be unique")
@@ -111,9 +123,9 @@ def atomic_publish_files(files: Mapping[Path | str, Path | str]) -> None:
                 raise IsADirectoryError(target)
             backup = target.with_name(f".{target.name}.{uuid4().hex}.bak") if target.exists() else None
             if backup is not None:
-                os.replace(target, backup)
+                _replace(target, backup)
             try:
-                os.replace(staged, target)
+                _replace(staged, target)
             except Exception:
                 if backup is not None:
                     os.replace(backup, target)
@@ -143,7 +155,8 @@ def atomic_publish_directory(
     """Publish with rollback; optionally refuse replacement or retain and return old output."""
     staged_path = Path(staged)
     target_path = Path(target)
-    check_writable(target_path)
+    check_removable(staged_path)
+    check_removable(target_path)
     if not staged_path.is_dir():
         raise NotADirectoryError(staged_path)
     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -153,9 +166,9 @@ def atomic_publish_directory(
         raise FileExistsError(f"Destination already exists: {target_path}")
     backup = target_path.with_name(f".{target_path.name}.{uuid4().hex}.bak") if target_path.exists() else None
     if backup is not None:
-        os.replace(target_path, backup)
+        _replace(target_path, backup, folder=True)
     try:
-        os.replace(staged_path, target_path)
+        _replace(staged_path, target_path, folder=True)
     except Exception:
         if backup is not None:
             os.replace(backup, target_path)
@@ -175,8 +188,9 @@ def atomic_publish_paths(
 ) -> None:
     """Publish files and directories together, restoring prior output on failure."""
     pairs = [(Path(staged), Path(target)) for staged, target in paths]
-    for _staged, target in pairs:
-        check_writable(target)
+    for staged, target in pairs:
+        check_removable(staged)
+        check_removable(target)
     if len({os.path.normcase(str(target.absolute())) for _, target in pairs}) != len(pairs):
         raise ValueError("atomic publication targets must be unique")
     for staged, target in pairs:
@@ -202,6 +216,8 @@ def atomic_publish_paths(
             if not replace_existing and (target.exists() or target.is_symlink()):
                 raise FileExistsError(f"Destination already exists: {target}")
             backup = target.with_name(f".{target.name}.{uuid4().hex}.bak") if replace_existing and (target.exists() or target.is_symlink()) else None
+            check_removable(staged)
+            check_removable(target)
             if backup is not None:
                 target.replace(backup)
             try:

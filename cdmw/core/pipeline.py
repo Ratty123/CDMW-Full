@@ -14,6 +14,7 @@ from cdmw.constants import *
 from cdmw.models import *
 from cdmw.core.common import *
 from cdmw.core.chainner import *
+from cdmw.core.protected_roots import check_writable
 from cdmw.core.mod_package import (
     ModPackageExportOptions,
     mod_package_expanded_export_options,
@@ -195,6 +196,7 @@ def convert_dds_to_pngs(
     if config.csv_log_enabled and csv_log_path is None:
         raise ValueError("CSV log is enabled, but the CSV log path is empty.")
 
+    check_writable(png_root)  # never into a game folder (decision 46)
     png_root.mkdir(parents=True, exist_ok=True)
 
     def emit_log(message: str) -> None:
@@ -437,6 +439,10 @@ def rebuild_dds_files(
     stop_event: Optional[threading.Event] = None,
 ) -> RunSummary:
     normalized = normalize_config(config, validate_backend_runtime=False)
+    # Decision 46: no output root of the texture pipeline lies in a game folder.
+    for output in (normalized.output_root, normalized.png_root, normalized.dds_staging_root):
+        if output is not None:
+            check_writable(output)
     normalized.output_root.mkdir(parents=True, exist_ok=True)
     active_png_root = normalized.png_root
 

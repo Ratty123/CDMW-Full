@@ -18,12 +18,15 @@ def retained_mod_folder_tools(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _no_protected_game_folder():
-    """A test that configures a game folder protects it only for itself (decision 46)."""
+    """A test that configures a game folder protects it only for itself (decision 46).
+
+    In the app a protected root stays for the whole session; a test is a session.
+    """
     from cdmw.core import protected_roots
 
-    protected_roots.set_configured_game_root(None)
+    protected_roots._reset_for_tests()
     yield
-    protected_roots.set_configured_game_root(None)
+    protected_roots._reset_for_tests()
 
 
 @pytest.fixture(autouse=True)
