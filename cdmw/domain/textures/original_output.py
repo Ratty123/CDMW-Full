@@ -46,6 +46,13 @@ class OriginalTextureOutput:
     notes: Tuple[str, ...] = field(default_factory=tuple)
 
 
+def _beyond_eight_bits(dds_format: str) -> bool:
+    """Formats whose values an 8-bit-per-channel document cannot hold."""
+    name = normalize_texture_editor_dds_format(dds_format)
+    return ("FLOAT" in name or "SNORM" in name or name.startswith("BC6H")
+            or name.startswith(("R16_", "R16G16_", "R16G16B16A16_", "R32", "R10G10B10A2", "R11G11B10")))
+
+
 def texture_colour_space(dds_format: str) -> str:
     """'srgb' for the _SRGB formats, 'linear' for the rest (their bytes are read as data)."""
     return "srgb" if normalize_texture_editor_dds_format(dds_format).endswith("_SRGB") else "linear"
@@ -63,6 +70,14 @@ def original_texture_output(info: DdsInfo, *, width: int | None = None, height: 
         raise TextureOutputRefused(
             f"This texture is stored as {dds_format}, which CDMW's texture encoder cannot write. "
             "Editing it would change its format, so it stays as it is.",
+            dds_format=dds_format,
+        )
+    if _beyond_eight_bits(dds_format) or getattr(info, "precision_sensitive", False):
+        # The edited document is RGBA8: HDR range above 1.0, extra precision and the
+        # negative half of an SNORM normal map would not survive it (H4 of the review).
+        raise TextureOutputRefused(
+            f"This texture is stored as {dds_format}, which holds more than 8 bits per channel or negative "
+            "values. The editor works in 8 bits, so editing it would lose detail, and it stays as it is.",
             dds_format=dds_format,
         )
     if getattr(info, "preserve_only_source", False):
@@ -105,9 +120,38 @@ def check_texture_editable(path: Path) -> OriginalTextureOutput:
 
     try:
         info = parse_dds(Path(path))
+        kind = _texture_layout_kind(Path(path))
     except (OSError, ValueError) as exc:
         raise TextureOutputRefused(f"CDMW cannot read this texture, so it cannot edit it: {exc}") from exc
+    if kind:
+        raise TextureOutputRefused(
+            f"This texture is a {kind}. The editor edits one flat image, so it stays as it is.",
+            dds_format=info.dds_format)
     return original_texture_output(info)
+
+
+def _texture_layout_kind(path: Path) -> str:
+    """'cubemap', 'texture array' or 'volume texture' for a DDS that is not one flat image, else ''."""
+    import struct
+
+    with path.open("rb") as handle:
+        blob = handle.read(148)
+    if len(blob) < 128:
+        return ""
+    caps2 = struct.unpack_from("<I", blob, 4 + 108)[0]
+    if caps2 & 0x200:
+        return "cubemap"
+    if caps2 & 0x200000:
+        return "volume texture"
+    if blob[84:88] == b"DX10" and len(blob) >= 148:
+        dimension, misc, array_size = struct.unpack_from("<3I", blob, 132)
+        if misc & 0x4:
+            return "cubemap"
+        if dimension == 4:
+            return "volume texture"
+        if array_size > 1:
+            return "texture array"
+    return ""
 
 
 __all__ = [

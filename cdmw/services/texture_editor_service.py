@@ -129,6 +129,25 @@ def native_texture_editor_backend_status_text() -> str:
     return "Native DDS: cd-texture-dx ready." if native_texture_editor_backend_available() else "Native DDS: cd-texture-dx missing."
 
 
+_BLOCK_BYTES = {"BC1": 8, "BC4": 8, "BC2": 16, "BC3": 16, "BC5": 16, "BC6H": 16, "BC7": 16}
+_PIXEL_BYTES = {"R8G8B8A8": 4, "B8G8R8A8": 4, "B8G8R8X8": 4, "R8G8": 2, "R8": 1, "A8": 1}
+
+
+def _dds_payload_bytes(dds_format: str, width: int, height: int, mip_count: int) -> Optional[int]:
+    """The bytes a complete DDS of this format holds after its header, or None when not known here."""
+    name = str(dds_format or "").upper()
+    family = name.split("_", 1)[0]
+    total = 0
+    for level in range(max(1, int(mip_count))):
+        w, h = max(1, int(width) >> level), max(1, int(height) >> level)
+        if family in _BLOCK_BYTES:
+            total += ((w + 3) // 4) * ((h + 3) // 4) * _BLOCK_BYTES[family]
+        elif family in _PIXEL_BYTES:
+            total += w * h * _PIXEL_BYTES[family]
+        else:
+            return None
+    return total
+
 @dataclass(slots=True)
 class TextureEditorNativeDdsService:
     settings: object | None = None
@@ -205,9 +224,9 @@ class TextureEditorNativeDdsService:
         if texture_native.find_directxtex_texture_binary() is None:
             raise NativeTextureEditorExportError("Native DirectXTex texture backend cd-texture-dx is missing.")
         dds_path = Path(output_path).expanduser().resolve()
-        temp_parent = Path(temp_root).expanduser().resolve() if temp_root is not None else None
-        if temp_parent is not None:
-            temp_parent.mkdir(parents=True, exist_ok=True)
+        # Stage beside the output (the caller's folder), not in the system temp folder.
+        temp_parent = Path(temp_root).expanduser().resolve() if temp_root is not None else dds_path.parent
+        temp_parent.mkdir(parents=True, exist_ok=True)
         if dds_path.exists() and not overwrite:
             raise FileExistsError(f"Texture output already exists: {dds_path}")
         with tempfile.TemporaryDirectory(prefix="cdmw_texture_editor_", dir=str(temp_parent) if temp_parent is not None else None) as temp_dir:
@@ -222,8 +241,10 @@ class TextureEditorNativeDdsService:
                 height=original.height,
                 mip_count=original.mip_count,
                 overwrite=True,
-                # Linear data keeps its bytes; sRGB colour is encoded as sRGB.
-                source_color_policy="auto" if original.srgb else "ignore_srgb_metadata",
+                # The flattened PNG carries no colour tag. Its sRGB pixels are already encoded, so
+                # say so (as the other untagged-PNG encodes do) rather than let "auto" convert them
+                # again; linear data keeps its bytes (H3 of the review).
+                source_color_policy="assume_srgb" if original.srgb else "ignore_srgb_metadata",
                 timeout_seconds=timeout_seconds,
             )
             if not report:
@@ -239,6 +260,30 @@ class TextureEditorNativeDdsService:
             if written and written.upper() != original.dds_format:
                 raise TextureOutputRefused(
                     f"The encoder wrote {written} instead of {original.dds_format}; nothing was saved.",
+                    dds_format=original.dds_format,
+                )
+            from cdmw.core.texture_pipeline.inspection import parse_dds
+
+            try:
+                header = parse_dds(staged)
+                data = staged.read_bytes()
+                expected = _dds_payload_bytes(header.dds_format, header.width, header.height, header.mip_count)
+                offset = 148 if data[84:88] == b"DX10" else 128
+                if expected is not None and len(data) - offset < expected:
+                    # The whole file, not only its header: every mip must be there.
+                    raise ValueError(f"{len(data) - offset:,} of {expected:,} payload bytes")
+            except (OSError, ValueError) as exc:
+                raise TextureOutputRefused(f"The encoder wrote an incomplete texture ({exc}); nothing was saved.",
+                                           dds_format=original.dds_format) from exc
+            if (header.width, header.height) != (original.width, original.height):
+                raise TextureOutputRefused(
+                    f"The encoder wrote {header.width}x{header.height} instead of {original.width}x{original.height}; "
+                    "nothing was saved.", dds_format=original.dds_format)
+            written_srgb = normalized.get("srgb")
+            if written_srgb is not None and bool(written_srgb) != original.srgb:
+                raise TextureOutputRefused(
+                    f"The encoder wrote {'sRGB' if written_srgb else 'linear'} colour instead of "
+                    f"{'sRGB' if original.srgb else 'linear'}; nothing was saved.",
                     dds_format=original.dds_format,
                 )
             if normalized.get("mip_count") not in (None, original.mip_count):
