@@ -397,18 +397,8 @@ _add_native_binary(
 )
 _add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.exe", "native", required_release=True)
 # cdmw-mesh-core.dll is built for the native ABI tests only; nothing in the app loads it (removal list item 6).
-# DMM loads CDMW's items; the game runtime (an ASI and a session host .exe) ships only
-# while CDMW's own loading is switched on.
-from cdmw import constants as _cdmw_constants
-if _cdmw_constants.VIRTUAL_LOADING_ENABLED:
-    for virtual_binary in ("CDMWVirtualLoader.asi", "cdmw_virtual_session.exe"):
-        _add_native_binary(
-            f"native/cdmw_virtual_loader/build/Release/{virtual_binary}",
-            "native/cdmw_virtual_loader",
-            required_release=True,
-        )
-    _add_data_if_exists(datas, "native/cdmw_virtual_loader/build/Release/provenance.json",
-                        "native/cdmw_virtual_loader", required_release=True)
+# DMM loads CDMW's items; CDMW's own game runtime (the virtual loader) is retired
+# and not packaged (rr/parity-mods-2, removal list item 9).
 rust_mesh_editor_stage = f"native/rust_mesh_editor/build/{NATIVE_CONFIGURATION}"
 _validate_rust_mesh_editor_payload(
     ROOT / rust_mesh_editor_stage,

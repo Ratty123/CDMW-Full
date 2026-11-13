@@ -307,6 +307,8 @@ class ArchivePreviewLayoutMixin:
         self.archive_restore_patch_backup_button.setToolTip(
             "Put back the archive files an older CDMW version changed in the game, from the backup it made at the time."
         )
+        # Decision 42: the action wires its click, tooltip and enabled state.
+        self.archive_remove_old_install_button = QPushButton("Remove What an Older CDMW Installed...")
         self.archive_import_loose_mod_button = QPushButton("Import Loose Mod Folder...")
         self.archive_import_loose_mod_button.setToolTip(
             "Load a whole loose mod folder, match files by virtual path, review asset families, and write selected replacements as one loose package."
@@ -458,6 +460,7 @@ class ArchivePreviewLayoutMixin:
                     "Maintenance",
                     (
                         ("Restore Backup", self.archive_restore_patch_backup_button),
+                        ("Remove What an Older CDMW Installed", self.archive_remove_old_install_button),
                     ),
                 ),
             ),
@@ -562,6 +565,7 @@ class ArchivePreviewLayoutMixin:
             self.archive_sidecar_inspect_button,
             self.archive_sidecar_corpus_button,
             self.archive_restore_patch_backup_button,
+            self.archive_remove_old_install_button,
             self.archive_import_loose_mod_button,
         ):
             button.setMinimumWidth(0)

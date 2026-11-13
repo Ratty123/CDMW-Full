@@ -1165,136 +1165,6 @@ ERROR_REFERENCE = [
   },
   {
     "group": "independent",
-    "code": ":bindings",
-    "messages": [
-      "Retained provider bindings have not changed."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": ":environment",
-    "messages": [
-      "Executable, recorded runtime files, compiler and physical underlay remain the same."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": ":other-packages",
-    "messages": [
-      "Other selected package content and bindings remain the same."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "independent",
-    "code": ":provider",
-    "messages": [
-      "Provider presence follows the intended experiment stage."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": ":restored-context",
-    "messages": [
-      "Restored package content, bindings, source contracts and prepared output match the baseline."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": ":same-absent-context",
-    "messages": [
-      "The prepared absent-provider context stayed the same."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": ":selected-files",
-    "messages": [
-      "Every explicitly selected save file exists in this copy."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "independent",
-    "code": "absent-load-input",
-    "messages": [
-      "The absent-provider load starts with the original selected save bytes."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "independent",
-    "code": "absent-load-no-save",
-    "messages": [
-      "The selected save bytes did not change during the reported load-only case."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "independent",
-    "code": "added-proposed-provider",
-    "messages": [],
-    "sources": [
-      "cdmw/domain/virtual_session_receipt.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": "baseline-provider",
-    "messages": [
-      "The baseline selects the provider virtually."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "independent",
     "code": "borrowed-contribution-resources",
     "messages": [
       "Decoded contribution references still reach borrowed source resources."
@@ -1307,26 +1177,6 @@ ERROR_REFERENCE = [
   },
   {
     "group": "independent",
-    "code": "changed-proposed-context",
-    "messages": [],
-    "sources": [
-      "cdmw/domain/virtual_session_receipt.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": "changed-proposed-provider",
-    "messages": [],
-    "sources": [
-      "cdmw/domain/virtual_session_receipt.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
     "code": "existing-content-edits",
     "messages": [
       "The package intentionally owns assignments to existing game content."
@@ -1336,28 +1186,6 @@ ERROR_REFERENCE = [
     ],
     "severity": [],
     "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": "missing-proposed-provider",
-    "messages": [],
-    "sources": [
-      "cdmw/domain/virtual_session_receipt.py"
-    ],
-    "severity": [],
-    "recovery": "missing"
-  },
-  {
-    "group": "independent",
-    "code": "new-absent-save",
-    "messages": [
-      "The reported absent-provider save has different selected bytes; this alone does not prove a game write."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "write"
   },
   {
     "group": "independent",
@@ -1385,42 +1213,6 @@ ERROR_REFERENCE = [
   },
   {
     "group": "independent",
-    "code": "restore-new-save-input",
-    "messages": [
-      "The restored-provider load starts with the newly written copy, not the original recovery save."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": "restore-save-attempt-input",
-    "messages": [
-      "The restored-provider case retains the attempted-save bytes. A failed or unknown attempt does not establish a committed save."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "write"
-  },
-  {
-    "group": "independent",
-    "code": "restored-load-no-save",
-    "messages": [
-      "The selected save bytes stayed unchanged during the restored-provider load-only case. Different bytes, including possible autosaves, leave this sequence inconsistent and unverified."
-    ],
-    "sources": [
-      "cdmw/domain/virtual_save_evidence.py"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "independent",
     "code": "shared-file-composition",
     "messages": [
       "This backend composes shared game files. Native independent registration and resource discovery are not proven."
@@ -1439,16 +1231,6 @@ ERROR_REFERENCE = [
     ],
     "sources": [
       "cdmw/services/independent_item_isolation.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "independent",
-    "code": "unknown-proposed-context",
-    "messages": [],
-    "sources": [
-      "cdmw/domain/virtual_session_receipt.py"
     ],
     "severity": [],
     "recovery": "internal"
@@ -7686,22 +7468,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "A prepared overlay change targets a file outside its ownership.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 979
-    }
-  },
-  {
-    "area": "archive",
-    "message": "A prepared overlay removal names an unowned file.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 983
-    }
-  },
-  {
-    "area": "archive",
     "message": "A property bundle stores the same id twice; refusing to rebuild it.",
     "recovery": "input",
     "sources": {
@@ -7769,7 +7535,7 @@ MESSAGE_REFERENCE = [
     "message": "Active file authority audit found {authority_audit.mismatch_count} mismatch(es); clean/disable stale active archives before judging in-game materials.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 648
+      "cdmw/core/archive_loose_export.py": 651
     }
   },
   {
@@ -7777,7 +7543,7 @@ MESSAGE_REFERENCE = [
     "message": "Active file authority audit skipped; game root not found: {resolved_game_root}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 836
+      "cdmw/core/archive_loose_export.py": 841
     }
   },
   {
@@ -7786,14 +7552,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_wwise_bank_plan.py": 194
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Adding archive entries does not support encryption type {encryption_type} yet.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 314
     }
   },
   {
@@ -7810,14 +7568,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/archives/overlay_merge.py": 91
-    }
-  },
-  {
-    "area": "archive",
-    "message": "An active overlay composed no archive changes.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 717
     }
   },
   {
@@ -7857,15 +7607,7 @@ MESSAGE_REFERENCE = [
     "message": "An overlay dependency is missing from the inventory.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 153
-    }
-  },
-  {
-    "area": "archive",
-    "message": "An overlay install needs at least one requested file.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 188
+      "cdmw/services/archive_overlay_manager.py": 123
     }
   },
   {
@@ -7873,15 +7615,7 @@ MESSAGE_REFERENCE = [
     "message": "An overlay source archive is outside the selected game folder.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 364
-    }
-  },
-  {
-    "area": "archive",
-    "message": "An overlay target changed after preparation; prepare again",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 296
+      "cdmw/services/archive_overlay_manager.py": 278
     }
   },
   {
@@ -7894,18 +7628,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Another CDMW archive group must be reviewed before rebuilding this set.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_rebuild.py": 72
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Another CDMW archive group was installed outside this inventory. Remove or consolidate it before changing managed overlays.",
+    "message": "Another CDMW archive group was installed outside this inventory. Use Browse Archives > Remove What an Older CDMW Installed... to take the old installs out.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 204
+      "cdmw/services/archive_overlay_manager.py": 172
     }
   },
   {
@@ -7913,7 +7639,7 @@ MESSAGE_REFERENCE = [
     "message": "Another CDMW overlay folder is mounted. Review it before starting a fresh set.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 581
+      "cdmw/services/archive_overlay_manager.py": 404
     }
   },
   {
@@ -8202,14 +7928,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/workers/mesh_archive_refit_worker.py": 150
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive additions must be ArchiveAddRequest values.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 495
     }
   },
   {
@@ -8534,30 +8252,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Archive cleanup failed; restore backup {backup_dir}: {rollback_error}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 86
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive cleanup requires a prepared change.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 48
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive cleanup requires explicit confirmation.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 50
-    }
-  },
-  {
-    "area": "archive",
     "message": "Archive companion indexing cancelled.",
     "recovery": "cancelled",
     "sources": {
@@ -8678,30 +8372,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Archive directory {name} is not owned by CDMW and will not be removed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_migration.py": 334
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive directory {name} is not owned by CDMW and will not be reused.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 149
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive directory {name} is reserved by the game's mount list and cannot be used as an overlay.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 143
-    }
-  },
-  {
-    "area": "archive",
     "message": "Archive entry exceeds the one GiB decoded resource limit.",
     "recovery": "limits",
     "sources": {
@@ -8721,7 +8391,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive entry has an invalid path: {entry.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 269
+      "cdmw/core/archive_extraction.py": 270
     }
   },
   {
@@ -8897,7 +8567,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction complete: {extracted} extracted, {failed} failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 753
+      "cdmw/core/archive_extraction.py": 756
     }
   },
   {
@@ -9046,14 +8716,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Archive meta file writes must be MetaFileWrite values.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 498
-    }
-  },
-  {
-    "area": "archive",
     "message": "Archive mount directory is duplicated.",
     "recovery": "conflict",
     "sources": {
@@ -9098,7 +8760,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_resident_index.py": 171,
-      "cdmw/services/archive_reference_cleanup.py": 29,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 40
     }
   },
@@ -9200,14 +8861,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Archive patching currently requires all modified entries to come from the same package root.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 503
-    }
-  },
-  {
-    "area": "archive",
     "message": "Archive path contains a NUL character.",
     "recovery": "internal",
     "sources": {
@@ -9227,7 +8880,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive path is invalid: {request.entry.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 250
+      "cdmw/core/archive_loose_export.py": 252
     }
   },
   {
@@ -9585,26 +9238,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Archive {name} contains unrecorded files. Rebuilding would hide their ownership.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_rebuild.py": 49
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive {name} is no longer owned by CDMW. Restore or move it before rebuilding.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_rebuild.py": 37
-    }
-  },
-  {
-    "area": "archive",
     "message": "Archive {name} is not owned by CDMW.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 453
+      "cdmw/services/archive_overlay_manager.py": 338
     }
   },
   {
@@ -9612,7 +9249,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive {name} is reserved by the mount list.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 455
+      "cdmw/services/archive_overlay_manager.py": 340
     }
   },
   {
@@ -9676,7 +9313,7 @@ MESSAGE_REFERENCE = [
     "message": "Authority audit could not read active archive payload for {virtual_path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 902
+      "cdmw/core/archive_loose_export.py": 907
     }
   },
   {
@@ -9684,7 +9321,7 @@ MESSAGE_REFERENCE = [
     "message": "Authority audit could not read active loose payload for {virtual_path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 870
+      "cdmw/core/archive_loose_export.py": 875
     }
   },
   {
@@ -9692,7 +9329,7 @@ MESSAGE_REFERENCE = [
     "message": "Automatic recovery keeps the old overlay folders. Choose Auto or an unused folder for the new install.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 451
+      "cdmw/services/archive_overlay_manager.py": 336
     }
   },
   {
@@ -10173,7 +9810,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose Auto or {existing} to retain and manage the existing overlay.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 448
+      "cdmw/services/archive_overlay_manager.py": 333
     }
   },
   {
@@ -10191,14 +9828,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/archive_refit_flow.py": 52
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Choose a game archive folder first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 25
     }
   },
   {
@@ -10227,14 +9856,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Cleaned missing references: {', '.join(preparation.names)}. Backup: {backup_dir}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 89
-    }
-  },
-  {
-    "area": "archive",
     "message": "Clear Refit before changing the body",
     "recovery": "internal",
     "sources": {
@@ -10247,22 +9868,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_rust_archive_refit.py": 28
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Close Crimson Desert before changing overlays.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 971
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Close Crimson Desert before cleaning archive references.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 60
     }
   },
   {
@@ -10287,7 +9892,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS parent distance is too large.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_format.py": 765
+      "cdmw/core/archive_format.py": 770
     }
   },
   {
@@ -10303,7 +9908,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS parent distance is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 758
+      "cdmw/core/archive_format.py": 763
     }
   },
   {
@@ -10319,7 +9924,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS parent precedes the name block.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_format.py": 767
+      "cdmw/core/archive_format.py": 772
     }
   },
   {
@@ -10327,7 +9932,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS path depth exceeds 255 records.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_format.py": 777
+      "cdmw/core/archive_format.py": 782
     }
   },
   {
@@ -10352,7 +9957,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS text is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 773
+      "cdmw/core/archive_format.py": 778
     }
   },
   {
@@ -10368,7 +9973,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS text length is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 769
+      "cdmw/core/archive_format.py": 774
     }
   },
   {
@@ -10569,39 +10174,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not export selected related file {entry.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 173
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Could not find PAPGT root index at {papgt_path}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 507
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Could not find archive metadata file {pamt_path}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 352
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Could not find archive payload file {paz_path}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 458
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Could not find the archive mount list at {papgt_path}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 121
+      "cdmw/core/archive_loose_export.py": 174
     }
   },
   {
@@ -10618,14 +10191,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_mesh_appearance.py": 195
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Could not locate {request.entry.path} inside {pamt_path.name}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 414
     }
   },
   {
@@ -10729,7 +10294,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not remove stale active file authority audit: {exc}",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 952
+      "cdmw/core/archive_loose_export.py": 957
     }
   },
   {
@@ -10753,7 +10318,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save the folder exclusion: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/scan_lifecycle.py": 66
+      "cdmw/ui/archive_browser/scan_lifecycle.py": 80
     }
   },
   {
@@ -10777,23 +10342,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not write active file authority audit: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 946
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Crimson Desert started during backup. Close it before changing overlays.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 1005
-    }
-  },
-  {
-    "area": "archive",
-    "message": "CrimsonDesert.exe is running; close the game before installing, its archives are open.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_migration.py": 223
+      "cdmw/core/archive_loose_export.py": 951
     }
   },
   {
@@ -10825,7 +10374,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 539
+      "cdmw/core/archive_extraction.py": 540
     }
   },
   {
@@ -10833,7 +10382,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS depth {depth} exceeds the {DDS_MAX_DIMENSION}px resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 156
+      "cdmw/core/archive_extraction.py": 157
     }
   },
   {
@@ -10857,7 +10406,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS output size {entry.orig_size} exceeds the {DDS_MAX_PAYLOAD_BYTES}-byte resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 532
+      "cdmw/core/archive_extraction.py": 533
     }
   },
   {
@@ -10969,7 +10518,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate overlay inventory key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 121
+      "cdmw/services/archive_overlay_manager.py": 91
     }
   },
   {
@@ -11154,7 +10703,7 @@ MESSAGE_REFERENCE = [
     "message": "Extracted {index} / {total} with {failed} failure(s): {entry.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 751
+      "cdmw/core/archive_extraction.py": 754
     }
   },
   {
@@ -11275,30 +10824,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 330
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Folder {folder_path} is not in byte order, so a new record has no deterministic slot.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 107
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Folder {folder_path} is not in this PAMT (new folders are not supported yet).",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 103
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Folder {folder_path} is not in {label}; adding entries under a new folder is not supported yet.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 374
     }
   },
   {
@@ -11474,7 +10999,7 @@ MESSAGE_REFERENCE = [
     "message": "IN-GAME TEST BLOCKED: active loose file differs from package {virtual_path} (active {row.active_sha256[:16]}, loose {local_sha[:16]}).",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 881
+      "cdmw/core/archive_loose_export.py": 886
     }
   },
   {
@@ -11482,7 +11007,7 @@ MESSAGE_REFERENCE = [
     "message": "IN-GAME TEST BLOCKED: active {row.active_source} differs from loose {virtual_path} (active {row.active_sha256[:16]}, loose {local_sha[:16]}).",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 913
+      "cdmw/core/archive_loose_export.py": 918
     }
   },
   {
@@ -11554,7 +11079,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid PAZ index {paz_index} for {pamt_path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_format.py": 914
+      "cdmw/core/archive_format.py": 919
     }
   },
   {
@@ -11570,7 +11095,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid archive storage flags.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 323
+      "cdmw/services/archive_overlay_manager.py": 237
     }
   },
   {
@@ -11578,7 +11103,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid disabled overlay state.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 144
+      "cdmw/services/archive_overlay_manager.py": 114
     }
   },
   {
@@ -11586,7 +11111,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or repeated overlay journal path.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 317
+      "cdmw/services/archive_overlay_manager.py": 231
     }
   },
   {
@@ -11594,7 +11119,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid overlay dependency list.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 149
+      "cdmw/services/archive_overlay_manager.py": 119
     }
   },
   {
@@ -11602,7 +11127,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid overlay entry in the inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 142
+      "cdmw/services/archive_overlay_manager.py": 112
     }
   },
   {
@@ -11610,7 +11135,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid overlay identity in the inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 139
+      "cdmw/services/archive_overlay_manager.py": 109
     }
   },
   {
@@ -11618,7 +11143,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid overlay journal location.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 298
+      "cdmw/services/archive_overlay_manager.py": 212
     }
   },
   {
@@ -11626,7 +11151,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid overlay path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 83
+      "cdmw/services/archive_overlay_manager.py": 53
     }
   },
   {
@@ -11634,7 +11159,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid overlay payload checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 330
+      "cdmw/services/archive_overlay_manager.py": 244
     }
   },
   {
@@ -11642,7 +11167,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid owned item identity in the inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 147
+      "cdmw/services/archive_overlay_manager.py": 117
     }
   },
   {
@@ -11650,7 +11175,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid retired overlay history identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 609
+      "cdmw/services/archive_overlay_manager.py": 309
     }
   },
   {
@@ -11658,7 +11183,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid selected related file path: {entry.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 162
+      "cdmw/core/archive_loose_export.py": 163
     }
   },
   {
@@ -11691,14 +11216,6 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/archive_scan_cache.py": 1104
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Item identity conflicts with {layer['label']}. Build a new plan from the current installed tables.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 821
     }
   },
   {
@@ -11970,7 +11487,7 @@ MESSAGE_REFERENCE = [
     "message": "Managed installs share archive {state['directory']}. Choose Auto or that folder so their shared tables stay composed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 435
+      "cdmw/services/archive_overlay_manager.py": 318
     }
   },
   {
@@ -12263,22 +11780,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Meta file {request.path} does not exist under {package_root}; only shipped index files are rewritten.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 514
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Meta file {request.path} is outside the package root.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 512
-    }
-  },
-  {
-    "area": "archive",
     "message": "Missing",
     "recovery": "missing",
     "sources": {
@@ -12299,7 +11800,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing PAZ file: {entry.paz_file}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 319
+      "cdmw/core/archive_extraction.py": 320
     }
   },
   {
@@ -12384,14 +11885,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Multiple earlier CDMW archive groups need consolidation before individual item management can begin.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 444
-    }
-  },
-  {
-    "area": "archive",
     "message": "Name the mod before writing it.",
     "recovery": "write",
     "sources": {
@@ -12464,43 +11957,11 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "New archive name {request.basename} is longer than the 255 bytes a name record allows.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 371
-    }
-  },
-  {
-    "area": "archive",
-    "message": "New archive path {clean} is requested twice.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 366
-    }
-  },
-  {
-    "area": "archive",
-    "message": "New archive path {request.path} must be a folder-qualified virtual path.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 364
-    }
-  },
-  {
-    "area": "archive",
     "message": "No .pamt files were found under {package_root}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_format.py": 941,
+      "cdmw/core/archive_format.py": 946,
       "cdmw/core/archive_scan_cache.py": 1795
-    }
-  },
-  {
-    "area": "archive",
-    "message": "No .paz files exist beside {pamt_path}.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 333
     }
   },
   {
@@ -12537,26 +11998,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "No archive additions were provided.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 569
-    }
-  },
-  {
-    "area": "archive",
-    "message": "No archive modifications were provided.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 492
-    }
-  },
-  {
-    "area": "archive",
     "message": "No archive payloads were provided for mesh mod-ready loose export.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 338
+      "cdmw/core/archive_loose_export.py": 340
     }
   },
   {
@@ -12564,7 +12009,7 @@ MESSAGE_REFERENCE = [
     "message": "No archive payloads were provided for mod-ready loose export.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 206
+      "cdmw/core/archive_loose_export.py": 207
     }
   },
   {
@@ -12605,14 +12050,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_mesh_export.py": 714
-    }
-  },
-  {
-    "area": "archive",
-    "message": "No installed overlay history is available to rebuild.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_rebuild.py": 22
     }
   },
   {
@@ -12661,7 +12098,7 @@ MESSAGE_REFERENCE = [
     "message": "No saved overlay set is available to retire. Refresh the list.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 572
+      "cdmw/services/archive_overlay_manager.py": 395
     }
   },
   {
@@ -12818,10 +12255,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Nothing in the shipped archives differs from the oldest backup of it.",
-    "recovery": "recovery",
+    "message": "Nothing was changed. {message}",
+    "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_migration.py": 228
+      "cdmw/ui/archive_browser/old_install_removal.py": 115
     }
   },
   {
@@ -12970,14 +12407,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Only the texture registry is supported as overlay metadata.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 799
-    }
-  },
-  {
-    "area": "archive",
     "message": "Open one piece separately before loading a Refit source",
     "recovery": "internal",
     "sources": {
@@ -13042,43 +12471,11 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Overlay apply requires an OverlayInstallPreparation",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 276
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay change failed; recovery requires backup {backup_dir}: {rollback_error}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 1047
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay changes require a prepared change.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 962
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay changes require explicit confirmation.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 964
-    }
-  },
-  {
-    "area": "archive",
     "message": "Overlay conflict in {path}; overlapping file edits cannot be separated safely.",
     "recovery": "conflict",
     "sources": {
       "cdmw/domain/archives/overlay_merge.py": 247,
-      "cdmw/services/archive_overlay_manager.py": 789
+      "cdmw/services/archive_overlay_manager.py": 170
     }
   },
   {
@@ -13094,24 +12491,7 @@ MESSAGE_REFERENCE = [
     "message": "Overlay folder must be a number from 0036 to 9999.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_install.py": 138,
-      "cdmw/services/archive_overlay_manager.py": 97
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay installation failed and its backup could not be restored: {rollback_error} (recovery location: {recovery_path})",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 352
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay installation requires explicit confirmation",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 278
+      "cdmw/services/archive_overlay_manager.py": 67
     }
   },
   {
@@ -13119,7 +12499,7 @@ MESSAGE_REFERENCE = [
     "message": "Overlay journal metadata is too large.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 308
+      "cdmw/services/archive_overlay_manager.py": 222
     }
   },
   {
@@ -13127,7 +12507,7 @@ MESSAGE_REFERENCE = [
     "message": "Overlay journal payload failed its checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 342
+      "cdmw/services/archive_overlay_manager.py": 256
     }
   },
   {
@@ -13135,23 +12515,7 @@ MESSAGE_REFERENCE = [
     "message": "Overlay journal payloads exceed the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 334
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay metadata path escapes the package: {relative}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 205
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay migration failed; recovery requires backup {recovery.recovery_location}: {rollback_error}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_migration.py": 290
+      "cdmw/services/archive_overlay_manager.py": 248
     }
   },
   {
@@ -13167,111 +12531,7 @@ MESSAGE_REFERENCE = [
     "message": "Overlay path escapes the game folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 90
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay receipt contains a backup target outside the package root",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 430
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay receipt contains a created path not owned by the overlay install",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 421
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay receipt contains a created path outside the package root",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 409
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay receipt contains duplicate backup targets",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 433
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay receipt contains duplicate created paths",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 412
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay receipt does not name a CDMW-owned overlay directory",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 404
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay receipt names an invalid overlay directory",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 401
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay receipt package root does not match the receipt location",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 398
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay receipt targets do not match the install backup manifest",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 435
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay removal failed; recovery requires backup {recovery.recovery_location}: {rollback_error}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_migration.py": 390
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay restore requires explicit confirmation",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 386
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay retirement failed; recovery requires backup {backup_dir}: {rollback_error}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 643
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Overlay {name} no longer matches the game's mount list. Restore or remove the old overlay and verify the game files before installing again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 147
+      "cdmw/services/archive_overlay_manager.py": 60
     }
   },
   {
@@ -13506,7 +12766,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMT extension table contains an invalid extension.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_format.py": 803
+      "cdmw/core/archive_format.py": 808
     }
   },
   {
@@ -13522,7 +12782,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMT extension table has invalid bounds or terminators.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_format.py": 795
+      "cdmw/core/archive_format.py": 800
     }
   },
   {
@@ -13538,7 +12798,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMT extension table is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 791
+      "cdmw/core/archive_format.py": 796
     }
   },
   {
@@ -13864,14 +13124,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "PAZ table is truncated",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 174
-    }
-  },
-  {
-    "area": "archive",
     "message": "PSV0 resource record of {bind_size} bytes",
     "recovery": "internal",
     "sources": {
@@ -13907,7 +13159,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS DX10 header is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 153
+      "cdmw/core/archive_extraction.py": 154
     }
   },
   {
@@ -13931,7 +13183,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 258
+      "cdmw/core/archive_extraction.py": 259
     }
   },
   {
@@ -13947,7 +13199,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS block is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 230
+      "cdmw/core/archive_extraction.py": 231
     }
   },
   {
@@ -13955,7 +13207,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS header is missing or invalid.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 131
+      "cdmw/core/archive_extraction.py": 132
     }
   },
   {
@@ -13971,7 +13223,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS header size is invalid.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 133
+      "cdmw/core/archive_extraction.py": 134
     }
   },
   {
@@ -13987,7 +13239,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial DDS output exceeds the {DDS_MAX_PAYLOAD_BYTES}-byte resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 232
+      "cdmw/core/archive_extraction.py": 233
     }
   },
   {
@@ -14003,7 +13255,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAM geometry block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 428
+      "cdmw/core/archive_extraction.py": 429
     }
   },
   {
@@ -14011,7 +13263,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAM geometry block has inconsistent sizes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 421
+      "cdmw/core/archive_extraction.py": 422
     }
   },
   {
@@ -14019,7 +13271,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry block decompressed to an unexpected size.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 388
+      "cdmw/core/archive_extraction.py": 389
     }
   },
   {
@@ -14027,7 +13279,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry block has inconsistent sizes or offsets.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 372
+      "cdmw/core/archive_extraction.py": 373
     }
   },
   {
@@ -14035,7 +13287,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry blocks do not match the archive size.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 380
+      "cdmw/core/archive_extraction.py": 381
     }
   },
   {
@@ -14043,7 +13295,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry table is invalid or ambiguous.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 356
+      "cdmw/core/archive_extraction.py": 357
     }
   },
   {
@@ -14051,7 +13303,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial PAMLOD geometry table is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 351
+      "cdmw/core/archive_extraction.py": 352
     }
   },
   {
@@ -14059,7 +13311,7 @@ MESSAGE_REFERENCE = [
     "message": "Partial static mesh exceeds the one GiB resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 362
+      "cdmw/core/archive_extraction.py": 363
     }
   },
   {
@@ -14147,7 +13399,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source changed while reading {entry.path}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_extraction.py": 587
+      "cdmw/core/archive_extraction.py": 588
     }
   },
   {
@@ -14155,7 +13407,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source checksum changed for {entry.path}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/archive_extraction.py": 592
+      "cdmw/core/archive_extraction.py": 593
     }
   },
   {
@@ -14163,7 +13415,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source is unavailable for {entry.path}: {path} (path length: {len(str(path))}; read failed: {exc})",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 581
+      "cdmw/core/archive_extraction.py": 582
     }
   },
   {
@@ -14171,7 +13423,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source is unavailable for {entry.path}: {path} (path length: {len(str(path))}; stat failed: {exc})",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_extraction.py": 566
+      "cdmw/core/archive_extraction.py": 567
     }
   },
   {
@@ -14179,7 +13431,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared archive source size changed for {entry.path}: expected {expected_size} bytes, found {size}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_extraction.py": 573
+      "cdmw/core/archive_extraction.py": 574
     }
   },
   {
@@ -14188,22 +13440,6 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/workers/mesh_archive_refit_worker.py": 100
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Prepared overlay mount list did not place the new group first",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 199
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Prepared overlay targets do not match their original files.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 981
     }
   },
   {
@@ -14541,7 +13777,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing to clear loose export folder outside the selected export root: {resolved_package_root}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 690
+      "cdmw/core/archive_loose_export.py": 695
     }
   },
   {
@@ -14549,7 +13785,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing to clear loose export parent directory: {resolved_package_root}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 686
+      "cdmw/core/archive_loose_export.py": 691
     }
   },
   {
@@ -14557,7 +13793,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing to clear root directory: {resolved}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_extraction.py": 788
+      "cdmw/core/archive_extraction.py": 793
     }
   },
   {
@@ -14738,14 +13974,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Retired overlay history did not match the reviewed inventory.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 637
-    }
-  },
-  {
-    "area": "archive",
     "message": "Round-trip edit supports OBJ, GLB, glTF, or FBX with a CDMW companion.",
     "recovery": "internal",
     "sources": {
@@ -14802,14 +14030,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Select at least one installed overlay.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 855
-    }
-  },
-  {
-    "area": "archive",
     "message": "Select at least one renderable component to preview.",
     "recovery": "input",
     "sources": {
@@ -14834,10 +14054,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Several archive groups an older CDMW installed are in this game. Use Browse Archives > Remove What an Older CDMW Installed... to take them out.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/archive_overlay_manager.py": 328
+    }
+  },
+  {
+    "area": "archive",
     "message": "Shared compilation contexts require the supported overlay inventory version.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 133
+      "cdmw/services/archive_overlay_manager.py": 103
     }
   },
   {
@@ -14917,7 +14145,7 @@ MESSAGE_REFERENCE = [
     "message": "Skipping missing extra source payload: {spec.source_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 276
+      "cdmw/core/archive_loose_export.py": 278
     }
   },
   {
@@ -14925,7 +14153,7 @@ MESSAGE_REFERENCE = [
     "message": "Skipping selected supplemental file with an invalid target path: {spec.source_path.name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 437
+      "cdmw/core/archive_loose_export.py": 440
     }
   },
   {
@@ -15026,34 +14254,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Source dependencies changed or cannot be verified after preparation: {exc}",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 955
-    }
-  },
-  {
-    "area": "archive",
     "message": "Source has a paired {pair_extension} file but the target has no proven paired path; the source pair was skipped.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/replace_from_archive_service.py": 637
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Source index changed since parsing: {path}.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 940
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Source index has conflicting parsed revisions: {path}.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 935
     }
   },
   {
@@ -15133,7 +14337,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse DDS header is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_extraction.py": 333
+      "cdmw/core/archive_extraction.py": 334
     }
   },
   {
@@ -15141,7 +14345,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse DDS output exceeds the {DDS_MAX_PAYLOAD_BYTES}-byte resource limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_extraction.py": 339
+      "cdmw/core/archive_extraction.py": 340
     }
   },
   {
@@ -15158,46 +14362,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/archive_backend_client.py": 89
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Staged overlay bytes differ from the preparation: {relative}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 1029
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Staged overlay bytes do not match the confirmed preparation",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 251
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Staged overlay index does not contain the complete prepared path set",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 255
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Staged overlay index references bytes outside its payload",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 258
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Staged overlay paths differ from the prepared archive.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 1036
     }
   },
   {
@@ -15245,23 +14409,7 @@ MESSAGE_REFERENCE = [
     "message": "Start fresh is only available when the saved overlay folder is not mounted. Use normal removal for mounted overlays.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 579
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Starting a fresh overlay set needs backup and restore services.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 602
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Starting a fresh overlay set requires explicit confirmation.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 600
+      "cdmw/services/archive_overlay_manager.py": 402
     }
   },
   {
@@ -15578,14 +14726,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The PAMT names the same virtual path twice.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 80
-    }
-  },
-  {
-    "area": "archive",
     "message": "The PAT payload exceeded the analysis bound; tail materials/references may be incomplete.",
     "recovery": "limits",
     "sources": {
@@ -15714,34 +14854,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The archive index for {name} is not absent. Check the folder before cleanup.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 38
-    }
-  },
-  {
-    "area": "archive",
     "message": "The archive list changed while the selected rows were read. Select the models again.",
     "recovery": "input",
     "sources": {
       "cdmw/ui/archive_browser/mesh_import_export.py": 630
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The archive list changed. Refresh and prepare cleanup again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 34
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The archive list or missing folders changed. Refresh and prepare cleanup again.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 63
     }
   },
   {
@@ -15766,14 +14882,6 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/ui/archive_browser/remote_entry_lookup.py": 242
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The archive mount list changed after overlay preparation; prepare again",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 283
     }
   },
   {
@@ -16091,14 +15199,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The cleaned archive list differs from the reviewed change.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 79
-    }
-  },
-  {
-    "area": "archive",
     "message": "The colour atlas could not be shown: {exc}",
     "recovery": "internal",
     "sources": {
@@ -16115,14 +15215,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The composed overlay history exceeds the supported size (at least {len(data)} bytes; limit {_MAX_STATE_BYTES} bytes); this change cannot be published.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 58
-    }
-  },
-  {
-    "area": "archive",
     "message": "The container does not list the added sound; nothing was written.",
     "recovery": "internal",
     "sources": {
@@ -16135,14 +15227,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveEntryPreparationService.cs": 193
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The current game or another mod already supplies owned item IDs: {detail}. Review those conflicts before rebuilding.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_rebuild.py": 103
     }
   },
   {
@@ -16182,7 +15266,7 @@ MESSAGE_REFERENCE = [
     "message": "The earlier overlay has unsupported metadata; its backup needs review.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 484
+      "cdmw/services/archive_overlay_manager.py": 369
     }
   },
   {
@@ -16278,7 +15362,7 @@ MESSAGE_REFERENCE = [
     "message": "The existing overlay differs from its mount-list checksum. Restore its backup before changing it.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 459
+      "cdmw/services/archive_overlay_manager.py": 344
     }
   },
   {
@@ -16339,46 +15423,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The game is running; close it before installing an overlay",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 280
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The game is running; close it before restoring an overlay",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 388
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The game started during backup; close it before installing an overlay",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 307
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The game started during backup; close it before migrating overlays",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_migration.py": 266
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The game started during backup; close it before removing overlays",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_migration.py": 366
-    }
-  },
-  {
-    "area": "archive",
     "message": "The gimmick cache header is truncated.",
     "recovery": "format",
     "sources": {
@@ -16403,22 +15447,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The installed set changed during comparison. Refresh and compare again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_rebuild.py": 136
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The installed state changed during preparation. Refresh and prepare again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 537
-    }
-  },
-  {
-    "area": "archive",
     "message": "The item catalogue is unavailable for this archive.",
     "recovery": "missing",
     "sources": {
@@ -16430,7 +15458,7 @@ MESSAGE_REFERENCE = [
     "message": "The journal for {layer['label']} changed. Restore its backup before changing overlays.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 290
+      "cdmw/services/archive_overlay_manager.py": 204
     }
   },
   {
@@ -16438,7 +15466,7 @@ MESSAGE_REFERENCE = [
     "message": "The journal for {layer['label']} is missing or too large.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 287
+      "cdmw/services/archive_overlay_manager.py": 201
     }
   },
   {
@@ -16462,7 +15490,7 @@ MESSAGE_REFERENCE = [
     "message": "The managed overlay checksum differs from the mount list.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 192
+      "cdmw/services/archive_overlay_manager.py": 160
     }
   },
   {
@@ -16470,7 +15498,7 @@ MESSAGE_REFERENCE = [
     "message": "The managed overlay is no longer mounted as prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 189
+      "cdmw/services/archive_overlay_manager.py": 157
     }
   },
   {
@@ -16579,14 +15607,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The original archive list was not restored.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 84
-    }
-  },
-  {
-    "area": "archive",
     "message": "The original archive sidecar bindings could not be recovered for the selected sidecar target(s).",
     "recovery": "input",
     "sources": {
@@ -16603,106 +15623,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The overlay backup contains an invalid file entry.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 905
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay backup did not preserve every confirmed original file.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 908
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay backup manifest is missing or invalid.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 899
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay change needs backup and restore services.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 966
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay install backup does not contain the archive mount list",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 460
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay install backup manifest contains an invalid file entry",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 446
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay install backup manifest contains duplicate targets",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 454
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay install backup manifest is invalid",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 442
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay install backup manifest is unavailable",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 438
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay install backup manifest names an unavailable backup file",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 452
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay install backup manifest targets a path outside the package root",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 450
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay install backup named by the receipt is unavailable",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 424
-    }
-  },
-  {
-    "area": "archive",
     "message": "The overlay inventory changed. Refresh and prepare again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 575
+      "cdmw/services/archive_overlay_manager.py": 398
     }
   },
   {
@@ -16710,15 +15634,7 @@ MESSAGE_REFERENCE = [
     "message": "The overlay inventory is too large to read safely.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 116
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The overlay plan changes nothing.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 802
+      "cdmw/services/archive_overlay_manager.py": 86
     }
   },
   {
@@ -16726,7 +15642,7 @@ MESSAGE_REFERENCE = [
     "message": "The overlay state changed after preparation. Refresh and prepare again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 423
+      "cdmw/services/archive_overlay_manager.py": 306
     }
   },
   {
@@ -16814,15 +15730,7 @@ MESSAGE_REFERENCE = [
     "message": "The retired overlay history already exists. Refresh and prepare again.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 429
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The saved overlay is not mounted by the game. {error}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 241
+      "cdmw/services/archive_overlay_manager.py": 312
     }
   },
   {
@@ -16875,14 +15783,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The selected overlay is no longer installed. Refresh the list.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 861
-    }
-  },
-  {
-    "area": "archive",
     "message": "The selected placement source is outside the prepared attachment candidate set.",
     "recovery": "input",
     "sources": {
@@ -16931,26 +15831,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The source archive folder {relative} changed after preparation. Scan again.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 915
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The source archive {relative} changed after preparation.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 999
-    }
-  },
-  {
-    "area": "archive",
     "message": "The source archive {relative} changed. Existing overlay baselines need review before removal.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 183
+      "cdmw/services/archive_overlay_manager.py": 151
     }
   },
   {
@@ -16963,20 +15847,12 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "The source file {path} changed after preparation.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 951
-    }
-  },
-  {
-    "area": "archive",
     "message": "The standalone archive backend is unavailable.",
     "recovery": "missing",
     "sources": {
       "cdmw/ui/archive_browser/controller.py": 530,
       "cdmw/ui/archive_browser/filter_workers.py": 17,
-      "cdmw/ui/archive_browser/scan_lifecycle.py": 126
+      "cdmw/ui/archive_browser/scan_lifecycle.py": 140
     }
   },
   {
@@ -16993,14 +15869,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/replace_from_archive_service.py": 179
-    }
-  },
-  {
-    "area": "archive",
-    "message": "There are no missing mod references to clean.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/archive_reference_cleanup.py": 52
     }
   },
   {
@@ -17050,7 +15918,7 @@ MESSAGE_REFERENCE = [
     "message": "This entry uses LZ4 compression, but the lz4 Python package is not installed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 530
+      "cdmw/core/archive_extraction.py": 531
     }
   },
   {
@@ -17058,7 +15926,7 @@ MESSAGE_REFERENCE = [
     "message": "This entry uses Partial DDS reconstruction, but the lz4 Python package is not installed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 252
+      "cdmw/core/archive_extraction.py": 253
     }
   },
   {
@@ -17067,30 +15935,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/archive_browser/character_dependency_export.py": 75
-    }
-  },
-  {
-    "area": "archive",
-    "message": "This game folder has individually managed overlays. Install through New Item or manage them in Installed overlays.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 118
-    }
-  },
-  {
-    "area": "archive",
-    "message": "This item identity is reserved by an independent package. Rebuild with a different identity or update that package through Independent items.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 811
-    }
-  },
-  {
-    "area": "archive",
-    "message": "This overlay now has individual ownership records. Remove the selected install from Installed overlays.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 396
     }
   },
   {
@@ -17314,7 +16158,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported DDS partial compression format: DXGI={dxgi_format} FOURCC={four_cc}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_extraction.py": 123
+      "cdmw/core/archive_extraction.py": 124
     }
   },
   {
@@ -17354,7 +16198,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported archive compression type {entry.compression_type} for {entry.path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_extraction.py": 548
+      "cdmw/core/archive_extraction.py": 549
     }
   },
   {
@@ -17415,18 +16259,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Unsupported overlay install receipt",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/archive_overlay_install.py": 392
-    }
-  },
-  {
-    "area": "archive",
     "message": "Unsupported overlay inventory. Restore its backup before changing overlays.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 127
+      "cdmw/services/archive_overlay_manager.py": 97
     }
   },
   {
@@ -17434,7 +16270,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported overlay journal.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 311
+      "cdmw/services/archive_overlay_manager.py": 225
     }
   },
   {
@@ -17442,7 +16278,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported overlay metadata target.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 320
+      "cdmw/services/archive_overlay_manager.py": 234
     }
   },
   {
@@ -17479,22 +16315,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Use Installed overlays to manage this folder before migrating older archive edits.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_migration.py": 225
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Use Installed overlays to remove individual managed installs.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_migration.py": 325
-    }
-  },
-  {
-    "area": "archive",
     "message": "Using external loose-file preview from {result.loose_file_path}.",
     "recovery": "internal",
     "sources": {
@@ -17506,7 +16326,7 @@ MESSAGE_REFERENCE = [
     "message": "VERIFY LOOSE MOD TARGET: package metadata expects payloads under {files_root or 'files'}/, but found {PurePosixPath(*relative_parts_for_layout).as_posix()}.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 812
+      "cdmw/core/archive_loose_export.py": 817
     }
   },
   {
@@ -17514,7 +16334,7 @@ MESSAGE_REFERENCE = [
     "message": "VERIFY LOOSE MOD TARGET: package metadata is game-relative but payloads are under files/. DMM reads payloads from the game-relative folders, not from files/.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 812
+      "cdmw/core/archive_loose_export.py": 817
     }
   },
   {
@@ -17623,7 +16443,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: active file authority audit failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 654
+      "cdmw/core/archive_loose_export.py": 657
     }
   },
   {
@@ -17663,7 +16483,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: could not include related file {related_entry.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 561
+      "cdmw/core/archive_loose_export.py": 564
     }
   },
   {
@@ -17671,7 +16491,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: could not remove stale active file authority audit: {exc}",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/archive_loose_export.py": 661
+      "cdmw/core/archive_loose_export.py": 664
     }
   },
   {
@@ -17831,7 +16651,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total_pmts}] Skipped missing archive index {relative_label}: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_format.py": 986
+      "cdmw/core/archive_format.py": 991
     }
   },
   {
@@ -17839,7 +16659,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total}] FAIL {entry.path} -> {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_extraction.py": 750
+      "cdmw/core/archive_extraction.py": 753
     }
   },
   {
@@ -18415,16 +17235,7 @@ MESSAGE_REFERENCE = [
     "message": "directory block is truncated",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_entry_addition.py": 183,
       "native/cdmw_archive_accelerator/src/main.cpp": 543
-    }
-  },
-  {
-    "area": "archive",
-    "message": "directory block length is truncated",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 178
     }
   },
   {
@@ -18578,18 +17389,9 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "file record {index} points at PAZ index {paz_index} of {paz_count}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 227
-    }
-  },
-  {
-    "area": "archive",
     "message": "file table is truncated",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_entry_addition.py": 219,
       "native/cdmw_archive_accelerator/src/main.cpp": 561
     }
   },
@@ -18598,7 +17400,6 @@ MESSAGE_REFERENCE = [
     "message": "file table length is truncated",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_entry_addition.py": 214,
       "native/cdmw_archive_accelerator/src/main.cpp": 557
     }
   },
@@ -18607,7 +17408,6 @@ MESSAGE_REFERENCE = [
     "message": "file-name block is truncated",
     "recovery": "locked",
     "sources": {
-      "cdmw/core/archive_entry_addition.py": 191,
       "native/cdmw_archive_accelerator/src/main.cpp": 549
     }
   },
@@ -18616,40 +17416,7 @@ MESSAGE_REFERENCE = [
     "message": "file-name block length is truncated",
     "recovery": "locked",
     "sources": {
-      "cdmw/core/archive_entry_addition.py": 186,
       "native/cdmw_archive_accelerator/src/main.cpp": 546
-    }
-  },
-  {
-    "area": "archive",
-    "message": "folder #{position} leaves a gap: starts at {folder.start}, previous ended at {expected_start}",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 251
-    }
-  },
-  {
-    "area": "archive",
-    "message": "folder #{position} runs past the file table",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 254
-    }
-  },
-  {
-    "area": "archive",
-    "message": "folder #{position} starts at {folder.start}, before the previous folder ended at {expected_start}",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 249
-    }
-  },
-  {
-    "area": "archive",
-    "message": "folder table is truncated",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 198
     }
   },
   {
@@ -18657,16 +17424,7 @@ MESSAGE_REFERENCE = [
     "message": "folder table length is truncated",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_entry_addition.py": 194,
       "native/cdmw_archive_accelerator/src/main.cpp": 552
-    }
-  },
-  {
-    "area": "archive",
-    "message": "folders cover {expected_start} of {len(files)} file record(s)",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 258
     }
   },
   {
@@ -19133,7 +17891,7 @@ MESSAGE_REFERENCE = [
     "message": "no free archive directory name is left under the package root",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_install.py": 497
+      "cdmw/services/archive_overlay_install.py": 56
     }
   },
   {
@@ -19552,14 +18310,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "too small to hold a header",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 169
-    }
-  },
-  {
-    "area": "archive",
     "message": "trailing path checksum input",
     "recovery": "integrity",
     "sources": {
@@ -19902,14 +18652,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "{clean} already exists in {label}; patch it instead of adding it.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 369
-    }
-  },
-  {
-    "area": "archive",
     "message": "{context}: archive LZ4 decompression failed: {exc}",
     "recovery": "format",
     "sources": {
@@ -20153,7 +18895,7 @@ MESSAGE_REFERENCE = [
     "message": "{layer['label']} uses an item or asset from the selected overlay. Remove the dependent overlay first.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 667
+      "cdmw/services/archive_overlay_manager.py": 425
     }
   },
   {
@@ -20178,14 +18920,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_mesh_import_validation.py": 178
-    }
-  },
-  {
-    "area": "archive",
-    "message": "{len(data) - off} trailing byte(s) after the file table",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 242
     }
   },
   {
@@ -20230,38 +18964,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "{name}: added entry {path} did not read back as written.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 303
-    }
-  },
-  {
-    "area": "archive",
-    "message": "{name}: entry {path} did not survive the rebuild as expected.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 297
-    }
-  },
-  {
-    "area": "archive",
-    "message": "{name}: the rebuilt PAMT changed the folder count.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 288
-    }
-  },
-  {
-    "area": "archive",
-    "message": "{name}: the rebuilt PAMT does not hold the old entries plus the additions.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_addition.py": 286
-    }
-  },
-  {
-    "area": "archive",
     "message": "{normalized or 'this file'} is not a font or animated cursor",
     "recovery": "input",
     "sources": {
@@ -20273,7 +18975,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} directory block is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 849
+      "cdmw/core/archive_format.py": 854
     }
   },
   {
@@ -20281,7 +18983,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} directory block length is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 844
+      "cdmw/core/archive_format.py": 849
     }
   },
   {
@@ -20289,7 +18991,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} file table is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 877
+      "cdmw/core/archive_format.py": 882
     }
   },
   {
@@ -20297,7 +18999,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} file table length is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 872
+      "cdmw/core/archive_format.py": 877
     }
   },
   {
@@ -20305,7 +19007,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} file-name block is truncated.",
     "recovery": "locked",
     "sources": {
-      "cdmw/core/archive_format.py": 858
+      "cdmw/core/archive_format.py": 863
     }
   },
   {
@@ -20313,7 +19015,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} file-name block length is truncated.",
     "recovery": "locked",
     "sources": {
-      "cdmw/core/archive_format.py": 853
+      "cdmw/core/archive_format.py": 858
     }
   },
   {
@@ -20321,7 +19023,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} folder table is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 867
+      "cdmw/core/archive_format.py": 872
     }
   },
   {
@@ -20329,7 +19031,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} folder table length is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 862
+      "cdmw/core/archive_format.py": 867
     }
   },
   {
@@ -20337,7 +19039,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} has an invalid extension index {extension_index}.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_format.py": 903
+      "cdmw/core/archive_format.py": 908
     }
   },
   {
@@ -20345,7 +19047,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} has duplicate or invalid PAZ identifiers.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/archive_format.py": 840
+      "cdmw/core/archive_format.py": 845
     }
   },
   {
@@ -20353,7 +19055,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} paz table is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 837
+      "cdmw/core/archive_format.py": 842
     }
   },
   {
@@ -20361,7 +19063,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path} is too small to be a valid .pamt file.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_format.py": 829
+      "cdmw/core/archive_format.py": 834
     }
   },
   {
@@ -20422,38 +19124,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "{path} changed during comparison. Compare again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_rebuild.py": 140
-    }
-  },
-  {
-    "area": "archive",
-    "message": "{path} changed outside CDMW. Restore its backup before rebuilding.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_rebuild.py": 44
-    }
-  },
-  {
-    "area": "archive",
-    "message": "{path} is both added and replaced.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 794
-    }
-  },
-  {
-    "area": "archive",
-    "message": "{path} is missing from a mounted group. Restore its backup before rebuilding.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/archive_overlay_rebuild.py": 46
-    }
-  },
-  {
-    "area": "archive",
     "message": "{path} is too small to be a valid .pathc file.",
     "recovery": "limits",
     "sources": {
@@ -20486,26 +19156,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "{relative} changed after preparation. Refresh and prepare again.",
+    "message": "{relative} changed after an older CDMW installed overlays into this game. Use Browse Archives > Remove What an Older CDMW Installed... to take that install out, then try again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 993
-    }
-  },
-  {
-    "area": "archive",
-    "message": "{relative} changed outside the overlay manager. Open Installed overlays > Check game updates... to compare the saved overlays with the current game before recovery. Use Start fresh... if the old set is unmounted and you want to retire it. Refreshing the archive list or rebuilding the item plan does not repair the installed overlays.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 174
-    }
-  },
-  {
-    "area": "archive",
-    "message": "{relative} changed outside the overlay manager. Restore or refresh the install before changing overlays.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/archive_overlay_manager.py": 440
+      "cdmw/services/archive_overlay_manager.py": 323
     }
   },
   {
@@ -20513,7 +19167,7 @@ MESSAGE_REFERENCE = [
     "message": "{relative} changed {phase}. Refresh and prepare again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_overlay_manager.py": 529
+      "cdmw/services/archive_overlay_manager.py": 389
     }
   },
   {
@@ -26593,71 +25247,7 @@ MESSAGE_REFERENCE = [
     "message": "A batch contains two different versions of the same item. Select one version.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 490
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A captured runtime file is not a regular file.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 59
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A catalogue witness conflicts with a required source guard.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 236
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A diagnostic game launch requires explicit review.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 460
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A game or mod source changed: {path}. Apply changes again.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 121
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A game or mod source is missing: {path}. Apply changes again.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 77
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A mounted archive or selected mod folder changed. Prepare the profile again.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 128
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A prepared virtual file changed: {relative}. Apply changes again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 116
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A proposed session input is not a regular file.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 164
+      "cdmw/services/independent_item_install.py": 456
     }
   },
   {
@@ -26670,26 +25260,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "A retained-copy output directory changed during publication.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 456
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A selected package changed during preparation: {path}. Apply changes again.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_composition.py": 289
-    }
-  },
-  {
-    "area": "independent",
     "message": "A semantic export contributor changed during compilation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 720
+      "cdmw/services/independent_item_compatibility.py": 721
     }
   },
   {
@@ -26698,22 +25272,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_item_native_resources.py": 153
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A single installed Steam client is required for the verified game launch.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 257
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A staged snapshot file failed readback.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 328
     }
   },
   {
@@ -26745,7 +25303,7 @@ MESSAGE_REFERENCE = [
     "message": "A virtual profile file was replaced by a directory.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 58
+      "cdmw/services/virtual_loader_state.py": 53
     }
   },
   {
@@ -26754,14 +25312,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_isolation.py": 99
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Ambiguous save file spelling.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 361
     }
   },
   {
@@ -26793,15 +25343,7 @@ MESSAGE_REFERENCE = [
     "message": "An existing item package cannot discard its owned objects by becoming a record-edit package.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 697
-    }
-  },
-  {
-    "area": "independent",
-    "message": "An experiment input must be a plain regular file.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 99
+      "cdmw/services/independent_item_install.py": 666
     }
   },
   {
@@ -26809,15 +25351,7 @@ MESSAGE_REFERENCE = [
     "message": "An independent item reservation is missing. Restore the matching identity backup before continuing.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/independent_item_install.py": 137
-    }
-  },
-  {
-    "area": "independent",
-    "message": "An installed overlay occupies an identity in the incoming profile.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 984
+      "cdmw/services/independent_item_install.py": 150
     }
   },
   {
@@ -26830,18 +25364,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "An interrupted profile was changed externally; automatic recovery is refused.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 277
-    }
-  },
-  {
-    "area": "independent",
     "message": "An item identity mapping failed its checksum. Restore the matching identity backup before continuing.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/independent_item_install.py": 92
+      "cdmw/services/independent_item_install.py": 101
     }
   },
   {
@@ -26854,18 +25380,34 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "An untyped installed overlay cannot be included in a semantic export.",
-    "recovery": "input",
+    "message": "An older CDMW left an unfinished virtual-loader change in this game folder. Use Browse Archives > Remove What an Older CDMW Installed... to take it out.",
+    "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 862
+      "cdmw/services/virtual_loader_state.py": 188
     }
   },
   {
     "area": "independent",
-    "message": "Another installed item retains this identity in its compilation. Rebuild or remove that item before deleting this identity.",
+    "message": "An older CDMW saved a virtual profile in this game folder, and archive export cannot include its shared files. Use Browse Archives > Remove What an Older CDMW Installed... to take it out, then try again.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_item_compatibility.py": 892
+    }
+  },
+  {
+    "area": "independent",
+    "message": "An older CDMW's virtual profile in this game folder holds this item. Use Browse Archives > Remove What an Older CDMW Installed... to take the profile out, then try again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 894
+      "cdmw/services/independent_item_install.py": 473
+    }
+  },
+  {
+    "area": "independent",
+    "message": "An untyped installed overlay cannot be included in a semantic export.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/independent_item_compatibility.py": 863
     }
   },
   {
@@ -26873,7 +25415,7 @@ MESSAGE_REFERENCE = [
     "message": "Another installed overlay depends on this item. Remove that dependent overlay before updating it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 625
+      "cdmw/services/independent_item_install.py": 594
     }
   },
   {
@@ -26894,30 +25436,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Another observer is updating this session receipt. Try again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 152
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Apply a virtual profile in CDMW first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_smoke.py": 90
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Apply changes again to rebuild this profile with the current compiler. Existing item IDs will be retained.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 103
-    }
-  },
-  {
-    "area": "independent",
     "message": "Archive Browser could not show {display_path}; the catalogue session changed.",
     "recovery": "internal",
     "sources": {
@@ -26930,14 +25448,6 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/ui/archive_browser/virtual_path_lookup.py": 94
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Archive catalogue source changed: {path}. Apply changes again.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_sources.py": 56
     }
   },
   {
@@ -26970,14 +25480,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_item_compatibility.py": 282
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Build the CDMW virtual runtime before preparing its setup.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 66
     }
   },
   {
@@ -27282,15 +25784,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot read identity profile: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 111
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot read source: {path}. Apply changes again.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_composition.py": 47
+      "cdmw/services/independent_item_install.py": 120
     }
   },
   {
@@ -27399,30 +25893,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Capture each experiment stage in order, starting at baseline.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 129
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Capture inputs and the output parent must be existing directories.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 83
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Capture parameters do not match the reviewed experiment protocol.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 375
-    }
-  },
-  {
-    "area": "independent",
     "message": "Change at least one combat or item setting before writing a stock package.",
     "recovery": "configuration",
     "sources": {
@@ -27435,30 +25905,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_package.py": 424
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Choose a new capture path; existing reports are never replaced.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 89
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Choose a new experiment output; existing files and folders are never replaced.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 108
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Choose an outcome for this stage, bounded notes and at most 32 save files.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 137
     }
   },
   {
@@ -27479,106 +25925,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Choose the installed Crimson Desert game folder.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 617
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close Crimson Desert before changing its runtime setup.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 641
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close Crimson Desert before deleting saved identities.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 926
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close Crimson Desert before publishing a virtual profile.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 301
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close Crimson Desert before publishing the launcher profile.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 94
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close Crimson Desert before removing its runtime.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 573
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close Crimson Desert before running the smoke test.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_smoke.py": 85
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close Crimson Desert before starting a virtual session.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 317
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close the game before capturing a save experiment.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 115
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close the game before preparing a copied-save experiment.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 310
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Close the game before retaining a copied save attempt.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 527
-    }
-  },
-  {
-    "area": "independent",
     "message": "Combining semantic exports with unannotated mod folders is unsupported; retain the original .cdmw contributors.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 855
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Committed profile diagnostic delivery failed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 396
+      "cdmw/services/independent_item_compatibility.py": 856
     }
   },
   {
@@ -27586,7 +25936,7 @@ MESSAGE_REFERENCE = [
     "message": "Conflicting asset reservations.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_install.py": 89
+      "cdmw/services/independent_item_install.py": 98
     }
   },
   {
@@ -27594,7 +25944,7 @@ MESSAGE_REFERENCE = [
     "message": "Conflicting or invalid model identity.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_install.py": 81
+      "cdmw/services/independent_item_install.py": 90
     }
   },
   {
@@ -27602,7 +25952,7 @@ MESSAGE_REFERENCE = [
     "message": "Conflicting or out-of-range identity reservations.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_install.py": 77
+      "cdmw/services/independent_item_install.py": 86
     }
   },
   {
@@ -27611,22 +25961,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "native/cdmw_virtual_loader/session.cpp": 221
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Controlled virtual loading requires an explicitly reviewed launch plan and save backup.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 400
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Copied output is retained, but its complete manifest could not be verified. Preserve it for inspection: {destination}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 494
     }
   },
   {
@@ -27647,22 +25981,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Copied-save inputs and output parents must be existing plain directories.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 90
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Copied-save members contain case aliases.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 161
-    }
-  },
-  {
-    "area": "independent",
     "message": "Could not look up {display_path}: {message}",
     "recovery": "internal",
     "sources": {
@@ -27679,18 +25997,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Duplicate capture key.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 125
-    }
-  },
-  {
-    "area": "independent",
     "message": "Duplicate identity profile key.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/independent_item_install.py": 105
+      "cdmw/services/independent_item_install.py": 114
     }
   },
   {
@@ -27719,18 +26029,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Duplicate session receipt key.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/domain/virtual_session_receipt.py": 257
-    }
-  },
-  {
-    "area": "independent",
     "message": "Duplicate virtual profile field.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 69
+      "cdmw/services/virtual_loader_state.py": 64
     }
   },
   {
@@ -27763,46 +26065,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "native/cdmw_virtual_loader/session.cpp": 222
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Game, working copy, original recovery and retained attempt must be separate folders.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 131
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Identity deletion failed; recovery requires backup {backup_dir}: {rollback_error}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 952
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Identity deletion requires a prepared change.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 916
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Identity deletion requires explicit confirmation.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 918
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Identity profiles use the .cdprofile extension.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 829
     }
   },
   {
@@ -27858,7 +26120,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent item ownership and identity mappings disagree. Restore their matching backup before continuing.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/independent_item_install.py": 141
+      "cdmw/services/independent_item_install.py": 154
     }
   },
   {
@@ -27919,14 +26181,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Install the reviewed diagnostic runtime before starting a trace.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 450
-    }
-  },
-  {
-    "area": "independent",
     "message": "Installation lane unavailable",
     "recovery": "missing",
     "sources": {
@@ -27955,7 +26209,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid asset reservations.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 85
+      "cdmw/services/independent_item_install.py": 94
     }
   },
   {
@@ -28000,18 +26254,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Invalid copied-save member observations.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 158
-    }
-  },
-  {
-    "area": "independent",
     "message": "Invalid disabled virtual selection paths.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 111
+      "cdmw/services/virtual_loader_state.py": 106
     }
   },
   {
@@ -28067,7 +26313,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item metadata.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 64
+      "cdmw/services/independent_item_install.py": 73
     }
   },
   {
@@ -28091,7 +26337,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid independent item reservation.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 62
+      "cdmw/services/independent_item_install.py": 71
     }
   },
   {
@@ -28128,14 +26374,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Invalid launcher profile status.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 133
-    }
-  },
-  {
-    "area": "independent",
     "message": "Invalid logical depth",
     "recovery": "input",
     "sources": {
@@ -28152,50 +26390,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Invalid or changed copied-save experiment protocol.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 215
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid or changed save experiment capture.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 44
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid or changed session receipt.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_session_receipt.py": 34
-    }
-  },
-  {
-    "area": "independent",
     "message": "Invalid or duplicate resource path",
     "recovery": "conflict",
     "sources": {
       "native/cdmw_virtual_loader/protocol.cpp": 143
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid or duplicate save-file fingerprint.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/domain/virtual_save_lineage.py": 39
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid or duplicate save-provider requirements.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/domain/virtual_save_lineage.py": 72
     }
   },
   {
@@ -28264,62 +26462,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Invalid retained virtual package name.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 331
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid runtime process identity.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 519
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid runtime session progress.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 522
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid save-commit evidence.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_lineage.py": 164
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid save-file fingerprint.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_lineage.py": 34
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid save-lineage context.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_lineage.py": 153
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid save-set membership.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_lineage.py": 30
-    }
-  },
-  {
-    "area": "independent",
     "message": "Invalid served resource count",
     "recovery": "input",
     "sources": {
@@ -28355,7 +26497,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid symbolic identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 74
+      "cdmw/services/independent_item_install.py": 83
     }
   },
   {
@@ -28379,7 +26521,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual build cache record.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_cache.py": 88
+      "cdmw/services/virtual_loader_state.py": 180
     }
   },
   {
@@ -28387,7 +26529,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual catalogue guard.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 125
+      "cdmw/services/virtual_loader_state.py": 120
     }
   },
   {
@@ -28395,7 +26537,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual catalogue guards.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 119
+      "cdmw/services/virtual_loader_state.py": 114
     }
   },
   {
@@ -28403,7 +26545,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual file checksum.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 159
+      "cdmw/services/virtual_loader_state.py": 154
     }
   },
   {
@@ -28411,7 +26553,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual file map.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 147
+      "cdmw/services/virtual_loader_state.py": 142
     }
   },
   {
@@ -28419,7 +26561,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual identity binding.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 96
+      "cdmw/services/virtual_loader_state.py": 91
     }
   },
   {
@@ -28427,7 +26569,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual installation guard.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 131
+      "cdmw/services/virtual_loader_state.py": 126
     }
   },
   {
@@ -28435,7 +26577,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual inventory entry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 140
+      "cdmw/services/virtual_loader_state.py": 135
     }
   },
   {
@@ -28443,7 +26585,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual ownership.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 92
+      "cdmw/services/virtual_loader_state.py": 87
     }
   },
   {
@@ -28451,7 +26593,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual profile JSON.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 75
+      "cdmw/services/virtual_loader_state.py": 70
     }
   },
   {
@@ -28459,7 +26601,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual profile game build.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 84
+      "cdmw/services/virtual_loader_state.py": 79
     }
   },
   {
@@ -28467,7 +26609,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual profile inputs.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 99
+      "cdmw/services/virtual_loader_state.py": 94
     }
   },
   {
@@ -28475,15 +26617,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual profile path.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 40
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid virtual recovery targets.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 267
+      "cdmw/services/virtual_loader_state.py": 35
     }
   },
   {
@@ -28491,7 +26625,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual selection paths.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 106
+      "cdmw/services/virtual_loader_state.py": 101
     }
   },
   {
@@ -28499,7 +26633,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual source guard.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 115
+      "cdmw/services/virtual_loader_state.py": 110
     }
   },
   {
@@ -28507,7 +26641,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid virtual source inventory.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 135
+      "cdmw/services/virtual_loader_state.py": 130
     }
   },
   {
@@ -28576,14 +26710,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Loader setup cancelled. Apply or launch to try again.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/ui/new_item/virtual_loader_page.py": 458
-    }
-  },
-  {
-    "area": "independent",
     "message": "Local dye mask files are not supported in independent packages. Clear the custom dye mask before exporting.",
     "recovery": "unsupported",
     "sources": {
@@ -28620,14 +26746,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_compatibility.py": 43
-    }
-  },
-  {
-    "area": "independent",
-    "message": "New textures require a verified game texture registry.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_composition.py": 153
     }
   },
   {
@@ -28704,110 +26822,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Prepare a virtual profile first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 100
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Prepared generation or file identities disagree.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 311
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Prepared ownership does not match its identity reservations.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 315
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Prepared virtual files failed validation.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 317
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Private archive index exceeds the reusable bounds.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/virtual_loader_cache.py": 274
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Private archive index failed validation.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_cache.py": 278
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Private archive payload bounds failed validation.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/virtual_loader_cache.py": 292
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Private output exceeds the reusable byte limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/virtual_loader_cache.py": 140
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Private output failed its retained integrity check.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/virtual_loader_cache.py": 153
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Private output grew beyond the reusable byte limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/virtual_loader_cache.py": 148
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Private resource inventory failed validation.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_cache.py": 287
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Publish the launcher profile first.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/virtual_loader_smoke.py": 87
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Put the protocol and reports outside every game or copied-save input folder.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 133
-    }
-  },
-  {
-    "area": "independent",
     "message": "Readiness handshake failed",
     "recovery": "internal",
     "sources": {
@@ -28819,31 +26833,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild the installed package with the current compiler before semantic export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 759
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Recover the interrupted virtual profile transaction first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 192
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Remove the item from the virtual profile before installing it into archives.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 507
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Remove this item from Mods and apply the changes before deleting its saved identity.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 874
+      "cdmw/services/independent_item_compatibility.py": 760
     }
   },
   {
@@ -28875,15 +26865,7 @@ MESSAGE_REFERENCE = [
     "message": "Retained semantic export package disagrees with its ownership.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 772
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Retained virtual recovery evidence changed during verification.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 377
+      "cdmw/services/independent_item_compatibility.py": 773
     }
   },
   {
@@ -28912,34 +26894,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Runtime recovery material failed verification.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 583
-    }
-  },
-  {
-    "area": "independent",
     "message": "Runtime refused activation",
     "recovery": "input",
     "sources": {
       "native/cdmw_virtual_loader/session.cpp": 312
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Runtime removal requires review of its exact target.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 569
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Runtime setup requires review of its exact target and checksum.",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 638
     }
   },
   {
@@ -28985,54 +26943,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Save backups do not support linked folders or files.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_saves.py": 32
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Save experiment capture exceeds its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 120
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Save experiment captures are missing, reordered or from different experiments.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 167
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Save lineage requires an exact SHA-256 identity.",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/domain/virtual_save_lineage.py": 17
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Save requirements need a package UUID.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_lineage.py": 62
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Save set exceeds the supported observation size.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/domain/virtual_save_lineage.py": 43
-    }
-  },
-  {
-    "area": "independent",
     "message": "Select an external mod folder separate from the game installation.",
     "recovery": "input",
     "sources": {
@@ -29041,42 +26951,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Select an installed physical item to rebuild.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 788
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Select at least one saved identity.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 863
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Select at most 128 external mod folders.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_composition.py": 173
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Select at most 128 item packages and 128 mod folders, including disabled entries.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_composition.py": 179
-    }
-  },
-  {
-    "area": "independent",
     "message": "Select between one and 128 item packages.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 482
+      "cdmw/services/independent_item_install.py": 448
     }
   },
   {
@@ -29089,38 +26967,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Select bounded relative save-member paths.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 68
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Select canonical relative save-member paths using forward slashes.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 72
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Select one or more distinct save files for the baseline.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 146
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Select one to 32 copied save members.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 78
-    }
-  },
-  {
-    "area": "independent",
     "message": "Select the existing package explicitly before updating it.",
     "recovery": "input",
     "sources": {
@@ -29129,26 +26975,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Selected save-member paths contain duplicates or case aliases.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 81
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Selected working and original recovery members must be independent copies, without hard links.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 147
-    }
-  },
-  {
-    "area": "independent",
     "message": "Semantic export payloads, flags or original baselines disagree with retained package recompilation.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 734
+      "cdmw/services/independent_item_compatibility.py": 735
     }
   },
   {
@@ -29156,7 +26986,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export requires recompilation against the current witnessed baseline.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 788
+      "cdmw/services/independent_item_compatibility.py": 789
     }
   },
   {
@@ -29164,7 +26994,7 @@ MESSAGE_REFERENCE = [
     "message": "Semantic export requires retained .cdmw contributors for every payload. Mixed foreign or untyped overlay exports remain unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 751
+      "cdmw/services/independent_item_compatibility.py": 752
     }
   },
   {
@@ -29185,51 +27015,11 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Session receipt exceeds its size limit or is not immutable bytes.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/domain/virtual_session_receipt.py": 251
-    }
-  },
-  {
-    "area": "independent",
     "message": "Snapshot checksum mismatch",
     "recovery": "integrity",
     "sources": {
       "native/cdmw_virtual_loader/runtime.cpp": 504,
       "native/cdmw_virtual_loader/session.cpp": 34
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Source changed during preparation: {path}.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_sources.py": 30
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Source index changed since parsing: {path}.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_composition.py": 200
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Source index has conflicting parsed revisions: {path}.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_sources.py": 34
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Source payload has conflicting revisions: {payload.entry.path}.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_sources.py": 27
     }
   },
   {
@@ -29274,22 +27064,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Supply one ordered save experiment, starting at baseline.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 160
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Supply the exact backup manifest and its SHA-256 together.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 279
-    }
-  },
-  {
-    "area": "independent",
     "message": "Table layout changed.",
     "recovery": "internal",
     "sources": {
@@ -29322,66 +27096,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The absent-provider load starts with the original selected save bytes.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 197
-    }
-  },
-  {
-    "area": "independent",
     "message": "The active virtual profile does not match its retained generation.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 199
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The backup and proposed session context do not match.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 421
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The backup manifest does not match the reviewed baseline profile.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 287
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The baseline must select the virtual provider and existing save files.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 162
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The baseline must select the virtual provider and matching original recovery members.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 320
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The baseline selects the provider virtually.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 178
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The capture identity does not match the reviewed experiment.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 429
+      "cdmw/services/virtual_loader_state.py": 196
     }
   },
   {
@@ -29390,14 +27108,6 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/independent_item_native_resources.py": 193
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The captures do not belong to the reviewed experiment protocol.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 393
     }
   },
   {
@@ -29445,7 +27155,7 @@ MESSAGE_REFERENCE = [
     "message": "The composed virtual profile exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/virtual_loader_composition.py": 143
+      "cdmw/services/virtual_loader_composition.py": 74
     }
   },
   {
@@ -29466,50 +27176,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The controlled launch plan changed. Review it again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 481
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The copied files or prepared context changed during experiment preflight.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 342
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The copied save attempt changed during retention.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 550
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The copied-save file set exceeds its supported bounds.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 152
-    }
-  },
-  {
-    "area": "independent",
     "message": "The destination changed during package export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 908
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The diagnostic launch plan changed. Review it again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 463
+      "cdmw/services/independent_item_package.py": 911
     }
   },
   {
@@ -29522,58 +27192,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The existing compatible ASI bootstrap is required. Its installation is separate.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 621
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The experiment provider changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 132
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The experiment record exceeds its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 173
-    }
-  },
-  {
-    "area": "independent",
     "message": "The game archive layout is unsupported for independent items.",
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/independent_item_package.py": 213
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The game cannot be asked for {unservable[0]} by path, so it cannot be served. Rename the file in its mod or package.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_composition.py": 230
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The game save folder changed. Prepare the launch again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_saves.py": 142
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The game save folder could not be found. Start the game normally and create a save first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_saves.py": 25
     }
   },
   {
@@ -29586,18 +27208,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The identity profile changed during preparation. Refresh and prepare again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 817
-    }
-  },
-  {
-    "area": "independent",
     "message": "The identity profile exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_install.py": 94
+      "cdmw/services/independent_item_install.py": 103
     }
   },
   {
@@ -29605,7 +27219,7 @@ MESSAGE_REFERENCE = [
     "message": "The installed compilation record disagrees with its ownership layer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 131
+      "cdmw/services/independent_item_install.py": 144
     }
   },
   {
@@ -29629,15 +27243,7 @@ MESSAGE_REFERENCE = [
     "message": "The item identity reservation is missing.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_install.py": 71
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The launch plan changed. Review it again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 265
+      "cdmw/services/independent_item_install.py": 80
     }
   },
   {
@@ -29646,22 +27252,6 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/services/independent_item_physics.py": 17
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The mounted installation changed. Prepare the profile again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 132
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The native runtime sources changed. Rebuild the runtime before using it.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 73
     }
   },
   {
@@ -29709,7 +27299,7 @@ MESSAGE_REFERENCE = [
     "message": "The package has an incomplete game dependency graph.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_install.py": 684
+      "cdmw/services/independent_item_install.py": 653
     }
   },
   {
@@ -29754,30 +27344,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The pre-load files or provider context do not match the experiment protocol.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 441
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The prepared baseline changed. Prepare a new experiment protocol.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 433
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The prepared generation already exists; prepare a fresh profile.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 320
-    }
-  },
-  {
-    "area": "independent",
     "message": "The private resource archive exceeds its size limit.",
     "recovery": "limits",
     "sources": {
@@ -29818,94 +27384,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The published session receipt failed readback.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 108
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt backup belongs to a different installation.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 214
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt backup exceeds its observation size limit.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 230
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt backup has ambiguous file membership.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 221
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt backup has invalid file fingerprints.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 227
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt backup has unsupported file membership.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 217
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt backup is outside owned recovery storage.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 238
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt backup manifest is not a regular file.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 204
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt backup manifest is unavailable or changed.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 208
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt backup manifest is unsupported.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 212
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The receipt does not have the verified backup file facts.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 244
-    }
-  },
-  {
-    "area": "independent",
     "message": "The renamed effect failed its structural check.",
     "recovery": "internal",
     "sources": {
@@ -29914,18 +27392,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The reported absent-provider save has different selected bytes; this alone does not prove a game write.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 217
-    }
-  },
-  {
-    "area": "independent",
     "message": "The reserved model identity is occupied.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 664
+      "cdmw/services/independent_item_install.py": 633
     }
   },
   {
@@ -29946,90 +27416,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The restored-provider case retains the attempted-save bytes. A failed or unknown attempt does not establish a committed save.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 225
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The restored-provider load starts with the newly written copy, not the original recovery save.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 221
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained attempt changed before publication.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 480
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained attempt contains unexpected or incomplete files.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 405
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained attempt manifest does not match absent_saved.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 414
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained attempt manifest exceeds its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 539
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained backup association changed.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 358
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained backup does not match the selected original recovery files.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 291
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained backup manifest changed during inspection.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 293
-    }
-  },
-  {
-    "area": "independent",
     "message": "The retained independent package does not match its ownership history.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_compatibility.py": 595
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained original recovery copy changed. Preserve it before continuing.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 354
     }
   },
   {
@@ -30050,50 +27440,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The retained post-attempt copied files changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 419
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained rebuild package has changed outside CDMW.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 797
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained rebuild package is missing or too large.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 793
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained recovery package exceeds the supported size.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 239
-    }
-  },
-  {
-    "area": "independent",
     "message": "The retained recovery package has changed outside CDMW.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 243
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The retained session host changed outside CDMW.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 339
+      "cdmw/services/independent_item_install.py": 703
     }
   },
   {
@@ -30101,95 +27451,7 @@ MESSAGE_REFERENCE = [
     "message": "The retained virtual package does not match the saved profile and item identities.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 929
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The runtime changed or its ownership is unknown. Removal is refused.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 577
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The runtime setup changed after review.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 643
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The save backup could not be verified. Prepare the launch again.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_saves.py": 77
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The save copy or prepared context changed during capture. Try again with stable inputs.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 151
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The save files changed during backup. Close the game and try again.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_saves.py": 86
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The save folder changed after the session backup.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 417
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The save folder exceeds the supported backup size or file count.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_saves.py": 49
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The saved game changed after backup. Prepare the launch again.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_saves.py": 146
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The saved identities or installation changed. Refresh and review the deletion again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 930
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The selected backup file identities changed.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 429
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The selected backup members changed.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 424
+      "cdmw/services/independent_item_compatibility.py": 931
     }
   },
   {
@@ -30197,31 +27459,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected packages exceed the batch size limit. Import a smaller batch.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_install.py": 494
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The selected save bytes did not change during the reported load-only case.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 200
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The selected save bytes stayed unchanged during the restored-provider load-only case. Different bytes, including possible autosaves, leave this sequence inconsistent and unverified.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/domain/virtual_save_evidence.py": 229
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The selected save files changed between experiment stages.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 143
+      "cdmw/services/independent_item_install.py": 460
     }
   },
   {
@@ -30229,79 +27467,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected semantic exports exceed the package or comparison size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_install.py": 424
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The semantic export game executable selection changed.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_process.py": 305
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The semantic export requires its exact known game executable.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_process.py": 297
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The session receipt belongs to another attempt.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 85
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The session receipt chain exceeds its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 72
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The session receipt chain is incomplete or changed.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 77
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The session receipt directory contains an unknown entry.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 70
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The session receipt directory exceeds its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 63
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The session receipt exceeds its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 271
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The session receipt location is not a directory.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 51
+      "cdmw/services/independent_item_install.py": 390
     }
   },
   {
@@ -30310,14 +27476,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_package.py": 310
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The smoke test launches the game and requires Windows.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_smoke.py": 167
     }
   },
   {
@@ -30333,7 +27491,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged package failed final identity and content readback.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_package.py": 899
+      "cdmw/services/independent_item_package.py": 902
     }
   },
   {
@@ -30397,7 +27555,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual archive is missing its metadata or payload pair.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 165
+      "cdmw/services/virtual_loader_state.py": 160
     }
   },
   {
@@ -30405,7 +27563,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual compilation record disagrees with the profile.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 177
+      "cdmw/services/virtual_loader_state.py": 172
     }
   },
   {
@@ -30413,7 +27571,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual map contains a case-insensitive path collision.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 162
+      "cdmw/services/virtual_loader_state.py": 157
     }
   },
   {
@@ -30421,7 +27579,7 @@ MESSAGE_REFERENCE = [
     "message": "The virtual mount list is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 167
+      "cdmw/services/virtual_loader_state.py": 162
     }
   },
   {
@@ -30429,39 +27587,15 @@ MESSAGE_REFERENCE = [
     "message": "The virtual package dependency graph disagrees with the profile.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 179
+      "cdmw/services/virtual_loader_state.py": 174
     }
   },
   {
     "area": "independent",
-    "message": "The virtual profile changed before launch. Review it again.",
+    "message": "The virtual profile an older CDMW left in this game folder disagrees with the saved item identities. Use Browse Archives > Remove What an Older CDMW Installed... to take the profile out.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 323
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The virtual runtime does not match its build provenance.",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 334
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The virtual selection contains duplicate paths.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/virtual_loader_composition.py": 181
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The working copy changed after absent_saved. Do not substitute another save.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 533
+      "cdmw/services/virtual_loader_state.py": 201
     }
   },
   {
@@ -30485,47 +27619,7 @@ MESSAGE_REFERENCE = [
     "message": "This game has no verified texture registry for the new icon or textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 715
-    }
-  },
-  {
-    "area": "independent",
-    "message": "This item is not installed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 811
-    }
-  },
-  {
-    "area": "independent",
-    "message": "This permanently deletes the saved identity and frees its reserved IDs. Old saves may stop recognizing this item or refer to another item if an ID is reused. Reinstalling the package may assign different IDs. Saves are not edited.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/ui/new_item/independent_items_page.py": 378
-    }
-  },
-  {
-    "area": "independent",
-    "message": "This permanently deletes the selected saved identities and frees their reserved IDs. Old saves may stop recognizing these items or refer to another item if an ID is reused. Reinstalling a package may assign different IDs. Saves are not edited.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/ui/new_item/independent_items_page.py": 378
-    }
-  },
-  {
-    "area": "independent",
-    "message": "This profile would change a retained item identity. Existing save identities cannot be renumbered.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 972
-    }
-  },
-  {
-    "area": "independent",
-    "message": "This saved identity no longer exists. Refresh the list.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 868
+      "cdmw/services/independent_item_install.py": 684
     }
   },
   {
@@ -30589,7 +27683,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown item deployment target.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 468
+      "cdmw/services/independent_item_install.py": 434
     }
   },
   {
@@ -30702,7 +27796,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported identity namespace.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_install.py": 68
+      "cdmw/services/independent_item_install.py": 77
     }
   },
   {
@@ -30710,7 +27804,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent item identity profile.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_install.py": 56
+      "cdmw/services/independent_item_install.py": 65
     }
   },
   {
@@ -30747,14 +27841,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Unsupported launcher profile status.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 130
-    }
-  },
-  {
-    "area": "independent",
     "message": "Unsupported manifest",
     "recovery": "unsupported",
     "sources": {
@@ -30766,7 +27852,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported metadata in merged output: {path}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 1019
+      "cdmw/services/independent_item_compatibility.py": 1021
     }
   },
   {
@@ -30820,22 +27906,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Unsupported runtime session status.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 513
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Unsupported session path length.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 206
-    }
-  },
-  {
-    "area": "independent",
     "message": "Unsupported shared metadata change.",
     "recovery": "unsupported",
     "sources": {
@@ -30855,15 +27925,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported virtual profile.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 81
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Unsupported virtual runtime provenance.",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 69
+      "cdmw/services/virtual_loader_state.py": 76
     }
   },
   {
@@ -30884,106 +27946,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Use Apply changes in Mods to update the virtual profile. Archive export cannot include its shared files.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/independent_item_compatibility.py": 891
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Use a separate save copy and put the report outside both input folders.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_save_evidence.py": 87
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Use bounded plain paths for the copied-save experiment.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 62
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Use disposable copies outside the live save folder.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 122
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Use the exact previous capture named by the experiment protocol.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 379
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Use the exact protocol and absent_saved capture paths.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 524
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Use the exact reviewed protocol path.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/virtual_save_experiment_protocol.py": 366
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual ownership and saved item identities disagree. Recover their matching ledgers.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 204
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual preparation failed ({code}).",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_process.py": 360
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual preparation returned an incomplete result. Prepare again.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/virtual_loader_process.py": 368
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual preparation returned an invalid or incomplete result. Prepare again.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/virtual_loader_process.py": 28
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual profile committed after verified recovery: {publication_error}",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 391
-    }
-  },
-  {
-    "area": "independent",
     "message": "Virtual profile exceeds its size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 64
+      "cdmw/services/virtual_loader_state.py": 59
     }
   },
   {
@@ -30991,7 +27957,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual profile path escapes the installation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 47
+      "cdmw/services/virtual_loader_state.py": 42
     }
   },
   {
@@ -30999,111 +27965,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual profile paths cannot pass through links or junctions.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 45
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual profile recovery is required. Publication: {publication_error}. Recovery: {recovery_error}. Recovery material: {backup}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 379
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual profile restored and verified after journal cleanup reported: %s",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 384
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery did not establish the selected ledger bytes.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 234
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery did not select a verified state.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 372
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery does not match its retained generation manifest.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 249
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery found a changed generation file.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 252
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery is missing the matching identity ledger.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 239
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery journal preservation failed verification.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 287
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery ledgers changed during verification.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 254
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery material failed readback.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 345
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery material failed validation.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 265
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery ownership and identity ledgers disagree.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 243
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Virtual recovery still has an active transaction journal.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_state.py": 375
+      "cdmw/services/virtual_loader_state.py": 40
     }
   },
   {
@@ -31111,15 +27973,7 @@ MESSAGE_REFERENCE = [
     "message": "Virtual redirection is limited to prepared archive and metadata files.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/virtual_loader_state.py": 157
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Windows security software blocked a CDMW virtual-loader runtime file. The launch was stopped. Check Windows Security Protection history and have this build reviewed; CDMW cannot establish that this is a false positive. After the detection is resolved, restart CDMW to retry. File: {path} SHA-256: {checksum}",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 56
+      "cdmw/services/virtual_loader_state.py": 152
     }
   },
   {
@@ -31132,50 +27986,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "blocked",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 139
-    }
-  },
-  {
-    "area": "independent",
-    "message": "changed-during-read",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 327
-    }
-  },
-  {
-    "area": "independent",
-    "message": "not-regular-file",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_receipts.py": 325
-    }
-  },
-  {
-    "area": "independent",
-    "message": "replace",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_standalone.py": 143
-    }
-  },
-  {
-    "area": "independent",
     "message": "the item cannot be made without the DLC ({error})",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 553
-    }
-  },
-  {
-    "area": "independent",
-    "message": "unavailable",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 147
+      "cdmw/services/independent_item_install.py": 520
     }
   },
   {
@@ -31184,22 +27998,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_compatibility.py": 565
-    }
-  },
-  {
-    "area": "independent",
-    "message": "{detail}{detail} A verified backup will be created first. Close the game before continuing. Game folder: {prepared.package_root} Permanently delete these saved identities?",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/ui/new_item/independent_items_page.py": 380
-    }
-  },
-  {
-    "area": "independent",
-    "message": "{detail}{detail} A verified backup will be created first. Close the game before continuing. Game folder: {prepared.package_root} Permanently delete this saved identity?",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/ui/new_item/independent_items_page.py": 380
     }
   },
   {
@@ -31215,7 +28013,7 @@ MESSAGE_REFERENCE = [
     "message": "{identity}: semantic export bindings differ from retained identities; relocation is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_install.py": 455
+      "cdmw/services/independent_item_install.py": 421
     }
   },
   {
@@ -31255,7 +28053,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.identity}: semantic export relocation is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 724
+      "cdmw/services/independent_item_compatibility.py": 725
     }
   },
   {
@@ -31263,7 +28061,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title} ({identity}): an owned asset name is already reserved by {asset_owner(path)}: {path}. The package cannot be installed without changing its identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_install.py": 708
+      "cdmw/services/independent_item_install.py": 677
     }
   },
   {
@@ -31271,7 +28069,7 @@ MESSAGE_REFERENCE = [
     "message": "{package.title} ({package.identity}): ItemInfo name hash collides under ASCII lowercasing (0x{checksum}): CDI_{package.identity}; already reserved by {owner}: {name}. Resolve the conflicting item names before installing.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_install.py": 372
+      "cdmw/services/independent_item_install.py": 338
     }
   },
   {
@@ -31288,7 +28086,23 @@ MESSAGE_REFERENCE = [
     "message": "{package.title} was made on a game without the DLC content this game has ({names}), which changes what it adds: {shown}. Update the package with Create New Item on this game to use it here.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_install.py": 691
+      "cdmw/services/independent_item_install.py": 660
+    }
+  },
+  {
+    "area": "independent",
+    "message": "{package.title}: an older CDMW installed this item into the game. Use Browse Archives > Remove What an Older CDMW Installed... to take that install out. Its identity is kept.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_item_install.py": 581
+    }
+  },
+  {
+    "area": "independent",
+    "message": "{package.title}: an older CDMW installed this item with a different or unrecorded compiler. Use Browse Archives > Remove What an Older CDMW Installed... to take that install out; its IDs are kept.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/independent_item_install.py": 586
     }
   },
   {
@@ -31297,22 +28111,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_package.py": 543
-    }
-  },
-  {
-    "area": "independent",
-    "message": "{package.title}: remove the installed contribution before using this item in a virtual profile. Its identity will be retained.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 614
-    }
-  },
-  {
-    "area": "independent",
-    "message": "{package.title}: the installed compiler is different or unrecorded. Use Rebuild selected item to regenerate it while retaining its IDs.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/independent_item_install.py": 618
     }
   },
   {
@@ -31360,7 +28158,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export contributors require different source baselines.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 779
+      "cdmw/services/independent_item_compatibility.py": 780
     }
   },
   {
@@ -31368,7 +28166,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export has no matching original source witness.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 796
+      "cdmw/services/independent_item_compatibility.py": 797
     }
   },
   {
@@ -31376,7 +28174,7 @@ MESSAGE_REFERENCE = [
     "message": "{path}: semantic export recipes disagree on their original baseline.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_compatibility.py": 728
+      "cdmw/services/independent_item_compatibility.py": 729
     }
   },
   {
@@ -31384,7 +28182,7 @@ MESSAGE_REFERENCE = [
     "message": "{prefix}An asset hash collides with another resource: {path}; already reserved by {details}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/independent_item_install.py": 339
+      "cdmw/services/independent_item_install.py": 305
     }
   },
   {
@@ -31393,14 +28191,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_compatibility.py": 149
-    }
-  },
-  {
-    "area": "independent",
-    "message": "{target(root, RUNTIME_PATH)} was not installed by CDMW, so it is left alone. Remove or rename it, then choose Apply changes again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/virtual_loader_runtime.py": 628
     }
   },
   {
@@ -31494,14 +28284,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "A combined mod from mounted items must be written to a new folder. Choose another mod name.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/new_item_service.py": 448
-    }
-  },
-  {
-    "area": "items",
     "message": "A composed ItemInfo assignment failed validation.",
     "recovery": "internal",
     "sources": {
@@ -31545,15 +28327,7 @@ MESSAGE_REFERENCE = [
     "message": "A mod folder or ZIP already exists for {root.name}. Choose another mod name or add to the existing mod.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_service.py": 727
-    }
-  },
-  {
-    "area": "items",
-    "message": "A mounted archive is outside the game package.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_overlay_preview.py": 57
+      "cdmw/services/new_item_service.py": 647
     }
   },
   {
@@ -31899,7 +28673,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1155
+      "cdmw/ui/new_item/tab.py": 1131
     }
   },
   {
@@ -31915,7 +28689,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply the imported placement for {state.appearance.model_path} in step 3.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 639
+      "cdmw/ui/new_item/controller.py": 636
     }
   },
   {
@@ -31955,7 +28729,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive read failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 439
+      "cdmw/ui/new_item/tab.py": 433
     }
   },
   {
@@ -32105,7 +28879,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Cannot create a separate mod from source tables containing other custom items: {detail}. Unmount existing item mods and read the archives again before building the plan, or rebuild with Include mounted items in a new mod or Add to existing mod.",
+    "message": "Cannot create a separate mod from source tables containing other custom items: {detail}. Unmount existing item mods and read the archives again before building the plan, or rebuild with Add to existing mod.",
     "recovery": "input",
     "sources": {
       "cdmw/services/new_item_service.py": 430
@@ -32145,14 +28919,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Cannot read the installed archive list (meta/0.papgt). Read the archives again.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 64
-    }
-  },
-  {
-    "area": "items",
     "message": "Cannot remove the price contribution of undecoded perk {perk.string_key}.",
     "recovery": "format",
     "sources": {
@@ -32185,26 +28951,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Change cancelled. The installed overlays are unchanged.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 492
-    }
-  },
-  {
-    "area": "items",
     "message": "Check the reward quantity range and raw weight.",
     "recovery": "input",
     "sources": {
       "cdmw/ui/new_item/reward_editor.py": 163
-    }
-  },
-  {
-    "area": "items",
-    "message": "Choose a new output folder outside the game installation for the combined mod.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_service.py": 446
     }
   },
   {
@@ -32293,14 +29043,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/authoring_rules.py": 47
-    }
-  },
-  {
-    "area": "items",
-    "message": "Choose either mounted items or an existing mod folder as the base.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/workers/new_item_workers.py": 210
     }
   },
   {
@@ -32493,14 +29235,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/new_item/iteminfo_overrides.py": 44
-    }
-  },
-  {
-    "area": "items",
-    "message": "Direct archive installation is no longer available. Use Install as an overlay or write a mod folder.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/new_item_service.py": 627
     }
   },
   {
@@ -32708,7 +29442,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect indexing failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 299
+      "cdmw/ui/new_item/tab.py": 297
     }
   },
   {
@@ -32815,14 +29549,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/new_item/rules.py": 272
-    }
-  },
-  {
-    "area": "items",
-    "message": "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/ui/new_item/tab.py": 1353
     }
   },
   {
@@ -33039,7 +29765,7 @@ MESSAGE_REFERENCE = [
     "message": "Independent packages cannot include a mod base.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/new_item_workers.py": 194
+      "cdmw/workers/new_item_workers.py": 193
     }
   },
   {
@@ -33052,26 +29778,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Installed item {item_key} has no previewable model.",
-    "recovery": "internal",
+    "message": "Installing into the game is no longer available. Write a mod folder, or send the item to DMM.",
+    "recovery": "write",
     "sources": {
-      "cdmw/services/new_item_overlay_preview.py": 98
-    }
-  },
-  {
-    "area": "items",
-    "message": "Installed item {item_key} is missing from the currently mounted item table.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/new_item_overlay_preview.py": 121
-    }
-  },
-  {
-    "area": "items",
-    "message": "Installing a new item into the game archives requires explicit confirmation.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/new_item_service.py": 656
+      "cdmw/services/new_item_service.py": 619
     }
   },
   {
@@ -33871,7 +30581,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose root does not exist or is not a folder: {root}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_service.py": 720
+      "cdmw/services/new_item_service.py": 640
     }
   },
   {
@@ -34086,86 +30796,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Mounted archive is missing or outside the game folder: {pamt}",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 85
-    }
-  },
-  {
-    "area": "items",
-    "message": "Mounted file is not in the current archive catalogue: {path}. Read the archives again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 150
-    }
-  },
-  {
-    "area": "items",
-    "message": "Mounted item {key} is missing required assets: {detail}",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 192
-    }
-  },
-  {
-    "area": "items",
-    "message": "Mounted material {path} is missing a required texture: {texture}",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 48
-    }
-  },
-  {
-    "area": "items",
-    "message": "Mounted overlay file is hidden by a shipped archive: {path}. Review the mount order first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 153
-    }
-  },
-  {
-    "area": "items",
-    "message": "Mounted overlay {name} contains no readable files.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 93
-    }
-  },
-  {
-    "area": "items",
-    "message": "Mounted overlay {name} has an incomplete ItemInfo table pair.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 136
-    }
-  },
-  {
-    "area": "items",
-    "message": "Mounted overlay {name} refers to an archive outside its folder.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 96
-    }
-  },
-  {
-    "area": "items",
-    "message": "Mounted overlays already conflict: {label} (item {key}) from {name} is hidden or overwritten by another table. Merge the original mod folders to resolve this first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 141
-    }
-  },
-  {
-    "area": "items",
-    "message": "Mounted texture registration is ambiguous or does not match its DDS: {path}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 220
-    }
-  },
-  {
-    "area": "items",
     "message": "NI-ACCESS-DENIED",
     "recovery": "internal",
     "sources": {
@@ -34286,14 +30916,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "No added items were found in the active mounted tables. Read the archives again or use a separate mod.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 128
-    }
-  },
-  {
-    "area": "items",
     "message": "No applied model for {old}",
     "recovery": "internal",
     "sources": {
@@ -34313,7 +30935,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 704
+      "cdmw/ui/new_item/tab.py": 696
     }
   },
   {
@@ -34329,7 +30951,7 @@ MESSAGE_REFERENCE = [
     "message": "No image in {source} matched the new item closely enough; pick a file instead.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/new_item_workers.py": 272
+      "cdmw/workers/new_item_workers.py": 257
     }
   },
   {
@@ -34346,14 +30968,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/workers/new_item_workers.py": 63
-    }
-  },
-  {
-    "area": "items",
-    "message": "No separate mounted overlay archives were found. Items written into the shipped archives cannot be recovered by this option; use their original mod folder.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 101
     }
   },
   {
@@ -34438,26 +31052,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Nothing to move: no archive file differs from the oldest backup of it, so the shipped archives carry no installed item.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/ui/new_item/panels_output.py": 110
-    }
-  },
-  {
-    "area": "items",
     "message": "Only a Create New Item draft can be saved.",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/new_item/draft_file.py": 143
-    }
-  },
-  {
-    "area": "items",
-    "message": "Only the current mounted result is preserved; already overwritten changes cannot be recovered automatically.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 262
     }
   },
   {
@@ -34479,14 +31077,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Operation finished or cancelled. Refresh to read the installed state.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 531
-    }
-  },
-  {
-    "area": "items",
     "message": "Overlay conflict in {detail}; both installs change the same record.",
     "recovery": "internal",
     "sources": {
@@ -34499,14 +31089,6 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "native/cdmw_item_composer/src/overlay_merge.cpp": 404
-    }
-  },
-  {
-    "area": "items",
-    "message": "Overlay installation failed: {message}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/ui/new_item/panels_output.py": 851
     }
   },
   {
@@ -35009,14 +31591,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Starting fresh cancelled. The saved overlay set is unchanged.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 464
-    }
-  },
-  {
-    "area": "items",
     "message": "Stat values are signed 32-bit; {edit.value} is not.",
     "recovery": "internal",
     "sources": {
@@ -35390,7 +31964,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 402
+      "cdmw/ui/new_item/tab.py": 399
     }
   },
   {
@@ -35411,16 +31985,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "The archive mutation service is not available in this window.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_service.py": 664,
-      "cdmw/ui/new_item/tab.py": 1359,
-      "cdmw/workers/new_item_workers.py": 342
-    }
-  },
-  {
-    "area": "items",
     "message": "The archive worker returned incomplete template dependencies.",
     "recovery": "format",
     "sources": {
@@ -35432,7 +31996,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives could not be read for a new item. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 451
+      "cdmw/ui/new_item/tab.py": 445
     }
   },
   {
@@ -35761,7 +32325,7 @@ MESSAGE_REFERENCE = [
     "message": "The icon source {source} does not exist.",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/new_item_workers.py": 259
+      "cdmw/workers/new_item_workers.py": 244
     }
   },
   {
@@ -35873,7 +32437,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was created, but its folder could not be opened: {root}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 839
+      "cdmw/ui/new_item/panels_output.py": 666
     }
   },
   {
@@ -35894,14 +32458,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "The mounted textures have no readable meta/0.pathc registry. Use the original mod folder.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 212
-    }
-  },
-  {
-    "area": "items",
     "message": "The new model family needs its own stem.",
     "recovery": "internal",
     "sources": {
@@ -35914,14 +32470,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_dyes.py": 144
-    }
-  },
-  {
-    "area": "items",
-    "message": "The overlay folder is outside the game package.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_overlay_preview.py": 16
     }
   },
   {
@@ -35950,18 +32498,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "The plan changes nothing.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_service.py": 661
-    }
-  },
-  {
-    "area": "items",
     "message": "The plan could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 761
+      "cdmw/ui/new_item/panels_output.py": 593
     }
   },
   {
@@ -35969,7 +32509,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan names no archive to install into.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 846
+      "cdmw/services/new_item_service.py": 769
     }
   },
   {
@@ -35985,7 +32525,7 @@ MESSAGE_REFERENCE = [
     "message": "The previous archive group escapes the mod package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 595
+      "cdmw/services/new_item_service.py": 587
     }
   },
   {
@@ -36160,14 +32700,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "The shipped archives also contain custom items; their original assets cannot be isolated. Use the original mod folder. Item IDs: {detail}",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 123
-    }
-  },
-  {
-    "area": "items",
     "message": "The shop line keeps its unlock requirement: the buyer needs the knowledge of {name} before it sells (the shop shows \"Knowledge\" until then).",
     "recovery": "input",
     "sources": {
@@ -36192,7 +32724,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To combine mounted items, select Include mounted items in a new mod and rebuild. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
+    "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
       "cdmw/services/new_item_planning.py": 1148
@@ -36344,14 +32876,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "The underlying game ItemInfo table is unavailable. Use the original mod folder instead.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 119
-    }
-  },
-  {
-    "area": "items",
     "message": "The variant import contains no supported mesh geometry.",
     "recovery": "empty",
     "sources": {
@@ -36412,6 +32936,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 534
+    }
+  },
+  {
+    "area": "items",
+    "message": "These mods cannot be combined into one package. CDMW combines mods built from item packages.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/new_item/mod_merge_dialog.py": 205
     }
   },
   {
@@ -36540,14 +33072,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/ui/new_item/rust_ui_actions.py": 64
-    }
-  },
-  {
-    "area": "items",
-    "message": "This overlay is no longer mounted. Refresh Installed overlays.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_overlay_preview.py": 24
     }
   },
   {
@@ -37401,22 +33925,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Unsupported metadata inside a mounted archive: {path}",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 148
-    }
-  },
-  {
-    "area": "items",
-    "message": "Unsupported mounted archive folder: {name}. Use the original mod folder instead.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/new_item_mounted_base.py": 82
-    }
-  },
-  {
-    "area": "items",
     "message": "Unsupported quantity edit list.",
     "recovery": "unsupported",
     "sources": {
@@ -37513,19 +34021,11 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Wait for the current operation to finish, then refresh.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/ui/new_item/overlay_manager_dialog.py": 329
-    }
-  },
-  {
-    "area": "items",
     "message": "Wait for the current operation to finish, then try again.",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/new_item/mod_merge_dialog.py": 191,
-      "cdmw/ui/new_item/mod_update_dialog.py": 176
+      "cdmw/ui/new_item/mod_update_dialog.py": 172
     }
   },
   {
@@ -38077,7 +34577,7 @@ MESSAGE_REFERENCE = [
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 390
+      "cdmw/ui/new_item/controller.py": 387
     }
   },
   {
@@ -38513,7 +35013,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_cloth_check.py": 119,
-      "cdmw/services/new_item_planning.py": 1214
+      "cdmw/services/new_item_planning.py": 1213
     }
   },
   {
@@ -38521,7 +35021,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1191
+      "cdmw/services/new_item_planning.py": 1190
     }
   },
   {
@@ -38751,14 +35251,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_service.py": 659
-    }
-  },
-  {
-    "area": "items",
     "message": "{code} is not one of the shipped language tables.",
     "recovery": "internal",
     "sources": {
@@ -38882,7 +35374,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1049
+      "cdmw/ui/new_item/tab.py": 1041
     }
   },
   {
@@ -38890,7 +35382,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1039
+      "cdmw/ui/new_item/tab.py": 1031
     }
   },
   {
@@ -39267,7 +35759,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller.py": 631
+      "cdmw/ui/new_item/controller.py": 628
     }
   },
   {
@@ -43270,7 +39762,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 305,
-      "cdmw/workers/mesh_editor_workers.py": 392
+      "cdmw/workers/mesh_editor_workers.py": 385
     }
   },
   {
@@ -43670,7 +40162,7 @@ MESSAGE_REFERENCE = [
     "message": "An archive result needs a workspace output folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 527
+      "cdmw/workers/mesh_editor_workers.py": 518
     }
   },
   {
@@ -43791,7 +40283,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output has duplicate asset paths",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 842
+      "cdmw/workers/mesh_editor_workers.py": 819
     }
   },
   {
@@ -43799,7 +40291,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output target no longer matches the loaded source",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 556
+      "cdmw/workers/mesh_editor_workers.py": 547
     }
   },
   {
@@ -43863,7 +40355,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mesh path escapes the loose package",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 840
+      "cdmw/workers/mesh_editor_workers.py": 817
     }
   },
   {
@@ -45991,7 +42483,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an edited GLB, FBX, or OBJ mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 200
+      "cdmw/workers/mesh_editor_workers.py": 193
     }
   },
   {
@@ -46975,7 +43467,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 910
+      "cdmw/workers/mesh_editor_workers.py": 887
     }
   },
   {
@@ -46983,7 +43475,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM archive-group package is missing {relative}",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 936
+      "cdmw/workers/mesh_editor_workers.py": 913
     }
   },
   {
@@ -46991,7 +43483,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM package metadata changed archive-group payload {relative}",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 963
+      "cdmw/workers/mesh_editor_workers.py": 940
     }
   },
   {
@@ -48033,7 +44525,7 @@ MESSAGE_REFERENCE = [
     "message": "Export Mesh File cannot contain texture or material authoring changes",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 392
+      "cdmw/workers/mesh_editor_workers.py": 385
     }
   },
   {
@@ -48042,7 +44534,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 305,
-      "cdmw/workers/mesh_editor_workers.py": 374
+      "cdmw/workers/mesh_editor_workers.py": 367
     }
   },
   {
@@ -48275,7 +44767,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_rust_authoring.py": 9637,
-      "cdmw/workers/mesh_editor_workers.py": 195
+      "cdmw/workers/mesh_editor_workers.py": 188
     }
   },
   {
@@ -48339,7 +44831,7 @@ MESSAGE_REFERENCE = [
     "message": "Field-JSON only describes DDS assets and cannot safely package a mesh payload",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 830
+      "cdmw/workers/mesh_editor_workers.py": 807
     }
   },
   {
@@ -50104,7 +46596,7 @@ MESSAGE_REFERENCE = [
     "message": "Hairstyles require Build Mod → DMM Archive Group to add the complete barber choice.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 536
+      "cdmw/workers/mesh_editor_workers.py": 527
     }
   },
   {
@@ -51745,7 +48237,7 @@ MESSAGE_REFERENCE = [
     "message": "Layers underneath apply only to Build Mod outputs.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 500
+      "cdmw/workers/mesh_editor_workers.py": 491
     }
   },
   {
@@ -51817,7 +48309,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 828
+      "cdmw/workers/mesh_editor_workers.py": 805
     }
   },
   {
@@ -52282,7 +48774,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor archive load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 497
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 496
     }
   },
   {
@@ -52299,7 +48791,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/ui/mesh_editor/tab_rust_process.py": 859,
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 838
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 837
     }
   },
   {
@@ -52307,7 +48799,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 576
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 575
     }
   },
   {
@@ -52446,7 +48938,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor file load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 723
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 722
     }
   },
   {
@@ -52471,7 +48963,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_native_preview.py": 16,
-      "cdmw/ui/mesh_editor/tab_shell.py": 937
+      "cdmw/ui/mesh_editor/tab_shell.py": 933
     }
   },
   {
@@ -52938,7 +49430,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh archive-group packages are supported only for the DMM manager profile",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 488
+      "cdmw/workers/mesh_editor_workers.py": 479
     }
   },
   {
@@ -53539,7 +50031,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh mod output already exists: {root}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 833
+      "cdmw/workers/mesh_editor_workers.py": 810
     }
   },
   {
@@ -53796,7 +50288,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output cancelled",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 516
+      "cdmw/workers/mesh_editor_workers.py": 507
     }
   },
   {
@@ -53804,7 +50296,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 369
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 341
     }
   },
   {
@@ -54301,7 +50793,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh-only outputs cannot contain texture or material authoring changes",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 546
+      "cdmw/workers/mesh_editor_workers.py": 537
     }
   },
   {
@@ -56270,7 +52762,7 @@ MESSAGE_REFERENCE = [
     "message": "Only the body is left to write. Turn on Include the body to build it.",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 645
+      "cdmw/workers/mesh_editor_workers.py": 636
     }
   },
   {
@@ -56743,7 +53235,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC export requires a validated mesh snapshot.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 362
+      "cdmw/workers/mesh_editor_workers.py": 355
     }
   },
   {
@@ -58907,7 +55399,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child window could not be attached to CDMW",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 342
+      "cdmw/ui/mesh_editor/rust_host.py": 340
     }
   },
   {
@@ -58915,7 +55407,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child-window validation failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 345
+      "cdmw/ui/mesh_editor/rust_host.py": 343
     }
   },
   {
@@ -59199,7 +55691,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status parse failed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 951
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 950
     }
   },
   {
@@ -59207,7 +55699,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status read failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 942
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 941
     }
   },
   {
@@ -59961,7 +56453,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has an invalid or duplicate package path",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 861
+      "cdmw/workers/mesh_editor_workers.py": 838
     }
   },
   {
@@ -59969,7 +56461,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has no captured baseline: {file.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 604
+      "cdmw/workers/mesh_editor_workers.py": 595
     }
   },
   {
@@ -60025,7 +56517,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement output target no longer matches the captured archive identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 588
+      "cdmw/workers/mesh_editor_workers.py": 579
     }
   },
   {
@@ -61057,7 +57549,7 @@ MESSAGE_REFERENCE = [
     "message": "Run validation successfully before building a mesh mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 117
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 114
     }
   },
   {
@@ -63063,7 +59555,7 @@ MESSAGE_REFERENCE = [
     "message": "The current Finish must stop before another mesh file can open.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 608
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 607
     }
   },
   {
@@ -63071,7 +59563,7 @@ MESSAGE_REFERENCE = [
     "message": "The current Finish must stop before another mesh session can open.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 578
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 577
     }
   },
   {
@@ -63248,7 +59740,7 @@ MESSAGE_REFERENCE = [
     "message": "The included item set files have no changes to write",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 644
+      "cdmw/workers/mesh_editor_workers.py": 635
     }
   },
   {
@@ -64020,7 +60512,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 305,
-      "cdmw/workers/mesh_editor_workers.py": 376
+      "cdmw/workers/mesh_editor_workers.py": 369
     }
   },
   {
@@ -64029,7 +60521,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 305,
-      "cdmw/workers/mesh_editor_workers.py": 386
+      "cdmw/workers/mesh_editor_workers.py": 379
     }
   },
   {
@@ -64494,7 +60986,7 @@ MESSAGE_REFERENCE = [
     "message": "UV: {summary.island_count} island(s) | {selected} selected | {', '.join(textures[:3]) or 'missing texture'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/workspace_state.py": 562
+      "cdmw/ui/mesh_editor/workspace_state.py": 560
     }
   },
   {
@@ -64769,7 +61261,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor output kind: {self.kind}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 685
+      "cdmw/workers/mesh_editor_workers.py": 662
     }
   },
   {
@@ -64953,7 +61445,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh mod manager profile: {manager_profile}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 486
+      "cdmw/workers/mesh_editor_workers.py": 477
     }
   },
   {
@@ -69918,7 +66410,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh must be ParsedMesh",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 572
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 571
     }
   },
   {
@@ -69960,7 +66452,7 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/mesh_service_rebuild.py": 725,
-      "cdmw/workers/mesh_editor_workers.py": 390
+      "cdmw/workers/mesh_editor_workers.py": 383
     }
   },
   {
@@ -72313,7 +68805,7 @@ MESSAGE_REFERENCE = [
     "message": "no rebuild report is available",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 701
+      "cdmw/ui/mesh_editor/tab_reports.py": 696
     }
   },
   {
@@ -72953,7 +69445,7 @@ MESSAGE_REFERENCE = [
     "message": "preview error: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 993
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 992
     }
   },
   {
@@ -73035,7 +69527,7 @@ MESSAGE_REFERENCE = [
     "message": "preview process error; retry scheduled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1077
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1076
     }
   },
   {
@@ -75740,7 +72232,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/controller.py": 559,
-      "cdmw/workers/mesh_editor_workers.py": 253
+      "cdmw/workers/mesh_editor_workers.py": 246
     }
   },
   {
@@ -75836,7 +72328,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is already part of this mod; Layers underneath cannot change it as well.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 721
+      "cdmw/workers/mesh_editor_workers.py": 698
     }
   },
   {
@@ -76555,14 +73047,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "--game-root is required for read-only device inspection.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_cli.py": 103
-    }
-  },
-  {
-    "area": "other",
     "message": "--top must be between 1 and 100",
     "recovery": "input",
     "sources": {
@@ -76627,42 +73111,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "A bounded PNG game frame is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 33
-    }
-  },
-  {
-    "area": "other",
-    "message": "A bounded inspected screen classification is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 66
-    }
-  },
-  {
-    "area": "other",
-    "message": "A bounded, exact evidence path/hash is required for live save containment.",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 48
-    }
-  },
-  {
-    "area": "other",
     "message": "A buff requires a BuffInfo key.",
     "recovery": "input",
     "sources": {
       "cdmw/core/iteminfo_declared_fields.py": 78
-    }
-  },
-  {
-    "area": "other",
-    "message": "A candidate save/Cloud process is unreadable; writer absence is unknown.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 208
     }
   },
   {
@@ -76679,30 +73131,6 @@ MESSAGE_REFERENCE = [
     "recovery": "configuration",
     "sources": {
       "cdmw/ui/commands/registry.py": 65
-    }
-  },
-  {
-    "area": "other",
-    "message": "A competing unfinished device run must be reconciled first.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 237
-    }
-  },
-  {
-    "area": "other",
-    "message": "A competing unfinished device run owns this live context.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 223
-    }
-  },
-  {
-    "area": "other",
-    "message": "A completed or interrupted recovery cannot be reopened for setup.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 144
     }
   },
   {
@@ -76731,50 +73159,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "A frame review requires both --review and --review-sha256.",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/services/cditem_device_cli.py": 93
-    }
-  },
-  {
-    "area": "other",
-    "message": "A fresh exit confirmation must identify the owned disposable save.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 158
-    }
-  },
-  {
-    "area": "other",
-    "message": "A fresh target-window screenshot is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 145
-    }
-  },
-  {
-    "area": "other",
-    "message": "A fresh timestamped ordinary-shutdown receipt is required (at most ten minutes old).",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 192
-    }
-  },
-  {
-    "area": "other",
     "message": "A guide-free PAC contains unexpected existing render guide bindings.",
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_guide_builder.py": 109
-    }
-  },
-  {
-    "area": "other",
-    "message": "A known or unexpected Steam/game/session writer is still running; close it normally.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 217
     }
   },
   {
@@ -76811,14 +73199,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "A refused focus request permits only cleanup and cancellation, not further execution.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 293
-    }
-  },
-  {
-    "area": "other",
     "message": "A render cloth binding refers outside this PAC's guide matrices.",
     "recovery": "internal",
     "sources": {
@@ -76831,14 +73211,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/compact_static.py": 163
-    }
-  },
-  {
-    "area": "other",
-    "message": "A retained current-run frame changed or belongs to another run.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 271
     }
   },
   {
@@ -76891,34 +73263,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "A terminal competing run has unknown immutable binding evidence.",
-    "recovery": "internal",
+    "message": "A step failed; putting every file back from the backup...",
+    "recovery": "recovery",
     "sources": {
-      "cdmw/services/cditem_device_execution.py": 410
-    }
-  },
-  {
-    "area": "other",
-    "message": "A unique run identity and exact disposable save are required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 97
-    }
-  },
-  {
-    "area": "other",
-    "message": "A usable active console desktop is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 370
-    }
-  },
-  {
-    "area": "other",
-    "message": "A visual and persisted per-game Cloud OFF witness is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 277
+      "cdmw/services/old_install_removal.py": 750
     }
   },
   {
@@ -77115,14 +73463,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "An action result is missing, failed or ambiguous; recover before input.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 332
-    }
-  },
-  {
-    "area": "other",
     "message": "An archive entry is outside the selected game folder.",
     "recovery": "input",
     "sources": {
@@ -77163,54 +73503,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "An exact UTC execution expiry is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 73
-    }
-  },
-  {
-    "area": "other",
-    "message": "An exact execution evidence path and SHA-256 are required.",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 54
-    }
-  },
-  {
-    "area": "other",
-    "message": "An exact live save context reference is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 120
-    }
-  },
-  {
-    "area": "other",
-    "message": "An exact ordinary Steam/game shutdown receipt is required for this run.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 185
-    }
-  },
-  {
-    "area": "other",
-    "message": "An exact process birth identity is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 98
-    }
-  },
-  {
-    "area": "other",
-    "message": "An execution action has no unique current-run observation.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 323
-    }
-  },
-  {
-    "area": "other",
     "message": "An explicit palette extension contract is required.",
     "recovery": "input",
     "sources": {
@@ -77227,42 +73519,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "An inspected explanation and bounded pixel tolerance are required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 75
-    }
-  },
-  {
-    "area": "other",
-    "message": "An inspected region lies outside the template.",
+    "message": "An older CDMW left an unfinished virtual-loader change in this game folder. Use Browse Archives > Remove What an Older CDMW Installed... to take it out.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/cditem_device_review.py": 88
-    }
-  },
-  {
-    "area": "other",
-    "message": "An installation recovery target changed; preserve remaining files.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 165
-    }
-  },
-  {
-    "area": "other",
-    "message": "An installed CDMW file changed outside this run; preserve it.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 133
-    }
-  },
-  {
-    "area": "other",
-    "message": "An observed {control} control is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 165
+      "cdmw/services/installation_lane.py": 48
     }
   },
   {
@@ -77291,22 +73551,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "An unfinished action conflicts with a retained capture.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 338
-    }
-  },
-  {
-    "area": "other",
-    "message": "An unfinished prior action requires recovery; no input was replayed.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 385
-    }
-  },
-  {
-    "area": "other",
     "message": "An unrelated sequence property changed during saving.",
     "recovery": "internal",
     "sources": {
@@ -77327,6 +73571,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/transport.py": 275
+    }
+  },
+  {
+    "area": "other",
+    "message": "Another program holds {held[0]}. Close it, then check again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 684
     }
   },
   {
@@ -77367,14 +73619,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/character_context_service.py": 223
-    }
-  },
-  {
-    "area": "other",
-    "message": "Archive mount table is unexpectedly large.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/overlay_inventory_details.py": 26
     }
   },
   {
@@ -77599,14 +73843,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/workers/utility_workers.py": 69
-    }
-  },
-  {
-    "area": "other",
-    "message": "Baseline observation only; native item scenarios and launch/save operations are unavailable.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 617
     }
   },
   {
@@ -77853,6 +74089,46 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "CDMW could not check whether Crimson Desert or DMM is running ({exc}). Close them, then check again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 617
+    }
+  },
+  {
+    "area": "other",
+    "message": "CDMW could not tell whether {path} holds the game folder, so it did not remove it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/protected_roots.py": 264
+    }
+  },
+  {
+    "area": "other",
+    "message": "CDMW could not tell whether {path} lies in the game folder, so it did not write there.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/core/protected_roots.py": 202
+    }
+  },
+  {
+    "area": "other",
+    "message": "CDMW does not write into the game folder ({root}), or clear or replace anything in it; it refused {path}.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/core/protected_roots.py": 272
+    }
+  },
+  {
+    "area": "other",
+    "message": "CDMW does not write into the game folder ({root}); it refused {path}.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/core/protected_roots.py": 205
+    }
+  },
+  {
+    "area": "other",
     "message": "CDMW does not write into the game folder. Choose a folder outside it; a mod manager installs the mod.",
     "recovery": "write",
     "sources": {
@@ -77869,10 +74145,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "CDMW's copy of the item identities ({kept}) cannot be read: {error}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/game_records.py": 123
+    }
+  },
+  {
+    "area": "other",
     "message": "CSV log is enabled, but the CSV log path is empty.",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/pipeline.py": 196
+      "cdmw/core/pipeline.py": 197
     }
   },
   {
@@ -77909,10 +74193,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Cancellation does not establish complete input cleanup.",
+    "message": "Cancelled before anything was changed; the backup is kept.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/cditem_device_execution.py": 380
+      "cdmw/services/old_install_removal.py": 716
     }
   },
   {
@@ -77941,98 +74225,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Cannot enumerate known save/Cloud writers.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 142
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot establish current desktop input ownership.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 99
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot establish physical per-monitor coordinates.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 112
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot identify game process creation time.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 154
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot identify the active input desktop.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 133
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot identify the game Windows session.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 160
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot identify the game executable path.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 157
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot identify the runner Windows session.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 125
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot inspect the game client area.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 179
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot inspect the owned game process.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 148
-    }
-  },
-  {
-    "area": "other",
     "message": "Cannot locate an equipment visibility XML element.",
     "recovery": "input",
     "sources": {
       "cdmw/core/equipment_visibility.py": 61
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot locate the game client area.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 182
     }
   },
   {
@@ -78045,34 +74241,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Cannot restore the runner DPI context.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 117
-    }
-  },
-  {
-    "area": "other",
     "message": "Cannot retain mod history without package payloads.",
     "recovery": "format",
     "sources": {
       "cdmw/core/mod_export_history.py": 255
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot start the known-writer process census.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 148
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cannot verify the owned game exit.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 439
     }
   },
   {
@@ -78317,14 +74489,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Choose a game archive folder to read installed overlays.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/overlay_inventory_details.py": 24
-    }
-  },
-  {
-    "area": "other",
     "message": "Choose a mod folder separate from the game installation.",
     "recovery": "internal",
     "sources": {
@@ -78344,7 +74508,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a new or empty output folder. The original mod is preserved.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mod_update_service.py": 329
+      "cdmw/services/mod_update_service.py": 260
     }
   },
   {
@@ -78408,7 +74572,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an output folder separate from the game and the original mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mod_update_service.py": 327
+      "cdmw/services/mod_update_service.py": 258
     }
   },
   {
@@ -79398,14 +75562,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Conflicting execution file guards.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 155
-    }
-  },
-  {
-    "area": "other",
     "message": "Conflicting generated equipment visibility profiles.",
     "recovery": "conflict",
     "sources": {
@@ -79689,7 +75845,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS staging completed with {len(staging_failures)} failed file(s); failed files will be reported in the rebuild summary.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pipeline.py": 600
+      "cdmw/core/pipeline.py": 606
     }
   },
   {
@@ -79697,7 +75853,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS staging skipped because no files require PNG/upscale processing under the current policy.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/pipeline.py": 604
+      "cdmw/core/pipeline.py": 610
     }
   },
   {
@@ -80009,7 +76165,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM already has a mod folder named {folder.name} that CDMW did not write. Rename the mod and send it again.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/dmm_send.py": 133
+      "cdmw/services/dmm_send.py": 136
     }
   },
   {
@@ -80102,34 +76258,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Desktop input changed while arming; observe again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 423
-    }
-  },
-  {
-    "area": "other",
-    "message": "Desktop input occurred during capture; the frame is not an action receipt.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 217
-    }
-  },
-  {
-    "area": "other",
-    "message": "Desktop input was detected after capture; observe again before continuing.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 404
-    }
-  },
-  {
-    "area": "other",
     "message": "Destination already exists: {target_path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/atomic_file.py": 145
+      "cdmw/core/atomic_file.py": 166
     }
   },
   {
@@ -80137,15 +76269,7 @@ MESSAGE_REFERENCE = [
     "message": "Destination already exists: {target}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/atomic_file.py": 176
-    }
-  },
-  {
-    "area": "other",
-    "message": "Device output requires a new absolute JSON path in an existing folder.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_cli.py": 26
+      "cdmw/core/atomic_file.py": 200
     }
   },
   {
@@ -80198,14 +76322,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Duplicate account path in the Cloud observation.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 232
-    }
-  },
-  {
-    "area": "other",
     "message": "Duplicate depth setting for {profile.source_tag}.",
     "recovery": "conflict",
     "sources": {
@@ -80242,14 +76358,6 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/core/iteminfo_declared_fields.py": 65
-    }
-  },
-  {
-    "area": "other",
-    "message": "Duplicate runtime inventory entries.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 163
     }
   },
   {
@@ -80652,14 +76760,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Every device state needs an explicit bounded deadline.",
-    "recovery": "timeout",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 116
-    }
-  },
-  {
-    "area": "other",
     "message": "Every disconnected guide piece needs a fixed guide ({where} without one). Lower the pin height, paint a pin on each piece or select fewer parts.",
     "recovery": "input",
     "sources": {
@@ -80672,14 +76772,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_guide_builder.py": 171
-    }
-  },
-  {
-    "area": "other",
-    "message": "Every inspected text region needs at least 32 stable light pixels.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 98
     }
   },
   {
@@ -80704,158 +76796,6 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/core/chacha20.py": 56
-    }
-  },
-  {
-    "area": "other",
-    "message": "Execution cancelled; the bound game remains running and baseline completion is not established.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 472
-    }
-  },
-  {
-    "area": "other",
-    "message": "Execution evidence changed; preserve this run before continuing.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 57
-    }
-  },
-  {
-    "area": "other",
-    "message": "Execution evidence must use an existing separate parent outside game and save trees.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 172
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup authority must expire within five minutes.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 636
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup cancellation does not establish zero input and complete release.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 756
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup completion has no owned input scope.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 730
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup has no unique owned confirmation intent.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 711
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup input release was not established; do not retry input.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 764
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup intent does not match its fixed observed confirmation.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 715
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup is incomplete or unknown; preserve its evidence before recovery.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 762
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup lacks an exact successful owned exit result.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 720
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup must pin the original cancelled execution journal.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 655
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup must use a new named child of its original execution directory.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 668
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup observation changed its capture identity.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 752
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup observation has no current owned capture.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 747
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup requires a fresh exact foreground exit confirmation for the owned save.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 685
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup requires one exact cancelled legacy close request with complete input cleanup.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 665
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit cleanup terminal status lacks matching completion or zero-input cancellation evidence.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 768
-    }
-  },
-  {
-    "area": "other",
-    "message": "Exit confirmation was already attempted; preserve this cleanup journal and do not retry input.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 709
     }
   },
   {
@@ -81079,15 +77019,7 @@ MESSAGE_REFERENCE = [
     "message": "Found {total} DDS files to process. {len(dds_files_requiring_png)} file(s) require PNG/upscale processing under the current policy.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/pipeline.py": 684
-    }
-  },
-  {
-    "area": "other",
-    "message": "Fresh, empty process/writer inventories are required for save exchange.",
-    "recovery": "empty",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 134
+      "cdmw/core/pipeline.py": 690
     }
   },
   {
@@ -81136,14 +77068,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/problem_report_dialog.py": 722
-    }
-  },
-  {
-    "area": "other",
-    "message": "Gameplay did not follow the owned save selection.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 247
     }
   },
   {
@@ -81620,14 +77544,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Incomplete Steam configuration structure.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 90
-    }
-  },
-  {
-    "area": "other",
     "message": "Incomplete level-stat entry.",
     "recovery": "format",
     "sources": {
@@ -81668,38 +77584,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Input arming exceeded its bounded pre-dispatch interval.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 427
-    }
-  },
-  {
-    "area": "other",
-    "message": "Input cleanup completion has no unique input scope.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 304
-    }
-  },
-  {
-    "area": "other",
-    "message": "Input cleanup was not durably completed; this execution needs recovery.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 387
-    }
-  },
-  {
-    "area": "other",
-    "message": "Input cleanup was not established; this execution needs recovery.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 377
-    }
-  },
-  {
-    "area": "other",
     "message": "Input position blending requires an explicit boolean global switch.",
     "recovery": "input",
     "sources": {
@@ -81712,70 +77596,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/problem_report_dialog.py": 730
-    }
-  },
-  {
-    "area": "other",
-    "message": "Installation recovery bytes changed; preserve installed state.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 119
-    }
-  },
-  {
-    "area": "other",
-    "message": "Installation recovery cannot overlap the game root.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 104
-    }
-  },
-  {
-    "area": "other",
-    "message": "Installation recovery file grew beyond its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 39
-    }
-  },
-  {
-    "area": "other",
-    "message": "Installation recovery manifest changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 96
-    }
-  },
-  {
-    "area": "other",
-    "message": "Installation recovery readback failed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 75
-    }
-  },
-  {
-    "area": "other",
-    "message": "Installation recovery readback failed; retain all recovery files.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 182
-    }
-  },
-  {
-    "area": "other",
-    "message": "Installation recovery requires bounded independent regular files.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 35
-    }
-  },
-  {
-    "area": "other",
-    "message": "Installed CDMW files changed during recovery preparation.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 78
     }
   },
   {
@@ -81828,22 +77648,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Invalid Steam configuration structure.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 82
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid app-scoped Cloud observation.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 225
-    }
-  },
-  {
-    "area": "other",
     "message": "Invalid archive-relative path: {path}",
     "recovery": "input",
     "sources": {
@@ -81856,22 +77660,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/effect_writer.py": 94
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid bounded device action contract.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 111
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid bounded frame classification.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 484
     }
   },
   {
@@ -82004,70 +77792,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Invalid exact CDMW installation recovery request.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 58
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid exact execution file guard.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 150
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid execution expiry.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 77
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid execution file guard or runtime inventory bounds.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 146
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid execution journal shape or revision.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 203
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid exit cleanup expiry.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 632
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid explicit live save request.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 268
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid frame capture timeout.",
-    "recovery": "timeout",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 237
-    }
-  },
-  {
-    "area": "other",
     "message": "Invalid generated visibility identifier: {value}",
     "recovery": "input",
     "sources": {
@@ -82100,38 +77824,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Invalid input guardian request.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 307
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid inspected control point.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 70
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid installation recovery file metadata.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 114
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid installation recovery journal.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 109
-    }
-  },
-  {
-    "area": "other",
     "message": "Invalid item reward quantity or identity",
     "recovery": "input",
     "sources": {
@@ -82153,22 +77845,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mod_update_service.py": 224
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid live Cloud evidence renewal record.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 326
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid live save recovery journal.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 437
     }
   },
   {
@@ -82285,30 +77961,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Invalid observed control point.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 488
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid observed game window.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 150
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid or duplicate Steam configuration field.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 85
-    }
-  },
-  {
-    "area": "other",
     "message": "Invalid or duplicate shared-string identifier.",
     "recovery": "conflict",
     "sources": {
@@ -82337,22 +77989,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/mod_export_history.py": 236
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid ordinary-shutdown evidence.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 311
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid owned game process identity.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 102
     }
   },
   {
@@ -82389,42 +78025,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Invalid process ID.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 145
-    }
-  },
-  {
-    "area": "other",
     "message": "Invalid relative character-mod path.",
     "recovery": "input",
     "sources": {
       "cdmw/services/dmm_character_mods.py": 37
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid retained capture sequence.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 346
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid retained execution observation.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 257
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid retained exit cleanup capture.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 741
     }
   },
   {
@@ -82441,14 +78045,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/item_reward_table.py": 88
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid save-context recovery journal.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 168
     }
   },
   {
@@ -82601,14 +78197,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/skinned_decal.py": 247
-    }
-  },
-  {
-    "area": "other",
-    "message": "Invalid {label}.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 79
     }
   },
   {
@@ -83150,38 +78738,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Live Crimson Desert save containment requires Windows.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 105
-    }
-  },
-  {
-    "area": "other",
-    "message": "Live save evidence changed; preserve the current context.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 52
-    }
-  },
-  {
-    "area": "other",
-    "message": "Live save staging must remain separate on the native save volume.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 424
-    }
-  },
-  {
-    "area": "other",
-    "message": "Loading did not follow the owned save selection.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 242
-    }
-  },
-  {
-    "area": "other",
     "message": "Loose file has an invalid path: {relative_path}",
     "recovery": "input",
     "sources": {
@@ -83441,7 +78997,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing planner entry for DDS rebuild: {rel_display}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/pipeline.py": 821
+      "cdmw/core/pipeline.py": 827
     }
   },
   {
@@ -83558,14 +79114,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Mounted archive is outside the game folder: {record.name}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/overlay_inventory_details.py": 32
-    }
-  },
-  {
-    "area": "other",
     "message": "Movement blend, inverse mass and delta times are outside the supported domain.",
     "recovery": "internal",
     "sources": {
@@ -83673,7 +79221,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DDS batch encode failed ({exc}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pipeline.py": 794
+      "cdmw/core/pipeline.py": 800
     }
   },
   {
@@ -83681,7 +79229,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DDS batch encode is unavailable ({exc}).",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/pipeline.py": 716
+      "cdmw/core/pipeline.py": 722
     }
   },
   {
@@ -83689,7 +79237,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DDS batch encode is unavailable because cd-texture-dx.exe is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/pipeline.py": 719
+      "cdmw/core/pipeline.py": 725
     }
   },
   {
@@ -83707,22 +79255,6 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/recolor_variants.py": 1098,
       "cdmw/core/replace_assistant.py": 873
-    }
-  },
-  {
-    "area": "other",
-    "message": "Native item scenarios require their own verified action contract.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 104
-    }
-  },
-  {
-    "area": "other",
-    "message": "Native writer census requires Windows.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 123
     }
   },
   {
@@ -83770,7 +79302,7 @@ MESSAGE_REFERENCE = [
     "message": "No DDS files were found under the original root with the current filter.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pipeline.py": 229
+      "cdmw/core/pipeline.py": 231
     }
   },
   {
@@ -83826,7 +79358,7 @@ MESSAGE_REFERENCE = [
     "message": "No files require direct PNG/upscale processing under the current preset and automatic rules. The selected backend will be skipped.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/pipeline.py": 646
+      "cdmw/core/pipeline.py": 652
     }
   },
   {
@@ -83851,14 +79383,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/final_package_builder.py": 603
-    }
-  },
-  {
-    "area": "other",
-    "message": "No installed CDMW overlay history is available. Check an exported mod folder instead.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mod_update_service.py": 259
     }
   },
   {
@@ -83890,7 +79414,7 @@ MESSAGE_REFERENCE = [
     "message": "No policy-selected files require PNG matching. DDS rebuild will use preserve-original copy-through actions only.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/pipeline.py": 682
+      "cdmw/core/pipeline.py": 688
     }
   },
   {
@@ -83959,14 +79483,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "No verified action exists for this screen.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 268
-    }
-  },
-  {
-    "area": "other",
     "message": "Non-item reward result type {kind} is not decoded",
     "recovery": "format",
     "sources": {
@@ -84031,6 +79547,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Nothing an older CDMW installed was found.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 658
+    }
+  },
+  {
+    "area": "other",
     "message": "Nothing holds the painted cloth. Leave the area it hangs from unpainted, or paint pins where it attaches.",
     "recovery": "internal",
     "sources": {
@@ -84043,62 +79567,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/streaming_json.py": 137
-    }
-  },
-  {
-    "area": "other",
-    "message": "Offline exchange requires storage on the fixture volume.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 223
-    }
-  },
-  {
-    "area": "other",
-    "message": "Offline save contexts do not support Windows device paths.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 39
-    }
-  },
-  {
-    "area": "other",
-    "message": "Offline save rehearsal cannot mutate the live save tree.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 61
-    }
-  },
-  {
-    "area": "other",
-    "message": "One exact next capture sequence is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 54
-    }
-  },
-  {
-    "area": "other",
-    "message": "One invocation supports at most 64 fresh-frame steps.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 556
-    }
-  },
-  {
-    "area": "other",
-    "message": "One previously observed owned game window is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 105
-    }
-  },
-  {
-    "area": "other",
-    "message": "One to eight inspected stable regions are required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 82
     }
   },
   {
@@ -84123,14 +79591,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/skinned_decal.py": 152
-    }
-  },
-  {
-    "area": "other",
-    "message": "Only one exact baseline scenario and disposable save are supported.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 93
     }
   },
   {
@@ -85035,7 +80495,7 @@ MESSAGE_REFERENCE = [
     "message": "Ready mod package export complete: copied={total_copied}, skipped={total_skipped}, failed={total_failed}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pipeline.py": 1295
+      "cdmw/core/pipeline.py": 1301
     }
   },
   {
@@ -85051,7 +80511,7 @@ MESSAGE_REFERENCE = [
     "message": "Real-ESRGAN NCNN finished, but no PNG files were found in the configured PNG root. Verify the NCNN executable, model folder, and selected model.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/pipeline.py": 677
+      "cdmw/core/pipeline.py": 683
     }
   },
   {
@@ -85128,54 +80588,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Recover the active owned save context before preparing another exchange.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 199
-    }
-  },
-  {
-    "area": "other",
-    "message": "Recover the interrupted virtual profile transaction before changing this installation.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/installation_lane.py": 48
-    }
-  },
-  {
-    "area": "other",
-    "message": "Recover the unfinished live context before exchanging again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 527
-    }
-  },
-  {
-    "area": "other",
-    "message": "Recover the unfinished live context before restoring it.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 537
-    }
-  },
-  {
-    "area": "other",
-    "message": "Recover the unfinished save context before another exchange.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 260
-    }
-  },
-  {
-    "area": "other",
-    "message": "Recover the unfinished save context before restoring it.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 334
-    }
-  },
-  {
-    "area": "other",
     "message": "Reduced LOD {lod} from {source_vertices} to {len(points)} guides.",
     "recovery": "internal",
     "sources": {
@@ -85196,6 +80608,14 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "cdmw/ui/shell/problem_report_dialog.py": 732
+    }
+  },
+  {
+    "area": "other",
+    "message": "Removing what an older CDMW installed needs your confirmation.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 651
     }
   },
   {
@@ -85240,14 +80660,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Replay time must be finite and monotonic.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 405
-    }
-  },
-  {
-    "area": "other",
     "message": "Report exceeds 8 MB. Remove a screenshot and collect it again.",
     "recovery": "limits",
     "sources": {
@@ -85267,7 +80679,7 @@ MESSAGE_REFERENCE = [
     "message": "Resolve the compatibility conflicts before writing an updated mod.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mod_update_service.py": 322
+      "cdmw/services/mod_update_service.py": 253
     }
   },
   {
@@ -85292,30 +80704,6 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/core/item_layout.py": 307
-    }
-  },
-  {
-    "area": "other",
-    "message": "Retain an independent immutable native report instead of referencing mutable status.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 395
-    }
-  },
-  {
-    "area": "other",
-    "message": "Retain the previous action result before observing again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 136
-    }
-  },
-  {
-    "area": "other",
-    "message": "Retained observations changed order or clock.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 317
     }
   },
   {
@@ -85369,50 +80757,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Save contexts do not support hard links.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 50
-    }
-  },
-  {
-    "area": "other",
     "message": "Save the decal sequence as a .paseq file.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/skinned_decal_service.py": 41
-    }
-  },
-  {
-    "area": "other",
-    "message": "Save-context inputs and storage must be separate trees.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 219
-    }
-  },
-  {
-    "area": "other",
-    "message": "Save-context parents and the disposable input must exist.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 221
-    }
-  },
-  {
-    "area": "other",
-    "message": "Save-context paths must be absolute.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 37
-    }
-  },
-  {
-    "area": "other",
-    "message": "Save-context storage overlaps the fixture.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 157
     }
   },
   {
@@ -85460,7 +80808,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one item package to send to DMM.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send.py": 226,
+      "cdmw/services/dmm_send.py": 229,
       "cdmw/services/dmm_send_process.py": 71
     }
   },
@@ -85701,7 +81049,7 @@ MESSAGE_REFERENCE = [
     "message": "Send to DMM cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/dmm_send_process.py": 132
+      "cdmw/services/dmm_send_process.py": 140
     }
   },
   {
@@ -85709,7 +81057,7 @@ MESSAGE_REFERENCE = [
     "message": "Send to DMM failed ({code}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_send_process.py": 133
+      "cdmw/services/dmm_send_process.py": 141
     }
   },
   {
@@ -85717,7 +81065,7 @@ MESSAGE_REFERENCE = [
     "message": "Send to DMM returned an invalid result. Send again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send_process.py": 112
+      "cdmw/services/dmm_send_process.py": 120
     }
   },
   {
@@ -85798,14 +81146,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/process_job_service.py": 137
-    }
-  },
-  {
-    "area": "other",
-    "message": "Settle the game and supported profile transaction before installation recovery.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 48
     }
   },
   {
@@ -86059,14 +81399,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Steam Cloud is not the exact persisted per-game OFF setting; preserve all saves.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 290
-    }
-  },
-  {
-    "area": "other",
     "message": "Stiffness decoding requires complete 100-byte frame and optional 28-byte extra records.",
     "recovery": "input",
     "sources": {
@@ -86119,14 +81451,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/final_package_binding_contract.py": 97
-    }
-  },
-  {
-    "area": "other",
-    "message": "Supported setup did not produce the exact reviewed CDMW files.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 131
     }
   },
   {
@@ -86191,14 +81515,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/item_icon.py": 300
-    }
-  },
-  {
-    "area": "other",
-    "message": "Target-window capture timed out; no game pixels were certified.",
-    "recovery": "timeout",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 245
     }
   },
   {
@@ -86371,14 +81687,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The Cloud OFF observation belongs to a different run.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 281
-    }
-  },
-  {
-    "area": "other",
     "message": "The DMM library changed while it was being read. Refresh it.",
     "recovery": "internal",
     "sources": {
@@ -86435,26 +81743,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The active input desktop is unavailable.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 130
-    }
-  },
-  {
-    "area": "other",
     "message": "The active prefab table does not round-trip exactly.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/hair_registration.py": 115
-    }
-  },
-  {
-    "area": "other",
-    "message": "The active save-context ownership record is missing; preserve all trees.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 196
     }
   },
   {
@@ -86547,22 +81839,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The baseline exit control is unrecognized.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 261
-    }
-  },
-  {
-    "area": "other",
-    "message": "The baseline scenario result is incomplete or unrelated.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 255
-    }
-  },
-  {
-    "area": "other",
     "message": "The bone offset table already has a different entry for {target}.",
     "recovery": "internal",
     "sources": {
@@ -86595,38 +81871,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The bound game input desktop is unavailable or changed.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 434
-    }
-  },
-  {
-    "area": "other",
-    "message": "The bound game process was replaced or its executable changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 395
-    }
-  },
-  {
-    "area": "other",
-    "message": "The bounded execution manifest has expired.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 79
-    }
-  },
-  {
-    "area": "other",
-    "message": "The bounded invocation ended; resuming requires another fresh frame.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 605
-    }
-  },
-  {
-    "area": "other",
     "message": "The browser check expired. Send the saved draft again.",
     "recovery": "internal",
     "sources": {
@@ -86635,34 +81879,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The cancelled execution has unexpected later events.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 291
-    }
-  },
-  {
-    "area": "other",
-    "message": "The capture expired before action dispatch; observe again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 105
-    }
-  },
-  {
-    "area": "other",
     "message": "The captured guide bone palette does not match this PAC.",
     "recovery": "internal",
     "sources": {
       "cdmw/modding/pac_cloth_guide_builder.py": 511
-    }
-  },
-  {
-    "area": "other",
-    "message": "The causal app toggle does not uniquely bind this save account.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 256
     }
   },
   {
@@ -86679,46 +81899,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/effect_character_reference.py": 685
-    }
-  },
-  {
-    "area": "other",
-    "message": "The cleanup action exceeded its single exit-confirmation contract.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 878
-    }
-  },
-  {
-    "area": "other",
-    "message": "The cleanup action journal changed before dispatch.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 874
-    }
-  },
-  {
-    "area": "other",
-    "message": "The cleanup directory already exists; explicitly reconcile it instead of replacing evidence.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 842
-    }
-  },
-  {
-    "area": "other",
-    "message": "The cleanup journal does not bind this immutable request and clock.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 694
-    }
-  },
-  {
-    "area": "other",
-    "message": "The cleanup predecessor execution manifest changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 647
     }
   },
   {
@@ -86779,22 +81959,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The complete native chain no longer reports this running game/profile at bind time.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 382
-    }
-  },
-  {
-    "area": "other",
-    "message": "The completed execution has unexpected later events.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 297
-    }
-  },
-  {
-    "area": "other",
     "message": "The connection to CDMW closed.",
     "recovery": "internal",
     "sources": {
@@ -86807,14 +81971,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/item_icons/controller.py": 358
-    }
-  },
-  {
-    "area": "other",
-    "message": "The current token-named native status, executable or profile changed before binding.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 400
     }
   },
   {
@@ -86859,86 +82015,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The desktop geometry is unavailable.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 502
-    }
-  },
-  {
-    "area": "other",
-    "message": "The device result already exists; it must not be overwritten or replayed.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/cditem_device_cli.py": 28
-    }
-  },
-  {
-    "area": "other",
-    "message": "The device run parent exceeds its bounded reconciliation inventory.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 230
-    }
-  },
-  {
-    "area": "other",
-    "message": "The device runner requires Windows x64.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 57
-    }
-  },
-  {
-    "area": "other",
-    "message": "The device-run event limit was reached.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 312
-    }
-  },
-  {
-    "area": "other",
-    "message": "The device-run journal belongs to another run.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 298
-    }
-  },
-  {
-    "area": "other",
-    "message": "The device-run journal changed outside this runner.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 310
-    }
-  },
-  {
-    "area": "other",
-    "message": "The device-run journal exceeds its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 295
-    }
-  },
-  {
-    "area": "other",
-    "message": "The device-test input changed: {path}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 87
-    }
-  },
-  {
-    "area": "other",
-    "message": "The disposable input must preserve the exact account marker and shared original files.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 471
-    }
-  },
-  {
-    "area": "other",
     "message": "The document must have exactly one hairstyle slot at Index 2.",
     "recovery": "input",
     "sources": {
@@ -86951,14 +82027,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/hair_registration.py": 128
-    }
-  },
-  {
-    "area": "other",
-    "message": "The durable execution ownership record changed; no input was dispatched.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 188
     }
   },
   {
@@ -86979,94 +82047,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The exact game, Steam executable or bound profile changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 304
-    }
-  },
-  {
-    "area": "other",
-    "message": "The executable and current native status require exact file guards.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 160
-    }
-  },
-  {
-    "area": "other",
-    "message": "The execution cancellation record is inconsistent.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 390
-    }
-  },
-  {
-    "area": "other",
-    "message": "The execution completion record is inconsistent.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 394
-    }
-  },
-  {
-    "area": "other",
-    "message": "The execution exceeded its immutable action budget.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 399
-    }
-  },
-  {
-    "area": "other",
-    "message": "The execution game or profile differs from its bound save context.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 135
-    }
-  },
-  {
-    "area": "other",
-    "message": "The execution journal does not bind this immutable manifest and clock.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 280
-    }
-  },
-  {
-    "area": "other",
-    "message": "The execution manifest belongs to a different run.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 299
-    }
-  },
-  {
-    "area": "other",
-    "message": "The execution names a different native game binding receipt.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 139
-    }
-  },
-  {
-    "area": "other",
-    "message": "The execution ownership record is missing after work began; preserve this unknown state.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 227
-    }
-  },
-  {
-    "area": "other",
-    "message": "The explicit live save context type is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 412
-    }
-  },
-  {
-    "area": "other",
     "message": "The extended table does not parse back the way it was written.",
     "recovery": "format",
     "sources": {
@@ -87079,22 +82059,6 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/domain/output_paths.py": 79
-    }
-  },
-  {
-    "area": "other",
-    "message": "The fresh frame belongs to another reviewed run.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 109
-    }
-  },
-  {
-    "area": "other",
-    "message": "The game PID was reused before its close request.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 444
     }
   },
   {
@@ -87115,26 +82079,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The game changed before frame capture.",
+    "message": "The game folder changed since the check. Check again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/cditem_device_windows.py": 197
-    }
-  },
-  {
-    "area": "other",
-    "message": "The game changed during frame capture.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 215
-    }
-  },
-  {
-    "area": "other",
-    "message": "The game client area or DPI is invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 185
+      "cdmw/services/old_install_removal.py": 654
     }
   },
   {
@@ -87147,14 +82095,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The game screen is unrecognized or blocked by a dialog.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 154
-    }
-  },
-  {
-    "area": "other",
     "message": "The game texture registry is unavailable.",
     "recovery": "missing",
     "sources": {
@@ -87163,26 +82103,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The game unexpectedly returned to its title screen.",
-    "recovery": "input",
+    "message": "The game's mount list ({MOUNT_LIST}) still names {', '.join(mount_entries)}, and CDMW cannot rewrite the mount list of the current game version. Use Steam's Verify integrity of game files first, then check again.",
+    "recovery": "write",
     "sources": {
-      "cdmw/services/cditem_device_runner.py": 193
-    }
-  },
-  {
-    "area": "other",
-    "message": "The game window geometry or DPI changed; capture again.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 397
-    }
-  },
-  {
-    "area": "other",
-    "message": "The game window is unavailable or hung.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 201
+      "cdmw/services/old_install_removal.py": 453
     }
   },
   {
@@ -87267,94 +82191,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The immutable execution action budget is exhausted.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 588
-    }
-  },
-  {
-    "area": "other",
-    "message": "The immutable live save manifest changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 416
-    }
-  },
-  {
-    "area": "other",
-    "message": "The input desktop changed or is unavailable.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 402
-    }
-  },
-  {
-    "area": "other",
-    "message": "The input point is outside the observed game client area.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 497
-    }
-  },
-  {
-    "area": "other",
-    "message": "The input recovery supervisor failed; verify held input before continuing.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 356
-    }
-  },
-  {
-    "area": "other",
-    "message": "The input recovery supervisor has not exited; retain this run for recovery.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 354
-    }
-  },
-  {
-    "area": "other",
-    "message": "The input recovery supervisor is unavailable.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 339
-    }
-  },
-  {
-    "area": "other",
-    "message": "The inspected control is outside the template.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 79
-    }
-  },
-  {
-    "area": "other",
-    "message": "The inspected frame belongs to another execution.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 51
-    }
-  },
-  {
-    "area": "other",
-    "message": "The inspected frame review is stale or belongs to another capture sequence.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 111
-    }
-  },
-  {
-    "area": "other",
-    "message": "The inspected regions exceed their total pixel limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 91
-    }
-  },
-  {
-    "area": "other",
     "message": "The installed armor mod has no supported replacement descriptor.",
     "recovery": "empty",
     "sources": {
@@ -87379,22 +82215,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The installed loader/bootstrap/ASI inventory changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 168
-    }
-  },
-  {
-    "area": "other",
-    "message": "The intended save and fresh gameplay are not established.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 249
-    }
-  },
-  {
-    "area": "other",
     "message": "The interactive preview could not load this package.",
     "recovery": "internal",
     "sources": {
@@ -87415,102 +82235,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/iteminfo_properties.py": 111
-    }
-  },
-  {
-    "area": "other",
-    "message": "The keyboard E prompt has not been observed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 202
-    }
-  },
-  {
-    "area": "other",
-    "message": "The known-writer census did not include this runner.",
-    "recovery": "write",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 158
-    }
-  },
-  {
-    "area": "other",
-    "message": "The legitimately bound game process birth identity changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 430
-    }
-  },
-  {
-    "area": "other",
-    "message": "The live Cloud evidence renewal chain changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 329
-    }
-  },
-  {
-    "area": "other",
-    "message": "The live Cloud evidence renewal history exceeds its supported bounds.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 322
-    }
-  },
-  {
-    "area": "other",
-    "message": "The live context already has an owned game or is not active.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 594
-    }
-  },
-  {
-    "area": "other",
-    "message": "The live context has an orphaned game/session receipt.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 439
-    }
-  },
-  {
-    "area": "other",
-    "message": "The live context is missing its owned game/session receipt.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 443
-    }
-  },
-  {
-    "area": "other",
-    "message": "The live context is not awaiting retained outputs.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 533
-    }
-  },
-  {
-    "area": "other",
-    "message": "The live request does not name the exact native Windows save root.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 296
-    }
-  },
-  {
-    "area": "other",
-    "message": "The live save context has not bound this exact owned game and run.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 126
-    }
-  },
-  {
-    "area": "other",
-    "message": "The live save receipt has an invalid process path, birth or fingerprint.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 175
     }
   },
   {
@@ -87579,66 +82303,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The mouse button is already held; input ownership is unknown.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 493
-    }
-  },
-  {
-    "area": "other",
-    "message": "The native Windows LocalAppData save root could not be established.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 113
-    }
-  },
-  {
-    "area": "other",
-    "message": "The native Windows save root and configured save root disagree.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 116
-    }
-  },
-  {
-    "area": "other",
-    "message": "The native known-writer census was incomplete.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 153
-    }
-  },
-  {
-    "area": "other",
     "message": "The native preview could not decode this model.",
     "recovery": "format",
     "sources": {
       "cdmw/workers/character_finder_workers.py": 351
-    }
-  },
-  {
-    "area": "other",
-    "message": "The native readiness receipt is not an actual member of the complete session chain.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 372
-    }
-  },
-  {
-    "area": "other",
-    "message": "The native readiness receipt predates this process birth or is from the future.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 369
-    }
-  },
-  {
-    "area": "other",
-    "message": "The native-session receipt does not bind this owned game/run.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 351
     }
   },
   {
@@ -87659,130 +82327,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The observation belongs to another run or process.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 138
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observation has no durable input cleanup scope.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 309
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observation is not bound to this run and current capture receipt.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 392
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observation receipt is stale or reused.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 140
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observed Cloud account candidate sets changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 248
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observed OFF setting does not match the bound account/configuration.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 285
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observed app/account toggle binding is incomplete.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 240
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observed click point is covered by another window.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 509
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observed confirmation must identify the selected disposable save.",
+    "message": "The older item identities in {LEGACY_REGISTRY_PATH} and the ones CDMW keeps for this game cannot be combined: {error}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/cditem_device_runner.py": 230
+      "cdmw/services/game_records.py": 140
     }
   },
   {
     "area": "other",
-    "message": "The observed control is outside the current client area.",
+    "message": "The older item identities in {LEGACY_REGISTRY_PATH} are in another format than the ones CDMW keeps for this game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/cditem_device_runner.py": 169
+      "cdmw/services/game_records.py": 129
     }
   },
   {
     "area": "other",
-    "message": "The observed menu key is already held; input ownership is unknown.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 479
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observed screenshot changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 399
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observed window belongs to another process.",
-    "recovery": "locked",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 175
-    }
-  },
-  {
-    "area": "other",
-    "message": "The observer must classify this fresh frame using the bounded observation fields.",
+    "message": "The older item identities in {LEGACY_REGISTRY_PATH} cannot be read: {error}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/cditem_device_execution.py": 482
-    }
-  },
-  {
-    "area": "other",
-    "message": "The offline save context is not awaiting experiment outputs.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 299
-    }
-  },
-  {
-    "area": "other",
-    "message": "The ordinary shutdown did not witness the current disabled Cloud configuration.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 313
+      "cdmw/services/game_records.py": 127
     }
   },
   {
@@ -87791,110 +82355,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/output_paths.py": 75
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned execution journal is missing; preserve this unknown state.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 215
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned frame-capture worker has not exited.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 259
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game exit confirmation has not been established.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 266
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game has not exited; preserve evidence before recovery.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 473
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game is no longer in the foreground.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 410
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game lost foreground while arming input.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 421
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game process changed before binding.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 367
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game process changed before save-context binding.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 402
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game process has exited.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 151
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game refused an ordinary close request.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 465
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game window is unavailable.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 172
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned game window was unexpectedly replaced.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 152
-    }
-  },
-  {
-    "area": "other",
-    "message": "The owned process is not the named installation executable.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 103
     }
   },
   {
@@ -87923,14 +82383,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The policy replay exceeds its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_cli.py": 81
-    }
-  },
-  {
-    "area": "other",
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
@@ -87939,18 +82391,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The prior close request requires complete input cleanup before another capture.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 295
-    }
-  },
-  {
-    "area": "other",
     "message": "The recovery manifest exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/installation_lane.py": 76
+      "cdmw/services/installation_lane.py": 77
     }
   },
   {
@@ -87987,122 +82431,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The retained action does not follow the current-run observation policy.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 327
-    }
-  },
-  {
-    "area": "other",
-    "message": "The retained native report is not the exact successful status bound by the sealed receipt.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 392
-    }
-  },
-  {
-    "area": "other",
-    "message": "The retained renewal shutdown belongs to a different live context.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 336
-    }
-  },
-  {
-    "area": "other",
-    "message": "The reviewed execution has no run identity.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 59
-    }
-  },
-  {
-    "area": "other",
-    "message": "The reviewed frame exceeds its byte limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 26
-    }
-  },
-  {
-    "area": "other",
-    "message": "The reviewed or captured frame changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 30
-    }
-  },
-  {
-    "area": "other",
     "message": "The row's inline key differs from its directory key.",
     "recovery": "internal",
     "sources": {
       "cdmw/core/static_table_records.py": 291
-    }
-  },
-  {
-    "area": "other",
-    "message": "The run directory already exists; explicitly reconcile/resume it.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 442
-    }
-  },
-  {
-    "area": "other",
-    "message": "The save account marker does not match the observed Steam/config account.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 308
-    }
-  },
-  {
-    "area": "other",
-    "message": "The save folder exceeds the supported backup size or file count.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 73
-    }
-  },
-  {
-    "area": "other",
-    "message": "The save-context copy changed during preparation.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 118
-    }
-  },
-  {
-    "area": "other",
-    "message": "The save-context files changed during inspection.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 97
-    }
-  },
-  {
-    "area": "other",
-    "message": "The save-context journal exceeds its size limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 141
-    }
-  },
-  {
-    "area": "other",
-    "message": "The save-context manifest changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 149
-    }
-  },
-  {
-    "area": "other",
-    "message": "The save-context root must be a directory.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 89
     }
   },
   {
@@ -88119,30 +82451,6 @@ MESSAGE_REFERENCE = [
     "recovery": "configuration",
     "sources": {
       "cdmw/core/skinned_decal.py": 306
-    }
-  },
-  {
-    "area": "other",
-    "message": "The screenshot observation is stale.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 143
-    }
-  },
-  {
-    "area": "other",
-    "message": "The sealed native receipt is not ready for this exact token, game and profile.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 363
-    }
-  },
-  {
-    "area": "other",
-    "message": "The selected disposable save has not been identified.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 217
     }
   },
   {
@@ -88355,14 +82663,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The target-window capture is black or uniform; another capture route is required.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 213
-    }
-  },
-  {
-    "area": "other",
     "message": "The template hair choice does not exist.",
     "recovery": "missing",
     "sources": {
@@ -88404,26 +82704,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The terminal cleanup journal belongs to a different request.",
+    "message": "The texture registry ({TEXTURE_REGISTRY}) still lists {len(present)} texture(s) of CDMW's old overlays on the current game version. Use Steam's Verify integrity of game files first, then check again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/cditem_device_execution.py": 778
-    }
-  },
-  {
-    "area": "other",
-    "message": "The terminal exit cleanup has unexpected later events.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 706
-    }
-  },
-  {
-    "area": "other",
-    "message": "The terminal run manifest changed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 418
+      "cdmw/services/old_install_removal.py": 483
     }
   },
   {
@@ -88436,26 +82720,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The toggle intent does not bind the original per-game Cloud setting.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 244
-    }
-  },
-  {
-    "area": "other",
     "message": "The transparency mask texture could not be encoded.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/transparency_masks.py": 99
-    }
-  },
-  {
-    "area": "other",
-    "message": "The unarmed input supervisor did not exit after startup failure.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 333
     }
   },
   {
@@ -88468,26 +82736,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The windowed executable requires --output before the device command.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_cli.py": 21
-    }
-  },
-  {
-    "area": "other",
     "message": "The written mod archive does not read back as the edited tables.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/game_table_edits.py": 364
-    }
-  },
-  {
-    "area": "other",
-    "message": "The {self.state} state exceeded its deadline.",
-    "recovery": "timeout",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 160
+      "cdmw/services/game_table_edits.py": 367
     }
   },
   {
@@ -88572,22 +82824,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "This completed recovery belongs to an earlier run; preserve the later setup.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 159
-    }
-  },
-  {
-    "area": "other",
-    "message": "This earlier overlay is managed as one bundle. Individual ownership history is unavailable.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/overlay_inventory_details.py": 43
-    }
-  },
-  {
-    "area": "other",
     "message": "This emitter has no editable sprite texture parameter.",
     "recovery": "internal",
     "sources": {
@@ -88608,22 +82844,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/effect_recipe.py": 178
-    }
-  },
-  {
-    "area": "other",
-    "message": "This execution already {run.state}; do not replay it.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 439
-    }
-  },
-  {
-    "area": "other",
-    "message": "This execution already {run.state}; it cannot be cancelled again.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 466
     }
   },
   {
@@ -88676,14 +82896,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "This menu keyboard mapping has not been calibrated; observe it before input.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 482
-    }
-  },
-  {
-    "area": "other",
     "message": "This model has no cloth guides to bind painted cloth to. Choose a template with cloth.",
     "recovery": "internal",
     "sources": {
@@ -88704,14 +82916,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/hair_registration.py": 75
-    }
-  },
-  {
-    "area": "other",
-    "message": "This run needs recovery or has already finished.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 134
     }
   },
   {
@@ -88932,22 +83136,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Unexpected main menu after save selection.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 207
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unexpected save-context state; retained files were not overwritten.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 104
-    }
-  },
-  {
-    "area": "other",
     "message": "Unknown ChaCha20 backend {backend}.",
     "recovery": "internal",
     "sources": {
@@ -89004,74 +83192,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Unknown concurrent save state; preserve all trees and investigate before recovery.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 401
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown device execution ownership state; preserve it for review.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 219
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown device-test deadline.",
-    "recovery": "timeout",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 110
-    }
-  },
-  {
-    "area": "other",
     "message": "Unknown effect class {self.effect} for {self.id}",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/commands/registry.py": 70
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown execution journal event.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 288
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown execution journal event; no input was replayed.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 383
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown execution pause record.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 353
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown exit cleanup journal event.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 703
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown exit cleanup pause record.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 760
     }
   },
   {
@@ -89116,30 +83240,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Unknown or inconsistent execution journal status.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 397
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown or overlapping exit cleanup input scope.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 726
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown or overlapping input cleanup scope.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 300
-    }
-  },
-  {
-    "area": "other",
     "message": "Unknown shared string {key} at {at}.",
     "recovery": "internal",
     "sources": {
@@ -89152,14 +83252,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/structured_binary_editor.py": 192
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unknown terminal cleanup ownership; no owner record was replaced.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 798
     }
   },
   {
@@ -89252,6 +83344,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Unsafe path in an old install record: {relative}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 211
+    }
+  },
+  {
+    "area": "other",
     "message": "Unsupported BuffInfo header: {name}",
     "recovery": "unsupported",
     "sources": {
@@ -89324,14 +83424,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Unsupported Steam configuration syntax.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 69
-    }
-  },
-  {
-    "area": "other",
     "message": "Unsupported bone offset table: {reason}.",
     "recovery": "unsupported",
     "sources": {
@@ -89344,14 +83436,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/iteminfo_dependency_graph.py": 164
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unsupported bounded exit cleanup request.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 628
     }
   },
   {
@@ -89408,22 +83492,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/core/iteminfo_declared_fields.py": 42
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unsupported device action.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 519
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unsupported device execution manifest.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_execution.py": 88
     }
   },
   {
@@ -89518,22 +83586,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Unsupported inspected frame review.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_review.py": 48
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unsupported installation recovery manifest.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_installation.py": 101
-    }
-  },
-  {
-    "area": "other",
     "message": "Unsupported item behavior flag.",
     "recovery": "unsupported",
     "sources": {
@@ -89598,14 +83650,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Unsupported live save context.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 419
-    }
-  },
-  {
-    "area": "other",
     "message": "Unsupported mesh import format: {source_path.suffix or source_path.name}",
     "recovery": "unsupported",
     "sources": {
@@ -89638,14 +83682,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Unsupported offline save context.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_saves.py": 154
-    }
-  },
-  {
-    "area": "other",
     "message": "Unsupported or ambiguous compact ItemInfo layout ({detail}).",
     "recovery": "unsupported",
     "sources": {
@@ -89658,30 +83694,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/dmm_character_mods.py": 49
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unsupported owned game close confirmation.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 460
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unsupported policy replay format or observation count.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 395
-    }
-  },
-  {
-    "area": "other",
-    "message": "Unsupported policy replay input.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 393
     }
   },
   {
@@ -89783,14 +83795,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Unsupported synthetic observation.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/services/cditem_device_runner.py": 402
-    }
-  },
-  {
-    "area": "other",
     "message": "Unsupported {field} flag.",
     "recovery": "unsupported",
     "sources": {
@@ -89843,14 +83847,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/transparency_masks.py": 44
-    }
-  },
-  {
-    "area": "other",
-    "message": "Use distinct existing parents and same-volume live staging outside the save tree.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 457
     }
   },
   {
@@ -90023,30 +84019,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Windows did not accept every injected input event.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 265
-    }
-  },
-  {
-    "area": "other",
-    "message": "Windows did not return target-window pixels.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 207
-    }
-  },
-  {
-    "area": "other",
-    "message": "Windows refused the game focus request.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/cditem_device_windows.py": 455
-    }
-  },
-  {
-    "area": "other",
     "message": "XML entities are unsupported.",
     "recovery": "unsupported",
     "sources": {
@@ -90106,7 +84078,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total}] COPY {rel_display} [{decision.texture_type}] -> high-precision PNG missing fallback kept original DDS",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/pipeline.py": 1004
+      "cdmw/core/pipeline.py": 1010
     }
   },
   {
@@ -90114,7 +84086,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total}] DRYRUN COPY {rel_display} [{decision.texture_type}] -> high-precision PNG missing fallback",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/pipeline.py": 985
+      "cdmw/core/pipeline.py": 991
     }
   },
   {
@@ -90122,7 +84094,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total}] FAIL {rel_display} -> {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pipeline.py": 1208
+      "cdmw/core/pipeline.py": 1214
     }
   },
   {
@@ -90130,7 +84102,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total}] FAIL {rel_display} -> {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pipeline.py": 369
+      "cdmw/core/pipeline.py": 371
     }
   },
   {
@@ -90138,7 +84110,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total}] FAIL {rel_display} -> {note}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pipeline.py": 841
+      "cdmw/core/pipeline.py": 847
     }
   },
   {
@@ -90179,6 +84151,14 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/core/item_icon_registry.py": 75
+    }
+  },
+  {
+    "area": "other",
+    "message": "a folder CDMW could not look into ({current}: {error.strerror or error})",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/protected_roots.py": 230
     }
   },
   {
@@ -90498,7 +84478,7 @@ MESSAGE_REFERENCE = [
     "message": "atomic publication cannot change the target type: {target}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/atomic_file.py": 178
+      "cdmw/core/atomic_file.py": 202
     }
   },
   {
@@ -90506,7 +84486,7 @@ MESSAGE_REFERENCE = [
     "message": "atomic publication requires every staged file",
     "recovery": "write",
     "sources": {
-      "cdmw/core/atomic_file.py": 97
+      "cdmw/core/atomic_file.py": 116
     }
   },
   {
@@ -90514,7 +84494,7 @@ MESSAGE_REFERENCE = [
     "message": "atomic publication targets must be unique",
     "recovery": "write",
     "sources": {
-      "cdmw/core/atomic_file.py": 95
+      "cdmw/core/atomic_file.py": 114
     }
   },
   {
@@ -90586,7 +84566,7 @@ MESSAGE_REFERENCE = [
     "message": "chaiNNer finished, but no PNG files were found in the configured PNG root. The chain likely still points at old folders or writes somewhere else.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pipeline.py": 671
+      "cdmw/core/pipeline.py": 677
     }
   },
   {
@@ -90594,7 +84574,7 @@ MESSAGE_REFERENCE = [
     "message": "chaiNNer finished, but no PNG files were found in the configured PNG root. The chain likely still points at old folders or writes somewhere else. {detail}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pipeline.py": 671
+      "cdmw/core/pipeline.py": 677
     }
   },
   {
@@ -90602,7 +84582,7 @@ MESSAGE_REFERENCE = [
     "message": "chaiNNer finished, but no PNG files were found in the configured PNG root. The chain likely still points at old folders or writes somewhere else.Native DDS encode did not produce this output.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pipeline.py": 671
+      "cdmw/core/pipeline.py": 677
     }
   },
   {
@@ -92500,6 +86480,7 @@ MESSAGE_REFERENCE = [
       "cdmw/modding/working_mod_recipe.py": 123,
       "cdmw/services/diagnostic_bundle_service.py": 107,
       "cdmw/services/diagnostics_service.py": 233,
+      "cdmw/services/old_install_removal.py": 596,
       "cdmw/services/problem_report_diagnostics.py": 61,
       "tools/audit_crimson_shader_corpus.py": 22,
       "tools/extract_crimson_shader_corpus.py": 27
@@ -92706,14 +86687,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/effect_spawn_surface.py": 51
-    }
-  },
-  {
-    "area": "other",
-    "message": "stale or future receipt",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/services/cditem_device_live_saves.py": 190
     }
   },
   {
@@ -93013,6 +86986,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/working_mod_recipe.py": 229
+    }
+  },
+  {
+    "area": "other",
+    "message": "tasklist did not run: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 600
+    }
+  },
+  {
+    "area": "other",
+    "message": "tasklist ended with code {done.returncode}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 602
     }
   },
   {
@@ -93324,7 +87313,7 @@ MESSAGE_REFERENCE = [
     "message": "the written mod archive does not read back as the edited charts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/action_chart_edit_service.py": 1154
+      "cdmw/services/action_chart_edit_service.py": 1157
     }
   },
   {
@@ -93457,6 +87446,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{STOPPED_PARTWAY} ({failure}), and putting the files back failed too ({restore_failure}). Changed before it stopped: {', '.join(removed)}. Every one of them is in the backup {backup_dir}; use Restore Backup... to put them back.",
+    "recovery": "recovery",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 754
+    }
+  },
+  {
+    "area": "other",
+    "message": "{STOPPED_PARTWAY} ({failure}). Everything it had changed ({', '.join(removed)}) was put back from the backup {backup_dir}.",
+    "recovery": "recovery",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 758
+    }
+  },
+  {
+    "area": "other",
     "message": "{basename} is at {len(paths)} archive paths; CDMW cannot tell which one the game loads.",
     "recovery": "input",
     "sources": {
@@ -93509,6 +87514,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/automation/bridge.py": 275
+    }
+  },
+  {
+    "area": "other",
+    "message": "{conflict} CDMW leaves {CDMW_FOLDER} alone so no item loses its identity. If you no longer need the items an older CDMW installed, move {LEGACY_REGISTRY} out of the game folder yourself, then check again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 551
+    }
+  },
+  {
+    "area": "other",
+    "message": "{conflict} Nothing was changed; the backup is kept.",
+    "recovery": "recovery",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 704
     }
   },
   {
@@ -93765,6 +87786,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/action_chart_edit_service.py": 973
+    }
+  },
+  {
+    "area": "other",
+    "message": "{holder} may not write into the game folder.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/core/protected_roots.py": 285
     }
   },
   {
@@ -94069,6 +88098,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/verify_fbx_rig_in_blender.py": 104
+    }
+  },
+  {
+    "area": "other",
+    "message": "{message} Everything CDMW keeps for itself lives in the CDMW folder.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/protected_roots.py": 191
     }
   },
   {
@@ -94489,10 +88526,42 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{relative} changed since the check. Check again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 681
+    }
+  },
+  {
+    "area": "other",
+    "message": "{relative} passes through a link; it is left alone.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 216
+    }
+  },
+  {
+    "area": "other",
+    "message": "{relative} resolves outside the game folder; it is left alone.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 202
+    }
+  },
+  {
+    "area": "other",
     "message": "{riding} painted pieces have no fixed guide and follow the nearest held cloth.",
     "recovery": "internal",
     "sources": {
       "cdmw/modding/pac_cloth_painted_guides.py": 417
+    }
+  },
+  {
+    "area": "other",
+    "message": "{root} is not a Crimson Desert game folder. Choose the game folder first.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/old_install_removal.py": 384
     }
   },
   {
@@ -95076,7 +89145,7 @@ MESSAGE_REFERENCE = [
     "message": "A backup needs at least one file.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/archive_mutation_service.py": 60
+      "cdmw/services/archive_mutation_service.py": 121
     }
   },
   {
@@ -95108,23 +89177,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backup restore requires explicit confirmation.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/archive_mutation_service.py": 109
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Archive entry {request.entry.path} no longer points at PAZ index {request.entry.paz_index}; current PAMT record points at PAZ index {mutable_record.paz_index}.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_patching.py": 223
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Archive entry {request.entry.path} points at {entry_paz_path.name}, but the current PAMT record expects {expected_paz_path.name}.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_patching.py": 233
+      "cdmw/services/archive_mutation_service.py": 185
     }
   },
   {
@@ -95132,15 +89185,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive patch backup directory was not found: {resolved}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/core/archive_patching.py": 544
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Archive patching currently requires all modified entries to come from the same package root.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_patching.py": 693
+      "cdmw/core/archive_patching.py": 277
     }
   },
   {
@@ -95148,7 +89193,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive patching does not support compression type {compression_type} yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_patching.py": 194
+      "cdmw/core/archive_patching.py": 68
     }
   },
   {
@@ -95156,7 +89201,15 @@ MESSAGE_REFERENCE = [
     "message": "Backup manifest was not found under {backup_dir}.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/core/archive_patching.py": 500
+      "cdmw/core/archive_patching.py": 232
+    }
+  },
+  {
+    "area": "packages",
+    "message": "Backup manifest was not found under {folder}.",
+    "recovery": "recovery",
+    "sources": {
+      "cdmw/services/archive_mutation_service.py": 60
     }
   },
   {
@@ -95193,14 +89246,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "Checking missing archive references...",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/ui/tools/mod_management_overview.py": 193
-    }
-  },
-  {
-    "area": "packages",
     "message": "Choose a matching unbaked PAC for Restore fitting shape.",
     "recovery": "internal",
     "sources": {
@@ -95209,34 +89254,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "Choose the installed Crimson Desert game folder.",
-    "recovery": "internal",
+    "message": "Choose the game folder in Browse Archives first. Restore Backup only writes inside it.",
+    "recovery": "recovery",
     "sources": {
-      "cdmw/services/mod_management_inventory.py": 47
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Cleaning missing archive references...",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/ui/tools/mod_management_overview.py": 253
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Cleanup cancelled. The archive list is unchanged.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/ui/tools/mod_management_overview.py": 242
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Compact or extended PAMT indexes are read-only; archive patching is not supported for this layout.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/core/archive_patching.py": 132
+      "cdmw/services/archive_mutation_service.py": 54
     }
   },
   {
@@ -95252,31 +89273,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not find PAPGT root index at {papgt_path}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_patching.py": 339
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Could not find archive metadata file {pamt_path}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_patching.py": 208
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Could not find archive payload file {expected_paz_path}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_patching.py": 238
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Could not find archive payload file {paz_path}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_patching.py": 666
+      "cdmw/core/archive_patching.py": 125
     }
   },
   {
@@ -95285,14 +89282,6 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/mod_package_retrofit.py": 822
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Could not locate {request.entry.path} inside {pamt_path.name}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_patching.py": 642
     }
   },
   {
@@ -95313,18 +89302,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "Crimson Desert is already running.",
-    "recovery": "locked",
-    "sources": {
-      "cdmw/services/mod_management_inventory.py": 44
-    }
-  },
-  {
-    "area": "packages",
     "message": "Direct archive patching for Partial DDS entries is not supported yet. Write a mod-ready loose replacement instead.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_patching.py": 728
+      "cdmw/core/archive_patching.py": 286
     }
   },
   {
@@ -95332,7 +89313,7 @@ MESSAGE_REFERENCE = [
     "message": "DirectXTex native DDS rebuild unavailable for {entry.path}: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_patching.py": 823
+      "cdmw/core/archive_patching.py": 381
     }
   },
   {
@@ -95508,7 +89489,7 @@ MESSAGE_REFERENCE = [
     "message": "LZ4 support is not available in this build.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_patching.py": 192
+      "cdmw/core/archive_patching.py": 66
     }
   },
   {
@@ -95540,7 +89521,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DDS rebuild failed for {entry.path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_patching.py": 835
+      "cdmw/core/archive_patching.py": 393
     }
   },
   {
@@ -95553,14 +89534,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "No archive modifications were provided.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_patching.py": 689
-    }
-  },
-  {
-    "area": "packages",
     "message": "No game-content payload files were detected.",
     "recovery": "format",
     "sources": {
@@ -95569,26 +89542,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "No missing mod references to clean.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/ui/tools/mod_management_overview.py": 225
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Nothing in the shipped archives differs from the oldest backup of it, so there is nothing to move.",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/ui/tools/mod_management.py": 402
-    }
-  },
-  {
-    "area": "packages",
     "message": "Operation finished or cancelled. Review the results before continuing.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 338
+      "cdmw/ui/tools/mod_management.py": 229
     }
   },
   {
@@ -95617,122 +89574,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "Overlay target changed after preparation: {path}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 62
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Overlay target changed before its mutation: {path}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 122
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Overlay target changed before rollback cleanup: {path}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 201
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Overlay target changed while preserving recovery bytes: {original}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 113
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Overlay target does not match its attempted mutation: {path}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 139
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Overlay target has an unexpected link: {path}",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 25
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Overlay target is not a regular file: {path}",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 29
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Overlay targets changed before scoped recovery",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 188
-    }
-  },
-  {
-    "area": "packages",
-    "message": "PAMT checksum verification failed for {pamt_path.name}: stored=0x{stored_pamt_crc} computed=0x{computed_pamt_crc}",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/core/archive_patching.py": 415
-    }
-  },
-  {
-    "area": "packages",
-    "message": "PAMT {pamt_path.name} is missing PAZ table entry {mutable_record.paz_index}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_patching.py": 228
-    }
-  },
-  {
-    "area": "packages",
-    "message": "PAMT {pamt_path.name} is missing PAZ table entry {paz_index}.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/archive_patching.py": 663
-    }
-  },
-  {
-    "area": "packages",
-    "message": "PAPGT checksum verification failed: stored=0x{stored_papgt_crc} computed=0x{computed_papgt_crc}",
-    "recovery": "integrity",
-    "sources": {
-      "cdmw/core/archive_patching.py": 406
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Package group {package_group} is not present under {package_root}.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_patching.py": 396
-    }
-  },
-  {
-    "area": "packages",
     "message": "Package links require an implemented content module.",
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_mod_package.py": 104
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Patch failed. Restoring files from backup: {backup_dir}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/core/archive_patching.py": 608
     }
   },
   {
@@ -95753,14 +89598,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "Point the workbench at the game folder first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/ui/tools/mod_management.py": 374
-    }
-  },
-  {
-    "area": "packages",
     "message": "Possible binary mismatch for {target_path}: source size {source_size} vs archive size {archive_size}",
     "recovery": "input",
     "sources": {
@@ -95777,22 +89614,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "Recover the interrupted virtual profile transaction first.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mod_management_inventory.py": 21
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Recovery copy changed for {path}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 178
-    }
-  },
-  {
-    "area": "packages",
     "message": "Removed stale new-path marker for existing current-game path: {source_path}",
     "recovery": "stale",
     "sources": {
@@ -95804,7 +89625,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement DDS was not found: {resolved_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_patching.py": 747
+      "cdmw/core/archive_patching.py": 305
     }
   },
   {
@@ -95812,15 +89633,31 @@ MESSAGE_REFERENCE = [
     "message": "Replacement PNG was not found: {resolved_png}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_patching.py": 789
+      "cdmw/core/archive_patching.py": 347
     }
   },
   {
     "area": "packages",
-    "message": "Required game archives are missing: {value_0}. Verify the game files before continuing.",
-    "recovery": "missing",
+    "message": "Restore Backup refused {folder.name}: it names a file without a full path ({recorded or 'empty'}). Nothing was written.",
+    "recovery": "recovery",
     "sources": {
-      "cdmw/ui/tools/mod_management_overview.py": 145
+      "cdmw/services/archive_mutation_service.py": 72
+    }
+  },
+  {
+    "area": "packages",
+    "message": "Restore Backup refused {folder.name}: it would write {recorded}, which is outside the game folder CDMW is set to ({root}). Nothing was written. Point CDMW at the game folder the backup was made for, then try again.",
+    "recovery": "recovery",
+    "sources": {
+      "cdmw/services/archive_mutation_service.py": 77
+    }
+  },
+  {
+    "area": "packages",
+    "message": "Restore Backup refused {folder.name}: the copy of {recorded} is not inside the backup folder ({copy or 'empty'}). Nothing was written.",
+    "recovery": "recovery",
+    "sources": {
+      "cdmw/services/archive_mutation_service.py": 83
     }
   },
   {
@@ -95977,22 +89814,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "Rollback did not remove its created target: {path}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 204
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Rollback did not restore {path}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 196
-    }
-  },
-  {
-    "area": "packages",
     "message": "Select an original v1 package for migration.",
     "recovery": "input",
     "sources": {
@@ -96041,18 +89862,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "The archive mutation service is not available in this window.",
-    "recovery": "internal",
+    "message": "The backup manifest in {folder} cannot be read: its file list is not a list.",
+    "recovery": "recovery",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 370
+      "cdmw/services/archive_mutation_service.py": 67
     }
   },
   {
     "area": "packages",
-    "message": "The archives could not be read: {message}",
-    "recovery": "internal",
+    "message": "The backup manifest in {folder} cannot be read: {error}",
+    "recovery": "recovery",
     "sources": {
-      "cdmw/ui/tools/mod_management.py": 392
+      "cdmw/services/archive_mutation_service.py": 64
     }
   },
   {
@@ -96081,42 +89902,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "packages",
-    "message": "The overlay backup did not preserve every original target",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 103
-    }
-  },
-  {
-    "area": "packages",
-    "message": "The overlay backup does not match its original target: {original}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 100
-    }
-  },
-  {
-    "area": "packages",
-    "message": "The overlay backup manifest is missing or invalid: {manifest_path}",
-    "recovery": "recovery",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 93
-    }
-  },
-  {
-    "area": "packages",
     "message": "The package contains unreferenced resources.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_mod_package.py": 97
-    }
-  },
-  {
-    "area": "packages",
-    "message": "The saved profile changed. Refresh the mod list before launching.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mod_management_inventory.py": 42
     }
   },
   {
@@ -96133,14 +89922,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_mod_package.py": 286
-    }
-  },
-  {
-    "area": "packages",
-    "message": "Unknown contents at {path}; preserve this target for recovery",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/overlay_target_recovery.py": 163
     }
   },
   {
@@ -96188,63 +89969,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is not a DDS archive entry.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_patching.py": 743
-    }
-  },
-  {
-    "area": "packages",
-    "message": "{pamt_path.name} directory block length is truncated.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/archive_patching.py": 100
-    }
-  },
-  {
-    "area": "packages",
-    "message": "{pamt_path.name} file table is truncated.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/archive_patching.py": 130
-    }
-  },
-  {
-    "area": "packages",
-    "message": "{pamt_path.name} file table length is truncated.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/archive_patching.py": 124
-    }
-  },
-  {
-    "area": "packages",
-    "message": "{pamt_path.name} file-name block length is truncated.",
-    "recovery": "locked",
-    "sources": {
-      "cdmw/core/archive_patching.py": 107
-    }
-  },
-  {
-    "area": "packages",
-    "message": "{pamt_path.name} folder table is truncated.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/archive_patching.py": 119
-    }
-  },
-  {
-    "area": "packages",
-    "message": "{pamt_path.name} folder table length is truncated.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/archive_patching.py": 114
-    }
-  },
-  {
-    "area": "packages",
-    "message": "{pamt_path} is too small to be a valid PAMT file.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/archive_patching.py": 80
+      "cdmw/core/archive_patching.py": 301
     }
   },
   {
@@ -102776,7 +96501,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. Windows did not accept the application job object.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 122
+      "cdmw/app/bootstrap.py": 113
     }
   },
   {
@@ -102784,7 +96509,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 122
+      "cdmw/app/bootstrap.py": 113
     }
   },
   {
@@ -102792,7 +96517,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose isolated renderer host without --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 130
+      "cdmw/app/bootstrap.py": 121
     }
   },
   {
@@ -102800,7 +96525,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose only one of --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 128
+      "cdmw/app/bootstrap.py": 119
     }
   },
   {
@@ -102968,7 +96693,7 @@ MESSAGE_REFERENCE = [
     "message": "Legacy isolated renderer hosts were removed; model previews use the resident Preview renderer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 132
+      "cdmw/app/bootstrap.py": 123
     }
   },
   {
@@ -103457,14 +97182,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/domain/localization.py": 143
-    }
-  },
-  {
-    "area": "settings",
-    "message": "Use --cditem-device-tests without other application modes or options.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/app/bootstrap.py": 75
     }
   },
   {
@@ -107989,7 +101706,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/archive_asset_family.py",
     "cdmw/core/archive_audio.py",
     "cdmw/core/archive_compact_index.py",
-    "cdmw/core/archive_entry_addition.py",
     "cdmw/core/archive_entry_store.py",
     "cdmw/core/archive_extraction.py",
     "cdmw/core/archive_format.py",
@@ -108018,11 +101734,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/archives/safety.py",
     "cdmw/services/archive_catalogue_service.py",
     "cdmw/services/archive_mesh_comparison.py",
-    "cdmw/services/archive_overlay_install.py",
-    "cdmw/services/archive_overlay_manager.py",
-    "cdmw/services/archive_overlay_migration.py",
     "cdmw/services/archive_path_export.py",
-    "cdmw/services/archive_reference_cleanup.py",
     "cdmw/services/archive_reference_search.py",
     "cdmw/services/archive_verification_process.py",
     "cdmw/services/archive_workflow_service.py",
@@ -108050,8 +101762,10 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/archive_browser/mesh_import_export.py",
     "cdmw/ui/archive_browser/mesh_launch_flow.py",
     "cdmw/ui/archive_browser/mesh_patch_flow.py",
+    "cdmw/ui/archive_browser/old_install_removal.py",
     "cdmw/ui/archive_browser/pab_bone_editor_dialog.py",
     "cdmw/ui/archive_browser/pac_xml_editor_composition.py",
+    "cdmw/ui/archive_browser/patch_actions.py",
     "cdmw/ui/archive_browser/path_export_controller.py",
     "cdmw/ui/archive_browser/preview_core_prewarm.py",
     "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
@@ -108190,20 +101904,13 @@ DYNAMIC_REFERENCE = {
     "tools/report_prefab_json_import_corpus.py"
   ],
   "independent": [
-    "cdmw/domain/virtual_session_receipt.py",
     "cdmw/services/independent_item_compatibility.py",
     "cdmw/services/independent_item_dlc.py",
     "cdmw/services/independent_item_install.py",
     "cdmw/services/independent_item_native_resources.py",
     "cdmw/services/independent_item_package.py",
     "cdmw/services/independent_item_physics.py",
-    "cdmw/services/virtual_loader_cache.py",
-    "cdmw/services/virtual_loader_process.py",
-    "cdmw/services/virtual_loader_receipts.py",
-    "cdmw/services/virtual_loader_runtime.py",
-    "cdmw/services/virtual_loader_standalone.py",
     "cdmw/services/virtual_loader_state.py",
-    "cdmw/services/virtual_save_experiment_protocol.py",
     "native/cdmw_virtual_loader/compose_launch.cpp",
     "native/cdmw_virtual_loader/protocol.cpp",
     "native/cdmw_virtual_loader/resource_serving.cpp",
@@ -108616,13 +102323,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/modding/working_mod_recipe.py",
     "cdmw/services/application_shutdown_service.py",
     "cdmw/services/asset_authoring_service.py",
-    "cdmw/services/cditem_device_cli.py",
-    "cdmw/services/cditem_device_execution.py",
-    "cdmw/services/cditem_device_installation.py",
-    "cdmw/services/cditem_device_live_saves.py",
-    "cdmw/services/cditem_device_review.py",
-    "cdmw/services/cditem_device_runner.py",
-    "cdmw/services/cditem_device_windows.py",
     "cdmw/services/character_context_service.py",
     "cdmw/services/dmm_dlc_tables.py",
     "cdmw/services/dmm_send_process.py",
@@ -108633,6 +102333,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/game_table_edits.py",
     "cdmw/services/iteminfo_dependency_graph.py",
     "cdmw/services/mod_merge_service.py",
+    "cdmw/services/old_install_removal.py",
     "cdmw/services/problem_report_diagnostics.py",
     "cdmw/services/problem_report_service.py",
     "cdmw/services/process_job_service.py",
@@ -108693,7 +102394,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/mod_package_retrofit.py",
     "cdmw/services/independent_mod_package.py",
     "cdmw/services/mesh_service_refit_recovery.py",
-    "cdmw/services/overlay_target_recovery.py",
     "cdmw/ui/tools/mod_management.py",
     "cdmw/ui/tools/mod_package_retrofit_tasks.py",
     "cdmw/ui/tools/mod_package_retrofit_view.py",
@@ -108871,7 +102571,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/app/args.py": {},
   "cdmw/app/bootstrap.py": {
-    "log": 4,
+    "log": 3,
     "raise": 3,
     "report": 2
   },
@@ -108985,11 +102685,6 @@ SOURCE_COVERAGE = {
   "cdmw/core/archive_data_table_preview.py": {},
   "cdmw/core/archive_dlc_metadata_preview.py": {
     "raise": 6
-  },
-  "cdmw/core/archive_entry_addition.py": {
-    "failure": 1,
-    "raise": 41,
-    "report": 9
   },
   "cdmw/core/archive_entry_store.py": {
     "diagnostic_field": 3,
@@ -109257,10 +102952,9 @@ SOURCE_COVERAGE = {
     "raise": 5
   },
   "cdmw/core/archive_patching.py": {
-    "diagnostic_field": 1,
-    "display": 2,
-    "raise": 35,
-    "report": 2,
+    "display": 1,
+    "raise": 12,
+    "report": 1,
     "validation": 1
   },
   "cdmw/core/archive_preview_result_builder.py": {
@@ -109726,6 +103420,11 @@ SOURCE_COVERAGE = {
   "cdmw/core/prefab_recovery.py": {},
   "cdmw/core/projectile_package.py": {
     "raise": 16
+  },
+  "cdmw/core/protected_roots.py": {
+    "raise": 2,
+    "report": 4,
+    "validation": 1
   },
   "cdmw/core/realesrgan_ncnn.py": {
     "assertion": 2,
@@ -110274,21 +103973,6 @@ SOURCE_COVERAGE = {
     "raise": 6
   },
   "cdmw/domain/virtual_loader.py": {},
-  "cdmw/domain/virtual_save_evidence.py": {
-    "code": 7,
-    "diagnostic_field": 1,
-    "diagnostic_text": 1,
-    "raise": 19,
-    "report": 1
-  },
-  "cdmw/domain/virtual_save_lineage.py": {
-    "raise": 10
-  },
-  "cdmw/domain/virtual_session_receipt.py": {
-    "code": 6,
-    "diagnostic_text": 1,
-    "raise": 6
-  },
   "cdmw/domain/workspace.py": {},
   "cdmw/domain/xml_text.py": {
     "diagnostic_field": 6,
@@ -110854,23 +104538,16 @@ SOURCE_COVERAGE = {
     "raise": 4
   },
   "cdmw/services/archive_mutation_service.py": {
-    "raise": 2
+    "raise": 9
   },
   "cdmw/services/archive_overlay_install.py": {
-    "raise": 43
+    "raise": 1
   },
   "cdmw/services/archive_overlay_manager.py": {
-    "diagnostic_text": 4,
-    "raise": 95
-  },
-  "cdmw/services/archive_overlay_migration.py": {
-    "raise": 12
+    "raise": 49
   },
   "cdmw/services/archive_overlay_package_service.py": {
     "raise": 2
-  },
-  "cdmw/services/archive_overlay_rebuild.py": {
-    "raise": 9
   },
   "cdmw/services/archive_path_export.py": {
     "raise": 4
@@ -110878,10 +104555,6 @@ SOURCE_COVERAGE = {
   "cdmw/services/archive_preview_service.py": {},
   "cdmw/services/archive_query_service.py": {},
   "cdmw/services/archive_read_service.py": {},
-  "cdmw/services/archive_reference_cleanup.py": {
-    "display": 1,
-    "raise": 13
-  },
   "cdmw/services/archive_reference_search.py": {
     "diagnostic_field": 8,
     "raise": 10
@@ -110908,39 +104581,6 @@ SOURCE_COVERAGE = {
   "cdmw/services/cache_layout.py": {},
   "cdmw/services/cache_service.py": {},
   "cdmw/services/cancellable_file_service.py": {},
-  "cdmw/services/cditem_device_cli.py": {
-    "raise": 6,
-    "report": 1
-  },
-  "cdmw/services/cditem_device_execution.py": {
-    "failure": 106,
-    "raise": 7,
-    "report": 36
-  },
-  "cdmw/services/cditem_device_installation.py": {
-    "raise": 19
-  },
-  "cdmw/services/cditem_device_live_saves.py": {
-    "failure": 63,
-    "raise": 2,
-    "report": 18
-  },
-  "cdmw/services/cditem_device_review.py": {
-    "diagnostic_field": 1,
-    "raise": 17
-  },
-  "cdmw/services/cditem_device_runner.py": {
-    "finding": 4,
-    "raise": 43,
-    "report": 2
-  },
-  "cdmw/services/cditem_device_saves.py": {
-    "raise": 25
-  },
-  "cdmw/services/cditem_device_windows.py": {
-    "raise": 61,
-    "report": 1
-  },
   "cdmw/services/character_context_service.py": {
     "failure": 1,
     "signal": 9
@@ -111026,6 +104666,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/game_executable_fingerprints.py": {
     "raise": 1
   },
+  "cdmw/services/game_records.py": {
+    "raise": 4
+  },
   "cdmw/services/game_table_edits.py": {
     "raise": 12
   },
@@ -111053,7 +104696,7 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/services/independent_item_install.py": {
-    "raise": 64,
+    "raise": 44,
     "validation": 1
   },
   "cdmw/services/independent_item_isolation.py": {
@@ -111439,14 +105082,12 @@ SOURCE_COVERAGE = {
   "cdmw/services/mesh_workflow_service.py": {
     "raise": 1
   },
-  "cdmw/services/mod_management_inventory.py": {
-    "raise": 4
-  },
+  "cdmw/services/mod_management_inventory.py": {},
   "cdmw/services/mod_merge_service.py": {
     "raise": 28
   },
   "cdmw/services/mod_update_service.py": {
-    "raise": 17
+    "raise": 16
   },
   "cdmw/services/model_library_preview.py": {
     "diagnostic_field": 1,
@@ -111518,15 +105159,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/new_item_mod_base.py": {
     "raise": 10
   },
-  "cdmw/services/new_item_mounted_base.py": {
-    "raise": 18,
-    "validation": 1
-  },
   "cdmw/services/new_item_overlay_export.py": {},
-  "cdmw/services/new_item_overlay_preview.py": {
-    "diagnostic_field": 2,
-    "raise": 3
-  },
   "cdmw/services/new_item_panel_search.py": {},
   "cdmw/services/new_item_planning.py": {
     "diagnostic_field": 3,
@@ -111563,7 +105196,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/new_item_service.py": {
     "diagnostic_field": 1,
     "finding": 1,
-    "raise": 20
+    "raise": 13
   },
   "cdmw/services/new_item_settings.py": {
     "raise": 15
@@ -111612,14 +105245,14 @@ SOURCE_COVERAGE = {
   "cdmw/services/new_item_wearers.py": {
     "raise": 10
   },
-  "cdmw/services/orphan_helper_reaper.py": {},
-  "cdmw/services/overlay_inventory_details.py": {
-    "raise": 3,
+  "cdmw/services/old_install_removal.py": {
+    "diagnostic_field": 1,
+    "display": 2,
+    "finding": 3,
+    "raise": 18,
     "validation": 1
   },
-  "cdmw/services/overlay_target_recovery.py": {
-    "raise": 17
-  },
+  "cdmw/services/orphan_helper_reaper.py": {},
   "cdmw/services/pab_skeleton_edit_service.py": {
     "raise": 20
   },
@@ -111710,48 +105343,11 @@ SOURCE_COVERAGE = {
   "cdmw/services/transparency_masks.py": {
     "raise": 16
   },
-  "cdmw/services/virtual_loader_cache.py": {
-    "raise": 10
-  },
   "cdmw/services/virtual_loader_composition.py": {
-    "raise": 10
-  },
-  "cdmw/services/virtual_loader_process.py": {
-    "raise": 6
-  },
-  "cdmw/services/virtual_loader_receipts.py": {
-    "diagnostic_field": 1,
-    "raise": 40,
-    "report": 3
-  },
-  "cdmw/services/virtual_loader_runtime.py": {
-    "display": 11,
-    "raise": 61
-  },
-  "cdmw/services/virtual_loader_save_evidence.py": {
-    "raise": 13
-  },
-  "cdmw/services/virtual_loader_saves.py": {
-    "raise": 18
-  },
-  "cdmw/services/virtual_loader_smoke.py": {
-    "raise": 4
-  },
-  "cdmw/services/virtual_loader_sources.py": {
-    "raise": 4
-  },
-  "cdmw/services/virtual_loader_standalone.py": {
-    "diagnostic_field": 1,
-    "raise": 5
+    "raise": 1
   },
   "cdmw/services/virtual_loader_state.py": {
-    "log": 3,
-    "raise": 59
-  },
-  "cdmw/services/virtual_save_experiment_protocol.py": {
-    "diagnostic_field": 1,
-    "diagnostic_text": 1,
-    "raise": 61
+    "raise": 36
   },
   "cdmw/services/workspace_layout.py": {},
   "cdmw/ui/__init__.py": {},
@@ -112079,6 +105675,10 @@ SOURCE_COVERAGE = {
   "cdmw/ui/archive_browser/model.py": {
     "raise": 2
   },
+  "cdmw/ui/archive_browser/old_install_removal.py": {
+    "dialog": 3,
+    "failure": 2
+  },
   "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": {
     "diagnostic_field": 1,
     "dialog": 3,
@@ -112103,7 +105703,7 @@ SOURCE_COVERAGE = {
     "display": 1
   },
   "cdmw/ui/archive_browser/patch_actions.py": {
-    "dialog": 2
+    "dialog": 3
   },
   "cdmw/ui/archive_browser/path_export_controller.py": {
     "diagnostic_field": 2,
@@ -113163,7 +106763,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/new_item/controller_task_mixin.py": {
     "failure": 3,
     "finding": 10,
-    "signal": 4
+    "signal": 3
   },
   "cdmw/ui/new_item/controller_variant_mixin.py": {
     "raise": 3
@@ -113218,10 +106818,6 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/new_item/glow_animation_editor.py": {},
   "cdmw/ui/new_item/import_details.py": {},
-  "cdmw/ui/new_item/independent_items_page.py": {
-    "diagnostic_field": 2,
-    "dialog": 2
-  },
   "cdmw/ui/new_item/installed_character_models.py": {
     "display": 2,
     "failure": 2
@@ -113256,6 +106852,7 @@ SOURCE_COVERAGE = {
     "display": 1
   },
   "cdmw/ui/new_item/mod_merge_dialog.py": {
+    "display": 1,
     "failure": 1
   },
   "cdmw/ui/new_item/mod_update_dialog.py": {
@@ -113267,10 +106864,6 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 1,
     "raise": 8
   },
-  "cdmw/ui/new_item/overlay_manager_dialog.py": {
-    "display": 3,
-    "failure": 1
-  },
   "cdmw/ui/new_item/panels_identity.py": {},
   "cdmw/ui/new_item/panels_model.py": {
     "display": 1
@@ -113281,11 +106874,8 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/new_item/panels_output.py": {
     "diagnostic_field": 1,
-    "diagnostic_text": 1,
-    "dialog": 1,
     "display": 1,
-    "report": 1,
-    "validation": 1
+    "report": 1
   },
   "cdmw/ui/new_item/panels_perks.py": {},
   "cdmw/ui/new_item/panels_placement.py": {},
@@ -113346,7 +106936,6 @@ SOURCE_COVERAGE = {
   "cdmw/ui/new_item/surface_editor.py": {},
   "cdmw/ui/new_item/tab.py": {
     "diagnostic_text": 1,
-    "dialog": 2,
     "display": 6,
     "failure": 4,
     "raise": 1,
@@ -113367,9 +106956,6 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/ui/new_item/ui_kit.py": {},
-  "cdmw/ui/new_item/virtual_loader_page.py": {
-    "display": 1
-  },
   "cdmw/ui/new_item/wearer_editor.py": {
     "display": 1
   },
@@ -113779,14 +107365,9 @@ SOURCE_COVERAGE = {
   "cdmw/ui/tools/dmm_packages_page.py": {},
   "cdmw/ui/tools/mod_management.py": {
     "diagnostic_field": 1,
-    "dialog": 4,
     "display": 1
   },
   "cdmw/ui/tools/mod_management_advanced.py": {},
-  "cdmw/ui/tools/mod_management_list.py": {},
-  "cdmw/ui/tools/mod_management_overview.py": {
-    "display": 5
-  },
   "cdmw/ui/tools/mod_package_retrofit.py": {},
   "cdmw/ui/tools/mod_package_retrofit_tasks.py": {
     "signal": 1
@@ -113908,9 +107489,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/workers/mesh_editor_export_support.py": {},
   "cdmw/workers/mesh_editor_workers.py": {
-    "diagnostic_field": 8,
+    "diagnostic_field": 6,
     "raise": 35,
-    "signal": 8
+    "signal": 6
   },
   "cdmw/workers/mesh_export_readback.py": {},
   "cdmw/workers/mesh_free_edit_output_worker.py": {
@@ -113968,7 +107549,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/workers/new_item_workers.py": {
     "display": 1,
-    "raise": 11
+    "raise": 8
   },
   "cdmw/workers/preview_cache_maintenance.py": {
     "diagnostic_field": 2
