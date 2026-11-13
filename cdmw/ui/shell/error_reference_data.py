@@ -60929,7 +60929,7 @@ MESSAGE_REFERENCE = [
     "message": "Restore target session ID is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 778
+      "cdmw/modding/mesh_native_session_api.py": 787
     }
   },
   {
@@ -61882,7 +61882,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot checksum is missing or invalid.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 677
+      "cdmw/modding/mesh_native_session_api.py": 686
     }
   },
   {
@@ -61890,7 +61890,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot descriptor is not an object.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 655
+      "cdmw/modding/mesh_native_session_api.py": 664
     }
   },
   {
@@ -61898,7 +61898,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot descriptor schema mismatch.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 657
+      "cdmw/modding/mesh_native_session_api.py": 666
     }
   },
   {
@@ -61906,7 +61906,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot file checksum differs from its descriptor.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 693
+      "cdmw/modding/mesh_native_session_api.py": 702
     }
   },
   {
@@ -61914,7 +61914,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot file length differs from its descriptor or is not a file.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 691
+      "cdmw/modding/mesh_native_session_api.py": 700
     }
   },
   {
@@ -61922,7 +61922,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot filename is not an app-owned runtime snapshot.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 689
+      "cdmw/modding/mesh_native_session_api.py": 698
     }
   },
   {
@@ -61930,7 +61930,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot history accounting is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 673
+      "cdmw/modding/mesh_native_session_api.py": 682
     }
   },
   {
@@ -61938,7 +61938,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot identity or source session is missing or invalid.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 675
+      "cdmw/modding/mesh_native_session_api.py": 684
     }
   },
   {
@@ -61946,7 +61946,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot is outside the app-owned temporary location.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 685
+      "cdmw/modding/mesh_native_session_api.py": 694
     }
   },
   {
@@ -61954,7 +61954,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot retained bytes or file length is outside the allowed bounds.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 681
+      "cdmw/modding/mesh_native_session_api.py": 690
     }
   },
   {
@@ -61962,7 +61962,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot topology digest is missing or invalid.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 679
+      "cdmw/modding/mesh_native_session_api.py": 688
     }
   },
   {
@@ -65106,7 +65106,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported snapshot descriptor version.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 659
+      "cdmw/modding/mesh_native_session_api.py": 668
     }
   },
   {

@@ -236,8 +236,9 @@ def _cpu_share(process_id: int, *, seconds: float) -> tuple[float, float]:
 def test_journey_3b_the_vertex_page_leaves_the_process_idle(run):
     """Section 8.7 B4 with the vertex page open: its inspector repaints on a timer
     (request_repaint_after), which must wake the editor when due without bringing
-    the back-to-back drawing back. Ends with Discard: Finish right after the page
-    refreshed can be refused (see the report, 2026-11-13)."""
+    the back-to-back drawing back. Then Browse's key and Finish, which was refused
+    in 3 of 5 runs while a loaded machine made the native open outlast its 10 s
+    limit (2026-11-13)."""
 
     run.select(driver.SWORD)
     run.open_mesh_editor()
@@ -248,7 +249,12 @@ def test_journey_3b_the_vertex_page_leaves_the_process_idle(run):
     total, busy = _cpu_share(run.state()["browse_process_id"], seconds=3.0)
     print(f"B4, vertex page open: {total:.1%} of a core, {busy:.1%} without thumbnails")
     assert busy < 0.25, f"Browse's process used {busy:.0%} of a core with the vertex page open"
-    assert run.call("end_edit", answer="discard")
+    run.call("activate_tool", key="archive_browser")
+    index = len(run.call("events"))
+    assert run.call("end_edit", answer="finish")
+    run.wait(lambda: any(e["event"] == "preview:edit_left" for e in run.call("events", since=index)),
+             timeout=90, what="Finish to end the edit")
+    assert "rejected" not in run.state()["mesh_editor"]["status"]
 
 
 def test_journey_4_switch_workspaces_around_one_window(run):
