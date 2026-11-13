@@ -161,8 +161,64 @@ def pytest_runtest_teardown(item, nextitem):
     collect_after_test()
 
 
+#: Where a real Crimson Desert installation can be; tests never write under it.
+_REAL_GAME_FOLDERS = (r"C:\games\Steam\steamapps\common\Crimson Desert",)
+_FENCE_EVENTS = frozenset({
+    "os.remove", "os.rename", "os.rmdir", "os.mkdir", "os.truncate", "os.chmod", "os.utime", "os.symlink",
+    "os.link", "shutil.rmtree", "shutil.copyfile", "shutil.copymode", "shutil.copystat", "shutil.copytree",
+    "shutil.move", "shutil.chown",
+})
+_fenced_game_folders: tuple[str, ...] = ()
+
+
+def _game_folders_to_fence() -> tuple[str, ...]:
+    folders = set(_REAL_GAME_FOLDERS)
+    try:
+        from cdmw.core.archive_format import discover_steam_roots
+
+        for steam in discover_steam_roots():  # reads Steam's library list only
+            folders.add(str(Path(steam) / "steamapps" / "common" / "Crimson Desert"))
+    except Exception:
+        pass
+    return tuple(sorted({os.path.normcase(os.path.abspath(folder)).rstrip("\\/") + os.sep for folder in folders}))
+
+
+def _fenced(path: object) -> bool:
+    if isinstance(path, int) or path is None:
+        return False
+    try:
+        text = os.path.normcase(os.path.abspath(os.fsdecode(path))) + os.sep
+    except (TypeError, ValueError):
+        return False
+    return text.startswith(_fenced_game_folders)
+
+
+def _game_folder_fence(event: str, args: tuple) -> None:
+    """Refuse, in every test, any write under a real game installation (decision 39).
+
+    Only Restore Backup and the old-install removal may write into a game folder,
+    and their tests use owned copies. A test that reached the real one, through a
+    default, a discovered Steam library or settings, fails here before the write.
+    """
+
+    if event == "open":
+        path, mode, flags = (tuple(args) + (None, None, None))[:3]
+        writing = (isinstance(mode, str) and bool(set(mode) & set("wax+"))) or (
+            isinstance(flags, int) and bool(flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND)))
+        if writing and _fenced(path):
+            raise PermissionError(f"A test tried to write into a real game installation: {os.fsdecode(path)}")
+    elif event in _FENCE_EVENTS:
+        for value in args:
+            if isinstance(value, (str, bytes, os.PathLike)) and _fenced(value):
+                raise PermissionError(f"A test tried to change a real game installation ({event}): "
+                                      f"{os.fsdecode(value)}")
+
+
 def pytest_configure() -> None:
-    global _original_cache_root, _pytest_cache_root, _pytest_profile_root
+    global _original_cache_root, _pytest_cache_root, _pytest_profile_root, _fenced_game_folders
+    if not _fenced_game_folders:
+        _fenced_game_folders = _game_folders_to_fence()
+        sys.addaudithook(_game_folder_fence)  # for the life of the test process
     # As in the app: no automatic cyclic collection, which would start inside
     # whatever allocates next (a Qt re-polish, a worker thread). See
     # tests/gui_thread_gc.py.

@@ -1,8 +1,9 @@
 """Review of refs/heads/rr/parity-mods-2: Remove What an Older CDMW Installed... (decision 42).
 
 The real removal service and Restore Backup on owned game folders under tmp_path,
-built with the removal tests' own helpers. They were strict xfails on the
-reviewed code; the fixes removed the markers.
+built with the removal tests' own helpers. Strict xfails: they fail on the
+reviewed code; remove the marker with the fix. Skipped where the branch is not
+merged yet.
 """
 
 from __future__ import annotations
@@ -18,6 +19,23 @@ from cdmw.services.archive_mutation_service import ArchiveMutationService  # noq
 from tests.test_old_install_removal import (  # noqa: E402,F401  (the autouse fixture owns the backups)
     OVERLAY_DDS, _fingerprint, _game, _group, _mount, _owned_backups, _remove,
 )
+
+_CONTENTS = "Review of rr/parity-mods-2 (REPORT-review.md): the owner mark proves the folder, not its files"
+_BACKUP = "Review of rr/parity-mods-2 (REPORT-review.md): backup copies of same-named files overwrite each other"
+
+
+_AI_TOOL = ("Review of rr/parity-mods-2 (REPORT-review.md): user_only sets nothing, so after MCP the "
+            "removal and Restore Backup are AI tools")
+_TEMP_BACKUP = ("Review of rr/parity-mods-2 (REPORT-review.md): the removal's backup, its only undo, "
+               "goes to the system temp folder")
+_CHILD = ("Review of rr/parity-mods-2 (REPORT-review.md): the Mods page sends in a child process, "
+          "where no game folder is protected")
+_CLEAR = ("Review of rr/parity-mods-2 (REPORT-review.md): clearing an output folder ignores the "
+          "protected game folder")
+_RECEIPT = ("Review of rr/parity-mods-2 at a16144623 (REPORT-review.md): an overlay the single-overlay "
+            "installer left has no published digests, so the removal never proves it")
+_TRANSACTION = ("Review of rr/parity-mods-2 (REPORT-review.md): an interrupted old transaction blocks "
+                "the removal, and the recovery it asks for was removed")
 
 
 def _digest(data: bytes) -> str:
@@ -314,6 +332,10 @@ def test_an_overlay_recorded_only_by_the_older_install_receipt_is_removed(tmp_pa
     assert not (root / "0036" / "0.pamt").exists() and not (root / "0036" / "0.paz").exists()
 
 
+_UNCONFIGURED = ("Review of rr/parity-mods-2 at 531f64e92 (REPORT-review.md): clearing a folder that holds a game "
+                 "installation nobody configured still deletes it")
+
+
 def test_clearing_a_library_that_holds_an_unconfigured_installation_never_empties_it(tmp_path):
     """check_removable refuses a folder that holds a game folder only when that game folder
     is one of the session's roots. The rule that needs no state (meta/0.papgt with
@@ -340,3 +362,30 @@ def test_clearing_a_library_that_holds_an_unconfigured_installation_never_emptie
     except Exception:
         pass  # a refusal is the right outcome
     assert (game / "bin64" / "CrimsonDesert.exe").is_file(), "clearing the library deleted an installed game"
+
+
+_BOUND = ("Review of rr/parity-mods-3 f239cdb09 (REPORT-review.md): the clear's search bound counts files, so an "
+          "extraction root full of extracted files is refused")
+
+
+def test_an_extraction_root_full_of_files_can_still_be_cleared(tmp_path, monkeypatch):
+    """_installation_below stops after INSTALLATION_SEARCH_MAX_ENTRIES entries within four
+    levels and then refuses. It counts every entry, files included, though only folders
+    are searched. A full extraction (character/texture/*.dds) holds far more files than
+    that at depth three, and clearing it is what Clear Root is for. Shown with the bound
+    lowered, so the test stays quick: 1,200 files in three folders against 1,000."""
+
+    pytest.importorskip("cdmw.core.protected_roots")
+    from cdmw.core import protected_roots
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    if not hasattr(protected_roots, "INSTALLATION_SEARCH_MAX_ENTRIES"):
+        pytest.skip("the bounded walk is not on this branch")
+    monkeypatch.setattr(protected_roots, "INSTALLATION_SEARCH_MAX_ENTRIES", 1000)
+    extracted = tmp_path / "extract"
+    for folder in ("character/texture", "character/model", "ui/texture"):
+        (extracted / folder).mkdir(parents=True)
+        for index in range(400):
+            (extracted / folder / f"file_{index:04d}.dds").write_bytes(b"x")
+    clear_directory_contents(extracted)  # an honest output folder: it must clear
+    assert extracted.is_dir() and not any(extracted.iterdir())
