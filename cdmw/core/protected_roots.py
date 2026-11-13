@@ -35,6 +35,7 @@ import contextvars
 import json
 import os
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -48,6 +49,12 @@ INSTALLATION_MARKS = (Path("bin64") / "CrimsonDesert.exe", Path("0000") / "0.pam
 #: How far below a folder that is cleared or replaced CDMW looks for a game installation:
 #: a Steam library's ``steamapps/common/Crimson Desert`` is three levels down.
 INSTALLATION_SEARCH_DEPTH = 4
+#: The walk may run on the thread that asked for the clear (Clear Workflow Roots runs on
+#: the interface thread), so it is bounded. Past either limit the folder is refused, not
+#: cleared: an output folder holds far fewer entries in its first four levels, and a
+#: folder that holds more (a Games folder, a user profile) is not one to clear.
+INSTALLATION_SEARCH_MAX_ENTRIES = 50_000
+INSTALLATION_SEARCH_SECONDS = 1.0
 #: Folders that only a game library or a package root holds; a folder holding one is
 #: never cleared or replaced.
 LIBRARY_FOLDER_NAMES = frozenset({"steamapps", "game_files"})
@@ -210,13 +217,23 @@ def _installation_below(folder: Path) -> str | None:
 
     A game installation (see :func:`installation_holding`), a ``steamapps`` or
     ``game_files`` folder, or a link that leads into a game. Links are not followed.
-    A folder that cannot be read is taken to hold one: the check fails closed.
+    A folder that cannot be read is taken to hold one, and so is a folder whose first
+    levels hold more than :data:`INSTALLATION_SEARCH_MAX_ENTRIES` entries or take longer
+    than :data:`INSTALLATION_SEARCH_SECONDS` to look through: the check fails closed.
     """
 
+    too_large = (f"more files and folders than CDMW looks through before clearing a folder "
+                 f"({INSTALLATION_SEARCH_MAX_ENTRIES:,} within {INSTALLATION_SEARCH_DEPTH} levels, or "
+                 f"{INSTALLATION_SEARCH_SECONDS:g} s), so CDMW could not make sure no game folder is in it. "
+                 "Choose the folder that holds only the output to clear")
+    deadline = time.monotonic() + INSTALLATION_SEARCH_SECONDS
+    seen = 0
     level = [folder]
     for depth in range(INSTALLATION_SEARCH_DEPTH + 1):
         following = []
         for current in level:
+            if time.monotonic() > deadline:
+                return too_large
             try:
                 if (current / GAME_INDEX).is_file() and any((current / mark).is_file() for mark in INSTALLATION_MARKS):
                     return f"a game installation ({current})"
@@ -228,6 +245,9 @@ def _installation_below(folder: Path) -> str | None:
                 continue
             except OSError as error:
                 return f"a folder CDMW could not look into ({current}: {error.strerror or error})"
+            seen += len(children)
+            if seen > INSTALLATION_SEARCH_MAX_ENTRIES:
+                return too_large
             for child in children:
                 try:
                     if child.is_symlink() or child.is_junction():

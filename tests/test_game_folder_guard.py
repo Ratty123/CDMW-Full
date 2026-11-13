@@ -275,3 +275,37 @@ def test_an_output_folder_holding_mods_with_their_own_index_still_clears(tmp_pat
     (mod / "0036").mkdir()
     clear_directory_contents(picked)
     assert picked.is_dir() and not any(picked.iterdir())
+
+
+@pytest.mark.parametrize("limit", ["entries", "time"])
+def test_a_folder_too_large_to_check_quickly_is_refused_not_cleared(tmp_path, monkeypatch, limit):
+    """The walk can run on the interface thread (Clear Workflow Roots), so it is bounded;
+    past the bound the folder is refused, never cleared unchecked."""
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    picked = tmp_path / "wide"
+    for index in range(120):
+        (picked / f"folder-{index:03d}" / "inner").mkdir(parents=True)
+    if limit == "entries":
+        monkeypatch.setattr(protected_roots, "INSTALLATION_SEARCH_MAX_ENTRIES", 100)
+    else:
+        monkeypatch.setattr(protected_roots, "INSTALLATION_SEARCH_SECONDS", 0.0)
+    with pytest.raises(ProtectedGameFolderWrite, match="could not make sure no game folder is in it") as refused:
+        clear_directory_contents(picked)
+    assert str(picked) in str(refused.value)
+    assert len(list(picked.iterdir())) == 120
+
+
+def test_a_wide_tree_under_the_limits_still_clears(tmp_path):
+    import time as clock
+
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    picked = tmp_path / "wide"
+    for index in range(300):
+        (picked / f"folder-{index:03d}" / "inner").mkdir(parents=True)
+    started = clock.monotonic()
+    protected_roots.check_removable(picked)
+    assert clock.monotonic() - started < protected_roots.INSTALLATION_SEARCH_SECONDS
+    clear_directory_contents(picked)
+    assert not any(picked.iterdir())
