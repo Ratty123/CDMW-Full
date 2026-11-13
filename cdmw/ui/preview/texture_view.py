@@ -15,6 +15,7 @@ from cdmw.services.mesh_rust_contract import resolve_rust_mesh_editor, validate_
 from cdmw.ui.mesh_editor.process_io import register_owned_qprocess_for_exit, stop_qprocess_async
 from cdmw.ui.native_window_clipping import ensure_native_host_clipping
 from cdmw.ui.preview_widgets import PreviewLabel, PreviewScrollArea
+from cdmw.workers.runnable_signals import application_owned, release
 
 
 class _Signals(QObject):
@@ -27,9 +28,17 @@ class _PrepareTexture(QRunnable):
         self.generation, self.path = generation, Path(path)
         self.fallback, self.configured = fallback, configured
         self.stop = Event()
-        self.signals = _Signals()
+        # Owned by the application and deleted on the GUI thread after the result,
+        # never on the pool thread with the finished task (REPORT-crash, item 1).
+        self.signals = application_owned(_Signals)
 
     def run(self):
+        try:
+            self._run()
+        finally:
+            release(self.signals)
+
+    def _run(self):
         result = {}
         try:
             if not self.fallback and self.path.suffix.lower() == ".dds":

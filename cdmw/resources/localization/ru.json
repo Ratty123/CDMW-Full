@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "Процессу предпросмотра не удалось снять миниатюру.",
     "The preview process stopped during the capture.": "Процесс предпросмотра остановился во время снимка.",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "Средство визуализации предварительного просмотра отказалось от изменения отображения ({value_0}); в окне просмотра по-прежнему отображается предыдущий вид.",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "Не удалось поместить окно предпросмотра в его область просмотра (ошибка Windows {value_0}).",
     "The previous preview is still shown.": "Предыдущий предварительный просмотр остаётся на экране.",
     "The production Mesh Editor is the embedded surface.": "Редактор сеток доступен (wgpu / D3D12).",
     "The progressive geometry package is not workspace-owned.": "Пакет прогрессивной геометрии не принадлежит рабочей области.",

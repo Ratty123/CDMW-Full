@@ -20647,7 +20647,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not launch Crimson Desert: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 521
+      "cdmw/rendering/ingame_capture.py": 522
     }
   },
   {
@@ -20655,7 +20655,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not map game client point to screen.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 429
+      "cdmw/rendering/ingame_capture.py": 430
     }
   },
   {
@@ -20663,7 +20663,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not move cursor inside game window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 434
+      "cdmw/rendering/ingame_capture.py": 435
     }
   },
   {
@@ -20679,7 +20679,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not send key {key_label} to game window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 365
+      "cdmw/rendering/ingame_capture.py": 366
     }
   },
   {
@@ -20687,7 +20687,7 @@ MESSAGE_REFERENCE = [
     "message": "Crimson Desert executable is missing: {exe}",
     "recovery": "helper",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 511
+      "cdmw/rendering/ingame_capture.py": 512
     }
   },
   {
@@ -20703,7 +20703,7 @@ MESSAGE_REFERENCE = [
     "message": "Focused game window and clicked inside client area.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 492
+      "cdmw/rendering/ingame_capture.py": 493
     }
   },
   {
@@ -20719,7 +20719,7 @@ MESSAGE_REFERENCE = [
     "message": "Game window did not have focus after prompt interaction.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 484
+      "cdmw/rendering/ingame_capture.py": 485
     }
   },
   {
@@ -20727,7 +20727,7 @@ MESSAGE_REFERENCE = [
     "message": "Game window did not have focus; skipped key {key_label}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 355
+      "cdmw/rendering/ingame_capture.py": 356
     }
   },
   {
@@ -20743,7 +20743,7 @@ MESSAGE_REFERENCE = [
     "message": "Game window did not have focus; skipped {button_key} mouse click.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 408
+      "cdmw/rendering/ingame_capture.py": 409
     }
   },
   {
@@ -20759,7 +20759,7 @@ MESSAGE_REFERENCE = [
     "message": "Key send is only available on Windows.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 350
+      "cdmw/rendering/ingame_capture.py": 351
     }
   },
   {
@@ -20767,7 +20767,7 @@ MESSAGE_REFERENCE = [
     "message": "Launched Crimson Desert process.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 522
+      "cdmw/rendering/ingame_capture.py": 523
     }
   },
   {
@@ -20783,7 +20783,7 @@ MESSAGE_REFERENCE = [
     "message": "Mouse input is only available on Windows.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 392
+      "cdmw/rendering/ingame_capture.py": 393
     }
   },
   {
@@ -20799,7 +20799,7 @@ MESSAGE_REFERENCE = [
     "message": "No running Crimson Desert game window was found.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 552
+      "cdmw/rendering/ingame_capture.py": 553
     }
   },
   {
@@ -20943,7 +20943,7 @@ MESSAGE_REFERENCE = [
     "message": "Sent key {key_label} to game window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 373
+      "cdmw/rendering/ingame_capture.py": 374
     }
   },
   {
@@ -20951,7 +20951,7 @@ MESSAGE_REFERENCE = [
     "message": "Sent {button_key} mouse click to game window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 439
+      "cdmw/rendering/ingame_capture.py": 440
     }
   },
   {
@@ -20967,7 +20967,7 @@ MESSAGE_REFERENCE = [
     "message": "Start/load the game, then rerun capture or pass --launch-game when launch is intended.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 555
+      "cdmw/rendering/ingame_capture.py": 556
     }
   },
   {
@@ -20991,7 +20991,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mouse button: {button}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 404
+      "cdmw/rendering/ingame_capture.py": 405
     }
   },
   {
@@ -21015,7 +21015,7 @@ MESSAGE_REFERENCE = [
     "message": "Window interaction is only available on Windows.",
     "recovery": "internal",
     "sources": {
-      "cdmw/rendering/ingame_capture.py": 453
+      "cdmw/rendering/ingame_capture.py": 454
     }
   },
   {
@@ -44168,7 +44168,7 @@ MESSAGE_REFERENCE = [
     "message": "Baseline cache unavailable; using current archive bytes ({exc}).",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/mesh_baseline.py": 174
+      "cdmw/core/mesh_baseline.py": 177
     }
   },
   {
@@ -63427,6 +63427,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The preview window could not be placed in its viewport (Windows error {code}).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/preview/dotnet_host_protocol.py": 19
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The reference body has no surface to fit against.",
     "recovery": "internal",
     "sources": {
@@ -68352,7 +68360,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/external_model_audit.py": 1722,
-      "cdmw/core/mesh_baseline.py": 40,
+      "cdmw/core/mesh_baseline.py": 43,
       "cdmw/core/model_preview.py": 1463,
       "cdmw/modding/mesh_obj_importer.py": 929,
       "cdmw/modding/static_mesh_scene_frame.py": 504
@@ -76556,7 +76564,7 @@ MESSAGE_REFERENCE = [
     "message": "<h3>{escape(title)}</h3><p>Unavailable.</p>",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/replace_assistant/review_dialog.py": 179
+      "cdmw/ui/replace_assistant/review_dialog.py": 190
     }
   },
   {
@@ -76636,7 +76644,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 593
+      "cdmw/automation/bridge.py": 596
     }
   },
   {
@@ -83624,7 +83632,7 @@ MESSAGE_REFERENCE = [
     "message": "No UV islands were found.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1075
+      "cdmw/services/asset_authoring_service.py": 1100
     }
   },
   {
@@ -84000,7 +84008,7 @@ MESSAGE_REFERENCE = [
     "message": "OpenImageIO fail_percent must be between 0 and 100.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 929
+      "cdmw/services/asset_authoring_service.py": 954
     }
   },
   {
@@ -84008,7 +84016,7 @@ MESSAGE_REFERENCE = [
     "message": "OpenImageIO numeric arguments must be finite non-negative numbers.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 937
+      "cdmw/services/asset_authoring_service.py": 962
     }
   },
   {
@@ -84016,7 +84024,7 @@ MESSAGE_REFERENCE = [
     "message": "OpenImageIO {name} must be a finite non-negative number.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 927
+      "cdmw/services/asset_authoring_service.py": 952
     }
   },
   {
@@ -86276,7 +86284,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 499
+      "cdmw/automation/bridge.py": 502
     }
   },
   {
@@ -87684,7 +87692,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 597
+      "cdmw/automation/bridge.py": 600
     }
   },
   {
@@ -88020,7 +88028,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 477
+      "cdmw/automation/bridge.py": 480
     }
   },
   {
@@ -88565,7 +88573,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology changed from original mesh; UV remap safety needs review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1077
+      "cdmw/services/asset_authoring_service.py": 1102
     }
   },
   {
@@ -88573,7 +88581,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology changed from original mesh; package output should stay conservative until reviewed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1308
+      "cdmw/services/asset_authoring_service.py": 1333
     }
   },
   {
@@ -88581,7 +88589,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology changed from original mesh; regenerated tangents should be reviewed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1144
+      "cdmw/services/asset_authoring_service.py": 1169
     }
   },
   {
@@ -90280,7 +90288,7 @@ MESSAGE_REFERENCE = [
     "message": "cdmw_mesh_core auto-uv-json is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1059
+      "cdmw/services/asset_authoring_service.py": 1084
     }
   },
   {
@@ -91706,7 +91714,7 @@ MESSAGE_REFERENCE = [
     "message": "missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1107
+      "cdmw/services/asset_authoring_service.py": 1132
     }
   },
   {
@@ -93141,7 +93149,7 @@ MESSAGE_REFERENCE = [
     "message": "{count} {label} detected.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1306
+      "cdmw/services/asset_authoring_service.py": 1331
     }
   },
   {
@@ -93637,7 +93645,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(missing_parts)} part(s) have missing/incomplete UV data or no faces.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1073
+      "cdmw/services/asset_authoring_service.py": 1098
     }
   },
   {
@@ -93709,7 +93717,7 @@ MESSAGE_REFERENCE = [
     "message": "{missing + partial} part(s) have missing or partial tangent data.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1138
+      "cdmw/services/asset_authoring_service.py": 1163
     }
   },
   {
@@ -93717,7 +93725,7 @@ MESSAGE_REFERENCE = [
     "message": "{missing_normals} part(s) have missing or partial normals.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1142
+      "cdmw/services/asset_authoring_service.py": 1167
     }
   },
   {
@@ -93725,7 +93733,7 @@ MESSAGE_REFERENCE = [
     "message": "{missing_uv} part(s) need complete UVs before tangent generation.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1140
+      "cdmw/services/asset_authoring_service.py": 1165
     }
   },
   {
@@ -96213,7 +96221,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot extend a different baseline directory",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/corpus.py": 377
+      "tools/placement_studio/corpus.py": 391
     }
   },
   {
@@ -97146,7 +97154,7 @@ MESSAGE_REFERENCE = [
     "message": "Golden corpus root not found: {base}",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/corpus.py": 139
+      "tools/placement_studio/corpus.py": 153
     }
   },
   {
@@ -98523,7 +98531,7 @@ MESSAGE_REFERENCE = [
     "message": "No pinned vanilla baseline at {base}. Run: placement_studio extract",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/corpus.py": 225
+      "tools/placement_studio/corpus.py": 239
     }
   },
   {
@@ -98748,7 +98756,7 @@ MESSAGE_REFERENCE = [
     "message": "Not in pinned vanilla baseline: {game_path}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/corpus.py": 217
+      "tools/placement_studio/corpus.py": 231
     }
   },
   {
@@ -99076,7 +99084,7 @@ MESSAGE_REFERENCE = [
     "message": "Placement preparation cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/placement_studio/corpus.py": 385,
+      "tools/placement_studio/corpus.py": 399,
       "tools/placement_studio/tab.py": 50
     }
   },
@@ -99686,7 +99694,7 @@ MESSAGE_REFERENCE = [
     "message": "Resolved {len(located)}; missing {len(missing)}",
     "recovery": "missing",
     "sources": {
-      "tools/placement_studio/corpus.py": 395
+      "tools/placement_studio/corpus.py": 409
     }
   },
   {
@@ -100251,7 +100259,7 @@ MESSAGE_REFERENCE = [
     "message": "The game was updated while its files were being checked; reopen to retry",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/corpus.py": 631
+      "tools/placement_studio/corpus.py": 645
     }
   },
   {
@@ -102233,7 +102241,7 @@ MESSAGE_REFERENCE = [
     "message": "Asset authoring helper discovery returned an invalid report.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/settings_helper_discovery.py": 131
+      "cdmw/ui/settings_helper_discovery.py": 134
     }
   },
   {
@@ -102241,7 +102249,7 @@ MESSAGE_REFERENCE = [
     "message": "Asset authoring helper version check failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/settings_helper_discovery.py": 134
+      "cdmw/ui/settings_helper_discovery.py": 137
     }
   },
   {
@@ -104186,7 +104194,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid DDS preview dimensions",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/preview/texture_view.py": 227
+      "cdmw/ui/preview/texture_view.py": 236
     }
   },
   {
@@ -104498,7 +104506,7 @@ MESSAGE_REFERENCE = [
     "message": "No image preview available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview/texture_view.py": 46
+      "cdmw/ui/preview/texture_view.py": 55
     }
   },
   {
@@ -107963,6 +107971,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/model_library/tasks.py",
     "cdmw/ui/preview/dotnet_host.py",
     "cdmw/ui/preview/dotnet_host_prewarm.py",
+    "cdmw/ui/preview/dotnet_host_protocol.py",
     "cdmw/ui/preview/dotnet_session.py",
     "cdmw/ui/preview/engine_viewport.py",
     "cdmw/ui/replace_assistant/preview.py",
@@ -112824,7 +112833,10 @@ SOURCE_COVERAGE = {
   "cdmw/ui/preview/dotnet_host_prewarm.py": {
     "report": 1
   },
-  "cdmw/ui/preview/dotnet_host_protocol.py": {},
+  "cdmw/ui/preview/dotnet_host_protocol.py": {
+    "diagnostic_field": 1,
+    "diagnostic_text": 1
+  },
   "cdmw/ui/preview/dotnet_host_render_tuning.py": {},
   "cdmw/ui/preview/dotnet_host_theme.py": {},
   "cdmw/ui/preview/dotnet_host_values.py": {},

@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "Proces podglądu nie mógł przechwycić miniatury.",
     "The preview process stopped during the capture.": "Proces podglądu zatrzymał się podczas przechwytywania.",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "Moduł renderujący podgląd odmówił zmiany wyświetlania ({value_0}); rzutnia nadal pokazuje poprzedni widok.",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "Nie udało się umieścić okna podglądu w jego widoku (błąd systemu Windows {value_0}).",
     "The previous preview is still shown.": "Poprzedni podgląd jest nadal widoczny.",
     "The production Mesh Editor is the embedded surface.": "Edytor siatki jest dostępne (wgpu / D3D12).",
     "The progressive geometry package is not workspace-owned.": "Pakiet geometrii progresywnej nie jest własnością obszaru roboczego.",

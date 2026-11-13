@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "预览进程无法截取缩略图。",
     "The preview process stopped during the capture.": "预览进程在截图期间停止。",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "预览渲染器拒绝显示更改（{value_0}）；视口仍然显示以前的视图。",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "无法将预览窗口放入其视口（Windows 错误 {value_0}）。",
     "The previous preview is still shown.": "仍在显示上一个预览。",
     "The production Mesh Editor is the embedded surface.": "网格编辑器 可用（wgpu / D3D12）。",
     "The progressive geometry package is not workspace-owned.": "渐进式几何包不属于工作区所有。",

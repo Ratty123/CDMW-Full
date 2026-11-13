@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "プレビュープロセスがサムネイルをキャプチャできませんでした。",
     "The preview process stopped during the capture.": "キャプチャ中にプレビュープロセスが停止しました。",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "プレビュー レンダラーが表示変更を拒否しました ({value_0})。ビューポートには以前のビューが表示されたままです。",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "プレビュー ウィンドウをビューに配置できませんでした (Windows エラー {value_0})。",
     "The previous preview is still shown.": "前のプレビューを引き続き表示しています。",
     "The production Mesh Editor is the embedded surface.": "メッシュ エディタ を使用できます (wgpu / D3D12)。",
     "The progressive geometry package is not workspace-owned.": "プログレッシブジオメトリパッケージはワークスペースの所有ではありません。",

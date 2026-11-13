@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "미리보기 프로세스가 썸네일을 캡처하지 못했습니다.",
     "The preview process stopped during the capture.": "캡처 중에 미리보기 프로세스가 중지되었습니다.",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "미리보기 렌더러가 디스플레이 변경을 거부했습니다({value_0}). 뷰포트에는 여전히 이전 뷰가 표시됩니다.",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "미리 보기 창을 뷰포트에 배치할 수 없습니다(Windows 오류 {value_0}).",
     "The previous preview is still shown.": "이전 미리보기가 계속 표시됩니다.",
     "The production Mesh Editor is the embedded surface.": "메시 편집기를 사용할 수 있습니다(wgpu / D3D12).",
     "The progressive geometry package is not workspace-owned.": "프로그레시브 지오메트리 패키지는 워크스페이스 소유가 아닙니다.",

@@ -466,7 +466,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 618,
+          "line": 632,
           "sink": "log"
         }
       ]
@@ -531,7 +531,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 408,
+          "line": 422,
           "sink": "log"
         }
       ]
@@ -2506,12 +2506,12 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 357,
+          "line": 382,
           "sink": "python-return:openimageio_convert_command"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 447,
+          "line": 472,
           "sink": "python-return:openimageio_diff_command"
         }
       ]
@@ -2521,7 +2521,7 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 840,
+          "line": 865,
           "sink": "python-return:_openimageio_info_argv"
         }
       ]
@@ -4496,7 +4496,7 @@
         },
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 81,
+          "line": 90,
           "sink": "addItems"
         },
         {
@@ -16511,7 +16511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_helper_discovery.py",
-          "line": 131,
+          "line": 134,
           "sink": "setText"
         }
       ]
@@ -16521,7 +16521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_helper_discovery.py",
-          "line": 134,
+          "line": 137,
           "sink": "setText"
         }
       ]
@@ -18571,7 +18571,7 @@
         },
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 81,
+          "line": 90,
           "sink": "addItems"
         },
         {
@@ -19466,7 +19466,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 415,
+          "line": 429,
           "sink": "log"
         }
       ]
@@ -23756,7 +23756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 42,
+          "line": 44,
           "sink": "QGroupBox"
         }
       ]
@@ -26421,7 +26421,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 377,
+          "line": 391,
           "sink": "ValueError"
         }
       ]
@@ -29796,7 +29796,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 596,
+          "line": 610,
           "sink": "log"
         }
       ]
@@ -37696,7 +37696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 216,
+          "line": 227,
           "sink": "python-return:_format_comparison_html"
         }
       ]
@@ -46396,7 +46396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 107,
+          "line": 109,
           "sink": "setPlaceholderText"
         }
       ]
@@ -51821,7 +51821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 64,
+          "line": 66,
           "sink": "QGroupBox"
         }
       ]
@@ -51881,7 +51881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 68,
+          "line": 70,
           "sink": "QLabel"
         }
       ]
@@ -62721,7 +62721,7 @@
         },
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 94,
+          "line": 103,
           "sink": "QPushButton"
         },
         {
@@ -65796,7 +65796,7 @@
         },
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 81,
+          "line": 90,
           "sink": "addItems"
         },
         {
@@ -67786,7 +67786,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 139,
+          "line": 153,
           "sink": "FileNotFoundError"
         }
       ]
@@ -78371,12 +78371,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 227,
+          "line": 236,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 248,
+          "line": 257,
           "sink": "ValueError"
         }
       ]
@@ -94411,7 +94411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 87,
+          "line": 96,
           "sink": "QLabel"
         }
       ]
@@ -102931,7 +102931,7 @@
         },
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 46,
+          "line": 55,
           "sink": "ValueError"
         },
         {
@@ -103026,7 +103026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 271,
+          "line": 282,
           "sink": "clear_preview"
         }
       ]
@@ -104046,7 +104046,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 225,
+          "line": 239,
           "sink": "FileNotFoundError"
         }
       ]
@@ -106791,7 +106791,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 231,
+          "line": 242,
           "sink": "python-return:_format_details_html"
         },
         {
@@ -110621,7 +110621,7 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 929,
+          "line": 954,
           "sink": "ValueError"
         }
       ]
@@ -110631,7 +110631,7 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 937,
+          "line": 962,
           "sink": "ValueError"
         }
       ]
@@ -110641,17 +110641,17 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 279,
+          "line": 304,
           "sink": "python-return:openimageio_metadata_command"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 340,
+          "line": 365,
           "sink": "python-return:openimageio_convert_command"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 411,
+          "line": 436,
           "sink": "python-return:openimageio_diff_command"
         }
       ]
@@ -110741,7 +110741,7 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 927,
+          "line": 952,
           "sink": "ValueError"
         }
       ]
@@ -111496,7 +111496,7 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 113,
+          "line": 138,
           "sink": "python-return:discovery_report"
         }
       ]
@@ -117156,7 +117156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 231,
+          "line": 242,
           "sink": "python-return:_format_details_html"
         },
         {
@@ -121596,7 +121596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 141,
+          "line": 145,
           "sink": "setText"
         }
       ]
@@ -121781,7 +121781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 144,
+          "line": 148,
           "sink": "setHtml"
         }
       ]
@@ -121981,7 +121981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 154,
+          "line": 163,
           "sink": "clear_preview"
         },
         {
@@ -122021,7 +122021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 143,
+          "line": 147,
           "sink": "setText"
         }
       ]
@@ -124116,12 +124116,12 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 301,
+          "line": 312,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 302,
+          "line": 313,
           "sink": "clear_preview"
         },
         {
@@ -128306,7 +128306,7 @@
         },
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 81,
+          "line": 90,
           "sink": "addItems"
         },
         {
@@ -128371,7 +128371,7 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 447,
+          "line": 472,
           "sink": "python-return:openimageio_diff_command"
         }
       ]
@@ -128401,7 +128401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 81,
+          "line": 90,
           "sink": "addItems"
         },
         {
@@ -131141,7 +131141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 89,
+          "line": 91,
           "sink": "QLabel"
         }
       ]
@@ -131151,7 +131151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 85,
+          "line": 87,
           "sink": "QGroupBox"
         }
       ]
@@ -131906,7 +131906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 85,
+          "line": 94,
           "sink": "QCheckBox"
         }
       ]
@@ -132766,7 +132766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 104,
+          "line": 106,
           "sink": "setPlaceholderText"
         }
       ]
@@ -139641,7 +139641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 395,
+          "line": 409,
           "sink": "log"
         }
       ]
@@ -139911,7 +139911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 387,
+          "line": 401,
           "sink": "log"
         }
       ]
@@ -142066,7 +142066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 46,
+          "line": 48,
           "sink": "QLabel"
         }
       ]
@@ -161211,12 +161211,12 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 288,
+          "line": 313,
           "sink": "python-return:openimageio_metadata_command"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 348,
+          "line": 373,
           "sink": "python-return:openimageio_convert_command"
         }
       ]
@@ -167781,7 +167781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 35,
+          "line": 37,
           "sink": "setWindowTitle"
         }
       ]
@@ -167896,7 +167896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 82,
+          "line": 91,
           "sink": "setToolTip"
         }
       ]
@@ -171646,7 +171646,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 511,
+          "line": 525,
           "sink": "python-return:describe"
         }
       ]
@@ -171796,7 +171796,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 631,
+          "line": 645,
           "sink": "RuntimeError"
         }
       ]
@@ -172176,7 +172176,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/corpus.py",
-          "line": 512,
+          "line": 526,
           "sink": "python-return:describe"
         }
       ]
@@ -173730,6 +173730,11 @@
           "sink": "set_status_message"
         }
       ]
+    },
+    {
+      "key": "The preview window could not be placed in its viewport (Windows error {value_0}).",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The previous preview is still shown.",
@@ -200031,7 +200036,7 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 516,
+          "line": 541,
           "sink": "python-return:run_openimageio_diff"
         }
       ]
@@ -201696,22 +201701,22 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 321,
+          "line": 346,
           "sink": "python-return:run_openimageio_metadata"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 385,
+          "line": 410,
           "sink": "python-return:run_openimageio_convert"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 497,
+          "line": 522,
           "sink": "python-return:run_openimageio_diff"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 516,
+          "line": 541,
           "sink": "python-return:run_openimageio_diff"
         },
         {
@@ -203736,7 +203741,7 @@
         },
         {
           "path": "cdmw/ui/preview/texture_view.py",
-          "line": 177,
+          "line": 186,
           "sink": "emit"
         },
         {
@@ -208621,27 +208626,27 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 113,
+          "line": 138,
           "sink": "python-return:discovery_report"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 321,
+          "line": 346,
           "sink": "python-return:run_openimageio_metadata"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 385,
+          "line": 410,
           "sink": "python-return:run_openimageio_convert"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 516,
+          "line": 541,
           "sink": "python-return:run_openimageio_diff"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 516,
+          "line": 541,
           "sink": "python-return:run_openimageio_diff"
         },
         {
@@ -210006,7 +210011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host_protocol.py",
-          "line": 378,
+          "line": 419,
           "sink": "emit"
         },
         {
@@ -211001,17 +211006,17 @@
       "origins": [
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 296,
+          "line": 321,
           "sink": "python-return:openimageio_metadata_command"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 357,
+          "line": 382,
           "sink": "python-return:openimageio_convert_command"
         },
         {
           "path": "cdmw/services/asset_authoring_service.py",
-          "line": 447,
+          "line": 472,
           "sink": "python-return:openimageio_diff_command"
         },
         {

@@ -101,7 +101,6 @@ def test_preview_core_prewarm_signals_die_on_the_gui_thread_after_delivery(app, 
 _PREVIEW_HANDOVER = "cdmw/ui/preview is the main thread's: apply runnable_signals there (crash thread REPORT)"
 
 
-@pytest.mark.xfail(strict=True, reason=_PREVIEW_HANDOVER)
 def test_texture_view_prepare_signals_die_on_the_gui_thread_after_delivery(app, tmp_path):
     from PySide6.QtGui import QImage
     from cdmw.ui.preview.texture_view import _PrepareTexture
@@ -116,7 +115,6 @@ def test_texture_view_prepare_signals_die_on_the_gui_thread_after_delivery(app, 
     assert destroyed_on == [main] * 4
 
 
-@pytest.mark.xfail(strict=True, reason=_PREVIEW_HANDOVER)
 def test_dotnet_preview_prewarm_signals_die_on_the_gui_thread_after_delivery(app, monkeypatch, tmp_path):
     from cdmw.ui.preview import dotnet_host_prewarm as module
 

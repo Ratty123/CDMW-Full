@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "Le processus d’aperçu n’a pas pu capturer la miniature.",
     "The preview process stopped during the capture.": "Le processus d’aperçu s’est arrêté pendant la capture.",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "Le moteur de rendu d'aperçu a refusé le changement d'affichage ({value_0}) ; la fenêtre affiche toujours la vue précédente.",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "La fenêtre d'aperçu n'a pas pu être placée dans sa vue (erreur Windows {value_0}).",
     "The previous preview is still shown.": "L'aperçu précédent reste affiché.",
     "The production Mesh Editor is the embedded surface.": "Éditeur de maillage est disponible (wgpu / D3D12).",
     "The progressive geometry package is not workspace-owned.": "Le paquet de géométrie progressive n'appartient pas à l'espace de travail.",

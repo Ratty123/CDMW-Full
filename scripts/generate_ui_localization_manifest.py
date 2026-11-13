@@ -453,6 +453,8 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Unfinished Mesh Editor edits are not restored while Morph & Refit has a profile open.",
         "Unfinished Mesh Editor edits were made from an earlier state of this draft and were not restored; the draft has changed since.",
         "Unfinished Mesh Editor edits could not be restored ({value_0}). The draft opens as it was last finished.",
+        # The preview host's status when its helper window cannot be embedded (REPORT-crash item 3).
+        "The preview window could not be placed in its viewport (Windows error {value_0}).",
         # Command labels and reasons the registry shows (section 8.7 E8): the palette,
         # Settings > Shortcuts and menus read them at run time, so the scan cannot see them.
         "Command Palette",

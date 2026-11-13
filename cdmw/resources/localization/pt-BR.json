@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "O processo de pré-visualização não conseguiu capturar a miniatura.",
     "The preview process stopped during the capture.": "O processo de pré-visualização parou durante a captura.",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "O renderizador de visualização recusou a alteração de exibição ({value_0}); a viewport ainda mostra a visualização anterior.",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "Não foi possível colocar a janela de visualização na sua área de exibição (erro do Windows {value_0}).",
     "The previous preview is still shown.": "A visualização anterior continua visível.",
     "The production Mesh Editor is the embedded surface.": "O Editor de malha está disponível (wgpu / D3D12).",
     "The progressive geometry package is not workspace-owned.": "O pacote de geometria progressiva não pertence ao espaço de trabalho.",

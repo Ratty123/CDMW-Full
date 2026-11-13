@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "預覽程序無法擷取縮圖。",
     "The preview process stopped during the capture.": "預覽程序在擷取期間停止。",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "預覽渲染器拒絕顯示變更（{value_0}）；視窗仍顯示先前的視圖。",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "無法將預覽視窗放入其檢視區（Windows 錯誤 {value_0}）。",
     "The previous preview is still shown.": "仍顯示上一個預覽。",
     "The production Mesh Editor is the embedded surface.": "網格編輯器 可用（wgpu / D3D12）。",
     "The progressive geometry package is not workspace-owned.": "漸進幾何體套件不屬於工作區。",

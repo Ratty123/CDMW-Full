@@ -320,6 +320,9 @@ class AutomationBridge(QObject):
             "browse_package": str(getattr(current, "dotnet_preview_package_path", "") or ""),
             "browse_process_id": int(getattr(getattr(getattr(archive, "archive_d3d11_preview_host", None),
                                                      "controller", None), "process_id", 0) or 0),
+            # Why Browse's helper window could not be placed in its viewport, or "".
+            "browse_embedding_error": str(getattr(getattr(archive, "archive_d3d11_preview_host", None),
+                                                  "embedding_error", "") or ""),
             "mesh_editor": None if tab is None else {
                 "ready": bool(getattr(tab, "standalone_rust_ready", False)),
                 "status": self._editor_status(tab),

@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "Önizleme işlemi küçük resmi yakalayamadı.",
     "The preview process stopped during the capture.": "Önizleme işlemi yakalama sırasında durdu.",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "Önizleme oluşturucu görüntü değişikliğini reddetti ({value_0}); görünüm penceresi hâlâ önceki görünümü gösterir.",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "Önizleme penceresi görünüm alanına yerleştirilemedi (Windows hatası {value_0}).",
     "The previous preview is still shown.": "Önceki önizleme gösterilmeye devam ediyor.",
     "The production Mesh Editor is the embedded surface.": "Mesh Düzenleyici kullanılabilir (wgpu / D3D12).",
     "The progressive geometry package is not workspace-owned.": "Aşamalı geometri paketi çalışma alanına ait değil.",

@@ -14929,6 +14929,7 @@
     "The preview process could not capture the thumbnail.": "The preview process could not capture the thumbnail.",
     "The preview process stopped during the capture.": "The preview process stopped during the capture.",
     "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.": "The preview renderer refused the display change ({value_0}); the viewport still shows the previous view.",
+    "The preview window could not be placed in its viewport (Windows error {value_0}).": "The preview window could not be placed in its viewport (Windows error {value_0}).",
     "The previous preview is still shown.": "The previous preview is still shown.",
     "The production Mesh Editor is the embedded surface.": "The production Mesh Editor is the embedded surface.",
     "The progressive geometry package is not workspace-owned.": "The progressive geometry package is not workspace-owned.",
