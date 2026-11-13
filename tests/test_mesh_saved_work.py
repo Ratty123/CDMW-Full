@@ -1052,7 +1052,9 @@ def test_mesh_editor_button_opens_drafts_and_mods_in_the_real_shell(tmp_path):
         assert isinstance(page, SavedWorkPage)
         assert window._current_navigation_widget() is window.saved_work_tab
         assert page.draft_root == tab.mesh_editor_draft_root
-        _wait(app, lambda: "No saved work yet" in page.empty_label.text())
+        # The empty list says what to do next in the table's place (P11 step 6).
+        _wait(app, lambda: page.table_switch.is_empty()
+              and "Nothing is saved yet" in page.empty_state.sentence_label.text())
         window._open_mesh_editor_saved_work(_PAC_PATH)
         assert page.filter_edit.text() == _PAC_PATH
         tab.draft_choose_button.click()

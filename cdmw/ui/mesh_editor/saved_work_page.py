@@ -70,6 +70,11 @@ from cdmw.ui.mesh_editor.saved_work_combine import SavedWorkCombineFlow, combine
 from cdmw.ui.mesh_editor.saved_work_sources import normalized_archive_path
 
 ALL_WORK = "\x00all"
+#: The empty list's states (P11 step 6).
+SAVED_WORK_EMPTY_TEXT = "Nothing is saved yet. Open a model in Browse Archives and finish an edit to keep it here."
+SAVED_WORK_NO_MATCH_TEXT = "Nothing matches this project or filter."
+SAVED_WORK_SHOW_ALL_TEXT = "Show All Work"
+OPEN_BROWSE_COMMAND = "shell.open.archive_browser"
 NO_PROJECT = ""
 _ROW_KEY_ROLE = Qt.ItemDataRole.UserRole
 _SORT_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -342,7 +347,12 @@ class SavedWorkPage(QWidget):
         self.table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
         self.table.itemSelectionChanged.connect(self._selection_changed)
         self.table.itemDoubleClicked.connect(lambda _item: self._continue_selected())
-        layout.addWidget(self.table, 1)
+        # P11 step 6: an empty list says what to do next, in the table's place.
+        from cdmw.ui.empty_states import ActionEmptyState, EmptyStateSwitch
+
+        self.empty_state = ActionEmptyState(SAVED_WORK_EMPTY_TEXT, "", OPEN_BROWSE_COMMAND, parent=panel)
+        self.table_switch = EmptyStateSwitch(self.table, self.empty_state, panel)
+        layout.addWidget(self.table_switch, 1)
         self.empty_label = QLabel("", panel)
         self.empty_label.setObjectName("SavedWorkEmpty")
         self.empty_label.setWordWrap(True)
@@ -539,6 +549,8 @@ class SavedWorkPage(QWidget):
         if error:
             self._rows, self._projects = (), ()
             self._populate()
+            # A read error is not an empty list: show the error, not "nothing saved yet".
+            self.table_switch.set_empty(False)
             self.empty_label.setText(f"Saved work could not be read: {error}")
             return
         rows, projects = result
@@ -755,15 +767,21 @@ class SavedWorkPage(QWidget):
         self.table.blockSignals(False)
         # The date column sizes to its contents after this pass.
         QTimer.singleShot(0, self, self._fit_columns)
+        self.empty_label.setText("")
         if self._rows and not rows:
-            self.empty_label.setText("No saved work matches this project or filter.")
+            self.empty_state.set_state(SAVED_WORK_NO_MATCH_TEXT, SAVED_WORK_SHOW_ALL_TEXT, run=self._show_all_work)
         elif not self._rows:
-            self.empty_label.setText(
-                "No saved work yet. Open a mesh from Archive Browser, finish an edit, and it is saved here."
-            )
-        else:
-            self.empty_label.setText("")
+            self.empty_state.set_state(SAVED_WORK_EMPTY_TEXT, "", OPEN_BROWSE_COMMAND)
+        self.table_switch.set_empty(not rows)
+        # Nothing to show details of: the details panel's controls would all be disabled.
+        details = getattr(self, "details_panel", None)
+        if details is not None:
+            details.setVisible(bool(rows))
         self._selection_changed()
+
+    def _show_all_work(self) -> None:
+        self.filter_edit.clear()
+        self._select_project(ALL_WORK)
 
     def _selected_rows(self) -> list[SavedWorkRow]:
         model = self.table.selectionModel()

@@ -66,3 +66,53 @@ def test_search_file_text_says_to_scan_then_to_search_then_what_to_change(app, o
         assert opened == ["archive_browser"]  # it changes the search, it does not open a tool
     finally:
         tab.deleteLater()
+
+
+def _pump(app, predicate, timeout=5.0):
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline and not predicate():
+        app.processEvents()
+        time.sleep(0.01)
+    app.processEvents()
+    assert predicate()
+
+
+# ----- Drafts & Mods ------------------------------------------------------------------
+def test_drafts_and_mods_says_how_to_save_work_and_how_to_clear_a_filter(app, opened, tmp_path):
+    from cdmw.services.item_package_saved_work import register_item_package
+    from cdmw.ui.mesh_editor import saved_work_page as page_module
+    from cdmw.ui.mesh_editor.saved_work_page import SavedWorkPage
+
+    page = SavedWorkPage(draft_root=tmp_path / "empty-drafts")
+    try:
+        page.show()
+        _pump(app, lambda: page.table_switch.is_empty())
+        assert page.empty_state.sentence_label.text() == page_module.SAVED_WORK_EMPTY_TEXT
+        assert not page.details_panel.isVisible() and not page.table.isVisible()
+        page.empty_state.button.click()
+        assert opened == ["archive_browser"]
+    finally:
+        page.close()
+        page.deleteLater()
+
+    drafts, package = tmp_path / "drafts", tmp_path / "Blade.cdmw"
+    package.write_bytes(b"package")
+    register_item_package(drafts, package_path=package, identity="i" * 32, title="Blade", draft_bytes=b"{}",
+                          template_name="Sword_A")
+    page = SavedWorkPage(draft_root=drafts)
+    try:
+        page.show()
+        _pump(app, lambda: page.table.rowCount() == 1)
+        assert not page.table_switch.is_empty() and page.details_panel.isVisible()
+        page.filter_edit.setText("no such name")
+        _pump(app, lambda: page.table_switch.is_empty())
+        assert page.empty_state.sentence_label.text() == page_module.SAVED_WORK_NO_MATCH_TEXT
+        assert page.empty_state.button.text() == page_module.SAVED_WORK_SHOW_ALL_TEXT
+        page.empty_state.button.click()
+        _pump(app, lambda: page.table.rowCount() == 1 and not page.table_switch.is_empty())
+        assert page.filter_edit.text() == ""
+    finally:
+        page.close()
+        page.deleteLater()
