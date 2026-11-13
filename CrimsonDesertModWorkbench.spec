@@ -398,7 +398,7 @@ _add_native_binary(
     required_release=True,
 )
 _add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.exe", "native", required_release=True)
-_add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.dll", "native", required_release=True)
+# cdmw-mesh-core.dll is built for the native ABI tests only; nothing in the app loads it (removal list item 6).
 # DMM loads CDMW's items; the game runtime (an ASI and a session host .exe) ships only
 # while CDMW's own loading is switched on.
 from cdmw import constants as _cdmw_constants
