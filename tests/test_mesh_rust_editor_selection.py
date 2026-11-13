@@ -13,7 +13,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QProcess, QSettings, QThread
+from PySide6.QtCore import QCoreApplication, QEvent, QProcess, QSettings, QThread
 from PySide6.QtWidgets import QApplication
 
 from cdmw.models import ArchiveEntry
@@ -88,6 +88,8 @@ def _dispose(tab: MeshEditorTab) -> None:
     tab.deleteLater()
     if application is not None:
         application.processEvents()
+        # Delete it now, so a fault lands in the test that caused it (B1).
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 def _provenanced_resolution(root: Path, *, payload: bytes = b"rust-helper") -> RustMeshExecutableResolution:
