@@ -48995,7 +48995,7 @@ MESSAGE_REFERENCE = [
     "message": "Focus loss cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8455
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8475
     }
   },
   {
@@ -60713,7 +60713,7 @@ MESSAGE_REFERENCE = [
     "message": "Resize cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8442
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8462
     }
   },
   {
@@ -63224,7 +63224,7 @@ MESSAGE_REFERENCE = [
     "message": "The host did not provide an editable skeleton hierarchy",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8016
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8036
     }
   },
   {
@@ -63704,7 +63704,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy bone counts do not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8044
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8064
     }
   },
   {
@@ -63712,7 +63712,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains a duplicate bone index",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8057
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8077
     }
   },
   {
@@ -63720,7 +63720,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains a parent cycle",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8106
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8126
     }
   },
   {
@@ -63728,7 +63728,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an invalid bone index",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8055
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8075
     }
   },
   {
@@ -63736,7 +63736,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an invalid parent index",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8092
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8112
     }
   },
   {
@@ -63744,7 +63744,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an out-of-range bone position",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8076
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8096
     }
   },
   {
@@ -63752,7 +63752,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy has no parent-child segments to draw",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8123
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8143
     }
   },
   {
@@ -63760,7 +63760,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy is incomplete or has no root",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8099
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8119
     }
   },
   {
@@ -63768,7 +63768,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy is truncated, so its overlay is disabled",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8019
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8039
     }
   },
   {
@@ -63776,7 +63776,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton parser reported an incomplete hierarchy",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8026
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8046
     }
   },
   {
@@ -66858,7 +66858,7 @@ MESSAGE_REFERENCE = [
     "message": "embedded parent window is invalid: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8335
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8355
     }
   },
   {
@@ -72713,7 +72713,7 @@ MESSAGE_REFERENCE = [
     "message": "pending Mesh Editor helper could not announce itself: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8398
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8418
     }
   },
   {
@@ -75667,7 +75667,7 @@ MESSAGE_REFERENCE = [
     "message": "window creation failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8344
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8364
     }
   },
   {

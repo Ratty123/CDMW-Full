@@ -7955,11 +7955,22 @@ impl LabApplication {
                 }
             }
         }
-        if full_output
+        let repaint_delay = full_output
             .viewport_output
             .get(&egui::ViewportId::ROOT)
-            .is_some_and(|output| output.repaint_delay.is_zero())
+            .map(|output| output.repaint_delay);
+        if let Some(at) =
+            repaint_delay.and_then(|delay| egui_repaint_deadline(delay, Instant::now()))
         {
+            // A timed repaint (request_repaint_after: the Vertex Inspector's debounce,
+            // tooltip delays, the text cursor's blink) wakes the loop when it is due;
+            // only immediate ones were kept once frames stopped following each other.
+            self.material_redraw_deadline = Some(
+                self.material_redraw_deadline
+                    .map_or(at, |deadline| deadline.min(at)),
+            );
+        }
+        if repaint_delay.is_some_and(|delay| delay.is_zero()) {
             if self.showing_view() {
                 // Nothing is edited while the session prepares (P4 V4): a slower
                 // frame rate leaves the CPU to the preparation.
@@ -7982,6 +7993,15 @@ impl LabApplication {
             std::time::Duration::from_millis(16)
         }
     }
+}
+
+/// When egui's timed repaint is due: None for an immediate one (drawn at once)
+/// and for "no repaint" (`Duration::MAX`, or anything that does not fit).
+fn egui_repaint_deadline(delay: std::time::Duration, now: Instant) -> Option<Instant> {
+    if delay.is_zero() || delay == std::time::Duration::MAX {
+        return None;
+    }
+    now.checked_add(delay)
 }
 
 /// Whether egui's answer to a window event asks for a frame. egui-winit answers
@@ -8552,6 +8572,15 @@ mod tests {
             warnings: Vec::new(),
             structural_fingerprint: String::new(),
         }
+    }
+
+    #[test]
+    fn a_timed_repaint_wakes_the_editor_when_it_is_due() {
+        let now = Instant::now();
+        let delay = std::time::Duration::from_millis(160);
+        assert_eq!(egui_repaint_deadline(delay, now), Some(now + delay));
+        assert_eq!(egui_repaint_deadline(std::time::Duration::ZERO, now), None);
+        assert_eq!(egui_repaint_deadline(std::time::Duration::MAX, now), None);
     }
 
     #[test]
