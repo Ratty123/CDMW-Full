@@ -69,3 +69,25 @@ def test_spacing_follows_the_font(app):
     font.setPointSizeF(16)
     state.setFont(font)
     assert state.button.minimumHeight() > small
+
+
+def test_a_command_registered_later_gets_its_button(app):
+    registry = CommandRegistry()
+    state = ActionEmptyState("Choose your game folder to start.", "", "shell.settings", registry=registry)
+    assert not state.button.isVisibleTo(state)
+    ran = []
+    registry.register(Command("shell.settings", "Settings", "shell", lambda: ran.append(True)))
+    assert state.button.isVisibleTo(state) and state.button.text() == "Settings"
+    state.button.click()
+    assert ran == [True]
+
+
+def test_a_failing_step_is_reported_not_raised(app):
+    from cdmw.ui.commands.registry import COMMAND_FAILED_REASON
+
+    def broken():
+        raise RuntimeError("boom")
+
+    state = ActionEmptyState("Nothing yet.", "Go", run=broken, registry=CommandRegistry())
+    state.button.click()
+    assert state.last_reason == COMMAND_FAILED_REASON and state.reason_label.isVisibleTo(state)

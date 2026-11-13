@@ -369,6 +369,8 @@ class ItemIconWorkerMixin:
         if not isinstance(request, ItemIconLibraryScanRequest) or request.request_id != request_id:
             return
         self.records = list(payload.records)
+        # The sources' empty state may say "none found" only after a scan has finished.
+        self._icon_scan_done = True
         self._records_by_key = {self._path_key(record.path): record for record in self.records}
         self._record_positions_by_key = {
             self._path_key(record.path): index for index, record in enumerate(self.records)

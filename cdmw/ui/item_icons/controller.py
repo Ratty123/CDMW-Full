@@ -41,6 +41,10 @@ class ItemIconRecordListMixin:
             switch.set_empty(False)
             return
         state = self.sources_empty_state
+        if getattr(self, "library_roots", None) and not getattr(self, "_icon_scan_done", False):
+            # Folders are set but not scanned yet: the list and its status line say so.
+            switch.set_empty(False)
+            return
         if getattr(self, "library_roots", None):
             wanted = (ICON_SOURCES_NONE_FOUND_TEXT, "Rescan", lambda: self.scan_library(show_status=True))
         else:

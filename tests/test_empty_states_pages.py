@@ -220,6 +220,10 @@ def test_item_icons_asks_for_a_folder_then_offers_a_rescan(app, tmp_path, monkey
         assert asked
 
         tab.library_roots = [tmp_path]
+        tab._icon_scan_done = False
+        tab._sync_sources_empty_state()
+        assert not tab.sources_switch.is_empty(), "no 'none found' before the first scan has finished"
+        tab._icon_scan_done = True
         tab._sync_sources_empty_state()
         assert state.sentence_label.text() == panels.ICON_SOURCES_NONE_FOUND_TEXT and state.button.text() == "Rescan"
 
@@ -297,3 +301,22 @@ def test_asset_research_asks_for_a_scan_before_anything_else(app, opened, tmp_pa
         tab.close()
         tab.deleteLater()
         app.processEvents()
+
+
+def test_edit_translations_says_when_no_languages_were_found(app, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QLineEdit
+
+    import tools.translation_studio.tab as tab_module
+
+    monkeypatch.setattr(tab_module, "available_languages", lambda _root=None, *, on_progress=None: ())
+    window = SimpleNamespace(archive=SimpleNamespace(archive_package_root_edit=QLineEdit(str(tmp_path))))
+    tab = tab_module.TranslationStudioTab(window=window)
+    try:
+        _pump(app, lambda: not tab.iter_shutdown_workers() and tab.empty_state.button.toolTip()
+              == tab_module.TRANSLATIONS_NO_LANGUAGES_TEXT)
+        assert not tab.empty_state.button.isEnabled()
+    finally:
+        tab.request_shutdown()
+        tab.deleteLater()

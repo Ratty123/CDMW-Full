@@ -77,6 +77,7 @@ _NONE = "(none)"
 TRANSLATIONS_NO_GAME_TEXT = "Choose your game folder to see its translations, or open a .paloc file above."
 TRANSLATIONS_CHOOSE_GAME_TEXT = "Choose Game Folder"
 TRANSLATIONS_LOAD_TEXT = "Pick a language above and load it to see and edit its lines."
+TRANSLATIONS_NO_LANGUAGES_TEXT = "No game languages were found. Check the game folder in Archive Locations."
 #: Cap the rows a search returns. Nobody reads 90,000 hits, and building that view
 #: costs more than the search itself.
 _MAX_HITS = 5000
@@ -555,12 +556,14 @@ class TranslationStudioTab(QWidget):
             self.progress_bar.setVisible(False)
         if error or languages is None:
             self.archive_label.setText(f"Could not list languages: {error}")
+            QTimer.singleShot(0, self, self._sync_empty_state)
             return
         languages = tuple(languages)
         self.language_box.clear()
         self.reference_box.clear()
         if not languages:
             self.archive_label.setText(f"No string tables found in: {self._game_root()}")
+            QTimer.singleShot(0, self, self._sync_empty_state)
             return
         self.language_box.addItems(list(languages))
         self._sync_empty_state()
@@ -706,6 +709,9 @@ class TranslationStudioTab(QWidget):
         if getattr(self, "_thread", None) is not None or getattr(self, "_export_thread", None) is not None:
             return "Wait for the current task to finish."
         if not self.language_box.count():
+            if getattr(self, "_language_thread", None) is None and not getattr(self, "_language_refresh_pending", False):
+                # The listing ended with nothing to load: say so, not "still being listed".
+                return TRANSLATIONS_NO_LANGUAGES_TEXT
             return "The game's languages are still being listed."
         return ""
 
@@ -744,6 +750,7 @@ class TranslationStudioTab(QWidget):
         if thread is self._language_thread:
             self._language_thread = None
             self._language_worker = None
+            self._sync_empty_state()
             if self._language_refresh_pending and not self._refresh_timer.isActive():
                 self._populate_languages()
         if thread is self._thread:

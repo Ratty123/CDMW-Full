@@ -97,6 +97,13 @@ class ActionEmptyState(QWidget):
         self.refresh()
 
     def _registry_changed(self, _context: str = "") -> None:
+        # A command registered after this state was built gets its label and button now.
+        if self.command_id and self._run is None and not self.button.isVisibleTo(self):
+            label = self._command_label()
+            if label:
+                _source_text(self.button, label)
+                self.button.setVisible(True)
+                _localize(self.button)
         self.refresh()
 
     def refresh(self) -> None:
@@ -131,8 +138,16 @@ class ActionEmptyState(QWidget):
 
     def _clicked(self) -> None:
         if self._run is not None:
-            self._run()
-            reason = ""
+            try:
+                self._run()
+                reason = ""
+            except Exception:  # a failing step is reported, not raised into the Qt slot
+                import logging
+
+                from cdmw.ui.commands.registry import COMMAND_FAILED_REASON
+
+                logging.getLogger(__name__).exception("The empty state's step failed")
+                reason = COMMAND_FAILED_REASON
         else:
             registry = self._commands()
             if registry is None:
