@@ -178,6 +178,83 @@ class TextureEditorNativeDdsService:
             normalized["warning"] = resolved.warning
         return TextureEditorNativeDdsResult(dds_path=dds_path, report=normalized)
 
+    def export_matching_original(
+        self,
+        document: TextureEditorDocument,
+        layer_pixels: Mapping[str, np.ndarray],
+        original,
+        output_path: Path,
+        *,
+        overwrite: bool = True,
+        temp_root: Optional[Path] = None,
+        timeout_seconds: float = 60.0,
+    ) -> TextureEditorNativeDdsResult:
+        """Write the document in the original texture's format, colour space and mip chain.
+
+        `original` is an `OriginalTextureOutput` (cdmw.domain.textures.original_output);
+        a format the encoder cannot write was refused when it was made. The size is the
+        document's. The written header is checked against the request, so a helper that
+        writes something else is an error rather than a silent conversion.
+        """
+        from cdmw.domain.textures.original_output import OriginalTextureOutput, TextureOutputRefused
+
+        if not isinstance(original, OriginalTextureOutput):
+            raise TypeError("export_matching_original needs an OriginalTextureOutput.")
+        if (int(document.width), int(document.height)) != (original.width, original.height):
+            raise ValueError("The output settings were made for another size; make them again for this document.")
+        if texture_native.find_directxtex_texture_binary() is None:
+            raise NativeTextureEditorExportError("Native DirectXTex texture backend cd-texture-dx is missing.")
+        dds_path = Path(output_path).expanduser().resolve()
+        temp_parent = Path(temp_root).expanduser().resolve() if temp_root is not None else None
+        if temp_parent is not None:
+            temp_parent.mkdir(parents=True, exist_ok=True)
+        if dds_path.exists() and not overwrite:
+            raise FileExistsError(f"Texture output already exists: {dds_path}")
+        with tempfile.TemporaryDirectory(prefix="cdmw_texture_editor_", dir=str(temp_parent) if temp_parent is not None else None) as temp_dir:
+            png_path = Path(temp_dir) / f"{_safe_slug(document.title)}.png"
+            staged = Path(temp_dir) / "matched.dds"
+            _export_flattened_png(document, layer_pixels, png_path)
+            report = texture_native.encode_dds_with_directxtex(
+                png_path,
+                staged,
+                dds_format=original.dds_format,
+                width=original.width,
+                height=original.height,
+                mip_count=original.mip_count,
+                overwrite=True,
+                # Linear data keeps its bytes; sRGB colour is encoded as sRGB.
+                source_color_policy="auto" if original.srgb else "ignore_srgb_metadata",
+                timeout_seconds=timeout_seconds,
+            )
+            if not report:
+                raise NativeTextureEditorExportError("Native DirectXTex DDS export failed.")
+            normalized = _normalized_native_report(
+                staged,
+                report,
+                preset_key="match_original",
+                requested_format=original.dds_format,
+                requested_mip_count=original.mip_count,
+            )
+            written = str(normalized.get("format") or normalized.get("actual_dxgi_format") or "")
+            if written and written.upper() != original.dds_format:
+                raise TextureOutputRefused(
+                    f"The encoder wrote {written} instead of {original.dds_format}; nothing was saved.",
+                    dds_format=original.dds_format,
+                )
+            if normalized.get("mip_count") not in (None, original.mip_count):
+                raise TextureOutputRefused(
+                    f"The encoder wrote {normalized.get('mip_count')} mips instead of {original.mip_count}; "
+                    "nothing was saved.",
+                    dds_format=original.dds_format,
+                )
+            # Only a checked file reaches the output path.
+            from cdmw.core.atomic_file import atomic_write_bytes
+
+            dds_path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_bytes(dds_path, staged.read_bytes())
+        normalized["output_path"] = str(dds_path)
+        return TextureEditorNativeDdsResult(dds_path=dds_path, report=normalized)
+
     def preview_compressed(
         self,
         document: TextureEditorDocument,
