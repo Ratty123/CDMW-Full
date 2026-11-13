@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "title": "Textures inside the Mesh Editor (P6, decision 48): the helper's messages and the Mesh Editor tab's hooks, one contract for both sides",
+  "protocol": "cdmw_rust_mesh_editor_protocol_v1",
+  "capabilities": {
+    "texture_paint_v1": "the helper sends paint_stroke for brush input on the model (this contract, helper_to_host)",
+    "resident_texture_region_updates_v1": "the helper applies texture_region_update in place and acknowledges it (the existing ResidentTextureRegionUpdateQueue wire shape, host_to_helper); today the helper treats the event as unknown and fatal (cdmw_session.rs, the unknown-event arm), so this capability is new on the Rust side"
+  },
+  "about": "The Python side is built and tested on refs/heads/rr/parity-p6-python: cdmw/services/model_textures.py (the list, its grouping, the sharing rule and Make unique), cdmw/domain/textures/original_output.py with TextureEditorNativeDdsService.export_matching_original (output in the original's format, colour space and mips, or a refusal with the reason), cdmw/services/texture_document_authority.py (one document per edited texture; the mesh session's store is derived from it), cdmw/services/mesh_draft_textures.py (the draft's texture projects) and the optional pressure in apply_texture_editor_stroke and TextureEditorToolSettings. Tests: tests/test_model_textures.py, tests/test_texture_original_output.py, tests/test_texture_document_authority.py, tests/test_mesh_draft_textures.py, tests/test_texture_editor_stroke_pressure.py, tests/test_build_mod_new_texture_registration.py. The main thread builds what this file lists under 'helper_to_host', 'host_to_helper' and 'tab_hooks'; nothing here is wired into cdmw/ui/mesh_editor, cdmw/ui/preview or tools/rust_mesh_lab yet. Every envelope field (protocol, session_id, process_generation) is as in every other helper message.",
+  "units": {
+    "uv": "the part's texture coordinates as the PAC stores them, u right and v down in the texture's pixel space after the same V convention the helper already uses to sample the base texture; (0, 0) is the texture's top-left texel corner, (1, 1) the bottom-right",
+    "pressure": "0.0 to 1.0; a pointer without pressure leaves the field out of every sample (never sends 1.0 for 'unknown')",
+    "rect": "x, y, width, height in texels of the full-resolution texture document"
+  },
+  "helper_to_host": [
+    {
+      "event": "paint_stroke",
+      "capability": "texture_paint_v1",
+      "when": "while the Textures panel's brush is active and the pointer is down on a part of the model; one 'begin', any number of 'samples', one 'end' (or 'cancel') per stroke",
+      "fields": {
+        "event": "the string 'paint_stroke'",
+        "stroke_id": "integer, increasing per helper process; every message of one stroke carries the same id",
+        "phase": "'begin' | 'samples' | 'end' | 'cancel'",
+        "part": "integer, the scene submesh index under the pointer at 'begin' (the stroke stays on this part)",
+        "resource_id": "string, the texture resource the panel chose (as in the manifest's textures rows)",
+        "channel": "string, 'base' | 'normal' | 'material' | 'material_mask' | 'detail_mask' | 'height' | 'emissive'",
+        "samples": "array of {u, v, pressure?}: the pointer's UV on the part at each input event since the last message, in order; empty for 'end' and 'cancel'",
+        "base_revision": "integer, the helper's shadow revision, as transaction_request carries it"
+      },
+      "host_answer": "none per message; the visible result is texture_region_update. A stroke the host refuses ends with one texture_paint_refused {stroke_id, code, message}, code one of refusal_codes"
+    },
+    {
+      "event": "texture_region_applied | texture_region_failed",
+      "capability": "resident_texture_region_updates_v1",
+      "fields": {
+        "resource_id": "string, copied from the update",
+        "generation": "integer, copied from the update",
+        "message": "string, texture_region_failed only: why"
+      },
+      "host_handling": "ResidentTextureRegionUpdateQueue.acknowledge (cdmw/ui/mesh_editor/resident_texture_update_queue.py); a failed update is retried once, then the host sends the whole texture again"
+    }
+  ],
+  "host_to_helper": [
+    {
+      "event": "texture_region_update",
+      "capability": "resident_texture_region_updates_v1",
+      "shape": "exactly what ResidentTextureRegionUpdateQueue builds today: schema 'cdmw_resident_texture_region_update_v1', version 1, session_id, edit_revision, texture_revision, generation, resource_id, channel, affected_submeshes, texture_width, texture_height, rect {x, y, width, height}, pixel_format 'bgra8_unorm', row_pitch, binary {path, offset, length, sha256, delete_after}",
+      "helper_handling": "upload the rectangle into the resident GPU texture for (resource_id, channel) and acknowledge with texture_region_applied; a texture shown downscaled (the 2048 px preview cap) takes the rectangle scaled into its own resolution; nothing reinstalls the document",
+      "one_writer_rule": "the queue must not write the mesh store itself when the authority is in use: construct it with no commit_region callable, pass texture_revision from TextureDocumentAuthority.commit's return value. The authority is the only writer of the mesh session's texture store"
+    }
+  ],
+  "tab_hooks": [
+    {
+      "when": "a Mesh Editor session opens on an archive model (after MeshArchiveMaterialContextWorker has the preview model)",
+      "call": "model_textures.model_texture_list(slot rows): the rows are every part's preview_material_texture_inputs (PreviewMaterialTextureInput) from the session's preview model",
+      "result": "groups in panel order: colour, normal, material_response, masks, detail, emissive, other (TEXTURE_GROUPS); labels are the UI's: Colour, Normal, Material response, Masks, Detail and layer, Emissive, Other"
+    },
+    {
+      "when": "the user chooses a texture to edit",
+      "call": "original_output.check_texture_editable(the extracted DDS path), before the editor opens it",
+      "refusal": "TextureOutputRefused.reason is the message; the texture is not opened"
+    },
+    {
+      "when": "after the check, before the first stroke",
+      "call": "model_textures.texture_sharing(texture, parts being edited, other_files=<the archive scan's users or None>, own_files=<this model's own files>)",
+      "result": "needs_unique with its reason: the panel offers Make unique and does not edit the shared file in place; other_files None means the on-request scan (archive_reference_search) has not run, and the panel offers 'Check other files'"
+    },
+    {
+      "when": "the user accepts Make unique",
+      "call": "model_textures.make_texture_unique(source_path, sidecar_path=, sidecar_data=<the session's current sidecar bytes>, parts=, stem=<the model's stem>, existing_paths=<game and mod paths>)",
+      "result": "MadeUnique: the session's replacement companions gain the rewritten sidecar (sidecar_path, sidecar_data) and, at Build Mod, the edited texture at new_path; the shared original is never written. Registration needs no host code: DMM and CDMW's virtual loader register a mod's new DDS files (tests/test_build_mod_new_texture_registration.py)"
+    },
+    {
+      "when": "the editor opens the texture (docked or the app's Texture Editor)",
+      "call": "TextureDocumentAuthority.open(TextureDocumentKey.of(session_id, resource_id, channel), document, layer_pixels, owner=<'Mesh Editor' or 'Texture Editor'>, affected_submeshes=, logical_path=)",
+      "refusal": "TextureDocumentOpenElsewhere: focus the widget named by .owner instead of opening a second copy"
+    },
+    {
+      "when": "a paint_stroke ends",
+      "call": "map each sample's UV to texels with the document's size, then apply_texture_editor_stroke(document, layer_pixels, tool_settings, points, pressures=<the samples' pressures, or None when the pointer sent none>), then TextureDocumentAuthority.commit(key, document, layer_pixels, owner=, rect=<the stroke's dirty rect>), then queue texture_region_update for that rect",
+      "notes": "samples may be applied as they arrive for live feedback; commit runs once per stroke so a stroke is one history step"
+    },
+    {
+      "when": "Finish (each Finish is one restorable step, decision 38)",
+      "call": "mesh_draft_textures.save_draft_texture(<the draft folder: mesh_layer_project_path's parent>, DraftTexture(resource_id, channel, source_path, output_path=<source_path or MadeUnique.new_path>, parts, affected_submeshes, original_format, sidecar_path), document, layer_pixels)"
+    },
+    {
+      "when": "a draft is restored",
+      "call": "mesh_draft_textures.load_draft_textures(draft folder), then for each loaded texture TextureDocumentAuthority.open and commit (whole texture) so the mesh store matches the saved document",
+      "refusal": "a LoadedDraftTexture with problem set is shown by name and not reopened; the rest of the draft opens"
+    },
+    {
+      "when": "Build Mod, and the archive result that sends users to it",
+      "call": "for each edited texture: TextureEditorNativeDdsService.export_matching_original(document, layer_pixels, original_texture_output(parse_dds(original)), <staging path>) and add the DDS at DraftTexture.output_path as a replacement companion",
+      "lift": "the mesh-only refusal at cdmw/workers/mesh_editor_workers.py ('Mesh-only outputs cannot contain texture or material authoring changes', in MeshDirectOutputWorker.run) and at cdmw/services/mesh_archive_results.py is lifted when every committed texture resource has a draft texture with an output; Export Mesh File keeps its refusal and says 'Export Mesh File writes the mesh only; use Build Mod to include texture edits.'; hair is lifted too, since its output already copies, renames and registers textures (decision 48)"
+    }
+  ],
+  "refusal_codes": {
+    "not_editable": "check_texture_editable refused: the format cannot be written back unchanged (TextureOutputRefused.reason)",
+    "needs_unique": "the texture is shared (texture_sharing.reason) and Make unique was not accepted",
+    "open_elsewhere": "TextureDocumentOpenElsewhere: the document is open in another widget",
+    "stale_revision": "the mesh store changed under the document (a second writer); nothing was written",
+    "no_texture": "the part under the pointer has no texture in the chosen channel"
+  },
+  "limits": {
+    "samples_per_message": 512,
+    "region_bytes": 67108864
+  }
+}
