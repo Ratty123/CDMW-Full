@@ -1036,8 +1036,9 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Planner profiles</b> and <b>planner paths</b> are advanced controls for changing those assumptions when you know the file family.</li>
                   <li><b>Preview Policy</b> is the per-file preflight view. Use it before large runs.</li>
                   <li><b>Dry run</b> and small folder filters are useful for validating a plan without committing to a full output pass.</li>
-                  <li>Archive patching requires explicit action and uses backups where supported; extraction and preview are read-only.</li>
+                  <li>CDMW never writes into the game's archives: extraction and preview only read them, and what you make is written as a mod.</li>
                 </ul>
+                <p>CDMW never writes into the game folder. An output, build or mod folder you choose inside it, inside a DLC folder of the game or inside any other Crimson Desert installation is refused before anything is written, and the message names the folder. Choose a folder outside the game; a mod manager installs the mod. Only Restore Backup... and Remove What an Older CDMW Installed... in Browse Archives write there, to put back or take out what an older CDMW changed. If you change the game folder while CDMW runs, the previous one stays protected until CDMW closes.</p>
                 <p>If you are not sure what a file is, classify or inspect it in Research before assigning an aggressive workflow profile.</p>
                 """,
             },
@@ -1122,6 +1123,7 @@ class AboutDocumentationEnglishMixin:
                 "summary": "Common failure cases and current limitations.",
                 "keywords": "troubleshooting limits native dds ncnn chainner png output brightness drift preview archive cache",
                 "html": """
+                <p>If the CDMW folder is inside the Crimson Desert installation, CDMW says so when it starts, names both folders and closes. CDMW never writes into the game folder, so it cannot keep its settings, workspace and temporary files there. Move the CDMW folder outside the game, for example into your user folder or onto another drive, and start it again. Nothing in the game folder is changed. This message is in English only, because it appears before the rest of CDMW starts.</p>
                 <ul>
                   <li>If cd-texture-dx.exe is missing, conversion, compare previews, DDS rebuilding and the image fallback stop. Check that it is packaged beside the app. Supported GPU previews remain available.</li>
                   <li><b>Missing NCNN models</b>: direct NCNN requires a valid executable and matching <code>.param</code> / <code>.bin</code> models.</li>
