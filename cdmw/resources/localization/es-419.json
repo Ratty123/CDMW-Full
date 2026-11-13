@@ -5416,6 +5416,7 @@
     "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation": "Finalizar Edición de Malla está esperando la edición actual o generación de cabello; esperar o cancelar generación",
     "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.": "Finaliza la edición de malla o ejecuta Comprobar malla correctamente antes de exportar el PAC.",
     "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.": "«Finalizar edición de malla» agotó el tiempo de espera porque la vista de colocación residente no se confirmó en 5 segundos; la edición de malla permanece abierta.",
+    "Finish Edit Mesh will run as soon as the current edit is done": "Finalizar edición de malla se ejecutará en cuanto termine la edición actual",
     "Finish Is Not Available": "Finalizar no está disponible",
     "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.": "Finaliza la malla y elige Continuar editando la malla modificada antes de eliminar partes enteras. Usa Incluir en la nueva sesión para quitar partes de la salida del juego.",
     "Finish Morph": "Finalizar deformación",

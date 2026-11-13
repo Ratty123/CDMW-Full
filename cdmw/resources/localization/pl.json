@@ -5416,6 +5416,7 @@
     "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation": "Zakończ Edycję Siatki oczekuje na bieżącą edycję lub generowanie włosów; czekaj lub anuluj generowanie",
     "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.": "Zakończ edycję siatki lub uruchom Sprawdź siatkę z wynikiem pozytywnym przed eksportem PAC.",
     "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.": "Operacja „Zakończ edycję siatki” przekroczyła limit czasu, ponieważ rezydentny widok rozmieszczenia nie został potwierdzony w ciągu 5 sekund; edycja siatki pozostaje otwarta.",
+    "Finish Edit Mesh will run as soon as the current edit is done": "Zakończ edycję siatki zostanie wykonane, gdy tylko bieżąca edycja się zakończy",
     "Finish Is Not Available": "Zakończ jest niedostępne",
     "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.": "Zakończ edycję siatki, a przed usuwaniem całych części wybierz Kontynuuj edycję zmodyfikowanej siatki. Użyj Uwzględnij w nowej sesji, aby wykluczyć części z wyniku dla gry.",
     "Finish Morph": "Zakończ przemianę",

@@ -5416,6 +5416,7 @@
     "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation": "Finish Edit Mesh ждёт текущего монтажа или генерации волос; ждать или отменять генерацию",
     "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.": "Завершите редактирование сетки или успешно выполните «Проверить сетку» перед экспортом PAC.",
     "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.": "Время ожидания команды «Завершить редактирование сетки» истекло: резидентное представление размещения не было подтверждено в течение 5 секунд; режим редактирования сетки остаётся открытым.",
+    "Finish Edit Mesh will run as soon as the current edit is done": "«Завершить редактирование сетки» выполнится, как только закончится текущее изменение",
     "Finish Is Not Available": "«Завершить» недоступно",
     "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.": "Завершите работу с сеткой, затем выберите «Продолжить редактирование изменённой сетки» перед удалением целых частей. В новом сеансе используйте «Включить», чтобы исключить части из результата для игры.",
     "Finish Morph": "Завершить морфинг",

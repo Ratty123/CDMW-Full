@@ -10014,6 +10014,10 @@ fn a_finish_during_an_edit_waits_for_it_and_is_sent_after() -> TestResult {
         ui.application.cdmw_finish_waiting,
         "a Finish during an edit was dropped"
     );
+    assert_eq!(
+        ui.application.status, "Finish Edit Mesh will run as soon as the current edit is done",
+        "the status names a cancel that a mesh edit does not have"
+    );
     assert!(
         !ui.application.send_waiting_cdmw_finish(),
         "the Finish was sent while the edit was in flight"

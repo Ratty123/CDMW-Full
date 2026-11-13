@@ -3553,8 +3553,13 @@ impl LabApplication {
                 // CDMW waiting for a Finish that never came (journey 3).
                 self.cdmw_finish_waiting = true;
             }
-            self.status =
-                "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation".to_owned();
+            self.status = if self.hair.active() {
+                "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation"
+            } else {
+                // Nothing to cancel here: the Finish runs once the edit is done.
+                "Finish Edit Mesh will run as soon as the current edit is done"
+            }
+            .to_owned();
             return;
         }
         self.cdmw_finish_waiting = false;

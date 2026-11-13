@@ -5416,6 +5416,7 @@
     "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation": "메시 편집 완료가 현재 편집 또는 머리카락 생성을 기다리는 중입니다. 기다리거나 생성을 취소하세요",
     "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.": "PAC를 내보내기 전에 메시 편집을 완료하거나 메시 확인을 실행하여 검증을 통과하세요.",
     "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.": "상주 배치 보기가 5초 이내에 확인되지 않아 메시 편집 완료 시간이 초과되었습니다. 메시 편집은 열린 상태로 유지됩니다.",
+    "Finish Edit Mesh will run as soon as the current edit is done": "메시 편집 완료는 현재 편집이 끝나는 대로 실행됩니다",
     "Finish Is Not Available": "완료를 사용할 수 없음",
     "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.": "메시 편집을 완료한 뒤 수정된 메시 편집 계속을 선택해야 파트 전체를 삭제할 수 있습니다. 새 세션의 포함으로 게임 출력에서 파트를 제외하세요.",
     "Finish Morph": "모핑 완료",

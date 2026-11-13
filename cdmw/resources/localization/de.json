@@ -5416,6 +5416,7 @@
     "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation": "„Mesh-Bearbeitung abschließen“ wartet auf die aktuelle Bearbeitung oder Haarerzeugung; warten oder Erzeugung abbrechen",
     "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.": "Schließen Sie die Mesh-Bearbeitung ab oder führen Sie Mesh prüfen erfolgreich aus, bevor Sie die PAC exportieren.",
     "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.": "„Mesh-Bearbeitung beenden“ hat das Zeitlimit überschritten, weil die residente Platzierungsansicht nicht innerhalb von 5 Sekunden bestätigt wurde; „Mesh bearbeiten“ bleibt geöffnet.",
+    "Finish Edit Mesh will run as soon as the current edit is done": "„Mesh-Bearbeitung abschließen“ wird ausgeführt, sobald die aktuelle Bearbeitung fertig ist",
     "Finish Is Not Available": "Abschließen ist nicht verfügbar",
     "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.": "„Mesh-Bearbeitung abschließen“ wählen, dann vor dem Löschen ganzer Teile „Continue editing modified mesh“. Mit „Einschließen“ in der neuen Sitzung Teile aus der Spielausgabe entfernen.",
     "Finish Morph": "Morph beenden",

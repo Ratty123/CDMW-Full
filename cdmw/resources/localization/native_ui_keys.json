@@ -852,6 +852,7 @@
   "Finish Edit Mesh",
   "Finish Edit Mesh accepted by CDMW",
   "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation",
+  "Finish Edit Mesh will run as soon as the current edit is done",
   "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.",
   "Finish Morph",
   "Finish Morph & Refit, then choose Start next edit pass before changing part inclusion or importing replacements.",

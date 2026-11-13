@@ -5416,6 +5416,7 @@
     "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation": "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation",
     "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.": "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.",
     "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.": "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.",
+    "Finish Edit Mesh will run as soon as the current edit is done": "Finish Edit Mesh will run as soon as the current edit is done",
     "Finish Is Not Available": "Finish Is Not Available",
     "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.": "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.",
     "Finish Morph": "Finish Morph",

@@ -5416,6 +5416,7 @@
     "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation": "完成編輯網格正在等待當前編輯或頭髮生成；請等待或取消生成",
     "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.": "匯出 PAC 前，請完成網格編輯或執行「檢查網格」並通過驗證。",
     "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.": "由於常駐放置視圖未在 5 秒內確認，「完成網格編輯」已逾時；網格編輯將保持開啟狀態。",
+    "Finish Edit Mesh will run as soon as the current edit is done": "完成編輯網格將在目前編輯完成後立即執行",
     "Finish Is Not Available": "無法完成",
     "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.": "請先完成網格編輯，再選擇「繼續編輯修改後的網格」後刪除整個部件。在新工作階段中使用「包括」從遊戲輸出中移除部件。",
     "Finish Morph": "完成 形變",

@@ -5416,6 +5416,7 @@
     "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation": "Mesh Düzenlemeyi Bitir işlemi mevcut düzenlemenin veya saç üretiminin tamamlanmasını bekliyor; bekleyin veya üretimi iptal edin",
     "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.": "PAC'ı dışa aktarmadan önce mesh düzenlemesini bitirin veya Mesh'i denetle işlemini başarıyla tamamlayın.",
     "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.": "Yerleşik yerleştirme görünümü 5 saniye içinde onaylanmadığı için Mesh Düzenlemeyi Bitir zaman aşımına uğradı; Mesh Düzenleme açık kalır.",
+    "Finish Edit Mesh will run as soon as the current edit is done": "Mesh Düzenlemeyi Bitir, mevcut düzenleme biter bitmez çalışacak",
     "Finish Is Not Available": "Bitir kullanılamıyor",
     "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.": "Tüm parçaları silmeden önce Mesh Düzenlemeyi Bitir düğmesini kullanıp Continue editing modified mesh seçin. Yeni oturumda parçaları oyun çıktısından kaldırmak için Dahil et seçeneğini kullanın.",
     "Finish Morph": "Dönüşüm'ü Bitir",

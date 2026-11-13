@@ -5416,6 +5416,7 @@
     "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation": "Terminer l'édition du maillage attend la modification ou la génération des cheveux en cours ; attendez ou annulez la génération",
     "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.": "Terminez l'édition du maillage ou exécutez Vérifier le maillage avec succès avant d'exporter le PAC.",
     "Finish Edit Mesh timed out because the resident placement view was not acknowledged within 5 seconds; Edit Mesh remains open.": "« Terminer la modification du maillage » a expiré car la vue de placement résidente n’a pas été confirmée sous 5 secondes ; Modifier le maillage reste ouvert.",
+    "Finish Edit Mesh will run as soon as the current edit is done": "Terminer l'édition du maillage s'exécutera dès que la modification en cours sera terminée",
     "Finish Is Not Available": "Terminer n'est pas disponible",
     "Finish Mesh, then choose Continue editing modified mesh before deleting whole parts. Use Include in the new session to remove parts from game output.": "Choisissez Terminer l'édition du maillage, puis Continuer l'édition du maillage modifié avant de supprimer des pièces entières. Utilisez Inclure dans la nouvelle session pour retirer des pièces de la sortie du jeu.",
     "Finish Morph": "Terminer la transformation",

@@ -62,6 +62,16 @@ def _remove_owned_session_root(
         raise
 
 
+def _draft_project_root(service: object, session_id: str) -> Path | None:
+    """The folder of the draft a session edits, or None (no draft, or no session)."""
+
+    try:
+        project_path = getattr(service._session(session_id), "mesh_layer_project_path", None)
+    except (AttributeError, KeyError, RuntimeError, TypeError):
+        return None
+    return Path(project_path).parent if project_path is not None else None
+
+
 class MeshRustSessionPrepareWorker(QObject):
     prepared = Signal(int, object)
     progress = Signal(int, str)
@@ -101,6 +111,9 @@ class MeshRustSessionPrepareWorker(QObject):
             getattr(authoritative_controller, "active_session_id", "") or ""
         )
         self.session_root = Path(session_root)
+        #: The draft's folder, read now: a Discard closes the document's session
+        #: before this worker's abort path runs, so it cannot be looked up then.
+        self.draft_project_root = _draft_project_root(self.expected_authoritative_service, self.expected_session_id)
         self.process_generation = int(process_generation)
         self.theme = dict(theme or {})
         self.hair_start_mode = hair_start_mode
@@ -120,14 +133,9 @@ class MeshRustSessionPrepareWorker(QObject):
 
         from cdmw.services import mesh_history_journal as journal
 
-        try:
-            draft = self.expected_authoritative_service._session(self.expected_session_id)
-            project_path = getattr(draft, "mesh_layer_project_path", None)
-        except (AttributeError, KeyError, RuntimeError):
+        project_root = self.draft_project_root
+        if project_root is None:
             return
-        if project_path is None:
-            return
-        project_root = Path(project_path).parent
         with journal.project_lock(project_root):
             journal.clear_editor_recovery(project_root)
 
