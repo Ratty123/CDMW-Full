@@ -79,9 +79,10 @@ loose bytes for packaging; nothing here writes to archives.
 
 ## Archive content creation
 
-Brand-new archive content is split by format owner. `archive_entry_addition.py`
-adds validated PAMT/PAZ entries; `archive_overlay.py` and `papgt_format.py` build
-and mount isolated archive groups; the ItemInfo, StringInfo, StoreInfo,
+Brand-new archive content is split by format owner. `archive_overlay.py` and
+`papgt_format.py` build isolated archive groups for mod folders (CDMW writes no
+game archive; the in-place PAMT/PAZ writers moved to `tests/support/`, where
+tests use them on owned copies); the ItemInfo, StringInfo, StoreInfo,
 ItemGroupInfo, MultiChangeInfo, PATHC and PAPPT modules decode and rewrite only
 their proven fields. Current recipe, item-reward, ItemUse and dye records have
 bounded codecs in `item_recipe_table.py`, `item_reward_table.py`,

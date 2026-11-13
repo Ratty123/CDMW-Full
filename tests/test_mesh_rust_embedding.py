@@ -624,8 +624,6 @@ def test_result_page_actions_and_retry_are_explicit_signals() -> None:
     host.export_pac_requested.connect(lambda: emitted.append("pac"))
     host.add_to_archive_browser_requested.connect(lambda: emitted.append("browser"))
     host.continue_modified_mesh_requested.connect(lambda: emitted.append("next_pass"))
-    host.install_overlay_requested.connect(lambda: emitted.append("install"))
-    host.restore_overlay_requested.connect(lambda: emitted.append("restore"))
     host.reopen_edit_requested.connect(lambda: emitted.append("reopen"))
     host.close_session_requested.connect(lambda: emitted.append("close"))
 

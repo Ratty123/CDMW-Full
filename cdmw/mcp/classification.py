@@ -45,6 +45,10 @@ AWAITING_CLASSIFICATION: dict[str, str] = {
 #: Commands that never become tools, whatever class they are given later.
 USER_ONLY_COMMANDS = frozenset({
     "shell.import_profile",  # a profile carries the AI settings and the game folder
+    # The two routes that write into the game folder (decisions 41, 42): only the user
+    # may confirm them, so no AI tool lists them under any setting.
+    "browse.remove_old_install",
+    "browse.restore_backup",
 })
 
 #: Every class a recommendation may name.

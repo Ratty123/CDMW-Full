@@ -11,19 +11,19 @@ from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.mod_package import UnsupportedCapability
 from cdmw.domain.new_item.rules import validate_spec
-from cdmw.domain.virtual_loader import VirtualProfile
+from tests.support.virtual_domain import VirtualProfile
 from cdmw.services.independent_item_codec import encode
-from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_rebuild, prepare_remove
+from tests.support.item_install import load_registry, prepare_install, prepare_rebuild, prepare_remove
 from cdmw.services.independent_item_package import from_plan, package_bytes, package_metadata, read_package, unpack_recipe
 from cdmw.services.independent_mod_package import migrate_v1, read_v2
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import publish_profile
 from tests.test_archive_overlay_manager import Backups, shop_spec, snapshot_of
 from tests.test_independent_item_fields import virtual_row
 from tests.test_independent_items import setup_game
 from tests.test_iteminfo_properties import property_row
 from tests.test_new_item_service import _table4
-from tests.test_virtual_loader import game_bytes
+from tests.support.game_fixtures import game_bytes
 
 
 @pytest.fixture

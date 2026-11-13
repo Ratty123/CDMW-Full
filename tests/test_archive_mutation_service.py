@@ -52,13 +52,13 @@ def test_restore_holds_archive_write_ownership_and_refuses_while_closing(tmp_pat
         return restore(backup, **kwargs)
 
     monkeypatch.setattr(archive_patching, "restore_archive_patch_backup", restore_and_check)
-    assert service.restore_backup(backup_dir, confirmed=True) == backup_dir
+    assert service.restore_backup(backup_dir, confirmed=True, game_root=tmp_path) == backup_dir
     assert owned == [True] and not shutdown.archive_write_in_progress()
     assert {path: path.read_bytes() for path in originals} == originals
     entry.paz_file.write_bytes(b"damaged again")
     shutdown._shutdown_started_at = 0.0
     with pytest.raises(RunCancelled, match="CDMW is closing"):
-        service.restore_backup(backup_dir, confirmed=True)
+        service.restore_backup(backup_dir, confirmed=True, game_root=tmp_path)
     assert entry.paz_file.read_bytes() == b"damaged again"
 
 
@@ -100,7 +100,7 @@ class ArchiveMutationServiceTests(unittest.TestCase):
                 self.assertEqual([backup_dir], service.list_backups())
                 with self.assertRaisesRegex(PermissionError, "explicit confirmation"):
                     service.restore_backup(backup_dir)
-                restored_dir = service.restore_backup(backup_dir, confirmed=True)
+                restored_dir = service.restore_backup(backup_dir, confirmed=True, game_root=root)
 
             self.assertEqual(backup_dir, restored_dir)
             self.assertEqual(original_payload, entry.paz_file.read_bytes())

@@ -9,18 +9,18 @@ from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.mod_compatibility import SEMANTIC_EXPORT_FILE, read_semantic_export
 from cdmw.core.papgt_format import papgt_with_directory, parse_papgt, serialize_papgt
-from cdmw.domain.virtual_loader import VirtualLoaderError, VirtualProfile
-from cdmw.services import archive_overlay_manager as overlays
+from tests.support.virtual_domain import VirtualLoaderError, VirtualProfile
+import tests.support.overlay_manager as overlays
 from cdmw.services.independent_item_compatibility import prepare_independent_mod_merge
-from cdmw.services.independent_item_install import (
+from tests.support.item_install import (
     inventory, load_registry, prepare_install, prepare_rebuild, prepare_remove,
 )
 from cdmw.services.independent_item_package import from_plan, package_bytes, package_metadata, read_package
 from cdmw.services.independent_mod_package import migrate_v1, read_v2
 from cdmw.services.mod_merge_service import export_merged_mod
 from cdmw.services.new_item_service import NewItemService
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import generation_path, load_profile, publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import generation_path, load_profile, publish_profile
 from tests.test_archive_overlay_manager import Backups, shop_spec
 from tests.test_independent_item_regressions import files_in
 from tests.test_independent_texture_packages import (
@@ -234,142 +234,6 @@ def test_source_equal_texture_requirement_survives_actual_semantic_export(tmp_pa
     assert package.identity in str(error.value) and conflicting.identity in str(error.value)
     assert TEXTURE_PATH in str(error.value)
     assert files_in(root) == before
-
-
-def test_real_virtual_worker_retains_texture_registry_digest(tmp_path):
-    from cdmw.services.virtual_loader_process import prepare_profile_in_subprocess
-    from cdmw.services.independent_item_package import digest
-    root, snapshot = texture_game(tmp_path)
-    package = texture_package(snapshot)
-    paths = package_paths(tmp_path / 'inputs', [package])
-    prepared = prepare_profile_in_subprocess(VirtualProfile(paths), root)
-    expected = digest((root / 'meta/0.pathc').read_bytes())
-    assert dict(prepared.source_revision.indexes)[root / 'meta/0.pathc'] == expected
-    publish_profile(prepared)
-    assert dict(load_profile(root)['sources'])[str(root / 'meta/0.pathc')] == expected
-    assert visible_texture(root, virtual=True) == dds_payload(fill=1)
-
-
-@pytest.mark.parametrize('route', ['selected', 'active', 'disabled'])
-@pytest.mark.parametrize('rebind_cache', [False, True], ids=['stale-cache', 'bound-cache'])
-def test_worker_cannot_omit_the_required_texture_registry_witness(tmp_path, monkeypatch, route, rebind_cache):
-    import json
-    from cdmw.domain.new_item.compilation import _identity
-    from cdmw.services import virtual_loader_process as owner
-    from cdmw.services.virtual_loader_cache import _input_identity, _key
-    from cdmw.services.independent_item_package import canonical, digest
-    root, snapshot = texture_game(tmp_path)
-    package = texture_package(snapshot)
-    paths = package_paths(tmp_path / 'inputs', [package])
-    if route != 'selected':
-        submit(tmp_path, root, [package], False)
-        if route == 'disabled':
-            layer = load_registry(root)['items'][package.identity]['layer']
-            backups(tmp_path / 'disable-for-worker').apply(overlays.prepare_overlay_enabled(root, layer, False))
-        paths = ()
-    registry = str(root / 'meta/0.pathc')
-    before = files_in(root)
-
-    def run(command, **kwargs):
-        output = Path(command[command.index('--output') + 1])
-        source = Path(command[command.index('--input') + 1])
-        assert owner.run_virtual_profile_worker(source, output) == 0
-        result = json.loads(output.read_bytes())
-        for key in ('source', 'external_source'):
-            result[key]['indexes'] = [row for row in result[key]['indexes'] if row[0] != registry]
-            result[key]['files'] = [row for row in result[key]['files'] if row[0] != registry]
-        profile = json.loads((output.parent / (result['profile'][0] + '.bin')).read_bytes())
-        profile['sources'] = [row for row in profile['sources'] if row[0] != registry]
-        profile['compilation']['inputs']['sources'] = dict(profile['sources'])
-        profile['compilation']['identity'] = _identity(profile['compilation']['inputs'])
-        if rebind_cache:
-            # Preserve internal cache consistency so the retained parent-side
-            # registry witness, rather than an unrelated cache error, refuses.
-            record = profile['build_cache']
-            record['inputs'] = _input_identity(profile['compilation'])
-            record['key'] = _key(record)
-            owner.validate_profile(profile)
-        encoded = canonical(profile)
-        checksum = digest(encoded)
-        (output.parent / (checksum + '.bin')).write_bytes(encoded)
-        result['profile'] = [checksum, len(encoded)]
-        output.write_bytes(canonical(result))
-        if rebind_cache:
-            accepted = owner._read_result(json.loads(source.read_bytes()), output.parent, output, None)
-            assert accepted.root == root
-        return 0, '', ''
-
-    monkeypatch.setattr(owner, 'run_process_with_cancellation', run)
-    expected = 'invalid or incomplete' if rebind_cache else 'Invalid virtual build cache record'
-    with pytest.raises(VirtualLoaderError, match=expected):
-        owner.prepare_profile_in_subprocess(VirtualProfile(paths), root)
-    assert files_in(root) == before
-
-
-@pytest.mark.parametrize('virtual', [False, True])
-def test_texture_removal_and_reviewed_retirement_preserve_current_shipped_baseline(tmp_path, virtual):
-    from cdmw.services.independent_item_package import stock_snapshot
-    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
-
-    root, snapshot = texture_game(tmp_path / 'original')
-    package = texture_package(snapshot)
-    submit(tmp_path, root, [package], virtual)
-    original_bindings = load_registry(root)['items'][package.identity]['binding_hash']
-
-    # A synthetic game update changes the shipped archive while this owner is installed.
-    updated_root, _updated_snapshot = texture_game(tmp_path / 'updated', source=dds_payload(fill=3))
-    assert (updated_root / 'meta/0.pathc').read_bytes() == (root / 'meta/0.pathc').read_bytes()
-    for path in (updated_root / '0009').iterdir():
-        (root / '0009' / path.name).write_bytes(path.read_bytes())
-    checksum = parse_papgt((updated_root / 'meta/0.papgt').read_bytes())[0].pamt_checksum
-    mount = root / 'meta/0.papgt'
-    mount.write_bytes(papgt_with_directory(mount.read_bytes(), '0009', checksum))
-    updated_shipped = files_in(root / '0009')
-    if virtual:
-        submit(tmp_path, root, [], True)
-    else:
-        before_review = files_in(root)
-        with pytest.raises(ValueError, match='baselines need review before removal'):
-            prepare_remove(package.identity, root)
-        with pytest.raises(ValueError, match='changed|source|match'):
-            prepare_overlay_rebuild(root)
-        assert files_in(root) == before_review
-
-        # The existing explicit recovery route retires an unmounted stale set.
-        state = overlays._load_index(root)
-        current_mount = mount.read_bytes()
-        mount.write_bytes(serialize_papgt(
-            [row for row in parse_papgt(current_mount) if row.name != state['directory']],
-            header=current_mount[:12]))
-        retained = files_in(root)
-        retirement = overlays.prepare_overlay_retirement(root)
-        recovery = backups(tmp_path / 'retire-updated-source')
-        result = overlays.apply_overlay_retirement(retirement, confirmed=True,
-            backup=lambda paths, label: recovery.backup_files(paths, description=label),
-            restore_backup=recovery.restore_backup, game_running=lambda: False)
-        assert result.retired_inventory.read_bytes() == retirement.inventory_data
-        assert result.backup_dir.is_dir()
-        assert all((root / path).read_bytes() == data for path, data in retained.items()
-                   if path != Path(overlays.INDEX_PATH))
-
-    assert visible_texture(root, virtual=virtual) == dds_payload(fill=3)
-    assert files_in(root / '0009') == updated_shipped
-    assert load_registry(root)['items'][package.identity]['binding_hash'] == original_bindings
-    before = files_in(root)
-    with pytest.raises(ValueError, match='changed|match|source'):
-        submit(tmp_path, root, [package], virtual)
-    assert files_in(root) == before
-
-    # Reauthoring against that current source keeps the owner and restores to the new bytes.
-    rebuilt = texture_package(stock_snapshot(root), identity=package.identity, release='2')
-    submit(tmp_path, root, [rebuilt], virtual)
-    assert visible_texture(root, virtual=virtual) == dds_payload(fill=1)
-    if virtual:
-        submit(tmp_path, root, [], True)
-    else:
-        backups(tmp_path / 'remove-reauthored').apply(prepare_remove(package.identity, root))
-    assert visible_texture(root, virtual=virtual) == dds_payload(fill=3)
-    assert files_in(root / '0009') == updated_shipped
 
 
 @pytest.mark.parametrize('virtual', [False, True])

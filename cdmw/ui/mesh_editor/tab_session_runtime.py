@@ -432,7 +432,6 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
                 False,
             )
         self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
-        self._update_restore_overlay_button()
         self._sync_state()
         if result.skeleton_source_path:
             self.status_message_requested.emit(

@@ -1,51 +1,16 @@
 # Tools
 
 Owns utility workspaces that do not belong to Assets, Textures, or Research. **Utilities
-> Mod Management** opens one **Mods** list for item packages, CDMW installs and
-externally managed archive folders. Type, Loads with and Status explain each row.
-Add supported packages or folders, choose **Apply changes**, then **Launch game**.
-New selections use the experimental virtual loader; existing installs retain their
-loading method and identities. Installed-only games launch without virtual setup.
-CDMW-owned installs can be enabled, disabled or removed from the list using the
-existing reviewed backup workflow. External folders remain managed by their original
-manager. Missing references and removed identity reservations are maintenance records,
-not active mods, and remain available in **Health and recovery** and **Item identities**.
+> Mod Management** opens one **Mods** list of `.cdmw` item packages that it sends to DMM,
+which loads them in the game. CDMW never installs into the game: the overlay installs,
+the virtual loader, and the pages that managed them (installed overlays, item
+identities, shared files, health and recovery) were removed (decision 39). Browse
+Archives' **Remove What an Older CDMW Installed...** takes out what an older CDMW
+installed.
 
-Use Ctrl/Shift to select several rows, then right-click for the available actions.
-Right-clicking a selected row keeps the whole selection. Installed mods can be removed
-or enabled/disabled together after one review and verified backup. Select entries with
-the same loading method for a bulk change. Virtual packages and folders can be disabled
-without removing them from the list; **Apply changes** saves their state for the next
-launch and reopening. Disabled packages keep their reserved IDs. **Details** also shows
-an independent package's title, identity, format and source path.
-
-In **Item identities**, select removed reservations to **Delete saved identities**
-together. The confirmation lists the selected items and game folder directly. One
-verified backup protects the complete deletion; installed items must first be removed.
-Deleting reservations can break older saves or allow IDs to be reused.
-
-Select a CDMW install and choose **Details** to open its preview and file history;
-**Back to mod list** retains the list's search and selection. One tab row opens **Mods**,
-**Prepare packages**, **Item identities**, **Shared files**, and **Health and recovery**.
-
-- **Health and recovery** combines archive status, missing-reference cleanup and
-  expandable repair actions. Rebuild/reapply repairs saved installs in place.
-- **Prepare packages** offers **Convert**, **Combine**, and **Update**. Each task retains
-  its inputs when switching. Conversion lists show the package, kind, manager and status;
-  **Package details** opens the selected package's additional settings and output plan.
-  These operations write separate output packages; they do not apply them to the game.
-- **Item identities** inspects installed/reserved IDs. **Identity profile** opens its
-  import/export tools for transferring profiles with saves.
-  Selecting a removed entry enables **Delete saved identity…**, which permanently
-  frees its reserved IDs after confirmation and a verified backup. Remove active or
-  disabled items first; remove virtual items in **Mods** and choose **Apply changes**.
-  Old saves can lose their item references or refer to a different item if a freed ID
-  is reused. The identity cleanup changes CDMW bookkeeping only, preserving archives
-  and the payload history needed by other installs.
-  The explicit **Install into game archives** action retains the older physical route.
-- **Shared files** scans archive-installed items, saved virtual-profile `.cditem`
-  packages and selected mod folders for conflicts. Virtual results use **Mods >
-  Apply changes**; archive-only results offer the existing rebuild and export actions.
+- **Prepare packages** (hidden unless the mod folder tools are on) offers **Convert**,
+  **Combine**, and **Update**. Each task retains its inputs when switching. These
+  operations write separate output packages; they never apply them to the game.
 
 Compatibility and unsupported-input
 checks remain mandatory; the combined list does not expand format or in-game support.

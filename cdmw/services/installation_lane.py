@@ -45,7 +45,8 @@ def installation_lane(root, *, recovery=False):
     _local.held = held
     try:
         if not recovery and (root / '.cdmw/virtual-loader/transaction.json').exists():
-            raise VirtualLoaderError('Recover the interrupted virtual profile transaction before changing this installation.')
+            raise VirtualLoaderError('An older CDMW left an unfinished virtual-loader change in this game folder. '
+                                     'Use Browse Archives > Remove What an Older CDMW Installed... to take it out.')
         yield
     finally:
         del held[key]

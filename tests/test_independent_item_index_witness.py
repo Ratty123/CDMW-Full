@@ -120,9 +120,10 @@ def test_index_change_during_payload_validation_is_not_hidden_by_same_stamps(tmp
 
 @pytest.mark.parametrize('virtual', [False, True])
 def test_final_fingerprinting_cannot_adopt_a_replacement_index(tmp_path, monkeypatch, virtual):
-    from cdmw.services import archive_overlay_manager as overlays, virtual_loader_composition as composition
-    from cdmw.domain.virtual_loader import VirtualProfile
-    from cdmw.services.independent_item_install import prepare_install
+    import tests.support.overlay_manager as overlays
+    import tests.support.virtual_composition as composition
+    from tests.support.virtual_domain import VirtualProfile
+    from tests.support.item_install import prepare_install
     from cdmw.services.independent_item_package import package_bytes
     from tests.test_independent_item_fields import field_package
     pamt, _, changed = index_fixture(tmp_path)

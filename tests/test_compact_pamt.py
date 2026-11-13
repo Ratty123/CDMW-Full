@@ -174,7 +174,7 @@ def test_resident_view_includes_dlc_mounts_and_detects_mount_changes(tmp_path):
 
 @pytest.mark.parametrize("extensions", [b"\x00.txt\x00", b"\x00.txt"])
 def test_compact_pamt_cannot_enter_the_archive_writer(tmp_path, extensions):
-    from cdmw.core.archive_patching import _parse_mutable_pamt
+    from tests.support.archive_patch_writer import _parse_mutable_pamt
     path = tmp_path / "0.pamt"
     raw = compact_pamt(extensions=extensions)
     path.write_bytes(raw)

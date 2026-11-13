@@ -49,6 +49,10 @@ class ArchiveWorkspaceLayoutMixin:
         from cdmw.ui.archive_browser.browse_commands import install_browse_commands
 
         install_browse_commands(self)
+        # Remove What an Older CDMW Installed... and Restore Backup..., both user-only commands.
+        from cdmw.ui.archive_browser.old_install_removal import install_old_install_removal
+
+        install_old_install_removal(self)
 
 
 __all__ = ["ArchiveWorkspaceLayoutMixin"]

@@ -1639,7 +1639,6 @@ def test_direct_resident_editor_does_not_disable_qt_owned_output_controls(tmp_pa
         assert tab.standalone_replace_from_archive_button.isEnabled()
         assert tab.standalone_export_mesh_file_button.isEnabled()
         assert tab.standalone_build_mod_button.isEnabled()
-        assert not tab.standalone_install_overlay_button.isEnabled()
 
         tab.standalone_dotnet_target_embedded = True
         tab.update_editor_action_state(publish_native=False)
@@ -1664,7 +1663,6 @@ def test_file_only_session_keeps_archive_outputs_disabled_after_current_validati
     assert not tab.standalone_replace_from_archive_button.isEnabled()
     assert tab.standalone_export_mesh_file_button.isEnabled()
     assert not tab.standalone_build_mod_button.isEnabled()
-    assert not tab.standalone_install_overlay_button.isEnabled()
     tab.close_standalone_session()
     tab.deleteLater()
     app.processEvents()
@@ -1970,7 +1968,6 @@ def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
         ("replace_from_archive_button", "replace_from_archive_requested", "replace_from_archive"),
         ("export_mesh_file_button", "export_mesh_file_requested", "export_mesh"),
         ("build_mod_button", "build_mod_requested", "build_mod"),
-        ("install_overlay_button", "install_overlay_requested", "install_overlay"),
         ("restore_overlay_button", "restore_overlay_requested", "restore_overlay"),
     )
     tab.status_message_requested.connect(
@@ -1989,7 +1986,6 @@ def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
         "replace_from_archive",
         "export_mesh",
         "build_mod",
-        "install_overlay",
         "restore_overlay",
     ]
     assert messages == [

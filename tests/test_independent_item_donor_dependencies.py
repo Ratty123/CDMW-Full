@@ -7,11 +7,11 @@ import pytest
 
 from cdmw.core.iteminfo_row import parse_iteminfo_row
 from cdmw.domain.archives.overlay_merge import OverlayConflict, _table
-from cdmw.domain.virtual_loader import VirtualProfile
-from cdmw.services import independent_item_install as install
+from tests.support.virtual_domain import VirtualProfile
+import tests.support.item_install as install
 from cdmw.services.independent_item_package import from_plan, package_bytes
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import load_profile, publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import load_profile, publish_profile
 from tests.test_archive_overlay_manager import Backups, shop_spec, snapshot_of
 from tests.test_independent_item_compatibility import mount_mod, table_change
 from tests.test_independent_item_regressions import files_in

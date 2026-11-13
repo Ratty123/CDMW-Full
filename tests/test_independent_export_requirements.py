@@ -9,19 +9,19 @@ from cdmw.core.mod_export_history import mod_metadata_path
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.iteminfo_operations import ItemFieldConflict
 from cdmw.domain.new_item.package_links import validate_link_record
-from cdmw.domain.virtual_loader import VirtualProfile
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services.archive_overlay_manager import prepare_overlay_enabled
+from tests.support.virtual_domain import VirtualProfile
+import tests.support.overlay_manager as overlays
+from tests.support.overlay_manager import prepare_overlay_enabled
 from cdmw.services.independent_item_compatibility import (
     prepare_independent_mod_merge, scan_independent_conflicts,
 )
-from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_remove
+from tests.support.item_install import load_registry, prepare_install, prepare_remove
 from cdmw.services.independent_item_operations import from_iteminfo_operations
 from cdmw.services.independent_item_package import from_plan, package_bytes, read_package
 from cdmw.services.independent_mod_package import migrate_v1, read_v2
 from cdmw.services.mod_merge_service import export_merged_mod
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import load_profile, publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import load_profile, publish_profile
 from tests.test_archive_overlay_manager import Backups, shop_spec, snapshot_of
 from tests.test_independent_item_fields import field_package, virtual_row
 from tests.test_independent_item_regressions import files_in
@@ -29,7 +29,7 @@ from tests.test_independent_items import setup_game
 from tests.test_independent_package_links import pair
 from tests.test_iteminfo_operations import assignment
 from tests.test_iteminfo_row import DDD
-from tests.test_virtual_loader import game_bytes
+from tests.support.game_fixtures import game_bytes
 
 
 def export_active(root, destination):

@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import lz4.block as lz4_block
 
-from cdmw.core.archive_entry_addition import parse_pamt_document
+from tests.support.archive_entry_addition import parse_pamt_document
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import calculate_pa_checksum, hashlittle, parse_archive_pamt
 from cdmw.core.archive_overlay import (

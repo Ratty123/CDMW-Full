@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 from pathlib import Path
 
-from cdmw import constants
 
 from PySide6.QtCore import QThread, QTimer, Qt
 from PySide6.QtWidgets import QProgressDialog
 
 from cdmw.services.archive_extraction_service import find_available_output_path
-from cdmw.services.new_item_service import game_is_running
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.models import ModPackageInfo
 from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
@@ -230,29 +227,6 @@ class MeshEditorDirectOutputMixin:
             (asset.entry for asset in assets if asset.entry.identity not in body_identities), entry)
         return tuple(bodies), named
 
-    def _start_mesh_overlay_prepare_requested(self) -> None:
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return
-        entry = self._mesh_output_target()
-        if entry is None:
-            return
-        if not self._standalone_export_validation_ok():
-            self.status_message_requested.emit("Run validation successfully before installing a mesh overlay.", True)
-            return
-        provider = self.get_archive_mutation_service
-        mutation_service = provider() if callable(provider) else None
-        if mutation_service is None:
-            self.status_message_requested.emit("Archive backup/restore service is unavailable in this window.", True)
-            return
-        if game_is_running():
-            self.status_message_requested.emit("Close the game before preparing a Mesh Editor overlay install.", True)
-            return
-        self._start_mesh_direct_output_worker(
-            "overlay_prepare",
-            entry,
-            mutation_service=mutation_service,
-        )
-
     def _start_mesh_direct_output_worker(
         self,
         kind: str,
@@ -271,8 +245,6 @@ class MeshEditorDirectOutputMixin:
         include_refit_body: bool = False,
         keep_layers: tuple[str, ...] = (),
     ) -> bool:
-        if kind == "overlay_prepare" and not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return False
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
             return False
@@ -388,34 +360,6 @@ class MeshEditorDirectOutputMixin:
             self.archive_result_ready.emit(replace(prepared, draft_lineage=dict(self.mesh_editor_draft_lineage or {})))
             self.status_message_requested.emit("Edited meshes added to Archive Browser with their source dependencies.", False)
             return
-        if result.kind == "overlay_prepare" and result.overlay_preparation is not None:
-            preparation = result.overlay_preparation
-            carry = "\n".join(f"  - {path}" for path in preparation.carried_forward_paths) or "  - none"
-            backups = "\n".join(f"  - {path}" for path in preparation.backup_targets) or "  - none"
-            mount_before = ", ".join(preparation.mount_list_before) or "none"
-            mount_after = ", ".join(preparation.mount_list_after) or "none"
-            confirmation = _tab.QMessageBox.question(
-                self,
-                "Install as Overlay",
-                (
-                    "Install this validated mesh through the workbench overlay?\n\n"
-                    f"Mesh path:\n  {preparation.requested_paths[0]}\n\n"
-                    f"Overlay directory:\n  {preparation.directory}\n\n"
-                    f"Mount list before:\n  {mount_before}\n"
-                    f"Mount list after:\n  {mount_after}\n\n"
-                    f"Carry-forward set ({len(preparation.carried_forward_paths)}):\n{carry}\n\n"
-                    f"Backup targets ({len(preparation.backup_targets)}):\n{backups}\n\n"
-                    "The game-closed check is repeated immediately before apply. "
-                    "Shipped PAMT/PAZ archives are never written."
-                ),
-                _tab.QMessageBox.Yes | _tab.QMessageBox.No,
-                _tab.QMessageBox.No,
-            )
-            if confirmation == _tab.QMessageBox.Yes and mutation_service is not None:
-                self._start_mesh_overlay_apply(preparation, mutation_service)
-            else:
-                self.status_message_requested.emit("Mesh overlay install was not applied.", False)
-            return
         output = str(result.output_path or "")
         self.status_message_requested.emit(
             f"Mesh Editor {result.kind.replace('_', ' ')} output ready: {output}",
@@ -471,53 +415,6 @@ class MeshEditorDirectOutputMixin:
             draft_request=draft_request, **material_context,
         )
 
-    def _start_mesh_overlay_apply(self, preparation: object, mutation_service: object) -> None:
-        if self._mesh_direct_output_busy():
-            self.standalone_pending_overlay_apply = (preparation, mutation_service)
-            return
-        self.standalone_output_request_id += 1
-        request_id = self.standalone_output_request_id
-        worker = _tab.MeshOverlayApplyWorker(request_id, preparation, mutation_service)
-        self._start_mesh_overlay_operation_worker(worker, kind="overlay_apply")
-
-    def _start_mesh_overlay_operation_worker(self, worker: object, *, kind: str) -> None:
-        thread = QThread(self)
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
-        worker.completed.connect(self._handle_mesh_overlay_operation_completed)
-        cancelled = getattr(worker, "cancelled", None)
-        if cancelled is not None:
-            cancelled.connect(self._handle_mesh_direct_output_cancelled)
-        worker.error.connect(self._handle_mesh_direct_output_error)
-        worker.finished.connect(
-            lambda target_worker=worker: self._finish_mesh_direct_output_worker_thread(target_worker),
-            Qt.DirectConnection,
-        )
-        thread.finished.connect(
-            lambda target_thread=thread, target_worker=worker: self._cleanup_mesh_direct_output_worker(
-                target_thread,
-                target_worker,
-            )
-        )
-        self.standalone_output_thread = thread
-        self.standalone_output_worker = worker
-        self.standalone_output_kind = kind
-        thread.start(QThread.LowPriority)
-
-    def _handle_mesh_overlay_operation_completed(self, request_id: int, result: object) -> None:
-        if int(request_id) != int(self.standalone_output_request_id):
-            return
-        if isinstance(result, _tab.MeshDirectOutputResult):
-            installed = result.install_result
-            receipt = getattr(installed, "receipt_path", None)
-            self.status_message_requested.emit(
-                f"Mesh overlay installed: {result.output_path}. Receipt: {receipt}",
-                False,
-            )
-        else:
-            self.status_message_requested.emit(f"Mesh overlay restored for: {result}", False)
-        self._update_restore_overlay_button()
-
     def _handle_mesh_direct_output_cancelled(self, request_id: int, message: str) -> None:
         if int(request_id) == int(self.standalone_output_request_id):
             self.status_message_requested.emit(str(message or "Mesh output cancelled."), False)
@@ -548,12 +445,8 @@ class MeshEditorDirectOutputMixin:
             progress.close()
             progress.deleteLater()
             self.standalone_output_progress = None
-        pending = self.standalone_pending_overlay_apply
-        self.standalone_pending_overlay_apply = None
         worker.deleteLater()
         thread.deleteLater()
-        if pending is not None:
-            QTimer.singleShot(0, lambda values=pending: self._start_mesh_overlay_apply(*values))
 
     def _finish_mesh_direct_output_worker_thread(self, worker: object) -> None:
         """Return a Python worker to Qt's UI thread before its native thread exits."""
@@ -575,60 +468,3 @@ class MeshEditorDirectOutputMixin:
                 stop()
             except RuntimeError:
                 pass
-
-    def _mesh_overlay_receipt_path(self) -> Path | None:
-        entry = self._current_target_entry()
-        if not isinstance(entry, _tab.ArchiveEntry):
-            return None
-        root = Path(entry.pamt_path).resolve().parent.parent
-        return root / ".cdmw" / "last-overlay-install.json"
-
-    def _update_restore_overlay_button(self) -> None:
-        receipt = self._mesh_overlay_receipt_path()
-        button = getattr(self.standalone_workspace, "restore_overlay_button", None)
-        if button is not None:
-            button.setVisible(constants.ARCHIVE_OVERLAYS_ENABLED)
-            button.setEnabled(constants.ARCHIVE_OVERLAYS_ENABLED and bool(receipt is not None and receipt.is_file()))
-
-    def _restore_last_mesh_overlay_requested(self) -> None:
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return
-        receipt = self._mesh_overlay_receipt_path()
-        if receipt is None or not receipt.is_file():
-            self.status_message_requested.emit("No Mesh Editor overlay install receipt is available.", True)
-            return
-        provider = self.get_archive_mutation_service
-        mutation_service = provider() if callable(provider) else None
-        if mutation_service is None:
-            self.status_message_requested.emit("Archive backup/restore service is unavailable in this window.", True)
-            return
-        try:
-            payload = json.loads(receipt.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            self.status_message_requested.emit(f"Overlay receipt could not be read: {exc}", True)
-            return
-        paths = "\n".join(f"  - {path}" for path in tuple(payload.get("mesh_paths") or ())) or "  - none"
-        confirmation = _tab.QMessageBox.question(
-            self,
-            "Restore Last Overlay Install",
-            (
-                f"Restore backup:\n  {payload.get('backup_dir', '')}\n\n"
-                f"Overlay directory:\n  {payload.get('overlay_directory', '')}\n\n"
-                f"Mesh paths:\n{paths}\n\n"
-                "Only files created by this receipt are removed; prior overlay files and the prior mount list are restored."
-            ),
-            _tab.QMessageBox.Yes | _tab.QMessageBox.No,
-            _tab.QMessageBox.No,
-        )
-        if confirmation != _tab.QMessageBox.Yes:
-            return
-        if self._mesh_direct_output_busy():
-            self.status_message_requested.emit("Wait for the current Mesh Editor output task to finish.", True)
-            return
-        self.standalone_output_request_id += 1
-        worker = _tab.MeshOverlayRestoreWorker(
-            self.standalone_output_request_id,
-            receipt,
-            mutation_service,
-        )
-        self._start_mesh_overlay_operation_worker(worker, kind="overlay_restore")

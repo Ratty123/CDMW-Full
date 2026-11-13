@@ -10,9 +10,9 @@ from cdmw.core.prefab_binary import KIND_POINTER, KIND_STRING, decode_prefab_bin
 from cdmw.core.prefab_binary_edit import rewrite_prefab_paths
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.mod_package import capability_result
-from cdmw.domain.virtual_loader import VirtualProfile
-from cdmw.services import independent_item_install as install
-from cdmw.services.independent_item_install import (
+from tests.support.virtual_domain import VirtualProfile
+import tests.support.item_install as install
+from tests.support.item_install import (
     inventory,
     load_registry,
     prepare_install,
@@ -25,7 +25,7 @@ from cdmw.services.independent_item_package import (
 )
 from cdmw.services.independent_mod_package import has_legacy_item, read_v2
 from cdmw.services.independent_prefab_package import from_prefab_replacements
-from cdmw.services.virtual_loader_composition import prepare_profile
+from tests.support.virtual_composition import prepare_profile
 from tests.test_independent_item_regressions import files_in
 from tests.test_independent_texture_composition import (
     backups,

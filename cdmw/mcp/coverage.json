@@ -137,6 +137,14 @@
       "class": "read",
       "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
     },
+    "browse.remove_old_install": {
+      "gap": "user_only",
+      "reason": "Deletes files in the game folder after the user reviews the list; only the user may confirm it."
+    },
+    "browse.restore_backup": {
+      "gap": "user_only",
+      "reason": "Writes backed-up files back into the game folder; only the user may confirm it."
+    },
     "browse.show_only_file": {
       "gap": "not_built",
       "class": "read",

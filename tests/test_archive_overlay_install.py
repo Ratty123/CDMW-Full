@@ -25,7 +25,7 @@ from cdmw.core.archive_format import parse_archive_pamt  # noqa: E402
 from cdmw.core.archive_scan_cache import discover_pamt_files  # noqa: E402
 from cdmw.core.papgt_format import parse_papgt  # noqa: E402
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest  # noqa: E402
-from cdmw.services.archive_overlay_install import (  # noqa: E402
+from tests.support.overlay_install import (  # noqa: E402
     OVERLAY_OWNER_MARKER,
     apply_overlay_install,
     install_overlay,
@@ -244,7 +244,7 @@ class OverlayInstallTests(unittest.TestCase):
                 prepare_overlay_install([ArchivePatchRequest(target, b"payload")], package_root=self.root, directory_name=name)
 
     def test_a_write_failure_rolls_back_without_a_restore_service(self) -> None:
-        import cdmw.services.archive_overlay_install as overlay
+        import tests.support.overlay_install as overlay
 
         target = self.entries[f"{BIN}/iteminfo.pabgb"]
         mount = self.root / "meta" / "0.papgt"

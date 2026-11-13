@@ -72,6 +72,14 @@ def send_item_packages_in_subprocess(package_paths, game_root, mods, title: str,
     if len(paths) > _MAX_PACKAGES:
         raise ValueError(f"Send at most {_MAX_PACKAGES} item packages at a time.")
     mods = Path(mods).resolve()
+    # Refuse a DMM mods folder in the game here, before a child exists (decision 46).
+    # The child checks again with the same rule; its staging goes beside the mods folder.
+    from cdmw.core.protected_roots import add_game_root, check_writable
+    from cdmw.services.dmm_send import destination
+
+    add_game_root(game_root)
+    check_writable(mods.parent)
+    destination(mods, title)
     request = {"schema": _SCHEMA, "nonce": uuid4().hex, "root": str(Path(game_root).resolve()),
                "mods": str(mods), "title": str(title), "packages": paths}
     staging_before = _staging_folders(mods)
@@ -148,6 +156,10 @@ def run_dmm_send_worker(input_path: Path, output_path: Path) -> int:
             or not all(isinstance(request[key], str) for key in ("nonce", "root", "mods", "title"))):
         print("Send to DMM received an invalid request.", file=sys.stderr)
         return 1
+    # The game folder the send reads is protected here as in the window (decision 46).
+    from cdmw.core.protected_roots import add_game_root
+
+    add_game_root(request["root"])
     stop = threading.Event()
     handlers = {}
     for name in ("SIGINT", "SIGTERM", "SIGBREAK"):

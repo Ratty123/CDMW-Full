@@ -10,7 +10,7 @@ from cdmw.core.iteminfo_row import parse_iteminfo_row
 from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.domain.new_item.spec import NewItemSpec
 from cdmw.services.new_item_mod_base import mod_folder_payloads
-from tests.test_new_item_overlay_recovery import drain
+from tests.support.game_fixtures import drain
 from tests.test_new_item_rust_ui import TEMPLATE, _send, studio
 from tests.test_new_item_service import BIN, _read, build_package
 
@@ -123,7 +123,7 @@ def test_cancelling_mod_choice_keeps_the_block_and_original_plan(studio):
     assert not panel.add_to_mod.isChecked()
     assert panel.plan_state.plain_text() == "Export blocked"
     assert not panel.export_button.isEnabled()
-    _send(bridge, panel.overlay_mode_button, "activate")
+    _send(bridge, panel.independent_mode_button, "activate")
     assert not panel.export_problem.isVisibleTo(tab)
     assert not panel.choose_mod_base_button.isVisibleTo(tab)
 

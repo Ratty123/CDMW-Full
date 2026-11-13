@@ -183,7 +183,6 @@ class NewItemStudioTab(QWidget):
         ).native_preview_cache_mode
         self._refreshing_checks = False
         self._effect_staged_dirty = False
-        self._refresh_after_install = False
         self._model_part_editor_source: object | None = None
         self._model_part_editor_widget: object | None = None
         self._model_part_editor_controller: object | None = None
@@ -247,7 +246,6 @@ class NewItemStudioTab(QWidget):
         self.controller.snapshot_failed.connect(self._snapshot_failed)
         self.controller.status_message.connect(self.status_message_requested.emit)
         self.controller.busy_changed.connect(self._bootstrap_busy_changed)
-        self.controller.busy_changed.connect(self._resume_install_refresh)
         self.controller.busy_changed.connect(self._apply_placement_after_model_part_edit)
         self.controller.log_message.connect(self._status.setText)
         preview_settings_signal = getattr(
@@ -391,8 +389,7 @@ class NewItemStudioTab(QWidget):
             return
         self._read_failure.begin()
         self.controller.log_message.emit("Reading archives for New Item...")
-        fresh_install = self._refresh_after_install
-        entries = () if fresh_install else tuple(self._get_entries() or ())
+        entries = tuple(self._get_entries() or ())
         package_root: Optional[Path] = None
         if not entries:
             # the shell's catalogue backend shows the browser without filling the legacy
@@ -402,23 +399,20 @@ class NewItemStudioTab(QWidget):
                 self._snapshot_failed("The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.")
                 return
             package_root = Path(root_text)
-        if self._panels_built:
-            self.output_panel.append_log("Reading the archives again so the next item gets its own key and stem...")
-        else:
+        if not self._panels_built:
             self._read_button.setEnabled(False)
             self._progress.setVisible(True)
             if entries:
                 self._status.setText(f"Reading the tables from {len(entries):,} archive entries...")
             else:
                 self._status.setText(f"Listing the archives under {package_root}, then reading the tables...")
-        entries_by_normalized_path = None if fresh_install else getattr(self._window, "archive_entries_by_normalized_path", None)
-        entries_by_basename = None if fresh_install else getattr(self._window, "archive_entries_by_basename", None)
-        entries_by_extension = None if fresh_install else getattr(self._window, "archive_entries_by_extension", None)
+        entries_by_normalized_path = getattr(self._window, "archive_entries_by_normalized_path", None)
+        entries_by_basename = getattr(self._window, "archive_entries_by_basename", None)
+        entries_by_extension = getattr(self._window, "archive_entries_by_extension", None)
         from cdmw.core.archive_resident_index import ResidentArchiveSource
         catalogue_service = getattr(getattr(self._window, "archive", None), "archive_catalogue_service", None)
         resident_source = (ResidentArchiveSource.capture(catalogue_service, package_root)
-                           if package_root is not None and not fresh_install else None)
-        self._refresh_after_install = False
+                           if package_root is not None else None)
         if not self.controller.start_snapshot(
             entries,
             package_root=package_root,
@@ -560,7 +554,6 @@ class NewItemStudioTab(QWidget):
         yield
         self._apply_step_style()
         yield
-        controller.install_finished.connect(self._after_install_finished)
         controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
         controller.model_import_changed.connect(self._refresh_summary)
         controller.model_import_changed.connect(self._model_part_editor_source_changed)
@@ -570,7 +563,6 @@ class NewItemStudioTab(QWidget):
         self.model_panel.keep_physics.toggled.connect(self._refresh_model_part_edit_note)
         self.model_panel.part_editor_open_requested.connect(self._open_model_part_editor)
         self.model_panel.part_editor_apply_requested.connect(self._use_model_part_editor_changes)
-        self.output_panel.install_overlay_requested.connect(self._install_overlay)
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
 
         # One guided workspace: the clickable header owns navigation, the current page
@@ -1072,22 +1064,6 @@ class NewItemStudioTab(QWidget):
         if path is not None:
             self.open_model_source(path)
 
-    def _reread_after_install(self) -> None:
-        """After an install the archives hold the new item: read them again, so the next
-        item is allocated its own key and stem instead of the one just written."""
-
-        if self._refresh_after_install and not self.controller.busy:
-            self.start_snapshot()
-
-    def _after_install_finished(self, _result: object) -> None:
-        self.controller.invalidate_plan()
-        self._refresh_after_install = True
-        QTimer.singleShot(0, self, self._reread_after_install)
-
-    def _resume_install_refresh(self, busy: bool) -> None:
-        if not busy and self._refresh_after_install:
-            QTimer.singleShot(0, self, self._reread_after_install)
-
     def receive_imported_model(self, entry: Optional[ArchiveEntry], result: object, scene: object | None = None) -> None:
         """Take a Builder result for the current template's mesh, with the scene import
         it was built from when the hand-off carried it (the plain-PBR material route
@@ -1340,43 +1316,6 @@ class NewItemStudioTab(QWidget):
         dialog = ModUpdateDialog(self.controller, self._get_package_root(), self)
         dialog.setWindowModality(Qt.WindowModality.WindowModal)
         dialog.show()
-
-    def _install_overlay(self) -> None:
-        from cdmw import constants
-        if not constants.ARCHIVE_OVERLAYS_ENABLED:
-            return
-        plan = self.controller.plan
-        if plan is None:
-            return
-        chosen = self.output_panel.overlay_directory.text().strip()
-        if chosen and not self.output_panel.overlay_directory.hasAcceptableInput():
-            QMessageBox.warning(self, "Overlay folder", "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.")
-            return
-        directory_name = f"{int(chosen):04d}" if chosen else None
-        services = getattr(getattr(self._window, "app_context", None), "services", None)
-        mutations = getattr(services, "require_archive_mutations", None)
-        if not callable(mutations):
-            QMessageBox.warning(self, "Install as an overlay", "The archive mutation service is not available in this window.")
-            return
-        touched = "\n".join(f"- {path}" for path in plan.touched_paths[:14])
-        more = f"\n- ... {len(plan.touched_paths) - 14} more" if len(plan.touched_paths) > 14 else ""
-        confirmation = QMessageBox.question(
-            self,
-            f"Install as an overlay: {directory_name or 'Auto'}",
-            (
-                f"Install {plan.spec.internal_name} (item {plan.spec.item_key}) as an archive directory of its own?\n\n"
-                f"{len(plan.patches) + len(plan.additions)} file(s) go into the new directory:\n{touched}{more}\n\n"
-                "The archives the game shipped are not written to. The mount list and the texture registry are backed "
-                "up first, and the game must not be running.\n\n"
-                "If a previous CDMW overlay set is no longer mounted, installation automatically archives its history "
-                "and starts a fresh set. The old overlay files stay on disk for recovery."
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if confirmation != QMessageBox.Yes:
-            return
-        self.controller.start_install_overlay(mutations(), directory_name=directory_name)
 
     # ------------------------------------------------------------------ lifecycle
 

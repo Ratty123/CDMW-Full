@@ -11,21 +11,22 @@ import pytest
 
 
 @pytest.fixture
-def retained_archive_overlays(monkeypatch):
-    """Exercise retained pre-DLC paths; default availability has its own UI tests."""
-    monkeypatch.setattr("cdmw.constants.ARCHIVE_OVERLAYS_ENABLED", True)
-
-
-@pytest.fixture
-def retained_virtual_loading(monkeypatch):
-    """Exercise Mod Management's hidden CDMW loading route (Apply changes, Launch game)."""
-    monkeypatch.setattr("cdmw.constants.VIRTUAL_LOADING_ENABLED", True)
-
-
-@pytest.fixture
 def retained_mod_folder_tools(monkeypatch):
     """Exercise Mod Management's hidden mod folder tools (convert, combine, update, health)."""
     monkeypatch.setattr("cdmw.constants.MOD_FOLDER_TOOLS_ENABLED", True)
+
+
+@pytest.fixture(autouse=True)
+def _no_protected_game_folder():
+    """A test that configures a game folder protects it only for itself (decision 46).
+
+    In the app a protected root stays for the whole session; a test is a session.
+    """
+    from cdmw.core import protected_roots
+
+    protected_roots._reset_for_tests()
+    yield
+    protected_roots._reset_for_tests()
 
 
 @pytest.fixture(autouse=True)

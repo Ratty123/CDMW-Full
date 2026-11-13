@@ -7,7 +7,7 @@ import pytest
 from cdmw.core import pathc_format
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.services import independent_item_install as owner
+import tests.support.item_install as owner
 from cdmw.services.independent_item_package import from_plan, package_bytes
 from tests.test_archive_overlay_manager import shop_spec
 from tests.test_independent_items import setup_game

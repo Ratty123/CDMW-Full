@@ -8,8 +8,8 @@ from uuid import uuid4
 import pytest
 
 from cdmw.domain.new_item.spec import ModelSource
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services.independent_item_install import prepare_install
+import tests.support.overlay_manager as overlays
+from tests.support.item_install import prepare_install
 from cdmw.services.independent_item_package import from_plan, package_bytes
 from cdmw.services.new_item_planning import ModelFiles
 from tests.test_archive_overlay_manager import Backups, shop_spec

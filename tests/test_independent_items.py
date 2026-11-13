@@ -9,7 +9,7 @@ import pytest
 
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.services.independent_item_package import from_plan, package_bytes, read_package, write_package
-from cdmw.services.independent_item_install import (
+from tests.support.item_install import (
     REGISTRY_PATH, export_profile, inventory, load_registry, prepare_install, prepare_profile_import, prepare_remove,
 )
 from tests.test_new_item_provenance import spec
@@ -272,7 +272,7 @@ def test_cancel_and_publication_failure_preserve_previous_installation(tmp_path,
     stop.set()
     with pytest.raises(RuntimeError):
         backups.apply(preparation, stop_event=stop)
-    from cdmw.services import archive_overlay_manager as manager
+    import tests.support.overlay_manager as manager
     write = manager.atomic_write_bytes
     def fail(path, data):
         write(path, data)
@@ -301,7 +301,7 @@ def test_exhaustion_and_retired_keys_cannot_silently_rebind(tmp_path):
     backups = Backups(tmp_path)
     backups.apply(prepare_install([package_bytes(package)], root).preparation)
     backups.apply(prepare_remove(package.identity, root))
-    from cdmw.services.archive_overlay_manager import prepare_item_overlay
+    from tests.support.overlay_manager import prepare_item_overlay
     with pytest.raises(ValueError, match='reserved by an independent package'):
         prepare_item_overlay(service.plan(spec('OrdinaryItem'), snapshot_of(root)), root)
 
@@ -322,7 +322,7 @@ def test_stale_registry_and_external_change_refuse_before_publication(tmp_path):
     registry_path.write_bytes(original)
     target = root / prepared.directory_name / '0.pamt'
     target.write_bytes(target.read_bytes() + b'changed')
-    with pytest.raises(ValueError, match='changed outside'):
+    with pytest.raises(ValueError, match='changed after an older CDMW installed overlays'):
         prepare_install([package_bytes(second)], root)
     assert backups.count == 1
 
@@ -350,7 +350,7 @@ def test_dependency_version_and_hash_collisions_fail_without_writing(tmp_path, m
     dependencies[next(iter(dependencies))] = 'f' * 64
     with pytest.raises(IndependentItemError, match='incompatible game dependency'):
         prepare_install([package_bytes(replace(package, dependencies=dependencies))], root)
-    from cdmw.services import independent_item_install as install
+    import tests.support.item_install as install
     from cdmw.services.new_item_planning import build_plan
     def collide(allocated, snapshot, **kwargs):
         # A real StringInfo collision at a verified record boundary must abort;
@@ -423,7 +423,7 @@ def test_identical_external_dependency_does_not_block_installation(tmp_path, fir
 
 
 def test_identity_profile_conflict_cancel_and_stale_composition(tmp_path, monkeypatch):
-    from cdmw.services import archive_overlay_manager as manager
+    import tests.support.overlay_manager as manager
     _, package = authored(tmp_path / 'source')
     setup_game(tmp_path / 'recipient')
     root = tmp_path / 'recipient/game'
@@ -498,7 +498,7 @@ def test_equal_shape_texture_hash_collision_between_packages_is_refused(tmp_path
     from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem, icon_target_path
     from cdmw.core.stringinfo_table import stringinfo_key
     from cdmw.domain.new_item.spec import IconSource
-    from cdmw.services import independent_item_install as install
+    import tests.support.item_install as install
     from tests.test_new_item_service import _fake_dds
     packages = []
     for i in range(2):
@@ -513,7 +513,7 @@ def test_equal_shape_texture_hash_collision_between_packages_is_refused(tmp_path
     ordered = [packages[index] for index in order]
     owned = set()
     if reservation_state != 'batch':
-        from cdmw.services import archive_overlay_manager as overlays
+        import tests.support.overlay_manager as overlays
         backups = Backups(tmp_path)
         backups.apply(prepare_install([package_bytes(ordered[0])], root).preparation)
         row = load_registry(root)['items'][ordered[0].identity]
@@ -551,31 +551,6 @@ def test_asset_hash_refusal_identifies_all_ambiguous_resources(monkeypatch, orde
     assert all(path in str(error.value) for path in (*held, addition))
 
 
-def test_generic_recovery_preserves_package_ownership_and_checks_dependencies(tmp_path):
-    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
-    from tests.test_new_item_service import build_package, ICON
-    _, package = authored(tmp_path / 'source')
-    _, snapshot, _ = setup_game(tmp_path / 'recipient')
-    files = {path: snapshot.payload(path) for path in snapshot.entries}
-    root = tmp_path / 'recipient/game'
-    backups = Backups(tmp_path)
-    backups.apply(prepare_install([package_bytes(package)], root).preparation)
-    before = load_registry(root)
-    rebuild = prepare_overlay_rebuild(root)
-    assert REGISTRY_PATH in dict(rebuild.writes)
-    assert any(path.endswith('.cditem') for path, _ in rebuild.writes)
-    backups.apply(rebuild)
-    assert load_registry(root) == before
-    assert prepare_install([package_bytes(package)], root).preparation is None
-    # A generic rebase must not silently waive the portable package's pinned
-    # borrowed assets, even when all shared table records can still be merged.
-    files[ICON] += b'changed game resource'
-    build_package(root, files)
-    with pytest.raises(IndependentItemError, match='incompatible game dependency'):
-        prepare_overlay_rebuild(root)
-    assert load_registry(root) == before
-
-
 def test_changed_retained_mapping_is_refused_after_removal(tmp_path):
     _, package = authored(tmp_path / 'source')
     setup_game(tmp_path / 'recipient')
@@ -592,7 +567,7 @@ def test_changed_retained_mapping_is_refused_after_removal(tmp_path):
 
 
 def test_install_cannot_publish_an_identity_profile_too_large_to_reopen(tmp_path, monkeypatch):
-    from cdmw.services import independent_item_install as install
+    import tests.support.item_install as install
     _, package = authored(tmp_path / 'source')
     setup_game(tmp_path / 'recipient')
     root = tmp_path / 'recipient/game'

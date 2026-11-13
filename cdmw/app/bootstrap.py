@@ -45,6 +45,11 @@ def _reap_stranded_helpers() -> None:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
+    # Decision 46: every process protects the game folders its parent protected before
+    # it can write anything. Each helper mode and --cli passes through here.
+    from cdmw.core.protected_roots import adopt_environment
+
+    adopt_environment()
 
     if args.mcp_bridge:
         # An AI client's MCP server: no window, no helpers, no single-instance
@@ -69,16 +74,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"Automation refused: {refused}", file=sys.stderr)
             return 4
 
-    if args.cditem_device_tests is not None:
-        if any(value != parser.get_default(name) for name, value in vars(args).items()
-               if name != 'cditem_device_tests'):
-            parser.error('Use --cditem-device-tests without other application modes or options.')
-        from cdmw.services.cditem_device_cli import main as run_device_tests
-
-        # A kill-on-close app job could kill the separate input guardian before
-        # it releases input. This standalone owner uses its guarded lifecycle.
-        return run_device_tests(args.cditem_device_tests)
-
     if args.startup_splash_host:
         from cdmw.ui.startup_splash_host import run_startup_splash_host
 
@@ -95,10 +90,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         from cdmw.services.archive_verification_process import run_archive_verification_worker
 
         return run_archive_verification_worker(Path(args.input), Path(args.output))
-    if args.virtual_profile_worker:
-        from cdmw.services.virtual_loader_process import run_virtual_profile_worker
-
-        return run_virtual_profile_worker(Path(args.input), Path(args.output))
     if args.dmm_send_worker:
         from cdmw.services.dmm_send_process import run_dmm_send_worker
 
