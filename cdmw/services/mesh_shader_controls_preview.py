@@ -60,8 +60,11 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
                     if not same_glass:
                         raise ValueError(f"{name}: multiple source material variants need separate shader previews.")
                 materials[name] = value
-    if baked_names:
-        _stage_baked_glass_materials(authoring, mesh, files, baked_names, source_names, payload, presentations, stop_event)
+    # A material with a replacement texture is rebuilt from its rewritten sidecar
+    # too, so the viewport shows the texture the export will ship.
+    restaged = baked_names | {name for name, controls in selected_names.items() if controls.textures}
+    if restaged:
+        _stage_baked_glass_materials(authoring, mesh, files, restaged, source_names, payload, presentations, stop_event)
     indices = bound_part_indices(mesh, state)
     selected = {indices[part.part_id]: part for part in state.parts if part.shader_controls is not None}
     names = {material_binding_name(mesh.submeshes[index], source_names): part

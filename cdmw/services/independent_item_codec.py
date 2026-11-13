@@ -50,7 +50,9 @@ _RECORDS = {
     'EmissionChoice': RecordAdapter(emission.EmissionChoice),
     'ShaderField': RecordAdapter(shader_controls.ShaderField),
     'ShaderFamily': RecordAdapter(shader_controls.ShaderFamily),
-    'ShaderControls': RecordAdapter(shader_controls.ShaderControls),
+    # Replacement textures live in this computer's texture store and the rebuilt
+    # layout is a Mesh Editor choice; neither is part of the v1 item package.
+    'ShaderControls': RecordAdapter(shader_controls.ShaderControls, defaults={'textures': (), 'rebuild': False}),
 }
 _ENUMS = {
     'ModelSource': {'template': spec.ModelSource.TEMPLATE, 'imported': spec.ModelSource.IMPORTED},

@@ -1524,6 +1524,12 @@ enum UiAction {
     CdmwShaderPreview(Vec<(u32, Option<[f32; 32]>)>),
     /// Viewport backdrop only; see-through materials read very differently against light and dark.
     SetViewportBackground(Color32),
+    /// Ask for a texture file, then hand it to the host with the panel's current controls.
+    ChooseCdmwShaderTexture {
+        part_ids: Value,
+        controls: Value,
+        parameter: String,
+    },
     SelectIslands(Vec<(u32, Vec<u32>)>),
     SelectIsland {
         part: u32,
@@ -1544,6 +1550,16 @@ enum UiAction {
         indices: Vec<u32>,
         visible: bool,
     },
+}
+
+/// The host stores the file and names it in these parts' shader controls.
+fn cdmw_shader_texture_action(part_ids: Value, controls: Value, parameter: &str, path: &Path) -> UiAction {
+    UiAction::CdmwCommand {
+        command: "replacement_shader_controls",
+        arguments: json!({"part_ids": part_ids, "shader_controls": controls,
+            "texture_files": {parameter: path.to_string_lossy()}}),
+        label: "Replace shader texture",
+    }
 }
 
 fn cdmw_import_editable_package_action(path: &Path) -> UiAction {
@@ -2164,6 +2180,8 @@ struct LabApplication {
     /// Inspector slider values shown before the host has committed them, keyed by
     /// active-LOD part index. Never exported: the host's presentations stay authoritative.
     cdmw_shader_live_preview: BTreeMap<u32, [f32; 32]>,
+    /// A path to use instead of opening the file dialog; taken by the next texture pick.
+    cdmw_shader_texture_pick: Option<PathBuf>,
     /// Bumped when a shader edit is rejected so the inspector reloads the saved values.
     cdmw_shader_panel_epoch: u64,
     cdmw_material_key: String,
@@ -2370,6 +2388,7 @@ impl LabApplication {
             cdmw_hidden_islands: Vec::new(),
             cdmw_material_presentations: Vec::new(),
             cdmw_shader_live_preview: BTreeMap::new(),
+            cdmw_shader_texture_pick: None,
             cdmw_shader_panel_epoch: 0,
             cdmw_material_key: String::new(),
             cdmw_uploaded_texture_count: 0,
@@ -5121,6 +5140,9 @@ impl LabApplication {
                 } => self.submit_cdmw_command(command, arguments, label),
                 UiAction::CdmwShaderPreview(changes) => self.set_cdmw_shader_live_preview(changes),
                 UiAction::SetViewportBackground(colour) => self.viewport_background_colour = colour,
+                UiAction::ChooseCdmwShaderTexture { part_ids, controls, parameter } => {
+                    self.choose_cdmw_shader_texture(part_ids, controls, parameter)
+                }
                 UiAction::CdmwMeshAction {
                     action,
                     label,
@@ -5597,6 +5619,18 @@ impl LabApplication {
                 "Load refit armor"
             },
         }]);
+    }
+
+    fn choose_cdmw_shader_texture(&mut self, part_ids: Value, controls: Value, parameter: String) {
+        let picked = self.cdmw_shader_texture_pick.take().or_else(|| {
+            self.cdmw_file_dialog()
+                .set_title(crate::localization::tr("Choose a replacement texture"))
+                .add_filter(crate::localization::tr("Texture"), &["dds", "png", "tga", "jpg", "jpeg", "bmp"])
+                .pick_file()
+        });
+        if let Some(path) = picked {
+            self.handle_actions(vec![cdmw_shader_texture_action(part_ids, controls, &parameter, &path)]);
+        }
     }
 
     fn cdmw_file_dialog(&self) -> rfd::FileDialog {

@@ -261,7 +261,108 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
     # Make inherited mask dependencies visible to the package/preview resolvers.
     if family.mask and family.default_mask and family.mask not in parameters and controls.cutout_mask is None:
         block = _write_parameter(block, family.mask, "Texture", family.default_mask, "0", static=static)
+    if controls.rebuild:
+        if static:
+            raise ValueError("Rebuilding the parameter layout is supported on equipment models only.")
+        block = rebuild_material_layout(block, family)
     return block
+
+
+def rebuild_material_layout(block, family):
+    """Rewrite one equipment material with the shader's own row set.
+
+    Values come from the block as it stands, so call this after the changed
+    fields are written. A row the layout does not list is dropped; a listed row
+    takes the layout's ItemID and a fresh Index, in layout order. A field the
+    block lacks is written with the shader definition's default, so nothing is
+    left to an engine default that has not been observed.
+    """
+    from cdmw.domain.mesh.shader_controls import LAYOUT_PERMUTATIONS, SHADER_LAYOUTS
+    layout = SHADER_LAYOUTS.get(family.shader)
+    if layout is None:
+        raise ValueError("This shader has no known parameter layout to rebuild from.")
+    vector = re.search(r'<Vector Name="_parameters"\s*(?:/>|>(?P<body>.*?)</Vector>)', block, re.S)
+    if vector is None or "<Vector" in (vector.group("body") or ""):
+        raise ValueError("Cannot identify the material's parameter block.")
+    existing = _parameter_rows(block)
+    if "_baseColorTexture" not in existing:
+        raise ValueError("Rebuilding needs a source material with a base colour texture.")
+    fields = {field.name: field for field in family.fields}
+    indent = re.search(r'\n[ \t]*(?=<MaterialParameter)', vector.group("body") or "")
+    indent = indent.group() if indent else ""
+    rows = []
+    for kind, name, item_id, default in layout:
+        old = existing.get(name)
+        if kind == "Field":
+            field = fields[name]
+            kind, item_id = field.kind, field.item_id
+            if old is not None:
+                value = old.get("_value", "")
+            elif kind == "Color":
+                value = "#" + "".join(f"{round(v * 255):02X}" for v in field.default) + "FF"
+            else:
+                value = " ".join(f"{v:.9g}" for v in field.default)
+        elif kind == "Texture":
+            child = old.find("ResourceReferencePath_ITexture") if old is not None else None
+            value = child.get("_path", "") if child is not None else default
+        else:
+            value = old.get("_value", "") if old is not None else default
+        if value is None or (old is not None and old.tag != "MaterialParameter" + kind):
+            if value is None:
+                continue
+            raise ValueError(f"{name}: source parameter type does not match the decoded shader.")
+        value = escape(value, {'"': "&quot;"})
+        head = f'<MaterialParameter{kind} StringItemID="{name}" ItemID="{item_id}" _name="{name}"'
+        rows.append(head + (f' Index="{len(rows)}"><ResourceReferencePath_ITexture Name="_value" _path="{value}"/>'
+                            f'</MaterialParameterTexture>' if kind == "Texture"
+                            else f' _value="{value}" Index="{len(rows)}"/>'))
+    # The vector's own closing tag sits one level out from its rows.
+    body = "".join(indent + row for row in rows) + (indent[:-1] if indent.endswith("\t") else indent)
+    block = block[:vector.start()] + '<Vector Name="_parameters">' + body + "</Vector>" + block[vector.end():]
+    permutations = re.search(r'<Vector Name="_permutations"\s*(?:/>|>.*?</Vector>)', block, re.S)
+    if permutations is None:
+        raise ValueError("Cannot identify the material's permutation block.")
+    listed = "".join(f'<MaterialParameter{kind} StringItemID="{name}" ItemID="{item_id}" _name="{name}" Index="{index}"/>'
+                     for index, (kind, name, item_id) in enumerate(LAYOUT_PERMUTATIONS))
+    return block[:permutations.start()] + '<Vector Name="_permutations">' + listed + "</Vector>" + block[permutations.end():]
+
+
+def rewrite_texture_paths(text, paths):
+    """Point named equipment materials' texture parameters at other archive paths.
+
+    ``paths`` maps a casefolded submesh name to {parameter: archive path}. Every
+    model variant is edited alike. An existing row keeps its ItemID and Index; a
+    missing one is appended as the shader writer appends them. Returns the
+    edited XML and the names found.
+    """
+    variants = material_variant_blocks(text)
+    if variants:
+        found = set()
+        for match in reversed(variants):
+            block = match.group()
+            start, end = block.find('>') + 1, -len('</ModelProperty>')
+            edited, matched = rewrite_texture_paths(block[start:end], paths)
+            found.update(matched)
+            text = text[:match.start()] + block[:start] + edited + block[end:] + text[match.end():]
+        return text, found
+    found, edits = set(), []
+    for wrapper in find_material_wrappers(text):
+        key = wrapper.submesh_name.casefold()
+        if key not in paths:
+            continue
+        if key in found:
+            raise ValueError(f"Ambiguous material binding: {wrapper.submesh_name}")
+        found.add(key)
+        block = text[wrapper.start:wrapper.end]
+        for name, path in paths[key].items():
+            try:
+                block = _write_parameter(block, name, "Texture", path, "0", static=False)
+            except (ValueError, ET.ParseError) as exc:
+                raise ValueError(f"{wrapper.submesh_name}: {exc}") from exc
+        edits.append((wrapper.start, wrapper.end, block))
+    for start, end, replacement in reversed(edits):
+        text = text[:start] + replacement + text[end:]
+    return text, found
 
 
 def rewrite_shader_controls(text, choices, *, static=False, allow_missing=False, texture_paths=None):

@@ -9056,6 +9056,85 @@ fn veil_shader_state() -> Value {
 }
 
 #[test]
+fn shader_texture_slots_replace_and_restore_through_the_host() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let mut state = veil_shader_state();
+    state["catalogue"][0]["textures"] = json!([
+        {"name": "_baseColorTexture", "label": "Base colour texture"},
+        {"name": "_heightTexture", "label": "Thread width texture (red channel)"}]);
+    ui.application.cdmw_state["shader_controls"] = state.clone();
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    // Each texture the shader reads has a row; the others stay in the folded list.
+    let row = ui.reveal("Thread width texture (red channel)")?;
+    ui.reveal("Original: cd_phw_00_hel_00_0219_disp.dds")?;
+    ui.reveal("Not set by this material.")?;
+    assert!(ui.label_rect("Source textures").is_none());
+
+    ui.last_actions.clear();
+    ui.application.cdmw_shader_texture_pick = Some(PathBuf::from("my_height.png"));
+    ui.click_where("Replace...", |rect| rect.center().y > row.top())?;
+    let (part_ids, controls, parameter) = ui.last_actions.iter().find_map(|action| match action {
+        UiAction::ChooseCdmwShaderTexture { part_ids, controls, parameter } =>
+            Some((part_ids.clone(), controls.clone(), parameter.clone())),
+        _ => None,
+    }).ok_or("texture pick action")?;
+    assert_eq!((part_ids.clone(), parameter.as_str()), (json!(["b"]), "_heightTexture"));
+    assert_eq!(controls, json!({"shader": "SkinnedMeshTransparency", "values": {}}));
+    // The pick is consumed instead of opening a file dialog.
+    assert!(ui.application.cdmw_shader_texture_pick.is_none());
+    let UiAction::CdmwCommand { command, arguments, .. } =
+        cdmw_shader_texture_action(part_ids, controls, &parameter, Path::new("my_height.png")) else { unreachable!() };
+    assert_eq!(command, "replacement_shader_controls");
+    assert_eq!(arguments["texture_files"], json!({"_heightTexture": "my_height.png"}));
+
+    // The host answers with the stored texture named in the saved controls.
+    let digest = "ab12cd34".repeat(8);
+    state["parts"][0]["shader_controls"] = json!({"shader": "SkinnedMeshTransparency",
+        "values": {"_netThread": [0.4]}, "textures": {"_heightTexture": digest}});
+    ui.application.cdmw_state["shader_controls"] = state;
+    ui.settle_layout();
+    ui.reveal("Replaced with your texture (ab12cd34).")?;
+    let row = ui.reveal("Thread width texture (red channel)")?;
+    ui.last_actions.clear();
+    ui.click_where("Original", |rect| rect.center().y > row.top())?;
+    let restored = ui.last_actions.iter().find_map(|action| match action {
+        UiAction::CdmwCommand { command, arguments, .. } if *command == "replacement_shader_controls" => Some(arguments.clone()),
+        _ => None,
+    }).ok_or("restore command")?;
+    // Only the texture goes; the changed number stays.
+    assert_eq!(restored["shader_controls"], json!({"shader": "SkinnedMeshTransparency", "values": {"_netThread": [0.4]}}));
+    Ok(())
+}
+
+#[test]
+fn shader_layout_rebuild_is_an_explicit_choice_sent_with_the_controls() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let mut state = veil_shader_state();
+    ui.application.cdmw_state["shader_controls"] = state.clone();
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    // Offered only where a layout is known.
+    assert!(ui.label_rect("Rewrite with this shader's own parameter set").is_none());
+    state["catalogue"][0]["rebuild"] = json!(true);
+    ui.application.cdmw_state["shader_controls"] = state;
+    ui.settle_layout();
+    ui.last_actions.clear();
+    ui.click("Rewrite with this shader's own parameter set")?;
+    let sent = settled_shader_actions(&mut ui).into_iter().find_map(|action| match action {
+        UiAction::CdmwCommand { command, arguments, .. } if command == "replacement_shader_controls" => Some(arguments),
+        _ => None,
+    }).ok_or("rebuild command")?;
+    // Even with no changed number, on a material that already uses the shader.
+    assert_eq!(sent["shader_controls"], json!({"shader": "SkinnedMeshTransparency", "values": {}, "rebuild": true}));
+    Ok(())
+}
+
+#[test]
 fn shader_controls_open_on_the_source_values_preview_live_and_commit_on_release() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
     let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();

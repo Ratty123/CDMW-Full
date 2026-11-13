@@ -4,7 +4,8 @@ from pathlib import PurePosixPath
 import xml.etree.ElementTree as ET
 
 from cdmw.core.common import raise_if_cancelled
-from cdmw.core.material_shader_controls import control_material_variants, rewrite_shader_controls, validate_source
+from cdmw.core.material_shader_controls import (control_material_variants, rewrite_shader_controls,
+                                                 rewrite_texture_paths, validate_source)
 from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
 from cdmw.domain.mesh.shader_controls import (MESH_FAMILIES, ShaderControls, authored_values_payload, catalogue_payload,
                                              family_for, preview_factors)
@@ -63,6 +64,16 @@ def build_shader_control_files(state, original, companion_files, *, stop_event=N
                 read_texture, stop_event=stop_event)
             for texture, data in baked.items():
                 files[texture.casefold()] = ReplacementFile(texture, data)
+        owned = owned_texture_files(choices, state.target_path)
+        if owned and static:
+            raise ValueError("Replacement textures are supported on equipment models only.")
+        if owned:
+            # Before the shader rewrite, so a rebuilt layout numbers a newly added texture row too.
+            source_text, textured = rewrite_texture_paths(
+                source_text, {name: {parameter: file.path for parameter, file in slots.items()}
+                              for name, slots in owned.items()})
+            for name in textured:
+                files.update({file.path.casefold(): file for file in owned[name].values()})
         text, matches = rewrite_shader_controls(source_text, choices, static=static, allow_missing=True)
         if matches:
             found.update(matches)
@@ -71,6 +82,22 @@ def build_shader_control_files(state, original, companion_files, *, stop_event=N
     if missing:
         raise ValueError("The matching material sidecar is missing or incomplete for: " + ", ".join(sorted(missing)))
     return tuple(files.values())
+
+
+def owned_texture_path(target_path, parameter, digest):
+    """A private archive path for a user's texture, beside where baked ones go."""
+    stem = str(PurePosixPath(target_path.replace("\\", "/").replace("character/model/", "character/texture/", 1)).with_suffix(""))
+    role = parameter.strip("_").removesuffix("Texture").lower() or "texture"
+    return f"{stem}_cdmw_tex_{digest[:10]}_{role}.dds"
+
+
+def owned_texture_files(choices, target_path):
+    """{casefolded material: {parameter: ReplacementFile}} for the chosen replacement textures."""
+    from cdmw.core.shader_texture_store import read_texture
+    from cdmw.domain.mesh.replacement import ReplacementFile
+    return {name.casefold(): {parameter: ReplacementFile(owned_texture_path(target_path, parameter, digest), read_texture(digest))
+                              for parameter, digest in controls.textures}
+            for name, controls in choices if controls.textures}
 
 
 def _shader_compatibility(shader, values, textures, *, static):
@@ -203,6 +230,8 @@ def set_shader_controls(authoring, snapshot, args, *, entry, dependencies, stop_
     if type(reset) is not bool:
         raise ValueError("Invalid shader-control reset request.")
     value = None if reset else ShaderControls.from_dict(args.get("shader_controls"))
+    if value is not None:
+        value = _with_chosen_textures(value, args.get("texture_files"), stop_event)
     state = snapshot.replacement_state or initial_replacement_state(snapshot, entry, dependencies)
     parts = tuple(replace(part, shader_controls=value) if part.part_id in keys else part for part in state.parts)
     if parts == state.parts:
@@ -218,6 +247,63 @@ def set_shader_controls(authoring, snapshot, args, *, entry, dependencies, stop_
                               label="Restore shader controls" if reset else "Edit shader controls", stop_event=stop_event)
 
 
+def import_shader_texture(path, *, stop_event=None):
+    """Read a user's texture file as DDS bytes. A DDS is kept as it is; an image is encoded as BC7."""
+    import tempfile
+    from pathlib import Path
+    from cdmw.core.shader_texture_store import DDS_MAGIC, MAX_TEXTURE_BYTES
+
+    source = Path(str(path or "")).expanduser()
+    if not source.is_file():
+        raise ValueError("The chosen texture file does not exist.")
+    if source.stat().st_size > MAX_TEXTURE_BYTES:
+        raise ValueError("The chosen texture file exceeds the 256 MiB limit.")
+    data = source.read_bytes()
+    if data.startswith(DDS_MAGIC):
+        return data
+    from PIL import Image, UnidentifiedImageError
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    try:
+        with Image.open(source) as image:
+            pixels = image.convert("RGBA")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("The chosen texture is not a DDS or a readable image file.") from exc
+    width, height = pixels.size
+    if not all(4 <= side <= 8192 and side & (side - 1) == 0 for side in (width, height)):
+        raise ValueError(f"Texture sides must be powers of two between 4 and 8192; this image is {width}x{height}.")
+    with tempfile.TemporaryDirectory(prefix="cdmw_shader_texture_") as directory:
+        png, dds = Path(directory) / "texture.png", Path(directory) / "texture.dds"
+        pixels.save(png)
+        raise_if_cancelled(stop_event)
+        try:
+            report = encode_dds_with_directxtex(png, dds, dds_format="BC7_UNORM", width=width, height=height,
+                                                mip_count=max(width, height).bit_length(), stop_event=stop_event)
+        except Exception as exc:
+            raise ValueError("The image could not be encoded as DDS. Choose a DDS file instead.") from exc
+        if not report or not dds.is_file():
+            raise ValueError("The image could not be encoded as DDS. Choose a DDS file instead.")
+        return dds.read_bytes()
+
+
+def _with_chosen_textures(controls, texture_files, stop_event):
+    """Store newly chosen files and name them in the controls; an empty path restores the source texture."""
+    from cdmw.core.shader_texture_store import store_texture
+    if texture_files is None:
+        return controls
+    if not isinstance(texture_files, dict) or any(
+            not isinstance(name, str) or not isinstance(path, str) for name, path in texture_files.items()):
+        raise ValueError("Invalid replacement texture request.")
+    textures = dict(controls.textures)
+    for name, path in texture_files.items():
+        if path:
+            textures[name] = store_texture(import_shader_texture(path, stop_event=stop_event))
+        else:
+            textures.pop(name, None)
+    result = replace(controls, textures=tuple(textures.items()))
+    result.validate()
+    return result
+
+
 def _capture_control_textures(state, original, prepared, context, stop_event):
     from cdmw.core.archive_extraction import read_archive_entry_data
     from cdmw.domain.mesh.replacement import ReplacementFile
@@ -225,7 +311,7 @@ def _capture_control_textures(state, original, prepared, context, stop_event):
     from cdmw.core.material_shader_controls import control_material_variants
     from cdmw.services.shader_controls_preview import EFFECT_NORMAL_PARAMETER
     settings = dict(shader_settings(state, original))
-    required = set()
+    required, optional = set(), set()
     for file in prepared:
         if not file.path.casefold().endswith((".pac_xml", ".pami")):
             continue
@@ -236,14 +322,19 @@ def _capture_control_textures(state, original, prepared, context, stop_event):
                     required.add(textures.get(family_for(controls.shader).mask, ""))
                     if controls.shader == "SkinnedMeshAnisotropy":
                         required.add(textures.get(EFFECT_NORMAL_PARAMETER, ""))
+                    if controls.textures:
+                        # The preview is rebuilt from this material's own texture set.
+                        optional.update(textures.values())
     captured = list(state.dependencies)
-    existing = {file.path.casefold() for file in (*captured, *state.companion_files)}
+    existing = {file.path.casefold() for file in (*captured, *state.companion_files, *prepared)}
     total = sum(len(file.data) for file in captured)
-    for path in sorted(required - {""}):
+    for path in sorted((required | optional) - {""}):
         if path.casefold() in existing:
             continue
         raise_if_cancelled(stop_event)
         matches = tuple(context.entries_by_normalized_path.get(path.casefold(), ())) if context is not None else ()
+        if not matches and path not in required:
+            continue
         if not matches:
             raise ValueError(f"The shader mask is unavailable: {path}. Reopen this mesh from Browse Archives.")
         data, _, _ = read_archive_entry_data(matches[0], stop_event=stop_event)

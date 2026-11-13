@@ -195,6 +195,45 @@ SHADER_PRESETS = {
 BLENDED_SHADERS = frozenset(family.shader for family in BLENDED_FAMILIES)
 # Renderer family IDs: 1–6 effects, 7 EyeCover, 8–9 one-layer glass, 10–11 layered.
 BLENDED_FAMILY_IDS = {"SkinnedMeshGlass": 10, "SkinnedMeshTransparency": 11}
+# The complete row set of a material that already uses the shader, for writing a
+# converted material the way that one is written instead of adding rows to the
+# source's. Each row is (kind, name, ItemID, value when the source has none);
+# None leaves the row out. Field rows take their ItemID and default from the family.
+#   Net veil: shipped cd_phw_00_hel_00_0219 (wrapper 508). The released Lace Veil
+#   mod converts a plain mask to exactly this set, and drops the source's
+#   _renderSettingFlag and displacement scales.
+#   Layered glass: the released Angel Teddy mod's cloth; no shipped visor was read.
+SHADER_LAYOUTS = {
+    "SkinnedMeshTransparency": (
+        ("Texture", "_baseColorTexture", "7", None),
+        ("Texture", "_normalTexture", "6", None),
+        ("Texture", "_materialTexture", "5", None),
+        ("Texture", "_heightTexture", "4", None),
+        ("Texture", "_maskTexture", "2", "character/texture/Temp_r.dds"),
+        ("Field", "_netPitch", "", None), ("Field", "_netThread", "", None), ("Field", "_glow", "", None),
+        ("Field", "_sheen", "", None), ("Field", "_uvScale", "", None), ("Field", "_dyeingColor", "", None),
+    ),
+    "SkinnedMeshGlass": (
+        ("Texture", "_baseColorTexture", "7", None),
+        ("Texture", "_normalTexture", "6", None),
+        ("Texture", "_heightTexture", "4", None),
+        ("Float", "_screenSpaceDisplacementScale", "3", "0"),
+        ("Texture", "_maskTexture", "2", None),
+        ("Field", "_tintOpacity", "", None), ("Field", "_refractiveIndex", "", None), ("Field", "_roughness", "", None),
+        ("Field", "_thickness", "", None), ("Field", "_glassColor", "", None),
+    ),
+}
+# Both materials carry this permutation, with no value.
+LAYOUT_PERMUTATIONS = (("Uint", "AlphaTest", "1921855275401214"),)
+# Texture parameters the equipment shader reads, which a user may point at a
+# texture of their own. The veil reads only these two; its thread width comes
+# from the height map's red channel.
+TEXTURE_SLOTS = {
+    "SkinnedMeshTransparency": (("_baseColorTexture", "Base colour texture"),
+                                ("_heightTexture", "Thread width texture (red channel)")),
+    "SkinnedMeshGlass": (("_baseColorTexture", "Base colour texture"), ("_normalTexture", "Normal texture")),
+    "SkinnedMeshTranslucent": (("_baseColorTexture", "Base colour texture"), ("_normalTexture", "Normal texture")),
+}
 MESH_FAMILIES = (*FAMILIES, *GLASS_FAMILIES, *BLENDED_FAMILIES)
 NEW_ITEM_FAMILIES = tuple(family for family in MESH_FAMILIES if family.shader not in {"Dissolve", "Translucent"}) + (EYE_COVER,)
 
@@ -217,6 +256,11 @@ class ShaderControls:
     coverage_mapping: str = "raw"
     colour_coverage: float | None = None
     cutout_mask: TransparencyMask | None = None
+    # (texture parameter, SHA-256 of a DDS in the shader texture store).
+    textures: tuple[tuple[str, str], ...] = ()
+    # Write the material with the shader's own row set (SHADER_LAYOUTS) instead
+    # of adding the changed rows to the source's.
+    rebuild: bool = False
 
     @property
     def has_masks(self):
@@ -261,6 +305,13 @@ class ShaderControls:
                 raise ValueError("Calibrated colour coverage must be between 0 and 254/255.")
         elif self.colour_coverage is not None:
             raise ValueError("Colour coverage requires the calibrated mapping.")
+        if type(self.rebuild) is not bool or (self.rebuild and self.shader not in SHADER_LAYOUTS):
+            raise ValueError("This shader has no known parameter layout to rebuild from.")
+        slots = {name for name, _label in TEXTURE_SLOTS.get(self.shader, ())}
+        if (len({name for name, _digest in self.textures}) != len(self.textures)
+                or any(name not in slots or not isinstance(digest, str) or len(digest) != 64
+                       or any(c not in "0123456789abcdef" for c in digest) for name, digest in self.textures)):
+            raise ValueError("Unknown or duplicate replacement texture.")
         fields = {field.name: field for field in family.fields}
         seen = set()
         for name, values in self.values:
@@ -282,20 +333,24 @@ class ShaderControls:
                 **{name: mask.to_dict() for name in ("transparency_mask", "surface_response_mask", "cutout_mask")
                    if (mask := getattr(self, name)) is not None},
                 **({"coverage_mapping": self.coverage_mapping, "colour_coverage": self.colour_coverage}
-                   if self.coverage_mapping != "raw" else {})}
+                   if self.coverage_mapping != "raw" else {}),
+                **({"textures": dict(self.textures)} if self.textures else {}),
+                **({"rebuild": True} if self.rebuild else {})}
 
     @classmethod
     def from_dict(cls, value):
         if (not isinstance(value, dict) or not {"shader", "values"} <= set(value)
                 or set(value) - {"shader", "values", "transparency_mask", "surface_response_mask",
-                                 "coverage_mapping", "colour_coverage", "cutout_mask"}
-                or not isinstance(value["shader"], str) or not isinstance(value["values"], dict)):
+                                 "coverage_mapping", "colour_coverage", "cutout_mask", "textures", "rebuild"}
+                or not isinstance(value["shader"], str) or not isinstance(value["values"], dict)
+                or not isinstance(value.get("textures", {}), dict)):
             raise ValueError("Invalid experimental shader controls.")
         try:
             result = cls(value["shader"], tuple((name, tuple(values)) for name, values in value["values"].items()),
                          **{name: TransparencyMask.from_dict(value[name]) for name in
                             ("transparency_mask", "surface_response_mask", "cutout_mask") if name in value},
-                         coverage_mapping=value.get("coverage_mapping", "raw"), colour_coverage=value.get("colour_coverage"))
+                         coverage_mapping=value.get("coverage_mapping", "raw"), colour_coverage=value.get("colour_coverage"),
+                         textures=tuple(value.get("textures", {}).items()), rebuild=value.get("rebuild", False))
             result.validate()
         except (TypeError, OverflowError) as exc:
             raise ValueError("Invalid experimental shader controls.") from exc
@@ -325,7 +380,10 @@ def catalogue_payload():
                             {"note": BLENDED_FIELD_HELP[p.name]} if f in BLENDED_FAMILIES else {})}
                         for p in f.fields],
              "presets": [{"label": label, "values": {name: list(numbers) for name, numbers in values}}
-                         for label, values in SHADER_PRESETS.get(f.shader, ())]} for f in MESH_FAMILIES]
+                         for label, values in SHADER_PRESETS.get(f.shader, ())],
+             "textures": [{"name": name, "label": label} for name, label in TEXTURE_SLOTS.get(f.shader, ())],
+             "rebuild": f.shader in SHADER_LAYOUTS}
+            for f in MESH_FAMILIES]
 
 
 def _colour_alpha(raw):

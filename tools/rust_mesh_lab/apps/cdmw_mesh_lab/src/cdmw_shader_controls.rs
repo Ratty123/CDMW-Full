@@ -135,6 +135,19 @@ impl LabApplication {
                 if let Some(note) = &reason { ui.small(crate::localization::tr(note)); }
                 ui.add_enabled_ui(reason.is_none(), |ui| {
                 if let Some(family) = families.iter().find(|f| f["shader"] == shader) {
+                    if family["rebuild"].as_bool() == Some(true) {
+                        let mut rebuild = value["rebuild"].as_bool().unwrap_or(false);
+                        if ui.checkbox(&mut rebuild, crate::localization::tr("Rewrite with this shader's own parameter set"))
+                            .on_hover_text(crate::localization::tr(
+                                "Off: changed values are added to the source material's rows. On: the material is written with this shader's usual rows, order and IDs; other rows are dropped. Compare both in game."))
+                            .changed() {
+                            if rebuild {
+                                value["rebuild"] = json!(true);
+                            } else if let Some(object) = value.as_object_mut() {
+                                object.remove("rebuild");
+                            }
+                        }
+                    }
                     let presets = family["presets"].as_array().cloned().unwrap_or_default();
                     if !presets.is_empty() {
                         egui::ComboBox::from_id_salt("shader_experiment_preset")
@@ -213,10 +226,42 @@ impl LabApplication {
                             value["values"][name] = numbers;
                         }
                     }
+                    // Textures this shader reads: the source's own, or a file of the user's.
                     let textures = variants.get(variant).and_then(|row| row["textures"].as_object()).cloned().unwrap_or_default();
-                    if !textures.is_empty() {
+                    let slots = family["textures"].as_array().cloned().unwrap_or_default();
+                    for slot in &slots {
+                        let Some(parameter) = slot["name"].as_str() else { continue; };
+                        let replaced = value["textures"][parameter].as_str().map(str::to_owned);
+                        let source = textures.get(parameter).and_then(Value::as_str).unwrap_or("");
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(crate::localization::tr(slot["label"].as_str().unwrap_or(parameter))).on_hover_text(parameter);
+                            if ui.button(crate::localization::tr("Replace...")).on_hover_text(crate::localization::tr(
+                                "Choose a DDS, or a PNG, TGA, JPG or BMP image to encode as DDS. The mod ships it under a name of its own; the game's texture is not changed.")).clicked() {
+                                actions.push(UiAction::ChooseCdmwShaderTexture {
+                                    part_ids: json!(ids), controls: value.clone(), parameter: parameter.to_owned() });
+                            }
+                            if ui.add_enabled(replaced.is_some(), egui::Button::new(crate::localization::tr("Original")))
+                                .on_hover_text(crate::localization::tr("Use the source material's texture again.")).clicked() {
+                                let mut controls = value.clone();
+                                if let Some(map) = controls["textures"].as_object_mut() { map.remove(parameter); }
+                                if controls["textures"].as_object().is_some_and(|map| map.is_empty()) {
+                                    if let Some(object) = controls.as_object_mut() { object.remove("textures"); }
+                                }
+                                actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
+                                    arguments: json!({"part_ids": ids, "shader_controls": controls}), label: "Restore shader texture" });
+                            }
+                        });
+                        ui.small(match &replaced {
+                            Some(digest) => crate::localization::tr(format!("Replaced with your texture ({}).", &digest[..digest.len().min(8)])),
+                            None if source.is_empty() => crate::localization::tr("Not set by this material."),
+                            None => crate::localization::tr(format!("Original: {}", source.rsplit('/').next().unwrap_or(source))),
+                        }).on_hover_text(source);
+                    }
+                    let others = textures.iter()
+                        .filter(|(parameter, _)| !slots.iter().any(|slot| slot["name"] == parameter.as_str())).collect::<Vec<_>>();
+                    if !others.is_empty() {
                         crate::localization::collapsing("Source textures").id_salt("shader_source_textures").show(ui, |ui| {
-                            for (parameter, path) in &textures {
+                            for (parameter, path) in others {
                                 let path = path.as_str().unwrap_or("");
                                 ui.small(format!("{parameter}: {}", path.rsplit('/').next().unwrap_or(path))).on_hover_text(path);
                             }
@@ -260,7 +305,8 @@ impl LabApplication {
                 if now - changed_at >= COMMIT_DELAY_SECONDS && !ui.input(|input| input.pointer.any_down()) {
                     let unchanged_source = value["shader"].as_str().unwrap_or("").is_empty()
                         || (value["shader"] == source_family && value["values"].as_object().is_some_and(|values| values.is_empty())
-                            && MASK_KEYS.iter().all(|mask| value[*mask].is_null()));
+                            && MASK_KEYS.iter().all(|mask| value[*mask].is_null())
+                            && value["textures"].is_null() && value["rebuild"].is_null());
                     if !unchanged_source {
                         actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
                             arguments: json!({"part_ids": ids, "shader_controls": value}), label: "Edit shader controls" });
