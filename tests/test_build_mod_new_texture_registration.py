@@ -66,28 +66,22 @@ def test_build_mod_writes_new_textures_and_no_registry_of_its_own(editor, tmp_pa
     assert not (mod / "meta" / "0.pathc").exists()
 
 
-def test_the_virtual_loader_registers_build_mods_new_textures(editor, tmp_path):  # noqa: F811
-    from cdmw.core.pathc_format import parse_pathc
-    from cdmw.services.virtual_loader_composition import compose_packages
+def test_every_new_texture_can_be_registered_as_the_mod_manager_registers_it(editor, tmp_path):  # noqa: F811
+    """DMM registers a mod's new DDS files at install; CDMW has no install route of its own
+    once the virtual loader's install is removed (rr/parity-mods-2). What CDMW owes DMM is a
+    DDS the registry can describe at a path it does not hold yet, which register_dds (the
+    registry's own rule for a new texture) checks here against an owned registry."""
+    from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_dds
     from tests.test_independent_items import setup_game
 
     service, session_id = editor
     (tmp_path / "build").mkdir()
     mod, new_textures = _build_loose_mod(service, session_id, tmp_path / "build")
-    setup_game(tmp_path / "loader")
-    root = tmp_path / "loader" / "game"
-    before = parse_pathc((root / "meta" / "0.pathc").read_bytes())
-    assert all(before.find(path) is None for path in new_textures)
-
-    _resolved, files, _flags, pathc = compose_packages((), (mod,), root)
-    assert pathc is not None
-    registry = parse_pathc(pathc)
+    setup_game(tmp_path / "game-fixture")
+    registry = parse_pathc((tmp_path / "game-fixture" / "game" / "meta" / "0.pathc").read_bytes())
+    assert all(registry.find(path) is None for path in new_textures)
+    for path in new_textures:
+        registry = register_dds(registry, path, (mod / path).read_bytes())
+    registry = parse_pathc(encode_pathc(registry))
     missing = [path for path in new_textures if registry.find(path) is None]
-    assert not missing, f"new textures the game could not find: {missing}"
-    assert all(path in files for path in new_textures)
-
-    # The step the Mods page runs accepts the folder as Build Mod wrote it.
-    from cdmw.domain.virtual_loader import VirtualProfile
-    from cdmw.services.virtual_loader_composition import prepare_profile
-
-    prepare_profile(VirtualProfile((), (mod,)), root)
+    assert not missing, f"new textures the registry could not take: {missing}"
