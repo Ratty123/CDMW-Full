@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QComboBox, QDialog, QFileDialog,
     QHBoxLayout, QLabel, QLineEdit, QPushButton, QSplitter, QStackedWidget, QStyle,
@@ -18,6 +18,25 @@ from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.ui.texture_workflow.job import (
     TEXTURE_MODE_SETTING, TEXTURE_TOOL_ALIASES, TextureJobAsset, _source_key, normalize_texture_mode,
 )
+
+
+#: Qt's QWIDGETSIZE_MAX: no maximum (PySide6 does not export the name).
+QWIDGETSIZE_MAX = 16777215
+
+
+class _UpscaleFitWatcher(QObject):
+    """Starts the sidebar fit when the controls ask for new geometry or the page is resized."""
+
+    _EVENTS = (QEvent.Type.LayoutRequest, QEvent.Type.Resize)
+
+    def __init__(self, timer: QTimer, parent: QObject) -> None:
+        super().__init__(parent)
+        self._timer = timer
+
+    def eventFilter(self, watched, event):  # noqa: N802 - Qt API
+        if event.type() in self._EVENTS and not self._timer.isActive():
+            self._timer.start()
+        return False
 
 
 class TextureJobUiMixin:
@@ -145,12 +164,27 @@ class TextureJobUiMixin:
         self.job_splitter.setStretchFactor(0, 0)
         self.job_splitter.setStretchFactor(1, 1)
         self.job_splitter.setSizes([300, 1180])
-        self.texture_pages = QStackedWidget()
+        # Only the shown page sizes the workspace: a hidden Replace page must not make
+        # the Upscale or Edit page wider than the window (the shell's tool stack does the same).
+        from cdmw.ui.display_scaling import CurrentToolStack
+
+        self.texture_pages = CurrentToolStack()
         self.texture_pages.addWidget(self.job_splitter)
         self.texture_pages.addWidget(matcher)
         layout.addWidget(self.texture_pages, stretch=1)
         editor.when_created(self._install_texture_editor)
         recolor.when_created(self._install_recolor_controls)
+        # The upscale controls' minimum width grows when a section opens or the text
+        # size changes; fit the sidebar again then, and when the page is resized, so
+        # the controls never need a sideways scroll.
+        self._upscale_fit_timer = QTimer(self)
+        self._upscale_fit_timer.setSingleShot(True)
+        self._upscale_fit_timer.setInterval(0)
+        self._upscale_fit_timer.timeout.connect(self._fit_upscale_sidebar)
+        self._upscale_fit_watcher = _UpscaleFitWatcher(self._upscale_fit_timer, self)
+        for watched in (getattr(self, "left_panel", None), self.job_splitter):
+            if watched is not None:
+                watched.installEventFilter(self._upscale_fit_watcher)
         self.set_texture_mode(self.job.mode, activate=False)
 
     def _with_texture_editor(self, callback) -> None:
@@ -198,6 +232,7 @@ class TextureJobUiMixin:
                 self.matcher_container.request_widget()
             return
         if mode != "upscale":
+            self._fit_upscale_sidebar()  # back beside the preview if Upscale had stacked it
             self.job_splitter.widget(0).setMaximumWidth(460)
         if mode == "upscale":
             self.mode_controls.setCurrentWidget(self.upscale_controls)
@@ -219,26 +254,50 @@ class TextureJobUiMixin:
             self.editor_container.request_widget()
             self._queue_next_texture_source()
 
+    def upscale_sidebar_stacked(self) -> bool:
+        """True when the Upscale controls sit above the preview instead of beside it."""
+
+        return self.job_splitter.orientation() == Qt.Vertical
+
     def _fit_upscale_sidebar(self) -> None:
-        if self.job.mode != "upscale" or not hasattr(self, "job_splitter"):
+        if not hasattr(self, "job_splitter"):
             return
-        sizes = self.job_splitter.sizes()
-        available = sum(sizes)
-        if not available:
+        splitter = self.job_splitter
+        sidebar = splitter.widget(0)
+        if self.job.mode != "upscale":
+            # The other modes keep their side-by-side layout.
+            if splitter.orientation() != Qt.Horizontal:
+                splitter.setOrientation(Qt.Horizontal)
             return
-        sidebar = self.job_splitter.widget(0)
+        if splitter.width() <= 0 or not sum(splitter.sizes()):
+            return
         scroll = self.upscale_controls
         required_width = (
             self.left_panel.minimumSizeHint().width()
             + scroll.style().pixelMetric(QStyle.PM_ScrollBarExtent)
             + 2 * scroll.frameWidth()
         )
-        sidebar.setMaximumWidth(max(460, required_width))
-        width = min(sidebar.maximumWidth(), max(
-            sidebar.minimumWidth(), available - self.preview_stack.minimumSizeHint().width(),
-        ))
-        if sizes[0] != width:
-            self.job_splitter.setSizes([width, available - width])
+        preview_minimum = self.preview_stack.minimumSizeHint()
+        # The page's width is the same in both orientations, so the choice depends only on
+        # the controls and the page, and cannot flip back and forth.
+        side_by_side = required_width + splitter.handleWidth() + preview_minimum.width() <= splitter.width()
+        orientation = Qt.Horizontal if side_by_side else Qt.Vertical
+        if splitter.orientation() != orientation:
+            splitter.setOrientation(orientation)
+        sizes = splitter.sizes()
+        available = sum(sizes)
+        if side_by_side:
+            sidebar.setMaximumWidth(max(460, required_width))
+            width = min(sidebar.maximumWidth(), max(sidebar.minimumWidth(), available - preview_minimum.width()))
+            if sizes[0] != width:
+                splitter.setSizes([width, available - width])
+            return
+        # Stacked: the controls take the page's full width above the preview, which keeps
+        # at least its minimum height; the controls scroll down, never sideways.
+        sidebar.setMaximumWidth(QWIDGETSIZE_MAX)
+        height = max(available // 2, available - preview_minimum.height())
+        if sizes[0] != height:
+            splitter.setSizes([height, available - height])
 
     def activate_texture_alias(self, key: str) -> None:
         mode = TEXTURE_TOOL_ALIASES.get(key, self.job.mode)

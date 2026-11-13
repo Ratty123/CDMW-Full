@@ -5,7 +5,7 @@ from html import escape
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, List, Optional, Sequence
 
-from PySide6.QtCore import QSettings, Qt, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QEvent, QSettings, Qt, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -360,6 +360,7 @@ class ReplaceAssistantTab(
         queue_group_layout.addWidget(self.queue_stack, stretch=1)
         queue_layout.addWidget(queue_group, stretch=1)
         selected_row = WrappingLayout()
+        self.queue_selected_row = selected_row
         selected_row.addWidget(QLabel("Selected file:"))
         selected_row.addWidget(self.open_in_editor_button)
         selected_row.addWidget(self.choose_local_original_button)
@@ -633,7 +634,7 @@ class ReplaceAssistantTab(
         self.settings_scroll.setMinimumWidth(settings_min)
         self.settings_scroll.setMaximumWidth(settings_max)
         self.main_splitter.addWidget(self.settings_scroll)
-        queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
+        queue_min, queue_max = self._queue_width_bounds()
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
         self.queue_panel.setMinimumWidth(queue_min)
         self.queue_panel.setMaximumWidth(queue_max)
@@ -657,6 +658,7 @@ class ReplaceAssistantTab(
             self.main_splitter.setStretchFactor(1, 1)
             self.main_splitter.setStretchFactor(2, 0)
             self._apply_responsive_splitter_defaults()
+            self._schedule_workspace_queue_fit()  # and again whenever the queue's row changes width
 
         self.add_files_button.clicked.connect(self.import_files)
         self.add_folder_button.clicked.connect(self.import_folder)
@@ -816,21 +818,78 @@ class ReplaceAssistantTab(
             self.texture_preview = GpuTexturePreview(self)
             self.main_splitter.addWidget(self.texture_preview)
 
-    def _apply_responsive_splitter_defaults(self) -> None:
+    def queue_row_one_line_width(self) -> int:
+        """The width the queue needs for its "Selected file:" row on one line, at the current text size."""
+        row = getattr(self, "queue_selected_row", None)
+        if row is None:
+            return 0
+        margins = self.queue_panel.layout().contentsMargins()
+        return row.sizeHint().width() + margins.left() + margins.right()
+
+    def _queue_width_bounds(self) -> tuple[int, int]:
+        """The queue's minimum and maximum width: the sidebar bounds, with room up to the row's one line."""
         queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
+        return queue_min, max(queue_min, queue_max, self.queue_row_one_line_width())
+
+    def _queue_sizing_minimum(self, total_width: int, other_minimums: Sequence[int]) -> int:
+        """The queue's size floor when the panes are sized: its row on one line, as far as the page
+        can spare beside the other panes' minimums. It is not the widget's minimum, so a hidden
+        Replace page never widens the Textures page, and a narrow page wraps the row instead."""
+        queue_min, _queue_max = self._queue_width_bounds()
+        # The splitter also keeps each pane at least its own minimum, which can be more than
+        # the nominal one (the GPU preview's grows with the text size).
+        real = [max(int(value), self._pane_minimum_width(index + 1)) for index, value in enumerate(other_minimums)]
+        spare = total_width - sum(real) - self.main_splitter.handleWidth() * len(real)
+        return max(queue_min, min(self.queue_row_one_line_width(), spare))
+
+    def _pane_minimum_width(self, index: int) -> int:
+        if index >= self.main_splitter.count():
+            return 0
+        pane = self.main_splitter.widget(index)
+        return max(pane.minimumWidth(), pane.minimumSizeHint().width())
+
+    def changeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._schedule_workspace_queue_fit()
+
+    def _schedule_workspace_queue_fit(self) -> None:
+        """In the workspace the panes always take their default sizes, so they follow the
+        row's width: on a text-size change, and when the row's buttons are restyled after it."""
+        if self.workspace is None or not hasattr(self, "queue_panel"):
+            return
+        timer = getattr(self, "_queue_fit_timer", None)
+        if timer is None:
+            timer = self._queue_fit_timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(0)
+            timer.timeout.connect(self._apply_responsive_splitter_defaults)
+            self.queue_panel.installEventFilter(self)
+        if not timer.isActive():
+            timer.start()
+
+    def eventFilter(self, watched, event):  # noqa: N802 - Qt API
+        if watched is getattr(self, "queue_panel", None) and event.type() == QEvent.Type.LayoutRequest:
+            self._schedule_workspace_queue_fit()
+        return super().eventFilter(watched, event)
+
+    def _apply_responsive_splitter_defaults(self) -> None:
+        queue_min, queue_max = self._queue_width_bounds()
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
         settings_min, settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")
         total_width = max(1, self.width() - 32)
+        self.queue_panel.setMinimumWidth(queue_min)
         if self.workspace is not None:
+            queue_floor = self._queue_sizing_minimum(total_width, (160, settings_min))
             self.main_splitter.setSizes(build_bounded_splitter_sizes(
-                total_width, [25, 50, 25], [queue_min, 160, settings_min], [queue_max, None, settings_max],
+                total_width, [25, 50, 25], [queue_floor, 160, settings_min], [queue_max, None, settings_max],
             ))
             return
         self.main_splitter.setSizes(
             build_bounded_splitter_sizes(
                 total_width,
                 [22, 58, 20],
-                [queue_min, preview_min, settings_min],
+                [self._queue_sizing_minimum(total_width, (preview_min, settings_min)), preview_min, settings_min],
                 [queue_max, None, settings_max],
             )
         )
@@ -841,7 +900,7 @@ class ReplaceAssistantTab(
             return
         if not sizes:
             return
-        queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
+        queue_min, queue_max = self._queue_width_bounds()
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
         settings_min, _settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")
         available_width = total_width or max(1, self.width() - 32)
@@ -849,7 +908,7 @@ class ReplaceAssistantTab(
             build_bounded_splitter_sizes(
                 available_width,
                 sizes,
-                [queue_min, preview_min, settings_min],
+                [queue_min, preview_min, settings_min],  # sizes the user chose: their queue may wrap the row
                 [queue_max, None, settings_max],
             )
         )
@@ -861,7 +920,7 @@ class ReplaceAssistantTab(
         if self.workspace is not None:
             self._apply_responsive_splitter_defaults()
             return
-        queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
+        queue_min, queue_max = self._queue_width_bounds()
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
         settings_min, _settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")
         available_width = total_width or max(1, self.width() - 32)
@@ -869,7 +928,7 @@ class ReplaceAssistantTab(
             build_bounded_splitter_sizes(
                 available_width,
                 [22, 58, 20],
-                [queue_min, preview_min, settings_min],
+                [self._queue_sizing_minimum(available_width, (preview_min, settings_min)), preview_min, settings_min],
                 [queue_max, None, settings_max],
             )
         )
