@@ -1434,6 +1434,10 @@ class _MeshServiceSessionLayerCore(
         journal_lock = project_lock(Path(session.mesh_layer_project_path).parent)
         journal_lock.acquire()
         try:
+            # A brand-new draft opened from the game's file has no generation for the
+            # state it opened with: write it with the first step, so that step can be
+            # undone after a restart too (section 8.7 D3, option a).
+            self._save_opened_state_generation_locked(session, layer_payload, stop_event)
             descriptor = self._save_mesh_layer_generation_locked(
                 session, layer_payload, morph_payload, promote, stop_event,
             )
@@ -1445,6 +1449,88 @@ class _MeshServiceSessionLayerCore(
         session.mesh_layer_autosave_error = ""
         if promote and session.mesh_layer_workspace_mode == "internal_app_session":
             session.mesh_layer_workspace_mode = "persistent_app_draft"
+
+    def _save_opened_state_generation_locked(
+        self,
+        session: _MeshEditSession,
+        layer_payload: Mapping[str, object],
+        stop_event: threading.Event | None,
+    ) -> None:
+        """Write the state a brand-new draft opened with as an unpublished generation.
+
+        It is rebuilt from the history entry that restores journal depth 0, on a copy
+        of the mesh and in a native session of its own, so the session itself does not
+        move. The journal records it one step below the first saved step (D3's first
+        part). Nothing is written when that entry is not a whole snapshot (a sparse
+        stroke delta), when the opened layers differ from today's, or for a draft
+        whose state is more than geometry (replacement, hair, refit, Morph & Refit).
+        """
+
+        from cdmw.services import mesh_history_journal as journal
+        from cdmw.services.mesh_service_history import _reconcile_journal_depth
+
+        if (session.mesh_layer_loaded_generation or session.history_journal_base_generation
+                or session.history_journal_readonly or session.replacement_state is not None
+                or session.hair_state is not None or session.archive_refit_context is not None
+                or _morph_profile_active(self, session)):
+            return
+        project_root = Path(session.mesh_layer_project_path).parent
+        try:
+            if journal.read_journal(project_root).records:
+                return
+        except (OSError, ValueError):
+            return
+        _reconcile_journal_depth(session)
+        if session.history_journal_depth < 1:
+            return
+        opened_entry = next((entry for entry in session.undo_stack
+                             if entry.journal_depth == 0 and not entry.selection_only), None)
+        if opened_entry is None or opened_entry.vertex_position_deltas:
+            return
+        if opened_entry.restore_geometry_layer_state and opened_entry.geometry_layers is not None \
+                and tuple(opened_entry.geometry_layers) != tuple(session.geometry_layers):
+            return
+        if opened_entry.native_submesh_snapshot is not None:
+            opened_mesh = copy.deepcopy(session.working_mesh)
+            if not restore_native_mesh_submesh_snapshot(opened_mesh, opened_entry.native_submesh_snapshot,
+                                                        stop_event=stop_event, timeout_seconds=30.0):
+                return
+        elif opened_entry.mesh is not None:
+            opened_mesh = copy.deepcopy(opened_entry.mesh)
+        else:
+            return
+        native_id = f"{session.session_id}:opened-state"
+        if open_native_mesh_editor_session(opened_mesh, native_id, stop_event=stop_event) is None:
+            return
+        transform = opened_entry.object_transform or session.object_transform
+        try:
+            descriptor = save_mesh_layer_project(
+                session_id=native_id,
+                mesh=opened_mesh,
+                project_path=session.mesh_layer_project_path,
+                source_asset_sha256=session.mesh_asset_source_hash,
+                layers=layer_payload["layers"],
+                active_layer_id=session.active_geometry_layer_id,
+                copy_counter=session.geometry_layer_copy_counter,
+                mesh_revision=0,
+                layer_revision=session.geometry_layer_revision,
+                object_transform={
+                    "location": transform.location,
+                    "rotation_degrees": transform.rotation_degrees,
+                    "scale": transform.scale,
+                    "pivot": transform.pivot,
+                },
+                workspace_manifest_path=session.mesh_layer_workspace_manifest_path,
+                stop_event=stop_event,
+                edit_operations=tuple(opened_entry.edit_operations),
+                requires_edit_operations=session.requires_edit_operations,
+                viewport_hidden_parts=session.viewport_hidden_parts,
+                prune_superseded=False,
+                publish=False,
+            )
+        finally:
+            close_native_mesh_editor_session(native_id, timeout_seconds=2.0)
+        session.history_journal_base_generation = str(descriptor.get("current_generation") or "")
 
     def _save_mesh_layer_generation_locked(
         self,

@@ -415,8 +415,9 @@ def test_autosave_keeps_each_finished_step_in_the_history_journal(game, tmp_path
         descriptor = json.loads((project / "mesh_layer_project.json").read_text(encoding="utf-8"))
         generations = sorted(path.name for path in project.iterdir() if path.name.startswith("generation-"))
         records = read_journal(project).records
-        # P14: one saved step per Finish; nothing else stays on disk.
-        assert [record.depth for record in records] == [1, 2, 3]
+        # P14: one saved step per Finish, below them the state the new draft opened
+        # with (8.7 D3, option a); nothing else stays on disk.
+        assert [record.depth for record in records] == [0, 1, 2, 3]
         assert records[-1].generation == descriptor["current_generation"]
         assert generations == sorted(record.generation for record in records)
     finally:

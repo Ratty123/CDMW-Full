@@ -612,3 +612,38 @@ def test_the_first_saved_step_can_be_undone_after_a_restart(tmp_path) -> None:
         assert _x(service, session_id) == pytest.approx(opened)
     finally:
         service.close_edit_session(session_id)
+
+
+def _replace_moved(service: MeshService, session_id: str, dx: float) -> None:
+    """One Finish of the Mesh Editor: the document's mesh replaced by the edited one."""
+
+    mesh = service.working_mesh(session_id, clone=True)
+    vertices = list(mesh.submeshes[0].vertices)
+    x, y, z = vertices[0]
+    vertices[0] = (x + dx, y, z)
+    mesh.submeshes[0].vertices = vertices
+    service.replace_working_mesh(session_id, mesh)
+    service.retry_mesh_layer_autosave(session_id)
+
+
+def test_a_new_draft_s_first_finish_can_be_undone_after_a_restart(tmp_path) -> None:
+    """Section 8.7 D3, option (a): a draft opened from the game's file has no generation
+    for its opened state, so its first saved step used to be the oldest one a restart
+    could reach. The first save now also writes the opened state, one step below."""
+
+    service, session_id = _open(tmp_path)
+    opened = _x(service, session_id)
+    _replace_moved(service, session_id, 0.25)
+    project_root = tmp_path / "mesh_layers"
+    assert [record.depth for record in journal.read_journal(project_root).records] == [0, 1]
+    assert _x(service, session_id) == pytest.approx(opened + 0.25), "the session moved while the opened state was saved"
+    service.close_edit_session(session_id)
+    service, session_id = _open(tmp_path)  # a real reopen, at the first saved step
+    try:
+        assert _x(service, session_id) == pytest.approx(opened + 0.25)
+        assert service.session_view(session_id).journal_undo_available
+        result = service.step_history_journal(session_id, -1)
+        assert result.ok
+        assert _x(service, session_id) == pytest.approx(opened)
+    finally:
+        service.close_edit_session(session_id)
