@@ -46,6 +46,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
 
+    if args.mcp_bridge:
+        # An AI client's MCP server: no window, no helpers, no single-instance
+        # guard. It only relays to the app that is already open.
+        from cdmw.mcp.bridge import run_bridge
+
+        return run_bridge()
+
     if args.automation:
         os.environ["CDMW_AUTOMATION"] = "1"
     if os.environ.get("CDMW_AUTOMATION", "").strip() == "1":
