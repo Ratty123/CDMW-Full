@@ -130,8 +130,12 @@ def _require_player_equipment(row, strings, equip_type):
 
 
 def wearer_support(row, settings, strings, *, equip_type=''):
-    source, current, index = _prefab_lists(row, settings)
+    if not row.equip_type_key:
+        raise WearerSupportError('not_equipment')
+    # Who wears it comes first: a horse armour with one model per breed is horse gear,
+    # not an ambiguous humanoid template.
     _require_player_equipment(row, strings, equip_type)
+    source, current, index = _prefab_lists(row, settings)
     keys = {name: stringinfo_key(selector) for name, selector in PLAYER_SELECTORS.items()}
     # An empty selector list is unrestricted, as used by CC's Equip All Armor.
     # Do not turn it into a restriction merely by clicking a character checkbox.

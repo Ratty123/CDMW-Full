@@ -67,8 +67,20 @@ class TemplatePanel(QGroupBox):
         self.category.setMinimumContentsLength(16)
         self.category.setMaximumWidth(260)
         self.category.setToolTip("Filter by the game's equipment category or an explicit equipment subcategory. All equipment includes equipment outside those groups.")
-        self.category.currentIndexChanged.connect(self._refresh_matches)
+        self.category.currentIndexChanged.connect(self._category_changed)
         row.addWidget(self.category)
+        # Who wears the template (P8): playable characters, horses, pets, ships and so on.
+        self.worn_by = QComboBox()
+        self.worn_by.setObjectName("new_item_template_worn_by")
+        self.worn_by.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.worn_by.setMinimumContentsLength(12)
+        self.worn_by.setMaximumWidth(220)
+        self.worn_by.setToolTip("Worn by: show only templates for playable characters, horses, pets, ridable creatures, the dragon, ships, wagons or the war machine.")
+        self.worn_by.currentIndexChanged.connect(self._refresh_matches)
+        self.worn_by_label = QLabel("Worn by:")
+        self.worn_by_label.setBuddy(self.worn_by)
+        row.addWidget(self.worn_by_label)
+        row.addWidget(self.worn_by)
         selection_layout.addLayout(row)
         self.compatibility = QLabel()
         self.compatibility.setWordWrap(True)
@@ -158,6 +170,7 @@ class TemplatePanel(QGroupBox):
                     self.category.addItem(group.name.removeprefix("ItemGroup_SubCategory_Equip_"), group.key)
             if prior is not None and self.category.findData(prior) >= 0:
                 self.category.setCurrentIndex(self.category.findData(prior))
+        self._refresh_worn_by()
         if snapshot:
             descriptor = snapshot.iteminfo.descriptor
             self.compatibility.setText(f"{descriptor['layout'].capitalize()} item tables · {len(snapshot.rows):,} items · {len(snapshot.languages)} languages")
@@ -168,6 +181,41 @@ class TemplatePanel(QGroupBox):
                 self.compatibility.setText(self.compatibility.text() + " · Legacy mods excluded")
             self.compatibility.setToolTip("\n\n".join(details))
         self._refresh_matches()
+
+    def _refresh_worn_by(self) -> None:
+        """All, then each wearer kind that has templates, with how many it has."""
+
+        from cdmw.ui.new_item.wearer_labels import kind_label
+
+        snapshot = self._controller.snapshot
+        with QSignalBlocker(self.worn_by):
+            prior = self.worn_by.currentData()
+            self.worn_by.clear()
+            self.worn_by.addItem("All", None)
+            counts = snapshot.template_search_catalogue().wearer_kind_counts() if snapshot is not None else {}
+            for kind, count in counts.items():
+                self.worn_by.addItem(f"{kind_label(kind)} ({count:,})", kind)
+            if prior is not None and self.worn_by.findData(prior) >= 0:
+                self.worn_by.setCurrentIndex(self.worn_by.findData(prior))
+        self._sync_worn_by_enabled()
+
+    def _sync_worn_by_enabled(self) -> None:
+        # Usable items are worn by no one: under that category the filter is All and off.
+        from cdmw.services.new_item_template_search import USABLE_ITEMS_CATEGORY
+
+        usable = self.category.currentData() == USABLE_ITEMS_CATEGORY
+        if usable and self.worn_by.currentIndex() != 0:
+            with QSignalBlocker(self.worn_by):
+                self.worn_by.setCurrentIndex(0)
+        self.worn_by.setEnabled(not usable and self.worn_by.count() > 1)
+
+    def _category_changed(self, *_args) -> None:
+        self._sync_worn_by_enabled()
+        self._refresh_matches()
+
+    def _worn_by_kinds(self):
+        kind = self.worn_by.currentData() if self.worn_by.isEnabled() else None
+        return frozenset({kind}) if kind else None
 
     def mount_preview(self, preview: QWidget) -> None:
         """Keep the one resident item viewport under the selected template."""
@@ -196,6 +244,7 @@ class TemplatePanel(QGroupBox):
             sort_column=self._sort_column,
             descending=self._sort_order == Qt.SortOrder.DescendingOrder,
             debounce=debounce,
+            wearer_kinds=self._worn_by_kinds(),
         )
 
     def _show_matches(self, options) -> None:

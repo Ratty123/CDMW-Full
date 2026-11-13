@@ -121,7 +121,8 @@ def search_template_options(
     """Preserve Archive Browser query semantics, exact-name ranking and complete-set sorting.
 
     `wearer_kinds` keeps only templates worn by those kinds (`player`, `horse`,
-    `ship`, ...); None keeps every kind, as before.
+    `ship`, ...); None keeps every kind, as before. Usable items are worn by no one,
+    so a chosen kind leaves them out; None (the "All" choice) keeps them.
     """
 
     raise_if_cancelled(stop_event)
@@ -147,7 +148,7 @@ def search_template_options(
             continue
         if members is not None and key not in members:
             continue
-        if kinds is not None and not row.usable and row.wearer_kind not in kinds:
+        if kinds is not None and (row.usable or row.wearer_kind not in kinds):
             continue
         if not query.is_empty and not any(
             all(
