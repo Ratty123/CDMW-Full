@@ -16,6 +16,9 @@ from cdmw.domain.archives.discovery import (
 )
 from cdmw.services.settings_service import read_ignored_archive_folders
 
+#: The list's empty state (P11 step 6): nothing ignored is the normal case.
+IGNORED_FOLDERS_EMPTY_TEXT = "Every archive folder is scanned. Add a folder to leave it out of scans."
+
 
 class ArchiveIgnoredFoldersGroup(QGroupBox):
     def __init__(self, settings, parent=None):
@@ -33,7 +36,12 @@ class ArchiveIgnoredFoldersGroup(QGroupBox):
         self.folder_list.setToolTip(
             "Paths are relative to the selected game folder. A path such as extras/old excludes that folder and everything inside it."
         )
-        layout.addWidget(self.folder_list)
+        from cdmw.ui.empty_states import ActionEmptyState, EmptyStateSwitch
+
+        self.empty_state = ActionEmptyState(IGNORED_FOLDERS_EMPTY_TEXT, "Add Folder...", run=self._browse_folder)
+        self.list_switch = EmptyStateSwitch(self.folder_list, self.empty_state)
+        self.list_switch.setMaximumHeight(self.folder_list.maximumHeight())
+        layout.addWidget(self.list_switch)
         buttons = QHBoxLayout()
         self.add_folder_button = QPushButton("Add folder...")
         self.add_path_button = QPushButton("Add path...")
@@ -58,6 +66,7 @@ class ArchiveIgnoredFoldersGroup(QGroupBox):
         self.folder_list.clear()
         self.folder_list.addItems(read_ignored_archive_folders(self.settings))
         self.remove_button.setEnabled(False)
+        self._sync_empty_state()
 
     def add_path(self, path: str) -> bool:
         try:
@@ -82,6 +91,14 @@ class ArchiveIgnoredFoldersGroup(QGroupBox):
         self.settings.setValue(ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, folders)
         self.settings.sync()
         self.status_label.setText("Changes apply the next time archives are loaded or refreshed.")
+        self._sync_empty_state()
+
+    def _sync_empty_state(self):
+        empty = self.folder_list.count() == 0
+        self.list_switch.set_empty(empty)
+        # The empty state adds a folder itself, and there is nothing to remove.
+        self.add_folder_button.setVisible(not empty)
+        self.remove_button.setVisible(not empty)
 
     def _enter_path(self):
         path, accepted = QInputDialog.getText(self, "Ignore folder", "Folder path relative to the game folder:")

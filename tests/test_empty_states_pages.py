@@ -225,3 +225,35 @@ def test_item_icons_asks_for_a_folder_then_offers_a_rescan(app, tmp_path, monkey
         assert not tab.sources_switch.is_empty() and tab.records_tree.isVisibleTo(tab)
     finally:
         tab.deleteLater()
+
+
+# ----- Settings ---------------------------------------------------------------------------
+def test_settings_ignored_folders_says_every_folder_is_scanned_until_one_is_added(app, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+
+    from cdmw.ui import archive_ignored_folders as module
+
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    settings.setValue("archive/package_root", str(tmp_path))
+    asked = []
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: (asked.append(True), "")[1])
+    group = module.ArchiveIgnoredFoldersGroup(settings)
+    try:
+        # The built-in folders are ignored by default; the list is empty once they are removed.
+        assert not group.list_switch.is_empty() and group.folder_list.count()
+        group.folder_list.selectAll()
+        group.remove_selected()
+        assert group.list_switch.is_empty()
+        assert group.empty_state.sentence_label.text() == module.IGNORED_FOLDERS_EMPTY_TEXT
+        assert not group.add_folder_button.isVisibleTo(group) and not group.remove_button.isVisibleTo(group)
+        assert group.add_path_button.isVisibleTo(group)
+        group.empty_state.button.click()
+        assert asked
+
+        assert group.add_path("extras/old")
+        assert not group.list_switch.is_empty() and group.add_folder_button.isVisibleTo(group)
+        group.folder_list.selectAll()
+        group.remove_selected()
+        assert group.list_switch.is_empty()
+    finally:
+        group.deleteLater()
