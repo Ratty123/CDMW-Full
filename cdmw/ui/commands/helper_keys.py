@@ -154,6 +154,15 @@ def palette_chords(settings) -> list[str]:
     return chords
 
 
+def _follow_saved_keymap() -> None:
+    from cdmw.services.keymap_store import on_keymap_saved
+
+    on_keymap_saved(palette_chords)
+
+
+_follow_saved_keymap()
+
+
 def reserved_reason(held: set[str], name: str) -> str:
     """``KeyChord::reserved_reason``: why the helper's own editor refuses this chord."""
 

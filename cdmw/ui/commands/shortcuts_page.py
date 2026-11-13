@@ -251,7 +251,9 @@ class ShortcutsPage(QWidget):
 
         options = {}
         if row.helper:
-            from cdmw.ui.commands.helper_keys import check_helper_keys, qt_key_text
+            from cdmw.ui.commands.helper_keys import check_helper_keys, palette_chords, qt_key_text
+
+            palette_chords(self.settings)  # the palette's keys as this keymap has them, editor running or not
 
             options = dict(check=lambda keys: check_helper_keys(keys, takes_modifier=row.takes_modifier),
                            shown=qt_key_text, keep_numpad=True)

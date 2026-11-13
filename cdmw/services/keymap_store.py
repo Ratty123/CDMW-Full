@@ -106,9 +106,21 @@ def load_keymap(settings) -> dict[str, list[str]]:
         return {}
 
 
+#: Called with the settings after each save: what follows the keymap (the keys the
+#: Mesh Editor's commands may not take) updates at once, not at the next helper start.
+_SAVED_LISTENERS: list = []
+
+
+def on_keymap_saved(listener) -> None:
+    if listener not in _SAVED_LISTENERS:
+        _SAVED_LISTENERS.append(listener)
+
+
 def save_keymap(settings, overrides: Mapping[str, object]) -> dict[str, list[str]]:
     keymap = validated_keymap(dict(overrides))
     settings.setValue(KEYMAP_KEY, json.dumps(keymap, separators=(",", ":"), sort_keys=True))
+    for listener in tuple(_SAVED_LISTENERS):
+        listener(settings)
     return keymap
 
 
