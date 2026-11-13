@@ -94,7 +94,7 @@ def test_independent_output_preserves_draft_and_exports_through_rust_input(studi
     assert output.export_button.text() == 'Write item package (.cdmw)'
     assert '.cdmw' in output.independent_mode_button.text()
     assert output.independent_mode_button.toolTip() and output.update_package_button.toolTip()
-    assert not output.folder_controls.isVisible() and not output.overlay_controls.isVisible()
+    assert not output.folder_controls.isVisible() and not hasattr(output, 'overlay_controls')
     managed = controller.current_spec()
     assert managed.item_key is None and managed.stem is None and managed.internal_name.startswith('CDI_')
     assert controller.draft.item_key == 1990420 and controller.draft.internal_name == 'OriginalName'

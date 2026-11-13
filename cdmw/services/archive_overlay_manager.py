@@ -320,11 +320,13 @@ def _state_for_edit(root, directory_name, stop_event, *, retirement=None):
     records, owned = _mounted_owned(root)
     if state is not None and (owned or is_cdmw_overlay_directory(_target(root, state['directory']))):
         relative = state['directory']
-        raise OverlayConflict(f'{relative} changed outside the overlay manager. Restore or refresh the install before changing overlays.')
+        raise OverlayConflict(f'{relative} changed after an older CDMW installed overlays into this game. '
+                              'Use Browse Archives > Remove What an Older CDMW Installed... to take that install out, then try again.')
     # With no installed layers, begin a fresh baseline from today's mounted files.
     # Old journals stay on disk and the replaced inventory is included in backup.
     if len(owned) > 1:
-        raise OverlayConflict('Multiple earlier CDMW archive groups need consolidation before individual item management can begin.')
+        raise OverlayConflict('Several archive groups an older CDMW installed are in this game. '
+                              'Use Browse Archives > Remove What an Older CDMW Installed... to take them out.')
     existing = owned[0].name if owned else None
     name = _directory(directory_name or existing or overlay_directory_name(root))
     if existing and name != existing:

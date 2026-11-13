@@ -35,7 +35,7 @@ def test_compiler_change_requires_explicit_rebuild_with_all_bindings_retained(tm
         layer['independent_compiler']['revision'] += 1
     state_path.write_text(json.dumps(state), encoding='utf-8')
     before = files_in(root)
-    with pytest.raises(IndependentItemError, match='Rebuild selected item'):
+    with pytest.raises(IndependentItemError, match='different or unrecorded compiler'):
         installer.prepare_install([package_bytes(package)], root)
     rebuilt = installer.prepare_rebuild(package.identity, root)
     assert rebuilt.items[0][3] == 'Rebuild'

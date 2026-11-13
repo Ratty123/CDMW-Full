@@ -470,7 +470,8 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
     from cdmw.services.virtual_loader_state import active_identities
     virtual_items = active_identities(root)
     if target == 'archive' and set(packages) & virtual_items:
-        raise IndependentItemError('Remove the item from the virtual profile before installing it into archives.')
+        raise IndependentItemError("An older CDMW's virtual profile in this game folder holds this item. "
+                                   'Use Browse Archives > Remove What an Older CDMW Installed... to take the profile out, then try again.')
     registry_before = canonical(registry)
     retained_identities = set(registry['items'])
     _semantic_bindings(registry, semantic_exports)
@@ -577,11 +578,13 @@ def resolve_items(sources, root, *, target='archive', folders=(), rebuild=False,
             # item; Browse Archives' Remove What an Older CDMW Installed... takes it out.
             previous_layer = None
         if target == 'virtual' and previous_layer and (previous_layer['active'] or previous_layer.get('disabled')):
-            raise IndependentItemError(f'{package.title}: remove the installed contribution before using this item in a virtual profile. Its identity will be retained.')
+            raise IndependentItemError(f'{package.title}: an older CDMW installed this item into the game. '
+                                       'Use Browse Archives > Remove What an Older CDMW Installed... to take that install out. Its identity is kept.')
         _check_dependencies(package, snapshot, stop_event)
         if previous_layer and previous_layer['active'] and prior['digest'] == package.digest and not rebuild:
             if previous_layer.get('independent_compiler') != compiler_stamp() or 'independent_compilation' not in previous_layer:
-                raise IndependentItemError(f'{package.title}: the installed compiler is different or unrecorded. Use Rebuild selected item to regenerate it while retaining its IDs.')
+                raise IndependentItemError(f'{package.title}: an older CDMW installed this item with a different or '
+                                           'unrecorded compiler. Use Browse Archives > Remove What an Older CDMW Installed... to take that install out; its IDs are kept.')
             check_package_dependencies(package, snapshot, external, decoded[previous_layer['id']], stop_event=stop_event)
             compiled[identity] = (package, decoded[previous_layer['id']])
             rows.append((identity, package.title, prior['values'].get('iteminfo', {}).get('item'), 'Already installed'))

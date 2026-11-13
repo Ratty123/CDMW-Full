@@ -176,7 +176,7 @@ def test_legacy_inline_history_converts_only_on_publication_and_keeps_old_valida
         assert stored['format'] == 'cdmw_owned_overlays_v2'
         for layer in stored['layers']:
             assert read_compilation(layer['independent_compilation'], stored['compilation_contexts']) == original[layer['id']]
-        with pytest.raises(IndependentItemError, match='Rebuild selected item'):
+        with pytest.raises(IndependentItemError, match='different or unrecorded compiler'):
             prepare_install([sources[0]], root)
 
 

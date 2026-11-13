@@ -257,7 +257,6 @@ def main():
             from PySide6.QtWidgets import QInputDialog, QMenu, QMessageBox
             from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
             from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
-            from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
 
             def capture_dialog(name, dialog):
                 owned_dialogs.append(dialog)
@@ -271,7 +270,6 @@ def main():
 
             capture_dialog("dialog-merge", ModMergeDialog(tab.controller, str(fixture.root), tab))
             capture_dialog("dialog-update", ModUpdateDialog(tab.controller, str(fixture.root), tab))
-            capture_dialog("dialog-overlays", OverlayManagerDialog(tab.controller, fixture.root, None, tab))
             name_dialog = QInputDialog(tab)
             name_dialog.setWindowTitle("Save effect")
             name_dialog.setLabelText("Name:")

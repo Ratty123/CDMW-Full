@@ -202,7 +202,7 @@ class ModMergeDialog(QDialog):
         if plan.conflicts:
             self.status.setText(f"{len(plan.conflicts)} conflict(s). No package can be written yet.")
         elif plan.semantic_export is None:
-            self.status.setText(self.tr("Archive overlays are disabled because they are incompatible with the DLC update."))
+            self.status.setText(self.tr("These mods cannot be combined into one package. CDMW combines mods built from item packages."))
         else:
             destination = 'CDMW semantic .cdmw' if plan.semantic_export is not None else 'DMM'
             self.status.setText(f"Ready to combine {len(plan.folders)} mods into one {destination} package.")

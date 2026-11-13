@@ -1211,13 +1211,8 @@ also retained; there is no automatic history deletion or shared on-disk blob sto
 Storage growth and reusable content should be measured before changing retention
 or sharing semantics.
 
-For reproducible source measurements using owned fixtures only:
-
-```powershell
-.\.venv\Scripts\python.exe scripts/benchmark_independent_items.py --counts 1 8 32 128 --generations 3 --output workspace/reports/cditem-scale.json
-.\.venv\Scripts\python.exe scripts/benchmark_independent_items.py --counts 1 8 32 --kinds icon --generations 3 --output workspace/reports/cditem-scale-icons.json
-.\.venv\Scripts\python.exe scripts/benchmark_independent_items.py --counts 1 8 --kinds texture-shared texture-distinct --generations 2 --output workspace/reports/cditem-texture-scale.json
-```
+The scale benchmark for installed item packages (`scripts/benchmark_independent_items.py`)
+was removed with the installs (decision 39).
 
 Choose a new report path for each run. The harness accepts no game directory,
 creates its own temporary fixtures, and measures each case in a separate child
