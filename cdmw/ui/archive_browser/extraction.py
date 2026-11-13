@@ -343,6 +343,12 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         if self._archive_remote_export_request_id is not None:
             self.shell.set_status_message("Another archive export is already running.", error=True)
             return
+        if getattr(self.shell, "_workflow_clear_active", False):
+            # The clear runs in the background now; an export could write into a
+            # folder it is emptying.
+            self.shell.set_status_message(
+                "Workflow folders are being cleared. Export again when that has finished.", error=True)
+            return
         requested_count = max(0, int(getattr(selection, "requested_count", 0) or 0))
         output_root = (
             output_root_override.expanduser().resolve()

@@ -101,21 +101,83 @@ def test_clear_workflow_roots_clears_off_the_interface_thread(app, window, tmp_p
     _wait(app, lambda: "Cleared 2 configured workflow folder(s)." in statuses)
 
 
-def test_a_refused_folder_is_reported_and_its_files_stay(app, window, tmp_path, monkeypatch):
+def _game_library(tmp_path):
     game = tmp_path / "library" / "Crimson Desert"
     (game / "meta").mkdir(parents=True)
     (game / "meta" / "0.papgt").write_bytes(b"papgt")
     (game / "bin64").mkdir()
     (game / "bin64" / "CrimsonDesert.exe").write_bytes(b"MZ")
+    return game
+
+
+def _statuses(window, monkeypatch):
+    statuses = []
+    real_status = window.set_status_message
+    monkeypatch.setattr(window, "set_status_message",
+                        lambda message, *args, **kwargs: (statuses.append(message), real_status(message, *args, **kwargs)))
+    return statuses
+
+
+def test_a_refused_folder_is_reported_and_its_files_stay(app, window, tmp_path, monkeypatch):
+    game = _game_library(tmp_path)
     window.textures.output_root_edit.setText(str(game.parent))
     for edit in (window.textures.original_dds_edit, window.textures.dds_staging_root_edit,
                  window.textures.png_root_edit, window.textures.texture_editor_png_root_edit):
         edit.setText("")
     monkeypatch.setattr(workspace_controller, "QMessageBox", _ConfirmingBox)
-    errors = []
-    monkeypatch.setattr(window, "_handle_worker_error", lambda message: errors.append(message))
+    statuses = _statuses(window, monkeypatch)
     window.clear_workflow_roots()
-    _wait(app, lambda: window.worker_thread is None or bool(errors))
-    _wait(app, lambda: bool(errors))
-    assert "holds a game installation" in errors[0]
+    _wait(app, lambda: window.worker_thread is None and any("was not cleared" in s for s in statuses))
+    refusal = next(s for s in statuses if "was not cleared" in s)
+    assert "holds a game installation" in refusal and "Already cleared" not in refusal
     assert (game / "bin64" / "CrimsonDesert.exe").is_file()
+    assert not window._workflow_clear_active
+
+
+def test_a_later_refusal_names_the_folders_already_cleared(app, window, tmp_path, monkeypatch):
+    """Review of rr/parity-mods-3: the status names what was cleared before the refusal."""
+
+    output, game = _filled(tmp_path / "output"), _game_library(tmp_path)
+    window.textures.output_root_edit.setText(str(output))  # "Rebuilt textures", cleared first
+    window.textures.png_root_edit.setText(str(game.parent))  # "Upscaled PNG staging", refused
+    for edit in (window.textures.original_dds_edit, window.textures.dds_staging_root_edit,
+                 window.textures.texture_editor_png_root_edit):
+        edit.setText("")
+    monkeypatch.setattr(workspace_controller, "QMessageBox", _ConfirmingBox)
+    statuses = _statuses(window, monkeypatch)
+    window.clear_workflow_roots()
+    _wait(app, lambda: window.worker_thread is None and any("was not cleared" in s for s in statuses))
+    refusal = next(s for s in statuses if "was not cleared" in s)
+    assert refusal.startswith("Upscaled PNG staging was not cleared"), refusal
+    assert "Already cleared: Rebuilt textures." in refusal
+    assert not any(output.iterdir()) and (game / "bin64" / "CrimsonDesert.exe").is_file()
+
+
+def test_the_clear_and_an_archive_export_wait_for_each_other(app, window, tmp_path, monkeypatch):
+    """Review of rr/parity-mods-3: Browse's archive export runs in its own process and can
+    write into the Original DDS root, and the clear runs in the background now."""
+
+    from types import SimpleNamespace
+
+    output = _filled(tmp_path / "output")
+    window.textures.output_root_edit.setText(str(output))
+    monkeypatch.setattr(workspace_controller, "QMessageBox", _ConfirmingBox)
+    statuses = _statuses(window, monkeypatch)
+    window.archive._archive_remote_export_request_id = "export-1"
+    try:
+        window.clear_workflow_roots()
+    finally:
+        window.archive._archive_remote_export_request_id = None
+    assert window.worker_thread is None and any(output.iterdir())
+    assert any("archive export is still writing" in s for s in statuses)
+    # The other way: an export started while the clear runs is refused.
+    monkeypatch.setattr(window.archive, "archive_remote_bridge", SimpleNamespace(current_session=object()),
+                        raising=False)
+    monkeypatch.setattr(window.archive, "archive_remote_actions_safe", True, raising=False)
+    monkeypatch.setattr(window.archive, "_ensure_remote_archive_export_wiring", lambda: None)
+    window._workflow_clear_active = True
+    try:
+        window.archive._run_remote_archive_export(SimpleNamespace(requested_count=1), description="DDS")
+    finally:
+        window._workflow_clear_active = False
+    assert any("Workflow folders are being cleared" in s for s in statuses)

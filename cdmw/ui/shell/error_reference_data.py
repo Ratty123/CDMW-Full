@@ -8519,7 +8519,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 504
+      "cdmw/ui/archive_browser/extraction.py": 510
     }
   },
   {
@@ -8527,7 +8527,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export could not start: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 404
+      "cdmw/ui/archive_browser/extraction.py": 410
     }
   },
   {
@@ -8535,7 +8535,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 496
+      "cdmw/ui/archive_browser/extraction.py": 502
     }
   },
   {
@@ -8551,7 +8551,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export item details were truncated by the worker reporting bound.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 487
+      "cdmw/ui/archive_browser/extraction.py": 493
     }
   },
   {
@@ -8559,7 +8559,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 541
+      "cdmw/ui/archive_browser/extraction.py": 547
     }
   },
   {
@@ -8575,7 +8575,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction summary: extracted={extracted}, decompressed={decompressed}, renamed={renamed}, failed={failed}.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 620
+      "cdmw/ui/archive_browser/extraction.py": 626
     }
   },
   {
@@ -8583,7 +8583,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction summary: extracted={payload.exported}, renamed_reported={renamed}, skipped={payload.skipped}, failed={payload.failed}.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 482
+      "cdmw/ui/archive_browser/extraction.py": 488
     }
   },
   {
@@ -9225,7 +9225,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive worker returned an invalid export result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 444
+      "cdmw/ui/archive_browser/extraction.py": 450
     }
   },
   {
@@ -97355,6 +97355,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "settings",
+    "message": "{refused} was not cleared, nor any folder after it: {reason}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/shell/workspace_controller.py": 100
+    }
+  },
+  {
+    "area": "settings",
+    "message": "{refused} was not cleared: {reason} Already cleared: {done}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/shell/workspace_controller.py": 96
+    }
+  },
+  {
+    "area": "settings",
     "message": "{wrapper.wrapper_name or '<unnamed>'} {ref.parameter_name}: stock runtime {old.texture_path} replaced by mod-owned {ref.texture_path} without explicit opt-in.",
     "recovery": "internal",
     "sources": {
@@ -107251,7 +107267,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/shell/window_runtime_state.py": {},
   "cdmw/ui/shell/workbench.py": {},
   "cdmw/ui/shell/workspace_controller.py": {
-    "display": 1
+    "display": 3
   },
   "cdmw/ui/startup_splash_host.py": {},
   "cdmw/ui/text_preview_widgets.py": {},

@@ -59,28 +59,59 @@ class WorkspaceControllerMixin:
         if box.clickedButton() != clear_button:
             self.set_status_message("Workflow root cleanup cancelled.")
             return
+        # Texture jobs and local extractions share this runner, so it refuses the clear
+        # while they write, and they wait for it. Browse's archive export runs in its own
+        # process and can write into the Original DDS root: wait for it too.
+        if getattr(getattr(self, "archive", None), "_archive_remote_export_request_id", None) is not None:
+            self.set_status_message(
+                "An archive export is still writing files. Wait for it to finish, or cancel it, "
+                "before clearing workflow folders.",
+                error=True,
+            )
+            return
 
         # On the background runner, as Browse's Clear Root: clearing moves every child
         # aside and first checks the folders below for a game installation, which can
         # take long on a large tree. clear_directory_contents makes a missing folder
         # after that check, so nothing is created inside a game folder.
-        def task(on_log: Callable[[str], None]) -> List[str]:
+        def task(on_log: Callable[[str], None]) -> Dict[str, object]:
             cleared: List[str] = []
             for label, resolved_path in configured_targets:
-                clear_directory_contents(resolved_path)
+                try:
+                    clear_directory_contents(resolved_path)
+                except Exception as exc:  # a refused folder stops the clear; say what was done
+                    return {"cleared": cleared, "refused": label, "reason": str(exc)}
                 on_log(f"Cleared {label}: {resolved_path}")
                 cleared.append(label)
-            return cleared
+            return {"cleared": cleared, "refused": "", "reason": ""}
 
         def on_complete(result: object) -> None:
-            count = len(result) if isinstance(result, list) else 0
-            self.set_status_message(f"Cleared {count} configured workflow folder(s).")
+            self._workflow_clear_active = False
+            summary = result if isinstance(result, dict) else {}
+            cleared = [str(label) for label in summary.get("cleared", ()) or ()]
+            refused = str(summary.get("refused", "") or "")
+            if refused and cleared:
+                done = ", ".join(cleared)
+                reason = summary.get("reason", "")
+                self.set_status_message(f"{refused} was not cleared: {reason} Already cleared: {done}.", error=True)
+                return
+            if refused:
+                reason = summary.get("reason", "")
+                self.set_status_message(f"{refused} was not cleared, nor any folder after it: {reason}", error=True)
+                return
+            self.set_status_message(f"Cleared {len(cleared)} configured workflow folder(s).")
+
+        def on_error(_message: str) -> None:
+            self._workflow_clear_active = False
 
         self._run_utility_task(
             status_message="Clearing workflow folders...",
             task=task,
             on_complete=on_complete,
+            on_error=on_error,
         )
+        # Only when the runner took it (it refuses while another task runs).
+        self._workflow_clear_active = getattr(self, "_utility_completion_handler", None) is on_complete
 
     def initialize_workspace(self) -> None:
         selected = QFileDialog.getExistingDirectory(

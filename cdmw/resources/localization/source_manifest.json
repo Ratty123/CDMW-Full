@@ -9666,7 +9666,7 @@
         },
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 202,
+          "line": 233,
           "sink": "getOpenFileNames:filter-label"
         },
         {
@@ -9796,7 +9796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 150,
+          "line": 181,
           "sink": "set_status_message"
         }
       ]
@@ -10578,6 +10578,16 @@
           "path": "cdmw/services/mod_update_service.py",
           "line": 76,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "An archive export is still writing files. Wait for it to finish, or cancel it, before clearing workflow folders.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/workspace_controller.py",
+          "line": 66,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -14591,22 +14601,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 447,
+          "line": 453,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 448,
+          "line": 454,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 504,
+          "line": 510,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 505,
+          "line": 511,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -14616,7 +14626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 488,
+          "line": 494,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -14626,7 +14636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 404,
+          "line": 410,
           "sink": "set_status_message"
         }
       ]
@@ -14636,12 +14646,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 496,
+          "line": 502,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 498,
+          "line": 504,
           "sink": "append_archive_log"
         }
       ]
@@ -14661,7 +14671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 487,
+          "line": 493,
           "sink": "append_archive_log"
         }
       ]
@@ -14671,7 +14681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 481,
+          "line": 487,
           "sink": "append_archive_log"
         }
       ]
@@ -14721,22 +14731,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 360,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/extraction.py",
           "line": 366,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 536,
+          "line": 372,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 541,
+          "line": 542,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/extraction.py",
+          "line": 547,
           "sink": "set_status_message"
         }
       ]
@@ -14746,7 +14756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 620,
+          "line": 626,
           "sink": "append_log"
         }
       ]
@@ -14756,7 +14766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 482,
+          "line": 488,
           "sink": "append_log"
         }
       ]
@@ -15646,7 +15656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 444,
+          "line": 450,
           "sink": "set_status_message"
         }
       ]
@@ -30571,7 +30581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 169,
+          "line": 200,
           "sink": "setInformativeText"
         }
       ]
@@ -34011,7 +34021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 77,
+          "line": 102,
           "sink": "set_status_message"
         }
       ]
@@ -34021,7 +34031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 71,
+          "line": 84,
           "sink": "on_log"
         }
       ]
@@ -34036,7 +34046,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 552,
+          "line": 558,
           "sink": "on_log"
         }
       ]
@@ -34046,7 +34056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 79,
+          "line": 107,
           "sink": "_run_utility_task"
         }
       ]
@@ -38131,7 +38141,7 @@
         },
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 181,
+          "line": 212,
           "sink": "addButton"
         }
       ]
@@ -41116,7 +41126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 140,
+          "line": 171,
           "sink": "on_log"
         }
       ]
@@ -41126,7 +41136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 148,
+          "line": 179,
           "sink": "set_status_message"
         }
       ]
@@ -41206,7 +41216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 152,
+          "line": 183,
           "sink": "_run_utility_task"
         }
       ]
@@ -41226,7 +41236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 97,
+          "line": 128,
           "sink": "on_log"
         }
       ]
@@ -45531,7 +45541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 230,
+          "line": 261,
           "sink": "on_log"
         }
       ]
@@ -53756,7 +53766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 173,
+          "line": 204,
           "sink": "setDetailedText"
         }
       ]
@@ -54211,7 +54221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 168,
+          "line": 199,
           "sink": "setText"
         }
       ]
@@ -57056,12 +57066,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 408,
+          "line": 414,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 421,
+          "line": 427,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -57886,7 +57896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 610,
+          "line": 616,
           "sink": "set_status_message"
         }
       ]
@@ -57896,7 +57906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 606,
+          "line": 612,
           "sink": "set_status_message"
         }
       ]
@@ -57906,7 +57916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 602,
+          "line": 608,
           "sink": "set_status_message"
         }
       ]
@@ -57916,12 +57926,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 474,
+          "line": 480,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 614,
+          "line": 620,
           "sink": "set_status_message"
         }
       ]
@@ -57931,12 +57941,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 709,
+          "line": 715,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 727,
+          "line": 733,
           "sink": "_run_archive_extract"
         }
       ]
@@ -57946,12 +57956,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 662,
+          "line": 668,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 668,
+          "line": 674,
           "sink": "_run_archive_extract"
         }
       ]
@@ -57961,12 +57971,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 709,
+          "line": 715,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 727,
+          "line": 733,
           "sink": "_run_archive_extract"
         }
       ]
@@ -57976,12 +57986,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 644,
+          "line": 650,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 650,
+          "line": 656,
           "sink": "_run_archive_extract"
         }
       ]
@@ -57991,7 +58001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 555,
+          "line": 561,
           "sink": "on_log"
         }
       ]
@@ -58566,7 +58576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 497,
+          "line": 503,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -59351,7 +59361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 189,
+          "line": 220,
           "sink": "getItem"
         }
       ]
@@ -62381,7 +62391,7 @@
         },
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 189,
+          "line": 220,
           "sink": "getItem"
         },
         {
@@ -72431,12 +72441,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 167,
+          "line": 198,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 218,
+          "line": 249,
           "sink": "_choose_model_import_sources"
         },
         {
@@ -72906,7 +72916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 189,
+          "line": 220,
           "sink": "getItem"
         }
       ]
@@ -73646,7 +73656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 243,
+          "line": 274,
           "sink": "set_status_message"
         }
       ]
@@ -73716,7 +73726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 245,
+          "line": 276,
           "sink": "_run_utility_task"
         }
       ]
@@ -75786,7 +75796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 127,
+          "line": 158,
           "sink": "_run_utility_task"
         }
       ]
@@ -96501,7 +96511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 202,
+          "line": 233,
           "sink": "getOpenFileNames:filter-label"
         }
       ]
@@ -98896,7 +98906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 452,
+          "line": 458,
           "sink": "set_status_message"
         }
       ]
@@ -98916,7 +98926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 453,
+          "line": 459,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -99346,7 +99356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 524,
+          "line": 530,
           "sink": "set_status_message"
         }
       ]
@@ -99436,7 +99446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 684,
+          "line": 690,
           "sink": "set_status_message"
         }
       ]
@@ -100426,7 +100436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 660,
+          "line": 666,
           "sink": "set_status_message"
         }
       ]
@@ -100461,7 +100471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 142,
+          "line": 173,
           "sink": "on_log"
         }
       ]
@@ -126796,22 +126806,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 448,
+          "line": 454,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 453,
+          "line": 459,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 488,
+          "line": 494,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 505,
+          "line": 511,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -127241,7 +127251,7 @@
         },
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 162,
+          "line": 193,
           "sink": "_open_external_urls"
         },
         {
@@ -144631,7 +144641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 221,
+          "line": 252,
           "sink": "_choose_model_destination"
         }
       ]
@@ -144856,7 +144866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 86,
+          "line": 117,
           "sink": "getExistingDirectory"
         }
       ]
@@ -147041,7 +147051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 638,
+          "line": 644,
           "sink": "set_status_message"
         }
       ]
@@ -158131,7 +158141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 409,
+          "line": 415,
           "sink": "append_archive_log"
         }
       ]
@@ -166321,12 +166331,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 695,
+          "line": 701,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 722,
+          "line": 728,
           "sink": "set_status_message"
         }
       ]
@@ -187212,6 +187222,16 @@
       ]
     },
     {
+      "key": "Workflow folders are being cleared. Export again when that has finished.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/extraction.py",
+          "line": 349,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Workflow needs a saved local approval for the selected DDS file(s). 'Current' can be inferred from archive context; 'Local' is the explicit saved approval Texture Workflow requires.",
       "origins": [
         {
@@ -187466,7 +187486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 125,
+          "line": 156,
           "sink": "append_log"
         }
       ]
@@ -187476,7 +187496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 124,
+          "line": 155,
           "sink": "set_status_message"
         }
       ]
@@ -193131,7 +193151,7 @@
         },
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
-          "line": 159,
+          "line": 190,
           "sink": "_open_external_urls"
         },
         {
@@ -218042,6 +218062,26 @@
       ]
     },
     {
+      "key": "{value_0} was not cleared, nor any folder after it: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/workspace_controller.py",
+          "line": 100,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} was not cleared: {value_1} Already cleared: {value_2}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/workspace_controller.py",
+          "line": 96,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "{value_0} was not prepared by the archive worker.",
       "origins": [],
       "manual": true
@@ -220021,7 +220061,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 421,
+          "line": 427,
           "sink": "_set_archive_load_progress"
         },
         {
