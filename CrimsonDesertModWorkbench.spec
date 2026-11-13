@@ -183,13 +183,17 @@ def _exclude_collected_prefixes(entries, prefixes):
 _add_data_if_exists(datas, "assets/cdmw.ico", "assets")
 _add_data_if_exists(datas, "assets/cdmw.png", "assets")
 _add_data_tree_if_exists(datas, "assets/theme_icons", "assets/theme_icons", suffixes={".ico", ".png"})
-_add_data_tree_if_exists(datas, "schemas", "schemas", suffixes={".json"})
+# The one schema the app reads at run time; the others serve tools and tests
+# (removal list item 4).
+_add_data_if_exists(datas, "schemas/archive_content_capabilities.v1.json", "schemas")
 _add_data_tree_if_exists(
     datas,
     "cdmw/resources/localization",
     "cdmw/resources/localization",
     suffixes={".json"},
 )
+# Only the catalogue validator reads this list, at build time.
+datas = [item for item in datas if Path(item[0]).name != "source_identical_terms.json"]
 _add_data_if_exists(datas, "THIRD_PARTY_NOTICES.md", ".")
 _add_data_if_exists(datas, "LICENSE", ".")
 _add_data_if_exists(datas, "README.md", ".", required_release=True)
