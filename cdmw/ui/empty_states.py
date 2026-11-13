@@ -77,7 +77,8 @@ class ActionEmptyState(QWidget):
         self.set_state(sentence, button_text, command_id, run=run, reason=reason)
         registry = self._commands()
         if registry is not None:
-            registry.changed.connect(lambda _context: self.refresh())
+            # A bound slot, so Qt drops the connection when this widget is deleted.
+            registry.changed.connect(self._registry_changed)
 
     # ----- state ---------------------------------------------------------------
     def set_state(self, sentence: str, button_text: str = "", command_id: str = "", *,
@@ -93,6 +94,9 @@ class ActionEmptyState(QWidget):
         self.reason_label.setVisible(False)
         self.last_reason = ""
         _localize(self)
+        self.refresh()
+
+    def _registry_changed(self, _context: str = "") -> None:
         self.refresh()
 
     def refresh(self) -> None:

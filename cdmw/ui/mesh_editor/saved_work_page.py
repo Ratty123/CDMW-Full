@@ -473,6 +473,8 @@ class SavedWorkPage(QWidget):
         if event.type() == QEvent.Type.FontChange:
             self._sync_font_metrics()
             QTimer.singleShot(0, self, self._fit_columns)
+            # A hidden details area gets no layout requests; measure again once the font has settled.
+            QTimer.singleShot(0, self, self._sync_details_width)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.Resize and watched is self.table.viewport():
@@ -774,9 +776,12 @@ class SavedWorkPage(QWidget):
             self.empty_state.set_state(SAVED_WORK_EMPTY_TEXT, "", OPEN_BROWSE_COMMAND)
         self.table_switch.set_empty(not rows)
         # Nothing to show details of: the details panel's controls would all be disabled.
-        details = getattr(self, "details_panel", None)
-        if details is not None:
+        # Hide the scroll area, not the panel inside it, so the panel keeps sizing itself.
+        details = getattr(self, "details_scroll", None)
+        if details is not None and details.isVisibleTo(self) != bool(rows):
             details.setVisible(bool(rows))
+            if rows:
+                self._sync_details_width()
         self._selection_changed()
 
     def _show_all_work(self) -> None:

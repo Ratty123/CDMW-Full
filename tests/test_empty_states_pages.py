@@ -90,7 +90,7 @@ def test_drafts_and_mods_says_how_to_save_work_and_how_to_clear_a_filter(app, op
         page.show()
         _pump(app, lambda: page.table_switch.is_empty())
         assert page.empty_state.sentence_label.text() == page_module.SAVED_WORK_EMPTY_TEXT
-        assert not page.details_panel.isVisible() and not page.table.isVisible()
+        assert not page.details_scroll.isVisible() and not page.table.isVisible()
         page.empty_state.button.click()
         assert opened == ["archive_browser"]
     finally:
@@ -105,7 +105,7 @@ def test_drafts_and_mods_says_how_to_save_work_and_how_to_clear_a_filter(app, op
     try:
         page.show()
         _pump(app, lambda: page.table.rowCount() == 1)
-        assert not page.table_switch.is_empty() and page.details_panel.isVisible()
+        assert not page.table_switch.is_empty() and page.details_scroll.isVisible()
         page.filter_edit.setText("no such name")
         _pump(app, lambda: page.table_switch.is_empty())
         assert page.empty_state.sentence_label.text() == page_module.SAVED_WORK_NO_MATCH_TEXT
@@ -166,6 +166,8 @@ def test_textures_offers_to_add_textures_in_the_asset_lists_place(app, tmp_path,
     asked = []
     monkeypatch.setattr(QFileDialog, "getOpenFileNames", lambda *args, **kwargs: (asked.append(True), ([], ""))[1])
     monkeypatch.setenv("CDMW_GUI_STARTUP_SMOKE", "1")
+    # The window sets the application's font, palette and stylesheet; later tests need them back.
+    font, palette, stylesheet = app.font(), app.palette(), app.styleSheet()
     settings = create_settings(settings_file_path=tmp_path / "textures.cfg")
     window = MainWindow(app_context=AppContext.from_settings(settings))
     try:
@@ -183,8 +185,10 @@ def test_textures_offers_to_add_textures_in_the_asset_lists_place(app, tmp_path,
         state.button.click()
         assert asked, "the button opens the same file picker as the toolbar's Add Textures"
 
+        from PIL import Image
+
         source = tmp_path / "owned.png"
-        source.write_bytes(b"not read")
+        Image.new("RGBA", (8, 8), (40, 80, 120, 255)).save(source)
         textures.job.add_source(source)
         textures._refresh_texture_assets()
         assert not textures.assets_switch.is_empty() and textures.asset_list.topLevelItemCount() == 1
@@ -193,6 +197,9 @@ def test_textures_offers_to_add_textures_in_the_asset_lists_place(app, tmp_path,
         window.close()
         window.deleteLater()
         app.processEvents()
+        app.setFont(font)
+        app.setPalette(palette)
+        app.setStyleSheet(stylesheet)
 
 
 # ----- Item Icons -----------------------------------------------------------------------
