@@ -185,7 +185,8 @@ def validate_profile(value):
 
 def load_profile(root, *, registry=None):
     if target(root, JOURNAL_PATH).exists():
-        raise VirtualLoaderError('Recover the interrupted virtual profile transaction first.')
+        raise VirtualLoaderError('An older CDMW left an unfinished virtual-loader change in this game folder. '
+                                 'Use Browse Archives > Remove What an Older CDMW Installed... to take it out.')
     data = read_optional(target(root, PROFILE_PATH))
     if data is None:
         return None
@@ -197,7 +198,9 @@ def load_profile(root, *, registry=None):
         for identity, binding in profile['items'].items():
             row = registry['items'].get(identity)
             if not row or row['layer'] is not None or any(row[key] != binding[key] for key in binding):
-                raise VirtualLoaderError('Virtual ownership and saved item identities disagree. Recover their matching ledgers.')
+                raise VirtualLoaderError('The virtual profile an older CDMW left in this game folder disagrees with the '
+                                         'saved item identities. Use Browse Archives > Remove What an Older CDMW '
+                                         'Installed... to take the profile out.')
         if 'links' in profile.get('compilation', {}).get('inputs', {}):
             from cdmw.domain.new_item.package_links import validate_link_bindings
             validate_link_bindings(profile['compilation']['inputs']['links'], registry['items'])

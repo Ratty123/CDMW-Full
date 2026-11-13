@@ -105,6 +105,12 @@ class OldInstallRemoval:
         )
 
     def _failed(self, message: str) -> None:
+        from cdmw.services.old_install_removal import STOPPED_PARTWAY
+
+        if STOPPED_PARTWAY in message:  # it says itself what was changed and what was put back
+            self.browser.shell.set_status_message(message, error=True)
+            QMessageBox.warning(self.browser, TITLE, message)
+            return
         self.browser.shell.set_status_message(f"Nothing was changed: {message}", error=True)
         QMessageBox.warning(self.browser, TITLE, f"Nothing was changed.\n\n{message}")
 

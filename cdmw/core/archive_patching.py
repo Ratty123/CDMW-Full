@@ -9,7 +9,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 try:
     import lz4.block as lz4_block
@@ -178,10 +178,13 @@ def _create_backup(
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     manifest: List[Dict[str, str]] = []
-    for path in files:
+    for number, path in enumerate(files, start=1):
         if not path.exists():
             continue
-        target_name = f"{path.parent.name}_{path.name}"
+        # A running number keeps two files with the same folder and file name apart
+        # (generations/g1/packages/a.cditem and generations/g2/packages/a.cditem);
+        # the manifest records which copy goes where.
+        target_name = f"{number:05d}_{path.parent.name}_{path.name}"
         target_path = backup_dir / target_name
         _safe_log(
             on_log,
@@ -209,14 +212,22 @@ def _create_backup(
     return backup_dir
 
 
-def _restore_backup(backup_dir: Path, *, on_log: Optional[Callable[[str], None]] = None) -> None:
-    manifest_path = backup_dir / "backup_manifest.json"
-    if not manifest_path.is_file():
-        raise FileNotFoundError(f"Backup manifest was not found under {backup_dir}.")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    for file_info in manifest.get("files", []):
-        source = Path(str(file_info.get("backup_path", "")))
-        target = Path(str(file_info.get("original_path", "")))
+def _restore_backup(
+    backup_dir: Path,
+    *,
+    on_log: Optional[Callable[[str], None]] = None,
+    pairs: Optional[Sequence[Tuple[Path, Path]]] = None,
+) -> None:
+    """Copy every backed-up file back. ``pairs`` is the (copy, target) list a caller already checked."""
+
+    if pairs is None:
+        manifest_path = backup_dir / "backup_manifest.json"
+        if not manifest_path.is_file():
+            raise FileNotFoundError(f"Backup manifest was not found under {backup_dir}.")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        pairs = [(Path(str(file_info.get("backup_path", ""))), Path(str(file_info.get("original_path", ""))))
+                 for file_info in manifest.get("files", [])]
+    for source, target in pairs:
         if source.is_file():
             _safe_log(
                 on_log,
@@ -253,11 +264,12 @@ def restore_archive_patch_backup(
     backup_dir: Path,
     *,
     on_log: Optional[Callable[[str], None]] = None,
+    pairs: Optional[Sequence[Tuple[Path, Path]]] = None,
 ) -> Path:
     resolved = backup_dir.expanduser().resolve()
     if not resolved.is_dir():
         raise FileNotFoundError(f"Archive patch backup directory was not found: {resolved}")
-    _restore_backup(resolved, on_log=on_log)
+    _restore_backup(resolved, on_log=on_log, pairs=pairs)
     return resolved
 
 

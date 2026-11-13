@@ -8,15 +8,19 @@ this is the one way to take what they left back out.
 
 Only what can be proved to be CDMW's is removed:
 
-- an overlay folder is CDMW's when it holds the exact owner mark the installer
-  wrote (``.cdmw-new-item-overlay`` with its fixed content). Its ``0.pamt``,
-  ``0.paz`` and the mark are removed; anything else in it stays and is named.
-  A folder named only in CDMW's own records (the overlay index or the last
-  install receipt) but already gone from disk counts too, so a half-removed
-  install can be finished;
-- a mount-list entry is CDMW's when it names such a folder;
-- a texture-registry entry is CDMW's when its texture is held by a CDMW
-  overlay folder and by no other mounted archive group;
+- an overlay folder is a candidate when it holds the exact owner mark the
+  installer wrote (``.cdmw-new-item-overlay`` with its fixed content). The mark
+  proves the folder, not its files: another tool can write its own archive into
+  a marked folder after Steam's file check. So each ``0.pamt`` and ``0.paz`` is
+  removed only when its SHA-256 equals the digest CDMW's overlay index recorded
+  when it published that file (``published`` in ``.cdmw/overlays.json``);
+  anything else in the folder stays and is named as not CDMW's. A folder named
+  only in CDMW's own records (the overlay index or the last install receipt) but
+  already gone from disk counts too, so a half-removed install can be finished;
+- a mount-list entry is CDMW's when it names such a folder whose ``0.pamt`` is
+  proved, or that is gone;
+- a texture-registry entry is CDMW's when its texture is held by a proved
+  ``0.pamt`` and by no other mounted archive group;
 - ``bin64/CDMWVirtualLoader.asi`` is CDMW's when the owner file CDMW wrote
   beside it names its exact SHA-256;
 - everything else in CDMW's own ``.cdmw/`` folder (decision 46). The item
@@ -77,6 +81,9 @@ MOD_MANAGER_EXECUTABLES = ("DMM.exe",)
 MOUNT_LIST = "meta/0.papgt"
 TEXTURE_REGISTRY = "meta/0.pathc"
 CANCELLED = "Removing what an older CDMW installed was cancelled. Nothing was changed."
+#: Every failure after the first change starts with this, so the page does not call it a refusal.
+STOPPED_PARTWAY = "The removal stopped partway"
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 
 
 class OldInstallRemovalRefused(RuntimeError):
@@ -124,7 +131,11 @@ class OldInstallPlan:
     def review_lines(self) -> tuple[str, ...]:
         """Everything the removal will change, one line each, for the confirmation."""
 
-        lines = [f"Folder {name}: {', '.join(OVERLAY_FILES)}" for name in self.overlay_folders]
+        lines = []
+        for name in self.overlay_folders:
+            files = [file for file in OVERLAY_FILES if f"{name}/{file}" in self.delete_files]
+            if files:  # a proved file only: an archive another tool wrote stays and is listed as not CDMW's
+                lines.append(f"Folder {name}: {', '.join(files)}")
         lines += [f"Mount list entry {name} in {MOUNT_LIST}" for name in self.mount_entries]
         if self.registry_paths:
             lines.append(f"{len(self.registry_paths)} texture registry entries in {TEXTURE_REGISTRY}:")
@@ -161,7 +172,26 @@ def _digest(path: Path) -> Optional[str]:
 
 
 def _is_link(path: Path) -> bool:
-    return path.is_symlink() or bool(getattr(path, "is_junction", lambda: False)())
+    """A symlink, or any Windows reparse point (a junction among them), whatever the Python version."""
+
+    try:
+        status = os.lstat(path)
+    except OSError:
+        return False
+    if path.is_symlink():
+        return True
+    return bool(getattr(status, "st_file_attributes", 0) & _FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _checked(root: Path, relative: str) -> Path:
+    """``_inside``, plus the resolved path must still lie inside the game folder."""
+
+    path = _inside(root, relative)
+    try:
+        path.resolve(strict=False).relative_to(root)
+    except ValueError as exc:
+        raise OldInstallRemovalRefused(f"{relative} resolves outside the game folder; it is left alone.") from exc
+    return path
 
 
 def _inside(root: Path, relative: str) -> Path:
@@ -218,6 +248,17 @@ def _recorded_overlay_names(root: Path) -> tuple[set[str], tuple[str, ...]]:
         if _overlay_name(directory):
             names.add(directory)
     return names, tuple(labels)
+
+
+def _published_digests(root: Path) -> dict[str, str]:
+    """``{relative path: sha256}`` of every overlay file CDMW's index recorded as published."""
+
+    index = _read_json(root / ".cdmw" / "overlays.json")
+    published = index.get("published") if index is not None else None
+    if not isinstance(published, dict):
+        return {}
+    return {str(path).replace("\\", "/"): digest for path, digest in published.items()
+            if isinstance(digest, str) and len(digest) == 64}
 
 
 def _mount_list(root: Path):
@@ -280,6 +321,7 @@ def find_old_install(
     progress("Reading the mount list...")
     mount_data, mounted, compact = _mount_list(root)
     recorded, overlay_items = _recorded_overlay_names(root)
+    published = _published_digests(root)
 
     # Overlay folders: marked on disk, or named by CDMW's records and already gone.
     owned, looks_like = [], []
@@ -298,19 +340,34 @@ def find_old_install(
             owned.append(name)  # Half removed: CDMW's records name it, the folder is gone.
     for name in looks_like:
         not_cdmw.append(f"{name}: no CDMW owner mark, so it is not CDMW's")
+    # The mark proves the folder, not its files: each archive file must match what
+    # CDMW's index recorded when it published it.
+    proved = []  # folders whose 0.pamt is CDMW's, or that are gone
     for name in owned:
         folder = root / name
         if not folder.is_dir():
+            proved.append(name)
             continue
-        for file in OVERLAY_FILES:
-            if (folder / file).is_file():
-                delete.append(f"{name}/{file}")
+        unproved = []
+        for file in ("0.pamt", "0.paz"):
+            relative = f"{name}/{file}"
+            if not (folder / file).is_file():
+                continue
+            if published.get(relative) is not None and published[relative] == _digest(folder / file):
+                delete.append(relative)
+            else:
+                unproved.append(file)
+                not_cdmw.append(f"{relative}: not the file CDMW's records say it installed, so it is left alone")
+        if (folder / OVERLAY_OWNER_MARKER).is_file() and not unproved:
+            delete.append(f"{name}/{OVERLAY_OWNER_MARKER}")
+        if "0.pamt" not in unproved:
+            proved.append(name)
         extra = sorted(child.name for child in folder.iterdir() if child.name not in OVERLAY_FILES)
         not_cdmw += [f"{name}/{child}: not written by CDMW's installer" for child in extra]
         folders.append(name)
 
-    # Mount-list entries naming CDMW's folders.
-    mount_entries = tuple(item.name for item in mounted if item.name in owned)
+    # Mount-list entries naming CDMW's folders whose index file is proved.
+    mount_entries = tuple(item.name for item in mounted if item.name in proved)
     mount_after = None
     if mount_entries and compact:
         blockers.append(
@@ -319,13 +376,14 @@ def find_old_install(
             "check again.")
     elif mount_entries:
         entries = parse_papgt(mount_data)
-        mount_after = serialize_papgt([item for item in entries if item.name not in owned], header=mount_data[:12])
+        mount_after = serialize_papgt([item for item in entries if item.name not in mount_entries],
+                                      header=mount_data[:12])
 
     # Texture-registry entries held only by CDMW's folders.
     registry_paths, registry_after = (), None
     registry = root / TEXTURE_REGISTRY
     owned_dds = set()
-    for name in owned:
+    for name in proved:
         pamt = root / name / "0.pamt"
         if pamt.is_file():
             progress(f"Reading {name}...")
@@ -333,7 +391,7 @@ def find_old_install(
     if owned_dds and registry.is_file():
         others = set()
         for item in mounted:
-            if item.name in owned:
+            if item.name in proved:
                 continue
             for pamt in sorted((root / item.name).glob("*.pamt")):
                 progress(f"Reading {item.name}/{pamt.name}...")
@@ -365,7 +423,10 @@ def find_old_install(
     runtime, owner_path = root / RUNTIME_PATH, root / RUNTIME_OWNER_PATH
     if runtime.is_file():
         owner = _read_json(owner_path)
-        if owner is not None and owner.get("format") == RUNTIME_OWNER_FORMAT and owner.get("sha256") == _digest(runtime):
+        recorded_digest = owner.get("sha256") if owner is not None else None
+        actual_digest = _digest(runtime)
+        if (owner is not None and owner.get("format") == RUNTIME_OWNER_FORMAT and isinstance(recorded_digest, str)
+                and len(recorded_digest) == 64 and actual_digest is not None and recorded_digest == actual_digest):
             delete.append(RUNTIME_PATH)
         else:
             not_cdmw.append(f"{RUNTIME_PATH}: its owner file does not name this exact file, so it is not proven CDMW's")
@@ -392,8 +453,8 @@ def find_old_install(
                     and not (save_backups and SAVE_BACKUPS.startswith(path + "/"))]
 
     delete = list(dict.fromkeys(delete))
-    for relative in delete:
-        _inside(root, relative)
+    for relative in (*delete, *folders):
+        _checked(root, relative)
     folders = sorted(dict.fromkeys(folders), key=lambda value: value.count("/"), reverse=True)
     written = [path for path, data in ((MOUNT_LIST, mount_after), (TEXTURE_REGISTRY, registry_after)) if data is not None]
     observed = tuple((relative, _digest(root / relative)) for relative in (*delete, *written, MOUNT_LIST))
@@ -424,21 +485,38 @@ def _without_entries(table, checksums: set[int]) -> bytes:
 
 
 def _process_running(image: str) -> bool:
+    """Whether ``image`` runs. Raises OSError when Windows cannot say: that is not "closed"."""
+
     if os.name != "nt":
         return False
-    from cdmw.core.chainner import list_process_ids_by_image_name
+    import csv
+    import subprocess
 
-    return bool(list_process_ids_by_image_name(image))
+    from cdmw.core.common import hidden_subprocess_kwargs
+
+    try:
+        done = subprocess.run(["tasklist", "/fo", "csv", "/nh", "/fi", f"IMAGENAME eq {image}"],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+                              **hidden_subprocess_kwargs())
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise OSError(f"tasklist did not run: {exc}") from exc
+    if done.returncode != 0:
+        raise OSError(f"tasklist ended with code {done.returncode}")
+    rows = csv.reader(line for line in done.stdout.splitlines() if line.strip() and not line.startswith("INFO:"))
+    return any(row and row[0].strip().casefold() == image.casefold() for row in rows)
 
 
 def default_running_check() -> str:
     """Why removal must wait, or "" when nothing holds the game."""
 
-    if _process_running(GAME_EXECUTABLE):
-        return "Close Crimson Desert first."
-    for image in MOD_MANAGER_EXECUTABLES:
-        if _process_running(image):
-            return f"Close {Path(image).stem} first."
+    try:
+        if _process_running(GAME_EXECUTABLE):
+            return "Close Crimson Desert first."
+        for image in MOD_MANAGER_EXECUTABLES:
+            if _process_running(image):
+                return f"Close {Path(image).stem} first."
+    except OSError as exc:
+        return f"CDMW could not check whether Crimson Desert or DMM is running ({exc}). Close them, then check again."
     return ""
 
 
@@ -483,23 +561,32 @@ def remove_old_install(
     reason = (running_check or default_running_check)()
     if reason:
         raise OldInstallRemovalRefused(reason)
+    _recheck(plan, root)
+    raise_if_cancelled(stop_event, CANCELLED)
+    from cdmw.services.installation_lane import installation_lane
+
+    # recovery=True: an Apply an older CDMW did not finish left a transaction file that
+    # blocks every other change; the removal is the way out, and its plan deletes it.
+    with installation_lane(root, recovery=True):
+        from cdmw.core.protected_roots import game_folder_write_permit
+
+        with game_folder_write_permit("Remove What an Older CDMW Installed"):
+            return _remove(plan, root, backup=backup, restore_backup=restore_backup, log=log, stop_event=stop_event,
+                           running_check=running_check or default_running_check)
+
+
+def _recheck(plan, root) -> None:
+    """Refuse when a planned file changed or another program holds one. Writes nothing."""
+
     for relative, expected in plan.observed:
-        if _digest(_inside(root, relative)) != expected:
+        if _digest(_checked(root, relative)) != expected:
             raise OldInstallRemovalRefused(f"{relative} changed since the check. Check again.")
     held = [relative for relative in (*plan.delete_files, *plan.written_files) if _held(root / relative)]
     if held:
         raise OldInstallRemovalRefused(f"Another program holds {held[0]}. Close it, then check again.")
-    raise_if_cancelled(stop_event, CANCELLED)
-    from cdmw.services.installation_lane import installation_lane
-
-    with installation_lane(root):
-        from cdmw.core.protected_roots import game_folder_write_permit
-
-        with game_folder_write_permit("Remove What an Older CDMW Installed"):
-            return _remove(plan, root, backup=backup, restore_backup=restore_backup, log=log, stop_event=stop_event)
 
 
-def _remove(plan, root, *, backup, restore_backup, log, stop_event):
+def _remove(plan, root, *, backup, restore_backup, log, stop_event, running_check):
     from cdmw.core.atomic_file import atomic_write_bytes
 
     targets = [root / relative for relative in dict.fromkeys((*plan.written_files, *plan.delete_files))
@@ -518,6 +605,11 @@ def _remove(plan, root, *, backup, restore_backup, log, stop_event):
     if stop_event is not None and stop_event.is_set():
         log("Cancelled before anything was changed; the backup is kept.")
         raise_if_cancelled(stop_event, CANCELLED)
+    # The backup can take long: check again right before the first change.
+    reason = running_check()
+    if reason:
+        raise OldInstallRemovalRefused(reason)
+    _recheck(plan, root)
     removed: list[str] = []
     try:
         # The mount list and the registry first: an unmounted folder is inert,
@@ -525,16 +617,16 @@ def _remove(plan, root, *, backup, restore_backup, log, stop_event):
         for relative, data in ((MOUNT_LIST, plan.mount_list_after), (TEXTURE_REGISTRY, plan.registry_after)):
             if data is not None:
                 log(f"Writing {relative}...")
-                atomic_write_bytes(_inside(root, relative), data)
-                removed.append(relative)
+                removed.append(relative)  # before the write: a failure inside it still needs the rollback
+                atomic_write_bytes(_checked(root, relative), data)
         for relative in plan.delete_files:
-            path = _inside(root, relative)
+            path = _checked(root, relative)
             if path.is_file():
-                path.unlink()
                 removed.append(relative)
+                path.unlink()
         leftovers = []
         for relative in plan.delete_folders:
-            path = root / relative
+            path = _checked(root, relative)
             try:
                 path.rmdir()
             except FileNotFoundError:
@@ -542,10 +634,20 @@ def _remove(plan, root, *, backup, restore_backup, log, stop_event):
             except OSError:
                 if path.exists():
                     leftovers.append(relative)
-    except BaseException:
+    except BaseException as failure:
+        if not removed:
+            raise
         log("A step failed; putting every file back from the backup...")
-        restore_backup(backup_dir)
-        raise
+        try:
+            restore_backup(backup_dir)
+        except BaseException as restore_failure:
+            raise RuntimeError(
+                f"{STOPPED_PARTWAY} ({failure}), and putting the files back failed too ({restore_failure}). "
+                f"Changed before it stopped: {', '.join(removed)}. Every one of them is in the backup {backup_dir}; "
+                "use Restore Backup... to put them back.") from failure
+        raise RuntimeError(
+            f"{STOPPED_PARTWAY} ({failure}). Everything it had changed ({', '.join(removed)}) was put back from "
+            f"the backup {backup_dir}.") from failure
     log(f"Removed {len(removed)} file(s). Backup: {backup_dir}")
     return OldInstallRemovalResult(root, backup_dir, tuple(removed), plan.not_cdmw, plan.kept, tuple(leftovers))
 

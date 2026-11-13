@@ -76,8 +76,11 @@ def _game(tmp_path: Path, *, overlay=False, virtual=False, half_removed=False, r
         mounted.insert(0, ("0036", checksum))
         textures.append(OVERLAY_DDS)
         (root / ".cdmw" / "overlays").mkdir(parents=True)
+        # CDMW's overlay index records the digest of every file it published into the folder.
+        published = {f"0036/{name}": hashlib.sha256((root / "0036" / name).read_bytes()).hexdigest()
+                     for name in removal.OVERLAY_FILES}
         (root / ".cdmw" / "overlays.json").write_text(json.dumps({
-            "format": "cdmw_overlay_inventory_v1", "directory": "0036",
+            "format": "cdmw_overlay_inventory_v1", "directory": "0036", "published": published,
             "layers": [{"id": "a" * 32, "label": "Wolf's Fang", "active": True}]}), encoding="utf-8")
         (root / ".cdmw" / "overlays" / ("a" * 32 + ".zip")).write_bytes(b"journal")
         if half_removed:
@@ -281,7 +284,7 @@ def test_a_failure_midway_puts_every_file_back(tmp_path, monkeypatch):
         return real_unlink(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "unlink", failing_unlink)
-    with pytest.raises(OSError, match="owned failure"):
+    with pytest.raises(RuntimeError, match="stopped partway.*owned failure.*was put back"):
         _remove(plan, root)
     monkeypatch.setattr(Path, "unlink", real_unlink)
     assert _fingerprint(root) == before
@@ -336,3 +339,102 @@ def test_a_registry_cdmw_already_keeps_is_not_overwritten_by_the_old_one(tmp_pat
     game_records.write_registry(root, b'{"newer": true}')
     _remove(removal.find_old_install(root), root)
     assert game_records.registry_path(root).read_bytes() == b'{"newer": true}'
+
+
+# --- Review of rr/parity-mods-2: the smaller gaps.
+
+def test_a_junction_counts_as_a_link_on_every_python_version(tmp_path):
+    import _winapi
+
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    junction = tmp_path / "junction"
+    _winapi.CreateJunction(str(target), str(junction))
+    assert removal._is_link(junction)
+    assert not removal._is_link(target)
+
+
+def test_the_game_started_during_the_backup_stops_the_removal_before_any_change(tmp_path):
+    root = _game(tmp_path, overlay=True)
+    before = _fingerprint(root)
+    answers = iter(("", "Close Crimson Desert first."))
+    with pytest.raises(removal.OldInstallRemovalRefused, match="Close Crimson Desert"):
+        _remove(removal.find_old_install(root), root, running_check=lambda: next(answers))
+    assert _fingerprint(root) == before
+
+
+def test_a_failure_partway_says_what_was_put_back(tmp_path, monkeypatch):
+    root = _game(tmp_path, overlay=True)
+    before = _fingerprint(root)
+    plan = removal.find_old_install(root)
+    real_unlink = Path.unlink
+
+    def failing_unlink(self, *args, **kwargs):
+        if self.name == "0.paz":
+            raise OSError("disk said no")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", failing_unlink)
+    with pytest.raises(RuntimeError, match="stopped partway") as stopped:
+        _remove(plan, root)
+    message = str(stopped.value)
+    assert "was put back" in message and "meta/0.papgt" in message
+    monkeypatch.setattr(Path, "unlink", real_unlink)
+    assert _fingerprint(root) == before
+
+
+def test_a_failed_rollback_names_what_changed_and_the_backup(tmp_path, monkeypatch):
+    root = _game(tmp_path, overlay=True)
+    plan = removal.find_old_install(root)
+    real_unlink = Path.unlink
+
+    def failing_unlink(self, *args, **kwargs):
+        if self.name == "0.paz":
+            raise OSError("disk said no")
+        return real_unlink(self, *args, **kwargs)
+
+    def failing_restore(_backup_dir):
+        raise OSError("restore failed too")
+
+    monkeypatch.setattr(Path, "unlink", failing_unlink)
+    with pytest.raises(RuntimeError) as stopped:
+        _remove(plan, root, restore_backup=failing_restore)
+    message = str(stopped.value)
+    assert "stopped partway" in message and "putting the files back failed too" in message
+    assert "meta/0.papgt" in message and "Restore Backup" in message and "Nothing was changed" not in message
+
+
+def test_a_failed_process_check_is_not_read_as_closed(monkeypatch):
+    import subprocess
+
+    monkeypatch.setattr(removal.os, "name", "nt")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 1, "", "error"))
+    assert "could not check" in removal.default_running_check()
+
+    def missing(*_args, **_kwargs):
+        raise FileNotFoundError("tasklist")
+
+    monkeypatch.setattr(subprocess, "run", missing)
+    assert "could not check" in removal.default_running_check()
+
+
+def test_an_asi_owner_file_without_a_digest_proves_nothing(tmp_path):
+    root = _game(tmp_path, virtual=True)
+    (root / removal.RUNTIME_OWNER_PATH).write_text(json.dumps({"format": removal.RUNTIME_OWNER_FORMAT}),
+                                                   encoding="utf-8")
+    plan = removal.find_old_install(root)
+    assert removal.RUNTIME_PATH not in plan.delete_files
+    assert any(line.startswith(removal.RUNTIME_PATH) for line in plan.not_cdmw)
+
+
+def test_restore_refuses_a_manifest_whose_file_list_is_not_a_list(tmp_path):
+    from cdmw.services.archive_mutation_service import ArchiveMutationService
+
+    root = _game(tmp_path)
+    backup = tmp_path / "bad-backup"
+    backup.mkdir()
+    (backup / "backup_manifest.json").write_text(json.dumps({"files": {"not": "a list"}}), encoding="utf-8")
+    before = _fingerprint(root)
+    with pytest.raises(ValueError, match="not a list"):
+        ArchiveMutationService().restore_backup(backup, confirmed=True, game_root=root)
+    assert _fingerprint(root) == before

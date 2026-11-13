@@ -63,7 +63,9 @@ def check_backup_targets(backup: Path | str, game_root: Path | str | None) -> li
     except (OSError, ValueError, AttributeError) as error:
         raise ValueError(f"The backup manifest in {folder} cannot be read: {error}") from error
     pairs = []
-    for row in rows if isinstance(rows, list) else ():
+    if not isinstance(rows, list):
+        raise ValueError(f"The backup manifest in {folder} cannot be read: its file list is not a list.")
+    for row in rows:
         recorded = str((row or {}).get("original_path", "")) if isinstance(row, dict) else ""
         copy = str((row or {}).get("backup_path", "")) if isinstance(row, dict) else ""
         if not recorded or not Path(recorded).is_absolute():
@@ -176,12 +178,13 @@ class ArchiveMutationService:
         if not confirmed:
             raise PermissionError("Archive backup restore requires explicit confirmation.")
         raise_if_cancelled(stop_event, "Archive backup restore cancelled before writing game files.")
-        check_backup_targets(backup, game_root)
+        # The check and the copy use the same parsed list: the manifest is not read twice.
+        pairs = check_backup_targets(backup, game_root)
         # A partial multi-file restore can break the checksum chain, so finish once started.
         from cdmw.core.protected_roots import game_folder_write_permit
         from cdmw.services.installation_lane import backup_installation_lanes
         with backup_installation_lanes(Path(backup)), game_folder_write_permit("Restore Backup"):
-            return _archive_patching().restore_archive_patch_backup(Path(backup), on_log=on_log)
+            return _archive_patching().restore_archive_patch_backup(Path(backup), on_log=on_log, pairs=pairs)
 
 
 __all__ = [
