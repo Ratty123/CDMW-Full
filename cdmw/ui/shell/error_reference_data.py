@@ -78024,7 +78024,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot retain mod history without package payloads.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/mod_export_history.py": 216
+      "cdmw/core/mod_export_history.py": 255
     }
   },
   {
@@ -82304,7 +82304,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or oversized mod history file: {source}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 197
+      "cdmw/core/mod_export_history.py": 236
     }
   },
   {
@@ -83497,7 +83497,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot follow a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 61
+      "cdmw/core/mod_export_history.py": 85
     }
   },
   {
@@ -83505,7 +83505,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod history cannot remove a linked package path: {path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 223
+      "cdmw/core/mod_export_history.py": 262
     }
   },
   {
@@ -83978,7 +83978,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a CDMW history file: {name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 116
+      "cdmw/core/mod_export_history.py": 151
     }
   },
   {
@@ -84266,7 +84266,7 @@ MESSAGE_REFERENCE = [
     "message": "Oversized mod history record: {name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/mod_export_history.py": 192
+      "cdmw/core/mod_export_history.py": 231
     }
   },
   {
@@ -87526,7 +87526,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod export must be outside CDMW's local history folder.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/mod_export_history.py": 181
+      "cdmw/core/mod_export_history.py": 218
     }
   },
   {

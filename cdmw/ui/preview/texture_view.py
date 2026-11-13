@@ -8,10 +8,11 @@ from threading import Event
 
 from PySide6.QtCore import QEvent, QObject, QProcess, QRunnable, QThreadPool, QTimer, Qt, Signal
 from PySide6.QtGui import QImage
-from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget
 from shiboken6 import isValid
 
 from cdmw.services.mesh_rust_contract import resolve_rust_mesh_editor, validate_rust_mesh_editor_package
+from cdmw.ui.layout_utils import FlowLayout
 from cdmw.ui.mesh_editor.process_io import register_owned_qprocess_for_exit, stop_qprocess_async
 from cdmw.ui.native_window_clipping import ensure_native_host_clipping
 from cdmw.ui.preview_widgets import PreviewLabel, PreviewScrollArea
@@ -85,7 +86,9 @@ class GpuTexturePreview(QWidget):
         self._state = dict(channel=0, mip=0, reconstruct_z=False, fit=True, zoom=1.0, pan=[0.0, 0.0])
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        row = QHBoxLayout()
+        # The controls wrap when the preview is narrow, so they never set its minimum width.
+        controls = QWidget()
+        row = FlowLayout(controls)
         self.channels = QComboBox()
         self.channels.addItems(["RGB", "R", "G", "B", "A"])
         self.channels.setToolTip("Texture channels")
@@ -96,14 +99,13 @@ class GpuTexturePreview(QWidget):
         row.addWidget(QLabel("Mip"))
         row.addWidget(self.mips)
         row.addWidget(self.normal_z)
-        row.addStretch(1)
         if zoom_controls:
             for title, callback in (("-", lambda: self._zoom_step(-1)), ("Fit", lambda: self.set_fit_to_view(True)),
                                     ("100%", self._actual_size), ("+", lambda: self._zoom_step(1))):
                 button = QPushButton(title)
                 button.clicked.connect(callback)
                 row.addWidget(button)
-        layout.addLayout(row)
+        layout.addWidget(controls)
         self.stack = QStackedWidget()
         self.viewport = QWidget()
         self.viewport.setAttribute(Qt.WA_DontCreateNativeAncestors, True)
