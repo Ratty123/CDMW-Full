@@ -257,3 +257,36 @@ def test_settings_ignored_folders_says_every_folder_is_scanned_until_one_is_adde
         assert group.list_switch.is_empty()
     finally:
         group.deleteLater()
+
+
+# ----- Asset Research ---------------------------------------------------------------------
+def test_asset_research_asks_for_a_scan_before_anything_else(app, opened, tmp_path):
+    from cdmw.models import AppConfig
+    from cdmw.ui.research import tab as research_module
+    from cdmw.ui.research.tab import ResearchTab
+
+    entries = []
+    tab = ResearchTab(settings=QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat), base_dir=tmp_path,
+                      get_archive_entries=lambda: entries, get_filtered_archive_entries=lambda: entries,
+                      get_original_root=lambda: "", get_output_root=lambda: "", get_app_config=AppConfig,
+                      get_current_archive_path=lambda: "", get_current_text_search_path=lambda: "",
+                      get_current_compare_path=lambda: "")
+    try:
+        tab.show()
+        app.processEvents()
+        state = tab.research_empty_state
+        assert tab.research_switch.is_empty() and not tab.refresh_button.isVisible()
+        assert state.sentence_label.text() == research_module.RESEARCH_NOT_SCANNED_TEXT
+        state.button.click()
+        assert opened == ["archive_browser"]
+
+        entries.append(_entry(tmp_path))
+        tab.hide()
+        tab.show()
+        app.processEvents()
+        assert not tab.research_switch.is_empty() and tab.refresh_button.isVisible()
+    finally:
+        tab.request_shutdown()
+        tab.close()
+        tab.deleteLater()
+        app.processEvents()

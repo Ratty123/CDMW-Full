@@ -96,6 +96,19 @@ class ResearchArchiveCatalogueMixin:
         service.request_failed.connect(self._handle_research_catalogue_failure)
         service.request_cancelled.connect(self._handle_research_catalogue_cancelled)
 
+    def _sync_research_empty_state(self) -> None:
+        """Before any archives are scanned, the page is an empty state (P11 step 6)."""
+        switch = getattr(self, "research_switch", None)
+        if switch is None:
+            return
+        scanned = self.archive_catalogue_session is not None
+        if not scanned:
+            try:
+                scanned = bool(self._legacy_get_archive_entries())
+            except Exception:  # an archive view that is being rebuilt counts as not scanned
+                scanned = False
+        switch.set_empty(not scanned)
+
     def set_archive_catalogue_session(self, session: ArchiveSessionHandle | None) -> None:
         self.set_archive_catalogue_context(session, None)
 
@@ -117,6 +130,7 @@ class ResearchArchiveCatalogueMixin:
         current_key = self._research_catalogue_context_key()
         self.archive_catalogue_session = session
         self.archive_catalogue_query_handle = query_handle
+        self._sync_research_empty_state()
         if new_key == current_key:
             return
         self._cancel_research_catalogue_requests(clear=True)
