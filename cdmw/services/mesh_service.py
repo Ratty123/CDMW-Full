@@ -661,6 +661,20 @@ class MeshHistoryJournalError(RuntimeError):
     """A saved history step could not be restored; the current state is unchanged."""
 
 
+def _recovery_point_size(session: _MeshEditSession, project_root: Path, generation: str) -> int:
+    """The recovery point's size, walked once per generation: a recovery point is
+    written under a new generation name each time, so a name keeps its size."""
+
+    from cdmw.services.mesh_history_journal import generation_size
+
+    cached = session.history_recovery_size
+    if cached is not None and cached[0] == generation:
+        return cached[1]
+    size = generation_size(project_root, generation)
+    session.history_recovery_size = (generation, size)
+    return size
+
+
 def _open_history_journal(session: _MeshEditSession, project_path: Path) -> None:
     """Place a reopened draft at its step in the history journal (P14)."""
 
@@ -1770,10 +1784,11 @@ class _MeshServiceSessionLayerCore(
             # The unfinished edits kept for a crash count toward the cap; material
             # files drafts share do not, since they are no step of history (8.7 D5).
             recovery = journal.read_editor_recovery(project_root)
-            reserved = journal.generation_size(project_root, str(recovery["generation"])) if recovery else 0
+            reserved = _recovery_point_size(session, project_root, str(recovery["generation"])) if recovery else 0
             journal.record_state(
                 project_root, record, future_valid=not session.history_journal_edited,
-                max_steps=self.max_history, max_bytes=max(0, self.max_history_bytes - reserved), keep=keep,
+                max_steps=self.max_history, max_bytes=self.max_history_bytes, keep=keep,
+                recovery_bytes=reserved,
             )
             journal.prune_unjournaled_generations(project_root, keep=keep)
         except (OSError, ValueError) as exc:

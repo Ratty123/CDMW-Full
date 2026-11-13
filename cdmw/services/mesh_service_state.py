@@ -309,6 +309,8 @@ class _MeshEditSession:
     history_recovery_clear_on_save: bool = False
     #: The recovery point that clean-up is for: a newer editor's is kept (8.8 R13).
     history_recovery_clear_generation: str = ""
+    #: (generation, bytes) of the recovery point last measured for the cap (8.9).
+    history_recovery_size: tuple[str, int] | None = None
     #: Why a recovery point that exists was not restored ("" when none, or restored).
     history_recovery_problem: str = ""
     # P14: a Mesh Editor shadow keeps its unfinished state beside the draft it

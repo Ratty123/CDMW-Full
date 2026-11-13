@@ -196,6 +196,10 @@ class JournalNotWritable(ValueError):
     """The journal could not be read fully, so it is neither rewritten nor pruned."""
 
 
+#: The newest saved steps the recovery point's share of the cap never removes (8.9).
+RECOVERY_PROTECTED_STEPS = 3
+
+
 def record_state(
     project_root: Path,
     record: JournalRecord,
@@ -204,6 +208,7 @@ def record_state(
     max_steps: int,
     max_bytes: int,
     keep: Iterable[str] = (),
+    recovery_bytes: int = 0,
 ) -> Journal:
     """Put ``record`` at its depth, drop what it supersedes and prune to the limits.
 
@@ -212,6 +217,11 @@ def record_state(
     redo, which only moved within the history. Generations of dropped records
     are deleted unless they are in ``keep`` (the descriptor's current and
     previous generation). The caller holds ``project_lock``.
+
+    ``recovery_bytes`` is the size of the unfinished edits kept for a crash. It
+    counts toward ``max_bytes`` up to half of it, and never prunes the newest
+    ``RECOVERY_PROTECTED_STEPS`` steps: a large recovery point alone must not
+    delete the saved history it would be restored over (section 8.9).
     """
 
     root = Path(project_root)
@@ -234,7 +244,15 @@ def record_state(
     records.sort(key=lambda item: item.depth)
     limit_steps = max(1, int(max_steps or 1))
     limit_bytes = max(0, int(max_bytes or 0))
-    while len(records) > 1 and (len(records) > limit_steps or sum(item.size_bytes for item in records) > limit_bytes):
+    reserved = min(max(0, int(recovery_bytes or 0)), limit_bytes // 2)
+
+    def over_limit() -> bool:
+        total = sum(item.size_bytes for item in records)
+        if len(records) > limit_steps or total > limit_bytes:
+            return True
+        return total > limit_bytes - reserved and len(records) > RECOVERY_PROTECTED_STEPS
+
+    while len(records) > 1 and over_limit():
         # The shallowest step goes first, as the oldest undo entry does. The new
         # state always stays, so a large state alone still has its journal.
         victim = 0 if records[0] is not record else 1

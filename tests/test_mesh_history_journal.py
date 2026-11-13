@@ -301,10 +301,11 @@ def test_the_recovery_point_counts_toward_the_history_cap(tmp_path) -> None:
             _move(service, session_id, 0.25)
             service.retry_mesh_layer_autosave(session_id)
             first = journal.read_journal(project).records[-1]
-            service.max_history_bytes = first.size_bytes * 3 + first.size_bytes // 2
+            # Room for six steps: past the three newest, which the recovery point never removes.
+            service.max_history_bytes = first.size_bytes * 6 + first.size_bytes // 2
             if with_recovery:
                 journal.write_editor_recovery(project, first.generation, base_generation=first.generation)
-            for _ in range(5):
+            for _ in range(7):
                 _move(service, session_id, 0.25)
                 service.retry_mesh_layer_autosave(session_id)
             return len(journal.read_journal(project).records)
@@ -314,6 +315,58 @@ def test_the_recovery_point_counts_toward_the_history_cap(tmp_path) -> None:
     without = journalled(False, tmp_path / "plain")
     with_recovery = journalled(True, tmp_path / "recovery")
     assert with_recovery < without, (with_recovery, without)
+
+
+def _recovery_point_of_size(project: Path, size: int) -> str:
+    """A recovery point of ``size`` bytes, in a generation of its own."""
+
+    name = "generation-1-recovery0"
+    folder = project / name
+    folder.mkdir()
+    (folder / "submesh-00000-vertices.bin").write_bytes(bytes(size))
+    (folder / "generation.json").write_text("{}", encoding="utf-8")
+    journal.write_editor_recovery(project, name, base_generation=name)
+    return name
+
+
+def test_a_large_recovery_point_takes_half_the_cap_and_keeps_the_three_newest_steps(tmp_path) -> None:
+    """Section 8.9 (D5's consequence): a recovery point as large as the whole cap left
+    no room for saved steps, and every step but the newest was deleted for good."""
+
+    service, session_id = _open(tmp_path)
+    try:
+        project = tmp_path / "mesh_layers"
+        _move(service, session_id, 0.25)
+        step = journal.read_journal(project).records[-1].size_bytes
+        service.max_history_bytes = step * 6 + step // 2
+        _recovery_point_of_size(project, service.max_history_bytes * 2)  # larger than the cap
+        for _ in range(7):
+            _move(service, session_id, 0.25)
+        records = journal.read_journal(project).records
+        # Half the cap goes to the recovery point; the rest holds three steps, never fewer.
+        assert len(records) == journal.RECOVERY_PROTECTED_STEPS, [record.depth for record in records]
+        assert records[-1].depth == service._session(session_id).history_journal_depth
+    finally:
+        service.close_edit_session(session_id)
+
+
+def test_the_recovery_point_is_measured_once_per_generation(tmp_path, monkeypatch) -> None:
+    """Section 8.9: generation_size walked the recovery folder at every saved step."""
+
+    service, session_id = _open(tmp_path)
+    try:
+        project = tmp_path / "mesh_layers"
+        _move(service, session_id, 0.25)
+        recovery = _recovery_point_of_size(project, 1024)
+        walked: list[str] = []
+        size = journal.generation_size
+        monkeypatch.setattr(journal, "generation_size",
+                            lambda root, generation: walked.append(generation) or size(root, generation))
+        for _ in range(3):
+            _move(service, session_id, 0.25)
+        assert walked.count(recovery) == 1, walked
+    finally:
+        service.close_edit_session(session_id)
 
 
 def test_undo_and_redo_continue_into_the_saved_steps(tmp_path) -> None:

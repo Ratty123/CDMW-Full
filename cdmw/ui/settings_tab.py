@@ -966,8 +966,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         steps, mib = mesh_history_limits()
         self.history_limits_label = QLabel(
             f"Mesh Editor drafts keep their undo history after CDMW closes: up to {steps} steps and {mib} MiB a draft. "
-            "Edits that were not finished are kept until you finish or discard them. A mesh opened from disk "
-            "keeps its history only while it is open."
+            "Edits that were not finished are kept until you finish or discard them; they use at most half of that "
+            "space, and the three newest steps always stay. A mesh opened from disk keeps its history only while it is open."
         )
         self.history_limits_label.setWordWrap(True)
         self.history_limits_label.setObjectName("HintLabel")

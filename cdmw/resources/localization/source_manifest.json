@@ -4837,7 +4837,7 @@
       ]
     },
     {
-      "key": "A draft keeps its Undo history after CDMW closes, up to 64 steps and 256 MiB a draft; the unfinished edits kept for a crash count toward the 256 MiB, and texture and material files that drafts share do not. Undo goes back through the edits you finished, and Redo forward again. Edits that were not finished come back in the editor as one step, Recovered edits. A mesh opened from disk has no draft and keeps its history only while it is open.",
+      "key": "A draft keeps its Undo history after CDMW closes, up to 64 steps and 256 MiB a draft; the unfinished edits kept for a crash count toward the 256 MiB, up to half of it, and never push out the three newest steps. Texture and material files that drafts share do not count. Undo goes back through the edits you finished, and Redo forward again. Edits that were not finished come back in the editor as one step, Recovered edits. A mesh opened from disk has no draft and keeps its history only while it is open.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -14286,7 +14286,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2048,
+          "line": 2149,
           "sink": "ValueError"
         }
       ]
@@ -19466,7 +19466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1208,
+          "line": 1222,
           "sink": "ValueError"
         },
         {
@@ -19481,7 +19481,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1133,
+          "line": 1147,
           "sink": "ValueError"
         }
       ]
@@ -19491,7 +19491,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1190,
+          "line": 1204,
           "sink": "ValueError"
         },
         {
@@ -19506,7 +19506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1161,
+          "line": 1175,
           "sink": "ValueError"
         },
         {
@@ -55006,7 +55006,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2066,
+          "line": 2167,
           "sink": "ValueError"
         }
       ]
@@ -65476,7 +65476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2094,
+          "line": 2195,
           "sink": "ValueError"
         }
       ]
@@ -65486,7 +65486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1949,
+          "line": 2050,
           "sink": "RuntimeError"
         }
       ]
@@ -65501,7 +65501,7 @@
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2090,
+          "line": 2191,
           "sink": "ValueError"
         }
       ]
@@ -65521,7 +65521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2092,
+          "line": 2193,
           "sink": "ValueError"
         }
       ]
@@ -65541,7 +65541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2081,
+          "line": 2182,
           "sink": "ValueError"
         }
       ]
@@ -74351,7 +74351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2052,
+          "line": 2153,
           "sink": "ValueError"
         }
       ]
@@ -83721,7 +83721,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1124,
+          "line": 1138,
           "sink": "ValueError"
         }
       ]
@@ -91081,7 +91081,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3008,
+          "line": 3109,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -91741,7 +91741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1066,
+          "line": 1080,
           "sink": "RuntimeError"
         }
       ]
@@ -91897,7 +91897,7 @@
       ]
     },
     {
-      "key": "Mesh Editor drafts keep their undo history after CDMW closes: up to {value_0} steps and {value_1} MiB a draft. Edits that were not finished are kept until you finish or discard them. A mesh opened from disk keeps its history only while it is open.",
+      "key": "Mesh Editor drafts keep their undo history after CDMW closes: up to {value_0} steps and {value_1} MiB a draft. Edits that were not finished are kept until you finish or discard them; they use at most half of that space, and the three newest steps always stay. A mesh opened from disk keeps its history only while it is open.",
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
@@ -92061,7 +92061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1998,
+          "line": 2099,
           "sink": "RuntimeError"
         }
       ]
@@ -92346,7 +92346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1084,
+          "line": 1098,
           "sink": "RuntimeError"
         }
       ]
@@ -92451,7 +92451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1516,
+          "line": 1616,
           "sink": "RuntimeError"
         }
       ]
@@ -97816,7 +97816,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3007,
+          "line": 3108,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -102286,7 +102286,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1051,
+          "line": 1065,
           "sink": "RuntimeError"
         }
       ]
@@ -132401,7 +132401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1619,
+          "line": 1719,
           "sink": "_push_history"
         }
       ]
@@ -136896,7 +136896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1421,
+          "line": 1435,
           "sink": "RuntimeError"
         }
       ]
@@ -137001,7 +137001,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1425,
+          "line": 1439,
           "sink": "RuntimeError"
         }
       ]
@@ -181631,7 +181631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2280,
+          "line": 2381,
           "sink": "RuntimeError"
         }
       ]
@@ -183031,7 +183031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2050,
+          "line": 2151,
           "sink": "ValueError"
         }
       ]
@@ -183941,7 +183941,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1015,
+          "line": 1029,
           "sink": "ValueError"
         }
       ]
@@ -183971,7 +183971,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2046,
+          "line": 2147,
           "sink": "ValueError"
         }
       ]
@@ -184186,7 +184186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2284,
+          "line": 2385,
           "sink": "ValueError"
         }
       ]
@@ -199851,7 +199851,7 @@
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 814,
+          "line": 828,
           "sink": "_project_non_negative_int"
         }
       ]
@@ -201331,32 +201331,32 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2361,
+          "line": 2462,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2369,
+          "line": 2470,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2380,
+          "line": 2481,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2399,
+          "line": 2500,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2423,
+          "line": 2524,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2457,
+          "line": 2558,
           "sink": "_result"
         },
         {
@@ -204656,7 +204656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_history_journal.py",
-          "line": 407,
+          "line": 425,
           "sink": "ValueError"
         }
       ]
@@ -204666,7 +204666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_history_journal.py",
-          "line": 421,
+          "line": 439,
           "sink": "ValueError"
         }
       ]
@@ -204676,7 +204676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_history_journal.py",
-          "line": 414,
+          "line": 432,
           "sink": "ValueError"
         }
       ]
@@ -206356,7 +206356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 860,
+          "line": 874,
           "sink": "TypeError"
         },
         {
@@ -207466,7 +207466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1017,
+          "line": 1031,
           "sink": "RuntimeError"
         }
       ]
@@ -207476,7 +207476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1041,
+          "line": 1055,
           "sink": "RuntimeError"
         }
       ]
@@ -207486,7 +207486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1027,
+          "line": 1041,
           "sink": "RuntimeError"
         }
       ]
@@ -207496,7 +207496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1052,
+          "line": 1066,
           "sink": "RuntimeError"
         }
       ]
@@ -207601,7 +207601,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2850,
+          "line": 2951,
           "sink": "RuntimeError"
         }
       ]
@@ -207676,7 +207676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3139,
+          "line": 3240,
           "sink": "RuntimeError"
         }
       ]
@@ -207686,7 +207686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2234,
+          "line": 2335,
           "sink": "RuntimeError"
         }
       ]
@@ -207696,12 +207696,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2211,
+          "line": 2312,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2245,
+          "line": 2346,
           "sink": "RuntimeError"
         }
       ]
@@ -207711,7 +207711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2223,
+          "line": 2324,
           "sink": "RuntimeError"
         }
       ]
@@ -207751,12 +207751,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2071,
+          "line": 2172,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2191,
+          "line": 2292,
           "sink": "RuntimeError"
         },
         {
@@ -207771,7 +207771,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2729,
+          "line": 2830,
           "sink": "RuntimeError"
         }
       ]
@@ -207781,7 +207781,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2119,
+          "line": 2220,
           "sink": "RuntimeError"
         }
       ]
@@ -207876,7 +207876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2511,
+          "line": 2612,
           "sink": "RuntimeError"
         }
       ]
@@ -207906,7 +207906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3186,
+          "line": 3287,
           "sink": "RuntimeError"
         }
       ]
@@ -207916,7 +207916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3165,
+          "line": 3266,
           "sink": "RuntimeError"
         }
       ]
@@ -207936,7 +207936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3040,
+          "line": 3141,
           "sink": "RuntimeError"
         }
       ]
@@ -207946,7 +207946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3321,
+          "line": 3422,
           "sink": "RuntimeError"
         }
       ]
@@ -208361,22 +208361,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1827,
+          "line": 1928,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1845,
+          "line": 1946,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2332,
+          "line": 2433,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2387,
+          "line": 2488,
           "sink": "_result"
         },
         {
@@ -216886,12 +216886,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2694,
+          "line": 2795,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2733,
+          "line": 2834,
           "sink": "RuntimeError"
         }
       ]
@@ -220186,7 +220186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2692,
+          "line": 2793,
           "sink": "RuntimeError"
         },
         {
@@ -220586,7 +220586,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2313,
+          "line": 2414,
           "sink": "RuntimeError"
         }
       ]
@@ -220596,7 +220596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2105,
+          "line": 2206,
           "sink": "ValueError"
         }
       ]
@@ -221761,7 +221761,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2307,
+          "line": 2408,
           "sink": "RuntimeError"
         }
       ]

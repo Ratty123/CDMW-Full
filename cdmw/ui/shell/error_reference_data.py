@@ -43815,7 +43815,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit saves the original game assets; undo the archive loads before switching output format",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2134
+      "cdmw/services/mesh_service.py": 2149
     }
   },
   {
@@ -44136,7 +44136,7 @@ MESSAGE_REFERENCE = [
     "message": "Base mesh cannot be deleted",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 1208,
+      "cdmw/services/mesh_service.py": 1222,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6178
     }
   },
@@ -44145,7 +44145,7 @@ MESSAGE_REFERENCE = [
     "message": "Base mesh cannot be renamed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 1133
+      "cdmw/services/mesh_service.py": 1147
     }
   },
   {
@@ -44153,7 +44153,7 @@ MESSAGE_REFERENCE = [
     "message": "Base mesh cannot be reordered",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 1190,
+      "cdmw/services/mesh_service.py": 1204,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6165
     }
   },
@@ -44162,7 +44162,7 @@ MESSAGE_REFERENCE = [
     "message": "Base mesh is always visible",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1161
+      "cdmw/services/mesh_service.py": 1175
     }
   },
   {
@@ -47953,7 +47953,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact output keeps the source file's Parts. Delete the added geometry layers or undo the Part changes before choosing Exact.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2152
+      "cdmw/services/mesh_service.py": 2167
     }
   },
   {
@@ -49060,7 +49060,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output folder must be new",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2180
+      "cdmw/services/mesh_service.py": 2195
     }
   },
   {
@@ -49076,7 +49076,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output is not active",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2035
+      "cdmw/services/mesh_service.py": 2050
     }
   },
   {
@@ -49085,7 +49085,7 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/mesh_free_edit_output.py": 51,
-      "cdmw/services/mesh_service.py": 2176
+      "cdmw/services/mesh_service.py": 2191
     }
   },
   {
@@ -49109,7 +49109,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output parent folder does not exist",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2178
+      "cdmw/services/mesh_service.py": 2193
     }
   },
   {
@@ -49133,7 +49133,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit requires a new output folder",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2167
+      "cdmw/services/mesh_service.py": 2182
     }
   },
   {
@@ -50201,7 +50201,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement or change part inclusion before choosing replacement output.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2138
+      "cdmw/services/mesh_service.py": 2153
     }
   },
   {
@@ -51697,7 +51697,7 @@ MESSAGE_REFERENCE = [
     "message": "Layer name cannot be empty",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mesh_service.py": 1124
+      "cdmw/services/mesh_service.py": 1138
     }
   },
   {
@@ -52340,7 +52340,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor clipboard is empty",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mesh_service.py": 1066,
+      "cdmw/services/mesh_service.py": 1080,
       "native/cdmw_mesh_core/src/owners/session_clipboard_01.cpp": 192
     }
   },
@@ -52487,7 +52487,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has unsaved geometry layers; retry saving or explicitly close without saving",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2084
+      "cdmw/services/mesh_service.py": 2099
     }
   },
   {
@@ -52545,7 +52545,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor paste returned no geometry",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1084
+      "cdmw/services/mesh_service.py": 1098
     }
   },
   {
@@ -52593,7 +52593,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor recovery snapshot session failed to open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1602
+      "cdmw/services/mesh_service.py": 1616
     }
   },
   {
@@ -55669,7 +55669,7 @@ MESSAGE_REFERENCE = [
     "message": "No complete faces selected to copy",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 1051,
+      "cdmw/services/mesh_service.py": 1065,
       "native/cdmw_mesh_core/src/owners/session_clipboard_01.cpp": 170
     }
   },
@@ -59977,7 +59977,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement draft cannot save stale resident geometry.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 1421
+      "cdmw/services/mesh_service.py": 1435
     }
   },
   {
@@ -60001,7 +60001,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement draft snapshot session failed to open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1425
+      "cdmw/services/mesh_service.py": 1439
     }
   },
   {
@@ -61185,7 +61185,7 @@ MESSAGE_REFERENCE = [
     "message": "Saved steps are not restored while Morph & Refit is open; its history ends with the session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1915
+      "cdmw/services/mesh_service.py": 1930
     }
   },
   {
@@ -63119,7 +63119,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft's history could not be read fully when it opened, so this session adds no step to it and removes nothing ({session.history_journal_readonly}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1748
+      "cdmw/services/mesh_service.py": 1762
     }
   },
   {
@@ -63544,7 +63544,7 @@ MESSAGE_REFERENCE = [
     "message": "The saved step could not be restored ({exc}). History stops at the last good step; the draft is unchanged.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1947
+      "cdmw/services/mesh_service.py": 1962
     }
   },
   {
@@ -63552,7 +63552,7 @@ MESSAGE_REFERENCE = [
     "message": "The saved step could not be restored ({problem}). History stops at the last good step; the draft is unchanged.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1935
+      "cdmw/services/mesh_service.py": 1950
     }
   },
   {
@@ -64165,7 +64165,7 @@ MESSAGE_REFERENCE = [
     "message": "This saved step holds Morph & Refit state, which is restored only when the draft reopens.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1952
+      "cdmw/services/mesh_service.py": 1967
     }
   },
   {
@@ -64414,7 +64414,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn outfit corrections back on before editing the mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2366
+      "cdmw/services/mesh_service.py": 2381
     }
   },
   {
@@ -64494,7 +64494,7 @@ MESSAGE_REFERENCE = [
     "message": "Undo the replacement operations before switching output policy.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2136
+      "cdmw/services/mesh_service.py": 2151
     }
   },
   {
@@ -64534,7 +64534,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown Mesh Editor layer: {requested}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1111
+      "cdmw/services/mesh_service.py": 1125
     }
   },
   {
@@ -64591,7 +64591,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown mesh edit session: {session_id}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2351,
+      "cdmw/services/mesh_service.py": 2366,
       "cdmw/services/mesh_service_history.py": 783
     }
   },
@@ -64729,7 +64729,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor copy target: {target}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 1015
+      "cdmw/services/mesh_service.py": 1029
     }
   },
   {
@@ -64753,7 +64753,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor output policy: {output_policy}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2132
+      "cdmw/services/mesh_service.py": 2147
     }
   },
   {
@@ -64889,7 +64889,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh edit action: {edit_command.action}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2370
+      "cdmw/services/mesh_service.py": 2385
     }
   },
   {
@@ -65602,7 +65602,7 @@ MESSAGE_REFERENCE = [
     "message": "an adopted owned mesh cannot load a mutable layer project",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 884
+      "cdmw/services/mesh_service.py": 898
     }
   },
   {
@@ -69037,7 +69037,7 @@ MESSAGE_REFERENCE = [
     "message": "journal generation is outside the draft",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_history_journal.py": 407
+      "cdmw/services/mesh_history_journal.py": 425
     }
   },
   {
@@ -69045,7 +69045,7 @@ MESSAGE_REFERENCE = [
     "message": "journal record digest is invalid",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_history_journal.py": 421
+      "cdmw/services/mesh_history_journal.py": 439
     }
   },
   {
@@ -69053,7 +69053,7 @@ MESSAGE_REFERENCE = [
     "message": "journal record names no generation",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_history_journal.py": 414
+      "cdmw/services/mesh_history_journal.py": 432
     }
   },
   {
@@ -69902,7 +69902,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh must be a ParsedMesh",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_service.py": 860
+      "cdmw/services/mesh_service.py": 874
     }
   },
   {
@@ -71032,7 +71032,7 @@ MESSAGE_REFERENCE = [
     "message": "native Mesh Editor clipboard is unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 1017
+      "cdmw/services/mesh_service.py": 1031
     }
   },
   {
@@ -71040,7 +71040,7 @@ MESSAGE_REFERENCE = [
     "message": "native Mesh Editor clipboard selection sync failed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 1041
+      "cdmw/services/mesh_service.py": 1055
     }
   },
   {
@@ -71048,7 +71048,7 @@ MESSAGE_REFERENCE = [
     "message": "native Mesh Editor clipboard session failed to open",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1027
+      "cdmw/services/mesh_service.py": 1041
     }
   },
   {
@@ -71056,7 +71056,7 @@ MESSAGE_REFERENCE = [
     "message": "native Mesh Editor copy failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 1052
+      "cdmw/services/mesh_service.py": 1066
     }
   },
   {
@@ -71440,7 +71440,7 @@ MESSAGE_REFERENCE = [
     "message": "native live edit did not provide undo history delta",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2936
+      "cdmw/services/mesh_service.py": 2951
     }
   },
   {
@@ -71480,7 +71480,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor history is unavailable for this session",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 3225
+      "cdmw/services/mesh_service.py": 3240
     }
   },
   {
@@ -71488,7 +71488,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor pose preview normals unavailable; Python pose preview fallback is disabled",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2320
+      "cdmw/services/mesh_service.py": 2335
     }
   },
   {
@@ -71496,7 +71496,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor pose preview unavailable; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 2297
+      "cdmw/services/mesh_service.py": 2312
     }
   },
   {
@@ -71504,7 +71504,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor pose preview unavailable; Python pose preview fallback is disabled",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2309
+      "cdmw/services/mesh_service.py": 2324
     }
   },
   {
@@ -71528,7 +71528,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session export failed; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 2277,
+      "cdmw/services/mesh_service.py": 2292,
       "cdmw/services/mesh_service_rebuild.py": 571
     }
   },
@@ -71537,7 +71537,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session failed for {execution.action}; Python mesh-edit fallback is disabled",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2815
+      "cdmw/services/mesh_service.py": 2830
     }
   },
   {
@@ -71545,7 +71545,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session view requires native submesh counts; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 2205
+      "cdmw/services/mesh_service.py": 2220
     }
   },
   {
@@ -71585,7 +71585,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor unavailable for {action}; Python mesh-edit fallback is disabled",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2597
+      "cdmw/services/mesh_service.py": 2612
     }
   },
   {
@@ -71601,7 +71601,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor {command} did not return dirty submesh counts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 3272
+      "cdmw/services/mesh_service.py": 3287
     }
   },
   {
@@ -71609,7 +71609,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor {command} failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 3251
+      "cdmw/services/mesh_service.py": 3266
     }
   },
   {
@@ -71625,7 +71625,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh history snapshot capture failed and Python fallback was blocked",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 3126
+      "cdmw/services/mesh_service.py": 3141
     }
   },
   {
@@ -71633,7 +71633,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh history snapshot restore failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 3407
+      "cdmw/services/mesh_service.py": 3422
     }
   },
   {
@@ -74937,7 +74937,7 @@ MESSAGE_REFERENCE = [
     "message": "the history journal has lines that cannot be read",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_history_journal.py": 224
+      "cdmw/services/mesh_history_journal.py": 234
     }
   },
   {
@@ -75473,7 +75473,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported non-native mesh edit action: {execution.action}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2780
+      "cdmw/services/mesh_service.py": 2795
     }
   },
   {
@@ -75707,7 +75707,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} cannot run while native mesh state is dirty; export/read the native mesh first",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2399
+      "cdmw/services/mesh_service.py": 2414
     }
   },
   {
@@ -75724,7 +75724,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} is legacy display-shape cleanup; pass allow_legacy_display_cleanup=True from an explicit legacy/archive path",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2393
+      "cdmw/services/mesh_service.py": 2408
     }
   },
   {
@@ -76398,7 +76398,7 @@ MESSAGE_REFERENCE = [
     "message": "{session.mesh_format or 'unknown'} cannot use {requested.value}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2191
+      "cdmw/services/mesh_service.py": 2206
     }
   },
   {
