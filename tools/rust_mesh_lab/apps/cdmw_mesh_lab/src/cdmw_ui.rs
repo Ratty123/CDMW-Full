@@ -5797,8 +5797,16 @@ impl LabApplication {
                                     actions.push(UiAction::SetPartSelection(updated));
                                 }
                                 // P5: the Scene panel's visibility actions, on the editor's own list.
+                                // A hidden part's row is disabled and takes no click, so its menu
+                                // (where Show All is) gets a click area of its own; a shown row
+                                // keeps its own response, so its clicks still select.
                                 let all: Vec<u32> = parts.iter().map(|(part, _, _)| *part).collect();
-                                row.context_menu(|ui| {
+                                let menu_target = if shown && in_visible_layer {
+                                    row
+                                } else {
+                                    ui.interact(row.rect, row.id.with("hidden-part-menu"), egui::Sense::click())
+                                };
+                                menu_target.context_menu(|ui| {
                                     cdmw_part_visibility_menu(ui, actions, &[*index], &all, !self.cdmw_hidden_parts.is_empty());
                                 });
                             });

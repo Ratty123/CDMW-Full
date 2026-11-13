@@ -397,6 +397,34 @@ fn material_sections_explain_the_parts_round_trip_and_apply_after_returning() ->
 }
 
 #[test]
+fn a_hidden_part_s_row_still_opens_its_menu_and_shows_it_again() -> TestResult {
+    // Review of P5's third part: a hidden part's row sits in a disabled scope, and a
+    // disabled row takes no right-click, so its menu (and Show All) never opened.
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?,
+        egui::vec2(1440.0, 1080.0),
+    );
+    ui.settle_layout();
+    let view = ui.list_checkbox_rect("1: Part B", "View")?;
+    ui.click_at(view.center());
+    assert!(ui.application.cdmw_hidden_parts.contains(&1));
+    let row = ui.reveal("1: Part B")?.center();
+    ui.frame(vec![Event::PointerMoved(row)]);
+    ui.frame(vec![pointer_button(row, PointerButton::Secondary, true)]);
+    ui.frame(vec![pointer_button(row, PointerButton::Secondary, false)]);
+    ui.settle_layout();
+    ui.last_actions.clear();
+    ui.click("Show All")?;
+    assert!(ui.last_actions.iter().any(|action| matches!(action,
+        UiAction::SetPartVisibility { indices, visible: true } if indices.contains(&1))));
+    assert!(ui.application.cdmw_hidden_parts.is_empty());
+    // A shown row's left click still selects it.
+    ui.click("1: Part B")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    Ok(())
+}
+
+#[test]
 fn parts_list_menu_isolates_and_hides_like_the_scene_panel() {
     use crate::cdmw_ui::cdmw_part_visibility_actions;
 
