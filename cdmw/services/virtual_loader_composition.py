@@ -19,7 +19,9 @@ def compose_packages(packages, folders, root, *, stop_event=None, on_log=None, r
     """Compose resolved item packages and mod folders into final game files, without writing anything.
 
     Returns the resolution, the changed files by path, their archive storage flags and the
-    texture registry. Apply serves these files; Send to DMM writes them as one mod.
+    texture registry as composed. Send to DMM writes the files as one mod and leaves the
+    registry out: DMM registers a mod's textures itself. Loose textures from ``folders``
+    are not registered here; Send to DMM passes no folders.
     """
     if progress is None:
         def progress(_value, _detail):
@@ -70,20 +72,7 @@ def compose_packages(packages, folders, root, *, stop_event=None, on_log=None, r
                 files[path] = data
     if sum(len(data) for data in files.values()) > MAX_TOTAL:
         raise VirtualLoaderError('The composed virtual profile exceeds its supported size.')
-    # Reuse the established texture registry encoder, including its collision checks.
     pathc = current.get('meta/0.pathc', read_optional(target(root, 'meta/0.pathc')))
-    # The texture adapter already verified each existing direct registry entry and
-    # required an unchanged DDS descriptor. Equal loose contributors share that
-    # final payload; registering it again would create an unsupported registry edit.
-    textures = [p for p in selected if p.endswith('.dds') and p not in texture_paths]
-    if textures:
-        from cdmw.core.pathc_format import parse_pathc, register_dds, encode_pathc
-        if pathc is None:
-            raise VirtualLoaderError('New textures require a verified game texture registry.')
-        table = parse_pathc(pathc)
-        for path in sorted(textures):
-            table = register_dds(table, path, files[path])
-        pathc = encode_pathc(table)
     return resolved, files, flags, pathc
 
 

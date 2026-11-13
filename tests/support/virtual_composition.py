@@ -30,6 +30,26 @@ from tests.support.virtual_state import FORMAT, PROFILE_PATH, RESOURCE_PREFIX, t
 import cdmw.services.virtual_loader_composition as _live
 
 
+def _register_folder_textures(resolved, folders, files, pathc):
+    """Register the selected mod folders' loose textures, as compose_packages did before
+    Send to DMM became its only caller. A texture the items' own composition already
+    registered is left as it is: registering it again would be an unsupported edit."""
+    from cdmw.core.pathc_format import encode_pathc, parse_pathc, pathc_checksum, register_dds
+
+    labels = {str(folder) for folder in folders}
+    textures = sorted(path for path, providers in resolved.external.providers.items()
+                      if path.endswith('.dds') and path in files and any(label in labels for label, _ in providers))
+    if not textures:
+        return pathc
+    if pathc is None:
+        raise VirtualLoaderError('New textures require a verified game texture registry.')
+    table = parse_pathc(pathc)
+    for path in textures:
+        if table.index_of(pathc_checksum(path)) is None:
+            table = register_dds(table, path, files[path])
+    return encode_pathc(table)
+
+
 def __getattr__(name):
     return getattr(_live, name)
 
@@ -105,6 +125,7 @@ def prepare_profile(profile: VirtualProfile, root, *, stop_event=None, on_log=No
     original_packages = tuple(((str(path), hash_file(path, stop_event)) for path in packages))
     profile_before = read_optional(target(root, PROFILE_PATH))
     resolved, files, flags, pathc = _live.compose_packages(packages, folders, root, stop_event=stop_event, on_log=on_log, read_entry=read_entry, progress=progress)
+    pathc = _register_folder_textures(resolved, folders, files, pathc)
     mount = target(root, 'meta/0.papgt').read_bytes()
     name = resolved.state['directory']
     from tests.support.virtual_sources import profile_revision, catalogue_records
