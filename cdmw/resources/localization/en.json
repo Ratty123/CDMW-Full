@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "Cleared {value_0} configured workflow folder(s).",
     "Cleared {value_0}: {value_1}": "Cleared {value_0}: {value_1}",
     "Clearing extract root contents under {value_0}": "Clearing extract root contents under {value_0}",
+    "Clearing workflow folders...": "Clearing workflow folders...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.",
     "Click": "Click",

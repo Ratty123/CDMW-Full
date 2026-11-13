@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "清除了 {value_0} 配置的工作流程資料夾。",
     "Cleared {value_0}: {value_1}": "已清除 {value_0}：{value_1}",
     "Clearing extract root contents under {value_0}": "清除{value_0}下的解壓縮根目錄內容",
+    "Clearing workflow folders...": "正在清空工作資料夾...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "清除封存檔瀏覽器的記憶體預覽結果、儲存在磁碟上的預覽套件和PAC XML設定索引。不會刪除磁碟上的附屬檔案掃描快取。",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "清除記憶體中封存檔瀏覽器預覽快取。磁碟上的附屬檔案掃描快取不會被刪除。",
     "Click": "點選",

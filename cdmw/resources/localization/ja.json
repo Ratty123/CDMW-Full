@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "{value_0} 構成されたワークフロー フォルダーをクリアしました。",
     "Cleared {value_0}: {value_1}": "{value_0} をクリアしました: {value_1}",
     "Clearing extract root contents under {value_0}": "{value_0} の下にある抽出ルート コンテンツをクリアする",
+    "Clearing workflow folders...": "作業フォルダーを空にしています...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "アーカイブ ブラウザーのメモリ内プレビュー結果、ディスクに保存されたプレビューパッケージ、PAC XMLプロファイルのインデックスを削除します。ディスク上のサイドカーのスキャンキャッシュは削除しません。",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "メモリ内の アーカイブ ブラウザー プレビュー キャッシュをクリアします。ディスク上のサイドカー スキャン キャッシュは削除されません。",
     "Click": "クリック",

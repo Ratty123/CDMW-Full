@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "Cancellate le cartelle del flusso di lavoro configurate da {value_0}.",
     "Cleared {value_0}: {value_1}": "Cancellato {value_0}: {value_1}",
     "Clearing extract root contents under {value_0}": "Cancellazione dei contenuti della radice dell'estrazione in {value_0}",
+    "Clearing workflow folders...": "Svuotamento delle cartelle di lavoro...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "Cancella le anteprime in memoria di Esplora archivi, i pacchetti di anteprima salvati su disco e l’indice dei profili PAC XML. Le cache di scansione dei file associati su disco vengono conservate.",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "Cancella la cache di anteprima in memoria di Esplora archivi. Le cache della scansione dei file associati sul disco non vengono rimosse.",
     "Click": "Fare clic",

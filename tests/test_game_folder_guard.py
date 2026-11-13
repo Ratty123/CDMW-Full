@@ -275,3 +275,55 @@ def test_an_output_folder_holding_mods_with_their_own_index_still_clears(tmp_pat
     (mod / "0036").mkdir()
     clear_directory_contents(picked)
     assert picked.is_dir() and not any(picked.iterdir())
+
+
+def test_the_three_installation_marks_match_the_archive_workers(tmp_path):
+    """meta/0.papgt together with bin64/CrimsonDesert.exe, CrimsonDesert.exe or 0000/0.pamt."""
+    from cdmw.app.app_folder import game_installation_holding
+
+    assert {mark.as_posix() for mark in protected_roots.INSTALLATION_MARKS} == {
+        "bin64/CrimsonDesert.exe", "CrimsonDesert.exe", "0000/0.pamt"}
+    for mark in ("bin64/CrimsonDesert.exe", "CrimsonDesert.exe", "0000/0.pamt"):
+        game = tmp_path / mark.replace("/", "-") / "game"
+        (game / "meta").mkdir(parents=True)
+        (game / "meta" / "0.papgt").write_bytes(b"papgt")
+        (game / mark).parent.mkdir(parents=True, exist_ok=True)
+        (game / mark).write_bytes(b"x")
+        assert protected_roots.installation_holding(game / "mods" / "x") == game
+        assert game_installation_holding(game / "CDMW") == game
+        with pytest.raises(ProtectedGameFolderWrite):
+            atomic_write_bytes(game / "out.bin", b"x")
+
+
+@pytest.mark.parametrize("limit", ["entries", "time"])
+def test_a_folder_too_large_to_check_quickly_is_refused_not_cleared(tmp_path, monkeypatch, limit):
+    """The walk can run on the interface thread (Clear Workflow Roots), so it is bounded;
+    past the bound the folder is refused, never cleared unchecked."""
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    picked = tmp_path / "wide"
+    for index in range(120):
+        (picked / f"folder-{index:03d}" / "inner").mkdir(parents=True)
+    if limit == "entries":
+        monkeypatch.setattr(protected_roots, "INSTALLATION_SEARCH_MAX_ENTRIES", 100)
+    else:
+        monkeypatch.setattr(protected_roots, "INSTALLATION_SEARCH_SECONDS", 0.0)
+    with pytest.raises(ProtectedGameFolderWrite, match="could not make sure no game folder is in it") as refused:
+        clear_directory_contents(picked)
+    assert str(picked) in str(refused.value)
+    assert len(list(picked.iterdir())) == 120
+
+
+def test_a_wide_tree_under_the_limits_still_clears(tmp_path):
+    import time as clock
+
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    picked = tmp_path / "wide"
+    for index in range(300):
+        (picked / f"folder-{index:03d}" / "inner").mkdir(parents=True)
+    started = clock.monotonic()
+    protected_roots.check_removable(picked)
+    assert clock.monotonic() - started < protected_roots.INSTALLATION_SEARCH_SECONDS
+    clear_directory_contents(picked)
+    assert not any(picked.iterdir())

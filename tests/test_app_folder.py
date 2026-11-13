@@ -90,6 +90,44 @@ def test_a_read_only_folder_is_reported_not_worked_around(fresh_folder, tmp_path
     assert tempfile.gettempdir() == before
 
 
+def _installation(root: Path, *, mark: bool = True) -> Path:
+    (root / "meta").mkdir(parents=True)
+    (root / "meta" / "0.papgt").write_bytes(b"papgt")
+    if mark:
+        (root / "bin64").mkdir()
+        (root / "bin64" / "CrimsonDesert.exe").write_bytes(b"MZ")
+    return root
+
+
+def test_a_copy_inside_the_game_folder_stops_before_writing(fresh_folder, tmp_path: Path) -> None:
+    game = _installation(tmp_path / "Crimson Desert")
+    before = sorted(path.relative_to(game).as_posix() for path in game.rglob("*"))
+    fresh_folder.setenv(app_folder.APP_FOLDER_ENV, str(game / "CDMW"))
+    with pytest.raises(app_folder.AppFolderInsideGame) as raised:
+        app_folder.prepare_process_temp()
+    assert isinstance(raised.value, app_folder.AppFolderNotWritable)
+    assert raised.value.folder == (game / "CDMW").resolve() and raised.value.game_folder == game.resolve()
+    assert sorted(path.relative_to(game).as_posix() for path in game.rglob("*")) == before
+
+
+def test_a_folder_beside_a_mods_own_index_starts(fresh_folder, tmp_path: Path) -> None:
+    mod = _installation(tmp_path / "mods" / "Frost blade", mark=False)
+    fresh_folder.setenv(app_folder.PROFILE_DIR_ENV, str(mod / "CDMW"))
+    for name in ("TMP", "TEMP", "TMPDIR"):
+        fresh_folder.setenv(name, os.environ.get(name, tempfile.gettempdir()))
+    assert app_folder.prepare_process_temp() == (mod / "CDMW").resolve() / "workspace" / "temp"
+
+
+def test_the_inside_the_game_message_names_both_folders(fresh_folder, tmp_path: Path, capsys) -> None:
+    fresh_folder.setenv("CDMW_NO_DIALOGS", "1")
+    error = app_folder.AppFolderInsideGame(tmp_path / "game" / "CDMW", tmp_path / "game")
+    app_folder.report_unwritable_folder(error)
+    text = capsys.readouterr().err
+    assert text.startswith("CDMW is inside the game folder.")
+    assert str(tmp_path / "game" / "CDMW") in text and f"installation at {tmp_path / 'game'}." in text
+    assert "Nothing in the game folder was changed." in text
+
+
 def test_a_profile_scopes_the_single_instance_guard(fresh_folder, tmp_path: Path) -> None:
     from cdmw.app import single_instance
 

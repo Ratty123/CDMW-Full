@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "Pastas de fluxo de trabalho configuradas em {value_0} apagadas.",
     "Cleared {value_0}: {value_1}": "{value_0} apagado: {value_1}",
     "Clearing extract root contents under {value_0}": "Limpando o conteúdo raiz da extração em {value_0}",
+    "Clearing workflow folders...": "Esvaziando as pastas de trabalho...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "Limpa os resultados de visualização em memória do Navegador de arquivos, os pacotes de visualização persistidos em disco e o índice de perfis PAC XML. Os caches de varredura de arquivos auxiliares em disco são preservados.",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "Limpa o cache de visualização do Navegador de arquivos na memória. Os caches de varredura de arquivos auxiliares no disco não são removidos.",
     "Click": "Clique",

@@ -60,14 +60,27 @@ class WorkspaceControllerMixin:
             self.set_status_message("Workflow root cleanup cancelled.")
             return
 
-        cleared_count = 0
-        for label, resolved_path in configured_targets:
-            resolved_path.mkdir(parents=True, exist_ok=True)
-            clear_directory_contents(resolved_path)
-            self.append_log(f"Cleared {label}: {resolved_path}")
-            cleared_count += 1
+        # On the background runner, as Browse's Clear Root: clearing moves every child
+        # aside and first checks the folders below for a game installation, which can
+        # take long on a large tree. clear_directory_contents makes a missing folder
+        # after that check, so nothing is created inside a game folder.
+        def task(on_log: Callable[[str], None]) -> List[str]:
+            cleared: List[str] = []
+            for label, resolved_path in configured_targets:
+                clear_directory_contents(resolved_path)
+                on_log(f"Cleared {label}: {resolved_path}")
+                cleared.append(label)
+            return cleared
 
-        self.set_status_message(f"Cleared {cleared_count} configured workflow folder(s).")
+        def on_complete(result: object) -> None:
+            count = len(result) if isinstance(result, list) else 0
+            self.set_status_message(f"Cleared {count} configured workflow folder(s).")
+
+        self._run_utility_task(
+            status_message="Clearing workflow folders...",
+            task=task,
+            on_complete=on_complete,
+        )
 
     def initialize_workspace(self) -> None:
         selected = QFileDialog.getExistingDirectory(

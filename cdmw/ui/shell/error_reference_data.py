@@ -74132,7 +74132,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not tell whether {path} holds the game folder, so it did not remove it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/protected_roots.py": 264
+      "cdmw/core/protected_roots.py": 287
     }
   },
   {
@@ -74140,7 +74140,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not tell whether {path} lies in the game folder, so it did not write there.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/protected_roots.py": 202
+      "cdmw/core/protected_roots.py": 212
     }
   },
   {
@@ -74148,7 +74148,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not write into the game folder ({root}), or clear or replace anything in it; it refused {path}.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/protected_roots.py": 272
+      "cdmw/core/protected_roots.py": 295
     }
   },
   {
@@ -74156,7 +74156,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not write into the game folder ({root}); it refused {path}.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/protected_roots.py": 205
+      "cdmw/core/protected_roots.py": 215
     }
   },
   {
@@ -84190,7 +84190,7 @@ MESSAGE_REFERENCE = [
     "message": "a folder CDMW could not look into ({current}: {error.strerror or error})",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/protected_roots.py": 230
+      "cdmw/core/protected_roots.py": 250
     }
   },
   {
@@ -87825,7 +87825,7 @@ MESSAGE_REFERENCE = [
     "message": "{holder} may not write into the game folder.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/protected_roots.py": 285
+      "cdmw/core/protected_roots.py": 308
     }
   },
   {
@@ -88137,7 +88137,7 @@ MESSAGE_REFERENCE = [
     "message": "{message} Everything CDMW keeps for itself lives in the CDMW folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/protected_roots.py": 191
+      "cdmw/core/protected_roots.py": 201
     }
   },
   {
@@ -102599,7 +102599,7 @@ SOURCE_COVERAGE = {
   "cdmw/app/__init__.py": {},
   "cdmw/app/activation.py": {},
   "cdmw/app/app_folder.py": {
-    "raise": 1
+    "raise": 2
   },
   "cdmw/app/args.py": {},
   "cdmw/app/bootstrap.py": {

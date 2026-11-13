@@ -44,6 +44,35 @@ class AppFolderNotWritable(RuntimeError):
         self.reason = reason
 
 
+class AppFolderInsideGame(AppFolderNotWritable):
+    """The CDMW folder is inside a Crimson Desert installation, where CDMW never writes."""
+
+    def __init__(self, folder: Path, game_folder: Path) -> None:
+        super().__init__(folder, f"it is inside the game folder {game_folder}")
+        self.game_folder = game_folder
+
+
+# The rule cdmw.core.protected_roots.installation_holding applies, repeated here so this
+# module keeps to the standard library: meta/0.papgt with the game's executable (in bin64
+# or the root) or its shipped first archive group. meta/0.papgt alone also marks an
+# archive-style mod.
+_GAME_INDEX = ("meta", "0.papgt")
+_INSTALLATION_MARKS = (("bin64", "CrimsonDesert.exe"), ("CrimsonDesert.exe",), ("0000", "0.pamt"))
+
+
+def game_installation_holding(folder: Path) -> Path | None:
+    """The game installation ``folder`` lies in, or None."""
+
+    for candidate in (folder, *folder.parents):
+        try:
+            if (candidate.joinpath(*_GAME_INDEX).is_file()
+                    and any(candidate.joinpath(*mark).is_file() for mark in _INSTALLATION_MARKS)):
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
 def default_app_folder() -> Path:
     """The executable's folder, or the repository root from source."""
 
@@ -103,9 +132,15 @@ def prepare_process_temp() -> Path:
     Sets :data:`tempfile.tempdir` and the ``TMP``, ``TEMP`` and ``TMPDIR``
     variables, which child processes inherit, and records the temp folder the
     run started with. Raises :class:`AppFolderNotWritable` instead of falling
-    back to the system's temp folder.
+    back to the system's temp folder, and :class:`AppFolderInsideGame` (a kind of it)
+    when the CDMW folder is inside a game installation.
     """
 
+    # CDMW never writes into the game folder (decision 46), so a copy unpacked inside it
+    # cannot keep its own files; say so before anything is created.
+    game = game_installation_holding(cdmw_folder())
+    if game is not None:
+        raise AppFolderInsideGame(cdmw_folder(), game)
     os.environ.setdefault(SYSTEM_TEMP_ENV, tempfile.gettempdir())
     target = workspace_temp_folder()
     try:
@@ -123,13 +158,26 @@ def prepare_process_temp() -> Path:
 
 
 def report_unwritable_folder(error: AppFolderNotWritable) -> None:
-    """Say plainly that the folder is read-only; there is no Qt yet."""
+    """Say plainly why CDMW cannot use its folder; there is no Qt yet.
 
-    message = (
-        f"Crimson Desert Mod Workbench keeps its settings, workspace and temporary files in its own folder:\n\n"
-        f"{error.folder}\n\nThat folder cannot be written to ({error.reason}). "
-        "Move CDMW to a folder you can write to, for example one in your user folder, and start it again."
-    )
+    English only, like every message before Qt starts.
+    """
+
+    if isinstance(error, AppFolderInsideGame):
+        message = (
+            "CDMW is inside the game folder.\n\n"
+            f"{error.folder}\n\n"
+            f"is inside the Crimson Desert installation at {error.game_folder}. CDMW never writes into the "
+            "game folder, so it cannot keep its settings, workspace and temporary files there.\n\n"
+            "Move the CDMW folder outside the game, for example into your user folder or onto another drive, "
+            "and start CDMW again. Nothing in the game folder was changed."
+        )
+    else:
+        message = (
+            f"Crimson Desert Mod Workbench keeps its settings, workspace and temporary files in its own folder:\n\n"
+            f"{error.folder}\n\nThat folder cannot be written to ({error.reason}). "
+            "Move CDMW to a folder you can write to, for example one in your user folder, and start it again."
+        )
     try:
         sys.stderr.write(message + "\n")
     except Exception:

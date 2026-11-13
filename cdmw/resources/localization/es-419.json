@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "Se borraron las carpetas de flujo de trabajo configuradas {value_0}.",
     "Cleared {value_0}: {value_1}": "{value_0} borrado: {value_1}",
     "Clearing extract root contents under {value_0}": "Borrar el contenido raíz del extracto en {value_0}",
+    "Clearing workflow folders...": "Vaciando las carpetas de trabajo...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "Borra los resultados de vista previa en memoria del explorador de archivos, los paquetes de vista previa guardados en disco y el índice de perfiles PAC XML. Se conservan las cachés de análisis de archivos complementarios en disco.",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "Borra la caché de vista previa del Explorador de archivos en memoria. Las cachés de escaneo de archivos complementarios en disco no se eliminan.",
     "Click": "Haga clic",

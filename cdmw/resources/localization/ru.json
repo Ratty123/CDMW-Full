@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "Очищены настроенные папки рабочего процесса {value_0}.",
     "Cleared {value_0}: {value_1}": "Очищено {value_0}: {value_1}",
     "Clearing extract root contents under {value_0}": "Очистка содержимого корня извлечения под {value_0}",
+    "Clearing workflow folders...": "Очистка рабочих папок...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "Удаляет результаты предварительного просмотра инструмента «Браузер архивов» из памяти, пакеты предварительного просмотра с диска и индекс профилей PAC XML. Дисковый кеш сканирования сопутствующих файлов сохраняется.",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "Очищает кэш предварительного просмотра инструмента «Браузер архивов» в памяти. Кэши сканирования сопутствующих файлов на диске не удаляются.",
     "Click": "Нажмите",

@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "Wyczyszczono skonfigurowane foldery przepływu pracy {value_0}.",
     "Cleared {value_0}: {value_1}": "Wyczyszczono {value_0}: {value_1}",
     "Clearing extract root contents under {value_0}": "Czyszczenie zawartości katalogu głównego ekstraktu w {value_0}",
+    "Clearing workflow folders...": "Opróżnianie folderów roboczych...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "Usuwa wyniki podglądu przeglądarki archiwów z pamięci, pakiety podglądu zapisane na dysku i indeks profili PAC XML. Nie usuwa dyskowej pamięci podręcznej skanowania plików towarzyszących.",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "Czyści pamięć podręczną podglądu narzędzia Przeglądarka archiwów w pamięci. Pamięci podręczne skanowania plików towarzyszących na dysku nie są usuwane.",
     "Click": "Kliknij",

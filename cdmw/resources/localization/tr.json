@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "{value_0} yapılandırılmış iş akışı klasörleri temizlendi.",
     "Cleared {value_0}: {value_1}": "Temizlendi {value_0}: {value_1}",
     "Clearing extract root contents under {value_0}": "{value_0} altında kök içerik ayıklamayı temizleme",
+    "Clearing workflow folders...": "Çalışma klasörleri boşaltılıyor...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "Arşiv tarayıcısının bellekteki önizleme sonuçlarını, diskte saklanan önizleme paketlerini ve PAC XML profil dizinini temizler. Diskteki yardımcı dosya tarama önbellekleri silinmez.",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "Bellek içi Arşiv Tarayıcısı önizleme önbelleğini temizler. Diskteki yardımcı dosya tarama önbellekleri kaldırılmaz.",
     "Click": "Tıklayın",

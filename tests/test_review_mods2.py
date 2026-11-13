@@ -364,10 +364,6 @@ def test_clearing_a_library_that_holds_an_unconfigured_installation_never_emptie
     assert (game / "bin64" / "CrimsonDesert.exe").is_file(), "clearing the library deleted an installed game"
 
 
-_BOUND = ("Review of rr/parity-mods-3 f239cdb09 (REPORT-review.md): the clear's search bound counts files, so an "
-          "extraction root full of extracted files is refused")
-
-
 def test_an_extraction_root_full_of_files_can_still_be_cleared(tmp_path, monkeypatch):
     """_installation_below stops after INSTALLATION_SEARCH_MAX_ENTRIES entries within four
     levels and then refuses. It counts every entry, files included, though only folders

@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "{value_0}로 구성된 워크플로 폴더를 지웠습니다.",
     "Cleared {value_0}: {value_1}": "{value_0}를 삭제했습니다: {value_1}",
     "Clearing extract root contents under {value_0}": "{value_0}에서 추출 루트 콘텐츠 지우기",
+    "Clearing workflow folders...": "작업 폴더를 비우는 중...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "아카이브 브라우저의 메모리 내 미리보기 결과, 디스크에 저장된 미리보기 패키지 및 PAC XML 프로필 인덱스를 삭제합니다. 디스크의 사이드카 파일 검색 캐시는 삭제하지 않습니다.",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "메모리 내 아카이브 브라우저 미리보기 캐시를 지웁니다. 디스크의 사이드카 검색 캐시는 제거되지 않습니다.",
     "Click": "클릭",

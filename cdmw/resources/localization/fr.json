@@ -2994,6 +2994,7 @@
     "Cleared {value_0} configured workflow folder(s).": "Dossier(s) de workflow configuré(s) {value_0} effacé.",
     "Cleared {value_0}: {value_1}": "{value_0} effacé : {value_1}",
     "Clearing extract root contents under {value_0}": "Effacer le contenu de la racine de l'extrait sous {value_0}",
+    "Clearing workflow folders...": "Vidage des dossiers de travail...",
     "Clears in-memory Archive Browser preview results, durable Preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.": "Supprime les aperçus en mémoire du navigateur d’archives, les paquets d’aperçu conservés sur disque et l’index des profils PAC XML. Les caches d’analyse des fichiers associés sur disque sont conservés.",
     "Clears the in-memory Archive Browser preview cache. Sidecar scan caches on disk are not removed.": "Efface le cache d’aperçu du Navigateur d'archives en mémoire. Les caches d'analyse des fichiers associés sur le disque ne sont pas supprimés.",
     "Click": "Cliquez",
