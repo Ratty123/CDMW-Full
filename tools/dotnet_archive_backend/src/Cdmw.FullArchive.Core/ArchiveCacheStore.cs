@@ -517,12 +517,17 @@ public sealed partial class ArchiveCacheStore
                 {
                     throw new InvalidDataException($"The archive index names a source outside its package root: {text}");
                 }
+                // The file itself (a symbolic link to a share would otherwise pass),
+                // then each folder below the root; links only (GameFolderPolicy.IsLinkTag).
+                if (GameFolderPolicy.IsLink(full))
+                {
+                    throw new InvalidDataException($"The archive index names a source through a link: {text}");
+                }
                 for (var folder = Path.GetDirectoryName(full);
                      folder is not null && folder.Length > root.Length && folders.Add(folder);
                      folder = Path.GetDirectoryName(folder))
                 {
-                    var info = new DirectoryInfo(folder);
-                    if (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0)
+                    if (Directory.Exists(folder) && GameFolderPolicy.IsLink(folder))
                     {
                         throw new InvalidDataException($"The archive index names a source through a link: {text}");
                     }

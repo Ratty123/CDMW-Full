@@ -507,7 +507,7 @@ public sealed class ArchiveExportService(
                     "Export destination is inside a game installation or holds game archives. CDMW does not write into the game folder; choose a folder outside it.");
             }
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is (IOException and not ExportDestinationRefusedException) or UnauthorizedAccessException)
         {
             throw new ExportDestinationRefusedException($"Export destination could not be checked: {exception.Message}");
         }
@@ -532,7 +532,7 @@ public sealed class ArchiveExportService(
                     "Export destination changed while the export ran and now leads elsewhere. Nothing was published; choose a folder outside the game folder and export again.");
             }
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is (IOException and not ExportDestinationRefusedException) or UnauthorizedAccessException)
         {
             throw new ExportDestinationRefusedException($"Export destination could not be checked: {exception.Message}");
         }

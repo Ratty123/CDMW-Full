@@ -54,14 +54,44 @@ internal static class GameFolderPolicy
         }
     }
 
+    // A link is a reparse point tagged IO_REPARSE_TAG_MOUNT_POINT (a junction or
+    // a mounted volume) or IO_REPARSE_TAG_SYMLINK. Other reparse points are
+    // ordinary files and folders: OneDrive's Files On-Demand placeholders and
+    // redirected user folders carry the reparse attribute, and refusing those
+    // would refuse an honest export into Documents. The resolved-path checks
+    // (FinalPath) still run on everything. The native host keeps the same rule
+    // (is_link_tag in host_cache.hpp).
+    //
+    // Two rules on purpose: this one is for the checks that refuse a request
+    // (RejectLinks, HasLinkOnPath, the export path and the source-root check).
+    // The checks that move or delete (ArchiveCacheStore.IsExistingLink for the
+    // cache pointer and quarantine, and Maintenance.IsLink) still step around
+    // every reparse point: a placeholder is not worth moving through. The native
+    // host splits them the same way (host_cache.cpp, is_existing_link).
+    public const uint MountPointTag = 0xA0000003;
+    public const uint SymbolicLinkTag = 0xA000000C;
+
+    public static bool IsLinkTag(uint tag) => tag is MountPointTag or SymbolicLinkTag;
+
+    // An existing file or folder at the path that is a link (IsLinkTag). The tag
+    // comes from FindFirstFile, which opens nothing.
+    public static bool IsLink(string path)
+    {
+        using var find = FindFirstFileExW(path, 1, out var data, 0, IntPtr.Zero, 0);
+        if (find.IsInvalid)
+        {
+            return false;
+        }
+        return (data.FileAttributes & (uint)FileAttributes.ReparsePoint) != 0 && IsLinkTag(data.Reserved0);
+    }
+
     // A cache folder the worker is about to write into must not be a link: a
     // planted junction would carry the write out of the cache.
     public static void RejectLinks(params string[] folders)
     {
         foreach (var folder in folders)
         {
-            var info = new DirectoryInfo(folder);
-            if (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0)
+            if (Directory.Exists(folder) && IsLink(folder))
             {
                 throw new InvalidDataException($"Archive cache folder is a link: {folder}");
             }
@@ -74,7 +104,7 @@ internal static class GameFolderPolicy
     {
         for (var entry = new DirectoryInfo(Path.GetFullPath(path)); entry?.Parent is not null; entry = entry.Parent)
         {
-            if (entry.Exists && (entry.Attributes & FileAttributes.ReparsePoint) != 0)
+            if (entry.Exists && (entry.Attributes & FileAttributes.ReparsePoint) != 0 && IsLink(entry.FullName))
             {
                 return true;
             }
@@ -147,9 +177,38 @@ internal static class GameFolderPolicy
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint GetFinalPathNameByHandleW(SafeFileHandle file, [Out] char[] path, uint length, uint flags);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct FindData
+    {
+        public uint FileAttributes;
+        public uint CreationTimeLow, CreationTimeHigh;  // FILETIMEs: 4-byte aligned pairs
+        public uint LastAccessTimeLow, LastAccessTimeHigh;
+        public uint LastWriteTimeLow, LastWriteTimeHigh;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint Reserved0;  // the reparse tag when FileAttributes has ReparsePoint
+        public uint Reserved1;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string FileName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 14)] public string AlternateFileName;
+    }
+
+    private sealed class FindHandle() : SafeHandleZeroOrMinusOneIsInvalid(true)
+    {
+        protected override bool ReleaseHandle() => FindClose(handle);
+    }
+
+    // FindExInfoBasic (1), FindExSearchNameMatch (0).
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern FindHandle FindFirstFileExW(string fileName, int infoLevel, out FindData data, int searchOp,
+        IntPtr searchFilter, uint flags);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool FindClose(IntPtr handle);
 }
 
 // An export destination refused because it is, holds or leads into the game, the
 // archive cache or a link. The worker reports it as export_destination_protected
 // (WorkerServer.ClassifyFailure), with a message that says what to choose instead.
-public sealed class ExportDestinationRefusedException(string message) : InvalidDataException(message);
+// An IOException: InvalidDataException is sealed.
+public sealed class ExportDestinationRefusedException(string message) : IOException(message);

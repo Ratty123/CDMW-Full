@@ -26,8 +26,9 @@ internal sealed class ArchiveItemSources
         yield return packageRoot;
         var dlc = Path.Combine(packageRoot, "dlc");
         if (Directory.Exists(dlc))
+            // A linked DLC folder is not mounted: its tables would come from outside the package root.
             foreach (var root in Directory.EnumerateDirectories(dlc).Order(StringComparer.OrdinalIgnoreCase))
-                yield return root;
+                if (!GameFolderPolicy.IsLink(root)) yield return root;
     }
 
     internal static string MountSignature(string packageRoot)
