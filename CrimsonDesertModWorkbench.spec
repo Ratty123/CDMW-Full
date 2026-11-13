@@ -157,6 +157,10 @@ unused_qt_runtime_payloads = {
 unused_payload_prefixes = (
     "PySide6\\translations\\",
     "OpenImageIO\\bin\\",
+    # The problem report goes through urllib now; nothing uses Qt's TLS or network
+    # information. Qt6Network.dll stays for Qt Multimedia (removal list item 7).
+    "PySide6\\plugins\\tls\\",
+    "PySide6\\plugins\\networkinformation\\",
 )
 
 
