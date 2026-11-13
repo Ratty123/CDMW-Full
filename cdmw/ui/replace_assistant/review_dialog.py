@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from html import escape
 from pathlib import Path
 from typing import Dict, Optional, Sequence
@@ -29,7 +30,8 @@ class ReplaceAssistantReviewDialog(QDialog):
         self.review_items = list(review_items)
         self.request_id = 0
         self.worker: Optional[ReplaceAssistantReviewCompareWorker] = None
-        self.thread: Optional[QThread] = None
+        # Not `thread`: that would hide QObject.thread().
+        self.compare_thread: Optional[QThread] = None
         self.pending_item: Optional[ReplaceAssistantReviewItem] = None
 
         self.setWindowTitle("Texture Replacer Review")
@@ -120,16 +122,18 @@ class ReplaceAssistantReviewDialog(QDialog):
         super().closeEvent(event)
 
     def _stop_worker(self) -> None:
+        # A row chosen while the compare ran must not start one in a closed dialog.
+        self.pending_item = None
         if self.worker is not None:
             self.worker.stop()
-        if self.thread is not None:
+        if self.compare_thread is not None:
             try:
-                self.thread.requestInterruption()
+                self.compare_thread.requestInterruption()
             except Exception:
                 pass
-            self.thread.quit()
+            self.compare_thread.quit()
         self.worker = None
-        self.thread = None
+        self.compare_thread = None
 
     def _handle_row_changed(self, row: int) -> None:
         if row < 0 or row >= len(self.review_items):
@@ -143,7 +147,7 @@ class ReplaceAssistantReviewDialog(QDialog):
         self.output_meta.setText("Preparing rebuilt DDS preview...")
         self.metadata_browser.setHtml("<p>Preparing metadata...</p>")
         self.details_browser.setHtml(f"<p>{escape(item.relative_path.as_posix())}</p>")
-        if self.thread is not None:
+        if self.compare_thread is not None:
             self.pending_item = item
             if self.worker is not None:
                 self.worker.stop()
@@ -157,13 +161,15 @@ class ReplaceAssistantReviewDialog(QDialog):
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_worker_refs)
+        thread.finished.connect(partial(self._cleanup_worker_refs, thread))
         self.worker = worker
-        self.thread = thread
+        self.compare_thread = thread
         thread.start()
 
-    def _cleanup_worker_refs(self) -> None:
-        self.thread = None
+    def _cleanup_worker_refs(self, thread: QThread) -> None:
+        if thread is not self.compare_thread:
+            return  # Stopped by close, or not the current compare.
+        self.compare_thread = None
         self.worker = None
         if self.pending_item is not None:
             pending = self.pending_item
@@ -172,7 +178,12 @@ class ReplaceAssistantReviewDialog(QDialog):
                 row = self.review_items.index(pending)
             except ValueError:
                 return
-            self.item_list.setCurrentRow(row)
+            # The row was chosen while the compare ran, so it is already the
+            # current row and setCurrentRow would not announce it again.
+            if self.item_list.currentRow() == row:
+                self._handle_row_changed(row)
+            else:
+                self.item_list.setCurrentRow(row)
 
     def _format_metadata_block(self, title: str, metadata: Optional[Dict[str, str]]) -> str:
         if not metadata:

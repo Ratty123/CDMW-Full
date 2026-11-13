@@ -25,7 +25,8 @@ def others_busy(*, excluding: str = "") -> bool:
     the viewport uses this to move its playback frames off the UI thread only then.
     """
 
-    return any(thread.owner != excluding and thread.isRunning() for thread in tuple(_retained))
+    # Not only _Task: window_carry retains its plain QThread here while it stops.
+    return any(getattr(thread, "owner", "") != excluding and thread.isRunning() for thread in tuple(_retained))
 
 
 class _Task(QThread):

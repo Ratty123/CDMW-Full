@@ -92,3 +92,39 @@ def test_preview_core_prewarm_signals_die_on_the_gui_thread_after_delivery(app, 
             render_settings=None, stop_event=threading.Event()))
     assert destroyed_on == [main] * 4
     assert [result["status"] for (result,) in delivered] == ["ok"] * 4
+
+
+# The same fault in cdmw/ui/preview, which is the main thread's. The change for
+# each task: create the signals with `application_owned(<Signals class>)` and end
+# `run()` with `release(self.signals)` in a `finally` (cdmw/workers/runnable_signals.py).
+# Remove the marker with the change; strict makes the fixed code fail until then.
+_PREVIEW_HANDOVER = "cdmw/ui/preview is the main thread's: apply runnable_signals there (crash thread REPORT)"
+
+
+@pytest.mark.xfail(strict=True, reason=_PREVIEW_HANDOVER)
+def test_texture_view_prepare_signals_die_on_the_gui_thread_after_delivery(app, tmp_path):
+    from PySide6.QtGui import QImage
+    from cdmw.ui.preview.texture_view import _PrepareTexture
+
+    path = tmp_path / "texture.png"
+    image = QImage(4, 4, QImage.Format.Format_ARGB32)
+    image.fill(0xFF336699)
+    assert image.save(str(path))
+    main, destroyed_on, delivered = _run_dropped(
+        app, lambda index: _PrepareTexture(index, path, fallback=True))
+    assert sorted(generation for generation, _result in delivered) == [0, 1, 2, 3]
+    assert destroyed_on == [main] * 4
+
+
+@pytest.mark.xfail(strict=True, reason=_PREVIEW_HANDOVER)
+def test_dotnet_preview_prewarm_signals_die_on_the_gui_thread_after_delivery(app, monkeypatch, tmp_path):
+    from cdmw.ui.preview import dotnet_host_prewarm as module
+
+    def build(cache_root):
+        time.sleep(0.05)
+        raise RuntimeError("no package in this test")
+
+    monkeypatch.setattr(module, "build_rust_preview_prewarm_package", build)
+    main, destroyed_on, delivered = _run_dropped(app, lambda index: module.DotNetPreviewPrewarmTask(tmp_path))
+    assert [result["error"] for (result,) in delivered] == ["no package in this test"] * 4
+    assert destroyed_on == [main] * 4
