@@ -19,12 +19,13 @@ Only what can be proved to be CDMW's is removed:
   overlay folder and by no other mounted archive group;
 - ``bin64/CDMWVirtualLoader.asi`` is CDMW's when the owner file CDMW wrote
   beside it names its exact SHA-256;
-- CDMW's own records about those installs under ``.cdmw/``.
+- everything else in CDMW's own ``.cdmw/`` folder (decision 46). The item
+  identity registry there (``.cdmw/independent-items.json``) is first carried
+  over to the CDMW folder (``cdmw.services.game_records``) unless CDMW already
+  keeps one.
 
-Kept, always: the ASI loader (``bin64/winmm.dll``, installed by the user), save
-backups under ``.cdmw/virtual-loader/save-backups``, and the item identity
-registry with its packages (``.cdmw/independent-items.json`` and
-``.cdmw/independent-items/``), which Send to DMM still uses.
+Kept, always: the ASI loader (``bin64/winmm.dll``, installed by the user) and the
+save backups under ``.cdmw/virtual-loader/save-backups``.
 
 The plan is made read-only. Removal refuses while the game or DMM runs or holds
 a file, refuses a plan whose files changed since it was shown, backs up every
@@ -66,8 +67,10 @@ OVERLAY_RECORDS = (".cdmw/overlays.json", ".cdmw/last-overlay-install.json")
 OVERLAY_RECORD_FOLDERS = (".cdmw/overlays", ".cdmw/retired-overlays")
 VIRTUAL_FOLDER = ".cdmw/virtual-loader"
 SAVE_BACKUPS = ".cdmw/virtual-loader/save-backups"
-#: Still used by Send to DMM; never removed.
-KEPT_LIVE = (".cdmw/independent-items.json", ".cdmw/independent-items")
+#: CDMW's own folder in the game. Since decision 46 nothing live is kept there: the item
+#: identity registry moved to the CDMW folder (``cdmw.services.game_records``).
+CDMW_FOLDER = ".cdmw"
+LEGACY_REGISTRY = ".cdmw/independent-items.json"
 BOOTSTRAP_PATH = "bin64/winmm.dll"
 GAME_EXECUTABLE = "CrimsonDesert.exe"
 MOD_MANAGER_EXECUTABLES = ("DMM.exe",)
@@ -377,9 +380,16 @@ def find_old_install(
             kept.append(f"{SAVE_BACKUPS}: your save backups, kept")
     if (root / BOOTSTRAP_PATH).is_file() and RUNTIME_PATH in delete:
         kept.append(f"{BOOTSTRAP_PATH}: the ASI loader you installed, kept")
-    for relative in KEPT_LIVE:
-        if (root / relative).exists():
-            kept.append(f"{relative}: item identities Send to DMM uses, kept")
+    # Everything else in CDMW's own .cdmw folder (decision 46), save backups excepted.
+    cdmw = root / CDMW_FOLDER
+    if _is_link(cdmw):
+        not_cdmw.append(f"{CDMW_FOLDER}: a link, left alone")
+    elif cdmw.is_dir():
+        save_backups = set(_files_under(root, SAVE_BACKUPS))
+        delete += [path for path in _files_under(root, CDMW_FOLDER) if path not in save_backups]
+        folders += [path for path in _folders_under(root, CDMW_FOLDER)
+                    if path != SAVE_BACKUPS and not path.startswith(SAVE_BACKUPS + "/")
+                    and not (save_backups and SAVE_BACKUPS.startswith(path + "/"))]
 
     delete = list(dict.fromkeys(delete))
     for relative in delete:
@@ -483,7 +493,10 @@ def remove_old_install(
     from cdmw.services.installation_lane import installation_lane
 
     with installation_lane(root):
-        return _remove(plan, root, backup=backup, restore_backup=restore_backup, log=log, stop_event=stop_event)
+        from cdmw.core.protected_roots import game_folder_write_permit
+
+        with game_folder_write_permit("Remove What an Older CDMW Installed"):
+            return _remove(plan, root, backup=backup, restore_backup=restore_backup, log=log, stop_event=stop_event)
 
 
 def _remove(plan, root, *, backup, restore_backup, log, stop_event):
@@ -493,6 +506,15 @@ def _remove(plan, root, *, backup, restore_backup, log, stop_event):
                if (root / relative).is_file()]
     log(f"Backing up {len(targets)} file(s)...")
     backup_dir = Path(backup(targets, "Remove what an older CDMW installed"))
+    # Decision 46: the identity registry now lives in the CDMW folder. Carry an older
+    # CDMW's copy over before it is removed from the game, unless CDMW already has one.
+    legacy = root / LEGACY_REGISTRY
+    if LEGACY_REGISTRY in plan.delete_files and legacy.is_file():
+        from cdmw.services import game_records
+
+        if not game_records.registry_path(root).is_file():
+            game_records.write_registry(root, legacy.read_bytes())
+            log("Carried the item identities over to the CDMW folder.")
     if stop_event is not None and stop_event.is_set():
         log("Cancelled before anything was changed; the backup is kept.")
         raise_if_cancelled(stop_event, CANCELLED)

@@ -87,9 +87,11 @@ def test_several_packages_go_to_dmm_as_one_composed_mod(tmp_path):
     assert operations["format"] == 3 and ops["storeinfo.pabgb"]
     assert all(intent["op"] == "array_append" for intent in ops["storeinfo.pabgb"])
     assert not any("storeinfo" in path or "itemgroupinfo" in path for path in overrides)
-    # Archives stay as shipped; only the item identities are kept beside them.
+    # Nothing in the game folder changes; the item identities are kept in the CDMW folder (decision 46).
     assert game_bytes(root) == before
-    assert [p.relative_to(root).as_posix() for p in (root / ".cdmw").rglob("*") if p.is_file()] == [".cdmw/independent-items.json"]
+    assert not (root / ".cdmw").exists()
+    from cdmw.services.game_records import registry_path
+    assert registry_path(root).is_file()
     assert steps == sorted(steps) and steps[-1] == 100
     again = send_item_packages(files, root, mods, "Two items")
     assert again.replaced

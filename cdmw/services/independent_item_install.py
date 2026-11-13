@@ -45,6 +45,7 @@ from cdmw.services.independent_item_compatibility import (
     external_mods, reserved_external_keys, check_package_dependencies,
 )
 
+#: Where an older CDMW kept the registry in the game folder; read only (decision 46).
 REGISTRY_PATH = '.cdmw/independent-items.json'
 PROFILE_FORMAT = 'cdmw_independent_identity_profile_v1'
 MOD_PROFILE_FORMAT = 'cdmw_mod_identity_profile_v2'
@@ -121,9 +122,13 @@ def _read_registry(path):
 
 def load_registry(root):
     root = Path(root).resolve()
-    path = overlays._target(root, REGISTRY_PATH)
+    # Decision 46: CDMW keeps the registry in its own folder, keyed by this game folder;
+    # an older CDMW's copy in the game folder is read until the next send carries it over.
+    from cdmw.services.game_records import registry_source
+
+    path = registry_source(root)
     state = overlays._load_index(root)
-    registry = _read_registry(path) if path.is_file() else _empty()
+    registry = _read_registry(path) if path is not None else _empty()
     for layer in (state or {}).get('layers', ()):
         identity = layer.get('independent_identity')
         if identity:

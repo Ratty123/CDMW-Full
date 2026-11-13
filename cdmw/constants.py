@@ -9,7 +9,7 @@ import re
 # out what earlier versions put there.
 MOD_FOLDER_TOOLS_ENABLED = False
 # New packages are written as .cdmw. Packages from before the rename keep .cditem
-# and stay readable. CDMW's own copies under the game's .cdmw folder keep .cditem.
+# and stay readable. The copies an older CDMW kept under the game's .cdmw folder keep .cditem.
 PACKAGE_EXTENSION = ".cdmw"
 LEGACY_PACKAGE_EXTENSION = ".cditem"
 PACKAGE_EXTENSIONS = (PACKAGE_EXTENSION, LEGACY_PACKAGE_EXTENSION)

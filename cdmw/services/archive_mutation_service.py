@@ -178,8 +178,9 @@ class ArchiveMutationService:
         raise_if_cancelled(stop_event, "Archive backup restore cancelled before writing game files.")
         check_backup_targets(backup, game_root)
         # A partial multi-file restore can break the checksum chain, so finish once started.
+        from cdmw.core.protected_roots import game_folder_write_permit
         from cdmw.services.installation_lane import backup_installation_lanes
-        with backup_installation_lanes(Path(backup)):
+        with backup_installation_lanes(Path(backup)), game_folder_write_permit("Restore Backup"):
             return _archive_patching().restore_archive_patch_backup(Path(backup), on_log=on_log)
 
 

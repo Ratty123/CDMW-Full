@@ -1139,6 +1139,9 @@ def write_action_chart_mod(
     requests = [ArchivePatchRequest(shipped, data) for shipped, data in charts.values()]
     if not requests:
         raise ActionChartError("the chart has no changes to export")
+    from cdmw.core.protected_roots import check_writable
+
+    check_writable(folder)  # decision 46
     folder.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".cdmw-chart-", dir=_staging_parent(folder)) as staging:
         stage = Path(staging) / folder.name

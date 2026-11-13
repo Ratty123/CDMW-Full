@@ -15,6 +15,10 @@ from cdmw.workers.game_executable_fingerprint import GameExecutableFingerprintTa
 
 class ArchiveScanLifecycleMixin:
     def _archive_package_root_changed(self, _text: str) -> None:
+        # Decision 46: CDMW's writers refuse the configured game folder from here on.
+        from cdmw.core.protected_roots import set_configured_game_root
+
+        set_configured_game_root(_text)
         self.archive_game_fingerprint_stop.set()
         self.archive_open_generation += 1
         self.archive_open_game_fingerprints = None

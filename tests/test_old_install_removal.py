@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pytest
 
+from cdmw.services import game_records
+
 from cdmw.core import archive_patching
 from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, PapgtDirectory, parse_papgt, serialize_papgt
@@ -61,7 +63,7 @@ def _mount(root: Path, entries) -> None:
     (root / "meta" / "0.papgt").write_bytes(serialize_papgt(directories))
 
 
-def _game(tmp_path: Path, *, overlay=False, virtual=False, half_removed=False) -> Path:
+def _game(tmp_path: Path, *, overlay=False, virtual=False, half_removed=False, registry=None) -> Path:
     root = tmp_path / "game"
     (root / "bin64").mkdir(parents=True)
     (root / "meta").mkdir()
@@ -94,8 +96,10 @@ def _game(tmp_path: Path, *, overlay=False, virtual=False, half_removed=False) -
         (folder / "runtime-owner.json").write_text(json.dumps(
             {"format": removal.RUNTIME_OWNER_FORMAT, "sha256": hashlib.sha256(asi).hexdigest()}), encoding="utf-8")
         (folder / "profile.json").write_text(json.dumps({"format": "cdmw_virtual_profile_v1"}), encoding="utf-8")
-    (root / ".cdmw").mkdir(exist_ok=True)
-    (root / ".cdmw" / "independent-items.json").write_text('{"format": "kept", "items": {}}', encoding="utf-8")
+    # An older CDMW also kept the item identity registry there (decision 46 moves it out).
+    if registry if registry is not None else (overlay or virtual):
+        (root / ".cdmw").mkdir(exist_ok=True)
+        (root / ".cdmw" / "independent-items.json").write_text('{"format": "kept", "items": {}}', encoding="utf-8")
     _mount(root, mounted)
     _registry(root, textures)
     return root
@@ -143,7 +147,9 @@ def test_an_overlay_install_is_removed_with_its_mount_and_registry_entries_and_c
     table = parse_pathc((root / "meta/0.pathc").read_bytes())
     assert table.index_of(pathc_checksum(OVERLAY_DDS)) is None
     assert table.index_of(pathc_checksum(SHIPPED_DDS)) is not None and table.index_of(pathc_checksum(SHARED_DDS)) is not None
-    assert (root / ".cdmw/independent-items.json").is_file()  # Send to DMM still uses it
+    # Decision 46: the registry is carried over to the CDMW folder before .cdmw goes.
+    assert not (root / ".cdmw").exists()
+    assert game_records.registry_path(root).read_text(encoding="utf-8") == '{"format": "kept", "items": {}}'
     # The removal is itself undone by Restore Backup.
     ArchiveMutationService().restore_backup(result.backup_dir, confirmed=True, game_root=root)
     assert _fingerprint(root) == before
@@ -309,3 +315,24 @@ def test_the_service_imports_no_removed_installer():
     assert not {module for module in modules if module and any(name in module for name in (
         "archive_overlay_install", "archive_overlay_manager", "archive_overlay_migration", "virtual_loader",
         "independent_item_install", "overlay_target_recovery"))}
+
+
+def test_the_games_own_cdmw_folder_is_offered_and_the_registry_carried_over(tmp_path):
+    """Decision 46: a game with only an older CDMW's .cdmw folder is not "nothing found"."""
+    root = _game(tmp_path, registry=True)
+    (root / ".cdmw" / "independent-items").mkdir()
+    (root / ".cdmw" / "independent-items" / "item.cditem").write_bytes(b"retained copy")
+    plan = removal.find_old_install(root)
+    assert not plan.nothing_found and plan.can_remove
+    assert set(plan.delete_files) == {".cdmw/independent-items.json", ".cdmw/independent-items/item.cditem"}
+    assert plan.mount_entries == () and plan.registry_paths == ()
+    _remove(plan, root)
+    assert not (root / ".cdmw").exists()
+    assert game_records.registry_path(root).read_text(encoding="utf-8") == '{"format": "kept", "items": {}}'
+
+
+def test_a_registry_cdmw_already_keeps_is_not_overwritten_by_the_old_one(tmp_path):
+    root = _game(tmp_path, registry=True)
+    game_records.write_registry(root, b'{"newer": true}')
+    _remove(removal.find_old_install(root), root)
+    assert game_records.registry_path(root).read_bytes() == b'{"newer": true}'

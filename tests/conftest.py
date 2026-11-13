@@ -17,6 +17,16 @@ def retained_mod_folder_tools(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_protected_game_folder():
+    """A test that configures a game folder protects it only for itself (decision 46)."""
+    from cdmw.core import protected_roots
+
+    protected_roots.set_configured_game_root(None)
+    yield
+    protected_roots.set_configured_game_root(None)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_mod_export_history(tmp_path, monkeypatch):
     """Exports must never write authoring records into the user's real history."""
     monkeypatch.setattr("cdmw.core.mod_export_history._history_root", lambda: tmp_path / "mod-history")

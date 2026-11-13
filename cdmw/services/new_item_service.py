@@ -647,6 +647,9 @@ def _publish_package_atomically(
             raise FileExistsError(f"A mod folder or ZIP already exists for {root.name}. Choose another mod name or add to the existing mod.")
 
     check_destination()
+    from cdmw.core.protected_roots import check_writable
+
+    check_writable(root)  # never a mod folder inside the game folder (decision 46)
     parent.mkdir(parents=True, exist_ok=True)
     raise_if_cancelled(stop_event, "New item export cancelled.")
     staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.cdmw-stage-", dir=parent))

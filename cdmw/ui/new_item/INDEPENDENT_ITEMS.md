@@ -14,9 +14,17 @@ such an old install out of a game folder.
 CDMW writes packages as `.cdmw` (`PACKAGE_EXTENSION` in `cdmw/constants.py`).
 Packages written before the rename end in `.cditem`; every reader accepts both, and
 updating a `.cditem` package in place keeps its name. The wire format and its
-versions did not change. CDMW's own retained copies under the game's
+versions did not change. The copies an older CDMW retained under the game's
 `.cdmw/independent-items/` folder keep the `.cditem` name that the virtual loader
 validated, as do the `packages/<sha256>.cditem` members inside a semantic export.
+
+CDMW keeps nothing in the game folder. The item identity registry, which gives every
+item the same number from one Send to DMM to the next, lives in the CDMW folder under
+`workspace/game-records/<key>/independent-items.json`, one per game folder
+(`cdmw/services/game_records.py`). An older CDMW's `.cdmw/independent-items.json` in
+the game folder is read until the next send carries it over; CDMW never writes,
+renames or deletes it, and Remove What an Older CDMW Installed... offers to take the
+game's `.cdmw` folder out after carrying the registry over.
 
 Since the October 2026 DLC update (game 2.04.02), Mod Management is disabled and
 neither installation route can load items: the game authenticates its archive mount

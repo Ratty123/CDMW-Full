@@ -13,6 +13,14 @@ nothing else in ``cdmw/`` may:
 
 Neither has an MCP tool or an automation route: both are user-only commands.
 
+Since decision 46 this also holds by construction: the configured game folder is a
+protected root (``cdmw.core.protected_roots``), every shared writer in
+``cdmw.core.atomic_file`` refuses a path inside it, and only those two routes hold
+the permit. CDMW keeps nothing of its own in the game folder: the item identity
+registry lives in the CDMW folder (``cdmw.services.game_records``). The tests at the
+end send to DMM from both routes against an owned game folder and fail if one byte
+in it changes.
+
 These tests fail when that fence moves:
 
 - the low-level archive writers are not in cdmw/ at all: they live in
@@ -37,7 +45,19 @@ import ast
 from functools import lru_cache
 from pathlib import Path
 
+import hashlib
+import json
+
+import pytest
+
 from cdmw import constants
+from cdmw.core import protected_roots
+from cdmw.core.atomic_file import (
+    atomic_binary_writer, atomic_copy_file, atomic_publish_directory, atomic_publish_files,
+    atomic_publish_paths, atomic_text_writer, atomic_write_bytes, atomic_write_text,
+)
+from cdmw.core.protected_roots import ProtectedGameFolderWrite, game_folder_write_permit
+from cdmw.services import game_records
 
 ROOT = Path(__file__).resolve().parents[1]
 #: Generated data, not code that runs.
@@ -263,3 +283,131 @@ def test_both_routes_need_confirmation(tmp_path):
         remove_old_install(SimpleNamespace(root=tmp_path), confirmed=False, configured_root=tmp_path,
                            backup=lambda *a, **k: pytest.fail("backed up"),
                            restore_backup=lambda *a, **k: pytest.fail("restored"))
+
+
+# Decision 46: nothing CDMW keeps lives in the game folder, and its writers refuse it.
+
+
+@pytest.fixture
+def protected(tmp_path):
+    game = tmp_path / "game"
+    game.mkdir()
+    protected_roots.set_configured_game_root(game)
+    yield game
+    protected_roots.set_configured_game_root(None)
+
+
+def _bytes(root: Path) -> dict[str, str]:
+    return {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(root.rglob("*")) if path.is_file()}
+
+
+def test_every_shared_writer_refuses_the_game_folder_without_the_permit(protected, tmp_path):
+    staged = tmp_path / "staged.bin"
+    staged.write_bytes(b"x")
+    folder = tmp_path / "staged-folder"
+    folder.mkdir()
+    target = protected / ".cdmw" / "independent-items.json"
+    attempts = (
+        lambda: atomic_write_bytes(target, b"x"),
+        lambda: atomic_write_text(target, "x"),
+        lambda: atomic_copy_file(staged, target),
+        lambda: atomic_publish_files({staged: target}),
+        lambda: atomic_publish_directory(folder, protected / "0036"),
+        lambda: atomic_publish_paths(((staged, target),)),
+    )
+    for attempt in attempts:
+        with pytest.raises(ProtectedGameFolderWrite, match="does not write into the game folder"):
+            attempt()
+    for writer in (atomic_binary_writer, atomic_text_writer):
+        with pytest.raises(ProtectedGameFolderWrite):
+            with writer(target):
+                pass
+    assert list(protected.iterdir()) == [] and staged.read_bytes() == b"x"
+
+
+def test_the_permit_is_only_for_the_two_routes_and_only_while_held(protected):
+    target = protected / "meta" / "0.papgt"
+    with game_folder_write_permit("Restore Backup"):
+        atomic_write_bytes(target, b"restored")
+    assert target.read_bytes() == b"restored"
+    with pytest.raises(ProtectedGameFolderWrite):
+        atomic_write_bytes(target, b"after the permit")
+    with pytest.raises(ProtectedGameFolderWrite, match="may not write"):
+        with game_folder_write_permit("Send to DMM"):
+            pass
+
+
+def test_a_path_that_resolves_into_the_game_folder_is_refused(protected, tmp_path):
+    with pytest.raises(ProtectedGameFolderWrite):
+        atomic_write_bytes(tmp_path / "elsewhere" / ".." / "game" / "x.bin", b"x")
+    atomic_write_bytes(tmp_path / "game-copy" / "x.bin", b"x")  # a sibling with a longer name is fine
+
+
+def test_the_registry_lives_in_the_cdmw_folder_keyed_by_game(tmp_path):
+    first, second = tmp_path / "one" / "game", tmp_path / "two" / "game"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    a = game_records.write_registry(first, b'{"a": 1}\n')
+    b = game_records.write_registry(second, b'{"b": 2}\n')
+    assert a != b and a.parent.parent == b.parent.parent == game_records.records_root()
+    assert not (first / ".cdmw").exists() and not (second / ".cdmw").exists()
+    about = json.loads((a.parent / "game.json").read_text(encoding="utf-8"))
+    assert about["game_folder"] == str(first.resolve())
+
+
+def test_an_older_registry_in_the_game_is_read_and_never_changed(tmp_path):
+    game = tmp_path / "game"
+    (game / ".cdmw").mkdir(parents=True)
+    legacy = game / ".cdmw" / "independent-items.json"
+    legacy.write_bytes(b'{"older": true}\n')
+    before = _bytes(game)
+    assert game_records.registry_source(game) == legacy
+    game_records.write_registry(game, legacy.read_bytes())
+    assert game_records.registry_source(game) == game_records.registry_path(game)
+    assert _bytes(game) == before
+
+
+def test_send_to_dmm_from_the_mods_page_changes_no_byte_in_the_game(tmp_path):
+    from cdmw.services.dmm_send import send_item_packages
+    from tests.support.game_fixtures import packages
+    from tests.test_dmm_send import _dmm
+
+    root, files = packages(tmp_path)
+    _install, mods = _dmm(tmp_path)
+    before = _bytes(root)
+    protected_roots.set_configured_game_root(root)
+    try:
+        result = send_item_packages(files, root, mods, "Two items")
+        again = send_item_packages(files, root, mods, "Two items")
+    finally:
+        protected_roots.set_configured_game_root(None)
+    assert _bytes(root) == before
+    assert result.folder.is_dir() and again.replaced
+    registry = json.loads(game_records.registry_path(root).read_text(encoding="utf-8"))
+    assert len(registry["items"]) == 2
+
+
+def test_send_to_dmm_from_create_new_item_changes_no_byte_in_the_game(tmp_path):
+    from cdmw.services.dmm_send import send_plan
+    from tests.test_dmm_send import _dmm
+    from tests.test_new_item_compact_dlc import setup, spec
+
+    service, snapshot = setup(tmp_path)
+    root = tmp_path / "game"
+    plan = service.plan(spec("CompactOwned"), snapshot, capture_independent=True)
+    _install, mods = _dmm(tmp_path)
+    before = _bytes(root)
+    protected_roots.set_configured_game_root(root)
+    try:
+        send_plan(plan, mods, "Frost blade", service=service)
+    finally:
+        protected_roots.set_configured_game_root(None)
+    assert _bytes(root) == before
+
+
+def test_a_dmm_mods_folder_inside_the_game_is_refused(protected, tmp_path):
+    from cdmw.services.dmm_send import destination
+
+    with pytest.raises(ProtectedGameFolderWrite):
+        destination(protected / "mods", "Frost")
