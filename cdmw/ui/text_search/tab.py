@@ -34,7 +34,12 @@ from cdmw.services.text_search_service import (
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.models import ArchiveEntry
 from cdmw.services.workspace_layout import workspace_paths
-from cdmw.ui.text_search.controller import TextSearchControllerMixin, TextSearchSettingsMixin
+from cdmw.ui.text_search.controller import (
+    SEARCH_BUTTON_TEXT,
+    SEARCH_READY_TEXT,
+    TextSearchControllerMixin,
+    TextSearchSettingsMixin,
+)
 from cdmw.ui.text_search.export_actions import TextSearchExportMixin
 from cdmw.ui.text_search.preview_panel import TextSearchPreviewMixin
 from cdmw.ui.text_search.remote_catalogue import TextSearchArchiveCatalogueMixin
@@ -277,10 +282,11 @@ class TextSearchTab(
             save_callback=self.schedule_settings_save,
         )
         self.results_stack = QStackedWidget()
-        self.results_empty_state = EmptyStatePanel(
-            "Ready to search",
-            "Enter a string or regex, then run Search. Matching files will appear here with package and path context.",
-        )
+        # P11 step 6: the empty results say what to do next and run it.
+        from cdmw.ui.empty_states import ActionEmptyState
+
+        self._searched_query = None
+        self.results_empty_state = ActionEmptyState(SEARCH_READY_TEXT, SEARCH_BUTTON_TEXT, run=self.start_search)
         self.results_stack.addWidget(self.results_empty_state)
         self.results_stack.addWidget(self.results_tree)
         results_layout.addWidget(self.results_stack, stretch=1)

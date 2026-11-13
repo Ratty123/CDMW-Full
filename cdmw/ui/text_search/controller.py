@@ -18,6 +18,14 @@ from cdmw.models import ArchiveEntry
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.text_search.workers import TextSearchWorker, shutdown_thread as _shutdown_thread
 
+#: The empty results' states (P11 step 6): one sentence and the next step.
+SEARCH_READY_TEXT = "Type what to find, then search the game files."
+SEARCH_BUTTON_TEXT = "Search"
+SEARCH_NOT_SCANNED_TEXT = "Scan the game archives in Browse Archives to search their text."
+SEARCH_NOTHING_MATCHED_TEXT = "Nothing matched. Try fewer words, or turn off Case sensitive and Regex."
+SEARCH_EDIT_BUTTON_TEXT = "Change the Search"
+OPEN_BROWSE_COMMAND = "shell.open.archive_browser"
+
 
 class TextSearchSettingsMixin:
     def _browse_loose_root(self) -> None:
@@ -121,6 +129,8 @@ class TextSearchControllerMixin:
             self.results_summary_label.setText(
                 f"Archive source ready: {len(self.archive_entries):,} scanned entry(s) available for text search."
             )
+        if hasattr(self, "results_stack") and not self.search_results and not self.is_busy():
+            self._sync_results_empty_state(show_results=False)
 
     def review_archive_entry(
         self,
@@ -258,7 +268,7 @@ class TextSearchControllerMixin:
         self.export_all_button.setEnabled(can_interact and has_results)
         self.results_tree.setEnabled(not busy)
         if hasattr(self, "results_stack"):
-            self.results_stack.setCurrentWidget(self.results_tree if has_results or busy else self.results_empty_state)
+            self._sync_results_empty_state(show_results=has_results or busy)
         self.clear_log_button.setEnabled(not busy)
         has_preview_text = bool(self.preview_text_cache)
         self.preview_find_edit.setEnabled(has_preview_text)
@@ -268,6 +278,29 @@ class TextSearchControllerMixin:
         self.preview_wrap_checkbox.setEnabled(has_preview_text)
         self.preview_font_smaller_button.setEnabled(has_preview_text)
         self.preview_font_larger_button.setEnabled(has_preview_text)
+
+    def _sync_results_empty_state(self, *, show_results: bool) -> None:
+        """Results, or the empty state that says what to do next (P11 step 6)."""
+        if show_results:
+            self.results_stack.setCurrentWidget(self.results_tree)
+            return
+        state = self.results_empty_state
+        archive_source = str(self.source_combo.currentData()) == "archive"
+        ready = bool(self.archive_entries) or getattr(self, "_catalogue_archive_ready", lambda: False)()
+        if archive_source and not ready:
+            wanted = (SEARCH_NOT_SCANNED_TEXT, "", OPEN_BROWSE_COMMAND, None)
+        elif getattr(self, "_searched_query", None):
+            wanted = (SEARCH_NOTHING_MATCHED_TEXT, SEARCH_EDIT_BUTTON_TEXT, "", self._focus_search_query)
+        else:
+            wanted = (SEARCH_READY_TEXT, SEARCH_BUTTON_TEXT, "", self.start_search)
+        if getattr(state, "_shown_state", None) != wanted[:3]:
+            state.set_state(wanted[0], wanted[1], wanted[2], run=wanted[3])
+            state._shown_state = wanted[:3]
+        self.results_stack.setCurrentWidget(state)
+
+    def _focus_search_query(self) -> None:
+        self.query_edit.setFocus()
+        self.query_edit.selectAll()
 
     def selected_results(self) -> List[TextSearchResult]:
         results: List[TextSearchResult] = []
@@ -504,7 +537,8 @@ class TextSearchControllerMixin:
         self.search_progress_bar.setValue(1)
         self.search_progress_bar.setFormat("Ready")
         self._clear_pending_result_population()
-        self.results_stack.setCurrentWidget(self.results_tree if self.search_results else self.results_empty_state)
+        self._searched_query = self.query_edit.text().strip()
+        self._sync_results_empty_state(show_results=bool(self.search_results))
         self._column_autofit_timer.start()
 
     def _flush_result_population_batch(self) -> None:
