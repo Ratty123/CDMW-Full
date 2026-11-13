@@ -38,7 +38,7 @@ class ArchiveIgnoredFoldersGroup(QGroupBox):
         )
         from cdmw.ui.empty_states import ActionEmptyState, EmptyStateSwitch
 
-        self.empty_state = ActionEmptyState(IGNORED_FOLDERS_EMPTY_TEXT, "Add Folder...", run=self._browse_folder)
+        self.empty_state = ActionEmptyState(IGNORED_FOLDERS_EMPTY_TEXT, "Add folder...", run=self._browse_folder)
         self.list_switch = EmptyStateSwitch(self.folder_list, self.empty_state)
         self.list_switch.setMaximumHeight(self.folder_list.maximumHeight())
         layout.addWidget(self.list_switch)
