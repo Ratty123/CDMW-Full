@@ -73,3 +73,63 @@ def test_removing_a_texture_forgets_its_project(tmp_path):
     assert load_draft_textures(tmp_path) == ()
     assert not (tmp_path / "textures" / TEXTURE.key).exists()
     assert load_draft_textures(tmp_path / "empty") == ()
+
+
+def test_a_save_into_a_draft_a_newer_build_wrote_changes_nothing(tmp_path):
+    """M6: the manifest is read before the project is written."""
+    import pytest
+
+    from cdmw.services import mesh_draft_textures as textures
+
+    project = textures._project_path(tmp_path, TEXTURE.key)
+    project.parent.mkdir(parents=True, exist_ok=True)
+    project.write_bytes(b"a newer build's texture project")
+    (project.parent.parent / textures.MANIFEST_NAME).write_text(
+        json.dumps({"version": textures.MANIFEST_VERSION + 1, "textures": {TEXTURE.key: {}}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="newer"):
+        save_draft_texture(tmp_path, TEXTURE, _document(), _pixels())
+    assert project.read_bytes() == b"a newer build's texture project"
+
+
+def test_two_saves_at_once_keep_both_textures(tmp_path):
+    """M7: the manifest's read-modify-write is serialised per draft."""
+    import threading
+
+    others = [DraftTexture(resource_id=f"character/texture/own{i}.dds", channel="base",
+                           source_path=f"character/texture/own{i}.dds", output_path=f"character/texture/own{i}.dds")
+              for i in range(6)]
+    threads = [threading.Thread(target=save_draft_texture, args=(tmp_path, texture, _document(), _pixels()))
+               for texture in others]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert {item.texture.resource_id for item in load_draft_textures(tmp_path)} == {t.resource_id for t in others}
+
+
+def test_a_changed_game_copy_is_said_plainly_and_identity_survives_a_restart(tmp_path):
+    """M8: the source's hash and size are kept, so a game update is named, not a size error."""
+    import hashlib
+    from dataclasses import replace
+
+    from cdmw.services.mesh_draft_textures import source_changed
+
+    original = b"DDS original bytes"
+    texture = replace(TEXTURE, source_sha256=hashlib.sha256(original).hexdigest(), source_width=8, source_height=4,
+                      finish_generation=3)
+    save_draft_texture(tmp_path, texture, _document(), _pixels())
+    (loaded,) = load_draft_textures(tmp_path)
+    assert loaded.texture == texture
+    assert source_changed(loaded.texture, original, width=8, height=4) == ""
+    assert "changed since this edit was saved" in source_changed(loaded.texture, b"patched", width=8, height=4)
+    assert "is now 16x8" in source_changed(loaded.texture, b"patched", width=16, height=8)
+
+
+def test_a_bad_manifest_row_costs_only_that_texture(tmp_path):
+    save_draft_texture(tmp_path, TEXTURE, _document(), _pixels())
+    manifest_path = tmp_path / "textures" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["textures"]["broken"] = {"resource_id": "x.dds", "affected_submeshes": ["not a number"]}
+    manifest_path.write_text(json.dumps(manifest))
+    loaded = {item.texture.resource_id: item for item in load_draft_textures(tmp_path)}
+    assert loaded[TEXTURE.resource_id].problem == "" and loaded["broken"].problem

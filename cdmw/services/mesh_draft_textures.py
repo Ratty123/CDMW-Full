@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -45,6 +46,13 @@ class DraftTexture:
     original_format: str = ""
     #: The material file a Make unique rewrote, when it did (its rewritten bytes are the draft's companion).
     sidecar_path: str = ""
+    #: The game copy the edit started from (M8): its SHA-256 and size. A restore or Build Mod
+    #: compares them with the game's current copy (`source_changed`) and says so plainly.
+    source_sha256: str = ""
+    source_width: int = 0
+    source_height: int = 0
+    #: The draft's Finish step that saved this texture; undo across a restart is per Finish.
+    finish_generation: int = 0
 
     @property
     def key(self) -> str:
@@ -60,10 +68,36 @@ class LoadedDraftTexture:
     problem: str = ""
 
 
+def source_changed(texture: "DraftTexture", current_dds: bytes, *, width: int = 0, height: int = 0) -> str:
+    """Why the saved edit no longer fits the game's copy of its source ("" when it still does).
+
+    A game patch that replaced the texture, or changed its size, is said in so many words
+    instead of surfacing later as a size error at Build Mod (M8 of the review).
+    """
+    if texture.source_sha256 and hashlib.sha256(bytes(current_dds)).hexdigest() != texture.source_sha256:
+        if texture.source_width and width and (width, height) != (texture.source_width, texture.source_height):
+            return (f"The game's {texture.source_path} is now {width}x{height}; the saved edit was made on "
+                    f"{texture.source_width}x{texture.source_height}. Start the edit again from the new texture.")
+        return (f"The game's {texture.source_path} changed since this edit was saved (a game update?). "
+                "Start the edit again from the new texture.")
+    return ""
+
+
 def draft_texture_key(resource_id: str, channel: str) -> str:
     raw = f"{str(resource_id).strip().casefold()}:{str(channel or 'base').strip().casefold()}"
     readable = re.sub(r"[^a-z0-9_-]+", "-", raw)[:40].strip("-") or "texture"
     return f"{readable}-{hashlib.sha256(raw.encode('utf-8')).hexdigest()[:10]}"
+
+
+_LOCKS: Dict[str, threading.Lock] = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+def _draft_lock(draft_root: Path) -> threading.Lock:
+    """One lock per draft folder: saves and removals rewrite the manifest in turn (M7)."""
+    key = str(Path(draft_root).expanduser().resolve()).casefold()
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(key, threading.Lock())
 
 
 def _root(draft_root: Path) -> Path:
@@ -105,14 +139,18 @@ def save_draft_texture(draft_root: Path, texture: DraftTexture, document: Textur
 
     key = texture.key
     project = _project_path(draft_root, key)
-    save_texture_editor_project(document, dict(layer_pixels), project)
-    rows = _read_manifest(draft_root)
-    row = asdict(texture)
-    row["parts"] = list(texture.parts)
-    row["affected_submeshes"] = list(texture.affected_submeshes)
-    row["project"] = project.relative_to(_root(draft_root)).as_posix()
-    rows[key] = row
-    _write_manifest(draft_root, rows)
+    with _draft_lock(draft_root):
+        # Read the manifest first: a draft a newer CDMW wrote is refused before anything in
+        # it changes, including this texture's project (M6 of the review).
+        _read_manifest(draft_root)
+        save_texture_editor_project(document, dict(layer_pixels), project)
+        rows = _read_manifest(draft_root)
+        row = asdict(texture)
+        row["parts"] = list(texture.parts)
+        row["affected_submeshes"] = list(texture.affected_submeshes)
+        row["project"] = project.relative_to(_root(draft_root)).as_posix()
+        rows[key] = row
+        _write_manifest(draft_root, rows)
     return project
 
 
@@ -121,12 +159,13 @@ def remove_draft_texture(draft_root: Path, resource_id: str, channel: str) -> No
     import shutil
 
     key = draft_texture_key(resource_id, channel)
-    rows = _read_manifest(draft_root)
-    if rows.pop(key, None) is not None:
-        _write_manifest(draft_root, rows)
-    folder = _root(draft_root) / key
-    if folder.is_dir():
-        shutil.rmtree(folder, ignore_errors=True)
+    with _draft_lock(draft_root):
+        rows = _read_manifest(draft_root)
+        if rows.pop(key, None) is not None:
+            _write_manifest(draft_root, rows)
+        folder = _root(draft_root) / key
+        if folder.is_dir():
+            shutil.rmtree(folder, ignore_errors=True)
 
 
 def load_draft_textures(draft_root: Path) -> Tuple[LoadedDraftTexture, ...]:
@@ -139,18 +178,27 @@ def load_draft_textures(draft_root: Path) -> Tuple[LoadedDraftTexture, ...]:
 
     loaded = []
     for key, row in sorted(_read_manifest(draft_root).items()):
-        texture = DraftTexture(
-            resource_id=str(row.get("resource_id", "")), channel=str(row.get("channel", "base")),
-            source_path=str(row.get("source_path", "")), output_path=str(row.get("output_path", "")),
-            parts=tuple(str(part) for part in row.get("parts", ())),
-            affected_submeshes=tuple(int(index) for index in row.get("affected_submeshes", ())),
-            original_format=str(row.get("original_format", "")), sidecar_path=str(row.get("sidecar_path", "")))
+        try:
+            texture = DraftTexture(
+                resource_id=str(row.get("resource_id", "")), channel=str(row.get("channel", "base")),
+                source_path=str(row.get("source_path", "")), output_path=str(row.get("output_path", "")),
+                parts=tuple(str(part) for part in row.get("parts", ()) or ()),
+                affected_submeshes=tuple(int(index) for index in row.get("affected_submeshes", ()) or ()),
+                original_format=str(row.get("original_format", "")), sidecar_path=str(row.get("sidecar_path", "")),
+                source_sha256=str(row.get("source_sha256", "") or ""),
+                source_width=int(row.get("source_width", 0) or 0), source_height=int(row.get("source_height", 0) or 0),
+                finish_generation=int(row.get("finish_generation", 0) or 0))
+        except (TypeError, ValueError) as exc:
+            # One bad row costs that texture only; the rest of the draft still opens.
+            loaded.append(LoadedDraftTexture(DraftTexture(resource_id=key, channel="", source_path=key, output_path=""),
+                                             None, {}, f"A saved texture entry could not be read: {exc}"))
+            continue
         project = _root(draft_root) / str(row.get("project") or f"{key}/{key}.json")
         try:
             if not project.resolve().is_relative_to(_root(draft_root)):
                 raise ValueError("its project is outside the draft")
             document, pixels, _floating = load_texture_editor_project(project)
-        except (OSError, ValueError, KeyError) as exc:
+        except (OSError, ValueError, KeyError, TypeError) as exc:
             loaded.append(LoadedDraftTexture(texture, None, {}, f"The saved edit of {texture.source_path} could not be read: {exc}"))
             continue
         loaded.append(LoadedDraftTexture(texture, document, pixels))
@@ -163,5 +211,6 @@ __all__ = [
     "draft_texture_key",
     "load_draft_textures",
     "remove_draft_texture",
+    "source_changed",
     "save_draft_texture",
 ]
