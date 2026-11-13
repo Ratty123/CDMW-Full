@@ -86,6 +86,10 @@ def _should_collect_cdmw_submodule(name):
         "cdmw.services.mesh_dotnet_preview_package",
         "cdmw.services.mesh_dotnet_runtime_status",
         "cdmw.services.native_dotnet_preview_adapter",
+        # Only tools/*.py import these (removal list item 5).
+        "cdmw.rendering.ingame_capture",
+        "cdmw.rendering.preview_comparison",
+        "cdmw.rendering.test_run_sword_tuning",
     )
     return not any(
         name == prefix or name.startswith(prefix + ".")
@@ -104,11 +108,6 @@ hiddenimports += collect_submodules("tools.placement_studio")
 # Same reasoning for Translation Studio: its AI provider modules are imported from inside
 # button handlers, which is the shape static analysis is worst at following.
 hiddenimports += collect_submodules("tools.translation_studio")
-hiddenimports += [
-    "cdmw.rendering.ingame_capture",
-    "cdmw.rendering.preview_comparison",
-    "cdmw.rendering.test_run_sword_tuning",
-]
 
 unused_qt_modules = [
     "PySide6.QtQml",
