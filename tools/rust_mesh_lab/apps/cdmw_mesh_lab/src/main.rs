@@ -2966,6 +2966,12 @@ impl LabApplication {
     pub(crate) fn engine_followed_mesh(
         &self,
     ) -> Option<(String, crate::engine::FollowedRevision, &WorkingMesh)> {
+        // An edit in neutral or replacement coordinates would be drawn out of place
+        // in a preview of the file (section 8.1, item 5): it is not followed.
+        let manifest = self.cdmw_bridge.as_ref()?.manifest();
+        if manifest.source.get("coordinates").and_then(Value::as_str) == Some("neutral") {
+            return None;
+        }
         let path = self.engine_source_path()?;
         let mesh = self.mesh.as_ref()?;
         let revision = crate::engine::FollowedRevision {
@@ -3042,6 +3048,15 @@ impl LabApplication {
     }
 
     /// The archive file this edit edits, as followers match it.
+    /// Whether this edit's parts are one file's, in that file's order, so a preview
+    /// that shows the file with others can follow them part by part (P5). A set's
+    /// parts come from several files and follow only a preview of the same set.
+    pub(crate) fn engine_edit_is_one_file(&self) -> bool {
+        self.cdmw_bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.manifest().item_set_files.len() <= 1)
+    }
+
     fn engine_source_path(&self) -> Option<String> {
         Some(
             self.cdmw_bridge

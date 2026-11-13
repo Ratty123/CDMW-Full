@@ -8757,6 +8757,20 @@ class RustMeshAuthoringSession:
         thread.start()
         return True
 
+    def _shadow_coordinates(self) -> str:
+        """"neutral" when the edit's mesh is held in a refit's or replacement's neutral space."""
+
+        try:
+            shadow = self.shadow_service._session(self.shadow_session_id)
+        except (AttributeError, KeyError):
+            return "source"
+        context = getattr(shadow, "archive_refit_context", None)
+        replacement = getattr(shadow, "replacement_state", None)
+        neutral = (self.neutral_appearance is not None
+                   or bool(getattr(context, "neutral_coordinates", False))
+                   or bool(getattr(replacement, "neutral_coordinates", False)))
+        return "neutral" if neutral else "source"
+
     def _write_initial_manifest_files(
         self,
         *,
@@ -8932,6 +8946,9 @@ class RustMeshAuthoringSession:
                 "format": str(mesh.format or ""),
                 "sha256": _source_hash(mesh),
                 "lod_index": int(view.lod_index),
+                # A preview of the file must not draw an edit held in other coordinates
+                # (a refit's or a replacement's neutral space) as if it were its own (P5).
+                "coordinates": self._shadow_coordinates(),
             },
             "output_policy": {
                 "policy": view.output_policy,

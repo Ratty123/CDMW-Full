@@ -411,6 +411,10 @@ pub struct SessionManifest {
     pub reference_pieces: Vec<ReferencePieceManifest>,
     #[serde(default)]
     pub item_set_files: Vec<String>,
+    /// A preview package's parts: each batch's `editor_identity` names the file a part
+    /// comes from and its index there (P5: a follower maps an edit's parts by them).
+    #[serde(default)]
+    pub batches: Vec<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -1615,6 +1619,7 @@ impl CdmwBridge {
                 interaction_profile: String::new(),
                 reference_pieces: Vec::new(),
                 item_set_files: Vec::new(),
+                batches: Vec::new(),
             },
             incoming,
             outbound,

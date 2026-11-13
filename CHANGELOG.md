@@ -89,6 +89,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - After **Finish** in Browse Archives, Browse's own model comes back only when the finished model itself fails to load; opening another file meanwhile no longer brings the old model back.
 
+- CDMW no longer closes unexpectedly when a Mesh Editor tab is closed after **Build Mod**.
+
+- While a mesh is edited in the **Mesh Editor** tab, Browse Archives' preview of a set or of a model with its companion (such as a sword with its scabbard) now shows that file's parts as they change, including parts the edit adds or removes; before, only a preview of that file alone followed the edit, and it stopped when the part count changed. An edit held in a refit's or a replacement's own coordinates is no longer shown in a preview, where it would have been drawn out of place.
+
 - **Texture Replacer Review** loads the item you select while the previous item's preview is still preparing; before, its panes could stay on "Preparing..." until you picked another row.
 
 - The **Texture Editor**'s commands are in the command palette and in **Settings > Shortcuts**; before, the editor the app shows registered none. Outside the Textures workspace's Edit mode they say to switch to Edit first. Settings > Shortcuts also lists the app's own commands the first time it opens, and the command palette's key can be changed there like any other; the Mesh Editor's 3D view and Create New Item follow the new key at once, on the numpad too. A key a Mesh Editor command uses is refused for the palette, and the refusal names that command.

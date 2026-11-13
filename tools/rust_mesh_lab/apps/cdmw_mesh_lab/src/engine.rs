@@ -482,13 +482,14 @@ impl EngineApplication {
     fn follow_edit(&mut self) {
         let now = std::time::Instant::now();
         for edit in &mut self.edits {
+            let one_file = edit.app.engine_edit_is_one_file();
             let Some((path, revision, mesh)) = edit.app.mesh_for_followers(now) else {
                 continue;
             };
             let parts = mesh.submesh_indices().len();
             for preview in std::iter::once(&mut self.preview).chain(self.viewports.iter_mut()) {
-                if preview.can_follow(&path, parts) {
-                    preview.follow(revision, mesh);
+                if preview.can_follow(&path, parts, one_file) {
+                    preview.follow(revision, mesh, &path, one_file);
                 }
             }
         }
@@ -703,11 +704,14 @@ impl EngineApplication {
             .return_view(renderer, Some(camera), kept, edit.app.engine_finished());
         // After a Finish, Browse's view shows the finished mesh until the finished
         // package replaces it, never the model from before the edit (section 8.7 C2).
+        let one_file = edit.app.engine_edit_is_one_file();
         if edit.app.engine_finished()
             && let Some((path, revision, mesh)) = edit.app.engine_followed_mesh()
-            && self.preview.can_follow(&path, mesh.submesh_indices().len())
+            && self
+                .preview
+                .can_follow(&path, mesh.submesh_indices().len(), one_file)
         {
-            self.preview.follow(revision, mesh);
+            self.preview.follow(revision, mesh, &path, one_file);
         }
         drop(edit);
         write_edit_line(&id, &json!({"event": "edit_left"}));
