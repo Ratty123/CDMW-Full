@@ -151,3 +151,45 @@ def test_edit_translations_asks_for_the_game_folder_then_for_a_language(app, tmp
         tab._catalogue = None
         tab.request_shutdown()
         tab.deleteLater()
+
+
+# ----- Textures -------------------------------------------------------------------------
+def test_textures_offers_to_add_textures_in_the_asset_lists_place(app, tmp_path, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QFileDialog
+
+    from cdmw.services.settings_service import create_settings
+    from cdmw.ui.main_window import MainWindow
+    from cdmw.ui.shell.app_context import AppContext
+    from cdmw.ui.texture_workflow import workspace_ui
+
+    asked = []
+    monkeypatch.setattr(QFileDialog, "getOpenFileNames", lambda *args, **kwargs: (asked.append(True), ([], ""))[1])
+    monkeypatch.setenv("CDMW_GUI_STARTUP_SMOKE", "1")
+    settings = create_settings(settings_file_path=tmp_path / "textures.cfg")
+    window = MainWindow(app_context=AppContext.from_settings(settings))
+    try:
+        window.setAttribute(Qt.WA_DontShowOnScreen)
+        window.resize(1450, 1000)
+        window.show()
+        window._activate_tool_key("textures")
+        window.texture_editor_tab.ensure_widget()
+        app.processEvents()
+        textures = window.textures
+        state = textures.assets_empty_state
+        assert textures.assets_switch.is_empty()
+        assert not textures.asset_list.isVisible() and not textures.remove_texture_button.isVisible()
+        assert state.sentence_label.text() == workspace_ui.TEXTURES_EMPTY_TEXT and state.button.text() == "Add Textures"
+        state.button.click()
+        assert asked, "the button opens the same file picker as the toolbar's Add Textures"
+
+        source = tmp_path / "owned.png"
+        source.write_bytes(b"not read")
+        textures.job.add_source(source)
+        textures._refresh_texture_assets()
+        assert not textures.assets_switch.is_empty() and textures.asset_list.topLevelItemCount() == 1
+    finally:
+        window._close_force_accept = True
+        window.close()
+        window.deleteLater()
+        app.processEvents()
