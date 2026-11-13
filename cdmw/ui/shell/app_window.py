@@ -554,8 +554,14 @@ def run_gui() -> int:
             return exit_code
         if automation is not None:
             automation.attach(window)
+        # AI connections (P13 stage C): a setting already on starts with the app,
+        # and Full access ends unless it was kept.
+        from cdmw.ui.ai_connections.controller import install_ai_connections
+
+        ai_connections = install_ai_connections(window, application_startup.settings)
         queue_startup_archive_autoload(window, startup_splash, _write_heartbeat)
         exit_code = run_shell_event_loop(app, _write_crash_report)
+        ai_connections.stop()
         if automation is not None:
             automation.stop()
         teardown_ok = _shutdown_qt(window, app)

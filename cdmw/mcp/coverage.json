@@ -410,6 +410,11 @@
       "gap": "not_built",
       "class": "edit",
       "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+    },
+    "shell.command_palette": {
+      "gap": "not_built",
+      "class": "read",
+      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
     }
   },
   "command_patterns": [
@@ -1084,27 +1089,6 @@
       "class": "read",
       "gap": "not_built",
       "milestone": "P13 stage C part 2: app tools"
-    },
-    {
-      "id": "archive.patch_game_files",
-      "area": "Browse Archives",
-      "what": "The Patch Game Files prompt (cdmw/ui/archive_browser/mesh_direct_patch.py)",
-      "class": "output",
-      "gap": "writes_into_game"
-    },
-    {
-      "id": "archive.patch_game_archives",
-      "area": "Browse Archives",
-      "what": "The Patch Game Archives button (cdmw/ui/archive_browser/reference_export.py)",
-      "class": "output",
-      "gap": "writes_into_game"
-    },
-    {
-      "id": "archive.apply_patch",
-      "area": "Archive mutation",
-      "what": "ArchiveMutationService.apply_patch",
-      "class": "output",
-      "gap": "writes_into_game"
     },
     {
       "id": "archive.overlay_install",

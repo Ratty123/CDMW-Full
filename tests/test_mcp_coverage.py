@@ -61,8 +61,9 @@ def test_every_edit_destructive_and_output_capability_is_a_gap_today() -> None:
 
 def test_nothing_that_writes_into_the_game_has_a_tool() -> None:
     rows = [row for row in load_coverage()["capabilities"] if row.get("gap") == "writes_into_game"]
-    assert {row["id"] for row in rows} >= {"archive.patch_game_files", "archive.patch_game_archives",
-                                           "archive.apply_patch", "archive.restore_patch_backups"}
+    # The direct patch routes are removed (decision 35); these are the ones left.
+    assert {row["id"] for row in rows} >= {"archive.overlay_install", "archive.virtual_loading_install",
+                                           "archive.restore_patch_backups"}
     names = {tool.name for tool in typed_tools()}
     for row in rows:
         assert row["id"] not in names and wire_name(row["id"]) not in {wire_name(n) for n in names}

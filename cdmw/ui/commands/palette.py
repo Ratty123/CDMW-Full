@@ -252,6 +252,6 @@ def install_command_palette(shell) -> Command | None:
     registry = getattr(shell, "command_registry", None)
     if not isinstance(registry, CommandRegistry):
         return None
-    command = Command(PALETTE_COMMAND, PALETTE_LABEL, "shell", lambda: open_command_palette(shell),
+    command = Command(PALETTE_COMMAND, PALETTE_LABEL, "shell", lambda: open_command_palette(shell), effect="read",
                       keys=(PALETTE_KEYS,), keywords=("palette", "commands", "search"))
     return registry.register(command, replace=True)

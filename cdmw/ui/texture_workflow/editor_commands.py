@@ -41,6 +41,52 @@ MENU_ACTIONS = {
 }
 
 
+
+#: What each Texture Editor command does, for the MCP tool table: saving and
+#: exporting are output, tool switches and view steps read, the rest edits.
+TEXTURE_EFFECTS: dict[str, str] = {
+    "actual_size": "read",
+    "brush_larger": "read",
+    "brush_smaller": "read",
+    "clear_selection": "edit",
+    "copy_layer": "edit",
+    "copy_selection_layer": "edit",
+    "cut_selection": "edit",
+    "export_dds": "output",
+    "fit_view": "read",
+    "hardness_harder": "read",
+    "hardness_softer": "read",
+    "new_layer": "edit",
+    "open_archive": "read",
+    "open_compare": "read",
+    "open_file": "edit",
+    "open_project": "edit",
+    "paste_centered": "edit",
+    "paste_layer": "edit",
+    "preview_compressed": "read",
+    "redo": "edit",
+    "save_png": "output",
+    "save_project": "output",
+    "send_item_icons": "edit",
+    "send_replace": "edit",
+    "send_workflow": "edit",
+    "toggle_quick_mask": "edit",
+    "tool_clone": "read",
+    "tool_dodge_burn": "read",
+    "tool_erase": "read",
+    "tool_fill": "read",
+    "tool_gradient": "read",
+    "tool_heal": "read",
+    "tool_lasso": "read",
+    "tool_move": "read",
+    "tool_paint": "read",
+    "tool_patch": "read",
+    "tool_rect": "read",
+    "tool_smudge": "read",
+    "transform_float_layer": "edit",
+    "undo": "edit",
+}
+
 def command_id(key: str) -> str:
     return f"{CONTEXT}.{key}"
 
@@ -65,10 +111,10 @@ def texture_editor_commands(editor, bindings: dict, keys: dict) -> list[Command]
             continue
         shortcut = tuple(k for k in (keys.get(key, ""), keys.get(f"{key}_alt", "")) if k)
         commands.append(Command(command_id(key), labels.get(key, key), CONTEXT, callback, reason_for(key),
-                                keys=shortcut, keywords=(key,)))
+                                keys=shortcut, keywords=(key,), effect=TEXTURE_EFFECTS.get(key, "edit")))
     for key, (label, method) in MENU_ONLY.items():
         commands.append(Command(command_id(key), label, CONTEXT, getattr(editor, method), reason_for(key),
-                                keywords=(key,)))
+                                keywords=(key,), effect=TEXTURE_EFFECTS.get(key, "edit")))
     return commands
 
 

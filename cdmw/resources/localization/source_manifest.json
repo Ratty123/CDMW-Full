@@ -1252,6 +1252,16 @@
       ]
     },
     {
+      "key": " [AI connections on, Full access]",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": " [AI connections on]",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": " cm",
       "origins": [
         {
@@ -5832,6 +5842,21 @@
       "manual": true
     },
     {
+      "key": "AI connections",
+      "origins": [
+        {
+          "path": "cdmw/ui/settings_tab.py",
+          "line": 1182,
+          "sink": "_add_settings_page"
+        }
+      ]
+    },
+    {
+      "key": "AI connections could not start: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "AI settings...",
       "origins": [
         {
@@ -10032,6 +10057,16 @@
       ]
     },
     {
+      "key": "Allow AI connections",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/settings_section.py",
+          "line": 44,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Allow archive patching",
       "origins": [],
       "manual": true
@@ -10072,6 +10107,16 @@
       "manual": true
     },
     {
+      "key": "Allow once",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/approval_prompt.py",
+          "line": 60,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Allow partial linked set",
       "origins": [
         {
@@ -10102,6 +10147,16 @@
       ]
     },
     {
+      "key": "Allow this tool for this session",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/approval_prompt.py",
+          "line": 61,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Allow unique basename fallback",
       "origins": [
         {
@@ -10110,6 +10165,11 @@
           "sink": "QCheckBox"
         }
       ]
+    },
+    {
+      "key": "Allow without asking",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Allows adding and removing geometry. Choose a folder for a new OBJ package.",
@@ -10241,7 +10301,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 139,
+          "line": 146,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -10558,6 +10618,21 @@
           "path": "cdmw/domain/mesh/shader_controls.py",
           "line": 1,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "An AI app",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "An AI app asks to run a tool",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/approval_prompt.py",
+          "line": 42,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -13201,7 +13276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1466,
+          "line": 1475,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -13251,7 +13326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1466,
+          "line": 1475,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -13261,7 +13336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1466,
+          "line": 1475,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -13301,7 +13376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1466,
+          "line": 1475,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -16152,6 +16227,16 @@
       ]
     },
     {
+      "key": "Arguments:",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/approval_prompt.py",
+          "line": 72,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Arm and leg IK: reach, bending axis, and solver setup",
       "origins": [
         {
@@ -16275,6 +16360,11 @@
           "sink": "python-data:_TRIM_ABBREV"
         }
       ]
+    },
+    {
+      "key": "Ask first",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Ask this component to preserve character hair and beard. Helmet-owned item hair keeps its template rules.",
@@ -24227,6 +24317,11 @@
       ]
     },
     {
+      "key": "CDMW asks you every time a tool uses the network: no setting, session allowance or Full access answers it.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "CDMW audit package has no material-owned triangles",
       "origins": [
         {
@@ -24341,7 +24436,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 112,
+          "line": 119,
           "sink": "RuntimeError"
         }
       ]
@@ -27395,6 +27490,11 @@
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
+    },
+    {
+      "key": "Change an open session or document; undoable.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Change at least one Refit setting before applying.",
@@ -32631,7 +32731,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 120,
+          "line": 127,
           "sink": "error"
         }
       ]
@@ -32711,7 +32811,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 118,
+          "line": 125,
           "sink": "error"
         }
       ]
@@ -40631,7 +40731,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 110,
+          "line": 117,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -45442,6 +45542,11 @@
       ]
     },
     {
+      "key": "Delete a draft or saved work row in the CDMW folder.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Delete cancelled.",
       "origins": [
         {
@@ -45977,6 +46082,16 @@
       ]
     },
     {
+      "key": "Deny",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/approval_prompt.py",
+          "line": 62,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Dependencies: ",
       "origins": [
         {
@@ -46305,6 +46420,16 @@
           "sink": "tr"
         }
       ]
+    },
+    {
+      "key": "Destructive tool",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Destructive tools",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Detach / reattach a window",
@@ -51585,6 +51710,16 @@
           "sink": "QLabel"
         }
       ]
+    },
+    {
+      "key": "Edit tool",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Edit tools",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Edit translation records and write a PALOC table while preserving its supported container.",
@@ -65607,6 +65742,16 @@
       ]
     },
     {
+      "key": "Full access: run every tool without asking",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/settings_section.py",
+          "line": 75,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Full archive worker is missing: {value_0}",
       "origins": [
         {
@@ -65931,7 +66076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 574,
+          "line": 580,
           "sink": "_write_crash_report"
         }
       ]
@@ -79917,6 +80062,16 @@
       ]
     },
     {
+      "key": "It changes the open session or document. You can undo it.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "It deletes something you made in the CDMW folder. Undo cannot bring it back.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "It does not change whether the game hides the character head or hair. If a head or hair disappears, choose an original helmet with matching visibility rules, or edit the appearance/bonemask data separately.",
       "origins": [
         {
@@ -79965,6 +80120,11 @@
           "sink": "json-presentation:remaining"
         }
       ]
+    },
+    {
+      "key": "It writes files outside the session (a mod, an export or a draft folder). Nothing is written into the game.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Item",
@@ -81793,6 +81953,16 @@
           "path": "cdmw/ui/archive_browser/extraction.py",
           "line": 276,
           "sink": "addButton"
+        }
+      ]
+    },
+    {
+      "key": "Keep Full access after CDMW closes",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/settings_section.py",
+          "line": 77,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -84056,7 +84226,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 122,
+          "line": 129,
           "sink": "error"
         }
       ]
@@ -84147,6 +84317,16 @@
       ]
     },
     {
+      "key": "Let AI apps on this computer use CDMW's tools, and choose what they may do without asking.",
+      "origins": [
+        {
+          "path": "cdmw/ui/settings_tab.py",
+          "line": 1182,
+          "sink": "_add_settings_page"
+        }
+      ]
+    },
+    {
       "key": "Let go here",
       "origins": [
         {
@@ -84168,6 +84348,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 5036,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Lets AI apps on this computer, such as Claude and Codex CLI, search the archives and answer questions about files through CDMW's tools. Off by default; while it is off nothing listens.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/settings_section.py",
+          "line": 46,
+          "sink": "QLabel"
         }
       ]
     },
@@ -86726,7 +86916,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 146,
+          "line": 153,
           "sink": "update_pyinstaller_boot_splash"
         },
         {
@@ -87991,7 +88181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 564,
+          "line": 570,
           "sink": "_write_crash_report"
         }
       ]
@@ -100312,6 +100502,11 @@
       ]
     },
     {
+      "key": "Network tool: sends data off this computer",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Neutral",
       "origins": [
         {
@@ -101720,6 +101915,16 @@
       "key": "No archives scanned.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "No arguments.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/approval_prompt.py",
+          "line": 57,
+          "sink": "setPlainText"
+        }
+      ]
     },
     {
       "key": "No asset authoring helpers reported.",
@@ -106346,12 +106551,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/browse_commands.py",
-          "line": 77,
+          "line": 113,
           "sink": "python-return:reason"
         },
         {
           "path": "cdmw/ui/archive_browser/browse_commands.py",
-          "line": 78,
+          "line": 114,
           "sink": "python-return:reason"
         }
       ]
@@ -107582,6 +107787,21 @@
       ]
     },
     {
+      "key": "Off. Nothing listens and no AI app can reach CDMW.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/controller.py",
+          "line": 92,
+          "sink": "python-return:status_text"
+        },
+        {
+          "path": "cdmw/ui/ai_connections/settings_section.py",
+          "line": 169,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Off: dragging turns the character the way the pointer moves. On: dragging moves the camera with the pointer instead, so the character turns the other way.",
       "origins": [
         {
@@ -107822,12 +108042,62 @@
       ]
     },
     {
+      "key": "On, with Full access: an AI app is connected and its tools run without asking.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/controller.py",
+          "line": 95,
+          "sink": "python-return:status_text"
+        }
+      ]
+    },
+    {
+      "key": "On, with Full access: waiting for an AI app to connect. Its tools will run without asking.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/controller.py",
+          "line": 97,
+          "sink": "python-return:status_text"
+        }
+      ]
+    },
+    {
       "key": "On-demand connection map for the selected asset.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 385,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "On. AI connections start with the next start of CDMW.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/settings_section.py",
+          "line": 169,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "On. An AI app is connected.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/controller.py",
+          "line": 95,
+          "sink": "python-return:status_text"
+        }
+      ]
+    },
+    {
+      "key": "On. Waiting for an AI app to connect.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/controller.py",
+          "line": 97,
+          "sink": "python-return:status_text"
         }
       ]
     },
@@ -109516,7 +109786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_commands.py",
-          "line": 57,
+          "line": 103,
           "sink": "python-return:reason"
         }
       ]
@@ -112780,6 +113050,16 @@
           "sink": "setToolTip"
         }
       ]
+    },
+    {
+      "key": "Output tool",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Output tools",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Output, beside Finish Edit Mesh and at the top of Tools, shows the route Finish follows. Open it to switch between Exact and Free Edit, choose a Free Edit package folder, or open a package in CDMW.",
@@ -128091,7 +128371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 564,
+          "line": 570,
           "sink": "_write_crash_report"
         }
       ]
@@ -128977,6 +129257,16 @@
       ]
     },
     {
+      "key": "Read tools, which change nothing, always run without asking.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/settings_section.py",
+          "line": 70,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Read which layers this variant's shrink rule cuts.",
       "origins": [
         {
@@ -129335,6 +129625,11 @@
           "sink": "_log_progress"
         }
       ]
+    },
+    {
+      "key": "Reading a file outside what CDMW has loaded",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Reading action chart mod {value_0}...",
@@ -163251,7 +163546,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 136,
+          "line": 143,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -165371,7 +165666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_commands.py",
-          "line": 52,
+          "line": 98,
           "sink": "python-return:reason"
         }
       ]
@@ -178646,7 +178941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/shell_commands.py",
-          "line": 93,
+          "line": 110,
           "sink": "python-return:check"
         }
       ]
@@ -179453,6 +179748,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 614,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "To connect an AI app, add CDMW to it with one of these:",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/settings_section.py",
+          "line": 87,
+          "sink": "QLabel"
         }
       ]
     },
@@ -182221,7 +182526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/commands/registry.py",
-          "line": 135,
+          "line": 145,
           "sink": "python-return:reason"
         },
         {
@@ -184481,7 +184786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1466,
+          "line": 1475,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -184496,7 +184801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1466,
+          "line": 1475,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -184566,12 +184871,12 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1466,
+          "line": 1475,
           "sink": "python-return:_appearance_change_payload"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1466,
+          "line": 1475,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -189556,7 +189861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_commands.py",
-          "line": 55,
+          "line": 101,
           "sink": "python-return:reason"
         }
       ]
@@ -191278,6 +191583,16 @@
           "path": "cdmw/ui/archive_browser/appearance_composite.py",
           "line": 239,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Whatever you choose here, no tool writes into the game, and no tool can change these settings or the game folder.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/settings_section.py",
+          "line": 79,
+          "sink": "QLabel"
         }
       ]
     },
@@ -193045,6 +193360,11 @@
           "sink": "tr"
         }
       ]
+    },
+    {
+      "key": "Write a mod, an export or a draft folder outside the session.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Write a mod-ready loose package using this placement plan?\n\nTarget that changes: {value_0}\nPlacement source: {value_1}\n\n{value_2}\n\nNo original archives will be modified.",
@@ -200956,7 +201276,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 2271,
+          "line": 2280,
           "sink": "python-return:current_language_code"
         }
       ]
@@ -208438,6 +208758,16 @@
           "path": "tools/placement_studio/window_timing.py",
           "line": 140,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "null",
+      "origins": [
+        {
+          "path": "cdmw/services/virtual_loader_standalone.py",
+          "line": 149,
+          "sink": "python-return:status_text"
         }
       ]
     },
@@ -223238,6 +223568,16 @@
           "path": "cdmw/ui/shell/about_controller.py",
           "line": 153,
           "sink": "python-return:_build_about_intro_html"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} wants to run {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/approval_prompt.py",
+          "line": 44,
+          "sink": "QLabel"
         }
       ]
     },

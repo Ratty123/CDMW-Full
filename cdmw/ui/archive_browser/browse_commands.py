@@ -50,6 +50,42 @@ BROWSE_BUTTONS = {
 }
 
 
+
+#: What each Browse command does, for the MCP tool table: exports and extracts are
+#: output, opening an editor or importing is edit, the rest reads.
+BROWSE_EFFECTS: dict[str, str] = {
+    "appearance_composite": "read",
+    "asset_family": "read",
+    "asset_family_panel": "read",
+    "batch_export_fbx": "output",
+    "batch_export_glb": "output",
+    "batch_export_obj": "output",
+    "character_dependencies": "read",
+    "copy_filename": "output",
+    "export_family": "output",
+    "export_fbx": "output",
+    "export_file": "output",
+    "export_glb": "output",
+    "export_obj": "output",
+    "extract_file": "output",
+    "filter_to_family": "read",
+    "hkx_edit": "edit",
+    "hkx_export_havok_xml_view": "output",
+    "hkx_export_json": "output",
+    "hkx_export_xml": "output",
+    "hkx_import_json": "edit",
+    "hkx_import_xml": "edit",
+    "hkx_physics_editor": "edit",
+    "hkx_placement": "edit",
+    "import_mesh": "edit",
+    "open_in_mesh_editor": "edit",
+    "open_preview_window": "read",
+    "preview": "read",
+    "show_only_file": "read",
+    "sidecar_export_json": "output",
+    "sidecar_inspect": "read",
+}
+
 def command_id(name: str) -> str:
     return f"{CONTEXT}.{name}"
 
@@ -77,7 +113,8 @@ def _button_command(button, name: str) -> Command:
             return UNAVAILABLE
         return text[:1].upper() + text[1:] if text else UNAVAILABLE
 
-    return Command(command_id(name), label, CONTEXT, button.click, reason, keywords=(name,))
+    return Command(command_id(name), label, CONTEXT, button.click, reason, keywords=(name,),
+                   effect=BROWSE_EFFECTS.get(name, "read"))
 
 
 def install_browse_commands(browser) -> CommandRegistry | None:

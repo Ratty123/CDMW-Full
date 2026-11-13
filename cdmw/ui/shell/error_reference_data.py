@@ -3995,6 +3995,16 @@ ERROR_REFERENCE = [
   },
   {
     "group": "mesh_validation",
+    "code": "unknown_tool",
+    "messages": [],
+    "sources": [
+      "cdmw/mcp/server.py"
+    ],
+    "severity": [],
+    "recovery": "internal"
+  },
+  {
+    "group": "mesh_validation",
     "code": "unmapped-sidecar-targets",
     "messages": [
       "{len(unmapped)} selected sidecar file(s) could not be mapped back to archive targets. Examples: {_summarize_import_values(names)}."
@@ -76652,7 +76662,7 @@ MESSAGE_REFERENCE = [
     "message": "A command id names its area and action, such as shell.settings: {self.id}",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/commands/registry.py": 60
+      "cdmw/ui/commands/registry.py": 65
     }
   },
   {
@@ -76885,6 +76895,22 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/cditem_device_live_saves.py": 277
+    }
+  },
+  {
+    "area": "other",
+    "message": "AI connections are Windows-only.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/transport.py": 248
+    }
+  },
+  {
+    "area": "other",
+    "message": "AI connections could not start: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/ai_connections/controller.py": 68
     }
   },
   {
@@ -77209,6 +77235,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "An output path is needed.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/output_paths.py": 72
+    }
+  },
+  {
+    "area": "other",
     "message": "An owned hash has no declared icon, prefab or animation reference.",
     "recovery": "integrity",
     "sources": {
@@ -77253,6 +77287,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/recolor_variants_tab.py": 768
+    }
+  },
+  {
+    "area": "other",
+    "message": "Another app is connected to CDMW. Close it, or its MCP server, and try again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/transport.py": 275
     }
   },
   {
@@ -77779,6 +77821,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "CDMW does not write into the game folder. Choose a folder outside it; a mod manager installs the mod.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/domain/output_paths.py": 84
+    }
+  },
+  {
+    "area": "other",
+    "message": "CDMW does not write into {what} ({holder}). Choose a folder outside it; a mod manager installs the mod.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/domain/output_paths.py": 90
+    }
+  },
+  {
+    "area": "other",
     "message": "CSV log is enabled, but the CSV log path is empty.",
     "recovery": "empty",
     "sources": {
@@ -77823,6 +77881,14 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/services/cditem_device_execution.py": 380
+    }
+  },
+  {
+    "area": "other",
+    "message": "Cancelled.",
+    "recovery": "cancelled",
+    "sources": {
+      "cdmw/mcp/jobs.py": 104
     }
   },
   {
@@ -78959,7 +79025,15 @@ MESSAGE_REFERENCE = [
     "message": "Command %s failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/commands/registry.py": 171
+      "cdmw/ui/commands/registry.py": 181
+    }
+  },
+  {
+    "area": "other",
+    "message": "Command ids may not start with {reserved_prefix(self.id)}; typed AI tools use it: {self.id}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/commands/registry.py": 67
     }
   },
   {
@@ -78967,7 +79041,7 @@ MESSAGE_REFERENCE = [
     "message": "Command {command.id} is already registered",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/commands/registry.py": 87
+      "cdmw/ui/commands/registry.py": 97
     }
   },
   {
@@ -78975,7 +79049,7 @@ MESSAGE_REFERENCE = [
     "message": "Command {self.id} needs a label",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/commands/registry.py": 64
+      "cdmw/ui/commands/registry.py": 74
     }
   },
   {
@@ -83648,7 +83722,7 @@ MESSAGE_REFERENCE = [
     "message": "No command {command_id}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/commands/registry.py": 116
+      "cdmw/ui/commands/registry.py": 126
     }
   },
   {
@@ -85744,6 +85818,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Something already exists at {target}; outputs never replace a file or folder.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/domain/output_paths.py": 93
+    }
+  },
+  {
+    "area": "other",
     "message": "Source Mod not found: {source}",
     "recovery": "missing",
     "sources": {
@@ -86233,6 +86315,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The Windows user of this process could not be read.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/transport.py": 80
+    }
+  },
+  {
+    "area": "other",
     "message": "The active input desktop is unavailable.",
     "recovery": "missing",
     "sources": {
@@ -86313,6 +86403,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The archive worker failed.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/ai_connections/catalogue_calls.py": 69
+    }
+  },
+  {
+    "area": "other",
     "message": "The automation pipe is Windows-only.",
     "recovery": "internal",
     "sources": {
@@ -86332,7 +86430,7 @@ MESSAGE_REFERENCE = [
     "message": "The availability check of %s failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/commands/registry.py": 134
+      "cdmw/ui/commands/registry.py": 144
     }
   },
   {
@@ -86564,7 +86662,7 @@ MESSAGE_REFERENCE = [
     "message": "The command failed. The log has the details.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/commands/registry.py": 26
+      "cdmw/ui/commands/registry.py": 28
     }
   },
   {
@@ -86581,6 +86679,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/cditem_device_execution.py": 297
+    }
+  },
+  {
+    "area": "other",
+    "message": "The connection to CDMW closed.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/bridge.py": 219
     }
   },
   {
@@ -86853,6 +86959,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/structured_binary_editor.py": 409
+    }
+  },
+  {
+    "area": "other",
+    "message": "The folder for the output does not exist: {parent}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/domain/output_paths.py": 79
     }
   },
   {
@@ -87549,6 +87663,14 @@ MESSAGE_REFERENCE = [
     "recovery": "configuration",
     "sources": {
       "cdmw/services/cditem_device_live_saves.py": 313
+    }
+  },
+  {
+    "area": "other",
+    "message": "The output path must be absolute: {text}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/output_paths.py": 75
     }
   },
   {
@@ -88525,7 +88647,7 @@ MESSAGE_REFERENCE = [
     "message": "This tool cannot be moved to a window of its own.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/shell_commands.py": 57
+      "cdmw/ui/shell/shell_commands.py": 74
     }
   },
   {
@@ -88661,7 +88783,7 @@ MESSAGE_REFERENCE = [
     "message": "Unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/commands/registry.py": 25
+      "cdmw/ui/commands/registry.py": 27
     }
   },
   {
@@ -88741,7 +88863,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown command context {self.context} for {self.id}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/commands/registry.py": 62
+      "cdmw/ui/commands/registry.py": 72
     }
   },
   {
@@ -88774,6 +88896,14 @@ MESSAGE_REFERENCE = [
     "recovery": "timeout",
     "sources": {
       "cdmw/services/cditem_device_runner.py": 110
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown effect class {self.effect} for {self.id}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/commands/registry.py": 70
     }
   },
   {
@@ -88894,6 +89024,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/cditem_device_execution.py": 798
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown tool error code {code}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/errors.py": 35
     }
   },
   {
@@ -90493,6 +90631,20 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "failed",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/errors.py": 17,
+      "cdmw/mcp/jobs.py": 30,
+      "cdmw/mcp/read_tools.py": 385,
+      "cdmw/mcp/server.py": 367,
+      "cdmw/ui/ai_connections/catalogue_calls.py": 106,
+      "cdmw/ui/ai_connections/context.py": 151,
+      "cdmw/ui/ai_connections/executor.py": 42
+    }
+  },
+  {
+    "area": "other",
     "message": "flatten_scene_import_result_parts requires a SceneImportResult.",
     "recovery": "input",
     "sources": {
@@ -91503,6 +91655,16 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "invalid_arguments",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/paging.py": 69,
+      "cdmw/mcp/read_tools.py": 256,
+      "cdmw/mcp/schema.py": 54
+    }
+  },
+  {
+    "area": "other",
     "message": "item group {name} ({row_key}): expected the NUL and 08 80 tag after the name",
     "recovery": "input",
     "sources": {
@@ -91943,6 +92105,25 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "not_built",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/server.py": 315
+    }
+  },
+  {
+    "area": "other",
+    "message": "not_found",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/jobs.py": 124,
+      "cdmw/mcp/paging.py": 66,
+      "cdmw/mcp/read_tools.py": 270,
+      "cdmw/mcp/tools.py": 179
+    }
+  },
+  {
+    "area": "other",
     "message": "one new key per transition row",
     "recovery": "internal",
     "sources": {
@@ -92127,6 +92308,16 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "refused",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/approvals.py": 64,
+      "cdmw/mcp/jobs.py": 64,
+      "cdmw/mcp/server.py": 313
+    }
+  },
+  {
+    "area": "other",
     "message": "render definition exceeds 2 MiB",
     "recovery": "limits",
     "sources": {
@@ -92146,6 +92337,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/structured_binary_editor.py": 117,
       "cdmw/core/text_search.py": 173,
       "cdmw/domain/xml_text.py": 211,
+      "cdmw/mcp/read_tools.py": 334,
       "cdmw/modding/working_mod_recipe.py": 123,
       "cdmw/services/diagnostic_bundle_service.py": 107,
       "cdmw/services/diagnostics_service.py": 233,
@@ -93002,10 +93194,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "too_large",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/mcp/read_tools.py": 307
+    }
+  },
+  {
+    "area": "other",
     "message": "tool",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/problem_report_dialog.py": 703
+    }
+  },
+  {
+    "area": "other",
+    "message": "unavailable",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/errors.py": 13
     }
   },
   {
@@ -93133,7 +93341,7 @@ MESSAGE_REFERENCE = [
     "message": "{command.id} is not a {context} helper command",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/commands/registry.py": 103
+      "cdmw/ui/commands/registry.py": 113
     }
   },
   {
@@ -94354,6 +94562,86 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{tool.name} and {wires[tool.wire]} have the same client name",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/tools.py": 198
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: a command tool is named after its command id",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/tools.py": 150
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: a typed tool is named <family>.<action>",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/tools.py": 155
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: an output tool names the arguments it writes to",
+    "recovery": "write",
+    "sources": {
+      "cdmw/mcp/tools.py": 140
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: clients cannot call {tool.wire}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/tools.py": 136
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: command tools come from the registry",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/tools.py": 196
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: output path {name} is not an argument",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/tools.py": 143
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: runs_on must be {ON_WORKER}, {ON_UI} or {ON_CALL}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/tools.py": 138
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: unknown effect class {tool.effect}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/tools.py": 134
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: {tool.family} is not a typed tool family",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/tools.py": 153
+    }
+  },
+  {
+    "area": "other",
     "message": "{total} rows do not fit the header's {count_width}-byte count.",
     "recovery": "format",
     "sources": {
@@ -94534,6 +94822,22 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/effect_binary.py": 453
+    }
+  },
+  {
+    "area": "other",
+    "message": "{where} has an unknown type {name}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/schema.py": 40
+    }
+  },
+  {
+    "area": "other",
+    "message": "{where} uses unsupported keywords: {sorted(unknown)}",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/mcp/schema.py": 36
     }
   },
   {
@@ -102313,7 +102617,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. Windows did not accept the application job object.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 112
+      "cdmw/app/bootstrap.py": 119
     }
   },
   {
@@ -102321,7 +102625,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 112
+      "cdmw/app/bootstrap.py": 119
     }
   },
   {
@@ -102329,7 +102633,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose isolated renderer host without --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 120
+      "cdmw/app/bootstrap.py": 127
     }
   },
   {
@@ -102337,7 +102641,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose only one of --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 118
+      "cdmw/app/bootstrap.py": 125
     }
   },
   {
@@ -102505,7 +102809,7 @@ MESSAGE_REFERENCE = [
     "message": "Legacy isolated renderer hosts were removed; model previews use the resident Preview renderer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 122
+      "cdmw/app/bootstrap.py": 129
     }
   },
   {
@@ -103001,7 +103305,7 @@ MESSAGE_REFERENCE = [
     "message": "Use --cditem-device-tests without other application modes or options.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 65
+      "cdmw/app/bootstrap.py": 72
     }
   },
   {
@@ -108137,6 +108441,13 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/cancellation.py",
     "cdmw/domain/character_creator.py",
     "cdmw/domain/library/scene_selection.py",
+    "cdmw/mcp/bridge.py",
+    "cdmw/mcp/jobs.py",
+    "cdmw/mcp/link.py",
+    "cdmw/mcp/read_tools.py",
+    "cdmw/mcp/server.py",
+    "cdmw/mcp/tools.py",
+    "cdmw/mcp/transport.py",
     "cdmw/modding/pac_cloth_constraints.py",
     "cdmw/modding/pac_cloth_guide_builder.py",
     "cdmw/modding/pac_cloth_skinning.py",
@@ -108167,6 +108478,9 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/process_job_service.py",
     "cdmw/services/replace_assistant_service.py",
     "cdmw/services/text_search_service.py",
+    "cdmw/ui/ai_connections/catalogue_calls.py",
+    "cdmw/ui/ai_connections/context.py",
+    "cdmw/ui/ai_connections/executor.py",
     "cdmw/ui/character_finder/creator_look.py",
     "cdmw/ui/character_finder/dialog.py",
     "cdmw/ui/commands/registry.py",
@@ -109730,6 +110044,9 @@ SOURCE_COVERAGE = {
     "raise": 9
   },
   "cdmw/domain/new_item/wearer_kinds.py": {},
+  "cdmw/domain/output_paths.py": {
+    "raise": 6
+  },
   "cdmw/domain/pac_xml_editor.py": {
     "diagnostic_field": 3,
     "raise": 20
@@ -109807,6 +110124,60 @@ SOURCE_COVERAGE = {
   "cdmw/domain/xml_text.py": {
     "diagnostic_field": 6,
     "raise": 1
+  },
+  "cdmw/mcp/__init__.py": {},
+  "cdmw/mcp/app_tools.py": {},
+  "cdmw/mcp/approvals.py": {
+    "raise": 3
+  },
+  "cdmw/mcp/audit.py": {},
+  "cdmw/mcp/bridge.py": {
+    "failure": 3,
+    "report": 2
+  },
+  "cdmw/mcp/catalogue.py": {},
+  "cdmw/mcp/classification.py": {},
+  "cdmw/mcp/coverage.py": {},
+  "cdmw/mcp/errors.py": {
+    "diagnostic_text": 2,
+    "raise": 1
+  },
+  "cdmw/mcp/jobs.py": {
+    "diagnostic_field": 3,
+    "diagnostic_text": 1,
+    "failure": 3,
+    "raise": 2
+  },
+  "cdmw/mcp/link.py": {
+    "raise": 1
+  },
+  "cdmw/mcp/names.py": {},
+  "cdmw/mcp/paging.py": {
+    "raise": 2
+  },
+  "cdmw/mcp/read_tools.py": {
+    "diagnostic_field": 2,
+    "raise": 18,
+    "report": 1
+  },
+  "cdmw/mcp/schema.py": {
+    "raise": 13
+  },
+  "cdmw/mcp/server.py": {
+    "code": 1,
+    "diagnostic_field": 1,
+    "raise": 9,
+    "report": 7
+  },
+  "cdmw/mcp/setup_lines.py": {},
+  "cdmw/mcp/summary.py": {},
+  "cdmw/mcp/tools.py": {
+    "raise": 13
+  },
+  "cdmw/mcp/transport.py": {
+    "diagnostic_field": 1,
+    "raise": 8,
+    "report": 1
   },
   "cdmw/modding/__init__.py": {},
   "cdmw/modding/_pbd_numeric.py": {
@@ -111215,6 +111586,24 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/workspace_layout.py": {},
   "cdmw/ui/__init__.py": {},
+  "cdmw/ui/ai_connections/__init__.py": {},
+  "cdmw/ui/ai_connections/approval_prompt.py": {},
+  "cdmw/ui/ai_connections/catalogue_calls.py": {
+    "diagnostic_field": 3,
+    "raise": 4
+  },
+  "cdmw/ui/ai_connections/context.py": {
+    "raise": 7
+  },
+  "cdmw/ui/ai_connections/controller.py": {
+    "diagnostic_field": 1,
+    "diagnostic_text": 1
+  },
+  "cdmw/ui/ai_connections/executor.py": {
+    "diagnostic_field": 1,
+    "raise": 2
+  },
+  "cdmw/ui/ai_connections/settings_section.py": {},
   "cdmw/ui/app_icon.py": {},
   "cdmw/ui/archive_browser/__init__.py": {},
   "cdmw/ui/archive_browser/action_chart_actions.py": {
@@ -112181,7 +112570,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/commands/registry.py": {
     "diagnostic_text": 2,
     "log": 2,
-    "raise": 7
+    "raise": 9
   },
   "cdmw/ui/commands/shortcuts_page.py": {},
   "cdmw/ui/display_scaling.py": {},

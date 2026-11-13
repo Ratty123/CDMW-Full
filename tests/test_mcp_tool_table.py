@@ -9,6 +9,7 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 from cdmw.mcp import classification
+from cdmw.mcp import tools as mcp_tools
 from cdmw.mcp.names import (
     DEFAULT_EFFECT,
     EDIT,
@@ -85,7 +86,9 @@ def test_a_listing_carries_the_class_as_mcp_hints_and_pages_get_their_arguments(
     assert read["inputSchema"]["required"] == ["query"]
 
 
-def test_every_registry_command_becomes_an_argument_free_tool_of_its_own_class(app) -> None:
+def test_every_registry_command_becomes_an_argument_free_tool_of_its_own_class(app, monkeypatch) -> None:
+    # The mechanism; command tools are listed once the control branch switches them on.
+    monkeypatch.setattr(mcp_tools, "COMMAND_TOOLS_BUILT", True)
     registry = CommandRegistry()
     registry.register(Command("shell.look", "Look", "shell", lambda: None, effect=READ))
     registry.register(Command("shell.change", "Change", "shell", lambda: None))
@@ -131,7 +134,7 @@ class _Editor:
 
 def _known_commands() -> list[Command]:
     from cdmw.domain.texture_editor_shortcuts import default_texture_editor_shortcuts
-    from cdmw.ui.archive_browser.browse_commands import BROWSE_BUTTONS, CONTEXT, command_id
+    from cdmw.ui.archive_browser.browse_commands import BROWSE_BUTTONS, BROWSE_EFFECTS, CONTEXT, command_id
     from cdmw.ui.shell.shell_commands import shell_commands
     from cdmw.ui.texture_workflow.editor_commands import texture_editor_commands
 
@@ -139,7 +142,8 @@ def _known_commands() -> list[Command]:
     bindings = {key: (lambda: None) for key in keys}
     commands = [*shell_commands(_Shell()), *texture_editor_commands(_Editor(), bindings, keys)]
     # Browse reads its labels from its buttons at run time; the id names the action.
-    commands += [Command(command_id(name), name.replace("_", " ").capitalize(), CONTEXT, lambda: None)
+    commands += [Command(command_id(name), name.replace("_", " ").capitalize(), CONTEXT, lambda: None,
+                         effect=BROWSE_EFFECTS.get(name, "read"))  # as Browse makes them
                  for name in BROWSE_BUTTONS.values()]
     return commands
 

@@ -36,6 +36,23 @@ SHELL_ACTIONS = {
 }
 
 
+
+#: What each shell command does, for the MCP tool table (read, edit, output or
+#: destructive). Import Profile stays a user-only command whatever its class.
+SHELL_EFFECTS: dict[str, str] = {
+    "shell.about": "read",
+    "shell.attach_all_tools": "read",
+    "shell.attach_tool": "read",
+    "shell.copy_problem_summary": "output",
+    "shell.detach_tool": "read",
+    "shell.documentation": "read",
+    "shell.export_diagnostics": "output",
+    "shell.export_profile": "output",
+    "shell.open_crash_reports": "read",
+    "shell.report_problem": "read",
+    "shell.settings": "read",
+}
+
 def shell_commands(shell) -> list[Command]:
     def busy() -> str:
         return BUSY_REASON if getattr(shell, "_shell_busy", False) else ""
@@ -47,7 +64,7 @@ def shell_commands(shell) -> list[Command]:
         return check
 
     def make(command_id: str, label: str, run, reason=busy) -> Command:
-        return Command(command_id, label, SHELL, run, reason)
+        return Command(command_id, label, SHELL, run, reason, effect=SHELL_EFFECTS.get(command_id, "edit"))
 
     return [
         make("shell.export_profile", "Export Profile...", lambda: shell.export_profile()),
@@ -98,7 +115,8 @@ def tool_commands(shell) -> list[Command]:
 
     return [
         Command(tool_command_id(spec.key), spec.label, SHELL, opener(spec.key), reason_for(spec.key),
-                keywords=("open", "go to", "switch to", spec.key.replace("_", " ")))
+                keywords=("open", "go to", "switch to", spec.key.replace("_", " ")),
+                effect="read")  # switching tools changes no document
         for spec in COMPACT_TOOL_SPECS
     ]
 

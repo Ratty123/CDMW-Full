@@ -40,6 +40,9 @@ from cdmw.mcp.schema import check_schema_shape
 COMMAND_FAMILY = "command"
 #: Effect classes whose tools exist in this part of stage C.
 BUILT_EFFECTS = frozenset({READ})
+#: Registry commands as tools are P13 stage C part 2 (the control branch): until it
+#: switches this on, a classified command is listed in coverage, not as a tool.
+COMMAND_TOOLS_BUILT = False
 #: Where a tool's work runs. The UI thread only starts work or reads widget
 #: state; anything slow runs on a worker.
 ON_WORKER = "worker"
@@ -92,6 +95,8 @@ class Tool:
 
     @property
     def built(self) -> bool:
+        if self.family == COMMAND_FAMILY and not COMMAND_TOOLS_BUILT:
+            return False
         return self.handler is not None and self.effect in BUILT_EFFECTS
 
     def schema_for_clients(self) -> dict[str, object]:
