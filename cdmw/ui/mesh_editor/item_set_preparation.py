@@ -101,16 +101,31 @@ def prepare_item_set_for_editor(shell: object, entry: ArchiveEntry, *, edit_set:
         if pending is not None:
             pending.cancel()
         return False
+    preparation = _tab_preparation(shell)
+    preparation.edit_set = bool(edit_set)
+    # The parts this open took from the Scene panel travel with the preparation,
+    # like a set open's (review of fb9194c7c).
+    preparation.hidden_parts = getattr(shell, "_mesh_editor_hidden_parts_for_open", None)
+    shell._mesh_editor_hidden_parts_for_open = None
+    preparation.start(entry, tuple(bridge.item_set_members))
+    return True
+
+
+def _tab_preparation(shell: object) -> "ItemSetEditorPreparation":
+    """The tab's one set preparation, with one ready handler for every way in.
+
+    A member open and a set open both use it; whichever made it first used to
+    decide what every later open did with its unticked parts (review of fb9194c7c).
+    """
+
     tab = shell.mesh_editor_tab
     preparation = getattr(tab, "item_set_preparation", None)
     if preparation is None:
         preparation = ItemSetEditorPreparation(shell.archive.archive_catalogue_service, tab)
         tab.item_set_preparation = preparation
-        preparation.ready.connect(lambda contexts: open_prepared_item_piece(shell, contexts, edit_set=preparation.edit_set))
+        preparation.ready.connect(lambda contexts: _open_prepared_set(shell, preparation, contexts))
         preparation.failed.connect(lambda message: shell.set_status_message(message, error=True))
-    preparation.edit_set = bool(edit_set)
-    preparation.start(entry, tuple(bridge.item_set_members))
-    return True
+    return preparation
 
 
 def open_prepared_item_piece(shell: object, contexts: tuple, *, edit_set: bool = False) -> None:
@@ -222,13 +237,7 @@ def _open_members(shell: object, members: tuple, files: tuple) -> bool:
     hold_warmups_for_mesh_editor_open(shell.archive, shell)
     # This set's open takes the unticked parts, and no other open does (8.9).
     shell._mesh_editor_pending_hidden_parts = None
-    tab = shell.mesh_editor_tab
-    preparation = getattr(tab, "item_set_preparation", None)
-    if preparation is None:
-        preparation = ItemSetEditorPreparation(shell.archive.archive_catalogue_service, tab)
-        tab.item_set_preparation = preparation
-        preparation.ready.connect(lambda contexts: _open_prepared_set(shell, preparation, contexts))
-        preparation.failed.connect(lambda message: shell.set_status_message(message, error=True))
+    preparation = _tab_preparation(shell)
     preparation.edit_set = True
     # Held by the preparation, not the shell: the files are read in the background,
     # and another open started meanwhile takes the shell's parts for itself (review

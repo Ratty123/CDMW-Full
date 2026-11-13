@@ -507,8 +507,14 @@ class ArchiveBrowserActionMixin:
             if callable(getattr(set_bridge, "item_set_contains", None)) and set_bridge.item_set_contains(entry):
                 open_set_action = menu.addAction(menu_icons["mesh"], "Open set in Mesh Editor")
                 from cdmw.ui.mesh_editor.item_set_preparation import prepare_item_set_for_editor
-                open_set_action.triggered.connect(lambda _checked=False, target=entry:
-                    QTimer.singleShot(0, lambda: prepare_item_set_for_editor(self.shell, target, edit_set=True)))
+                def open_set(target=entry) -> None:
+                    # This open takes the Scene panel's unticked parts, and no later one (8.9).
+                    take = getattr(self.shell, "_take_pending_hidden_parts_for_open", None)
+                    if callable(take):
+                        take()
+                    prepare_item_set_for_editor(self.shell, target, edit_set=True)
+
+                open_set_action.triggered.connect(lambda _checked=False, run=open_set: QTimer.singleShot(0, run))
                 preview_file_action = menu.addAction("Preview only this file")
                 preview_file_action.triggered.connect(set_bridge.preview_only_current_file)
             continue_work_action = menu.addAction(menu_icons["mesh"], "Continue Earlier Work...")
