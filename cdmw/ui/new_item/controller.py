@@ -278,7 +278,8 @@ class NewItemStudioController(
             return []
         return search_template_options(self.snapshot.template_search_catalogue(), text, limit=limit)
 
-    def request_template_search(self, text: str, *, group_key=None, sort_column=-1, descending=False, debounce=True) -> None:
+    def request_template_search(self, text: str, *, group_key=None, sort_column=-1, descending=False, debounce=True,
+                                wearer_kinds=None) -> None:
         if self._shutdown_requested:
             return
         if self.snapshot is None:
@@ -288,7 +289,7 @@ class NewItemStudioController(
         self._template_search_lane.request(
             self.snapshot.template_search_catalogue(), text,
             group_key=group_key, sort_column=sort_column, descending=descending,
-            debounce_ms=150 if debounce else 0,
+            debounce_ms=150 if debounce else 0, wearer_kinds=wearer_kinds,
         )
 
     def _publish_template_search(self, catalogue, options) -> None:
