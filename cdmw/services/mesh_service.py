@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import hashlib
 import math
 import os
@@ -1448,13 +1449,23 @@ class _MeshServiceSessionLayerCore(
         journal_lock = project_lock(Path(session.mesh_layer_project_path).parent)
         journal_lock.acquire()
         try:
-            # A brand-new draft opened from the game's file has no generation for the
-            # state it opened with: write it with the first step, so that step can be
-            # undone after a restart too (section 8.7 D3, option a).
-            self._save_opened_state_generation_locked(session, layer_payload, stop_event)
             descriptor = self._save_mesh_layer_generation_locked(
                 session, layer_payload, morph_payload, promote, stop_event,
             )
+            # A brand-new draft opened from the game's file has no generation for the
+            # state it opened with: write it beside the first step, so that step can be
+            # undone after a restart too (section 8.7 D3, option a). Only after the
+            # draft's own state is safe, and only as a bonus: its failure costs that
+            # one Undo step, never the save (review of 5d3785f5f).
+            try:
+                self._save_opened_state_generation_locked(session, layer_payload, stop_event)
+            except RunCancelled:
+                raise
+            except Exception:
+                session.history_journal_base_generation = ""
+                logging.getLogger(__name__).warning(
+                    "The opened state of %s could not be journalled; its first step stays the oldest Undo.",
+                    session.session_id, exc_info=True)
             self._record_history_journal_locked(session, descriptor)
         finally:
             journal_lock.release()
