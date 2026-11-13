@@ -150,6 +150,6 @@ internal static class GameFolderPolicy
 }
 
 // An export destination refused because it is, holds or leads into the game, the
-// archive cache or a link. An InvalidDataException, so the worker reports it as
-// invalid_data with its message, which says what to choose instead.
+// archive cache or a link. The worker reports it as export_destination_protected
+// (WorkerServer.ClassifyFailure), with a message that says what to choose instead.
 public sealed class ExportDestinationRefusedException(string message) : InvalidDataException(message);
