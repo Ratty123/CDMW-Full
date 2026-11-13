@@ -2101,6 +2101,7 @@
     "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers.\n": "CDMW 無法啟用輔助處理程序的自動清理。已在啟動任何輔助處理程序之前停止啟動。\n",
     "CDMW could not read this archive. For an original game file, verify the installation through your game launcher. For a mod-generated copy, review Ignored folders in Settings.": "CDMW 無法讀取此封存檔。如果是遊戲原始檔案，請透過遊戲啟動器驗證安裝。如果是模組產生的副本，請檢查設定中的「已忽略的資料夾」。",
     "CDMW did not create a native Mesh Editor host window": "CDMW 未建立用於承載網格編輯器的原生視窗。",
+    "CDMW does not write into the game folder or the archive cache. The export destination is inside, contains or leads through a link into one of them; choose a folder outside both, with no junction or symbolic link on its path, and export again.": "CDMW 不會寫入遊戲資料夾或封存快取。匯出目標位於其中之一內、包含其中之一，或透過連結指向其中之一；請選擇兩者之外、路徑上沒有連接點或符號連結的資料夾，然後重新匯出。",
     "CDMW finds DMM (or asks once where it is) and writes the mod where DMM lists it.": "CDMW 會找到 DMM（或僅詢問一次其位置），並將模組寫入 DMM 會列出的位置。",
     "CDMW finds every sound bank that plays that sound and writes them with the new file into one mod, so the banks describe the new size and format. This can take a minute on the first scan of all banks.": "CDMW 會找到播放該聲音的所有音效庫，並將它們與新檔案一起寫入同一個模組，使音效庫描述新的大小和格式。首次掃描所有音效庫時可能需要一分鐘。",
     "CDMW fitting setup": "CDMW 貼合設定",

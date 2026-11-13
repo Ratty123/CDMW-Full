@@ -2101,6 +2101,7 @@
     "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers.\n": "CDMW は補助プロセスの自動クリーンアップを有効にできませんでした。補助プロセスを起動する前に、起動を中止しました。\n",
     "CDMW could not read this archive. For an original game file, verify the installation through your game launcher. For a mod-generated copy, review Ignored folders in Settings.": "CDMWはこのアーカイブを読み取れませんでした。ゲームの元のファイルの場合は、ゲームランチャーでインストール内容を検証してください。MODが生成したコピーの場合は、設定の「除外するフォルダー」を確認してください。",
     "CDMW did not create a native Mesh Editor host window": "CDMWはメッシュ エディタをホストするネイティブウィンドウを作成しませんでした。",
+    "CDMW does not write into the game folder or the archive cache. The export destination is inside, contains or leads through a link into one of them; choose a folder outside both, with no junction or symbolic link on its path, and export again.": "CDMW はゲームフォルダーやアーカイブキャッシュには書き込みません。エクスポート先がそのいずれかの中にあるか、それを含むか、リンク経由でその中を指しています。両方の外にあり、パスにジャンクションやシンボリックリンクのないフォルダーを選んで、もう一度エクスポートしてください。",
     "CDMW finds DMM (or asks once where it is) and writes the mod where DMM lists it.": "CDMWはDMMを検出し（または初回に場所を確認し）、DMMに表示される場所へModを書き込みます。",
     "CDMW finds every sound bank that plays that sound and writes them with the new file into one mod, so the banks describe the new size and format. This can take a minute on the first scan of all banks.": "CDMW はそのサウンドを再生するすべてのサウンドバンクを見つけ、新しいファイルと一緒に 1 つの Mod に書き出します。これにより、バンクが新しいサイズと形式を記述します。初回はすべてのバンクをスキャンするため、1 分ほどかかる場合があります。",
     "CDMW fitting setup": "CDMW フィット設定",

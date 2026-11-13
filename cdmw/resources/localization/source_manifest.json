@@ -6146,7 +6146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 563,
+          "line": 569,
           "sink": "_add_menu_section"
         }
       ]
@@ -7061,7 +7061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 545,
+          "line": 551,
           "sink": "addAction"
         },
         {
@@ -7606,7 +7606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 546,
+          "line": 552,
           "sink": "setToolTip"
         }
       ]
@@ -7891,7 +7891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 557,
+          "line": 563,
           "sink": "setToolTip"
         }
       ]
@@ -10861,7 +10861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 85,
+          "line": 86,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -14581,7 +14581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 626,
+          "line": 632,
           "sink": "append_archive_log"
         }
       ]
@@ -17041,7 +17041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 605,
+          "line": 611,
           "sink": "_add_menu_section"
         },
         {
@@ -17226,7 +17226,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 76,
+          "line": 75,
           "sink": "addRow"
         },
         {
@@ -19306,7 +19306,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -21761,7 +21761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 534,
+          "line": 540,
           "sink": "setToolTip"
         }
       ]
@@ -21806,7 +21806,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 66,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
@@ -22126,7 +22126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 697,
+          "line": 703,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -22151,12 +22151,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 44,
+          "line": 43,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 126,
+          "line": 129,
           "sink": "setText"
         },
         {
@@ -23956,7 +23956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 88,
+          "line": 89,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -23988,6 +23988,16 @@
           "path": "cdmw/ui/mesh_editor/rust_host.py",
           "line": 322,
           "sink": "python-return:attach_child_window"
+        }
+      ]
+    },
+    {
+      "key": "CDMW does not write into the game folder or the archive cache. The export destination is inside, contains or leads through a link into one of them; choose a folder outside both, with no junction or symbolic link on its path, and export again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/error_reference.py",
+          "line": 85,
+          "sink": "python-data:CODE_GUIDANCE"
         }
       ]
     },
@@ -27166,7 +27176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 596,
+          "line": 602,
           "sink": "setToolTip"
         }
       ]
@@ -27196,7 +27206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 520,
+          "line": 526,
           "sink": "setToolTip"
         }
       ]
@@ -27246,7 +27256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 566,
+          "line": 572,
           "sink": "setToolTip"
         }
       ]
@@ -27441,7 +27451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 105,
+          "line": 108,
           "sink": "tr"
         }
       ]
@@ -29481,7 +29491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 161,
+          "line": 164,
           "sink": "getExistingDirectory"
         }
       ]
@@ -32511,7 +32521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 47,
+          "line": 46,
           "sink": "QLabel"
         }
       ]
@@ -36361,7 +36371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 86,
+          "line": 87,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -38246,7 +38256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 514,
+          "line": 520,
           "sink": "addAction"
         },
         {
@@ -38816,7 +38826,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 654,
+          "line": 660,
           "sink": "set_status_message"
         }
       ]
@@ -39001,7 +39011,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 650,
+          "line": 656,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -40881,7 +40891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 117,
+          "line": 120,
           "sink": "QCheckBox"
         }
       ]
@@ -40971,7 +40981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 582,
+          "line": 588,
           "sink": "setToolTip"
         }
       ]
@@ -43201,7 +43211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 56,
+          "line": 55,
           "sink": "addItem"
         }
       ]
@@ -43221,7 +43231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 56,
+          "line": 55,
           "sink": "addItem"
         }
       ]
@@ -45101,7 +45111,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 77,
+          "line": 76,
           "sink": "addRow"
         },
         {
@@ -45756,7 +45766,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -49576,7 +49586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 565,
+          "line": 571,
           "sink": "addAction"
         }
       ]
@@ -49606,7 +49616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 595,
+          "line": 601,
           "sink": "addAction"
         }
       ]
@@ -49646,7 +49656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 519,
+          "line": 525,
           "sink": "addAction"
         },
         {
@@ -49881,7 +49891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 575,
+          "line": 581,
           "sink": "addAction"
         }
       ]
@@ -49946,7 +49956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 620,
+          "line": 626,
           "sink": "addAction"
         }
       ]
@@ -49976,7 +49986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 581,
+          "line": 587,
           "sink": "addAction"
         },
         {
@@ -53116,7 +53126,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -54891,7 +54901,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 660,
+          "line": 666,
           "sink": "_export_archive_reference_entry"
         }
       ]
@@ -54966,7 +54976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 703,
+          "line": 709,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -55136,7 +55146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 530,
+          "line": 536,
           "sink": "addAction"
         }
       ]
@@ -55271,7 +55281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 691,
+          "line": 697,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -55306,7 +55316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 657,
+          "line": 663,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -55706,7 +55716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 538,
+          "line": 544,
           "sink": "addAction"
         }
       ]
@@ -55881,7 +55891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 551,
+          "line": 557,
           "sink": "addAction"
         }
       ]
@@ -55971,7 +55981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 606,
+          "line": 612,
           "sink": "addAction"
         }
       ]
@@ -57771,7 +57781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 663,
+          "line": 669,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -58106,12 +58116,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 672,
+          "line": 678,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 678,
+          "line": 684,
           "sink": "_run_archive_extract"
         }
       ]
@@ -60031,7 +60041,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 685,
+          "line": 691,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -60476,7 +60486,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 570,
+          "line": 576,
           "sink": "addAction"
         }
       ]
@@ -60546,7 +60556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -60556,7 +60566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 176,
+          "line": 177,
           "sink": "python-return:build_error_reference_sections"
         }
       ]
@@ -64776,7 +64786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 594,
+          "line": 600,
           "sink": "_add_menu_section"
         }
       ]
@@ -71711,7 +71721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 176,
+          "line": 177,
           "sink": "python-return:build_error_reference_sections"
         }
       ]
@@ -72631,7 +72641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 540,
+          "line": 546,
           "sink": "addAction"
         }
       ]
@@ -72731,7 +72741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 556,
+          "line": 562,
           "sink": "addAction"
         }
       ]
@@ -72766,7 +72776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 611,
+          "line": 617,
           "sink": "addAction"
         },
         {
@@ -74671,7 +74681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 81,
+          "line": 80,
           "sink": "QCheckBox"
         }
       ]
@@ -76071,7 +76081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 528,
+          "line": 534,
           "sink": "addAction"
         }
       ]
@@ -80326,7 +80336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 92,
+          "line": 91,
           "sink": "QCheckBox"
         }
       ]
@@ -84246,7 +84256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
-          "line": 181,
+          "line": 196,
           "sink": "set_status_message"
         }
       ]
@@ -93646,7 +93656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 72,
+          "line": 71,
           "sink": "addRow"
         }
       ]
@@ -93681,7 +93691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 73,
+          "line": 72,
           "sink": "addRow"
         },
         {
@@ -103706,7 +103716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
-          "line": 215,
+          "line": 230,
           "sink": "set_status_message"
         }
       ]
@@ -105726,7 +105736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
-          "line": 218,
+          "line": 233,
           "sink": "set_status_message"
         }
       ]
@@ -106851,7 +106861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 533,
+          "line": 539,
           "sink": "addAction"
         },
         {
@@ -106886,7 +106896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 644,
+          "line": 650,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -107476,7 +107486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 118,
+          "line": 121,
           "sink": "QCheckBox"
         },
         {
@@ -110486,7 +110496,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 74,
+          "line": 73,
           "sink": "addRow"
         },
         {
@@ -114856,7 +114866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 518,
+          "line": 524,
           "sink": "_add_menu_section"
         },
         {
@@ -115231,7 +115241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 571,
+          "line": 577,
           "sink": "setToolTip"
         }
       ]
@@ -119776,7 +119786,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 638,
+          "line": 644,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -121786,7 +121796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 512,
+          "line": 518,
           "sink": "addAction"
         }
       ]
@@ -125806,7 +125816,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -129366,17 +129376,17 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 176,
+          "line": 177,
           "sink": "python-return:build_error_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 176,
+          "line": 177,
           "sink": "python-return:build_error_reference_sections"
         },
         {
@@ -132431,7 +132441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 616,
+          "line": 622,
           "sink": "addAction"
         },
         {
@@ -143751,7 +143761,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -146751,7 +146761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 670,
+          "line": 676,
           "sink": "set_status_message"
         }
       ]
@@ -148166,7 +148176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
-          "line": 171,
+          "line": 186,
           "sink": "set_status_message"
         }
       ]
@@ -153411,7 +153421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 515,
+          "line": 521,
           "sink": "setToolTip"
         }
       ]
@@ -159871,7 +159881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 94,
+          "line": 93,
           "sink": "setToolTip"
         }
       ]
@@ -160231,12 +160241,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 527,
+          "line": 533,
           "sink": "_add_menu_section"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 544,
+          "line": 550,
           "sink": "_add_menu_section"
         }
       ]
@@ -165411,7 +165421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 87,
+          "line": 88,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -167231,7 +167241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 90,
+          "line": 91,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -167931,7 +167941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 89,
+          "line": 90,
           "sink": "python-data:CODE_GUIDANCE"
         }
       ]
@@ -171526,7 +171536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 176,
+          "line": 177,
           "sink": "python-return:build_error_reference_sections"
         }
       ]
@@ -171581,7 +171591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
-          "line": 194,
+          "line": 209,
           "sink": "set_status_message"
         }
       ]
@@ -173076,7 +173086,7 @@
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -174186,7 +174196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/item_set_preparation.py",
-          "line": 159,
+          "line": 174,
           "sink": "set_status_message"
         }
       ]
@@ -183246,7 +183256,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 75,
+          "line": 74,
           "sink": "addRow"
         },
         {
@@ -186441,7 +186451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 82,
+          "line": 81,
           "sink": "tr"
         }
       ]
@@ -187151,12 +187161,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         },
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 176,
+          "line": 177,
           "sink": "python-return:build_error_reference_sections"
         }
       ]
@@ -188416,7 +188426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 552,
+          "line": 558,
           "sink": "setToolTip"
         }
       ]
@@ -191576,7 +191586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 605,
+          "line": 611,
           "sink": "_add_menu_section"
         },
         {
@@ -194796,22 +194806,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 527,
+          "line": 533,
           "sink": "_add_menu_section"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 544,
+          "line": 550,
           "sink": "_add_menu_section"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 563,
+          "line": 569,
           "sink": "_add_menu_section"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 594,
+          "line": 600,
           "sink": "_add_menu_section"
         }
       ]
@@ -195171,17 +195181,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 56,
+          "line": 55,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 56,
+          "line": 55,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 56,
+          "line": 55,
           "sink": "addItem"
         },
         {
@@ -195196,7 +195206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/mod_export_dialog.py",
-          "line": 56,
+          "line": 55,
           "sink": "addItem"
         }
       ]
@@ -196286,7 +196296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/error_reference.py",
-          "line": 126,
+          "line": 127,
           "sink": "python-return:build_error_reference_section"
         }
       ]
@@ -204586,7 +204596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 518,
+          "line": 524,
           "sink": "_add_menu_section"
         },
         {
