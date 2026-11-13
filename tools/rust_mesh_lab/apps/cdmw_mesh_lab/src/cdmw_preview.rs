@@ -577,6 +577,9 @@ pub struct PreviewApplication {
     /// Browse's own scene, kept after a Finish until the finished package replaces
     /// the edit's geometry; a failed load puts it back (section 8.9, C1).
     finished_kept: Option<cdmw_render_wgpu::KeptScene>,
+    /// The request that loads the finished package: only its failure puts
+    /// Browse's scene back. Any other package request drops the kept scene.
+    finished_kept_request: Option<u64>,
     /// Another viewport of the engine process (P4 V5): closing it closes its
     /// window, not the process.
     secondary: bool,
@@ -698,6 +701,7 @@ impl PreviewApplication {
             captures_idle_since: None,
             lent_scene_revision: None,
             finished_kept: None,
+            finished_kept_request: None,
             secondary: false,
             followed_revision: None,
             icon_capture: false,
@@ -1000,6 +1004,7 @@ impl PreviewApplication {
             // Browse's own scene waits beside it in case that load fails.
             self.finished_kept =
                 kept.filter(|_| self.lent_scene_revision == Some(self.scene_revision));
+            self.finished_kept_request = None;
             self.lent_scene_revision = None;
             self.renderer = Some(renderer);
             self.render_failures = 0;
@@ -1269,6 +1274,16 @@ impl PreviewApplication {
         self.newest_package_generation = generation;
         self.newest_package_request_id = request_id;
         self.package_waiting_for_interaction = false;
+        if self.finished_kept.is_some() {
+            if self.finished_kept_request.is_none() {
+                // The first load after a Finish is the finished package's.
+                self.finished_kept_request = Some(request_id);
+            } else {
+                // Browse moved on: a later failure is not the finished package's.
+                self.finished_kept = None;
+                self.finished_kept_request = None;
+            }
+        }
         self.loader.request(LoadRequest {
             request_id,
             generation,
@@ -1394,6 +1409,7 @@ impl PreviewApplication {
             match applied {
                 Ok(()) => {
                     self.finished_kept = None;
+                    self.finished_kept_request = None;
                     self.bridge.send(
                         json!({"event":"package_load_applied","request_id":request.request_id,
                         "generation":request.generation,"package_path":request.path,
@@ -1404,7 +1420,13 @@ impl PreviewApplication {
                 Err(error) => {
                     // After a Finish the view still draws the edit's geometry under the
                     // old file's name: put Browse's own scene back, and say so (C1).
-                    let restored = match self.finished_kept.take() {
+                    let kept = if self.finished_kept_request == Some(request.request_id) {
+                        self.finished_kept_request = None;
+                        self.finished_kept.take()
+                    } else {
+                        None
+                    };
+                    let restored = match kept {
                         Some(kept) => match self.restore_kept_scene(kept) {
                             Ok(()) => {
                                 self.apply_presentation(false);
@@ -5252,6 +5274,7 @@ mod view_mode_tests {
         let mut probe = FinishedLoadProbe {
             proxy: event_loop.create_proxy(),
             result: None,
+            another_request: false,
         };
         event_loop.run_app(&mut probe).expect("probe event loop");
         probe
@@ -5260,9 +5283,35 @@ mod view_mode_tests {
             .expect("Browse's scene came back");
     }
 
+    /// Review of 6678ddffd: only the finished package's own failure puts Browse's
+    /// scene back; another package request started meanwhile drops it.
+    #[test]
+    #[ignore = "explicit hidden-window D3D12: another package request drops the kept scene"]
+    fn another_package_request_drops_the_kept_scene() {
+        use winit::event_loop::EventLoop;
+        use winit::platform::windows::EventLoopBuilderExtWindows;
+
+        let event_loop = EventLoop::builder()
+            .with_any_thread(true)
+            .build()
+            .expect("event loop");
+        let mut probe = FinishedLoadProbe {
+            proxy: event_loop.create_proxy(),
+            result: None,
+            another_request: true,
+        };
+        event_loop.run_app(&mut probe).expect("probe event loop");
+        probe
+            .result
+            .expect("probe ran")
+            .expect("the kept scene was dropped");
+    }
+
     struct FinishedLoadProbe {
         proxy: EventLoopProxy<()>,
         result: Option<anyhow::Result<()>>,
+        /// Start another package request after the finished one (review of 6678ddffd).
+        another_request: bool,
     }
 
     impl ApplicationHandler for FinishedLoadProbe {
@@ -5312,6 +5361,25 @@ mod view_mode_tests {
                     root.path().join("missing").join("manifest.json"),
                     false,
                 );
+                anyhow::ensure!(
+                    preview.finished_kept_request == Some(7),
+                    "the finished request was not remembered"
+                );
+                if self.another_request {
+                    // Browse opens something else before that load ends: its failure
+                    // is not the finished package's, and Browse's old scene is let go.
+                    preview.start_package_load(
+                        8,
+                        generation + 1,
+                        root.path().join("other").join("manifest.json"),
+                        false,
+                    );
+                    anyhow::ensure!(
+                        preview.finished_kept.is_none() && preview.finished_kept_request.is_none(),
+                        "another package request kept Browse's old scene"
+                    );
+                    return Ok(());
+                }
                 let deadline = Instant::now() + std::time::Duration::from_secs(30);
                 while preview.finished_kept.is_some() && Instant::now() < deadline {
                     preview.poll_package_loads();
