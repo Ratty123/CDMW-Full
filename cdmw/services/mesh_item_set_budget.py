@@ -7,6 +7,16 @@ from pathlib import Path
 import tempfile
 
 
+class BoundedReferences(dict):
+    """The files the budget turned into reduced-detail references, by identity.
+
+    ``reason`` names the limit the whole set passed (P5: say which file and why
+    before the session opens): "geometry", "textures" or "size".
+    """
+
+    reason: str = ""
+
+
 def largest_fitting_subset(costs, limits, stop_event=None):
     """Maximum file count under geometry, texture and total byte limits.
 
@@ -131,8 +141,14 @@ def prepare_item_set_budget(sources, root, root_identity, stop_event):
             if min(limits) < 0:
                 raise ValueError("The selected source and its bounded references exceed the Mesh Editor session limits")
             admitted = {0, *(index + 1 for index in largest_fitting_subset(costs, limits, stop_event))}
-            references = {row["entry"].identity: references[row["entry"].identity]
-                          for index, row in enumerate(rows) if index not in admitted}
+            references = BoundedReferences({row["entry"].identity: references[row["entry"].identity]
+                                            for index, row in enumerate(rows) if index not in admitted})
+            if sum(row["geometry"] for row in rows) > payload_limit:
+                references.reason = "geometry"
+            elif sum(row["texture_bytes"] for row in rows) > payload_limit:
+                references.reason = "textures"
+            else:
+                references.reason = "size"
         bindings, files, presentations = {}, {}, []
         synthesis = a._RustMaterialSynthesisState()
         offset = 0

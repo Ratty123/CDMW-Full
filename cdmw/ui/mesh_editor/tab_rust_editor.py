@@ -1027,6 +1027,13 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_texture_unavailable_reason = str(
             getattr(session, "texture_unavailable_reason", "") or ""
         ).strip()
+        budget_notice = str(getattr(session, "item_set_budget_notice", "") or "")
+        if budget_notice:
+            # Said before the editor shows, and kept in the activity log (P5).
+            self._set_rust_status(budget_notice, error=False)
+            notice = getattr(self, "status_message_requested", None)
+            if notice is not None and hasattr(notice, "emit"):
+                notice.emit(budget_notice, False)
         self._launch_rust_editor_process(session)
         problem = str(getattr(session, "recovery_problem", "") or "")
         if problem:

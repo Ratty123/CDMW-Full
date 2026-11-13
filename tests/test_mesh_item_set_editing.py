@@ -572,3 +572,31 @@ def test_a_saved_history_step_restores_into_the_set(tmp_path):
         assert service._session(key).archive_refit_context.excluded_part_ids == {identity}
     finally:
         service.close_edit_session(key, force_without_saving=True)
+
+
+def test_the_tab_says_which_set_files_are_read_only_before_the_editor_shows() -> None:
+    """P5: when the budget turns a file into a read-only reference, the tab names the
+    file and why when the session is ready, before it launches the editor."""
+
+    from types import SimpleNamespace
+
+    import cdmw.ui.mesh_editor.tab  # noqa: F401  (loads the facade the mixins use)
+    from cdmw.ui.mesh_editor.tab_rust_editor import MeshEditorRustEditorMixin
+
+    events = []
+    service = object()
+    session = SimpleNamespace(authoritative_session_id="set", authoritative_service=service, process_generation=1,
+                              root="root", texture_unavailable_reason="", recovery_problem="", recovered_edits_at=0.0,
+                              item_set_budget_notice="Read-only in this session, with reduced detail: lower.pac.")
+    tab = SimpleNamespace(
+        standalone_rust_prepare_controller=object(), standalone_rust_prepare_service=service,
+        standalone_rust_prepare_session_id="set", standalone_rust_prepare_process_generation=1,
+        standalone_rust_prepare_active_request_id=4,
+        _rust_prepare_context_is_current=lambda **_kwargs: True,
+        _set_rust_status=lambda text, error=False: events.append(("status", text)),
+        status_message_requested=SimpleNamespace(emit=lambda text, error: events.append(("log", text))),
+        _launch_rust_editor_process=lambda current: events.append(("launch", current)),
+    )
+    MeshEditorRustEditorMixin._handle_rust_session_prepared(tab, 4, session)
+    assert [kind for kind, _ in events[:3]] == ["status", "log", "launch"]
+    assert "lower.pac" in events[0][1]

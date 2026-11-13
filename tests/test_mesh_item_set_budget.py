@@ -37,6 +37,15 @@ def test_measured_session_budget_keeps_primary_and_bounded_named_reference(tmp_p
         assert admitted == {0}
         assert set(references) == {context.assets[1].entry.identity}
         assert references[context.assets[1].entry.identity].submeshes[0].faces
+        # P5: which file and why, said before the session opens.
+        assert references.reason == "size"
+        from types import SimpleNamespace
+        from cdmw.services.mesh_item_set_editing import item_set_budget_notice
+        contexts = [SimpleNamespace(selected_entry=asset.entry) for asset in context.assets]
+        notice = item_set_budget_notice(contexts, references)
+        assert context.assets[1].entry.basename in notice and context.assets[0].entry.basename not in notice
+        assert "larger together than one Mesh Editor session holds" in notice
+        assert item_set_budget_notice(contexts, {}) == ""
         assert materials[0] == []
         assert not list(tmp_path.glob("item-set-materials-*"))
     finally:

@@ -362,6 +362,14 @@ _RUST_PRIMARY_MATERIAL_SOURCE_KINDS = frozenset(
 )
 
 
+
+def _item_set_budget_notice(contexts, bounded_references) -> str:
+    if not bounded_references:
+        return ""
+    from cdmw.services.mesh_item_set_editing import item_set_budget_notice
+
+    return item_set_budget_notice(tuple(contexts or ()), bounded_references)
+
 @dataclass(slots=True)
 class _RustMaterialSynthesisState:
     attempted: bool = False
@@ -7737,6 +7745,8 @@ class RustMeshAuthoringSession:
     viewport_hidden_parts: tuple[int, ...] = ()
     item_set_contexts: tuple = ()
     bounded_item_set_references: dict = field(default_factory=dict, repr=False)
+    #: Which set files open read-only and why, said before the editor shows (P5).
+    item_set_budget_notice: str = ""
     prepared_item_set_materials: object | None = field(default=None, repr=False)
     # The first morph query runs beside manifest writing; state_payload takes it.
     morph_state_prefetch: tuple[threading.Thread, dict[str, object]] | None = field(default=None, repr=False)
@@ -8002,6 +8012,7 @@ class RustMeshAuthoringSession:
                 viewport_hidden_parts=tuple(authoritative_session.viewport_hidden_parts),
                 item_set_contexts=tuple(item_set_contexts),
                 bounded_item_set_references=bounded_item_set_references,
+                item_set_budget_notice=_item_set_budget_notice(item_set_contexts, bounded_item_set_references),
                 prepared_item_set_materials=prepared_item_set_materials,
                 handoff_target=str(getattr(authoritative_session, "handoff_target", "") or ""),
             )

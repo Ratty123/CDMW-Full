@@ -44,6 +44,27 @@ def item_set_material_cache(session_root: Path) -> Path:
     return sessions / "item-set-native-cache"
 
 
+def item_set_budget_notice(contexts, bounded_references) -> str:
+    """Which files open read-only and why, or "" when every file is editable (P5).
+
+    The status line translates it.
+    """
+
+    if not bounded_references:
+        return ""
+    names = ", ".join(context.selected_entry.basename for context in contexts
+                      if context.selected_entry.identity in bounded_references)
+    reason = str(getattr(bounded_references, "reason", "") or "")
+    if reason == "geometry":
+        return (f"Read-only in this session, with reduced detail: {names}. The files you opened have more geometry "
+                "together than one Mesh Editor session holds; open fewer at once to edit these.")
+    if reason == "textures":
+        return (f"Read-only in this session, with reduced detail: {names}. The files you opened have more texture "
+                "data together than one Mesh Editor session holds; open fewer at once to edit these.")
+    return (f"Read-only in this session, with reduced detail: {names}. The files you opened are larger together "
+            "than one Mesh Editor session holds; open fewer at once to edit these.")
+
+
 def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop_event, progress, root, root_identity):
     """Called only by the existing cancellable session preparation worker."""
     import time as _time
@@ -102,6 +123,9 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
     progress("Preparing material textures for Mesh Editor...")
     budget_started = _time.perf_counter()
     admitted, bounded_references, materials = prepare_item_set_budget(sources, root, root_identity, stop_event)
+    notice = item_set_budget_notice(contexts, bounded_references)
+    if notice:
+        progress(notice)  # while the set prepares, before the editor shows
     timings["budget_ms"] = round((_time.perf_counter() - budget_started) * 1000.0, 1)
     references = [contexts[0]]
     for index, context in enumerate(contexts[1:], 1):
