@@ -1,9 +1,41 @@
 #include <iostream>
 #include <string>
+#include <vector>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 #include "mesh_core.hpp"
 
+static int run_main(int argc, char** argv);
+
+#ifdef _WIN32
+// The command line arrives wide and is handed on as UTF-8, the encoding every
+// path in a job already uses; the ANSI code page would lose characters outside it.
+int wmain(int argc, wchar_t** wide_argv) {
+    std::vector<std::string> utf8(static_cast<size_t>(argc));
+    std::vector<char*> argv(static_cast<size_t>(argc) + 1, nullptr);
+    for (int index = 0; index < argc; ++index) {
+        const int size = WideCharToMultiByte(CP_UTF8, 0, wide_argv[index], -1, nullptr, 0, nullptr, nullptr);
+        std::string& text = utf8[static_cast<size_t>(index)];
+        text.assign(size > 0 ? static_cast<size_t>(size - 1) : 0, '\0');
+        if (size > 1) {
+            WideCharToMultiByte(CP_UTF8, 0, wide_argv[index], -1, text.data(), size, nullptr, nullptr);
+        }
+        argv[static_cast<size_t>(index)] = text.data();
+    }
+    return run_main(argc, argv.data());
+}
+#else
 int main(int argc, char** argv) {
+    return run_main(argc, argv);
+}
+#endif
+
+static int run_main(int argc, char** argv) {
     if (argc >= 2 && std::string(argv[1]) == "--version") {
         std::cout << "cdmw-mesh-core 0.1\n";
         return 0;

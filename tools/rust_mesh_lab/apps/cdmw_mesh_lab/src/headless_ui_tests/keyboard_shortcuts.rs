@@ -450,12 +450,14 @@ fn a_numpad_palette_key_goes_to_cdmw() -> TestResult {
     let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "palette-numpad", 1, 0);
     let messages = bridge.capture_messages_for_test();
     ui.application.cdmw_bridge = Some(bridge);
-    // Ctrl+Shift+P stays in the set: other tests in this process use it.
+    // Ctrl+Shift+P stays in the set: other tests in this process use it. The set
+    // is global and tests run in parallel, so the numpad key is one no other test
+    // presses (Ctrl+Num7 turns the view in numpad_keys_turn_the_view...).
     crate::shortcuts::apply_app_command_chords(&serde_json::json!({
-        "app_commands": {"command_palette": ["Ctrl+Shift+P", "Ctrl+Num7"]}
+        "app_commands": {"command_palette": ["Ctrl+Shift+P", "Ctrl+Alt+Num9"]}
     }));
     ui.frame(Vec::new());
-    press_numpad(&mut ui, 7, CTRL);
+    press_numpad(&mut ui, 9, egui::Modifiers::CTRL | egui::Modifiers::ALT);
     let sent = std::iter::from_fn(|| {
         messages
             .recv_timeout(std::time::Duration::from_secs(5))
@@ -581,6 +583,33 @@ fn a_tool_group_cdmw_is_preparing_says_why_and_does_nothing() {
     let event = bridge.decode_host_event_for_test(ready);
     application.handle_cdmw_host_event(event);
     assert_eq!(application.rail_page_refusal(CdmwRailPage::Rotate), None);
+}
+
+#[test]
+fn a_failed_draft_autosave_is_shown_until_a_save_succeeds() {
+    // 2026-11-13: the draft saves after each change, off the change's own reply.
+    let root = tempfile::tempdir().expect("temporary directory");
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "saves", 1, 0);
+    let failed = json!({"event": "save_status", "protocol": cdmw_session::PROTOCOL, "session_id": "saves",
+        "process_generation": 1, "error": "OSError: [WinError 206] The filename or extension is too long"});
+    let event = bridge.decode_host_event_for_test(failed);
+    assert!(matches!(&event, HostEvent::SaveStatus(error) if error.contains("too long")));
+    let mut application = LabApplication::new(None, None);
+    application.handle_cdmw_host_event(event);
+    assert!(
+        application.cdmw_state["geometry_layers"]["autosave_error"]
+            .as_str()
+            .unwrap_or("")
+            .contains("too long")
+    );
+    let saved = json!({"event": "save_status", "protocol": cdmw_session::PROTOCOL, "session_id": "saves",
+        "process_generation": 1, "error": ""});
+    let event = bridge.decode_host_event_for_test(saved);
+    application.handle_cdmw_host_event(event);
+    assert_eq!(
+        application.cdmw_state["geometry_layers"]["autosave_error"],
+        json!("")
+    );
 }
 
 #[test]

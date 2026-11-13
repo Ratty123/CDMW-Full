@@ -476,6 +476,8 @@ pub enum HostEvent {
     MorphState(Value),
     /// Which tool groups are still preparing (P4 V4).
     ToolGroups(Value),
+    /// Why the draft's last autosave failed, or "" once a save succeeds again.
+    SaveStatus(String),
     /// The session for an editor that was showing Browse's model (P4 V4): its
     /// manifest and the `open_session` line itself.
     OpenSession(PathBuf, Value),
@@ -1850,6 +1852,13 @@ impl CdmwBridge {
                     Ok(HostEvent::HairPreset(preset.to_owned()))
                 }
                 "tool_groups" => Ok(HostEvent::ToolGroups(value.clone())),
+                "save_status" => Ok(HostEvent::SaveStatus(
+                    value
+                        .get("error")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_owned(),
+                )),
                 // The morph data of an editor that opened before it (P4 V3).
                 "morph_state" => value
                     .get("payload")

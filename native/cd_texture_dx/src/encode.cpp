@@ -220,7 +220,7 @@ static DirectX::WIC_FLAGS source_policy_wic_flags(const std::string& source_colo
 
 std::string encode_dds_job(const EncodeJob& job) {
     const auto started = std::chrono::steady_clock::now();
-    if (!job.overwrite && fs::exists(fs::path(job.output))) {
+    if (!job.overwrite && fs::exists(fs::path(win32_file_path(job.output)))) {
         return encode_error(job, "output exists and overwrite=false");
     }
 
@@ -401,7 +401,7 @@ std::string encode_dds_job(const EncodeJob& job) {
     }
 
     std::error_code size_error;
-    const auto output_byte_size = fs::file_size(fs::path(job.output), size_error);
+    const auto output_byte_size = fs::file_size(fs::path(win32_file_path(job.output)), size_error);
     std::ostringstream out;
     out << "{"
         << "\"status\":\"encoded\","

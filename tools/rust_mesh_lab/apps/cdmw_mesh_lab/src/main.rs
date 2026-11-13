@@ -3616,6 +3616,13 @@ impl LabApplication {
                     window.request_redraw();
                 }
             }
+            HostEvent::SaveStatus(error) => {
+                // The draft saves after each change, off the change's own reply.
+                self.cdmw_state["geometry_layers"]["autosave_error"] = json!(error);
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
             HostEvent::Ignored => {}
             HostEvent::OpenSession(_manifest, line) => self.open_session_over_view(line),
             HostEvent::MorphState(morph) => {

@@ -12,6 +12,8 @@
 #include <string>
 #include <utility>
 
+#include "long_path.hpp"
+
 #pragma comment(lib, "Dbghelp.lib")
 #pragma comment(lib, "Psapi.lib")
 
@@ -76,7 +78,8 @@ inline fs::path rotated_path(const fs::path& path, int index) {
     return path.parent_path() / (path.filename().wstring() + L"." + std::to_wstring(index));
 }
 
-inline void rotate_jsonl_if_needed(const fs::path& path) {
+inline void rotate_jsonl_if_needed(const fs::path& given) {
+    const fs::path path = cdmw::long_path(given);
     std::error_code ec;
     if (path.empty() || !fs::is_regular_file(path, ec) || fs::file_size(path, ec) < kMaxJsonlBytes) return;
     fs::remove(rotated_path(path, kRotationCount), ec);
@@ -100,8 +103,9 @@ inline void rotate_jsonl_if_needed(const fs::path& path) {
     }
 }
 
-inline void append_jsonl(const fs::path& path, const std::string& line) {
-    if (path.empty()) return;
+inline void append_jsonl(const fs::path& given, const std::string& line) {
+    if (given.empty()) return;
+    const fs::path path = cdmw::long_path(given);
     std::error_code ec;
     fs::create_directories(path.parent_path(), ec);
     rotate_jsonl_if_needed(path);
@@ -153,11 +157,11 @@ inline LONG WINAPI unhandled_exception_filter(EXCEPTION_POINTERS* info) {
     event("native_unhandled_exception", {{"code", std::to_string(code)}, {"address", address_text.str()}});
     if (!g_crash_dir.empty()) {
         std::error_code ec;
-        fs::create_directories(g_crash_dir, ec);
+        fs::create_directories(cdmw::long_path(g_crash_dir), ec);
         std::wstring base_name = L"native_crash_" + std::wstring(g_tool.begin(), g_tool.end()) + L"_" +
             std::to_wstring(GetCurrentProcessId()) + L"_" + std::to_wstring(epoch_ms());
         fs::path json_path = g_crash_dir / (base_name + L".json");
-        std::ofstream json(json_path, std::ios::binary);
+        std::ofstream json(cdmw::long_path(json_path), std::ios::binary);
         if (json) {
             json << "{\"timestamp_ms\":" << epoch_ms()
                  << ",\"pid\":" << static_cast<unsigned long>(GetCurrentProcessId())
@@ -168,7 +172,7 @@ inline LONG WINAPI unhandled_exception_filter(EXCEPTION_POINTERS* info) {
                  << "}\n";
         }
         fs::path dump_path = g_crash_dir / (base_name + L".dmp");
-        HANDLE file = CreateFileW(dump_path.wstring().c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        HANDLE file = CreateFileW(cdmw::long_path(dump_path).c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (file != INVALID_HANDLE_VALUE) {
             MINIDUMP_EXCEPTION_INFORMATION dump_info{};
             dump_info.ThreadId = GetCurrentThreadId();

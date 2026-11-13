@@ -204,6 +204,12 @@ def open_ticked_parts(shell: object) -> bool:
     return True
 
 
+def _open_prepared_set(shell: object, preparation: object, contexts: tuple) -> None:
+    shell._mesh_editor_hidden_parts_for_open = getattr(preparation, "hidden_parts", None)
+    preparation.hidden_parts = None
+    open_prepared_item_piece(shell, contexts, edit_set=preparation.edit_set)
+
+
 def _open_members(shell: object, members: tuple, files: tuple) -> bool:
     if not members:
         shell.set_status_message("None of the ticked files is part of this preview.", error=True)
@@ -216,13 +222,16 @@ def _open_members(shell: object, members: tuple, files: tuple) -> bool:
     hold_warmups_for_mesh_editor_open(shell.archive, shell)
     # This set's open takes the unticked parts, and no other open does (8.9).
     shell._mesh_editor_pending_hidden_parts = None
-    shell._mesh_editor_hidden_parts_for_open = dict(files)
     tab = shell.mesh_editor_tab
     preparation = getattr(tab, "item_set_preparation", None)
     if preparation is None:
         preparation = ItemSetEditorPreparation(shell.archive.archive_catalogue_service, tab)
         tab.item_set_preparation = preparation
-        preparation.ready.connect(lambda contexts: open_prepared_item_piece(shell, contexts, edit_set=preparation.edit_set))
+        preparation.ready.connect(lambda contexts: _open_prepared_set(shell, preparation, contexts))
         preparation.failed.connect(lambda message: shell.set_status_message(message, error=True))
     preparation.edit_set = True
+    # Held by the preparation, not the shell: the files are read in the background,
+    # and another open started meanwhile takes the shell's parts for itself (review
+    # of 0359504f6). They are handed over when this set's open starts.
+    preparation.hidden_parts = dict(files)
     return bool(preparation.start(ArchiveCatalogueService.compatibility_entry(members[0]), members))

@@ -9875,7 +9875,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS offset is outside the name block",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 320,
+      "native/cdmw_archive_accelerator/src/main.cpp": 321,
       "native/cdmw_preview_core/src/owners/archive_index.cpp": 172
     }
   },
@@ -9940,7 +9940,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS path is too deep",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 340,
+      "native/cdmw_archive_accelerator/src/main.cpp": 341,
       "native/cdmw_preview_core/src/owners/archive_index.cpp": 191
     }
   },
@@ -10414,7 +10414,7 @@ MESSAGE_REFERENCE = [
     "message": "DLC ItemInfo row directory is unsupported: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1884
+      "native/cdmw_archive_accelerator/src/main.cpp": 1888
     }
   },
   {
@@ -12555,7 +12555,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 length is out of bounds",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1046,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1050,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 352
     }
   },
@@ -12564,7 +12564,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 length is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1044,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1048,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 350
     }
   },
@@ -12573,7 +12573,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 literal run is outside its buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1056,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1060,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 363
     }
   },
@@ -12582,7 +12582,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 match offset is invalid",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1066,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1070,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 371
     }
   },
@@ -12591,7 +12591,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 match offset is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1061,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1065,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 368
     }
   },
@@ -12600,7 +12600,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 match run is outside its output buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1069,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1073,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 373
     }
   },
@@ -12617,7 +12617,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC container compressed size does not match its bytes",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1031
+      "native/cdmw_archive_accelerator/src/main.cpp": 1035
     }
   },
   {
@@ -12625,7 +12625,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC container decoded size does not match its payload",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1074
+      "native/cdmw_archive_accelerator/src/main.cpp": 1078
     }
   },
   {
@@ -12633,7 +12633,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC container header is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1028,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1032,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 336
     }
   },
@@ -12642,7 +12642,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC container uncompressed size is out of bounds",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1034
+      "native/cdmw_archive_accelerator/src/main.cpp": 1038
     }
   },
   {
@@ -12885,7 +12885,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMT has duplicate or invalid PAZ identifiers",
     "recovery": "conflict",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 581,
+      "native/cdmw_archive_accelerator/src/main.cpp": 582,
       "native/cdmw_archive_core/src/pamt_index.cpp": 85,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 165
     }
@@ -13119,7 +13119,7 @@ MESSAGE_REFERENCE = [
     "message": "PAZ entry payload is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2145
+      "native/cdmw_archive_accelerator/src/main.cpp": 2149
     }
   },
   {
@@ -14457,7 +14457,7 @@ MESSAGE_REFERENCE = [
     "message": "StringInfo row directory is invalid",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1428
+      "native/cdmw_archive_accelerator/src/main.cpp": 1432
     }
   },
   {
@@ -16758,7 +16758,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "native/cdmw_archive_core/src/archive_core_internal.hpp": 92,
-      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 99
+      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 101
     }
   },
   {
@@ -16809,7 +16809,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "native/cdmw_archive_core/src/pamt_index.cpp": 273,
-      "native/cdmw_full_archive_core/src/pamt_index.cpp": 609
+      "native/cdmw_full_archive_core/src/pamt_index.cpp": 611
     }
   },
   {
@@ -16825,7 +16825,7 @@ MESSAGE_REFERENCE = [
     "message": "archive index string size overflow",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_full_archive_core/src/pamt_index.cpp": 564
+      "native/cdmw_full_archive_core/src/pamt_index.cpp": 566
     }
   },
   {
@@ -16874,7 +16874,7 @@ MESSAGE_REFERENCE = [
     "message": "cannot write path checksum result",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2047
+      "native/cdmw_archive_accelerator/src/main.cpp": 2051
     }
   },
   {
@@ -17030,7 +17030,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "native/cdmw_archive_core/src/archive_core_internal.hpp": 124,
-      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 131
+      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 133
     }
   },
   {
@@ -17046,7 +17046,7 @@ MESSAGE_REFERENCE = [
     "message": "could not finish writing {detail}",
     "recovery": "write",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 994
+      "native/cdmw_archive_accelerator/src/main.cpp": 998
     }
   },
   {
@@ -17088,7 +17088,7 @@ MESSAGE_REFERENCE = [
     "message": "could not open PAZ {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2141
+      "native/cdmw_archive_accelerator/src/main.cpp": 2145
     }
   },
   {
@@ -17096,7 +17096,7 @@ MESSAGE_REFERENCE = [
     "message": "could not open entries TSV",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 662
+      "native/cdmw_archive_accelerator/src/main.cpp": 666
     }
   },
   {
@@ -17104,9 +17104,9 @@ MESSAGE_REFERENCE = [
     "message": "could not open {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 75,
+      "native/cdmw_archive_accelerator/src/main.cpp": 76,
       "native/cdmw_archive_core/src/archive_core_internal.hpp": 131,
-      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 138
+      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 140
     }
   },
   {
@@ -17178,7 +17178,7 @@ MESSAGE_REFERENCE = [
     "message": "could not write entry output",
     "recovery": "write",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2148
+      "native/cdmw_archive_accelerator/src/main.cpp": 2152
     }
   },
   {
@@ -17186,7 +17186,7 @@ MESSAGE_REFERENCE = [
     "message": "could not write {detail}",
     "recovery": "write",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 95
+      "native/cdmw_archive_accelerator/src/main.cpp": 96
     }
   },
   {
@@ -17235,7 +17235,7 @@ MESSAGE_REFERENCE = [
     "message": "directory block is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 543
+      "native/cdmw_archive_accelerator/src/main.cpp": 544
     }
   },
   {
@@ -17260,7 +17260,7 @@ MESSAGE_REFERENCE = [
     "message": "entry has zero original size",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2139
+      "native/cdmw_archive_accelerator/src/main.cpp": 2143
     }
   },
   {
@@ -17384,7 +17384,7 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "native/cdmw_archive_core/src/archive_core_internal.hpp": 127,
-      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 134
+      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 136
     }
   },
   {
@@ -17392,7 +17392,7 @@ MESSAGE_REFERENCE = [
     "message": "file table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 561
+      "native/cdmw_archive_accelerator/src/main.cpp": 562
     }
   },
   {
@@ -17400,7 +17400,7 @@ MESSAGE_REFERENCE = [
     "message": "file table length is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 557
+      "native/cdmw_archive_accelerator/src/main.cpp": 558
     }
   },
   {
@@ -17408,7 +17408,7 @@ MESSAGE_REFERENCE = [
     "message": "file-name block is truncated",
     "recovery": "locked",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 549
+      "native/cdmw_archive_accelerator/src/main.cpp": 550
     }
   },
   {
@@ -17416,7 +17416,7 @@ MESSAGE_REFERENCE = [
     "message": "file-name block length is truncated",
     "recovery": "locked",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 546
+      "native/cdmw_archive_accelerator/src/main.cpp": 547
     }
   },
   {
@@ -17424,7 +17424,7 @@ MESSAGE_REFERENCE = [
     "message": "folder table length is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 552
+      "native/cdmw_archive_accelerator/src/main.cpp": 553
     }
   },
   {
@@ -17503,7 +17503,7 @@ MESSAGE_REFERENCE = [
     "message": "incomplete path checksum output",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2067
+      "native/cdmw_archive_accelerator/src/main.cpp": 2071
     }
   },
   {
@@ -17512,7 +17512,7 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "native/cdmw_archive_core/src/pamt_index.cpp": 231,
-      "native/cdmw_full_archive_core/src/pamt_index.cpp": 531
+      "native/cdmw_full_archive_core/src/pamt_index.cpp": 533
     }
   },
   {
@@ -17545,7 +17545,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid path checksum job header",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2036
+      "native/cdmw_archive_accelerator/src/main.cpp": 2040
     }
   },
   {
@@ -17553,7 +17553,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid paz index",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 601
+      "native/cdmw_archive_accelerator/src/main.cpp": 602
     }
   },
   {
@@ -17577,7 +17577,7 @@ MESSAGE_REFERENCE = [
     "message": "is too small",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 534
+      "native/cdmw_archive_accelerator/src/main.cpp": 535
     }
   },
   {
@@ -17858,7 +17858,7 @@ MESSAGE_REFERENCE = [
     "message": "no .pamt files were found under {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 622
+      "native/cdmw_archive_accelerator/src/main.cpp": 626
     }
   },
   {
@@ -17875,7 +17875,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "native/cdmw_archive_core/src/pamt_index.cpp": 205,
-      "native/cdmw_full_archive_core/src/pamt_index.cpp": 508
+      "native/cdmw_full_archive_core/src/pamt_index.cpp": 510
     }
   },
   {
@@ -18003,7 +18003,7 @@ MESSAGE_REFERENCE = [
     "message": "path checksum count exceeds limit",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2045
+      "native/cdmw_archive_accelerator/src/main.cpp": 2049
     }
   },
   {
@@ -18011,7 +18011,7 @@ MESSAGE_REFERENCE = [
     "message": "path checksum input exceeds limit",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2060
+      "native/cdmw_archive_accelerator/src/main.cpp": 2064
     }
   },
   {
@@ -18028,7 +18028,7 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "native/cdmw_archive_core/src/archive_core_internal.hpp": 164,
-      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 193
+      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 195
     }
   },
   {
@@ -18060,7 +18060,7 @@ MESSAGE_REFERENCE = [
     "message": "paz table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 540
+      "native/cdmw_archive_accelerator/src/main.cpp": 541
     }
   },
   {
@@ -18216,7 +18216,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "native/cdmw_archive_core/src/archive_core_internal.hpp": 137,
-      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 144
+      "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 146
     }
   },
   {
@@ -18313,7 +18313,7 @@ MESSAGE_REFERENCE = [
     "message": "trailing path checksum input",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2065
+      "native/cdmw_archive_accelerator/src/main.cpp": 2069
     }
   },
   {
@@ -18329,7 +18329,7 @@ MESSAGE_REFERENCE = [
     "message": "truncated path checksum input",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2062
+      "native/cdmw_archive_accelerator/src/main.cpp": 2066
     }
   },
   {
@@ -18337,7 +18337,7 @@ MESSAGE_REFERENCE = [
     "message": "truncated path checksum job",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2040
+      "native/cdmw_archive_accelerator/src/main.cpp": 2044
     }
   },
   {
@@ -18345,7 +18345,7 @@ MESSAGE_REFERENCE = [
     "message": "u16 read outside buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 187
+      "native/cdmw_archive_accelerator/src/main.cpp": 188
     }
   },
   {
@@ -18353,7 +18353,7 @@ MESSAGE_REFERENCE = [
     "message": "u32 read outside buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 181
+      "native/cdmw_archive_accelerator/src/main.cpp": 182
     }
   },
   {
@@ -18402,7 +18402,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported PALOC container version",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1029
+      "native/cdmw_archive_accelerator/src/main.cpp": 1033
     }
   },
   {
@@ -29861,7 +29861,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid New Item image encoding",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 276
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 277
     }
   },
   {
@@ -29933,7 +29933,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid image buffer size",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 300
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 301
     }
   },
   {
@@ -30077,7 +30077,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid presentation state acknowledgement.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 283
+      "cdmw/ui/new_item/rust_ui_tab.py": 304
     }
   },
   {
@@ -30669,7 +30669,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing New Item input",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 554
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 559
     }
   },
   {
@@ -30863,7 +30863,7 @@ MESSAGE_REFERENCE = [
     "message": "New Item document changed beyond its limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 203
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 204
     }
   },
   {
@@ -30871,7 +30871,7 @@ MESSAGE_REFERENCE = [
     "message": "New Item document exceeds its limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 197
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 198
     }
   },
   {
@@ -30879,7 +30879,7 @@ MESSAGE_REFERENCE = [
     "message": "New Item image dimensions differ",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 294
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 295
     }
   },
   {
@@ -30911,7 +30911,7 @@ MESSAGE_REFERENCE = [
     "message": "New Item session message mismatch",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 461
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 466
     }
   },
   {
@@ -31868,7 +31868,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface could not prepare this page: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 359
+      "cdmw/ui/new_item/rust_ui_tab.py": 380
     }
   },
   {
@@ -31876,7 +31876,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface could not start: {self._process.errorString()}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 372
+      "cdmw/ui/new_item/rust_ui_tab.py": 393
     }
   },
   {
@@ -31884,7 +31884,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface did not finish starting within 30 seconds.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 102
+      "cdmw/ui/new_item/rust_ui_tab.py": 123
     }
   },
   {
@@ -31892,7 +31892,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface is not consuming state updates.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 366
+      "cdmw/ui/new_item/rust_ui_tab.py": 387
     }
   },
   {
@@ -31900,7 +31900,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface reported a different session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 265
+      "cdmw/ui/new_item/rust_ui_tab.py": 286
     }
   },
   {
@@ -31908,7 +31908,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface stopped acknowledging updates. Use Retry to reopen the same workspace.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 336
+      "cdmw/ui/new_item/rust_ui_tab.py": 357
     }
   },
   {
@@ -33400,7 +33400,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown New Item host message",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 503
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 508
     }
   },
   {
@@ -33408,7 +33408,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown Rust presentation message.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 314
+      "cdmw/ui/new_item/rust_ui_tab.py": 335
     }
   },
   {
@@ -33536,7 +33536,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported New Item image colour format",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 326
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 327
     }
   },
   {
@@ -34755,7 +34755,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/services/new_item_materials.py": 681,
       "cdmw/ui/new_item/model_import.py": 1282,
-      "cdmw/ui/new_item/rust_ui_tab.py": 251
+      "cdmw/ui/new_item/rust_ui_tab.py": 272
     }
   },
   {
@@ -39697,7 +39697,7 @@ MESSAGE_REFERENCE = [
     "message": "(+{} more)",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4725
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4732
     }
   },
   {
@@ -39705,7 +39705,7 @@ MESSAGE_REFERENCE = [
     "message": "--service",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 144
+      "cdmw/modding/mesh_native_client.py": 170
     }
   },
   {
@@ -39906,7 +39906,7 @@ MESSAGE_REFERENCE = [
     "message": "A preview capture is already in progress",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1531
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1553
     }
   },
   {
@@ -40307,7 +40307,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit saves the original game assets; undo the archive loads before switching output format",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2160
+      "cdmw/services/mesh_service.py": 2164
     }
   },
   {
@@ -40363,7 +40363,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive open failed: {message}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4312
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4319
     }
   },
   {
@@ -40523,8 +40523,8 @@ MESSAGE_REFERENCE = [
     "message": "Authoring is unavailable under the current output policy",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2557,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs": 383
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2558,
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs": 392
     }
   },
   {
@@ -40548,7 +40548,7 @@ MESSAGE_REFERENCE = [
     "message": "Auto Unwrap may split vertices and requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4379
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4380
     }
   },
   {
@@ -40556,7 +40556,7 @@ MESSAGE_REFERENCE = [
     "message": "Axis move failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5799
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5806
     }
   },
   {
@@ -40564,7 +40564,7 @@ MESSAGE_REFERENCE = [
     "message": "Axis rotate failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5839
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5846
     }
   },
   {
@@ -40572,7 +40572,7 @@ MESSAGE_REFERENCE = [
     "message": "Axis scale failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5874
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5881
     }
   },
   {
@@ -40629,7 +40629,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1223,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6178
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6179
     }
   },
   {
@@ -40646,7 +40646,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1205,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6165
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6166
     }
   },
   {
@@ -40991,7 +40991,7 @@ MESSAGE_REFERENCE = [
     "message": "Body and garment Parts must be different",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4810
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4811
     }
   },
   {
@@ -41456,7 +41456,7 @@ MESSAGE_REFERENCE = [
     "message": "Bones requires an exact or unambiguous proven-family PAB companion",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5066
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5073
     }
   },
   {
@@ -41472,7 +41472,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse's viewport cannot edit now",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 147
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 150
     }
   },
   {
@@ -41528,7 +41528,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW cancelled the Rust session",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1902
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1911
     }
   },
   {
@@ -41552,7 +41552,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW closed the control input{detail}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3814
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3823
     }
   },
   {
@@ -41560,7 +41560,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW control input failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3853
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3862
     }
   },
   {
@@ -41568,7 +41568,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW control line exceeded 256 KiB{detail}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3821
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3830
     }
   },
   {
@@ -41584,7 +41584,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW control queue overflowed{detail}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3836
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3845
     }
   },
   {
@@ -41616,7 +41616,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no embedded Mesh Editor host.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 626
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 629
     }
   },
   {
@@ -41624,7 +41624,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no matching Rust shadow session",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 442
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 445
     }
   },
   {
@@ -41664,7 +41664,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW material presentation LOD could not be restored",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4149
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4156
     }
   },
   {
@@ -41704,7 +41704,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW mesh upload failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7819
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7826
     }
   },
   {
@@ -41712,7 +41712,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW protocol failure: {message}",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3688
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3695
     }
   },
   {
@@ -41720,7 +41720,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW reported a protocol error",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1910
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1919
     }
   },
   {
@@ -41728,7 +41728,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW sent invalid JSON: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3845
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3854
     }
   },
   {
@@ -42635,7 +42635,7 @@ MESSAGE_REFERENCE = [
     "message": "Cleanup that changes topology requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4177
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4178
     }
   },
   {
@@ -43187,7 +43187,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not capture edit; rolled back: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7318
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7325
     }
   },
   {
@@ -43275,7 +43275,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save editor layout: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2117
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2118
     }
   },
   {
@@ -43283,7 +43283,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save keyboard shortcuts: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs": 296
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs": 305
     }
   },
   {
@@ -43315,7 +43315,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not start tool: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6949
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6956
     }
   },
   {
@@ -43331,7 +43331,7 @@ MESSAGE_REFERENCE = [
     "message": "Create Part requires selected faces and Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3734
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3735
     }
   },
   {
@@ -43419,7 +43419,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 743
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 747
     }
   },
   {
@@ -43667,7 +43667,7 @@ MESSAGE_REFERENCE = [
     "message": "Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5869
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5870
     }
   },
   {
@@ -43795,7 +43795,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate and Delete require Free Edit output",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5706
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5707
     }
   },
   {
@@ -44099,7 +44099,7 @@ MESSAGE_REFERENCE = [
     "message": "Emission animation requires four numbers",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3788
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3810
     }
   },
   {
@@ -44445,7 +44445,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact output keeps the source file's Parts. Delete the added geometry layers or undo the Part changes before choosing Exact.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2178
+      "cdmw/services/mesh_service.py": 2182
     }
   },
   {
@@ -44582,7 +44582,7 @@ MESSAGE_REFERENCE = [
     "message": "Extrude requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4087
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4088
     }
   },
   {
@@ -45487,7 +45487,7 @@ MESSAGE_REFERENCE = [
     "message": "Focus loss cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8480
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8487
     }
   },
   {
@@ -45552,7 +45552,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output folder must be new",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2206
+      "cdmw/services/mesh_service.py": 2210
     }
   },
   {
@@ -45568,7 +45568,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output is not active",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2061
+      "cdmw/services/mesh_service.py": 2065
     }
   },
   {
@@ -45577,7 +45577,7 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/mesh_free_edit_output.py": 51,
-      "cdmw/services/mesh_service.py": 2202
+      "cdmw/services/mesh_service.py": 2206
     }
   },
   {
@@ -45601,7 +45601,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output parent folder does not exist",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2204
+      "cdmw/services/mesh_service.py": 2208
     }
   },
   {
@@ -45625,7 +45625,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit requires a new output folder",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2193
+      "cdmw/services/mesh_service.py": 2197
     }
   },
   {
@@ -45937,7 +45937,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layer visibility cannot change in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6052
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6053
     }
   },
   {
@@ -45945,7 +45945,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layers cannot be activated in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6034
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6035
     }
   },
   {
@@ -45953,7 +45953,7 @@ MESSAGE_REFERENCE = [
     "message": "Gesture cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6678
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6685
     }
   },
   {
@@ -45961,7 +45961,7 @@ MESSAGE_REFERENCE = [
     "message": "Gesture rollback failed: {error}",
     "recovery": "recovery",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7384
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7391
     }
   },
   {
@@ -46001,7 +46001,7 @@ MESSAGE_REFERENCE = [
     "message": "Glow surface color requires three numbers",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3764
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3786
     }
   },
   {
@@ -46693,7 +46693,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement or change part inclusion before choosing replacement output.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2164
+      "cdmw/services/mesh_service.py": 2168
     }
   },
   {
@@ -46766,7 +46766,7 @@ MESSAGE_REFERENCE = [
     "message": "Influence selection failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5610
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5617
     }
   },
   {
@@ -46870,7 +46870,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid RGB glow reveal",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2627
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2636
     }
   },
   {
@@ -48061,7 +48061,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD preparation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6052
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6059
     }
   },
   {
@@ -48085,7 +48085,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD switch cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6057
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6064
     }
   },
   {
@@ -48109,7 +48109,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD {target_index} is not available for editing",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6029
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6036
     }
   },
   {
@@ -48125,7 +48125,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD{lod_index} material {material_index} has duplicate {:?} texture ownership",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3133
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3142
     }
   },
   {
@@ -48133,7 +48133,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD{lod_index} texture ownership contains invalid material {material_index}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3128
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3137
     }
   },
   {
@@ -48141,7 +48141,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD{} material presentation contains invalid material {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2548
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2557
     }
   },
   {
@@ -48149,7 +48149,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD{} material {} has duplicate presentation rows",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2554
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2563
     }
   },
   {
@@ -48413,7 +48413,7 @@ MESSAGE_REFERENCE = [
     "message": "Material Colour is deliberately unavailable in the Mesh Editor product contract",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3307
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3308
     }
   },
   {
@@ -48587,18 +48587,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Mesh .NET editor layer command failed: {exc}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/ui/mesh_editor/tab_dotnet_named_commands.py": 267
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Mesh .NET editor part action failed: {command}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_dotnet_named_commands.py": 206
+      "cdmw/ui/mesh_editor/tab_dotnet_named_commands.py": 207
     }
   },
   {
@@ -48718,7 +48710,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 905
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 909
     }
   },
   {
@@ -48782,7 +48774,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 657
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 660
     }
   },
   {
@@ -48790,7 +48782,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 859,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 863,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 837
     }
   },
@@ -48841,7 +48833,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor command queue is full",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 569
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 572
     }
   },
   {
@@ -48866,7 +48858,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not create its embedded native host window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 128
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 131
     }
   },
   {
@@ -48882,7 +48874,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1350
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1400
     }
   },
   {
@@ -48898,7 +48890,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1154
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1204
     }
   },
   {
@@ -48906,7 +48898,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1150
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1200
     }
   },
   {
@@ -48914,7 +48906,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor does not support the required embedded child-window contract.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 593
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 596
     }
   },
   {
@@ -48922,7 +48914,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor embedding failed: {reason or 'child window was rejected'}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 630
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 633
     }
   },
   {
@@ -48946,7 +48938,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor handshake failed: {exc}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 459
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 462
     }
   },
   {
@@ -48954,7 +48946,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no active edit session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 852
+      "cdmw/ui/mesh_editor/controller.py": 846
     }
   },
   {
@@ -48979,7 +48971,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has unsaved geometry layers; retry saving or explicitly close without saving",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2110
+      "cdmw/services/mesh_service.py": 2114
     }
   },
   {
@@ -48987,7 +48979,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor is not ready for authoring commands",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 547
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 550
     }
   },
   {
@@ -49053,7 +49045,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1180
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1230
     }
   },
   {
@@ -49061,7 +49053,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor protocol buffer exceeded its limit.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 348
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 351
     }
   },
   {
@@ -49069,7 +49061,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor protocol message was not an object.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 341
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 344
     }
   },
   {
@@ -49077,7 +49069,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor provenance does not match the packaged renderer/backend contract.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 581
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 584
     }
   },
   {
@@ -49093,7 +49085,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 909
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 913
     }
   },
   {
@@ -49110,7 +49102,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor repeated its hello handshake.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 576
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 579
     }
   },
   {
@@ -49118,7 +49110,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 984
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 988
     }
   },
   {
@@ -49126,7 +49118,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request was replayed or out of order",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 554
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 557
     }
   },
   {
@@ -49134,7 +49126,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor sent an oversized protocol message.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 330
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 333
     }
   },
   {
@@ -49142,7 +49134,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor sent unsupported event '{event or '(empty)'}'.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 544
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 547
     }
   },
   {
@@ -49398,7 +49390,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor unavailable before launch: {incompatibility_reason}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 100
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 103
     }
   },
   {
@@ -49414,7 +49406,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor wrote non-JSON data to its control stream.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 338
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 341
     }
   },
   {
@@ -49967,7 +49959,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4286
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4293
     }
   },
   {
@@ -50849,7 +50841,7 @@ MESSAGE_REFERENCE = [
     "message": "Mirrored geometry requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4199
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4200
     }
   },
   {
@@ -51913,7 +51905,7 @@ MESSAGE_REFERENCE = [
     "message": "Native helper failed: %s",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 242
+      "cdmw/modding/mesh_native_dispatch.py": 252
     }
   },
   {
@@ -52081,7 +52073,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral export failed: {message}",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4342
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4349
     }
   },
   {
@@ -54468,7 +54460,7 @@ MESSAGE_REFERENCE = [
     "message": "Part selection failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5938
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 5945
     }
   },
   {
@@ -54767,7 +54759,7 @@ MESSAGE_REFERENCE = [
     "message": "Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5074
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5075
     }
   },
   {
@@ -54823,7 +54815,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core batch geometry is invalid or duplicated",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2799
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2808
     }
   },
   {
@@ -54887,7 +54879,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core element size exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2706
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2715
     }
   },
   {
@@ -54895,7 +54887,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core geometry format is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2774
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2783
     }
   },
   {
@@ -54903,7 +54895,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core geometry is allowed only in read-only preview packages",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1959
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1968
     }
   },
   {
@@ -54919,7 +54911,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core geometry metadata is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2765
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2774
     }
   },
   {
@@ -54927,7 +54919,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core identity payload is duplicated",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2813
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2822
     }
   },
   {
@@ -54935,7 +54927,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core local vertex index exceeds u32",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2854
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2863
     }
   },
   {
@@ -54991,7 +54983,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS reference identity conflicts",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2318
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2327
     }
   },
   {
@@ -54999,7 +54991,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS reference is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2307
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2316
     }
   },
   {
@@ -55015,7 +55007,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material conservation report is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1992
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2001
     }
   },
   {
@@ -55023,7 +55015,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material contract must be graph v4 or v5 and semantics v10",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1983
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1992
     }
   },
   {
@@ -55063,7 +55055,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph failed conservation",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2006
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2015
     }
   },
   {
@@ -55071,7 +55063,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph index is outside the geometry",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2152
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2161
     }
   },
   {
@@ -55079,7 +55071,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph must contain exactly one neutral/base layer",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2267
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2276
     }
   },
   {
@@ -55087,7 +55079,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph ownership or base contract is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2170
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2179
     }
   },
   {
@@ -55103,7 +55095,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material layer lost its wrapper owner",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2253
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2262
     }
   },
   {
@@ -55119,7 +55111,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material layer semantics are invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2220
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2229
     }
   },
   {
@@ -55127,7 +55119,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material resource byte count overflowed",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2277
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2286
     }
   },
   {
@@ -55135,7 +55127,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material resource conservation does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2286
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2295
     }
   },
   {
@@ -55143,7 +55135,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material transport graph contract does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2133
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2142
     }
   },
   {
@@ -55151,7 +55143,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material transport graph is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2014
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2023
     }
   },
   {
@@ -55183,7 +55175,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core payload size overflowed",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2710
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2719
     }
   },
   {
@@ -55207,7 +55199,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core source vertex index exceeds i32",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2866
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2875
     }
   },
   {
@@ -55303,7 +55295,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core vertex count exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2786
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2795
     }
   },
   {
@@ -55311,7 +55303,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core vertex count overflowed",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2790
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2799
     }
   },
   {
@@ -55319,7 +55311,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core vertex stride exceeds u32",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2886
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2895
     }
   },
   {
@@ -55335,7 +55327,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core visible material layer lost its source parameter",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2261
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2270
     }
   },
   {
@@ -55343,7 +55335,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2744
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2753
     }
   },
   {
@@ -55351,7 +55343,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} layer resource identity is invalid",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2235
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2244
     }
   },
   {
@@ -55359,7 +55351,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} layer resource was not declared",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2240
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2249
     }
   },
   {
@@ -55367,7 +55359,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} path escaped the session root",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2732
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2741
     }
   },
   {
@@ -55375,7 +55367,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} path must be one owned filename",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2726
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2735
     }
   },
   {
@@ -55383,7 +55375,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} reference does not match its binary contract",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2719
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2728
     }
   },
   {
@@ -55391,7 +55383,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} size does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2738
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2747
     }
   },
   {
@@ -55447,7 +55439,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview document could not create its requested LOD",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 616
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 619
     }
   },
   {
@@ -55536,7 +55528,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview load cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1929,
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1938,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_effect_mesh.rs": 15,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_effect_spawn.rs": 236,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_loader.rs": 75
@@ -55659,7 +55651,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview renderer is unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1561
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1583
     }
   },
   {
@@ -55715,7 +55707,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview window is unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1059
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1064
     }
   },
   {
@@ -55996,7 +55988,7 @@ MESSAGE_REFERENCE = [
     "message": "RGB glow reveal requires four numbers",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3773
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3795
     }
   },
   {
@@ -56108,7 +56100,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference materials failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7780
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7787
     }
   },
   {
@@ -56509,7 +56501,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement is unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5400
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5401
     }
   },
   {
@@ -57205,7 +57197,7 @@ MESSAGE_REFERENCE = [
     "message": "Resize cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8467
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8474
     }
   },
   {
@@ -57501,7 +57493,7 @@ MESSAGE_REFERENCE = [
     "message": "Rig inspection cancelled the previous gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2594
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2595
     }
   },
   {
@@ -57557,7 +57549,7 @@ MESSAGE_REFERENCE = [
     "message": "Rust renderer reported an error",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 541
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 544
     }
   },
   {
@@ -58022,7 +58014,7 @@ MESSAGE_REFERENCE = [
     "message": "Selection cancelled: {error}",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7014
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7021
     }
   },
   {
@@ -58030,7 +58022,7 @@ MESSAGE_REFERENCE = [
     "message": "Selection commit failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7304
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7311
     }
   },
   {
@@ -58038,7 +58030,7 @@ MESSAGE_REFERENCE = [
     "message": "Selection failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6848
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6855
     }
   },
   {
@@ -58046,7 +58038,7 @@ MESSAGE_REFERENCE = [
     "message": "Selection highlight failed: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7429
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7436
     }
   },
   {
@@ -58078,7 +58070,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader controls require 32 numbers",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3781
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3803
     }
   },
   {
@@ -58126,7 +58118,7 @@ MESSAGE_REFERENCE = [
     "message": "Sidecar preview factors · {} · non-conflicting material ownership; emissive fields require a bound emissive texture, hair anisotropy requires both Flow and a proven hair/fur family, and the layer-mask selector affects only a bound Layer Mask diagnostic",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4591
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4598
     }
   },
   {
@@ -59259,7 +59251,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor executable package changed while its shadow session was being prepared. Open the mesh again to use the newly validated package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 111
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 114
     }
   },
   {
@@ -59732,7 +59724,7 @@ MESSAGE_REFERENCE = [
     "message": "The host did not provide an editable skeleton hierarchy",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8041
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8048
     }
   },
   {
@@ -59924,7 +59916,7 @@ MESSAGE_REFERENCE = [
     "message": "The pre-started Mesh Editor did not accept its session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 296
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 299
     }
   },
   {
@@ -59980,7 +59972,7 @@ MESSAGE_REFERENCE = [
     "message": "The renderer was lost while editing.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1045
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1050
     }
   },
   {
@@ -60228,7 +60220,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy bone counts do not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8069
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8076
     }
   },
   {
@@ -60236,7 +60228,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains a duplicate bone index",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8082
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8089
     }
   },
   {
@@ -60244,7 +60236,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains a parent cycle",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8131
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8138
     }
   },
   {
@@ -60252,7 +60244,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an invalid bone index",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8080
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8087
     }
   },
   {
@@ -60260,7 +60252,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an invalid parent index",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8117
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8124
     }
   },
   {
@@ -60268,7 +60260,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy contains an out-of-range bone position",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8101
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8108
     }
   },
   {
@@ -60276,7 +60268,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy has no parent-child segments to draw",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8148
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8155
     }
   },
   {
@@ -60284,7 +60276,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy is incomplete or has no root",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8124
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8131
     }
   },
   {
@@ -60292,7 +60284,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton hierarchy is truncated, so its overlay is disabled",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8044
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8051
     }
   },
   {
@@ -60300,7 +60292,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton parser reported an incomplete hierarchy",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8051
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8058
     }
   },
   {
@@ -60561,7 +60553,7 @@ MESSAGE_REFERENCE = [
     "message": "This hair draft requires an updated Hair-capable Rust helper.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 610
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 613
     }
   },
   {
@@ -60633,7 +60625,7 @@ MESSAGE_REFERENCE = [
     "message": "This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5537
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5538
     }
   },
   {
@@ -60713,7 +60705,7 @@ MESSAGE_REFERENCE = [
     "message": "This topology action requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4048
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4049
     }
   },
   {
@@ -60729,7 +60721,7 @@ MESSAGE_REFERENCE = [
     "message": "Tightness requires Surface or Rigid component mode on every selected garment.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5109
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5110
     }
   },
   {
@@ -60737,7 +60729,7 @@ MESSAGE_REFERENCE = [
     "message": "Tool change cancelled the previous gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2600
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2601
     }
   },
   {
@@ -60745,7 +60737,7 @@ MESSAGE_REFERENCE = [
     "message": "Tool commit failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7348
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7355
     }
   },
   {
@@ -60753,7 +60745,7 @@ MESSAGE_REFERENCE = [
     "message": "Tool failed and was rolled back: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7282
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7289
     }
   },
   {
@@ -60873,7 +60865,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency is unavailable for this mesh.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6421
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6422
     }
   },
   {
@@ -60905,7 +60897,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency requires thickness and extinction numbers",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3794
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3816
     }
   },
   {
@@ -60913,7 +60905,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucent surface requires roughness and metallic numbers or null",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3804
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3826
     }
   },
   {
@@ -60938,7 +60930,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn outfit corrections back on before editing the mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2392
+      "cdmw/services/mesh_service.py": 2422
     }
   },
   {
@@ -60962,7 +60954,7 @@ MESSAGE_REFERENCE = [
     "message": "UNC extended path conversion failed",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/path_io.cpp": 119
+      "native/cdmw_preview_core/src/owners/path_io.cpp": 109
     }
   },
   {
@@ -61018,7 +61010,7 @@ MESSAGE_REFERENCE = [
     "message": "Undo the replacement operations before switching output policy.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2162
+      "cdmw/services/mesh_service.py": 2166
     }
   },
   {
@@ -61050,7 +61042,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown Mesh Editor action: {key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 864
+      "cdmw/ui/mesh_editor/controller.py": 858
     }
   },
   {
@@ -61115,7 +61107,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown mesh edit session: {session_id}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2377,
+      "cdmw/services/mesh_service.py": 2405,
       "cdmw/services/mesh_service_history.py": 783
     }
   },
@@ -61277,7 +61269,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor output policy: {output_policy}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2158
+      "cdmw/services/mesh_service.py": 2162
     }
   },
   {
@@ -61413,7 +61405,15 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh edit action: {edit_command.action}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2396
+      "cdmw/services/mesh_service.py": 2426
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Unsupported mesh edit action: {name}",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/services/mesh_service.py": 2398
     }
   },
   {
@@ -61686,7 +61686,7 @@ MESSAGE_REFERENCE = [
     "message": "Use the model's own weights. Its rig must be this model's game skeleton: export it with Export Rig GLB…, weight to it in Blender and keep the bones where they are.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3387
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3388
     }
   },
   {
@@ -61822,7 +61822,7 @@ MESSAGE_REFERENCE = [
     "message": "Viewport changed; active gesture cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6513
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6520
     }
   },
   {
@@ -61934,7 +61934,7 @@ MESSAGE_REFERENCE = [
     "message": "Windows path length error classification failed",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/path_io.cpp": 126
+      "native/cdmw_preview_core/src/owners/path_io.cpp": 116
     }
   },
   {
@@ -61943,6 +61943,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/mesh/shader_controls.py": 293
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Your latest changes could not be saved to the draft.",
+    "recovery": "internal",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_handoff.rs": 80
     }
   },
   {
@@ -62046,7 +62054,7 @@ MESSAGE_REFERENCE = [
     "message": "a pending Mesh Editor helper accepts only its own protocol",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3744
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3753
     }
   },
   {
@@ -62054,7 +62062,7 @@ MESSAGE_REFERENCE = [
     "message": "a pending Mesh Editor helper cannot handle {event} before open_session",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3762
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3771
     }
   },
   {
@@ -62094,7 +62102,7 @@ MESSAGE_REFERENCE = [
     "message": "active Mesh Editor result for {result.action} did not include native preview payload; legacy Python preview rebuild is disabled",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 735
+      "cdmw/ui/mesh_editor/controller.py": 729
     }
   },
   {
@@ -62102,7 +62110,7 @@ MESSAGE_REFERENCE = [
     "message": "active native {result.action} result did not include preview payload; Python preview rebuild is disabled",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 689
+      "cdmw/ui/mesh_editor/controller.py": 683
     }
   },
   {
@@ -62158,7 +62166,7 @@ MESSAGE_REFERENCE = [
     "message": "archive Refit material identity does not match its payload",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1517
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1519
     }
   },
   {
@@ -62166,7 +62174,7 @@ MESSAGE_REFERENCE = [
     "message": "archive Refit material identity is invalid",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1492
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1494
     }
   },
   {
@@ -62174,7 +62182,7 @@ MESSAGE_REFERENCE = [
     "message": "archive Refit material reference is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1510
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1512
     }
   },
   {
@@ -62182,7 +62190,7 @@ MESSAGE_REFERENCE = [
     "message": "archive Refit materials require a mesh document",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1500
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1502
     }
   },
   {
@@ -62278,7 +62286,7 @@ MESSAGE_REFERENCE = [
     "message": "binary descriptor byte length does not match its declaration",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4006
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4028
     }
   },
   {
@@ -62286,7 +62294,7 @@ MESSAGE_REFERENCE = [
     "message": "binary descriptor count is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3976
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3998
     }
   },
   {
@@ -62294,7 +62302,7 @@ MESSAGE_REFERENCE = [
     "message": "binary descriptor dimensions exceed preview limits",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3983
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4005
     }
   },
   {
@@ -62302,7 +62310,7 @@ MESSAGE_REFERENCE = [
     "message": "binary descriptor exceeds the 256 MiB preview limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3999
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4021
     }
   },
   {
@@ -62310,7 +62318,7 @@ MESSAGE_REFERENCE = [
     "message": "binary descriptor is not a regular file",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4003
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4025
     }
   },
   {
@@ -62318,7 +62326,7 @@ MESSAGE_REFERENCE = [
     "message": "binary descriptor path is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3971
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3993
     }
   },
   {
@@ -62326,7 +62334,7 @@ MESSAGE_REFERENCE = [
     "message": "binary descriptor type {kind} is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3991
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4013
     }
   },
   {
@@ -62342,7 +62350,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh path escaped the session root",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2974
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2983
     }
   },
   {
@@ -62350,7 +62358,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh path must be one owned document filename",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2968
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2977
     }
   },
   {
@@ -62358,7 +62366,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh payload exceeds available memory",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2989
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2998
     }
   },
   {
@@ -62366,7 +62374,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh reference size does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2981
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2990
     }
   },
   {
@@ -62374,7 +62382,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh reference size or SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2997
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3006
     }
   },
   {
@@ -62382,7 +62390,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh reference type, count, or size is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2954
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2963
     }
   },
   {
@@ -62390,7 +62398,7 @@ MESSAGE_REFERENCE = [
     "message": "binary numeric payload contains a non-finite value",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4039
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4061
     }
   },
   {
@@ -62454,7 +62462,7 @@ MESSAGE_REFERENCE = [
     "message": "candidate exceeds 512 MiB",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4048
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4057
     }
   },
   {
@@ -62702,7 +62710,7 @@ MESSAGE_REFERENCE = [
     "message": "capture output path is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1511
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1533
     }
   },
   {
@@ -62734,7 +62742,7 @@ MESSAGE_REFERENCE = [
     "message": "capture yaw and pitch must both be finite and pitch must be within -89..89 degrees",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1548
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1570
     }
   },
   {
@@ -63038,7 +63046,7 @@ MESSAGE_REFERENCE = [
     "message": "could not {detail} {detail}: {detail} ({detail} error {detail}; path length {detail})",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/path_io.cpp": 58
+      "native/cdmw_preview_core/src/owners/path_io.cpp": 48
     }
   },
   {
@@ -63070,7 +63078,7 @@ MESSAGE_REFERENCE = [
     "message": "decoded jiggle snapshot is unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 805
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 807
     }
   },
   {
@@ -63142,7 +63150,7 @@ MESSAGE_REFERENCE = [
     "message": "document has no source LOD {lod_index}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4091
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4100
     }
   },
   {
@@ -63294,7 +63302,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite archive identity is invalid or duplicated",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3236
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3245
     }
   },
   {
@@ -63302,7 +63310,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite path escaped the package texture directory",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3198
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3207
     }
   },
   {
@@ -63310,7 +63318,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite reference does not match its DDS contract",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3188
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3197
     }
   },
   {
@@ -63318,7 +63326,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite size or SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3206
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3215
     }
   },
   {
@@ -63326,7 +63334,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite textures exceed the aggregate limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3250
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3259
     }
   },
   {
@@ -63334,7 +63342,7 @@ MESSAGE_REFERENCE = [
     "message": "effect texture directory does not conserve declared resources",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3541
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3550
     }
   },
   {
@@ -63342,7 +63350,7 @@ MESSAGE_REFERENCE = [
     "message": "effect texture directory must not be a link",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3520
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3529
     }
   },
   {
@@ -63382,7 +63390,7 @@ MESSAGE_REFERENCE = [
     "message": "embedded parent window is invalid: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8360
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8367
     }
   },
   {
@@ -63528,7 +63536,7 @@ MESSAGE_REFERENCE = [
     "message": "extended path leaked into protocol",
     "recovery": "configuration",
     "sources": {
-      "native/cdmw_preview_core/src/owners/path_io.cpp": 121
+      "native/cdmw_preview_core/src/owners/path_io.cpp": 111
     }
   },
   {
@@ -63536,7 +63544,7 @@ MESSAGE_REFERENCE = [
     "message": "extended paths were prefixed twice",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/path_io.cpp": 120
+      "native/cdmw_preview_core/src/owners/path_io.cpp": 110
     }
   },
   {
@@ -63690,7 +63698,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to load the initial Preview package",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 613
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 616
     }
   },
   {
@@ -63818,7 +63826,7 @@ MESSAGE_REFERENCE = [
     "message": "file reference SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3022
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3031
     }
   },
   {
@@ -63826,7 +63834,7 @@ MESSAGE_REFERENCE = [
     "message": "file reference size does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3016
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3025
     }
   },
   {
@@ -63834,7 +63842,7 @@ MESSAGE_REFERENCE = [
     "message": "file reference type or count is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3009
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3018
     }
   },
   {
@@ -63882,7 +63890,7 @@ MESSAGE_REFERENCE = [
     "message": "frame failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7955
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7962
     }
   },
   {
@@ -64157,7 +64165,7 @@ MESSAGE_REFERENCE = [
     "message": "hair publication queue is full: {e}",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1315
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1317
     }
   },
   {
@@ -64781,7 +64789,7 @@ MESSAGE_REFERENCE = [
     "message": "host event is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1819
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1821
     }
   },
   {
@@ -64789,7 +64797,7 @@ MESSAGE_REFERENCE = [
     "message": "host message identity does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3610
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3619
     }
   },
   {
@@ -64797,7 +64805,7 @@ MESSAGE_REFERENCE = [
     "message": "host message {key} is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3658
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3667
     }
   },
   {
@@ -64805,7 +64813,7 @@ MESSAGE_REFERENCE = [
     "message": "host rejected {event} without a recovery state",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3629
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3638
     }
   },
   {
@@ -64813,7 +64821,7 @@ MESSAGE_REFERENCE = [
     "message": "host replayed result request {request_id}; last accepted request is {}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 976
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 978
     }
   },
   {
@@ -64821,7 +64829,7 @@ MESSAGE_REFERENCE = [
     "message": "host result is out of order: expected {expected_event} for request {expected_request_id}, received {event} for request {request_id}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 970
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 972
     }
   },
   {
@@ -64829,7 +64837,7 @@ MESSAGE_REFERENCE = [
     "message": "host result revision {expected_revision} does not match state revision {revision}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3648
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3657
     }
   },
   {
@@ -64837,7 +64845,7 @@ MESSAGE_REFERENCE = [
     "message": "host sent unsupported event {event}",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1918
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1927
     }
   },
   {
@@ -64845,7 +64853,7 @@ MESSAGE_REFERENCE = [
     "message": "host shadow revision moved backwards: current={}, received={base_revision}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 982
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 984
     }
   },
   {
@@ -64853,7 +64861,7 @@ MESSAGE_REFERENCE = [
     "message": "host state session identity does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3642
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3651
     }
   },
   {
@@ -64861,7 +64869,7 @@ MESSAGE_REFERENCE = [
     "message": "host state snapshot is stale: current={}, received={base_revision}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1015
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1017
     }
   },
   {
@@ -64869,7 +64877,7 @@ MESSAGE_REFERENCE = [
     "message": "host state snapshot was replayed or arrived after a result",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1009
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1011
     }
   },
   {
@@ -64877,7 +64885,7 @@ MESSAGE_REFERENCE = [
     "message": "host {event} omitted its authoritative state",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3627
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3636
     }
   },
   {
@@ -64905,7 +64913,7 @@ MESSAGE_REFERENCE = [
     "message": "index payload contains an invalid value",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4072
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4094
     }
   },
   {
@@ -64913,7 +64921,7 @@ MESSAGE_REFERENCE = [
     "message": "index range exceeds preview limits",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4101
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 4123
     }
   },
   {
@@ -64929,7 +64937,7 @@ MESSAGE_REFERENCE = [
     "message": "initial replacement material identity does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3450
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3459
     }
   },
   {
@@ -64937,7 +64945,7 @@ MESSAGE_REFERENCE = [
     "message": "initial replacement material reference is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3440
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3449
     }
   },
   {
@@ -64945,7 +64953,7 @@ MESSAGE_REFERENCE = [
     "message": "initial replacement material states are invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3430
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3439
     }
   },
   {
@@ -64953,7 +64961,7 @@ MESSAGE_REFERENCE = [
     "message": "initial replacement materials omitted the original or active state",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3481
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3490
     }
   },
   {
@@ -64961,7 +64969,7 @@ MESSAGE_REFERENCE = [
     "message": "inline response carried {type(report).__name__} instead of a report; keys={sorted((str(key) for key in response))[:8]}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 161
+      "cdmw/modding/mesh_native_dispatch.py": 168
     }
   },
   {
@@ -64969,7 +64977,7 @@ MESSAGE_REFERENCE = [
     "message": "inline status {status or 'missing'} with no message",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 176
+      "cdmw/modding/mesh_native_dispatch.py": 183
     }
   },
   {
@@ -64977,7 +64985,7 @@ MESSAGE_REFERENCE = [
     "message": "inline status {status or 'missing'}: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 176
+      "cdmw/modding/mesh_native_dispatch.py": 183
     }
   },
   {
@@ -64985,7 +64993,7 @@ MESSAGE_REFERENCE = [
     "message": "inline {type(exc).__name__}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 185
+      "cdmw/modding/mesh_native_dispatch.py": 192
     }
   },
   {
@@ -65057,7 +65065,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid CDMW LOD{active_lod_index} state",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4102
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4109
     }
   },
   {
@@ -65185,7 +65193,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid decoded jiggle snapshot reference",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 790
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 792
     }
   },
   {
@@ -65193,7 +65201,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid editable piece",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1363
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1365
     }
   },
   {
@@ -65241,7 +65249,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid hair rest-state reference",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1327
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1329
     }
   },
   {
@@ -65249,7 +65257,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid host control payload",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1811
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1813
     }
   },
   {
@@ -65257,7 +65265,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid host control reference",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1804
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1806
     }
   },
   {
@@ -65265,7 +65273,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid initial hair state reference",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3399
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3408
     }
   },
   {
@@ -65273,7 +65281,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid item set reference identity",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3373
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3382
     }
   },
   {
@@ -65281,7 +65289,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid item set reference membership",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3351
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3360
     }
   },
   {
@@ -65633,7 +65641,7 @@ MESSAGE_REFERENCE = [
     "message": "legacy Python preview rebuild is archive-only; active Mesh Editor requires native preview payloads",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 748
+      "cdmw/ui/mesh_editor/controller.py": 742
     }
   },
   {
@@ -65657,7 +65665,7 @@ MESSAGE_REFERENCE = [
     "message": "local extended path conversion failed",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/path_io.cpp": 117
+      "native/cdmw_preview_core/src/owners/path_io.cpp": 107
     }
   },
   {
@@ -65697,7 +65705,7 @@ MESSAGE_REFERENCE = [
     "message": "manifest has no parent",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 567
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 569
     }
   },
   {
@@ -65713,7 +65721,7 @@ MESSAGE_REFERENCE = [
     "message": "material alpha mode {:?} is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2604
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2613
     }
   },
   {
@@ -65785,7 +65793,7 @@ MESSAGE_REFERENCE = [
     "message": "material category confidence is outside 0..=1",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2572
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2581
     }
   },
   {
@@ -65793,7 +65801,7 @@ MESSAGE_REFERENCE = [
     "message": "material category {:?} is not canonical",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2560
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2569
     }
   },
   {
@@ -65801,7 +65809,7 @@ MESSAGE_REFERENCE = [
     "message": "material category {} does not match code {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2566
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2575
     }
   },
   {
@@ -65809,7 +65817,7 @@ MESSAGE_REFERENCE = [
     "message": "material emissive color is outside 0..=2",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2651
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2660
     }
   },
   {
@@ -65873,7 +65881,7 @@ MESSAGE_REFERENCE = [
     "message": "material normal-Y flag does not match its policy",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2599
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2608
     }
   },
   {
@@ -65881,7 +65889,7 @@ MESSAGE_REFERENCE = [
     "message": "material normal-Y policy {:?} is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2592
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2601
     }
   },
   {
@@ -65889,7 +65897,7 @@ MESSAGE_REFERENCE = [
     "message": "material presentation LOD index exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2534
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2543
     }
   },
   {
@@ -65897,7 +65905,7 @@ MESSAGE_REFERENCE = [
     "message": "material presentation index exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2539
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2548
     }
   },
   {
@@ -65905,7 +65913,7 @@ MESSAGE_REFERENCE = [
     "message": "material presentation ownership exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2521
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2530
     }
   },
   {
@@ -65945,7 +65953,7 @@ MESSAGE_REFERENCE = [
     "message": "material shader family is missing or invalid",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2584
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2593
     }
   },
   {
@@ -65977,7 +65985,7 @@ MESSAGE_REFERENCE = [
     "message": "material texture tint is outside 0..=2",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2660
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2669
     }
   },
   {
@@ -65985,7 +65993,7 @@ MESSAGE_REFERENCE = [
     "message": "material {label} is outside {minimum}..={maximum}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2391
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2400
     }
   },
   {
@@ -66249,7 +66257,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh document is empty",
     "recovery": "empty",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2339
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2348
     }
   },
   {
@@ -66492,7 +66500,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh upload failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4691
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4698
     }
   },
   {
@@ -66508,7 +66516,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles contains a link at {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3564
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3573
     }
   },
   {
@@ -66516,7 +66524,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles contains an unexpected entry at {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3582
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3591
     }
   },
   {
@@ -66524,7 +66532,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles contains too many entries",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3557
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3566
     }
   },
   {
@@ -66532,7 +66540,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles exceeds the directory-depth limit at {}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3571
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3580
     }
   },
   {
@@ -66540,7 +66548,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles exceeds the total size limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3596
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3605
     }
   },
   {
@@ -66548,7 +66556,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles file exceeds the size limit at {}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3589
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3598
     }
   },
   {
@@ -66639,7 +66647,7 @@ MESSAGE_REFERENCE = [
     "message": "missing hair LOD",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1185
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1187
     }
   },
   {
@@ -66768,7 +66776,7 @@ MESSAGE_REFERENCE = [
     "message": "missing previous hair LOD",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1232
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1234
     }
   },
   {
@@ -67500,7 +67508,7 @@ MESSAGE_REFERENCE = [
     "message": "morph_state needs an object payload",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1860
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1869
     }
   },
   {
@@ -67964,7 +67972,7 @@ MESSAGE_REFERENCE = [
     "message": "native live edit did not provide undo history delta",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2962
+      "cdmw/services/mesh_service.py": 2992
     }
   },
   {
@@ -68004,7 +68012,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor history is unavailable for this session",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 3251
+      "cdmw/services/mesh_service.py": 3281
     }
   },
   {
@@ -68012,7 +68020,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor pose preview normals unavailable; Python pose preview fallback is disabled",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2346
+      "cdmw/services/mesh_service.py": 2350
     }
   },
   {
@@ -68020,7 +68028,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor pose preview unavailable; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 2323
+      "cdmw/services/mesh_service.py": 2327
     }
   },
   {
@@ -68028,7 +68036,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor pose preview unavailable; Python pose preview fallback is disabled",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2335
+      "cdmw/services/mesh_service.py": 2339
     }
   },
   {
@@ -68052,7 +68060,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session export failed; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 2303,
+      "cdmw/services/mesh_service.py": 2307,
       "cdmw/services/mesh_service_rebuild.py": 571
     }
   },
@@ -68061,7 +68069,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session failed for {execution.action}; Python mesh-edit fallback is disabled",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2841
+      "cdmw/services/mesh_service.py": 2871
     }
   },
   {
@@ -68069,7 +68077,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session view requires native submesh counts; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 2231
+      "cdmw/services/mesh_service.py": 2235
     }
   },
   {
@@ -68109,7 +68117,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor unavailable for {action}; Python mesh-edit fallback is disabled",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2623
+      "cdmw/services/mesh_service.py": 2653
     }
   },
   {
@@ -68125,7 +68133,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor {command} did not return dirty submesh counts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 3298
+      "cdmw/services/mesh_service.py": 3328
     }
   },
   {
@@ -68133,7 +68141,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor {command} failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 3277
+      "cdmw/services/mesh_service.py": 3307
     }
   },
   {
@@ -68149,7 +68157,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh history snapshot capture failed and Python fallback was blocked",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 3152
+      "cdmw/services/mesh_service.py": 3182
     }
   },
   {
@@ -68157,7 +68165,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh history snapshot restore failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 3433
+      "cdmw/services/mesh_service.py": 3463
     }
   },
   {
@@ -68165,7 +68173,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core protocol line exceeds 16 MiB",
     "recovery": "configuration",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 219
+      "cdmw/modding/mesh_native_client.py": 248
     }
   },
   {
@@ -68173,7 +68181,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service closed its stdout",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 156
+      "cdmw/modding/mesh_native_client.py": 182
     }
   },
   {
@@ -68181,7 +68189,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service did not become ready: {ready_line}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 299
+      "cdmw/modding/mesh_native_client.py": 369
     }
   },
   {
@@ -68189,7 +68197,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service is not running",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 126
+      "cdmw/modding/mesh_native_client.py": 149
     }
   },
   {
@@ -68197,7 +68205,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service read failed: {item}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 152
+      "cdmw/modding/mesh_native_client.py": 178
     }
   },
   {
@@ -68205,7 +68213,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service returned an error",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 333
+      "cdmw/modding/mesh_native_client.py": 404
     }
   },
   {
@@ -68213,7 +68221,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service sent invalid ready line: {ready_line}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 296
+      "cdmw/modding/mesh_native_client.py": 366
     }
   },
   {
@@ -68221,7 +68229,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service sent invalid response: {response_line}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 330
+      "cdmw/modding/mesh_native_client.py": 401
     }
   },
   {
@@ -68229,7 +68237,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service sent non-object response",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 368
+      "cdmw/modding/mesh_native_client.py": 440
     }
   },
   {
@@ -68237,7 +68245,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service stdin is unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 314
+      "cdmw/modding/mesh_native_client.py": 385
     }
   },
   {
@@ -68245,7 +68253,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service stdout handle is unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 173
+      "cdmw/modding/mesh_native_client.py": 200
     }
   },
   {
@@ -68253,7 +68261,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service stdout is unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 280
+      "cdmw/modding/mesh_native_client.py": 350
     }
   },
   {
@@ -68261,7 +68269,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service write failed: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 324
+      "cdmw/modding/mesh_native_client.py": 395
     }
   },
   {
@@ -68517,7 +68525,7 @@ MESSAGE_REFERENCE = [
     "message": "native selection result did not include selection groups; Python selection rebuild is disabled",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 611
+      "cdmw/ui/mesh_editor/controller.py": 605
     }
   },
   {
@@ -68573,7 +68581,7 @@ MESSAGE_REFERENCE = [
     "message": "native status {status or 'missing'} with no message",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 319
+      "cdmw/modding/mesh_native_dispatch.py": 329
     }
   },
   {
@@ -68581,7 +68589,7 @@ MESSAGE_REFERENCE = [
     "message": "native status {status or 'missing'}: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 319
+      "cdmw/modding/mesh_native_dispatch.py": 329
     }
   },
   {
@@ -68613,7 +68621,7 @@ MESSAGE_REFERENCE = [
     "message": "native topology must be committed through CDMW before export",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4108
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4117
     }
   },
   {
@@ -68621,7 +68629,7 @@ MESSAGE_REFERENCE = [
     "message": "native topology result for {result.action} did not include final submesh count",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 633
+      "cdmw/ui/mesh_editor/controller.py": 627
     }
   },
   {
@@ -68629,7 +68637,7 @@ MESSAGE_REFERENCE = [
     "message": "native topology result for {result.action} did not include preview triangle groups; Python preview rebuild is disabled",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 694
+      "cdmw/ui/mesh_editor/controller.py": 688
     }
   },
   {
@@ -68685,7 +68693,7 @@ MESSAGE_REFERENCE = [
     "message": "native vertex update result for {result.action} did not include preview vertex groups; Python vertex preview rebuild is disabled",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 679
+      "cdmw/ui/mesh_editor/controller.py": 673
     }
   },
   {
@@ -68717,7 +68725,7 @@ MESSAGE_REFERENCE = [
     "message": "native {result.action} result did not include preview payload; Python preview rebuild is disabled",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 709
+      "cdmw/ui/mesh_editor/controller.py": 703
     }
   },
   {
@@ -68973,7 +68981,7 @@ MESSAGE_REFERENCE = [
     "message": "numeric payload contains a non-finite value",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3943
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3965
     }
   },
   {
@@ -69013,7 +69021,7 @@ MESSAGE_REFERENCE = [
     "message": "open_session needs a manifest path",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3758
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3767
     }
   },
   {
@@ -69053,7 +69061,7 @@ MESSAGE_REFERENCE = [
     "message": "outbound queue is busy: {error}",
     "recovery": "locked",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1144
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1146
     }
   },
   {
@@ -69061,7 +69069,7 @@ MESSAGE_REFERENCE = [
     "message": "outbound queue is busy: {e}",
     "recovery": "locked",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1213
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1215
     }
   },
   {
@@ -69221,7 +69229,7 @@ MESSAGE_REFERENCE = [
     "message": "payload path escaped the session root",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3282
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3291
     }
   },
   {
@@ -69229,7 +69237,7 @@ MESSAGE_REFERENCE = [
     "message": "payload path must be one owned JSON filename",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3276
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3285
     }
   },
   {
@@ -69237,7 +69245,7 @@ MESSAGE_REFERENCE = [
     "message": "pending Mesh Editor helper could not announce itself: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8423
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8430
     }
   },
   {
@@ -69293,7 +69301,7 @@ MESSAGE_REFERENCE = [
     "message": "prepared host result became stale before publication",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1043
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1045
     }
   },
   {
@@ -69405,7 +69413,7 @@ MESSAGE_REFERENCE = [
     "message": "preview changed while textures were preparing",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1643
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1665
     }
   },
   {
@@ -69445,7 +69453,7 @@ MESSAGE_REFERENCE = [
     "message": "preview could not show its own mesh again: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 901
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 905
     }
   },
   {
@@ -69839,7 +69847,7 @@ MESSAGE_REFERENCE = [
     "message": "process generation is invalid",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 450
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 453
     }
   },
   {
@@ -69847,7 +69855,7 @@ MESSAGE_REFERENCE = [
     "message": "process generation is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 452
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 455
     }
   },
   {
@@ -69855,7 +69863,7 @@ MESSAGE_REFERENCE = [
     "message": "protocol failure",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3690
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3697
     }
   },
   {
@@ -69863,7 +69871,7 @@ MESSAGE_REFERENCE = [
     "message": "protocol version does not match",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 444
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 447
     }
   },
   {
@@ -69895,7 +69903,7 @@ MESSAGE_REFERENCE = [
     "message": "read_only preview rejects mesh mutations",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1853
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 1875
     }
   },
   {
@@ -70178,7 +70186,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/final_package_preview_model.py": 258,
       "cdmw/core/mesh_native.py": 62,
       "cdmw/core/model_catalogue.py": 1165,
-      "cdmw/modding/mesh_native_client.py": 265,
+      "cdmw/modding/mesh_native_client.py": 335,
       "cdmw/modding/static_mesh_scene_frame.py": 486,
       "cdmw/rendering/model_preview_prepare.py": 83,
       "cdmw/rendering/native_preview_core.py": 407,
@@ -70188,7 +70196,7 @@ MESSAGE_REFERENCE = [
       "cdmw/services/mesh_service_rebuild.py": 107,
       "cdmw/services/model_library_preview.py": 209,
       "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 61,
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 356,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 359,
       "cdmw/ui/preview/dotnet_session.py": 1271,
       "cdmw/ui/preview/engine_channel.py": 97,
       "cdmw/ui/preview/engine_viewport.py": 115
@@ -70207,7 +70215,7 @@ MESSAGE_REFERENCE = [
     "message": "report unreadable: {type(exc).__name__}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 112
+      "cdmw/modding/mesh_native_dispatch.py": 114
     }
   },
   {
@@ -70215,7 +70223,7 @@ MESSAGE_REFERENCE = [
     "message": "report was {type(report).__name__}, not an object",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 115
+      "cdmw/modding/mesh_native_dispatch.py": 117
     }
   },
   {
@@ -70266,7 +70274,7 @@ MESSAGE_REFERENCE = [
     "message": "resident helper wrote no report",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 106
+      "cdmw/modding/mesh_native_dispatch.py": 108
     }
   },
   {
@@ -70349,7 +70357,7 @@ MESSAGE_REFERENCE = [
     "message": "resident status {status or 'missing'}: {detail or 'no message'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 122
+      "cdmw/modding/mesh_native_dispatch.py": 124
     }
   },
   {
@@ -70509,7 +70517,7 @@ MESSAGE_REFERENCE = [
     "message": "resident {type(exc).__name__}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 129
+      "cdmw/modding/mesh_native_dispatch.py": 133
     }
   },
   {
@@ -70549,7 +70557,7 @@ MESSAGE_REFERENCE = [
     "message": "run_command names no editor command",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1841
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1843
     }
   },
   {
@@ -70629,7 +70637,7 @@ MESSAGE_REFERENCE = [
     "message": "schema, protocol, renderer, or edit backend does not match",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1948
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1957
     }
   },
   {
@@ -70701,7 +70709,7 @@ MESSAGE_REFERENCE = [
     "message": "selected edge is stale",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4234
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4243
     }
   },
   {
@@ -70709,7 +70717,7 @@ MESSAGE_REFERENCE = [
     "message": "selected edge vertex is stale",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4238
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4247
     }
   },
   {
@@ -70717,7 +70725,7 @@ MESSAGE_REFERENCE = [
     "message": "selected face is stale",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4221
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4230
     }
   },
   {
@@ -70725,7 +70733,7 @@ MESSAGE_REFERENCE = [
     "message": "selected vertex is stale",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4208
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4217
     }
   },
   {
@@ -70773,7 +70781,7 @@ MESSAGE_REFERENCE = [
     "message": "selection submesh exceeds u32",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2813
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2835
     }
   },
   {
@@ -70789,7 +70797,7 @@ MESSAGE_REFERENCE = [
     "message": "session exceeds 768 MiB",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3494
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3503
     }
   },
   {
@@ -70797,7 +70805,7 @@ MESSAGE_REFERENCE = [
     "message": "session id and process generation are required",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1953
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1962
     }
   },
   {
@@ -70805,7 +70813,7 @@ MESSAGE_REFERENCE = [
     "message": "session id does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 446
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 449
     }
   },
   {
@@ -70813,7 +70821,7 @@ MESSAGE_REFERENCE = [
     "message": "session texture resources exceed the 512 MiB aggregate limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3119
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3128
     }
   },
   {
@@ -70861,7 +70869,7 @@ MESSAGE_REFERENCE = [
     "message": "skeleton overlay upload failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4694
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4701
     }
   },
   {
@@ -70885,7 +70893,7 @@ MESSAGE_REFERENCE = [
     "message": "source LOD {source_lod_index} is not present in the authoring document",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 691
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 693
     }
   },
   {
@@ -70933,7 +70941,7 @@ MESSAGE_REFERENCE = [
     "message": "source.lod_index exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2332
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2341
     }
   },
   {
@@ -70941,7 +70949,7 @@ MESSAGE_REFERENCE = [
     "message": "source.lod_index must be a non-negative integer",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2329
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2338
     }
   },
   {
@@ -70949,7 +70957,7 @@ MESSAGE_REFERENCE = [
     "message": "stale changed vertex",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4168
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4177
     }
   },
   {
@@ -71205,7 +71213,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile anisotropy was not enabled for rendering",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2505
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2514
     }
   },
   {
@@ -71213,7 +71221,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile coating is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2442
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2451
     }
   },
   {
@@ -71221,7 +71229,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile confidence does not match its category",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2411
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2420
     }
   },
   {
@@ -71229,7 +71237,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile evidence is missing or invalid",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2450
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2459
     }
   },
   {
@@ -71237,7 +71245,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile fallback {name} overrides authored data",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2491
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2500
     }
   },
   {
@@ -71245,7 +71253,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile family does not match its material category",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2403
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2412
     }
   },
   {
@@ -71253,7 +71261,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile finish is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2419
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2428
     }
   },
   {
@@ -71261,7 +71269,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile height scale exceeds profile fallback authority",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2497
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2506
     }
   },
   {
@@ -71269,7 +71277,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile structure is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2434
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2443
     }
   },
   {
@@ -71309,7 +71317,7 @@ MESSAGE_REFERENCE = [
     "message": "texture label and one ownership list per LOD are required",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3113
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3122
     }
   },
   {
@@ -71317,7 +71325,7 @@ MESSAGE_REFERENCE = [
     "message": "texture path escaped the session root",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3051
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3060
     }
   },
   {
@@ -71325,7 +71333,7 @@ MESSAGE_REFERENCE = [
     "message": "texture path must be one owned DDS filename",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3045
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3054
     }
   },
   {
@@ -71333,7 +71341,7 @@ MESSAGE_REFERENCE = [
     "message": "texture reference SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3063
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3072
     }
   },
   {
@@ -71341,7 +71349,7 @@ MESSAGE_REFERENCE = [
     "message": "texture reference size does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3057
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3066
     }
   },
   {
@@ -71349,7 +71357,7 @@ MESSAGE_REFERENCE = [
     "message": "texture reference type or count is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3034
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3043
     }
   },
   {
@@ -71477,7 +71485,7 @@ MESSAGE_REFERENCE = [
     "message": "the manifest must be named manifest.json",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 562
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 564
     }
   },
   {
@@ -71493,7 +71501,7 @@ MESSAGE_REFERENCE = [
     "message": "the session contains too many effect sprite textures",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3218
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3227
     }
   },
   {
@@ -71501,7 +71509,7 @@ MESSAGE_REFERENCE = [
     "message": "the session contains too many material presentation rows",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2527
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2536
     }
   },
   {
@@ -71509,7 +71517,7 @@ MESSAGE_REFERENCE = [
     "message": "the session contains too many texture resources",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3102
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3111
     }
   },
   {
@@ -71701,7 +71709,7 @@ MESSAGE_REFERENCE = [
     "message": "triangle index exceeds u32",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2764
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2786
     }
   },
   {
@@ -71733,7 +71741,7 @@ MESSAGE_REFERENCE = [
     "message": "triangle update groups are missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2708
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2730
     }
   },
   {
@@ -71741,7 +71749,7 @@ MESSAGE_REFERENCE = [
     "message": "triangle update index count is not divisible by three",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2718
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2740
     }
   },
   {
@@ -71749,7 +71757,7 @@ MESSAGE_REFERENCE = [
     "message": "triangle update position count does not match source indices",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2737
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2759
     }
   },
   {
@@ -71813,7 +71821,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected effect texture entry {name}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3535
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3544
     }
   },
   {
@@ -71829,7 +71837,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected session entry {name}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3508
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3517
     }
   },
   {
@@ -71853,7 +71861,7 @@ MESSAGE_REFERENCE = [
     "message": "unknown hairstyle preset",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1847
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1849
     }
   },
   {
@@ -71925,7 +71933,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported hair rest-state version",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1334
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1336
     }
   },
   {
@@ -71997,7 +72005,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported non-native mesh edit action: {execution.action}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2806
+      "cdmw/services/mesh_service.py": 2836
     }
   },
   {
@@ -72079,7 +72087,7 @@ MESSAGE_REFERENCE = [
     "message": "verified texture sources exceed the 512 MiB limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 618
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 620
     }
   },
   {
@@ -72119,7 +72127,7 @@ MESSAGE_REFERENCE = [
     "message": "vertex source index is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4116
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4125
     }
   },
   {
@@ -72127,7 +72135,7 @@ MESSAGE_REFERENCE = [
     "message": "vertex submesh is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4113
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4122
     }
   },
   {
@@ -72135,7 +72143,7 @@ MESSAGE_REFERENCE = [
     "message": "vertex update contains a non-finite position",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2682
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2704
     }
   },
   {
@@ -72143,7 +72151,7 @@ MESSAGE_REFERENCE = [
     "message": "vertex update groups are missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2656
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2678
     }
   },
   {
@@ -72151,7 +72159,7 @@ MESSAGE_REFERENCE = [
     "message": "vertex update position count does not match source indices",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2666
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 2688
     }
   },
   {
@@ -72191,7 +72199,7 @@ MESSAGE_REFERENCE = [
     "message": "window creation failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8369
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8376
     }
   },
   {
@@ -72231,7 +72239,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} cannot run while native mesh state is dirty; export/read the native mesh first",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2425
+      "cdmw/services/mesh_service.py": 2455
     }
   },
   {
@@ -72239,7 +72247,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} is legacy display-shape cleanup and is not available in active Mesh Editor",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 559,
+      "cdmw/ui/mesh_editor/controller.py": 553,
       "cdmw/workers/mesh_editor_workers.py": 246
     }
   },
@@ -72248,7 +72256,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} is legacy display-shape cleanup; pass allow_legacy_display_cleanup=True from an explicit legacy/archive path",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2419
+      "cdmw/services/mesh_service.py": 2449
     }
   },
   {
@@ -72440,7 +72448,7 @@ MESSAGE_REFERENCE = [
     "message": "{key} is missing or out of range",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3927
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs": 3949
     }
   },
   {
@@ -72480,7 +72488,7 @@ MESSAGE_REFERENCE = [
     "message": "{label} failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6201
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6208
     }
   },
   {
@@ -72544,7 +72552,7 @@ MESSAGE_REFERENCE = [
     "message": "{label} rejected: {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3793
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 3800
     }
   },
   {
@@ -72922,7 +72930,7 @@ MESSAGE_REFERENCE = [
     "message": "{session.mesh_format or 'unknown'} cannot use {requested.value}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2217
+      "cdmw/services/mesh_service.py": 2221
     }
   },
   {
@@ -72994,7 +73002,7 @@ MESSAGE_REFERENCE = [
     "message": "{} exceeds the payload limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3292
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3301
     }
   },
   {
@@ -73034,7 +73042,7 @@ MESSAGE_REFERENCE = [
     "message": "· GPU warning: {error}{}",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4723
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 4730
     }
   },
   {
@@ -73042,7 +73050,7 @@ MESSAGE_REFERENCE = [
     "message": "· texture binding warning: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6115
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6122
     }
   },
   {
@@ -73050,7 +73058,7 @@ MESSAGE_REFERENCE = [
     "message": "· texture warning: {warning}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7835
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 7842
     }
   },
   {
@@ -73171,6 +73179,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_guide_builder.py": 109
+    }
+  },
+  {
+    "area": "other",
+    "message": "A keymap listener failed after the save: %r",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/keymap_store.py": 129
     }
   },
   {
@@ -97350,7 +97366,7 @@ MESSAGE_REFERENCE = [
     "message": "%s failed with a C++ exception: %s",
     "recovery": "internal",
     "sources": {
-      "native/cd_texture_dx/src/common.cpp": 123
+      "native/cd_texture_dx/src/common.cpp": 120
     }
   },
   {
@@ -104153,7 +104169,7 @@ SOURCE_COVERAGE = {
   "cdmw/modding/mesh_native_brush.py": {},
   "cdmw/modding/mesh_native_client.py": {
     "diagnostic_field": 4,
-    "raise": 27
+    "raise": 28
   },
   "cdmw/modding/mesh_native_core.py": {},
   "cdmw/modding/mesh_native_core_blend_helpers.py": {},
@@ -104162,7 +104178,7 @@ SOURCE_COVERAGE = {
   "cdmw/modding/mesh_native_core_payload_helpers.py": {},
   "cdmw/modding/mesh_native_core_temp_paths.py": {},
   "cdmw/modding/mesh_native_dispatch.py": {
-    "failure": 17,
+    "failure": 19,
     "log": 1,
     "raise": 6,
     "report": 5
@@ -104753,7 +104769,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/iteminfo_dependency_graph.py": {
     "raise": 12
   },
-  "cdmw/services/keymap_store.py": {},
+  "cdmw/services/keymap_store.py": {
+    "log": 1
+  },
   "cdmw/services/localization_file_service.py": {
     "raise": 18,
     "report": 1
@@ -104985,7 +105003,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/mesh_service.py": {
     "diagnostic_text": 1,
     "log": 1,
-    "raise": 84,
+    "raise": 85,
     "report": 1
   },
   "cdmw/services/mesh_service_body_controls.py": {
@@ -106584,7 +106602,7 @@ SOURCE_COVERAGE = {
     "validation": 2
   },
   "cdmw/ui/mesh_editor/tab_dotnet_named_commands.py": {
-    "display": 2
+    "display": 1
   },
   "cdmw/ui/mesh_editor/tab_dotnet_part_colour.py": {
     "display": 1
@@ -106643,11 +106661,11 @@ SOURCE_COVERAGE = {
     "validation": 1
   },
   "cdmw/ui/mesh_editor/tab_rust_process.py": {
-    "diagnostic_field": 7,
+    "diagnostic_field": 9,
     "display": 3,
     "failure": 29,
     "raise": 5,
-    "report": 21
+    "report": 22
   },
   "cdmw/ui/mesh_editor/tab_selection_payloads.py": {},
   "cdmw/ui/mesh_editor/tab_session_runtime.py": {
@@ -108161,6 +108179,7 @@ SOURCE_COVERAGE = {
     "native_handoff": 1,
     "native_message": 36
   },
+  "native/common/long_path.hpp": {},
   "native/common/native_diagnostics.h": {},
   "native/common/pamt_compact.hpp": {
     "native_handoff": 11,
@@ -108815,7 +108834,9 @@ SOURCE_COVERAGE = {
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_shape_probe.rs": {
     "native_message": 1
   },
-  "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_handoff.rs": {},
+  "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_handoff.rs": {
+    "native_message": 1
+  },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_history.rs": {},
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs": {},
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_jiggle/native.rs": {

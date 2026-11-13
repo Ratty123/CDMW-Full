@@ -65,6 +65,28 @@ impl LabApplication {
         }
     }
 
+    /// The draft's last autosave failed: say so until a later one succeeds.
+    pub(super) fn draw_cdmw_save_failed_banner(&self, root_ui: &mut egui::Ui) {
+        let error = self.cdmw_state["geometry_layers"]["autosave_error"]
+            .as_str()
+            .unwrap_or("");
+        if error.is_empty() {
+            return;
+        }
+        egui::Panel::top("cdmw-save-failed").show(root_ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.colored_label(
+                    ui.visuals().error_fg_color,
+                    RichText::new(crate::localization::tr("Your latest changes could not be saved to the draft.")).strong(),
+                )
+                .on_hover_text(error);
+                ui.label(crate::localization::tr(
+                    "They are still here. CDMW tries again with your next change; keep this window open until this message goes away.",
+                ));
+            });
+        });
+    }
+
     /// Output for a handed-off session: nothing to choose here.
     pub(super) fn draw_cdmw_handoff_output(&self, ui: &mut egui::Ui, heading: bool) {
         if heading {

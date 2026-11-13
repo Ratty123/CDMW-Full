@@ -183,6 +183,7 @@ pub fn try_run() -> Result<bool> {
         last_layout: String::new(),
         error: None,
         next_repaint: None,
+        numpad_presses: Vec::new(),
     };
     event_loop.run_app(&mut app)?;
     if let Some(error) = app.error {
@@ -355,6 +356,9 @@ pub(crate) struct Application {
     last_layout: String,
     error: Option<String>,
     next_repaint: Option<Instant>,
+    /// Numpad presses since the last frame, so a palette key on the numpad is
+    /// told from its top-row twin (review of 59fd00c5e).
+    numpad_presses: Vec<(egui::Key, crate::shortcuts::NumpadKey)>,
 }
 
 /// Open a page as a window of the engine process (P4 V5): its input comes from
@@ -394,6 +398,7 @@ pub(crate) fn open_in_engine(
         last_layout: String::new(),
         error: None,
         next_repaint: None,
+        numpad_presses: Vec::new(),
     };
     Ok((app, sender))
 }
@@ -562,14 +567,16 @@ impl Application {
             .events
             .retain(|event| !matches!(event, egui::Event::WindowFocused(_)));
         let mut palette = false;
+        let mut numpad = Some(std::mem::take(&mut self.numpad_presses));
         let output = self.context.run_ui(input, |ui| {
             // The command palette's chord belongs to CDMW, wherever the focus is (P12).
             // CDMW's keymap decides the chords (P12 E5), as for the Mesh Editor.
-            palette |=
-                !crate::cdmw_ui::keyboard::take_shortcut_presses(ui.ctx(), Vec::new(), |chord| {
-                    chord.app_command().is_some()
-                })
-                .is_empty();
+            palette |= !crate::cdmw_ui::keyboard::take_shortcut_presses(
+                ui.ctx(),
+                numpad.take().unwrap_or_default(),
+                |chord| chord.app_command().is_some(),
+            )
+            .is_empty();
             if let Some(state) = &self.state {
                 self.view.draw(ui, state);
             } else {
@@ -684,6 +691,9 @@ impl ApplicationHandler for Application {
         ) && let Some(window) = &self.window
         {
             let _ = cdmw_win32_embed::focus_child_window(window);
+        }
+        if let Some(press) = crate::cdmw_ui::keyboard::numpad_press(&event) {
+            self.numpad_presses.push(press);
         }
         if let (Some(input), Some(window)) = (&mut self.input, &self.window) {
             if let Some(state) = &self.state {

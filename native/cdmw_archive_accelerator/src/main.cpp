@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "../../common/long_path.hpp"
 #include "../../common/pamt_compact.hpp"
 
 namespace fs = std::filesystem;
@@ -71,7 +72,7 @@ std::string json_escape(const std::string& value) {
 }
 
 std::string read_text(const fs::path& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(cdmw::long_path(path), std::ios::binary);
     if (!in) throw std::runtime_error("could not open " + path.string());
     std::ostringstream ss;
     ss << in.rdbuf();
@@ -79,19 +80,19 @@ std::string read_text(const fs::path& path) {
 }
 
 std::vector<char> read_binary(const fs::path& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(cdmw::long_path(path), std::ios::binary);
     if (!in) throw std::runtime_error("could not open " + path.string());
     return std::vector<char>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 }
 
 std::vector<char> read_binary_if_exists(const fs::path& path) {
-    if (path.empty() || !fs::is_regular_file(path)) return {};
+    if (path.empty() || !fs::is_regular_file(cdmw::long_path(path))) return {};
     return read_binary(path);
 }
 
 void write_text(const fs::path& path, const std::string& text) {
-    if (!path.parent_path().empty()) fs::create_directories(path.parent_path());
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!path.parent_path().empty()) fs::create_directories(cdmw::long_path(path.parent_path()));
+    std::ofstream out(cdmw::long_path(path), std::ios::binary | std::ios::trunc);
     if (!out) throw std::runtime_error("could not write " + path.string());
     out.write(text.data(), static_cast<std::streamsize>(text.size()));
 }
@@ -238,9 +239,9 @@ std::uint32_t hashlittle_bytes(const std::string& text, std::uint32_t initval = 
 // about 6 MiB/s, which on a 174 MB archive is half a minute of held GIL per file;
 // here it runs at memory speed in a process of its own.
 std::uint32_t hashlittle_file(const fs::path& path, std::uint64_t& size_out) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(cdmw::long_path(path), std::ios::binary);
     if (!in) throw std::runtime_error("could not open " + path.string());
-    const std::uint64_t length = static_cast<std::uint64_t>(fs::file_size(path));
+    const std::uint64_t length = static_cast<std::uint64_t>(fs::file_size(cdmw::long_path(path)));
     size_out = length;
     std::uint32_t a = 0xDEADBEEFu + static_cast<std::uint32_t>(length) + 0x000C5EDEu;
     std::uint32_t b = a;
@@ -607,16 +608,19 @@ std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
 
 std::vector<Entry> scan_package_root(const fs::path& package_root) {
     std::vector<fs::path> pamt_files;
-    if (fs::is_regular_file(package_root) && lower_copy(package_root.extension().string()) == ".pamt") {
+    if (fs::is_regular_file(cdmw::long_path(package_root)) && lower_copy(package_root.extension().string()) == ".pamt") {
         pamt_files.push_back(package_root);
     } else {
-        for (fs::recursive_directory_iterator it(package_root), end; it != end; ++it) {
+        // Walk the extended-length form; report each file under the root as given.
+        const fs::path long_root = cdmw::long_path(package_root);
+        for (fs::recursive_directory_iterator it(long_root), end; it != end; ++it) {
             const fs::directory_entry& item = *it;
             if (it.depth() == 0 && item.is_directory() && lower_copy(item.path().filename().string()) == "cdmods") {
                 it.disable_recursion_pending();
                 continue;
             }
-            if (item.is_regular_file() && lower_copy(item.path().extension().string()) == ".pamt") pamt_files.push_back(item.path());
+            if (item.is_regular_file() && lower_copy(item.path().extension().string()) == ".pamt")
+                pamt_files.push_back(package_root / item.path().lexically_relative(long_root));
         }
     }
     if (pamt_files.empty()) throw std::runtime_error("no .pamt files were found under " + package_root.string());
@@ -658,7 +662,7 @@ std::vector<std::string> split_tsv(const std::string& line) {
 }
 
 std::vector<Entry> read_entries_tsv(const fs::path& path) {
-    std::ifstream in(path);
+    std::ifstream in(cdmw::long_path(path));
     if (!in) throw std::runtime_error("could not open entries TSV");
     std::vector<Entry> entries;
     std::string line;
@@ -979,8 +983,8 @@ int run_derived_index_job(const fs::path& entries_path, const fs::path& report_p
             }
             out << "]";
         };
-        if (!report_path.parent_path().empty()) fs::create_directories(report_path.parent_path());
-        std::ofstream out(report_path, std::ios::binary | std::ios::trunc);
+        if (!report_path.parent_path().empty()) fs::create_directories(cdmw::long_path(report_path.parent_path()));
+        std::ofstream out(cdmw::long_path(report_path), std::ios::binary | std::ios::trunc);
         if (!out) throw std::runtime_error("could not write " + report_path.string());
         out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
             << ",\"entry_count\":" << entries.size()
@@ -1834,10 +1838,10 @@ int run_item_index_job(
     try {
         std::vector<Entry> entries = read_entries_tsv(entries_path);
         std::vector<fs::path> datasets{work_dir};
-        if (fs::is_directory(work_dir / "dlc")) {
+        if (fs::is_directory(cdmw::long_path(work_dir / "dlc"))) {
             std::vector<fs::path> dlc;
-            for (const auto& item : fs::directory_iterator(work_dir / "dlc"))
-                if (item.is_directory() && fs::is_regular_file(item.path() / "iteminfo.bin")) dlc.push_back(item.path());
+            for (const auto& item : fs::directory_iterator(cdmw::long_path(work_dir / "dlc")))
+                if (item.is_directory() && fs::is_regular_file(cdmw::long_path(item.path() / "iteminfo.bin"))) dlc.push_back(item.path());
             std::sort(dlc.begin(), dlc.end());
             datasets.insert(datasets.end(), dlc.begin(), dlc.end());
         }
@@ -2029,7 +2033,7 @@ int run_item_index_job(
 int run_path_checksum_job(const fs::path& job_path, const fs::path& result_path) {
     // Data-only length-prefixed UTF-8 strings, never filesystem paths to open.
     // Reuse the same PA lookup3 implementation and seed as archive checksums.
-    std::ifstream input(job_path, std::ios::binary);
+    std::ifstream input(cdmw::long_path(job_path), std::ios::binary);
     const std::string magic("CDPH\x01\0\0\0", 8);
     char header[8];
     if (!input.read(header, 8) || std::string(header, 8) != magic)
@@ -2043,7 +2047,7 @@ int run_path_checksum_job(const fs::path& job_path, const fs::path& result_path)
     };
     const auto count = read_size();
     if (count > 4194304) throw std::runtime_error("path checksum count exceeds limit");
-    std::ofstream output(result_path, std::ios::binary | std::ios::trunc);
+    std::ofstream output(cdmw::long_path(result_path), std::ios::binary | std::ios::trunc);
     if (!output) throw std::runtime_error("cannot write path checksum result");
     auto write_u32 = [&](std::uint32_t value) {
         char bytes[4];
@@ -2137,14 +2141,14 @@ int run_entry_read_job(const fs::path& job_path, const fs::path& output_path, co
             return 0;
         }
         if (orig_size == 0) throw std::runtime_error("entry has zero original size");
-        std::ifstream in(paz_file, std::ios::binary);
+        std::ifstream in(cdmw::long_path(paz_file), std::ios::binary);
         if (!in) throw std::runtime_error("could not open PAZ " + paz_file.string());
         in.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
         std::vector<char> data(static_cast<size_t>(orig_size));
         in.read(data.data(), static_cast<std::streamsize>(data.size()));
         if (static_cast<size_t>(in.gcount()) != data.size()) throw std::runtime_error("PAZ entry payload is truncated");
-        if (!output_path.parent_path().empty()) fs::create_directories(output_path.parent_path());
-        std::ofstream out_file(output_path, std::ios::binary | std::ios::trunc);
+        if (!output_path.parent_path().empty()) fs::create_directories(cdmw::long_path(output_path.parent_path()));
+        std::ofstream out_file(cdmw::long_path(output_path), std::ios::binary | std::ios::trunc);
         if (!out_file) throw std::runtime_error("could not write entry output");
         out_file.write(data.data(), static_cast<std::streamsize>(data.size()));
         std::ostringstream out;
@@ -2162,37 +2166,57 @@ int run_entry_read_job(const fs::path& job_path, const fs::path& output_path, co
 
 } // namespace
 
+#ifdef _WIN32
+// Wide arguments: a path in the ANSI code page loses any character outside it.
+int wmain(int argc, wchar_t** wide_argv) {
+    std::vector<std::string> text;
+    std::vector<fs::path> paths;
+    for (int index = 0; index < argc; ++index) {
+        paths.emplace_back(wide_argv[index]);
+        std::string word;  // only the command word is compared as text
+        for (const wchar_t* c = wide_argv[index]; *c; ++c) word.push_back(*c < 128 ? static_cast<char>(*c) : '?');
+        text.push_back(word);
+    }
+    struct Args {
+        const std::vector<std::string>& text;
+        const std::vector<fs::path>& paths;
+        std::string operator[](int index) const { return text[static_cast<size_t>(index)]; }
+    } argv{text, paths};
+    auto arg_path = [&](int index) { return paths[static_cast<size_t>(index)]; };
+#else
 int main(int argc, char** argv) {
+    auto arg_path = [&](int index) { return fs::path(argv[index]); };
+#endif
     try {
         if (argc >= 2 && std::string(argv[1]) == "--version") {
             std::cout << "cdmw-archive-accelerator protocol=" << kProtocol << "\n";
             return 0;
         }
         if (argc >= 4 && std::string(argv[1]) == "scan-job") {
-            return run_scan_job(fs::path(argv[2]), fs::path(argv[3]));
+            return run_scan_job(arg_path(2), arg_path(3));
         }
         if (argc >= 4 && std::string(argv[1]) == "browser-state-job") {
-            return run_browser_state_job(fs::path(argv[2]), fs::path(argv[3]));
+            return run_browser_state_job(arg_path(2), arg_path(3));
         }
         if (argc >= 4 && std::string(argv[1]) == "derived-index-job") {
             fs::path progress_path;
-            if (argc >= 5) progress_path = fs::path(argv[4]);
-            return run_derived_index_job(fs::path(argv[2]), fs::path(argv[3]), progress_path);
+            if (argc >= 5) progress_path = arg_path(4);
+            return run_derived_index_job(arg_path(2), arg_path(3), progress_path);
         }
         if (argc >= 5 && std::string(argv[1]) == "item-index-job") {
-            return run_item_index_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
+            return run_item_index_job(arg_path(2), arg_path(3), arg_path(4));
         }
         if (argc >= 5 && std::string(argv[1]) == "item-name-map-job") {
-            return run_item_index_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]), false);
+            return run_item_index_job(arg_path(2), arg_path(3), arg_path(4), false);
         }
         if (argc >= 4 && std::string(argv[1]) == "checksum-job") {
-            return run_checksum_job(fs::path(argv[2]), fs::path(argv[3]));
+            return run_checksum_job(arg_path(2), arg_path(3));
         }
         if (argc >= 4 && std::string(argv[1]) == "path-checksum-job") {
-            return run_path_checksum_job(fs::path(argv[2]), fs::path(argv[3]));
+            return run_path_checksum_job(arg_path(2), arg_path(3));
         }
         if (argc >= 5 && std::string(argv[1]) == "entry-read-job") {
-            return run_entry_read_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
+            return run_entry_read_job(arg_path(2), arg_path(3), arg_path(4));
         }
         std::cerr << "usage: cdmw-archive-accelerator --version | scan-job <job.json> <report.json> [progress.json] | browser-state-job <job.json> <report.json> [progress.json] | derived-index-job <entries.tsv> <report.json> [progress.json] | item-index-job <entries.tsv> <work-dir> <report.json> | item-name-map-job <entries.tsv> <work-dir> <report.json> | entry-read-job <job.json> <output.bin> <report.json> | checksum-job <job.json> <report.json> | path-checksum-job <paths.bin> <checksums.bin>\n";
         return 1;

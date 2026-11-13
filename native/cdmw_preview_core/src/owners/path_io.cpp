@@ -18,17 +18,7 @@ static std::string path_utf8(const fs::path& path) {
 }
 
 static fs::path native_file_path(const fs::path& path) {
-#ifdef _WIN32
-    if (path.empty()) return path;
-    const auto original = path.wstring();
-    if (original.starts_with(L"\\\\?\\") || original.starts_with(L"\\\\.\\")) return path;
-    auto absolute = fs::absolute(path).lexically_normal();
-    const auto value = absolute.make_preferred().wstring();
-    if (value.starts_with(L"\\\\")) return fs::path(L"\\\\?\\UNC\\" + value.substr(2));
-    return fs::path(L"\\\\?\\" + value);
-#else
-    return path;
-#endif
+    return cdmw::long_path(path);  // native/common/long_path.hpp
 }
 
 static std::string file_error_message(const std::error_code& code) {

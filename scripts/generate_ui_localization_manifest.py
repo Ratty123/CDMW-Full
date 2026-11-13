@@ -64,6 +64,9 @@ MANUAL_SOURCE_KEYS = frozenset(
         "This tool is not in a window of its own.",
         "No tool is in a window of its own.",
         "The Mesh Editor is not ready.",
+        # Settings > Shortcuts refuses the palette a Mesh Editor command's key
+        # (cdmw/ui/commands/shortcuts_page.py); {name} is the command's label.
+        "The Mesh Editor command {name} uses this key.",
         "Open an image first.",
         # The close guard's status line (cdmw/ui/shell/close_controller.py, P4 V3).
         "Finishing the edit. Close CDMW again when it has finished.",

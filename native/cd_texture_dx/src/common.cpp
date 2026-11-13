@@ -1,4 +1,5 @@
 #include "texture_tool_internal.h"
+#include "../../common/long_path.hpp"
 
 #include <DirectXTex.h>
 #include <Windows.h>
@@ -58,11 +59,7 @@ std::string wide_to_utf8(const std::wstring& text) {
 std::wstring win32_file_path(const std::wstring& path) {
     // WIC and DirectXTex otherwise reject deep source/cache paths at MAX_PATH.
     // Keep protocol paths unchanged; expand only at the native file-I/O boundary.
-    auto absolute = fs::absolute(fs::path(path)).lexically_normal();
-    const std::wstring value = absolute.make_preferred().wstring();
-    if (value.starts_with(L"\\\\?\\") || value.starts_with(L"\\\\.\\")) return value;
-    if (value.starts_with(L"\\\\")) return L"\\\\?\\UNC\\" + value.substr(2);
-    return L"\\\\?\\" + value;
+    return cdmw::long_path(fs::path(path)).wstring();
 }
 
 std::string json_escape(const std::string& text) {

@@ -294,7 +294,7 @@ std::size_t mesh_editor_history_stack_retained_bytes(const std::vector<MeshEdito
 std::array<std::size_t, 2> mesh_editor_session_history_retained_bytes(const MeshEditorSession& session);
 
 std::string read_text_file(const std::string& path) {
-    std::ifstream input(path, std::ios::binary);
+    std::ifstream input(cdmw_native_path(path), std::ios::binary);
     if (!input) {
         throw std::runtime_error("cannot open input file: " + path);
     }

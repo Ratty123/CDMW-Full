@@ -15,6 +15,7 @@ Editor still asks for its keys by its own ids; both are read from here.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Mapping
 
@@ -120,7 +121,12 @@ def save_keymap(settings, overrides: Mapping[str, object]) -> dict[str, list[str
     keymap = validated_keymap(dict(overrides))
     settings.setValue(KEYMAP_KEY, json.dumps(keymap, separators=(",", ":"), sort_keys=True))
     for listener in tuple(_SAVED_LISTENERS):
-        listener(settings)
+        # The keymap is saved: one follower that fails must not stop the others,
+        # nor turn the save itself into an error.
+        try:
+            listener(settings)
+        except Exception:
+            logging.getLogger(__name__).exception("A keymap listener failed after the save: %r", listener)
     return keymap
 
 

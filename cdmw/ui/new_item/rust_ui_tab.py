@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+import weakref
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QProcess, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import QVBoxLayout, QWidget
@@ -35,6 +36,25 @@ def _palette_chords() -> list[str]:
         return palette_chords(app_settings())
     except Exception:
         return ["Ctrl+Shift+P"]
+
+
+def _follow_keymap(tab: "RustNewItemStudioTab") -> None:
+    """Send the palette's new keys as soon as the keymap is saved (review of 9ff3c4bd8).
+
+    The page's state carries them; its fingerprint changes, so the next publish
+    sends it. A closed tab drops out: the listener holds it weakly.
+    """
+
+    from cdmw.services.keymap_store import on_keymap_saved
+
+    reference = weakref.ref(tab)
+
+    def keymap_saved(_settings) -> None:
+        current = reference()
+        if current is not None and isValid(current):
+            QTimer.singleShot(0, current, current._publish_state)
+
+    on_keymap_saved(keymap_saved)
 
 
 class RustNewItemStudioTab(QWidget):
@@ -81,6 +101,7 @@ class RustNewItemStudioTab(QWidget):
         self._received_generation = 0
         self._state_fingerprint = b""
         self._state_delivery = QElapsedTimer()
+        _follow_keymap(self)
         self._bridge = None
 
         layout = QVBoxLayout(self)

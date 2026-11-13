@@ -177,3 +177,21 @@ def test_preview_core_lists_the_sword_s_scabbard_and_tests_it() -> None:
     runner = tests[tests.index("static void run_material_contract_self_test()"):]
     assert "run_weapon_sheath_component_self_test();" in runner[:400]
     assert "cd_phm_02_sword_0015_in.pac" in tests
+
+
+def test_a_set_s_unticked_parts_survive_an_open_started_while_it_prepares(monkeypatch) -> None:
+    """Review of 0359504f6: the set's files are read in the background, and another open
+    started meanwhile takes the shell's parts; the set hands its own over when it opens."""
+
+    from cdmw.ui.mesh_editor import item_set_preparation
+    from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
+
+    opened = []
+    shell = SimpleNamespace(_mesh_editor_pending_hidden_parts=None, _mesh_editor_hidden_parts_for_open=None)
+    monkeypatch.setattr(item_set_preparation, "open_prepared_item_piece",
+                        lambda target, contexts, *, edit_set: opened.append(
+                            (target._mesh_editor_hidden_parts_for_open, edit_set)))
+    preparation = SimpleNamespace(hidden_parts={SWORD: (1,)}, edit_set=True)
+    MeshEditorShellBridgeMixin._take_pending_hidden_parts_for_open(shell)  # another open, meanwhile
+    item_set_preparation._open_prepared_set(shell, preparation, ("context",))
+    assert opened == [({SWORD: (1,)}, True)] and preparation.hidden_parts is None

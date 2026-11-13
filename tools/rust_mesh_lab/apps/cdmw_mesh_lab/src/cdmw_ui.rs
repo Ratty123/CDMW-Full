@@ -2059,6 +2059,7 @@ impl LabApplication {
         self.draw_cdmw_shortcut_editor(&root_ui.ctx().clone());
         self.draw_cdmw_session_bar(root_ui, &mut actions);
         self.draw_cdmw_handoff_banner(root_ui);
+        self.draw_cdmw_save_failed_banner(root_ui);
         self.draw_cdmw_correction_comparison_banner(root_ui, &mut actions);
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
         let tools_expanded = cdmw_sidebar_visible(&self.egui_context, CDMW_TOOLS_SIDEBAR);

@@ -197,15 +197,24 @@ pub(crate) fn take_shortcut_presses(
     })
 }
 
+/// A numpad press, under the egui key it produced: egui reports numpad digits as
+/// top-row digits, so each window loop records them for take_shortcut_presses.
+pub(crate) fn numpad_press(event: &WindowEvent) -> Option<(egui::Key, NumpadKey)> {
+    if let WindowEvent::KeyboardInput { event, .. } = event
+        && event.state == ElementState::Pressed
+        && let winit::keyboard::PhysicalKey::Code(code) = event.physical_key
+        && let Some(numpad) = NumpadKey::from_key_code(code)
+        && let Some(key) = crate::shortcuts::numpad_egui_key(numpad, &event.logical_key)
+    {
+        return Some((key, numpad));
+    }
+    None
+}
+
 impl LabApplication {
     pub(crate) fn capture_shortcut_numpad_event(&mut self, event: &WindowEvent) {
-        if let WindowEvent::KeyboardInput { event, .. } = event
-            && event.state == ElementState::Pressed
-            && let winit::keyboard::PhysicalKey::Code(code) = event.physical_key
-            && let Some(numpad) = NumpadKey::from_key_code(code)
-            && let Some(key) = crate::shortcuts::numpad_egui_key(numpad, &event.logical_key)
-        {
-            self.shortcut_numpad_presses.push((key, numpad));
+        if let Some(press) = numpad_press(event) {
+            self.shortcut_numpad_presses.push(press);
         }
     }
 

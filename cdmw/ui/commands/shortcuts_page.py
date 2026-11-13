@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.commands.keymap import conflicts, keymap_rows, reset_all, save_keys
+from cdmw.ui.commands.palette import PALETTE_COMMAND
 from cdmw.ui.commands.registry import CommandRegistry, display_label
 
 #: Context -> the name the page shows for it.
@@ -257,8 +258,29 @@ class ShortcutsPage(QWidget):
 
             options = dict(check=lambda keys: check_helper_keys(keys, takes_modifier=row.takes_modifier),
                            shown=qt_key_text, keep_numpad=True)
+        elif row.command_id == PALETTE_COMMAND:
+            options = dict(check=self._palette_key_check)
         return KeyDialog(row.label, row.keys, self, conflict_for=lambda keys: self.conflict_text(row, keys),
                          **options)
+
+    def _palette_key_check(self, keys: list[str]) -> tuple[list[str], str]:
+        """The palette may not take a key a Mesh Editor command uses (review of 59fd00c5e).
+
+        The editor hands the palette's keys to CDMW before its own commands see
+        them, so that command would stop working while the editor is open.
+        """
+
+        from cdmw.ui.commands.helper_keys import helper_binding
+
+        for key in keys:
+            chord = helper_binding(key).text
+            if not chord:
+                continue
+            for other in self.rows():
+                if other.helper and any(helper_binding(used).text == chord for used in other.keys):
+                    name = display_label(_translate(other.label))
+                    return [], _translate("The Mesh Editor command {name} uses this key.").replace("{name}", name)
+        return list(keys), ""
 
     def conflict_text(self, row, keys: list[str]) -> str:
         """Which commands the proposed keys would clash with, if any."""

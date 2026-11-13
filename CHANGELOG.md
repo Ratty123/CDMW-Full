@@ -81,9 +81,15 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - In **Textures**, the Upscale controls no longer scroll sideways at large text sizes: when they do not fit beside the preview they move above it, and back once they fit. Replace's queue keeps its Selected file row on one line where the page has room, and the texture preview's channel, mip and zoom controls wrap onto another line instead of holding the queue too narrow.
 
+- CDMW's own programs now open files in folders deeper than Windows' 260-character path limit, which a long user or profile name can reach: texture conversion and previews, model previews, the archive index and the Mesh Editor's mesh work no longer fail there. If a Mesh Editor draft cannot be saved after a change, the editor now says so until a later save succeeds; before, the failure went unnoticed.
+
+- A Mesh Editor step that took too long no longer ends the editing session of every other open draft; only the slow draft's session is opened again with its next step. Showing, hiding, renaming, moving or choosing a geometry layer no longer freezes the window while a draft is being saved.
+
+- After **Finish** in Browse Archives, Browse's own model comes back only when the finished model itself fails to load; opening another file meanwhile no longer brings the old model back.
+
 - **Texture Replacer Review** loads the item you select while the previous item's preview is still preparing; before, its panes could stay on "Preparing..." until you picked another row.
 
-- The **Texture Editor**'s commands are in the command palette and in **Settings > Shortcuts**; before, the editor the app shows registered none. Outside the Textures workspace's Edit mode they say to switch to Edit first. Settings > Shortcuts also lists the app's own commands the first time it opens, and the command palette's key can be changed there like any other; the Mesh Editor's 3D view follows the new key too.
+- The **Texture Editor**'s commands are in the command palette and in **Settings > Shortcuts**; before, the editor the app shows registered none. Outside the Textures workspace's Edit mode they say to switch to Edit first. Settings > Shortcuts also lists the app's own commands the first time it opens, and the command palette's key can be changed there like any other; the Mesh Editor's 3D view and Create New Item follow the new key at once, on the numpad too. A key a Mesh Editor command uses is refused for the palette, and the refusal names that command.
 
 - A key set for a **Mesh Editor** command in **Settings > Shortcuts** now works in the Mesh Editor: Page Up, Delete, numpad keys and the like were saved in a spelling the editor could not read, which reset that command to its default. Keys the Mesh Editor keeps for itself (Escape, arrows, Ctrl+C, Ctrl+V, Ctrl+X, Alt+F4, Ctrl+Shift+P) are refused with the reason. A command with two keys keeps its second key when you change the first, **Unbind** removes both, and the command palette shows the keys you set instead of the defaults.
 

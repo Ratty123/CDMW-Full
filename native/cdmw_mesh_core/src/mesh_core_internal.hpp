@@ -38,6 +38,14 @@
 #include "xatlas.h"
 
 #include "mesh_core.hpp"
+#include "../../common/long_path.hpp"
+
+// Every path the core opens arrives as UTF-8 (the job JSON, or the arguments
+// main() converts from the wide command line). Open it wide, in its
+// extended-length form, so a deep draft or profile folder still opens.
+inline std::filesystem::path cdmw_native_path(const std::string& utf8_path) {
+    return cdmw::long_path(std::filesystem::u8path(utf8_path));
+}
 
 // `out << std::setprecision(17) << value` with no float flags set is printf's
 // "%.17g" text, and std::to_chars(general, 17) is specified to write exactly that

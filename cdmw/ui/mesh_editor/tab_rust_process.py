@@ -30,6 +30,9 @@ from cdmw.ui.mesh_editor.process_io import (
 )
 from cdmw.ui.mesh_editor.rust_theme_transport import protocol_line, rust_theme_digest
 
+#: How often the Mesh Editor tab checks whether the draft's last autosave failed.
+RUST_SAVE_STATUS_POLL_MS = 2000
+
 _RUST_PROTOCOL_QUEUE_LIMIT = 128
 _RUST_READY_TIMEOUT_MS = 10_000
 _RUST_RENDERER_READY_TIMEOUT_MS = 60_000
@@ -660,6 +663,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_ready = True
         self._release_background_warmups()
         self._query_deferred_rust_morph_state()
+        self._start_rust_save_status_watch()
         became_ready = getattr(self, "became_ready", None)  # the live-edit component's signal
         if became_ready is not None and hasattr(became_ready, "emit"):
             became_ready.emit()
@@ -1135,6 +1139,52 @@ class MeshEditorRustProcessMixin:
         self._send_rust_message(self._rust_host_message("morph_state", request_id=0,
                                                         extra={"payload": dict(payload)}))
         self._send_rust_tool_groups({})
+
+    def _start_rust_save_status_watch(self) -> None:
+        """A draft autosave that fails says so in the editor (2026-11-13).
+
+        The draft saves on a background thread after each change, so its failure
+        comes after the change's own reply: the editor is told on its own line,
+        and told again when a later save succeeds.
+        """
+
+        timer = getattr(self, "standalone_rust_save_status_timer", None)
+        if timer is None:
+            timer = QTimer(self)
+            timer.setInterval(RUST_SAVE_STATUS_POLL_MS)
+            timer.timeout.connect(self._poll_rust_save_status)
+            self.standalone_rust_save_status_timer = timer
+        self.standalone_rust_save_status_sent = ""
+        timer.start()
+
+    def _rust_save_status_error(self) -> str:
+        session = self.standalone_rust_authoring_session
+        for service_name, id_name in (("shadow_service", "shadow_session_id"),
+                                      ("authoritative_service", "authoritative_session_id")):
+            service = getattr(session, service_name, None)
+            session_id = getattr(session, id_name, None)
+            if service is None or not session_id:
+                continue
+            try:
+                error = str(getattr(service._session(session_id), "mesh_layer_autosave_error", "") or "")
+            except (AttributeError, KeyError, RuntimeError, TypeError):
+                continue
+            if error:
+                return error
+        return ""
+
+    def _poll_rust_save_status(self) -> None:
+        session = self.standalone_rust_authoring_session
+        timer = getattr(self, "standalone_rust_save_status_timer", None)
+        if session is None or getattr(session, "closed", True) or not self.standalone_rust_ready:
+            if timer is not None:
+                timer.stop()
+            return
+        error = self._rust_save_status_error()
+        if error == getattr(self, "standalone_rust_save_status_sent", ""):
+            return
+        if self._send_rust_message(self._rust_host_message("save_status", request_id=0, extra={"error": error})):
+            self.standalone_rust_save_status_sent = error
 
     def _send_rust_tool_groups(self, preparing: Mapping[str, str]) -> bool:
         """Tell the editor which tool groups are still preparing, and why (P4 V4)."""
