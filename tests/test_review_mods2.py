@@ -340,3 +340,26 @@ def test_clearing_a_library_that_holds_an_unconfigured_installation_never_emptie
     except Exception:
         pass  # a refusal is the right outcome
     assert (game / "bin64" / "CrimsonDesert.exe").is_file(), "clearing the library deleted an installed game"
+
+
+def test_an_extraction_root_full_of_files_can_still_be_cleared(tmp_path, monkeypatch):
+    """_installation_below stops after INSTALLATION_SEARCH_MAX_ENTRIES entries within four
+    levels and then refuses. It counts every entry, files included, though only folders
+    are searched. A full extraction (character/texture/*.dds) holds far more files than
+    that at depth three, and clearing it is what Clear Root is for. Shown with the bound
+    lowered, so the test stays quick: 1,200 files in three folders against 1,000."""
+
+    pytest.importorskip("cdmw.core.protected_roots")
+    from cdmw.core import protected_roots
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    if not hasattr(protected_roots, "INSTALLATION_SEARCH_MAX_ENTRIES"):
+        pytest.skip("the bounded walk is not on this branch")
+    monkeypatch.setattr(protected_roots, "INSTALLATION_SEARCH_MAX_ENTRIES", 1000)
+    extracted = tmp_path / "extract"
+    for folder in ("character/texture", "character/model", "ui/texture"):
+        (extracted / folder).mkdir(parents=True)
+        for index in range(400):
+            (extracted / folder / f"file_{index:04d}.dds").write_bytes(b"x")
+    clear_directory_contents(extracted)  # an honest output folder: it must clear
+    assert extracted.is_dir() and not any(extracted.iterdir())

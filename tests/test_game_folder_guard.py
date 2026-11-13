@@ -277,6 +277,24 @@ def test_an_output_folder_holding_mods_with_their_own_index_still_clears(tmp_pat
     assert picked.is_dir() and not any(picked.iterdir())
 
 
+def test_the_three_installation_marks_match_the_archive_workers(tmp_path):
+    """meta/0.papgt together with bin64/CrimsonDesert.exe, CrimsonDesert.exe or 0000/0.pamt."""
+    from cdmw.app.app_folder import game_installation_holding
+
+    assert {mark.as_posix() for mark in protected_roots.INSTALLATION_MARKS} == {
+        "bin64/CrimsonDesert.exe", "CrimsonDesert.exe", "0000/0.pamt"}
+    for mark in ("bin64/CrimsonDesert.exe", "CrimsonDesert.exe", "0000/0.pamt"):
+        game = tmp_path / mark.replace("/", "-") / "game"
+        (game / "meta").mkdir(parents=True)
+        (game / "meta" / "0.papgt").write_bytes(b"papgt")
+        (game / mark).parent.mkdir(parents=True, exist_ok=True)
+        (game / mark).write_bytes(b"x")
+        assert protected_roots.installation_holding(game / "mods" / "x") == game
+        assert game_installation_holding(game / "CDMW") == game
+        with pytest.raises(ProtectedGameFolderWrite):
+            atomic_write_bytes(game / "out.bin", b"x")
+
+
 @pytest.mark.parametrize("limit", ["entries", "time"])
 def test_a_folder_too_large_to_check_quickly_is_refused_not_cleared(tmp_path, monkeypatch, limit):
     """The walk can run on the interface thread (Clear Workflow Roots), so it is bounded;

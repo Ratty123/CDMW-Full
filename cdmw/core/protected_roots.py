@@ -44,17 +44,20 @@ from cdmw.domain.output_paths import GAME_INDEX
 
 #: Who may hold the permit, by the name the user sees.
 PERMIT_HOLDERS = frozenset({"Restore Backup", "Remove What an Older CDMW Installed"})
-#: Beside ``meta/0.papgt``, either of these marks a game installation rather than a mod.
-INSTALLATION_MARKS = (Path("bin64") / "CrimsonDesert.exe", Path("0000") / "0.pamt")
+#: Beside ``meta/0.papgt``, any of these marks a game installation rather than a mod. The
+#: archive worker's export rule lists the same three.
+INSTALLATION_MARKS = (Path("bin64") / "CrimsonDesert.exe", Path("CrimsonDesert.exe"), Path("0000") / "0.pamt")
 #: How far below a folder that is cleared or replaced CDMW looks for a game installation:
 #: a Steam library's ``steamapps/common/Crimson Desert`` is three levels down.
 INSTALLATION_SEARCH_DEPTH = 4
-#: The walk may run on the thread that asked for the clear (Clear Workflow Roots runs on
-#: the interface thread), so it is bounded. Past either limit the folder is refused, not
-#: cleared: an output folder holds far fewer entries in its first four levels, and a
-#: folder that holds more (a Games folder, a user profile) is not one to clear.
+#: The walk is bounded so a clear asked of a huge tree cannot run on without end. It counts
+#: folders, not files: only folders are searched, and a full extraction root holds far more
+#: files than this in its first levels, which is exactly what Clear Root is for. Past either
+#: limit the folder is refused, not cleared: an output folder holds far fewer folders in its
+#: first four levels, and one that holds more (a Games folder, a user profile) is not one to
+#: clear. Both clears run on the background runner, so the time limit is generous.
 INSTALLATION_SEARCH_MAX_ENTRIES = 50_000
-INSTALLATION_SEARCH_SECONDS = 1.0
+INSTALLATION_SEARCH_SECONDS = 30.0
 #: Folders that only a game library or a package root holds; a folder holding one is
 #: never cleared or replaced.
 LIBRARY_FOLDER_NAMES = frozenset({"steamapps", "game_files"})
@@ -218,11 +221,11 @@ def _installation_below(folder: Path) -> str | None:
     A game installation (see :func:`installation_holding`), a ``steamapps`` or
     ``game_files`` folder, or a link that leads into a game. Links are not followed.
     A folder that cannot be read is taken to hold one, and so is a folder whose first
-    levels hold more than :data:`INSTALLATION_SEARCH_MAX_ENTRIES` entries or take longer
+    levels hold more than :data:`INSTALLATION_SEARCH_MAX_ENTRIES` folders or take longer
     than :data:`INSTALLATION_SEARCH_SECONDS` to look through: the check fails closed.
     """
 
-    too_large = (f"more files and folders than CDMW looks through before clearing a folder "
+    too_large = (f"more folders than CDMW looks through before clearing a folder "
                  f"({INSTALLATION_SEARCH_MAX_ENTRIES:,} within {INSTALLATION_SEARCH_DEPTH} levels, or "
                  f"{INSTALLATION_SEARCH_SECONDS:g} s), so CDMW could not make sure no game folder is in it. "
                  "Choose the folder that holds only the output to clear")
@@ -245,9 +248,6 @@ def _installation_below(folder: Path) -> str | None:
                 continue
             except OSError as error:
                 return f"a folder CDMW could not look into ({current}: {error.strerror or error})"
-            seen += len(children)
-            if seen > INSTALLATION_SEARCH_MAX_ENTRIES:
-                return too_large
             for child in children:
                 try:
                     if child.is_symlink() or child.is_junction():
@@ -262,6 +262,9 @@ def _installation_below(folder: Path) -> str | None:
                     continue
                 if child.name.casefold() in LIBRARY_FOLDER_NAMES:
                     return f"a game library folder ({child.path})"
+                seen += 1
+                if seen > INSTALLATION_SEARCH_MAX_ENTRIES:
+                    return too_large
                 following.append(Path(child.path))
         level = following
         if not level:

@@ -53,10 +53,11 @@ class AppFolderInsideGame(AppFolderNotWritable):
 
 
 # The rule cdmw.core.protected_roots.installation_holding applies, repeated here so this
-# module keeps to the standard library: meta/0.papgt with the game's executable or its
-# shipped first archive group. meta/0.papgt alone also marks an archive-style mod.
+# module keeps to the standard library: meta/0.papgt with the game's executable (in bin64
+# or the root) or its shipped first archive group. meta/0.papgt alone also marks an
+# archive-style mod.
 _GAME_INDEX = ("meta", "0.papgt")
-_INSTALLATION_MARKS = (("bin64", "CrimsonDesert.exe"), ("0000", "0.pamt"))
+_INSTALLATION_MARKS = (("bin64", "CrimsonDesert.exe"), ("CrimsonDesert.exe",), ("0000", "0.pamt"))
 
 
 def game_installation_holding(folder: Path) -> Path | None:
