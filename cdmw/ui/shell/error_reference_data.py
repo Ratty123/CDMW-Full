@@ -52250,7 +52250,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1105
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1113
     }
   },
   {
@@ -52282,7 +52282,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor archive load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 479
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 497
     }
   },
   {
@@ -52299,7 +52299,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/ui/mesh_editor/tab_rust_process.py": 859,
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 820
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 838
     }
   },
   {
@@ -52307,7 +52307,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 558
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 576
     }
   },
   {
@@ -52446,7 +52446,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor file load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 705
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 723
     }
   },
   {
@@ -52479,7 +52479,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 994
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1002
     }
   },
   {
@@ -59199,7 +59199,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status parse failed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 933
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 951
     }
   },
   {
@@ -59207,7 +59207,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status read failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 924
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 942
     }
   },
   {
@@ -59552,7 +59552,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1029
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1037
     }
   },
   {
@@ -63063,7 +63063,7 @@ MESSAGE_REFERENCE = [
     "message": "The current Finish must stop before another mesh file can open.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 590
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 608
     }
   },
   {
@@ -63071,7 +63071,7 @@ MESSAGE_REFERENCE = [
     "message": "The current Finish must stop before another mesh session can open.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 560
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 578
     }
   },
   {
@@ -69918,7 +69918,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh must be ParsedMesh",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 554
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 572
     }
   },
   {
@@ -72953,7 +72953,7 @@ MESSAGE_REFERENCE = [
     "message": "preview error: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 975
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 993
     }
   },
   {
@@ -73035,7 +73035,7 @@ MESSAGE_REFERENCE = [
     "message": "preview process error; retry scheduled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1059
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1077
     }
   },
   {

@@ -709,7 +709,15 @@ class MeshEditorShellBridgeMixin:
         )
         return True
 
+    def _take_pending_hidden_parts_for_open(self) -> None:
+        """Every open takes the Scene panel's unticked parts for itself, or none: what an
+        earlier, refused open left behind never reaches a later one (P5, section 8.9)."""
+
+        self._mesh_editor_hidden_parts_for_open = getattr(self, "_mesh_editor_pending_hidden_parts", None)
+        self._mesh_editor_pending_hidden_parts = None
+
     def _launch_archive_mesh_editor_for_entry(self, entry: ArchiveEntry) -> None:
+        self._take_pending_hidden_parts_for_open()
         if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             self.set_status_message("Select a supported archive mesh before opening Mesh Editor.", error=True)
             return
@@ -910,8 +918,8 @@ class MeshEditorShellBridgeMixin:
             **session_options,
         )
         # P5: parts left unticked in the Scene panel start with View off.
-        pending = getattr(self, "_mesh_editor_pending_hidden_parts", None)
-        self._mesh_editor_pending_hidden_parts = None
+        pending = getattr(self, "_mesh_editor_hidden_parts_for_open", None)
+        self._mesh_editor_hidden_parts_for_open = None
         if pending:
             from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 

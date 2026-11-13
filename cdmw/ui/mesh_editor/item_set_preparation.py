@@ -214,7 +214,9 @@ def _open_members(shell: object, members: tuple, files: tuple) -> bool:
     from cdmw.ui.mesh_editor.tab_rust_editor import hold_warmups_for_mesh_editor_open
 
     hold_warmups_for_mesh_editor_open(shell.archive, shell)
-    shell._mesh_editor_pending_hidden_parts = dict(files)
+    # This set's open takes the unticked parts, and no other open does (8.9).
+    shell._mesh_editor_pending_hidden_parts = None
+    shell._mesh_editor_hidden_parts_for_open = dict(files)
     tab = shell.mesh_editor_tab
     preparation = getattr(tab, "item_set_preparation", None)
     if preparation is None:

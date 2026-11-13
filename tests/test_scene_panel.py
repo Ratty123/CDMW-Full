@@ -127,6 +127,46 @@ def test_unticked_parts_start_with_view_off_in_the_editor() -> None:
     assert session.viewport_hidden_parts == (1,) and tab.pending_view_hidden_parts is None
 
 
+def test_unticked_parts_of_every_file_of_a_set_start_with_view_off() -> None:
+    """Section 8.9 (P5): View off covered only the file being opened, not the other
+    files of a multi-file open."""
+
+    from cdmw.services.mesh_asset_context import ORIGIN_ATTRIBUTE, MeshAsset, MeshAssetContext
+    from cdmw.ui.mesh_editor.tab_session_runtime import MeshEditorSessionMixin
+
+    def asset(path: str, data: bytes) -> MeshAsset:
+        return MeshAsset(entry=SimpleNamespace(path=path, basename=path.rsplit("/", 1)[-1]),
+                         source=SimpleNamespace(original_data=data), part_indices=(), role="member")
+
+    sword, scabbard = asset(SWORD, b"sword"), asset(SCABBARD, b"scabbard")
+    context = MeshAssetContext(assets=(sword, scabbard), workflow="item_set")
+    # The set session: the sword's two parts, then the scabbard's two.
+    parts = [SimpleNamespace(**{ORIGIN_ATTRIBUTE: origin}) for origin in (
+        sword.source_part_id(0), sword.source_part_id(1), scabbard.source_part_id(0), scabbard.source_part_id(1))]
+    session = SimpleNamespace(working_mesh=SimpleNamespace(submeshes=parts), viewport_hidden_parts=(),
+                              archive_refit_context=context)
+    tab = SimpleNamespace(pending_view_hidden_parts={SWORD: (1,), SCABBARD.upper(): (0,)})
+    result = SimpleNamespace(service=SimpleNamespace(_session=lambda _id: session), view=SimpleNamespace(session_id="s"))
+    MeshEditorSessionMixin._apply_pending_view_hidden_parts(tab, result, SimpleNamespace(path=SWORD))
+    assert session.viewport_hidden_parts == (1, 2)
+
+
+def test_a_refused_open_leaves_no_unticked_parts_for_the_next_open() -> None:
+    """Section 8.9 (P5): parts left pending by a refused open reached the next open of
+    that file. Each open now takes them for itself, or none."""
+
+    from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
+
+    shell = SimpleNamespace(_mesh_editor_pending_hidden_parts={SWORD: (1,)}, set_status_message=lambda *a, **k: None)
+    shell._take_pending_hidden_parts_for_open = MeshEditorShellBridgeMixin._take_pending_hidden_parts_for_open.__get__(shell)
+    # Open ticked parts asked for the sword; this open is refused before it starts.
+    MeshEditorShellBridgeMixin._launch_archive_mesh_editor_for_entry.__get__(shell)(object())
+    assert shell._mesh_editor_hidden_parts_for_open == {SWORD: (1,)}
+    # A later, ordinary open of the sword: nothing pending, so nothing is hidden.
+    MeshEditorShellBridgeMixin._launch_archive_mesh_editor_for_entry.__get__(shell)(object())
+    assert shell._mesh_editor_hidden_parts_for_open is None
+
+
 def test_preview_core_lists_the_sword_s_scabbard_and_tests_it() -> None:
     """P5: the sheath beside a weapon (`<stem>_in.pac`) is an optional component; the self-test runs it."""
     from pathlib import Path

@@ -449,14 +449,32 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         self.pending_view_hidden_parts = None
         if not pending:
             return
-        key = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().casefold()
-        locals_hidden = tuple(int(index) for index in pending.get(key, ()))
+
+        def normal(path: object) -> str:
+            return str(path or "").replace("\\", "/").strip().casefold()
+
+        hidden_by_file = {normal(path): {int(index) for index in indices} for path, indices in pending.items()}
         try:
             session = result.service._session(result.view.session_id)
         except (AttributeError, KeyError):
             return
-        count = len(session.working_mesh.submeshes)
-        session.viewport_hidden_parts = tuple(sorted({index for index in locals_hidden if 0 <= index < count}))
+        parts = session.working_mesh.submeshes
+        from cdmw.services.mesh_asset_context import ORIGIN_ATTRIBUTE, is_item_set
+
+        context = getattr(session, "archive_refit_context", None)
+        if is_item_set(context):
+            # Every file of the set: a part's origin names its file and its index
+            # there, which is what the Scene panel ticked (P5, section 8.9).
+            files = {asset.asset_id: normal(getattr(asset.entry, "path", "")) for asset in context.assets}
+            hidden = set()
+            for index, part in enumerate(parts):
+                owner, _, local = str(getattr(part, ORIGIN_ATTRIBUTE, "")).rpartition(":")
+                if local.isdigit() and int(local) in hidden_by_file.get(files.get(owner, ""), ()):
+                    hidden.add(index)
+        else:
+            hidden = {index for index in hidden_by_file.get(normal(getattr(entry, "path", "")), ())
+                      if 0 <= index < len(parts)}
+        session.viewport_hidden_parts = tuple(sorted(hidden))
 
     @staticmethod
     def _discard_archive_session_result(result: object) -> None:
