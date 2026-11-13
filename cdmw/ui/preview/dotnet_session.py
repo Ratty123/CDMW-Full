@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
@@ -84,6 +85,9 @@ _AUTHORING_PROTOCOL_CAPABILITIES = (
 #: Edits one engine process holds at once (P15): open documents beyond it edit in
 #: a helper of their own, and the document budget parks the oldest.
 MAX_ENGINE_EDITS = 4
+
+#: Said when a finished edit's package failed and Browse's own scene came back.
+RESTORED_PREVIOUS_SCENE_MESSAGE = "The finished mesh could not be shown; Browse shows the file as it was before the edit."
 
 class RustPreviewSessionController(
     DotNetPreviewSessionLocalizationMixin,
@@ -1644,6 +1648,11 @@ class RustPreviewSessionController(
             )
             or "Package load failed."
         )
+        if payload.get("restored_previous_scene") is True:
+            # After a Finish the view had kept the edit's geometry; the helper put the
+            # file's own scene back when the finished package failed (section 8.9, C1).
+            logging.getLogger(__name__).warning("The finished package failed to load (%s); Browse's own scene is back.", message)
+            message = RESTORED_PREVIOUS_SCENE_MESSAGE
         self._fail_current_package(message)
 
     def _accept_applied_package(

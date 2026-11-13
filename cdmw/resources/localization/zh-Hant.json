@@ -14756,6 +14756,7 @@
     "The file currently selected in Archive Browser.": "目前在封存檔瀏覽器中所選的檔案。",
     "The file has no animation in it.": "檔案中沒有動畫。",
     "The final save inventory could not be observed.": "無法觀察最終存檔清單。",
+    "The finished mesh could not be shown; Browse shows the file as it was before the edit.": "無法顯示完成的網格；Browse 顯示的是編輯前的檔案。",
     "The first archive page was stale.": "第一個封存檔頁面已過時。",
     "The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.": "遊戲或模組變更封存檔後的首次讀取，會將快取的封存檔目錄與遊戲的索引檔進行核對。在較慢的磁碟上最多可能需要一分鐘；之後的讀取會沿用該結果，直到封存檔再次變更。",
     "The first bone starts at {value_0}; each next bone is one segment further.": "第一根骨骼從 {value_0} 開始，之後每根骨骼再延伸一個段長。",

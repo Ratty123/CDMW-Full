@@ -14756,6 +14756,7 @@
     "The file currently selected in Archive Browser.": "El archivo seleccionado actualmente en Explorador de archivos.",
     "The file has no animation in it.": "El archivo no contiene ninguna animación.",
     "The final save inventory could not be observed.": "No se pudo observar el inventario final de guardados.",
+    "The finished mesh could not be shown; Browse shows the file as it was before the edit.": "No se pudo mostrar la malla terminada; Browse muestra el archivo tal como estaba antes de la edición.",
     "The first archive page was stale.": "La primera página de archivo estaba obsoleta.",
     "The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.": "La primera lectura de los archivos después de que el juego o un mod los cambie comprueba el catálogo de archivos en caché con los archivos de índice del juego. Puede tardar hasta un minuto en una unidad lenta; las lecturas posteriores reutilizan el resultado hasta que los archivos vuelvan a cambiar.",
     "The first bone starts at {value_0}; each next bone is one segment further.": "El primer hueso empieza en {value_0}; cada hueso siguiente está un segmento más allá.",

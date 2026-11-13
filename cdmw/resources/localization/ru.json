@@ -14756,6 +14756,7 @@
     "The file currently selected in Archive Browser.": "Файл, выбранный в данный момент в браузере архивов.",
     "The file has no animation in it.": "В файле нет анимации.",
     "The final save inventory could not be observed.": "Не удалось наблюдать итоговую опись сохранений.",
+    "The finished mesh could not be shown; Browse shows the file as it was before the edit.": "Не удалось показать готовую сетку; Browse показывает файл таким, каким он был до правки.",
     "The first archive page was stale.": "Первая страница архива устарела.",
     "The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.": "При первом чтении после правок игры/модов кэш каталога сверяется с индексами игры: до минуты на медленном диске. Результат действует до новых правок архивов.",
     "The first bone starts at {value_0}; each next bone is one segment further.": "Первая кость начинается в {value_0}; каждая следующая находится на один сегмент дальше.",

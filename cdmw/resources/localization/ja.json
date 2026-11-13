@@ -14756,6 +14756,7 @@
     "The file currently selected in Archive Browser.": "アーカイブ ブラウザーで現在選択されているファイル。",
     "The file has no animation in it.": "ファイルにアニメーションが含まれていません。",
     "The final save inventory could not be observed.": "最終的なセーブ一覧を観測できませんでした。",
+    "The finished mesh could not be shown; Browse shows the file as it was before the edit.": "完了したメッシュを表示できませんでした。Browse には編集前のファイルが表示されています。",
     "The first archive page was stale.": "最初のアーカイブ ページは古いです。",
     "The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.": "ゲームや Mod がアーカイブを変更した後の最初の読み込みでは、キャッシュされたアーカイブカタログをゲームのインデックスファイルと照合します。低速なドライブでは最大 1 分ほどかかることがあります。以降の読み込みでは、アーカイブが再び変更されるまで結果を再利用します。",
     "The first bone starts at {value_0}; each next bone is one segment further.": "最初のボーンは {value_0} から始まり、次のボーンは 1 セグメントずつ先に置かれます。",

@@ -574,6 +574,9 @@ pub struct PreviewApplication {
     /// The scene revision when Browse's renderer was lent: its kept scene is put
     /// back only if no package load changed it meanwhile (section 8.7 C1).
     lent_scene_revision: Option<u64>,
+    /// Browse's own scene, kept after a Finish until the finished package replaces
+    /// the edit's geometry; a failed load puts it back (section 8.9, C1).
+    finished_kept: Option<cdmw_render_wgpu::KeptScene>,
     /// Another viewport of the engine process (P4 V5): closing it closes its
     /// window, not the process.
     secondary: bool,
@@ -694,6 +697,7 @@ impl PreviewApplication {
             package_captures: None,
             captures_idle_since: None,
             lent_scene_revision: None,
+            finished_kept: None,
             secondary: false,
             followed_revision: None,
             icon_capture: false,
@@ -992,7 +996,11 @@ impl PreviewApplication {
             return;
         }
         if finished {
-            drop(kept);
+            // The edit's geometry stays drawn until the finished package arrives;
+            // Browse's own scene waits beside it in case that load fails.
+            self.finished_kept =
+                kept.filter(|_| self.lent_scene_revision == Some(self.scene_revision));
+            self.lent_scene_revision = None;
             self.renderer = Some(renderer);
             self.render_failures = 0;
             if let Some(window) = &self.window {
@@ -1003,18 +1011,8 @@ impl PreviewApplication {
         let unchanged = self.lent_scene_revision == Some(self.scene_revision);
         let rebuilt = match kept {
             Some(kept) if unchanged => {
-                renderer.restore_scene(kept);
-                let transform = if self.snapshot_scene_roles.is_some() {
-                    role_model_matrix(&self.state.scene, "editable")
-                } else {
-                    Mat4::IDENTITY
-                };
                 self.renderer = Some(renderer);
-                self.renderer
-                    .as_mut()
-                    .expect("set above")
-                    .set_scene_transform(transform)
-                    .map_err(|error| error.to_string())
+                self.restore_kept_scene(kept)
             }
             _ => {
                 self.renderer = Some(renderer);
@@ -1033,6 +1031,24 @@ impl PreviewApplication {
         if let Some(window) = &self.window {
             window.request_redraw();
         }
+    }
+
+    /// Draw Browse's own scene again from what was set aside, with its transform and
+    /// its material parameters: one changed during the edit is not left stale (C1).
+    fn restore_kept_scene(&mut self, kept: cdmw_render_wgpu::KeptScene) -> Result<(), String> {
+        let transform = if self.snapshot_scene_roles.is_some() {
+            role_model_matrix(&self.state.scene, "editable")
+        } else {
+            Mat4::IDENTITY
+        };
+        let Some(renderer) = self.renderer.as_mut() else {
+            return Err("The renderer was lost while editing.".to_owned());
+        };
+        renderer.restore_scene(kept);
+        renderer
+            .set_scene_transform(transform)
+            .map_err(|error| error.to_string())?;
+        self.apply_material_parameters()
     }
 
     fn restore_renderer(&mut self) -> Result<(), String> {
@@ -1377,6 +1393,7 @@ impl PreviewApplication {
             })();
             match applied {
                 Ok(()) => {
+                    self.finished_kept = None;
                     self.bridge.send(
                         json!({"event":"package_load_applied","request_id":request.request_id,
                         "generation":request.generation,"package_path":request.path,
@@ -1384,10 +1401,30 @@ impl PreviewApplication {
                     );
                     changed = true;
                 }
-                Err(error) => self.bridge.send(
-                    json!({"event":"package_load_failed","request_id":request.request_id,
-                    "generation":request.generation,"package_path":request.path,"error":error}),
-                ),
+                Err(error) => {
+                    // After a Finish the view still draws the edit's geometry under the
+                    // old file's name: put Browse's own scene back, and say so (C1).
+                    let restored = match self.finished_kept.take() {
+                        Some(kept) => match self.restore_kept_scene(kept) {
+                            Ok(()) => {
+                                self.apply_presentation(false);
+                                self.apply_overlays();
+                                changed = true;
+                                true
+                            }
+                            Err(restore_error) => {
+                                self.recover_gpu(restore_error);
+                                false
+                            }
+                        },
+                        None => false,
+                    };
+                    self.bridge.send(
+                        json!({"event":"package_load_failed","request_id":request.request_id,
+                        "generation":request.generation,"package_path":request.path,"error":error,
+                        "restored_previous_scene":restored}),
+                    );
+                }
             }
         }
         changed
@@ -5197,5 +5234,105 @@ mod view_mode_tests {
             assert_eq!(drawn_view_mode(chosen, true), ViewMode::TexturedSolid);
             assert_eq!(drawn_view_mode(chosen, false), chosen);
         }
+    }
+
+    /// Section 8.9 (C1): after a Finish Browse's view keeps the edit's geometry until
+    /// the finished package arrives; when that load fails, Browse's own scene comes
+    /// back instead of the edit's geometry staying under the old file's name.
+    #[test]
+    #[ignore = "explicit hidden-window D3D12: Browse's scene back after a failed finished load"]
+    fn a_failed_load_after_finish_puts_browse_s_scene_back() {
+        use winit::event_loop::EventLoop;
+        use winit::platform::windows::EventLoopBuilderExtWindows;
+
+        let event_loop = EventLoop::builder()
+            .with_any_thread(true)
+            .build()
+            .expect("event loop");
+        let mut probe = FinishedLoadProbe {
+            proxy: event_loop.create_proxy(),
+            result: None,
+        };
+        event_loop.run_app(&mut probe).expect("probe event loop");
+        probe
+            .result
+            .expect("probe ran")
+            .expect("Browse's scene came back");
+    }
+
+    struct FinishedLoadProbe {
+        proxy: EventLoopProxy<()>,
+        result: Option<anyhow::Result<()>>,
+    }
+
+    impl ApplicationHandler for FinishedLoadProbe {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            self.result = Some((|| -> anyhow::Result<()> {
+                let root = tempfile::tempdir()?;
+                let manifest =
+                    crate::cdmw_session::tests::write_preview_core_package_fixture(root.path());
+                // Browse's page: a hidden window the preview embeds its own under.
+                let parent = event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(96, 96)),
+                )?;
+                let parent_hwnd = cdmw_win32_embed::window_hwnd(&parent)?;
+                let (mut preview, _route) =
+                    PreviewApplication::open_routed(&manifest, parent_hwnd, self.proxy.clone())?;
+                ApplicationHandler::resumed(&mut preview, event_loop);
+                let frame = |preview: &mut PreviewApplication| -> anyhow::Result<Vec<u8>> {
+                    let camera = preview.camera.view_projection(preview.viewport_rect());
+                    let (right, up) = (preview.camera.right(), preview.camera.up());
+                    let renderer = preview.renderer.as_mut().context("no renderer")?;
+                    renderer.set_camera_with_basis(camera, right, up);
+                    Ok(renderer.capture_frame(96, 96, None)?.read_rgba()?)
+                };
+                // Browse as it draws once it has applied its presentation.
+                preview
+                    .apply_material_parameters()
+                    .map_err(anyhow::Error::msg)?;
+                preview.apply_presentation(false);
+                preview.apply_overlays();
+                let browse = frame(&mut preview)?;
+                // The edit borrows the view and draws its own scene meanwhile.
+                let lent = preview.lend_view().map_err(anyhow::Error::msg)?;
+                let mut renderer = lent.renderer;
+                let kept = renderer.set_scene_aside();
+                preview.return_view(Some(renderer), Some(lent.camera), Some(kept), true);
+                anyhow::ensure!(
+                    frame(&mut preview)? != browse,
+                    "the edit's geometry was not kept after Finish"
+                );
+                // The finished package does not load.
+                let generation = preview.newest_package_generation + 1;
+                preview.start_package_load(
+                    7,
+                    generation,
+                    root.path().join("missing").join("manifest.json"),
+                    false,
+                );
+                let deadline = Instant::now() + std::time::Duration::from_secs(30);
+                while preview.finished_kept.is_some() && Instant::now() < deadline {
+                    preview.poll_package_loads();
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                anyhow::ensure!(
+                    preview.finished_kept.is_none(),
+                    "the failed load never arrived"
+                );
+                let back = frame(&mut preview)?;
+                let differing = browse.iter().zip(&back).filter(|(a, b)| a != b).count();
+                anyhow::ensure!(
+                    back == browse,
+                    "Browse's own scene did not come back: {differing} of {} bytes differ",
+                    browse.len()
+                );
+                Ok(())
+            })());
+            event_loop.exit();
+        }
+
+        fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
     }
 }

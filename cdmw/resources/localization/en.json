@@ -14756,6 +14756,7 @@
     "The file currently selected in Archive Browser.": "The file currently selected in Archive Browser.",
     "The file has no animation in it.": "The file has no animation in it.",
     "The final save inventory could not be observed.": "The final save inventory could not be observed.",
+    "The finished mesh could not be shown; Browse shows the file as it was before the edit.": "The finished mesh could not be shown; Browse shows the file as it was before the edit.",
     "The first archive page was stale.": "The first archive page was stale.",
     "The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.": "The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.",
     "The first bone starts at {value_0}; each next bone is one segment further.": "The first bone starts at {value_0}; each next bone is one segment further.",

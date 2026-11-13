@@ -14756,6 +14756,7 @@
     "The file currently selected in Archive Browser.": "Şu anda Arşiv Tarayıcısı'nda seçili olan dosya.",
     "The file has no animation in it.": "Dosyada animasyon yok.",
     "The final save inventory could not be observed.": "Son kayıt envanteri gözlemlenemedi.",
+    "The finished mesh could not be shown; Browse shows the file as it was before the edit.": "Tamamlanan mesh gösterilemedi; Browse dosyayı düzenlemeden önceki haliyle gösteriyor.",
     "The first archive page was stale.": "İlk arşiv sayfası eskiydi.",
     "The first archive read after the game or a mod changes the archives checks the cached archive catalogue against the game's index files. This can take up to a minute on a slow drive; later reads reuse the result until the archives change again.": "Oyun veya bir mod arşivleri değiştirdikten sonraki ilk okuma, önbelleğe alınmış arşiv kataloğunu oyunun dizin dosyalarıyla karşılaştırır. Yavaş bir sürücüde bu bir dakika kadar sürebilir; sonraki okumalar, arşivler yeniden değişene kadar sonucu yeniden kullanır.",
     "The first bone starts at {value_0}; each next bone is one segment further.": "İlk kemik {value_0} noktasında başlar; sonraki her kemik bir bölüm ileridedir.",

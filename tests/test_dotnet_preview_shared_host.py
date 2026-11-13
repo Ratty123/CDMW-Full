@@ -1805,6 +1805,27 @@ def test_authoritative_rehydrator_prevents_controller_scene_replay_ownership() -
     controller.shutdown()
 
 
+def test_a_failed_finished_package_says_browse_shows_the_file_as_before(tmp_path: Path) -> None:
+    """Section 8.9 (C1): when the package of a finished edit fails, the helper puts
+    Browse's own scene back and says so; CDMW shows that, not only the load error."""
+
+    from cdmw.ui.preview.dotnet_session import RESTORED_PREVIOUS_SCENE_MESSAGE
+
+    controller, _process, _first = _start_controller(tmp_path)
+    _make_ready(controller)
+    failures: list[str] = []
+    controller.package_failed.connect(lambda path, generation, message: failures.append(message))
+    second = _package(tmp_path, "package-finished")
+    assert controller.load_package(second)
+    request = next(payload for payload in reversed(_process.writes) if payload.get("event") == "package_load_request")
+    controller._handle_protocol_event(  # noqa: SLF001
+        {**request, "event": "package_load_failed", "error": "missing texture", "restored_previous_scene": True},
+        controller.process_generation,
+    )
+    assert failures[-1] == RESTORED_PREVIOUS_SCENE_MESSAGE
+    controller.shutdown()
+
+
 @pytest.mark.parametrize("detail_key", ["message", "error"])
 def test_package_failure_keeps_resident_scene_and_process_retryable(
     tmp_path: Path,
