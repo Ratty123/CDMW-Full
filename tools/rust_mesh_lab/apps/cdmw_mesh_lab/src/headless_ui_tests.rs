@@ -9967,6 +9967,72 @@ fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore
 }
 
 /// P15 step 5a: Browse shown around an edit in its view draws the view only, with
+/// CDMW's Finish runs while Browse is shown around the edit; the palette's other
+/// commands wait for the editor, as their keys do (P15 step 5a).
+#[test]
+fn cdmw_s_finish_runs_while_browse_is_shown_around_the_edit() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1400.0, 1000.0));
+    ui.settle_layout();
+    ui.application.set_cdmw_browsing(true);
+    ui.application.pending_host_commands =
+        vec!["tool.move".to_owned(), "session.finish".to_owned()];
+    ui.last_actions.clear();
+    ui.frame(Vec::new());
+    assert!(
+        ui.last_actions
+            .iter()
+            .any(|action| matches!(action, UiAction::FinishCdmw)),
+        "Finish did not run while Browse was shown"
+    );
+    assert_eq!(
+        ui.application.pending_host_commands,
+        vec!["tool.move".to_owned()],
+        "the palette's other command did not wait for the editor"
+    );
+    assert!(
+        ui.application.cdmw_orbit_mode,
+        "a waiting tool command changed the mode while Browse was shown"
+    );
+    Ok(())
+}
+
+/// A Finish asked for while an edit is in flight waits and is sent after it.
+#[test]
+fn a_finish_during_an_edit_waits_for_it_and_is_sent_after() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1400.0, 1000.0));
+    ui.settle_layout();
+    ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
+        request_id: 7,
+        event: "command_result",
+        label: "Delete".to_owned(),
+        origin: None,
+    });
+    ui.application.handle_actions(vec![UiAction::FinishCdmw]);
+    assert!(
+        ui.application.cdmw_finish_waiting,
+        "a Finish during an edit was dropped"
+    );
+    assert!(
+        !ui.application.send_waiting_cdmw_finish(),
+        "the Finish was sent while the edit was in flight"
+    );
+    // The edit's result arrives with CDMW's state, which hydrates hair as always.
+    ui.application.cdmw_pending_request = None;
+    ui.application.hydrate_hair(None);
+    assert!(
+        ui.application.cdmw_finish_waiting,
+        "CDMW's state update dropped the waiting Finish"
+    );
+    assert!(
+        ui.application.send_waiting_cdmw_finish(),
+        "the waiting Finish was not sent once the edit was done"
+    );
+    assert!(!ui.application.cdmw_finish_waiting);
+    Ok(())
+}
+
 /// no panels or shortcuts, and clicks orbit; giving the editor back restores both.
 #[test]
 fn browse_shown_around_an_edit_hides_the_editor_s_panels_and_gives_them_back() -> TestResult {

@@ -29,6 +29,7 @@ mod cdmw_ui;
 mod cdmw_vertex_inspector;
 mod control_contract;
 mod engine;
+mod engine_trace;
 #[cfg(test)]
 mod gpu_recovery_tests;
 #[cfg(test)]
@@ -2411,6 +2412,8 @@ struct LabApplication {
     shortcut_numpad_presses: Vec<(egui::Key, shortcuts::NumpadKey)>,
     /// Editor commands CDMW asked for (its palette), run at the next frame.
     pending_host_commands: Vec<String>,
+    /// A Finish asked for while an edit was in flight: sent once it is done.
+    cdmw_finish_waiting: bool,
     /// What the editor last told CDMW about its commands, to send only changes.
     published_commands_state: String,
     cdmw_bridge: Option<CdmwBridge>,
@@ -2650,6 +2653,7 @@ impl LabApplication {
             primary_press_modifiers: egui::Modifiers::NONE,
             shortcut_numpad_presses: Vec::new(),
             pending_host_commands: Vec::new(),
+            cdmw_finish_waiting: false,
             published_commands_state: String::new(),
             cdmw_bridge: None,
             cdmw_pending: None,
@@ -3529,13 +3533,31 @@ impl LabApplication {
         }
     }
 
+    /// Send the Finish that waited for an edit, once nothing is in flight. True
+    /// when it was sent.
+    fn send_waiting_cdmw_finish(&mut self) -> bool {
+        if !self.cdmw_finish_waiting || self.cdmw_busy() || self.hair.preparing() {
+            return false;
+        }
+        self.submit_cdmw_finish();
+        true
+    }
+
     fn submit_cdmw_finish(&mut self) {
         if self.cdmw_busy() || self.hair.preparing() {
-            self.hair.pending_finish = self.hair.active();
+            if self.hair.active() {
+                self.hair.pending_finish = true;
+            } else {
+                // The Finish waits for the edit in flight and is sent after it, from
+                // the editor or from CDMW's end-edit prompt alike; dropping it left
+                // CDMW waiting for a Finish that never came (journey 3).
+                self.cdmw_finish_waiting = true;
+            }
             self.status =
                 "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation".to_owned();
             return;
         }
+        self.cdmw_finish_waiting = false;
         let mut hidden_parts: Vec<u32> = self.cdmw_hidden_parts.iter().copied().collect();
         hidden_parts.sort_unstable();
         let Some(bridge) = &mut self.cdmw_bridge else {
@@ -7962,6 +7984,13 @@ impl LabApplication {
     }
 }
 
+/// Whether egui's answer to a window event asks for a frame. egui-winit answers
+/// "repaint" for the redraw itself; requesting another from it drew every frame
+/// back to back, unthrottled under Mailbox presentation (section 8.7 B4).
+fn egui_event_wants_redraw(repaint: bool, event: &WindowEvent) -> bool {
+    repaint && !matches!(event, WindowEvent::RedrawRequested)
+}
+
 fn path_is_within(path: &std::path::Path, root: &std::path::Path) -> bool {
     let resolved_path = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let resolved_root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
@@ -8389,11 +8418,11 @@ impl ApplicationHandler for LabApplication {
         else {
             return;
         };
-        if self
+        let egui_repaint = self
             .egui_state
             .as_mut()
-            .is_some_and(|state| state.on_window_event(&window, &event).repaint)
-        {
+            .is_some_and(|state| state.on_window_event(&window, &event).repaint);
+        if egui_event_wants_redraw(egui_repaint, &event) {
             window.request_redraw();
         }
         if self.capture_viewport_pointer_event(&event, window.scale_factor()) {
@@ -8438,7 +8467,7 @@ impl ApplicationHandler for LabApplication {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.poll_pending_session(event_loop);
-        let changed = self.poll_loader() | self.poll_cdmw();
+        let changed = self.poll_loader() | self.poll_cdmw() | self.send_waiting_cdmw_finish();
         if self.gpu_recovery.take_due(Instant::now())
             && let Some(window) = self.window.clone()
         {
@@ -8523,6 +8552,24 @@ mod tests {
             warnings: Vec::new(),
             structural_fingerprint: String::new(),
         }
+    }
+
+    #[test]
+    fn a_drawn_frame_never_asks_for_the_next_one() {
+        assert!(!egui_event_wants_redraw(
+            true,
+            &WindowEvent::RedrawRequested
+        ));
+        assert!(egui_event_wants_redraw(
+            true,
+            &WindowEvent::CursorLeft {
+                device_id: winit::event::DeviceId::dummy()
+            }
+        ));
+        assert!(!egui_event_wants_redraw(
+            false,
+            &WindowEvent::CloseRequested
+        ));
     }
 
     #[test]

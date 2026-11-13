@@ -2038,10 +2038,20 @@ impl LabApplication {
             && self.shortcut_editor.capture.is_none();
         if self.cdmw_browsing() {
             // Browse Archives is shown around the edit (P15 step 5a): the view only,
-            // no panels, no shortcuts; clicks orbit.
+            // no panels, no shortcuts; clicks orbit. CDMW's Finish (its end-edit
+            // prompt) still runs; its other commands wait for the editor, as keys do.
             self.shortcuts_live = false;
+            let mut actions = Vec::new();
+            if let Some(index) = self
+                .pending_host_commands
+                .iter()
+                .position(|command| command == "session.finish")
+            {
+                self.pending_host_commands.remove(index);
+                actions.push(UiAction::FinishCdmw);
+            }
             self.draw_cdmw_viewport(root_ui);
-            return Vec::new();
+            return actions;
         }
         let mut actions = Vec::new();
         self.draw_cdmw_delete_guidance(root_ui.ctx(), &mut actions);

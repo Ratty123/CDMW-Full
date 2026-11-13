@@ -72,6 +72,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- The **Mesh Editor** no longer keeps a processor core busy while nothing changes. Its 3D view drew every frame straight after the last, as fast as the graphics card allowed; it now draws only when something changes. A **Finish** chosen while an edit is still being applied, in the editor or in CDMW's Finish, Discard or Keep editing question, now waits for that edit and then finishes; before, it could be dropped and nothing happened.
+
 - **Texture Replacer Review** loads the item you select while the previous item's preview is still preparing; before, its panes could stay on "Preparing..." until you picked another row.
 
 - The **Texture Editor**'s commands are in the command palette and in **Settings > Shortcuts**; before, the editor the app shows registered none. Outside the Textures workspace's Edit mode they say to switch to Edit first. Settings > Shortcuts also lists the app's own commands the first time it opens, and the command palette's key can be changed there like any other; the Mesh Editor's 3D view follows the new key too.

@@ -111,6 +111,8 @@ pub struct EngineApplication {
     opening: OpeningViewports,
     /// The process's one device, for its life (section 8.8 cause 2).
     device: crate::cdmw_preview::EngineDevice,
+    /// The opt-in loop trace (`CDMW_ENGINE_LOOP_TRACE`, section 8.7 B4).
+    trace: crate::engine_trace::LoopTrace,
 }
 
 impl EngineApplication {
@@ -147,6 +149,7 @@ impl EngineApplication {
             parent_hwnd,
             opening,
             device,
+            trace: crate::engine_trace::LoopTrace::from_env(),
         }
     }
 
@@ -735,6 +738,14 @@ impl EngineApplication {
 }
 
 impl ApplicationHandler for EngineApplication {
+    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: winit::event::StartCause) {
+        self.trace.woke(cause);
+    }
+
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, (): ()) {
+        self.trace.count("message_wake");
+    }
+
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // The window and renderer are the Preview's; an edit borrows them.
         self.preview.resumed(event_loop);
@@ -748,6 +759,31 @@ impl ApplicationHandler for EngineApplication {
     ) {
         // An edit in Browse's view gets that window's events; one in its own
         // window gets only those of its window.
+        if self.trace.enabled() {
+            let part = if self.edit_for_window(window_id).is_some() {
+                "edit"
+            } else if self
+                .viewports
+                .iter()
+                .any(|view| view.window_id() == Some(window_id))
+            {
+                "viewport"
+            } else if self
+                .pages
+                .iter()
+                .any(|page| page.window_id() == Some(window_id))
+            {
+                "page"
+            } else {
+                "preview"
+            };
+            let kind = if matches!(event, WindowEvent::RedrawRequested) {
+                "redraw"
+            } else {
+                "event"
+            };
+            self.trace.count(&format!("{part}_{kind}"));
+        }
         if let Some(index) = self.edit_for_window(window_id) {
             self.edits[index]
                 .app
@@ -779,16 +815,19 @@ impl ApplicationHandler for EngineApplication {
         event_loop.set_control_flow(ControlFlow::Wait);
         self.preview.about_to_wait(event_loop);
         let mut preview_flow = event_loop.control_flow();
+        self.trace.wait("preview", preview_flow);
         for viewport in &mut self.viewports {
             event_loop.set_control_flow(ControlFlow::Wait);
             viewport.wait(event_loop);
             preview_flow = earliest(preview_flow, event_loop.control_flow());
         }
         let mut preview_flow = self.wait_pages(event_loop, preview_flow);
+        self.trace.wait("previews_and_pages", preview_flow);
         self.follow_edit();
         for edit in &self.edits {
             if let Some(at) = edit.app.followers_wake_at() {
                 preview_flow = earliest(preview_flow, ControlFlow::WaitUntil(at));
+                self.trace.wait("followers", ControlFlow::WaitUntil(at));
             }
         }
         event_loop.set_control_flow(preview_flow);
@@ -797,6 +836,8 @@ impl ApplicationHandler for EngineApplication {
         for edit in &mut self.edits {
             event_loop.set_control_flow(ControlFlow::Wait);
             edit.app.about_to_wait(event_loop);
+            self.trace
+                .wait(&format!("edit {}", edit.id), event_loop.control_flow());
             // Every view may be live (edits in windows of their own): each set the
             // wait for its own deadlines, so keep the earliest.
             flow = earliest(flow, event_loop.control_flow());
@@ -830,6 +871,8 @@ impl ApplicationHandler for EngineApplication {
             }
         }
         event_loop.set_control_flow(flow);
+        self.trace.wait("chosen", flow);
+        self.trace.flush_if_due();
         self.leave_if_requested();
     }
 }

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from pathlib import Path
 
 import pytest
@@ -122,10 +123,16 @@ def test_journey_3_an_edit_through_the_bridge_in_browse_and_in_the_mesh_workspac
 
     run.select(driver.SWORD)
     hwnd = run.state()["browse_frame_hwnd"]
+    before = _capture(run, "before.png")
     run.open_mesh_editor()
     _editor_ready(run)
     assert run.state()["mesh_editor"]["in_browse"]
     first = _one_edit(run, run.state()["mesh_editor"]["editor_steps"])
+    # Section 8.7 B4: an edit idling in Browse's view leaves the process idle too.
+    time.sleep(3.0)  # the edit's own upload and redraw finish first
+    total, busy = _cpu_share(run.state()["browse_process_id"], seconds=3.0)
+    print(f"B4: Browse's process used {total:.1%} of a core while the edit idled, {busy:.1%} without thumbnails")
+    assert busy < 0.25, f"Browse's process used {busy:.0%} of a core while the edit idled"
     index = len(run.call("events"))
     run.call("activate_tool", key="mesh_editor")
     state = run.wait(lambda: run.state()["browse_edit_as_mesh"] and run.state(), timeout=20,
@@ -135,7 +142,95 @@ def test_journey_3_an_edit_through_the_bridge_in_browse_and_in_the_mesh_workspac
     second = _one_edit(run, first)
     assert second > first
     assert not [e for e in run.call("events", since=index) if e["event"] == "preview:edit_entered"]
-    assert run.call("end_edit", answer="discard")
+    # Section 8.7 C2: after Finish Browse's view never draws the model from before.
+    run.call("activate_tool", key="archive_browser")
+    index = len(run.call("events"))
+    assert run.call("end_edit", answer="finish")
+    try:
+        run.wait(lambda: any(e["event"] == "preview:edit_left" for e in run.call("events", since=index)),
+                 timeout=60, what="the edit to leave Browse's view")
+    except TimeoutError:
+        print("DEBUG state", run.state()["mesh_editor"])
+        for event in run.call("events", since=index)[-40:]:
+            print("DEBUG event", event)
+        raise
+    after = _capture(run, "after-finish.png")
+    assert after != before, "Browse's view drew the model from before the edit after Finish"
+
+
+def _capture(run, name: str) -> bytes:
+    """A frame of Browse's view, as the bridge's capture writes it."""
+
+    target = run.profile / "captures" / name
+    index = len(run.call("events"))
+    assert run.call("capture", path=str(target))
+    result = run.wait(lambda: [e for e in run.call("events", since=index) if e["event"] == "preview:capture_result"],
+                      timeout=60, what=f"the capture {name}")[-1]
+    assert result.get("status") == "captured", result
+    # The event is recorded as the helper's line arrives; the file is copied to the
+    # requested path just after it.
+    run.wait(lambda: target.is_file() and target.stat().st_size > 0, timeout=10, what=f"the file of {name}")
+    return target.read_bytes()
+
+
+#: Character Finder's thumbnails render on this thread of Browse's process (P4 V5):
+#: real work CDMW asks for, not the view's own.
+CAPTURE_THREAD = "cdmw-package-capture"
+
+
+def _thread_times(process_id: int) -> dict[int, tuple[str, float]]:
+    """Each thread of a process: its name and the CPU seconds it has used."""
+
+    import ctypes
+    from ctypes import wintypes
+
+    class Entry(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ThreadID", wintypes.DWORD),
+                    ("th32OwnerProcessID", wintypes.DWORD), ("tpBasePri", wintypes.LONG),
+                    ("tpDeltaPri", wintypes.LONG), ("dwFlags", wintypes.DWORD)]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel32.OpenThread.restype = wintypes.HANDLE
+    kernel32.GetThreadTimes.argtypes = (wintypes.HANDLE,) + (ctypes.POINTER(wintypes.FILETIME),) * 4
+    kernel32.GetThreadDescription.argtypes = (wintypes.HANDLE, ctypes.POINTER(ctypes.c_wchar_p))
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x4, 0)  # TH32CS_SNAPTHREAD
+    entry = Entry()
+    entry.dwSize = ctypes.sizeof(Entry)
+    threads = {}
+    more = kernel32.Thread32First(snapshot, ctypes.byref(entry))
+    while more:
+        if entry.th32OwnerProcessID == int(process_id):
+            handle = kernel32.OpenThread(0x0800 | 0x0400, False, entry.th32ThreadID)
+            if handle:
+                times = [wintypes.FILETIME() for _ in range(4)]
+                kernel32.GetThreadTimes(handle, *(ctypes.byref(item) for item in times))
+                name = ctypes.c_wchar_p()
+                described = kernel32.GetThreadDescription(handle, ctypes.byref(name)) >= 0
+                threads[entry.th32ThreadID] = (
+                    (name.value or "") if described else "",
+                    sum((item.dwHighDateTime << 32 | item.dwLowDateTime) for item in times[2:]) / 1e7,
+                )
+                kernel32.CloseHandle(handle)
+        more = kernel32.Thread32Next(snapshot, ctypes.byref(entry))
+    kernel32.CloseHandle(snapshot)
+    return threads
+
+
+def _cpu_share(process_id: int, *, seconds: float) -> tuple[float, float]:
+    """The share of one core a process used over ``seconds``: in all, and without
+    Character Finder's thumbnail captures."""
+
+    import time
+
+    before = _thread_times(process_id)
+    time.sleep(seconds)
+    after = _thread_times(process_id)
+    used = {tid: (name, busy - before.get(tid, (name, 0.0))[1]) for tid, (name, busy) in after.items()}
+    total = sum(busy for _name, busy in used.values()) / seconds
+    captures = sum(busy for name, busy in used.values() if name == CAPTURE_THREAD) / seconds
+    return total, total - captures
 
 
 def test_journey_4_switch_workspaces_around_one_window(run):
