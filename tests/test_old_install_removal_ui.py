@@ -138,3 +138,22 @@ def test_the_button_beside_restore_backup_runs_the_action_when_the_layout_has_it
     button.click()
     assert started and button.text() == action_module.LABEL
     button.deleteLater()
+
+
+def test_both_commands_carry_user_only_once_command_has_the_field(app, monkeypatch):
+    """The MCP branch (0a70505b) adds Command.user_only. Give Command the field here, as
+    that merge will, and fail when either game-folder route is registered without it."""
+
+    flagged = dataclasses.make_dataclass(
+        "Command", [("user_only", bool, dataclasses.field(default=False))], bases=(Command,),
+        frozen=True, slots=True)
+    registered = {}
+    fake = SimpleNamespace(register=lambda command, replace=False: registered.__setitem__(command.id, command))
+    monkeypatch.setattr(action_module, "Command", flagged)
+    monkeypatch.setattr(action_module, "command_registry", lambda: fake)
+    browser = SimpleNamespace(archive_package_root_edit=None, shell=None,
+                              _restore_archive_patch_backup_from_ui=lambda: None)
+    action_module.install_old_install_removal(browser)
+    assert set(registered) == {action_module.REMOVE_COMMAND_ID, action_module.RESTORE_COMMAND_ID}
+    for command_id, command in registered.items():
+        assert isinstance(command, flagged) and command.user_only is True, command_id

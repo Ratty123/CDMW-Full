@@ -88,6 +88,93 @@ def write_registry(game_root: Path | str, data: bytes) -> Path:
     return target
 
 
+class RegistryConflict(ValueError):
+    """The older registry in the game folder and the one CDMW keeps cannot be combined."""
+
+
+def merged_registry(game_root: Path | str) -> bytes | None:
+    """The registry to keep once the older copy in the game folder is gone, or None.
+
+    None when the game folder holds no older copy, or CDMW's copy already has
+    everything it holds. Without a copy in the CDMW folder, the older file is carried
+    over byte for byte. When both exist and differ, the result holds every identity
+    either one issued. For an item both hold, CDMW's row is kept: CDMW's copy began
+    as the carried-over older one and changed with each send since, so it is the
+    newer state of that item. :class:`RegistryConflict` when an item only the older
+    copy holds was given a value CDMW's copy gives another item, or when either copy
+    cannot be read. Reads only.
+    """
+
+    legacy = _legacy_registry(game_root)
+    if legacy is None:
+        return None
+    kept = registry_path(game_root)
+    older = legacy.read_bytes()
+    if not kept.is_file():
+        return older
+    if kept.read_bytes() == older:
+        return None
+    from cdmw.services.independent_item_install import IndependentItemError, _read_registry, _validate_registry
+    from cdmw.services.independent_item_package import canonical
+
+    try:
+        ours = _read_registry(kept)
+    except IndependentItemError as error:
+        raise RegistryConflict(f"CDMW's copy of the item identities ({kept}) cannot be read: {error}") from error
+    try:
+        theirs = _read_registry(legacy)
+    except IndependentItemError as error:
+        raise RegistryConflict(f"The older item identities in {LEGACY_REGISTRY_PATH} cannot be read: {error}") from error
+    if ours["format"] != theirs["format"]:
+        raise RegistryConflict(f"The older item identities in {LEGACY_REGISTRY_PATH} are in another format "
+                               "than the ones CDMW keeps for this game.")
+    items = dict(ours["items"])
+    for identity, row in theirs["items"].items():
+        items.setdefault(identity, row)
+    if len(items) == len(ours["items"]):
+        return None
+    merged = {"format": ours["format"], "items": items}
+    try:
+        _validate_registry(merged)
+    except IndependentItemError as error:
+        raise RegistryConflict(f"The older item identities in {LEGACY_REGISTRY_PATH} and the ones CDMW keeps for "
+                               f"this game cannot be combined: {error}") from error
+    return canonical(merged)
+
+
+#: Item packages an older CDMW retained in the game folder, carried over before removal.
+RETAINED_PACKAGES_DIRNAME = "retained-packages"
+
+
+def keep_package_copy(game_root: Path | str, name: str, data: bytes) -> Path | None:
+    """Keep ``data`` (an item package from the game folder) in the CDMW folder.
+
+    Returns the new copy, or None when the CDMW folder already holds the same bytes.
+    """
+
+    from cdmw.core.atomic_file import atomic_write_bytes
+
+    folder = game_records_folder(game_root) / RETAINED_PACKAGES_DIRNAME
+    digest = hashlib.sha256(data).hexdigest()
+    try:
+        existing = [path for path in folder.iterdir() if path.is_file()] if folder.is_dir() else []
+    except OSError:
+        existing = []
+    for path in existing:
+        try:
+            if path.stat().st_size == len(data) and hashlib.sha256(path.read_bytes()).hexdigest() == digest:
+                return None
+        except OSError:
+            continue
+    plain = Path(name).name
+    target = folder / plain
+    if target.exists():
+        target = folder / f"{Path(plain).stem}-{digest[:12]}{Path(plain).suffix}"
+    atomic_write_bytes(target, data)
+    _describe(game_root)
+    return target
+
+
 def _describe(game_root: Path | str) -> None:
     """A note beside the records saying which game folder they belong to."""
 
@@ -106,8 +193,12 @@ def _describe(game_root: Path | str) -> None:
 __all__ = [
     "LEGACY_REGISTRY_PATH",
     "REGISTRY_FILE",
+    "RETAINED_PACKAGES_DIRNAME",
+    "RegistryConflict",
     "game_key",
     "game_records_folder",
+    "keep_package_copy",
+    "merged_registry",
     "records_root",
     "registry_path",
     "registry_source",

@@ -129,17 +129,23 @@ class ArchiveMutationService:
         Restore Backup exists for.
         """
 
-        from cdmw.app.app_folder import system_temp_dir
+        from cdmw.app.app_folder import system_temp_dir, workspace_temp_folder
         from cdmw.constants import APP_NAME
 
         roots = [Path(self.backup_root)]
+        # Where this version kept them while its temp folder was workspace/temp (when
+        # there are any), then where older versions kept them.
+        earlier = workspace_temp_folder() / APP_NAME / "archive_patch_backups"
         legacy = system_temp_dir() / APP_NAME / "archive_patch_backups"
-        try:
-            same = legacy.resolve() == roots[0].resolve()
-        except OSError:
-            same = False
-        if not same:
-            roots.append(legacy)
+        for candidate in (earlier, legacy):
+            if candidate is earlier and not candidate.is_dir():
+                continue
+            try:
+                known = any(candidate.resolve() == root.resolve() for root in roots)
+            except OSError:
+                known = False
+            if not known:
+                roots.append(candidate)
         return tuple(roots)
 
     def list_backups(self, *, limit: Optional[int] = None) -> list[Path]:

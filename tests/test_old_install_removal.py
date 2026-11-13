@@ -334,11 +334,41 @@ def test_the_games_own_cdmw_folder_is_offered_and_the_registry_carried_over(tmp_
     assert game_records.registry_path(root).read_text(encoding="utf-8") == '{"format": "kept", "items": {}}'
 
 
-def test_a_registry_cdmw_already_keeps_is_not_overwritten_by_the_old_one(tmp_path):
+def test_a_registry_that_cannot_be_merged_with_cdmws_blocks_the_removal(tmp_path):
+    """Both copies exist and differ, and they cannot be combined: CDMW's copy no longer
+    wins silently while the game's copy is deleted. Nothing changes on either side."""
     root = _game(tmp_path, registry=True)
     game_records.write_registry(root, b'{"newer": true}')
-    _remove(removal.find_old_install(root), root)
+    before = _fingerprint(root)
+    plan = removal.find_old_install(root)
+    assert not plan.can_remove and "cannot be read" in plan.blockers[0]
+    assert removal.LEGACY_REGISTRY in plan.blockers[0]
+    with pytest.raises(removal.OldInstallRemovalRefused):
+        _remove(plan, root)
+    assert _fingerprint(root) == before
     assert game_records.registry_path(root).read_bytes() == b'{"newer": true}'
+
+
+def test_the_same_registry_in_both_places_is_removed_from_the_game(tmp_path):
+    root = _game(tmp_path, registry=True)
+    game_records.write_registry(root, (root / removal.LEGACY_REGISTRY).read_bytes())
+    _remove(removal.find_old_install(root), root)
+    assert not (root / removal.LEGACY_REGISTRY).exists()
+
+
+def test_every_retained_package_is_kept_in_the_cdmw_folder_before_it_is_removed(tmp_path):
+    root = _game(tmp_path, registry=True)
+    retained = root / ".cdmw" / "independent-items"
+    retained.mkdir()
+    (retained / "a-1.cditem").write_bytes(b"only copy")
+    (retained / "b-2.cditem").write_bytes(b"already kept")
+    kept = game_records.game_records_folder(root) / game_records.RETAINED_PACKAGES_DIRNAME
+    kept.mkdir(parents=True)
+    (kept / "earlier.cditem").write_bytes(b"already kept")
+    _remove(removal.find_old_install(root), root)
+    assert not retained.exists()
+    assert sorted(path.name for path in kept.iterdir()) == ["a-1.cditem", "earlier.cditem"]
+    assert (kept / "a-1.cditem").read_bytes() == b"only copy"
 
 
 # --- Review of rr/parity-mods-2: the smaller gaps.
@@ -438,3 +468,89 @@ def test_restore_refuses_a_manifest_whose_file_list_is_not_a_list(tmp_path):
     with pytest.raises(ValueError, match="not a list"):
         ArchiveMutationService().restore_backup(backup, confirmed=True, game_root=root)
     assert _fingerprint(root) == before
+
+
+# --- Review J: an overlay only the older install receipt records.
+
+def _receipt_only(tmp_path, *, mounted=True):
+    root = _game(tmp_path)
+    checksum = _group(root / "0036", [OVERLAY_DDS])
+    (root / "0036" / removal.OVERLAY_OWNER_MARKER).write_bytes(removal.OVERLAY_OWNER_BYTES)
+    if mounted:
+        _mount(root, [("0036", checksum), ("0009", 0)])
+    (root / ".cdmw").mkdir(exist_ok=True)
+    (root / removal.RECEIPT_PATH).write_text(json.dumps({
+        "format": removal.RECEIPT_FORMAT, "overlay_directory": "0036", "mesh_paths": [OVERLAY_DDS]}),
+        encoding="utf-8")
+    return root
+
+
+def test_a_receipt_only_overlay_that_is_no_longer_mounted_keeps_its_receipt(tmp_path):
+    root = _receipt_only(tmp_path, mounted=False)
+    plan = removal.find_old_install(root)
+    assert "0036/0.pamt" not in plan.delete_files and removal.RECEIPT_PATH not in plan.delete_files
+    assert any(line.startswith(removal.RECEIPT_PATH) for line in plan.kept)
+    _remove(plan, root) if plan.can_remove else None
+    assert (root / "0036" / "0.pamt").is_file() and (root / removal.RECEIPT_PATH).is_file()
+
+
+def test_a_receipt_only_overlay_whose_paz_another_tool_changed_keeps_the_paz_and_the_receipt(tmp_path):
+    root = _receipt_only(tmp_path)
+    paz = root / "0036" / "0.paz"
+    paz.write_bytes(b"x" * paz.stat().st_size)  # same size, other bytes
+    plan = removal.find_old_install(root)
+    assert "0036/0.pamt" in plan.delete_files and "0036/0.paz" not in plan.delete_files
+    assert removal.RECEIPT_PATH not in plan.delete_files
+    _remove(plan, root)
+    assert paz.is_file() and (root / removal.RECEIPT_PATH).is_file()
+
+
+# --- Review round 2: the registry merge.
+
+def _sent_registry(tmp_path):
+    from cdmw.services import game_records
+    from cdmw.services.dmm_send import send_item_packages
+    from tests.support.game_fixtures import packages
+    from tests.test_dmm_send import _dmm
+
+    root, files = packages(tmp_path)
+    _install, mods = _dmm(tmp_path)
+    send_item_packages(files, root, mods, "Two items")
+    return root, json.loads(game_records.registry_path(root).read_text(encoding="utf-8"))
+
+
+def _write(root, ours, theirs):
+    from cdmw.services import game_records
+    from cdmw.services.independent_item_package import canonical
+
+    legacy = root / game_records.LEGACY_REGISTRY_PATH
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_bytes(canonical(theirs))
+    game_records.registry_path(root).write_bytes(canonical(ours))
+
+
+def test_two_registries_that_differ_are_merged_into_every_identity_either_issued(tmp_path):
+    from cdmw.services import game_records
+
+    root, full = _sent_registry(tmp_path)
+    first, second = sorted(full["items"])
+    _write(root, {"format": full["format"], "items": {first: full["items"][first]}}, full)
+    merged = json.loads(game_records.merged_registry(root))
+    assert merged["items"] == full["items"]
+    # CDMW's copy already holding everything needs no write.
+    _write(root, full, {"format": full["format"], "items": {second: full["items"][second]}})
+    assert game_records.merged_registry(root) is None
+
+
+def test_an_older_identity_that_takes_a_value_cdmw_gave_another_item_is_refused(tmp_path):
+    from cdmw.services import game_records
+    from cdmw.services.independent_item_install import _binding_hash
+
+    root, full = _sent_registry(tmp_path)
+    first, second = sorted(full["items"])
+    clashing = dict(full["items"][second], values=full["items"][first]["values"])
+    clashing["binding_hash"] = _binding_hash(second, clashing)
+    _write(root, {"format": full["format"], "items": {first: full["items"][first]}},
+           {"format": full["format"], "items": {second: clashing}})
+    with pytest.raises(game_records.RegistryConflict, match="cannot be combined"):
+        game_records.merged_registry(root)

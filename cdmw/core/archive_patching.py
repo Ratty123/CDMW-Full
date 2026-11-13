@@ -16,13 +16,19 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     lz4_block = None  # type: ignore[assignment]
 
-from cdmw.constants import APP_NAME, DDS_MAGIC
+from cdmw.app.app_folder import workspace_folder
+from cdmw.constants import DDS_MAGIC
 from cdmw.core.archive_format import VfsPathResolver
 # Re-exported: other modules import the request types from here.
 from cdmw.domain.archives.mutation import ArchivePatchRequest, ArchivePatchResult  # noqa: F401
 from cdmw.models import ArchiveEntry
 
-ARCHIVE_PATCH_BACKUP_ROOT = Path(tempfile.gettempdir()) / APP_NAME / "archive_patch_backups"
+# In the CDMW folder's workspace, never a temp folder: these backups are the only undo
+# of Restore Backup's and the removal's writes, and Windows' temp cleanup empties temp.
+# Older versions used <system temp>/<app>/archive_patch_backups and, while the app's
+# temp folder was workspace/temp, workspace/temp/<app>/archive_patch_backups;
+# ArchiveMutationService still lists both.
+ARCHIVE_PATCH_BACKUP_ROOT = workspace_folder() / "archive-backups"
 
 
 # The archive read path resolves VFS names with this exact resolver. Patch

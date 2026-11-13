@@ -14,7 +14,13 @@ Only what can be proved to be CDMW's is removed:
   a marked folder after Steam's file check. So each ``0.pamt`` and ``0.paz`` is
   removed only when its SHA-256 equals the digest CDMW's overlay index recorded
   when it published that file (``published`` in ``.cdmw/overlays.json``);
-  anything else in the folder stays and is named as not CDMW's. A folder named
+  anything else in the folder stays and is named as not CDMW's. An install the
+  older single-overlay installer made is recorded only in its receipt
+  (``.cdmw/last-overlay-install.json``), with no digests: for the folder the
+  receipt names, ``0.pamt`` is proved when its own PA checksum is correct and
+  equals the checksum the mount list holds for that folder, and ``0.paz`` when
+  its size and PA checksum equal what that ``0.pamt`` records for it. The
+  receipt is removed only when everything it names is. A folder named
   only in CDMW's own records (the overlay index or the last install receipt) but
   already gone from disk counts too, so a half-removed install can be finished;
 - a mount-list entry is CDMW's when it names such a folder whose ``0.pamt`` is
@@ -25,8 +31,10 @@ Only what can be proved to be CDMW's is removed:
   beside it names its exact SHA-256;
 - everything else in CDMW's own ``.cdmw/`` folder (decision 46). The item
   identity registry there (``.cdmw/independent-items.json``) is first carried
-  over to the CDMW folder (``cdmw.services.game_records``) unless CDMW already
-  keeps one.
+  over to the CDMW folder (``cdmw.services.game_records``), merged with the one
+  CDMW keeps when both exist; a registry the two cannot be merged into blocks the
+  removal. Every item package kept there that the CDMW folder has no identical
+  copy of is copied into it first.
 
 Kept, always: the ASI loader (``bin64/winmm.dll``, installed by the user) and the
 save backups under ``.cdmw/virtual-loader/save-backups``.
@@ -53,6 +61,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
+from cdmw.constants import PACKAGE_EXTENSIONS
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
 
@@ -242,12 +251,69 @@ def _recorded_overlay_names(root: Path) -> tuple[set[str], tuple[str, ...]]:
         for layer in index.get("layers") or ():
             if isinstance(layer, dict) and isinstance(layer.get("label"), str):
                 labels.append(layer["label"])
-    receipt = _read_json(root / ".cdmw" / "last-overlay-install.json")
-    if receipt is not None and receipt.get("format") == "cdmw_overlay_install_receipt_v1":
-        directory = str(receipt.get("overlay_directory") or "")
-        if _overlay_name(directory):
-            names.add(directory)
+    directory = _receipt_folder(root)
+    if directory is not None:
+        names.add(directory)
     return names, tuple(labels)
+
+
+RECEIPT_PATH = ".cdmw/last-overlay-install.json"
+RECEIPT_FORMAT = "cdmw_overlay_install_receipt_v1"
+
+
+def _receipt_folder(root: Path) -> Optional[str]:
+    """The overlay folder the older install receipt names, or None."""
+
+    receipt = _read_json(root / RECEIPT_PATH)
+    if receipt is None or receipt.get("format") != RECEIPT_FORMAT:
+        return None
+    directory = str(receipt.get("overlay_directory") or "")
+    return directory if _overlay_name(directory) else None
+
+
+def _pa_checksum(path: Path, stop_event) -> Optional[int]:
+    from cdmw.core.archive_format import calculate_pa_checksum
+
+    raise_if_cancelled(stop_event, CANCELLED)
+    try:
+        if path.stat().st_size <= 64 * 1024:
+            return calculate_pa_checksum(path.read_bytes())
+        from cdmw.core.archive_accelerator import checksum_files_native
+
+        result = checksum_files_native([path], stop_event=stop_event)
+    except OSError:
+        return None
+    return None if result is None or path not in result else int(result[path][0])
+
+
+def _proved_by_checksums(folder: Path, mounted_checksum: Optional[int], stop_event) -> set[str]:
+    """Which of ``0.pamt`` and ``0.paz`` in ``folder`` are proved without digests.
+
+    ``0.pamt``: its header holds the PA checksum of the rest, and the mount list holds
+    the same value for the folder. ``0.paz``: the proved ``0.pamt`` lists one archive
+    file, and its size and PA checksum are this file's.
+    """
+
+    import struct
+
+    from cdmw.core.archive_format import calculate_pa_checksum
+
+    try:
+        pamt = (folder / "0.pamt").read_bytes()
+    except OSError:
+        return set()
+    if mounted_checksum is None or len(pamt) < 24:
+        return set()
+    own, paz_count, _constant = struct.unpack_from("<III", pamt, 0)
+    if own != calculate_pa_checksum(pamt[12:]) or own != int(mounted_checksum):
+        return set()
+    proved = {"0.pamt"}
+    paz = folder / "0.paz"
+    if paz_count == 1 and paz.is_file():
+        paz_id, paz_checksum, paz_size = struct.unpack_from("<III", pamt, 12)
+        if paz_id == 0 and paz.stat().st_size == paz_size and _pa_checksum(paz, stop_event) == paz_checksum:
+            proved.add("0.paz")
+    return proved
 
 
 def _published_digests(root: Path) -> dict[str, str]:
@@ -341,23 +407,37 @@ def find_old_install(
     for name in looks_like:
         not_cdmw.append(f"{name}: no CDMW owner mark, so it is not CDMW's")
     # The mark proves the folder, not its files: each archive file must match what
-    # CDMW's index recorded when it published it.
+    # CDMW's index recorded when it published it, or, for the folder only the older
+    # install receipt records, the checksums the mount list and its 0.pamt hold.
+    receipt_folder = _receipt_folder(root)
+    mounted_checksums = {item.name: item.pamt_checksum for item in mounted}
     proved = []  # folders whose 0.pamt is CDMW's, or that are gone
+    left_in = set()  # overlay folders where a file CDMW's records name stays
     for name in owned:
         folder = root / name
         if not folder.is_dir():
             proved.append(name)
             continue
         unproved = []
+        by_checksums = (_proved_by_checksums(folder, mounted_checksums.get(name), stop_event)
+                        if name == receipt_folder else set())
         for file in ("0.pamt", "0.paz"):
             relative = f"{name}/{file}"
             if not (folder / file).is_file():
                 continue
-            if published.get(relative) is not None and published[relative] == _digest(folder / file):
+            if published.get(relative) is not None:
+                if published[relative] == _digest(folder / file):
+                    delete.append(relative)
+                else:
+                    unproved.append(file)
+                    not_cdmw.append(f"{relative}: not the file CDMW's records say it installed, so it is left alone")
+            elif file in by_checksums:
                 delete.append(relative)
             else:
                 unproved.append(file)
                 not_cdmw.append(f"{relative}: not the file CDMW's records say it installed, so it is left alone")
+        if unproved:
+            left_in.add(name)
         if (folder / OVERLAY_OWNER_MARKER).is_file() and not unproved:
             delete.append(f"{name}/{OVERLAY_OWNER_MARKER}")
         if "0.pamt" not in unproved:
@@ -453,6 +533,24 @@ def find_old_install(
                     and not (save_backups and SAVE_BACKUPS.startswith(path + "/"))]
 
     delete = list(dict.fromkeys(delete))
+    # The receipt is the one record naming an install it alone recorded: it goes only
+    # when everything it names goes (its folder's files and its mount-list line).
+    if receipt_folder is not None and RECEIPT_PATH in delete and (
+            receipt_folder in left_in  # a file in its folder is not proved
+            or (receipt_folder in mounted_checksums and receipt_folder not in mount_entries)  # still mounted
+            or ((root / receipt_folder).is_dir() and receipt_folder not in owned)):  # its folder is not CDMW's
+        delete.remove(RECEIPT_PATH)
+        folders = [path for path in folders if not RECEIPT_PATH.startswith(path + "/")]
+        kept.append(f"{RECEIPT_PATH}: kept, because what it records in {receipt_folder} stays")
+    if LEGACY_REGISTRY in delete:
+        from cdmw.services import game_records
+
+        try:
+            game_records.merged_registry(root)
+        except game_records.RegistryConflict as conflict:
+            blockers.append(f"{conflict} CDMW leaves {CDMW_FOLDER} alone so no item loses its identity. If you no "
+                            f"longer need the items an older CDMW installed, move {LEGACY_REGISTRY} out of the game "
+                            "folder yourself, then check again.")
     for relative in (*delete, *folders):
         _checked(root, relative)
     folders = sorted(dict.fromkeys(folders), key=lambda value: value.count("/"), reverse=True)
@@ -593,15 +691,27 @@ def _remove(plan, root, *, backup, restore_backup, log, stop_event, running_chec
                if (root / relative).is_file()]
     log(f"Backing up {len(targets)} file(s)...")
     backup_dir = Path(backup(targets, "Remove what an older CDMW installed"))
-    # Decision 46: the identity registry now lives in the CDMW folder. Carry an older
-    # CDMW's copy over before it is removed from the game, unless CDMW already has one.
+    # Decision 46: what CDMW keeps lives in the CDMW folder. Carry an older CDMW's
+    # identities over (merged with CDMW's own) and keep a copy of every item package
+    # it retained, before they are removed from the game.
+    from cdmw.services import game_records
+
     legacy = root / LEGACY_REGISTRY
     if LEGACY_REGISTRY in plan.delete_files and legacy.is_file():
-        from cdmw.services import game_records
-
-        if not game_records.registry_path(root).is_file():
-            game_records.write_registry(root, legacy.read_bytes())
+        try:
+            merged = game_records.merged_registry(root)
+        except game_records.RegistryConflict as conflict:
+            raise OldInstallRemovalRefused(f"{conflict} Nothing was changed; the backup is kept.") from conflict
+        if merged is not None:
+            game_records.write_registry(root, merged)
             log("Carried the item identities over to the CDMW folder.")
+    copies = [game_records.keep_package_copy(root, relative, (root / relative).read_bytes())
+              for relative in plan.delete_files
+              if relative.startswith(CDMW_FOLDER + "/") and relative.endswith(PACKAGE_EXTENSIONS)
+              and (root / relative).is_file()]
+    if any(copies):
+        log(f"Kept {sum(1 for copy in copies if copy)} item package(s) in the CDMW folder: "
+            f"{game_records.game_records_folder(root) / game_records.RETAINED_PACKAGES_DIRNAME}")
     if stop_event is not None and stop_event.is_set():
         log("Cancelled before anything was changed; the backup is kept.")
         raise_if_cancelled(stop_event, CANCELLED)

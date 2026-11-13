@@ -77,10 +77,13 @@ def overlay_baseline_dir(package_root: Path) -> Path:
 
     import hashlib
 
-    from cdmw.core.archive_patching import ARCHIVE_PATCH_BACKUP_ROOT
+    import tempfile
 
+    from cdmw.constants import APP_NAME
+
+    # Where the removed overlay installs kept these, beside their backups' old root.
     fingerprint = hashlib.sha256(str(Path(package_root).resolve()).lower().encode("utf-8")).hexdigest()[:16]
-    return Path(ARCHIVE_PATCH_BACKUP_ROOT).parent / "overlay_baseline" / fingerprint
+    return Path(tempfile.gettempdir()) / APP_NAME / "overlay_baseline" / fingerprint
 
 
 def overlay_baseline_files(package_root: Path) -> Dict[str, Path]:
