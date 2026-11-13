@@ -711,6 +711,9 @@ class TextureEditorToolSettings:
     recolor_tolerance: int = 48
     recolor_strength: int = 100
     recolor_preserve_luminance: bool = True
+    #: Pen pressure (0 to 1) for strokes that bring no per-point pressure. 1.0 paints at
+    #: full strength, as before pressure existed; strokes from a tablet pass their own.
+    pressure: float = 1.0
 
 
 @dataclass(slots=True)
