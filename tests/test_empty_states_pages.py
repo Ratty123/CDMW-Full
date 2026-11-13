@@ -116,3 +116,38 @@ def test_drafts_and_mods_says_how_to_save_work_and_how_to_clear_a_filter(app, op
     finally:
         page.close()
         page.deleteLater()
+
+
+# ----- Edit Translations ----------------------------------------------------------------
+def test_edit_translations_asks_for_the_game_folder_then_for_a_language(app, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QLineEdit
+
+    import tools.translation_studio.tab as tab_module
+
+    monkeypatch.setattr(tab_module, "available_languages", lambda _root=None, *, on_progress=None: ("eng", "kor"))
+    focused = []
+    root_edit = QLineEdit("")
+    window = SimpleNamespace(archive=SimpleNamespace(archive_package_root_edit=root_edit),
+                             focus_archive_locations=lambda: focused.append(True))
+    tab = tab_module.TranslationStudioTab(window=window)
+    try:
+        state = tab.empty_state
+        assert tab.editor_switch.is_empty() and not tab.table.isVisibleTo(tab)
+        assert state.sentence_label.text() == tab_module.TRANSLATIONS_NO_GAME_TEXT
+        state.button.click()
+        assert focused == [True]
+
+        root_edit.setText(str(tmp_path))
+        _pump(app, lambda: tab.language_box.count() == 2 and not tab.iter_shutdown_workers())
+        assert state.sentence_label.text() == tab_module.TRANSLATIONS_LOAD_TEXT
+        assert state.button.text() == "Load" and state.button.isEnabled()
+
+        tab._catalogue = SimpleNamespace()  # a table was loaded
+        tab._sync_empty_state()
+        assert not tab.editor_switch.is_empty() and tab.table.isVisibleTo(tab)
+    finally:
+        tab._catalogue = None
+        tab.request_shutdown()
+        tab.deleteLater()

@@ -33,13 +33,13 @@ class ActionEmptyState(QWidget):
     """One sentence and one button that runs `command_id` through the command registry.
 
     `run` replaces the registry for a page whose next step has no command yet; the
-    button then calls it directly. When the command cannot run, the button is disabled
+    button then calls it directly, and `reason` (optional) says why it cannot run now. When the command cannot run, the button is disabled
     and its tooltip is the command's reason.
     """
 
     def __init__(self, sentence: str, button_text: str = "", command_id: str = "", *,
-                 run: Callable[[], object] | None = None, registry=None, density: str | None = None,
-                 parent: QWidget | None = None) -> None:
+                 run: Callable[[], object] | None = None, reason: Callable[[], str] | None = None,
+                 registry=None, density: str | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("EmptyStatePanel")
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -47,6 +47,7 @@ class ActionEmptyState(QWidget):
         self._density = density
         self._registry = registry
         self._run = run
+        self._run_reason = reason
         self.command_id = command_id
         self.last_reason = ""
 
@@ -73,17 +74,18 @@ class ActionEmptyState(QWidget):
         self._layout.addWidget(self.reason_label)
         self._layout.addStretch(1)
         self._apply_metrics()
-        self.set_state(sentence, button_text, command_id, run=run)
+        self.set_state(sentence, button_text, command_id, run=run, reason=reason)
         registry = self._commands()
         if registry is not None:
             registry.changed.connect(lambda _context: self.refresh())
 
     # ----- state ---------------------------------------------------------------
     def set_state(self, sentence: str, button_text: str = "", command_id: str = "", *,
-                  run: Callable[[], object] | None = None) -> None:
+                  run: Callable[[], object] | None = None, reason: Callable[[], str] | None = None) -> None:
         """Change what the state says and runs (for example "no game folder" to "not scanned")."""
         self.command_id = command_id
         self._run = run
+        self._run_reason = reason
         _source_text(self.sentence_label, sentence)
         label = button_text or self._command_label()
         _source_text(self.button, label)
@@ -114,7 +116,9 @@ class ActionEmptyState(QWidget):
         return display_label(registry.get(self.command_id).label)
 
     def _reason(self) -> str:
-        if self._run is not None or not self.command_id:
+        if self._run is not None:
+            return str(self._run_reason() or "") if self._run_reason is not None else ""
+        if not self.command_id:
             return ""
         registry = self._commands()
         if registry is None or self.command_id not in registry:

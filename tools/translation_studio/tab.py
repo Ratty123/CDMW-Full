@@ -73,6 +73,10 @@ from .table_model import TEXT, TranslationTableModel
 from .language_index import PALOC_DIR
 
 _NONE = "(none)"
+#: The editing area's empty states (P11 step 6).
+TRANSLATIONS_NO_GAME_TEXT = "Choose your game folder to see its translations, or open a .paloc file above."
+TRANSLATIONS_CHOOSE_GAME_TEXT = "Choose Game Folder"
+TRANSLATIONS_LOAD_TEXT = "Pick a language above and load it to see and edit its lines."
 #: Cap the rows a search returns. Nobody reads 90,000 hits, and building that view
 #: costs more than the search itself.
 _MAX_HITS = 5000
@@ -331,6 +335,18 @@ class TranslationStudioTab(QWidget):
         picker.addWidget(self.status_label, 1)
         outer.addLayout(picker)
 
+        # P11 step 6: everything below works on a loaded table. Until one is loaded the
+        # area gives its place to an empty state that says what to do next.
+        from cdmw.ui.empty_states import ActionEmptyState, EmptyStateSwitch
+
+        self.editor_area = QWidget()
+        area = QVBoxLayout(self.editor_area)
+        area.setContentsMargins(0, 0, 0, 0)
+        self.empty_state = ActionEmptyState(TRANSLATIONS_LOAD_TEXT, "Load", run=self._on_load,
+                                            reason=self._load_reason)
+        self.editor_switch = EmptyStateSwitch(self.editor_area, self.empty_state)
+        outer.addWidget(self.editor_switch, 1)
+
         search = QHBoxLayout()
         search.addWidget(QLabel("Find"))
         self.search_box = QLineEdit()
@@ -351,7 +367,7 @@ class TranslationStudioTab(QWidget):
         search.addWidget(self.edited_only)
         self.hits_label = QLabel("")
         search.addWidget(self.hits_label)
-        outer.addLayout(search)
+        area.addLayout(search)
 
         self.model = TranslationTableModel()
         self.model.dataChanged.connect(self._on_table_changed)
@@ -371,7 +387,7 @@ class TranslationStudioTab(QWidget):
         header.setSectionResizeMode(3, QHeaderView.Stretch)
         self.table.setColumnWidth(0, 260)
         self.table.selectionModel().selectionChanged.connect(self._on_selection)
-        outer.addWidget(self.table, 1)
+        area.addWidget(self.table, 1)
 
         actions = QHBoxLayout()
         self.revert_button = QPushButton("Revert line")
@@ -401,9 +417,10 @@ class TranslationStudioTab(QWidget):
         )
         self.hint_label.setWordWrap(True)
         actions.addWidget(self.hint_label, 2)
-        outer.addLayout(actions)
+        area.addLayout(actions)
 
-        outer.addWidget(self._build_export())
+        area.addWidget(self._build_export())
+        self._sync_empty_state()
 
     def _build_export(self) -> QWidget:
         box = QGroupBox("Export as a mod")
@@ -495,6 +512,7 @@ class TranslationStudioTab(QWidget):
             self.progress_bar.setVisible(False)
         if not root:
             self.archive_label.setText("Set the game path in Settings -> Archive Locations, or open a .paloc file.")
+            self._sync_empty_state()
             return
         self.archive_label.setText(f"Loading archive catalogue: {root}")
         if self._thread is None:
@@ -545,6 +563,7 @@ class TranslationStudioTab(QWidget):
             self.archive_label.setText(f"No string tables found in: {self._game_root()}")
             return
         self.language_box.addItems(list(languages))
+        self._sync_empty_state()
         self.reference_box.addItem(_NONE)
         self.reference_box.addItems(list(languages))
         if "eng" in languages:
@@ -679,6 +698,45 @@ class TranslationStudioTab(QWidget):
         self.ai_button.setEnabled(not busy and self._catalogue is not None)
         self._on_selection()
         self._refresh_pending()
+        self._sync_empty_state()
+
+    # ------------------------------------------------------------------ empty state (P11 step 6)
+
+    def _load_reason(self) -> str:
+        if getattr(self, "_thread", None) is not None or getattr(self, "_export_thread", None) is not None:
+            return "Wait for the current task to finish."
+        if not self.language_box.count():
+            return "The game's languages are still being listed."
+        return ""
+
+    def _choose_game_folder(self) -> None:
+        focus = getattr(self._window, "focus_archive_locations", None)
+        if callable(focus):
+            focus()
+            return
+        from cdmw.ui.commands.registry import command_registry
+
+        registry = command_registry()
+        if registry is not None and "shell.settings" in registry:
+            registry.run_or_reason("shell.settings")
+
+    def _sync_empty_state(self) -> None:
+        switch = getattr(self, "editor_switch", None)
+        if switch is None:
+            return
+        if getattr(self, "_catalogue", None) is not None:
+            switch.set_empty(False)
+            return
+        state = self.empty_state
+        if not self._game_root():
+            wanted = (TRANSLATIONS_NO_GAME_TEXT, TRANSLATIONS_CHOOSE_GAME_TEXT, self._choose_game_folder, None)
+        else:
+            wanted = (TRANSLATIONS_LOAD_TEXT, "Load", self._on_load, self._load_reason)
+        if getattr(state, "_shown_state", None) != wanted[0]:
+            state.set_state(wanted[0], wanted[1], run=wanted[2], reason=wanted[3])
+            state._shown_state = wanted[0]
+        state.refresh()
+        switch.set_empty(True)
 
     @Slot()
     def _on_worker_thread_finished(self) -> None:
