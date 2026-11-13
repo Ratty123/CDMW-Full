@@ -482,7 +482,8 @@ def _set_preparation_stubs(tmp_path, monkeypatch, piece):
     monkeypatch.setattr(mesh_archive_refit_worker, "prepare_archive_refit_source",
                         lambda args, stop_event: piece(args, lower, started))
     monkeypatch.setattr(mesh_item_set_budget, "prepare_item_set_budget",
-                        lambda sources, root, identity, stop: (frozenset(range(len(sources))), {}, None))
+                        lambda sources, root, identity, stop: mesh_item_set_budget.ItemSetBudget(
+                            frozenset(range(len(sources))), {}, None))
     return service, controller, contexts, primary
 
 
@@ -497,7 +498,7 @@ def test_set_pieces_are_prepared_side_by_side_in_set_order(tmp_path, monkeypatch
 
     service, controller, contexts, primary = _set_preparation_stubs(tmp_path, monkeypatch, piece)
     try:
-        mesh, context, references, _bounded, _materials = prepare_editable_item_set(
+        mesh, context, references, _bounded, _materials, _notice = prepare_editable_item_set(
             service, controller.active_session_id, copy.deepcopy(primary.mesh), contexts, threading.Event(),
             lambda _message: None, tmp_path / "root", None)
         assert [asset.entry.path for asset in context.assets] == ["upper.pac", "lower.pac"]

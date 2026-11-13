@@ -14,8 +14,9 @@ offers the visibility actions only.
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
+
+import shiboken6
 
 from PySide6.QtCore import QEvent, QObject
 from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QSplitter, QWidget
@@ -87,8 +88,7 @@ def attach_scene_panel(host: QWidget, anchor: QWidget | None = None) -> ScenePan
     parent = anchor.parentWidget()
     owner = parent.layout() if parent is not None and not isinstance(parent, QSplitter) else None
     if not isinstance(parent, QSplitter) and (not isinstance(owner, QBoxLayout) or owner.indexOf(anchor) < 0):
-        logging.getLogger(__name__).warning("No Scene panel for %r: it is not in a box layout or a splitter", anchor)
-        return None
+        return None  # a preview laid out otherwise simply has no panel
     row = QWidget(parent)
     row.setObjectName("ScenePanelRow")
     layout = QHBoxLayout(row)
@@ -98,7 +98,9 @@ def attach_scene_panel(host: QWidget, anchor: QWidget | None = None) -> ScenePan
         parent.replaceWidget(index, row)
     else:
         stretch = owner.stretch(owner.indexOf(anchor))
-        owner.replaceWidget(anchor, row)
+        replaced = owner.replaceWidget(anchor, row)
+        if replaced is not None:
+            shiboken6.delete(replaced)  # the layout gives the old item back to be deleted
         owner.setStretchFactor(row, stretch)
     layout.addWidget(anchor, 1)
     panel = ScenePanel(row, opens_editor=False)

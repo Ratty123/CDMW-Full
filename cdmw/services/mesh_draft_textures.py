@@ -76,7 +76,10 @@ class DraftTexture:
 
 def _same_path(first: str, second: str) -> bool:
     def fold(value: str) -> str:
-        return str(value or "").strip().replace("\\", "/").strip("/").casefold()
+        text = str(value or "").strip().replace("\\", "/")
+        while text.startswith("./"):
+            text = text[2:]
+        return text.strip("/").casefold()
     return fold(first) == fold(second)
 
 
@@ -101,6 +104,9 @@ class LoadedDraftTexture:
     layer_pixels: Dict[str, np.ndarray] = field(default_factory=dict)
     #: Why the project could not be read back ("" when it was).
     problem: str = ""
+    #: The row names the source's own path as its output but not that it may be written
+    #: there (`in_place`): the edit is kept and the sharing decision is asked again.
+    needs_sharing: bool = False
 
 
 def source_changed(texture: "DraftTexture", current_dds: bytes, *, width: int = 0, height: int = 0) -> str:
@@ -271,17 +277,21 @@ def load_draft_textures(draft_root: Path) -> Tuple[LoadedDraftTexture, ...]:
 
     loaded = []
     for key, row in sorted(_read_manifest(draft_root).items()):
+        source_path, output_path = str(row.get("source_path", "")), str(row.get("output_path", ""))
+        in_place = row.get("in_place", False) is True
+        # No in_place for an output at the source's own path: not lost, only unsettled.
+        needs_sharing = bool(output_path) and not in_place and _same_path(output_path, source_path)
         try:
             texture = DraftTexture(
                 resource_id=str(row.get("resource_id", "")), channel=str(row.get("channel", "base")),
-                source_path=str(row.get("source_path", "")), output_path=str(row.get("output_path", "")),
+                source_path=source_path, output_path="" if needs_sharing else output_path,
                 parts=tuple(str(part) for part in row.get("parts", ()) or ()),
                 affected_submeshes=tuple(int(index) for index in row.get("affected_submeshes", ()) or ()),
                 original_format=str(row.get("original_format", "")), sidecar_path=str(row.get("sidecar_path", "")),
                 source_sha256=str(row.get("source_sha256", "") or ""),
                 source_width=int(row.get("source_width", 0) or 0), source_height=int(row.get("source_height", 0) or 0),
                 finish_generation=int(row.get("finish_generation", 0) or 0),
-                in_place=row.get("in_place", False) is True)
+                in_place=in_place)
         except (TypeError, ValueError) as exc:
             # One bad row costs that texture only; the rest of the draft still opens.
             loaded.append(LoadedDraftTexture(DraftTexture(resource_id=key, channel="", source_path=key, output_path=""),
@@ -302,6 +312,12 @@ def load_draft_textures(draft_root: Path) -> Tuple[LoadedDraftTexture, ...]:
                                                  "have closed while saving), so its previous save was restored."))
                 continue
             loaded.append(LoadedDraftTexture(texture, None, {}, f"The saved edit of {texture.source_path} could not be read: {exc}"))
+            continue
+        if needs_sharing:
+            loaded.append(LoadedDraftTexture(
+                texture, document, pixels,
+                f"Whether {source_path} is only this model's is not saved with its edit, so CDMW asks again "
+                "before the edit is written.", needs_sharing=True))
             continue
         loaded.append(LoadedDraftTexture(texture, document, pixels))
     return tuple(loaded)

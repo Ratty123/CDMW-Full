@@ -24,12 +24,19 @@ inline std::filesystem::path long_path(const std::filesystem::path& path) {
     if (path.empty()) {
         return path;
     }
-    const std::wstring& given = path.native();
+    // Backslashes first, so a prefix written with forward slashes (//?/C:/x) is
+    // seen as one and not wrapped again as a UNC path.
+    std::wstring given = path.native();
+    for (wchar_t& character : given) {
+        if (character == L'/') {
+            character = L'\\';
+        }
+    }
     if (given.rfind(L"\\\\?\\", 0) == 0 || given.rfind(L"\\\\.\\", 0) == 0) {
-        return path;  // already extended-length, or a device
+        return std::filesystem::path(given);  // already extended-length, or a device
     }
     std::error_code error;
-    std::filesystem::path absolute = std::filesystem::absolute(path, error);
+    std::filesystem::path absolute = std::filesystem::absolute(std::filesystem::path(given), error);
     if (error) {
         return path;
     }

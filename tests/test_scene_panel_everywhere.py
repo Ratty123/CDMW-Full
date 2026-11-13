@@ -106,3 +106,11 @@ def test_ticks_carry_over_when_the_same_files_load_again(tmp_path) -> None:
     host.controller.package_applied.emit(str(tmp_path / "again"), 2)
     assert host.hidden == [[1]] and binding.panel.hidden_indices == (1,)
     window.close()
+
+
+def test_a_host_outside_a_box_layout_simply_has_no_panel(caplog) -> None:
+    QApplication.instance() or QApplication([])
+    host = _Host()  # no parent, no layout
+    with caplog.at_level("DEBUG"):
+        assert attach_scene_panel(host) is None
+    assert not caplog.records

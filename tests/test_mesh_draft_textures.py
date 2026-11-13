@@ -181,11 +181,23 @@ def test_a_saved_in_place_row_without_the_decision_is_that_textures_problem_only
     manifest_path.write_text(json.dumps(manifest))
     loaded = {item.texture.resource_id: item for item in load_draft_textures(tmp_path)}
     assert loaded["character/texture/own0.dds"].problem == ""
-    assert "Make it unique first" in loaded[own.key].problem and loaded[own.key].document is None
+    # Not lost: the edit is kept and the sharing decision is asked again (review of
+    # rr/parity-p6-python). Until it is, the texture has no output to write to.
+    row = loaded[own.resource_id]
+    assert row.needs_sharing and row.document is not None and "asks again" in row.problem
+    assert row.texture.output_path == "" and not row.texture.in_place
+    with pytest.raises(ValueError, match="no output path"):
+        draft_texture_write_path(row.texture)
     with pytest.raises(ValueError, match="Make it unique first"):
         replace(own, in_place=False)
-    with pytest.raises(ValueError, match="no output path"):
-        draft_texture_write_path(replace(TEXTURE, output_path=""))
+
+
+def test_a_leading_dot_slash_names_the_same_path():
+    from cdmw.services.mesh_draft_textures import _same_path
+
+    assert _same_path("./character/texture/own0.dds", "character/texture/own0.dds")
+    assert _same_path(".\\Character\\Texture\\OWN0.dds", "/character/texture/own0.dds")
+    assert not _same_path("./character/texture/own1.dds", "character/texture/own0.dds")
 
 
 def test_a_crash_between_the_two_moves_restores_the_previous_save(tmp_path):

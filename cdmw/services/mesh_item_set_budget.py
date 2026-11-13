@@ -5,15 +5,21 @@ import copy
 from contextlib import ExitStack
 from pathlib import Path
 import tempfile
+from typing import NamedTuple
 
 
-class BoundedReferences(dict):
-    """The files the budget turned into reduced-detail references, by identity.
+class ItemSetBudget(NamedTuple):
+    """What the session budget admitted.
 
-    ``reason`` names the limit the whole set passed (P5: say which file and why
-    before the session opens): "geometry", "textures" or "size".
+    ``references`` maps each file turned into a reduced-detail reference, by identity,
+    to its reduced mesh. ``reason`` names the limit the whole set passed, so the files
+    and why can be said before the session opens (P5): "geometry", "textures", "size",
+    or "" when every file fits.
     """
 
+    admitted: frozenset
+    references: dict
+    materials: object
     reason: str = ""
 
 
@@ -125,6 +131,7 @@ def prepare_item_set_budget(sources, root, root_identity, stop_event):
                    and sum(row["texture_bytes"] for row in rows) <= payload_limit
                    and sum(row["total"] for row in rows) <= session_limit)
         references = {}
+        reason = ""
         if all_fit:
             admitted = frozenset(range(len(rows)))
         else:
@@ -141,14 +148,14 @@ def prepare_item_set_budget(sources, root, root_identity, stop_event):
             if min(limits) < 0:
                 raise ValueError("The selected source and its bounded references exceed the Mesh Editor session limits")
             admitted = {0, *(index + 1 for index in largest_fitting_subset(costs, limits, stop_event))}
-            references = BoundedReferences({row["entry"].identity: references[row["entry"].identity]
-                                            for index, row in enumerate(rows) if index not in admitted})
+            references = {row["entry"].identity: references[row["entry"].identity]
+                          for index, row in enumerate(rows) if index not in admitted}
             if sum(row["geometry"] for row in rows) > payload_limit:
-                references.reason = "geometry"
+                reason = "geometry"
             elif sum(row["texture_bytes"] for row in rows) > payload_limit:
-                references.reason = "textures"
+                reason = "textures"
             else:
-                references.reason = "size"
+                reason = "size"
         bindings, files, presentations = {}, {}, []
         synthesis = a._RustMaterialSynthesisState()
         offset = 0
@@ -175,4 +182,4 @@ def prepare_item_set_budget(sources, root, root_identity, stop_event):
             synthesis.dropped_luminance_guard_count += state.dropped_luminance_guard_count
             offset += len(row["mesh"].submeshes)
         textures = a._publish_rust_texture_resources(root, bindings, files, stop_event, root_identity)
-        return frozenset(admitted), references, (textures, presentations, synthesis)
+        return ItemSetBudget(frozenset(admitted), references, (textures, presentations, synthesis), reason)

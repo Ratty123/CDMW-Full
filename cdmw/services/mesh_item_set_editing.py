@@ -9,6 +9,7 @@ from dataclasses import replace
 import hashlib
 import threading
 from pathlib import Path
+from typing import NamedTuple
 
 from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
@@ -44,7 +45,18 @@ def item_set_material_cache(session_root: Path) -> Path:
     return sessions / "item-set-native-cache"
 
 
-def item_set_budget_notice(contexts, bounded_references) -> str:
+class PreparedItemSet(NamedTuple):
+    mesh: object
+    context: object
+    #: The set's files that are references, not edited (with the primary first), or ().
+    references: tuple
+    bounded_references: dict
+    materials: object
+    #: Which files open read-only and why, said before the editor shows ("" when none).
+    budget_notice: str = ""
+
+
+def item_set_budget_notice(contexts, bounded_references, reason: str = "") -> str:
     """Which files open read-only and why, or "" when every file is editable (P5).
 
     The status line translates it.
@@ -54,7 +66,6 @@ def item_set_budget_notice(contexts, bounded_references) -> str:
         return ""
     names = ", ".join(context.selected_entry.basename for context in contexts
                       if context.selected_entry.identity in bounded_references)
-    reason = str(getattr(bounded_references, "reason", "") or "")
     if reason == "geometry":
         return (f"Read-only in this session, with reduced detail: {names}. The files you opened have more geometry "
                 "together than one Mesh Editor session holds; open fewer at once to edit these.")
@@ -122,8 +133,9 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
     raise_if_cancelled(stop_event, "Item set loading cancelled")
     progress("Preparing material textures for Mesh Editor...")
     budget_started = _time.perf_counter()
-    admitted, bounded_references, materials = prepare_item_set_budget(sources, root, root_identity, stop_event)
-    notice = item_set_budget_notice(contexts, bounded_references)
+    budget = prepare_item_set_budget(sources, root, root_identity, stop_event)
+    admitted, bounded_references, materials = budget.admitted, budget.references, budget.materials
+    notice = item_set_budget_notice(contexts, bounded_references, budget.reason)
     if notice:
         progress(notice)  # while the set prepares, before the editor shows
     timings["budget_ms"] = round((_time.perf_counter() - budget_started) * 1000.0, 1)
@@ -137,7 +149,8 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
     timings["compose_ms"] = round((_time.perf_counter() - compose_started) * 1000.0, 1)
     LAST_ITEM_SET_PREPARATION_MS.clear()
     LAST_ITEM_SET_PREPARATION_MS.update(timings)
-    return mesh, context, tuple(references) if len(references) > 1 else (), bounded_references, materials
+    return PreparedItemSet(mesh, context, tuple(references) if len(references) > 1 else (), bounded_references,
+                           materials, notice)
 
 
 def compose_item_set(sources):

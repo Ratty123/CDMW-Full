@@ -362,14 +362,6 @@ _RUST_PRIMARY_MATERIAL_SOURCE_KINDS = frozenset(
 )
 
 
-
-def _item_set_budget_notice(contexts, bounded_references) -> str:
-    if not bounded_references:
-        return ""
-    from cdmw.services.mesh_item_set_editing import item_set_budget_notice
-
-    return item_set_budget_notice(tuple(contexts or ()), bounded_references)
-
 @dataclass(slots=True)
 class _RustMaterialSynthesisState:
     attempted: bool = False
@@ -7847,6 +7839,7 @@ class RustMeshAuthoringSession:
         try:
             report("Preparing mesh materials...")
             bounded_item_set_references, prepared_item_set_materials = {}, None
+            item_set_budget_notice = ""
             shadow_mesh.active_lod_index = authoritative_view.lod_index
             replacement_state = authoritative_session.replacement_state
             # P4 V4: on the plain path the materials are bound after the shadow
@@ -7877,7 +7870,8 @@ class RustMeshAuthoringSession:
             ) = _copy_shadow_morph_profiles(authoritative_service.settings, session_root)
             if edit_item_set and geometry_layer_seed.get("archive_refit_context") is None:
                 from cdmw.services.mesh_item_set_editing import prepare_editable_item_set
-                shadow_mesh, set_context, item_set_contexts, bounded_item_set_references, prepared_item_set_materials = prepare_editable_item_set(
+                (shadow_mesh, set_context, item_set_contexts, bounded_item_set_references, prepared_item_set_materials,
+                 item_set_budget_notice) = prepare_editable_item_set(
                     authoritative_service, authoritative_session_id, shadow_mesh,
                     tuple(item_set_contexts), stop_event, report, session_root, root_identity)
                 geometry_layer_seed["archive_refit_context"] = set_context
@@ -8012,7 +8006,7 @@ class RustMeshAuthoringSession:
                 viewport_hidden_parts=tuple(authoritative_session.viewport_hidden_parts),
                 item_set_contexts=tuple(item_set_contexts),
                 bounded_item_set_references=bounded_item_set_references,
-                item_set_budget_notice=_item_set_budget_notice(item_set_contexts, bounded_item_set_references),
+                item_set_budget_notice=item_set_budget_notice,
                 prepared_item_set_materials=prepared_item_set_materials,
                 handoff_target=str(getattr(authoritative_session, "handoff_target", "") or ""),
             )

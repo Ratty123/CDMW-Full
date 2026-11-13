@@ -26026,7 +26026,7 @@
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 335,
+          "line": 348,
           "sink": "ValueError"
         }
       ]
@@ -26056,7 +26056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 294,
+          "line": 307,
           "sink": "ValueError"
         }
       ]
@@ -26091,7 +26091,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 317,
+          "line": 330,
           "sink": "ValueError"
         }
       ]
@@ -26106,7 +26106,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_budget.py",
-          "line": 75,
+          "line": 81,
           "sink": "ValueError"
         }
       ]
@@ -29161,7 +29161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8033,
+          "line": 8027,
           "sink": "report"
         }
       ]
@@ -49756,7 +49756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10964,
+          "line": 10958,
           "sink": "RuntimeError"
         }
       ]
@@ -74451,7 +74451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 358,
+          "line": 371,
           "sink": "_push_history"
         },
         {
@@ -79256,7 +79256,7 @@
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 153,
+          "line": 166,
           "sink": "ValueError"
         }
       ]
@@ -79266,7 +79266,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 185,
+          "line": 198,
           "sink": "ValueError"
         }
       ]
@@ -79276,7 +79276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 85,
+          "line": 96,
           "sink": "ValueError"
         },
         {
@@ -79356,7 +79356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 357,
+          "line": 370,
           "sink": "ValueError"
         }
       ]
@@ -79366,22 +79366,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_budget.py",
-          "line": 33,
+          "line": 39,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 93,
+          "line": 104,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 122,
+          "line": 133,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 134,
+          "line": 146,
           "sink": "raise_if_cancelled"
         },
         {
@@ -79421,7 +79421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_budget.py",
-          "line": 100,
+          "line": 106,
           "sink": "ValueError"
         }
       ]
@@ -79431,7 +79431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 151,
+          "line": 164,
           "sink": "ValueError"
         }
       ]
@@ -79461,7 +79461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 307,
+          "line": 320,
           "sink": "ValueError"
         }
       ]
@@ -90956,7 +90956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8759,
+          "line": 8753,
           "sink": "done"
         }
       ]
@@ -91056,7 +91056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1988,
+          "line": 1980,
           "sink": "ValueError"
         }
       ]
@@ -91986,7 +91986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1986,
+          "line": 1978,
           "sink": "ValueError"
         }
       ]
@@ -92161,7 +92161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 2032,
+          "line": 2024,
           "sink": "ValueError"
         }
       ]
@@ -92171,7 +92171,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 2029,
+          "line": 2021,
           "sink": "ValueError"
         }
       ]
@@ -92191,7 +92191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 412,
+          "line": 404,
           "sink": "RunCancelled"
         }
       ]
@@ -95516,7 +95516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10118,
+          "line": 10112,
           "sink": "RuntimeError"
         }
       ]
@@ -95526,7 +95526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10114,
+          "line": 10108,
           "sink": "RuntimeError"
         }
       ]
@@ -95536,7 +95536,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10089,
+          "line": 10083,
           "sink": "RuntimeError"
         }
       ]
@@ -100266,7 +100266,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 352,
+          "line": 365,
           "sink": "ValueError"
         }
       ]
@@ -113131,7 +113131,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 244,
+          "line": 257,
           "sink": "ValueError"
         }
       ]
@@ -118321,7 +118321,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8027,
+          "line": 8021,
           "sink": "report"
         }
       ]
@@ -118621,7 +118621,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 106,
+          "line": 117,
           "sink": "progress"
         }
       ]
@@ -118761,12 +118761,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 123,
+          "line": 134,
           "sink": "progress"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8824,
+          "line": 8818,
           "sink": "progress"
         }
       ]
@@ -118776,7 +118776,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7823,
+          "line": 7815,
           "sink": "report"
         }
       ]
@@ -118786,7 +118786,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7848,
+          "line": 7840,
           "sink": "report"
         }
       ]
@@ -126041,7 +126041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 64,
+          "line": 75,
           "sink": "python-return:item_set_budget_notice"
         }
       ]
@@ -126051,7 +126051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 59,
+          "line": 70,
           "sink": "python-return:item_set_budget_notice"
         }
       ]
@@ -126061,7 +126061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 62,
+          "line": 73,
           "sink": "python-return:item_set_budget_notice"
         }
       ]
@@ -149296,7 +149296,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_budget.py",
-          "line": 123,
+          "line": 129,
           "sink": "ValueError"
         }
       ]
@@ -166816,7 +166816,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_draft_textures.py",
-          "line": 90,
+          "line": 93,
           "sink": "ValueError"
         }
       ]
@@ -170106,7 +170106,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_budget.py",
-          "line": 142,
+          "line": 149,
           "sink": "ValueError"
         }
       ]
@@ -172636,7 +172636,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_draft_textures.py",
-          "line": 148,
+          "line": 154,
           "sink": "ValueError"
         }
       ]
@@ -175446,7 +175446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_item_set_editing.py",
-          "line": 319,
+          "line": 332,
           "sink": "ValueError"
         }
       ]
@@ -195521,7 +195521,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8265,
+          "line": 8259,
           "sink": "open_edit_session"
         },
         {
@@ -195961,12 +195961,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3438,
+          "line": 3430,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3454,
+          "line": 3446,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -197561,7 +197561,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3460,
+          "line": 3452,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -198081,7 +198081,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3452,
+          "line": 3444,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -198271,7 +198271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 4176,
+          "line": 4168,
           "sink": "ValueError"
         }
       ]
@@ -198531,12 +198531,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3425,
+          "line": 3417,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3458,
+          "line": 3450,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -199446,7 +199446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_draft_textures.py",
-          "line": 293,
+          "line": 303,
           "sink": "ValueError"
         }
       ]
@@ -200281,12 +200281,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3436,
+          "line": 3428,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3464,
+          "line": 3456,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -200436,7 +200436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3817,
+          "line": 3809,
           "sink": "ValueError"
         }
       ]
@@ -200446,7 +200446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3806,
+          "line": 3798,
           "sink": "ValueError"
         }
       ]
@@ -200456,7 +200456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3789,
+          "line": 3781,
           "sink": "ValueError"
         }
       ]
@@ -201656,7 +201656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3446,
+          "line": 3438,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -202081,12 +202081,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7357,
+          "line": 7349,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7455,
+          "line": 7447,
           "sink": "RuntimeError"
         }
       ]
@@ -203246,12 +203246,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3423,
+          "line": 3415,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3442,
+          "line": 3434,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -203676,7 +203676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3448,
+          "line": 3440,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -203906,7 +203906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3456,
+          "line": 3448,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -207596,7 +207596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3444,
+          "line": 3436,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -209421,12 +209421,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3435,
+          "line": 3427,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3450,
+          "line": 3442,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -216676,7 +216676,7 @@
         },
         {
           "path": "cdmw/services/mesh_draft_textures.py",
-          "line": 92,
+          "line": 95,
           "sink": "ValueError"
         }
       ]
