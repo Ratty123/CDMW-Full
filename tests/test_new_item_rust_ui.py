@@ -42,6 +42,9 @@ def studio():
         yield fixture, tab, NewItemPresentationBridge(tab)
     finally:
         fixture.tearDown()
+        # setUp's addCleanup patches (the mod folder tools policy among them) only stop
+        # through doCleanups, which TestCase.run calls but a hand-run fixture must.
+        fixture.doCleanups()
 
 
 def _input(bridge, widget, action, value=None, *, revision=None):
