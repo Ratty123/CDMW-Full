@@ -504,8 +504,12 @@ public sealed partial class ArchiveCacheStore
 
     private void QuarantineCorruptGeneration(string rootId, string generationId, string reason)
     {
-        var source = GenerationDirectory(rootId, generationId);
-        if (!Directory.Exists(source) || IsActive(source))
+        // Only a generation folder of this cache is quarantined: an id that is
+        // not one, or a folder holding game files, stays where it is.
+        if (!TryGenerationDirectory(rootId, generationId, out var source)
+            || !Directory.Exists(source)
+            || IsActive(source)
+            || HoldsGameFiles(source))
         {
             return;
         }
@@ -561,11 +565,103 @@ public sealed partial class ArchiveCacheStore
 
     private string RootDirectory(string rootId) => Path.Combine(CatalogueRoot, rootId);
 
-    private string GenerationDirectory(string rootId, string generationId)
+    // The only form OpenAsync writes: a UTC time to the millisecond (17 digits),
+    // '-', and the first 12 hex digits of a GUID. current.json is a file anyone
+    // who can write the cache can change, so a generation id naming anything
+    // else (an absolute path, "..", a separator) never reaches a path.
+    internal static bool IsGenerationId(string? value)
     {
-        var compact = Path.Combine(RootDirectory(rootId), "g", generationId);
-        var legacy = Path.Combine(RootDirectory(rootId), "generations", generationId);
-        return !Directory.Exists(compact) && Directory.Exists(legacy) ? legacy : compact;
+        if (value is not { Length: 30 } || value[17] != '-')
+        {
+            return false;
+        }
+        for (var i = 0; i < 30; i++)
+        {
+            var c = value[i];
+            var valid = i < 17
+                ? (c is >= '0' and <= '9')
+                : (i == 17 || (c is (>= '0' and <= '9') or (>= 'a' and <= 'f')));
+            if (!valid)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private string GenerationDirectory(string rootId, string generationId) =>
+        TryGenerationDirectory(rootId, generationId, out var path)
+            ? path
+            : throw new InvalidDataException("The archive cache pointer does not name a generation of this cache.");
+
+    // <catalogue>\<root id>\g\<generation id> (or the legacy "generations"),
+    // checked after resolution: the parent is that root's own generations
+    // folder and neither it nor the root directory is a link.
+    private bool TryGenerationDirectory(string rootId, string? generationId, out string path)
+    {
+        path = string.Empty;
+        if (!IsHash(rootId, 24) || !IsGenerationId(generationId))
+        {
+            return false;
+        }
+        var rootDirectory = Path.GetFullPath(RootDirectory(rootId));
+        var compactParent = Path.Combine(rootDirectory, "g");
+        var legacyParent = Path.Combine(rootDirectory, "generations");
+        var compact = Path.Combine(compactParent, generationId!);
+        var legacy = Path.Combine(legacyParent, generationId!);
+        var chosen = Path.GetFullPath(!Directory.Exists(compact) && Directory.Exists(legacy) ? legacy : compact);
+        var parent = Path.GetDirectoryName(chosen);
+        if (parent is null
+            || !(parent.Equals(compactParent, StringComparison.OrdinalIgnoreCase)
+                 || parent.Equals(legacyParent, StringComparison.OrdinalIgnoreCase))
+            || !Path.GetDirectoryName(parent)!.Equals(rootDirectory, StringComparison.OrdinalIgnoreCase)
+            || !rootDirectory.StartsWith(
+                CatalogueRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        if (IsExistingLink(rootDirectory) || IsExistingLink(parent) || IsExistingLink(chosen))
+        {
+            return false;
+        }
+        path = chosen;
+        return true;
+    }
+
+    private static bool IsExistingLink(string path)
+    {
+        var info = new DirectoryInfo(path);
+        return info.Exists && IsLink(info);
+    }
+
+    // A folder that holds game archives, or lies inside a game installation,
+    // is never moved, whatever led to it.
+    private static bool HoldsGameFiles(string path)
+    {
+        try
+        {
+            if (Directory.EnumerateFiles(path, "*.pamt").Any()
+                || Directory.EnumerateFiles(path, "*.paz").Any()
+                || Directory.EnumerateFiles(path, "*.papgt").Any())
+            {
+                return true;
+            }
+            for (var folder = new DirectoryInfo(path); folder is not null; folder = folder.Parent)
+            {
+                if (File.Exists(Path.Combine(folder.FullName, "CrimsonDesert.exe"))
+                    || File.Exists(Path.Combine(folder.FullName, "bin64", "CrimsonDesert.exe"))
+                    || File.Exists(Path.Combine(folder.FullName, "meta", "0.papgt")))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return true;  // when in doubt, leave it where it is
+        }
     }
 
     private static string CanonicalRoot(string packageRoot)

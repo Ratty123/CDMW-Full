@@ -25,6 +25,7 @@ internal static class FullArchiveTestRunner
             ("cache_maintenance_locked_files", CacheMaintenanceTests.LockedFilesAsync),
             ("cache_maintenance_busy_open_cancellation", CacheMaintenanceTests.BusyOpenCancellationAsync),
             ("cache_maintenance_scope_retirement", CacheMaintenanceTests.ScopeAndInterruptedRetirementAsync),
+            ("cache_maintenance_pointer_outside_cache", CacheMaintenanceTests.PointerOutsideCacheAsync),
             ("archive_discovery_excludes_backups", ArchiveDiscoveryTests.ScanAndExportAsync),
             ("existing_backup_cache_is_rebuilt", ArchiveDiscoveryTests.ExistingBackupCacheAsync),
             ("custom_ignored_folders", ArchiveDiscoveryTests.CustomFoldersAsync),

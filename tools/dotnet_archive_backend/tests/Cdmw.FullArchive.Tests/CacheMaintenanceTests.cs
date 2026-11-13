@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Cdmw.FullArchive.Contracts;
 using Cdmw.FullArchive.Core;
 
@@ -266,6 +267,63 @@ internal static class CacheMaintenanceTests
     }
 
     private static long Size(string path) => Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).Sum(file => new FileInfo(file).Length);
+
+    // current.json's generation_id is a file value: a crafted or corrupt one that
+    // names a folder outside the cache (an absolute path, "..", a separator)
+    // must not make the worker lease, quarantine or write beside that folder.
+    // The open rebuilds instead.
+    public static async Task PointerOutsideCacheAsync()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var victimRoot = Path.Combine(fixture.Archive.OutputRoot, "victim");
+        var victim = Path.Combine(victimRoot, "0036");
+        Directory.CreateDirectory(victim);
+        var victimPamt = Path.Combine(victim, "0.pamt");
+        File.Copy(fixture.Archive.Pamt, victimPamt);
+        await File.WriteAllTextAsync(Path.Combine(victimRoot, "CrimsonDesert.exe"), "owned synthetic executable");
+        var victimHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(victimPamt)));
+        var seed = fixture.CreateCache(long.MaxValue);
+        using (var sessions = new ArchiveSessionManager(fixture.Native, seed))
+        {
+            await fixture.OpenAsync(sessions, seed);
+        }
+        var pointerPath = Path.Combine(seed.CatalogueRoot, ArchiveCacheStore.DeriveRootId(fixture.Archive.Root), "current.json");
+        var original = JsonSerializer.Deserialize<ArchiveCurrentPointer>(
+            await File.ReadAllTextAsync(pointerPath), WorkerProtocol.JsonOptions)!;
+        Require(ArchiveCacheStore.IsGenerationId(original.GenerationId), "the cache wrote a generation id it would refuse");
+        var crafted = new[]
+        {
+            victim,
+            @"..\..\..\..\..\victim\0036",
+            "../../../../../victim/0036",
+            original.GenerationId + @"\..\..\..\..\..\..\victim\0036",
+            original.GenerationId.ToUpperInvariant(),
+            original.GenerationId[..29],
+            "",
+        };
+        foreach (var generationId in crafted)
+        {
+            await File.WriteAllTextAsync(pointerPath,
+                JsonSerializer.Serialize(original with { GenerationId = generationId }, WorkerProtocol.JsonOptions));
+            var cache = fixture.CreateCache(long.MaxValue);
+            var health = await cache.InspectAsync(fixture.Archive.Root, CancellationToken.None);
+            Require(health.State == "invalid", $"a pointer naming '{generationId}' was not reported invalid");
+            using (var sessions = new ArchiveSessionManager(fixture.Native, cache))
+            {
+                var reopened = await sessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
+                Require(!reopened.CacheHit, $"a pointer naming '{generationId}' was reused");
+            }
+            await cache.WaitForMaintenanceAsync(CancellationToken.None);
+            Require(File.Exists(victimPamt)
+                && Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(victimPamt))) == victimHash,
+                $"a pointer naming '{generationId}' moved or changed a folder outside the cache");
+            Require(Directory.GetFileSystemEntries(victim).Length == 1
+                && Directory.GetFileSystemEntries(victimRoot).Length == 2
+                && !Directory.Exists(Path.Combine(fixture.Archive.OutputRoot, ".leases")),
+                $"a pointer naming '{generationId}' made the worker write beside a folder outside the cache");
+        }
+    }
+
     private static void Require(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);
