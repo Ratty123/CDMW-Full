@@ -184,7 +184,7 @@ def test_open_folder_choice_is_saved_in_cfg_and_only_changes_when_toggled(studio
         try:
             assert reopened.open_folder_after_creation.isChecked() is checked
             tab.controller.set_template(tab.controller.draft.template_key)
-            _send(bridge, panel.overlay_mode_button, "activate")
+            _send(bridge, panel.independent_mode_button, "activate")
             _send(bridge, panel.folder_mode_button, "activate")
             assert panel.open_folder_after_creation.isChecked() is checked
         finally:
