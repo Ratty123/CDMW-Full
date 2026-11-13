@@ -1916,6 +1916,7 @@
     "Browse Archive": "아카이브 찾아보기",
     "Browse Archives": "아카이브 탐색",
     "Browse Archives and the Textures replacement preview display supported DDS textures on the GPU. Choose RGB, R, G, B or A, a mip, and optional normal Z reconstruction; use Fit, 100%, zoom and pan. Signed channels map from black at -1 to white at +1. Unsupported inputs use image previews. The editing canvas is unchanged.": "아카이브 탐색과 텍스처 교체 미리 보기는 지원되는 DDS를 GPU에 표시합니다. RGB, R, G, B 또는 A, 밉 수준과 선택적 노멀 Z 복원을 선택하고 맞춤, 100%, 확대/축소와 이동을 사용하세요. 부호 있는 채널은 -1을 검정, +1을 흰색으로 표시합니다. 지원되지 않는 입력은 이미지 미리 보기를 사용합니다. 편집 캔버스는 바뀌지 않습니다.",
+    "Browse Archives is shown": "아카이브 탐색 표시 중",
     "Browse NCNN model categories on the left, then expand a category to review its recommended models. Built-in entries include source links, non-downloading model pages, and purpose notes so users do not assume every model is interchangeable.": "왼쪽에서 NCNN 모델 카테고리를 찾아본 다음 카테고리를 확장하여 권장 모델을 검토하세요. 기본 제공 항목에는 소스 링크, 다운로드되지 않는 모델 페이지 및 목적 참고 사항이 포함되어 있으므로 사용자는 모든 모델이 상호 교환 가능하다고 가정하지 않습니다.",
     "Browse and play animations, replace a weapon's draws, and fix their timing.": "애니메이션을 찾아보고 재생하며, 무기의 꺼내기 동작을 교체하고 타이밍을 수정합니다.",
     "Browse character bodies, faces and appearance variants from the installed archives.": "설치된 아카이브의 캐릭터 바디, 얼굴 및 외형 변형을 탐색합니다.",

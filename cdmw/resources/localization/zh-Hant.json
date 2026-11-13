@@ -1916,6 +1916,7 @@
     "Browse Archive": "瀏覽封存檔",
     "Browse Archives": "瀏覽封存",
     "Browse Archives and the Textures replacement preview display supported DDS textures on the GPU. Choose RGB, R, G, B or A, a mip, and optional normal Z reconstruction; use Fit, 100%, zoom and pan. Signed channels map from black at -1 to white at +1. Unsupported inputs use image previews. The editing canvas is unchanged.": "瀏覽封存檔和紋理替換預覽在GPU上顯示支援的DDS。可選擇RGB、R、G、B或A、mip層級及可選的法線Z重建，並使用符合視窗、100%、縮放和平移。有號通道將-1顯示為黑色、+1顯示為白色。不支援的輸入使用影像預覽。編輯畫布不變。",
+    "Browse Archives is shown": "正在顯示瀏覽封存",
     "Browse NCNN model categories on the left, then expand a category to review its recommended models. Built-in entries include source links, non-downloading model pages, and purpose notes so users do not assume every model is interchangeable.": "瀏覽左側的 NCNN 型號類別，然後展開類別以查看其建議型號。內建條目包括來源連結、非下載模型頁面和目的說明，因此使用者不會假設每個模型都是可以互換的。",
     "Browse and play animations, replace a weapon's draws, and fix their timing.": "瀏覽和播放動畫、取代武器的拔出動作並修正其時序。",
     "Browse character bodies, faces and appearance variants from the installed archives.": "瀏覽已安裝封存檔中的角色身體、臉部和外觀變體。",
