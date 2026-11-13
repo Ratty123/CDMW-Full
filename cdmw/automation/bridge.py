@@ -601,6 +601,12 @@ class AutomationBridge(QObject):
         return True
 
 
+# The paths the MCP control tools call, under public names (the private ones stay).
+AutomationBridge.select_entry = AutomationBridge._select_entry
+AutomationBridge.open_mesh_editor = AutomationBridge._open_mesh_editor
+AutomationBridge.show_document = AutomationBridge._show_document
+AutomationBridge.end_edit = AutomationBridge._end_edit
+
 def start_automation_if_requested() -> AutomationBridge | None:
     """Called before the main window exists. Raises AutomationRefused."""
 
