@@ -47,7 +47,7 @@ STATE_NAMES = (
     "standalone_rust_active_event", "standalone_rust_authoring_session",
     "standalone_rust_checked_executable", "standalone_rust_checked_executable_signature",
     "standalone_rust_child_hwnd", "standalone_rust_close_session_pending", "standalone_rust_closing",
-    "standalone_rust_discard_requested",
+    "standalone_rust_discard_event", "standalone_rust_discard_requested",
     "standalone_rust_dispose_active_root", "standalone_rust_dispose_active_session",
     "standalone_rust_dispose_pending", "standalone_rust_dispose_queue", "standalone_rust_dispose_thread",
     "standalone_rust_dispose_worker", "standalone_rust_executable_path", "standalone_rust_failure_reported",

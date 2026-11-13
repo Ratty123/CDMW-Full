@@ -147,6 +147,9 @@ def mark_discarded(tab: object) -> None:
             tab.standalone_rust_discard_requested = True
         except AttributeError:
             pass
+        event = getattr(tab, "standalone_rust_discard_event", None)
+        if event is not None:
+            event.set()  # the open's worker, should it fail or stop now
     session = getattr(tab, "standalone_rust_authoring_session", None)
     if session is not None:
         try:

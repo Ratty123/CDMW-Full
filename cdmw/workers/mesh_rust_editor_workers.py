@@ -80,9 +80,13 @@ class MeshRustSessionPrepareWorker(QObject):
         item_set_contexts: tuple = (),
         edit_item_set: bool = False,
         before_prepare=None,
+        discarded: threading.Event | None = None,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
+        #: Set when the user chose Discard while this open ran (section 8.9): an
+        #: open that then fails or stops ends the draft's recovery point too.
+        self.discarded = discarded
         #: Runs first on this thread: binding the resolved preview materials to the
         #: controller, which used to take tens of milliseconds on the UI thread.
         self.before_prepare = before_prepare
@@ -106,6 +110,26 @@ class MeshRustSessionPrepareWorker(QObject):
 
     def stop(self) -> None:
         self._stop_event.set()
+
+    def _user_discarded(self) -> bool:
+        return bool(self.discarded is not None and self.discarded.is_set())
+
+    def _discard_draft_recovery(self) -> None:
+        """Discard before any session existed: the draft's recovery point goes, as
+        the session's own close would end it."""
+
+        from cdmw.services import mesh_history_journal as journal
+
+        try:
+            draft = self.expected_authoritative_service._session(self.expected_session_id)
+            project_path = getattr(draft, "mesh_layer_project_path", None)
+        except (AttributeError, KeyError, RuntimeError):
+            return
+        if project_path is None:
+            return
+        project_root = Path(project_path).parent
+        with journal.project_lock(project_root):
+            journal.clear_editor_recovery(project_root)
 
     def _controller_context_is_current(self) -> bool:
         return bool(
@@ -181,7 +205,8 @@ class MeshRustSessionPrepareWorker(QObject):
         except Exception as exc:  # pragma: no cover - exact text is surfaced by owning UI tests
             if session is not None:
                 try:
-                    session.close()  # a failed open keeps the recovery point
+                    # A failed open keeps the recovery point, unless the user chose Discard.
+                    session.close(discard=self._user_discarded())
                     _remove_owned_session_root(
                         self.session_root,
                         self.session_root.parent,
@@ -194,7 +219,13 @@ class MeshRustSessionPrepareWorker(QObject):
         finally:
             if session is not None:
                 try:
-                    session.close()  # an aborted open keeps the recovery point
+                    # An aborted open keeps the recovery point, unless the user chose Discard.
+                    session.close(discard=self._user_discarded())
+                except Exception:
+                    pass
+            elif not transferred and self._user_discarded():
+                try:
+                    self._discard_draft_recovery()
                 except Exception:
                     pass
             if not transferred and self._stop_event.is_set() and session is not None:

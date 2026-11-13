@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
 import time
 from collections.abc import Mapping
 from importlib import import_module
@@ -210,8 +211,10 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_prepare_service: object | None = None
         self.standalone_rust_prepare_session_id = ""
         self.standalone_rust_prepare_process_generation = 0
-        #: A Discard chosen while the editor was still opening (section 8.9).
+        #: A Discard chosen while the editor was still opening (section 8.9), and
+        #: the same answer for the open's worker.
         self.standalone_rust_discard_requested = False
+        self.standalone_rust_discard_event: threading.Event | None = None
         self.standalone_rust_protocol_thread: QThread | None = None
         self.standalone_rust_protocol_worker: object | None = None
         self.standalone_rust_protocol_request_id = 0
@@ -835,6 +838,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         process_generation = self.standalone_rust_process_generation
         self.standalone_rust_prepare_active_request_id = request_id
         self.standalone_rust_discard_requested = False
+        self.standalone_rust_discard_event = threading.Event()
         self.standalone_rust_prepare_controller = controller
         self.standalone_rust_prepare_service = expected_service
         self.standalone_rust_prepare_session_id = expected_session_id
@@ -854,6 +858,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             **({"item_set_contexts": self.item_set_contexts} if self.item_set_contexts else {}),
             **({"edit_item_set": True} if getattr(self, "edit_item_set", False) else {}),
             before_prepare=prime_material_context,
+            discarded=self.standalone_rust_discard_event,
         )
         thread = QThread(self)
         worker.moveToThread(thread)

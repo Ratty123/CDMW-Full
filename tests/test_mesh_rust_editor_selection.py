@@ -809,7 +809,8 @@ def test_prepare_worker_discards_result_when_authoritative_session_changes(
             authoritative_session_id="mesh-session",
             process_generation=4,
             root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-            cancel=lambda: cancelled.append(True),
+            # A stale open is closed, not discarded: its recovery point stays (8.9).
+            close=lambda *, discard=False: cancelled.append(not discard),
         )
 
     with patch(
@@ -898,7 +899,8 @@ def test_prepare_worker_discards_shadow_when_controller_service_changes(
             authoritative_session_id="mesh-session",
             process_generation=6,
             root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-            cancel=lambda: cancelled.append(True),
+            # A stale open is closed, not discarded: its recovery point stays (8.9).
+            close=lambda *, discard=False: cancelled.append(not discard),
         )
 
     with patch(
@@ -1083,7 +1085,7 @@ def test_late_prepared_sessions_queue_behind_disposer_without_clearing_live_refs
             root=root,
             root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
             closed=False,
-            cancel=lambda: None,
+            close=lambda *, discard=False: None,
         )
 
     late_one = disposable_session("session-late-one")
@@ -2066,7 +2068,7 @@ def test_dispose_worker_removes_owned_root_and_reports_completion(
     session = SimpleNamespace(
         closed=False,
         root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-        cancel=lambda: None,
+        close=lambda *, discard=False: None,
     )
     worker = MeshRustSessionDisposeWorker(session, session_root, owned_root)
     completed: list[str] = []
@@ -2101,7 +2103,7 @@ def test_stopped_dispose_worker_still_removes_exact_owned_session_root(
     session = SimpleNamespace(
         closed=False,
         root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-        cancel=failing_cancel,
+        close=lambda *, discard=False: failing_cancel(),
     )
     worker = MeshRustSessionDisposeWorker(session, session_root, owned_root)
     completed: list[str] = []
@@ -2140,7 +2142,7 @@ def test_dispose_worker_stopped_during_cancel_still_removes_owned_root(
     session = SimpleNamespace(
         closed=False,
         root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-        cancel=blocking_cancel,
+        close=lambda *, discard=False: blocking_cancel(),
     )
     worker = MeshRustSessionDisposeWorker(session, session_root, owned_root)
     completed: list[str] = []
@@ -2186,7 +2188,7 @@ def test_stopped_dispose_worker_cannot_remove_mismatched_session_root(
     session = SimpleNamespace(
         closed=True,
         root_identity=(int(expected_stat.st_dev), int(expected_stat.st_ino)),
-        cancel=lambda: None,
+        close=lambda *, discard=False: None,
     )
     worker = MeshRustSessionDisposeWorker(
         session,
@@ -2224,7 +2226,7 @@ def test_dispose_worker_reports_identity_mismatch_and_finishes(
     session = SimpleNamespace(
         closed=True,
         root_identity=(int(expected_stat.st_dev), int(expected_stat.st_ino)),
-        cancel=lambda: None,
+        close=lambda *, discard=False: None,
     )
     worker = MeshRustSessionDisposeWorker(session, mismatched_root, owned_root)
     completed: list[str] = []
