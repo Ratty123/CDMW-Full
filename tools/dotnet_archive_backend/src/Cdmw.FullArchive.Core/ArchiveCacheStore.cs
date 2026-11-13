@@ -500,6 +500,10 @@ public sealed partial class ArchiveCacheStore
                     continue;
                 }
                 var text = index.ReadString(range);
+                if (text.Length == 0)
+                {
+                    continue;  // names nothing, so nothing is opened
+                }
                 string full;
                 try
                 {
