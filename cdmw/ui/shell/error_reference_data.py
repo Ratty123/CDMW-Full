@@ -9965,15 +9965,7 @@ MESSAGE_REFERENCE = [
     "message": "ChaCha20 decryption validation failed for {entry.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_format.py": 394
-    }
-  },
-  {
-    "area": "archive",
-    "message": "ChaCha20 support requires the cryptography package. Install it with: pip install cryptography",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_format.py": 259
+      "cdmw/core/archive_format.py": 384
     }
   },
   {
@@ -10295,7 +10287,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS parent distance is too large.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_format.py": 775
+      "cdmw/core/archive_format.py": 765
     }
   },
   {
@@ -10311,7 +10303,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS parent distance is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 768
+      "cdmw/core/archive_format.py": 758
     }
   },
   {
@@ -10327,7 +10319,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS parent precedes the name block.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_format.py": 777
+      "cdmw/core/archive_format.py": 767
     }
   },
   {
@@ -10335,7 +10327,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS path depth exceeds 255 records.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_format.py": 787
+      "cdmw/core/archive_format.py": 777
     }
   },
   {
@@ -10360,7 +10352,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS text is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 783
+      "cdmw/core/archive_format.py": 773
     }
   },
   {
@@ -10376,7 +10368,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS text length is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 779
+      "cdmw/core/archive_format.py": 769
     }
   },
   {
@@ -11562,7 +11554,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid PAZ index {paz_index} for {pamt_path}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_format.py": 924
+      "cdmw/core/archive_format.py": 914
     }
   },
   {
@@ -12499,7 +12491,7 @@ MESSAGE_REFERENCE = [
     "message": "No .pamt files were found under {package_root}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_format.py": 951,
+      "cdmw/core/archive_format.py": 941,
       "cdmw/core/archive_scan_cache.py": 1795
     }
   },
@@ -12789,7 +12781,7 @@ MESSAGE_REFERENCE = [
     "message": "No valid Crimson Desert archive package roots were auto-detected.",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/archive_format.py": 709
+      "cdmw/core/archive_format.py": 699
     }
   },
   {
@@ -13514,7 +13506,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMT extension table contains an invalid extension.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_format.py": 813
+      "cdmw/core/archive_format.py": 803
     }
   },
   {
@@ -13530,7 +13522,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMT extension table has invalid bounds or terminators.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_format.py": 805
+      "cdmw/core/archive_format.py": 795
     }
   },
   {
@@ -13546,7 +13538,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMT extension table is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 801
+      "cdmw/core/archive_format.py": 791
     }
   },
   {
@@ -17378,7 +17370,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported archive encryption type {entry.encryption_type} for {entry.path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_format.py": 360
+      "cdmw/core/archive_format.py": 350
     }
   },
   {
@@ -17839,7 +17831,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total_pmts}] Skipped missing archive index {relative_label}: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_format.py": 996
+      "cdmw/core/archive_format.py": 986
     }
   },
   {
@@ -19376,7 +19368,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/archive_accelerator.py": 94,
       "cdmw/core/archive_attachment_iteminfo.py": 38,
-      "cdmw/core/archive_format.py": 249,
+      "cdmw/core/archive_format.py": 244,
       "cdmw/core/archive_media_preview.py": 698,
       "cdmw/core/archive_mesh_import_supplemental.py": 557,
       "cdmw/core/archive_name_search.py": 1151,
@@ -19921,7 +19913,7 @@ MESSAGE_REFERENCE = [
     "message": "{context}: archive LZ4 decompression failed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 375
+      "cdmw/core/archive_format.py": 365
     }
   },
   {
@@ -19929,7 +19921,7 @@ MESSAGE_REFERENCE = [
     "message": "{context}: archive LZ4 decompression requires the lz4 package",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 371
+      "cdmw/core/archive_format.py": 361
     }
   },
   {
@@ -20281,7 +20273,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} directory block is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 859
+      "cdmw/core/archive_format.py": 849
     }
   },
   {
@@ -20289,7 +20281,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} directory block length is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 854
+      "cdmw/core/archive_format.py": 844
     }
   },
   {
@@ -20297,7 +20289,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} file table is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 887
+      "cdmw/core/archive_format.py": 877
     }
   },
   {
@@ -20305,7 +20297,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} file table length is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 882
+      "cdmw/core/archive_format.py": 872
     }
   },
   {
@@ -20313,7 +20305,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} file-name block is truncated.",
     "recovery": "locked",
     "sources": {
-      "cdmw/core/archive_format.py": 868
+      "cdmw/core/archive_format.py": 858
     }
   },
   {
@@ -20321,7 +20313,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} file-name block length is truncated.",
     "recovery": "locked",
     "sources": {
-      "cdmw/core/archive_format.py": 863
+      "cdmw/core/archive_format.py": 853
     }
   },
   {
@@ -20329,7 +20321,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} folder table is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 877
+      "cdmw/core/archive_format.py": 867
     }
   },
   {
@@ -20337,7 +20329,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} folder table length is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 872
+      "cdmw/core/archive_format.py": 862
     }
   },
   {
@@ -20345,7 +20337,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} has an invalid extension index {extension_index}.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_format.py": 913
+      "cdmw/core/archive_format.py": 903
     }
   },
   {
@@ -20353,7 +20345,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} has duplicate or invalid PAZ identifiers.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/archive_format.py": 850
+      "cdmw/core/archive_format.py": 840
     }
   },
   {
@@ -20361,7 +20353,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path.name} paz table is truncated.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_format.py": 847
+      "cdmw/core/archive_format.py": 837
     }
   },
   {
@@ -20369,7 +20361,7 @@ MESSAGE_REFERENCE = [
     "message": "{pamt_path} is too small to be a valid .pamt file.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/archive_format.py": 839
+      "cdmw/core/archive_format.py": 829
     }
   },
   {
@@ -76763,6 +76755,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A lookup table needs 256 entries.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/image_ops.py": 129
+    }
+  },
+  {
+    "area": "other",
     "message": "A mod archive payload is outside its package.",
     "recovery": "format",
     "sources": {
@@ -77014,7 +77014,7 @@ MESSAGE_REFERENCE = [
     "message": "Actual result: describe what stalled or stopped responding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 721
+      "cdmw/ui/shell/problem_report_dialog.py": 720
     }
   },
   {
@@ -77022,7 +77022,7 @@ MESSAGE_REFERENCE = [
     "message": "Affected action: choose an operation or panel.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 705
+      "cdmw/ui/shell/problem_report_dialog.py": 704
     }
   },
   {
@@ -77768,7 +77768,7 @@ MESSAGE_REFERENCE = [
     "message": "Browser check cancelled. Your draft is kept.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 1171
+      "cdmw/ui/shell/problem_report_dialog.py": 1163
     }
   },
   {
@@ -78041,6 +78041,30 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/cditem_device_windows.py": 439
+    }
+  },
+  {
+    "area": "other",
+    "message": "Cannot write a PNG from an array shaped {array.shape}.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/core/image_ops.py": 159
+    }
+  },
+  {
+    "area": "other",
+    "message": "ChaCha20 key must be {KEY_SIZE} bytes, not {len(key)}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/chacha20.py": 50
+    }
+  },
+  {
+    "area": "other",
+    "message": "ChaCha20 nonce must be {NONCE_SIZE} bytes, not {len(nonce)}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/chacha20.py": 52
     }
   },
   {
@@ -80258,6 +80282,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "EVP_CIPHER_CTX_new failed",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/chacha20.py": 193
+    }
+  },
+  {
+    "area": "other",
     "message": "Early-return cloth modes bypass base finalization.",
     "recovery": "internal",
     "sources": {
@@ -80632,6 +80664,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/final_package_binding_contract.py": 52
+    }
+  },
+  {
+    "area": "other",
+    "message": "Exceeded the maximum number of bytes that can be encrypted with ChaCha20 for this nonce. The 32-bit counter portion of the nonce would overflow.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/core/chacha20.py": 56
     }
   },
   {
@@ -81063,7 +81103,7 @@ MESSAGE_REFERENCE = [
     "message": "Game files or mods involved: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 723
+      "cdmw/ui/shell/problem_report_dialog.py": 722
     }
   },
   {
@@ -81519,7 +81559,7 @@ MESSAGE_REFERENCE = [
     "message": "How long did you wait: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 717
+      "cdmw/ui/shell/problem_report_dialog.py": 716
     }
   },
   {
@@ -81591,7 +81631,7 @@ MESSAGE_REFERENCE = [
     "message": "Input / source: choose the format or source you used.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 711
+      "cdmw/ui/shell/problem_report_dialog.py": 710
     }
   },
   {
@@ -81639,7 +81679,7 @@ MESSAGE_REFERENCE = [
     "message": "Install method: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 731
+      "cdmw/ui/shell/problem_report_dialog.py": 730
     }
   },
   {
@@ -81711,7 +81751,7 @@ MESSAGE_REFERENCE = [
     "message": "Installed mods: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 726
+      "cdmw/ui/shell/problem_report_dialog.py": 725
     }
   },
   {
@@ -82640,7 +82680,7 @@ MESSAGE_REFERENCE = [
     "message": "Item or file: name the affected item, or choose that you do not know it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 714
+      "cdmw/ui/shell/problem_report_dialog.py": 713
     }
   },
   {
@@ -83209,7 +83249,7 @@ MESSAGE_REFERENCE = [
     "message": "Manager / installation tool: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 729
+      "cdmw/ui/shell/problem_report_dialog.py": 728
     }
   },
   {
@@ -83706,7 +83746,7 @@ MESSAGE_REFERENCE = [
     "message": "No UV islands were found.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1100
+      "cdmw/services/asset_authoring_service.py": 1115
     }
   },
   {
@@ -84082,7 +84122,7 @@ MESSAGE_REFERENCE = [
     "message": "OpenImageIO fail_percent must be between 0 and 100.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 954
+      "cdmw/services/asset_authoring_service.py": 969
     }
   },
   {
@@ -84090,7 +84130,7 @@ MESSAGE_REFERENCE = [
     "message": "OpenImageIO numeric arguments must be finite non-negative numbers.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 962
+      "cdmw/services/asset_authoring_service.py": 977
     }
   },
   {
@@ -84098,7 +84138,39 @@ MESSAGE_REFERENCE = [
     "message": "OpenImageIO {name} must be a finite non-negative number.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 952
+      "cdmw/services/asset_authoring_service.py": 967
+    }
+  },
+  {
+    "area": "other",
+    "message": "OpenSSL ChaCha20 is unavailable: {_openssl_failure}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/core/chacha20.py": 287
+    }
+  },
+  {
+    "area": "other",
+    "message": "OpenSSL ChaCha20 returned a short block.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/chacha20.py": 174
+    }
+  },
+  {
+    "area": "other",
+    "message": "OpenSSL ChaCha20 update failed.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/chacha20.py": 172
+    }
+  },
+  {
+    "area": "other",
+    "message": "OpenSSL refused the ChaCha20 key or nonce.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/chacha20.py": 164
     }
   },
   {
@@ -84122,7 +84194,7 @@ MESSAGE_REFERENCE = [
     "message": "Other tool / feature: name the feature, or write Not sure.",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 707
+      "cdmw/ui/shell/problem_report_dialog.py": 706
     }
   },
   {
@@ -84687,6 +84759,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "PNG encoding failed.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/image_ops.py": 617
+    }
+  },
+  {
+    "area": "other",
     "message": "PNG file does not exist: {path}",
     "recovery": "missing",
     "sources": {
@@ -84883,7 +84963,7 @@ MESSAGE_REFERENCE = [
     "message": "Progress / response: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 719
+      "cdmw/ui/shell/problem_report_dialog.py": 718
     }
   },
   {
@@ -85083,7 +85163,7 @@ MESSAGE_REFERENCE = [
     "message": "Relevant mods: name the mods, or write Not sure.",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 733
+      "cdmw/ui/shell/problem_report_dialog.py": 732
     }
   },
   {
@@ -86518,7 +86598,7 @@ MESSAGE_REFERENCE = [
     "message": "The browser check expired. Send the saved draft again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 1142
+      "cdmw/ui/shell/problem_report_dialog.py": 1134
     }
   },
   {
@@ -87431,6 +87511,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/pac_xml_emission.py": 35
+    }
+  },
+  {
+    "area": "other",
+    "message": "The median filter size must be odd and at least 3.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/image_ops.py": 1371
     }
   },
   {
@@ -88687,7 +88775,7 @@ MESSAGE_REFERENCE = [
     "message": "Tool: choose where the problem happened.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 703
+      "cdmw/ui/shell/problem_report_dialog.py": 702
     }
   },
   {
@@ -88695,7 +88783,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology changed from original mesh; UV remap safety needs review.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1102
+      "cdmw/services/asset_authoring_service.py": 1117
     }
   },
   {
@@ -88703,7 +88791,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology changed from original mesh; package output should stay conservative until reviewed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1333
+      "cdmw/services/asset_authoring_service.py": 1348
     }
   },
   {
@@ -88711,7 +88799,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology changed from original mesh; regenerated tangents should be reviewed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1169
+      "cdmw/services/asset_authoring_service.py": 1184
     }
   },
   {
@@ -88824,6 +88912,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/cditem_device_saves.py": 104
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown ChaCha20 backend {backend}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/chacha20.py": 281
     }
   },
   {
@@ -88944,6 +89040,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/cditem_device_execution.py": 760
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown interpolation {interpolation}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/image_ops.py": 742
     }
   },
   {
@@ -90103,10 +90207,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "aborted",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/workers/problem_report_network.py": 136
+    }
+  },
+  {
+    "area": "other",
     "message": "actual",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 721
+      "cdmw/ui/shell/problem_report_dialog.py": 720
     }
   },
   {
@@ -90327,6 +90439,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "approx_polygon takes int32 or float32 points, as OpenCV does.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/image_ops.py": 1140
+    }
+  },
+  {
+    "area": "other",
     "message": "archive session changed; run Auto-Match again",
     "recovery": "internal",
     "sources": {
@@ -90426,7 +90546,7 @@ MESSAGE_REFERENCE = [
     "message": "cdmw_mesh_core auto-uv-json is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1084
+      "cdmw/services/asset_authoring_service.py": 1099
     }
   },
   {
@@ -90688,7 +90808,7 @@ MESSAGE_REFERENCE = [
     "message": "game_involved",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 723
+      "cdmw/ui/shell/problem_report_dialog.py": 722
     }
   },
   {
@@ -91583,7 +91703,6 @@ MESSAGE_REFERENCE = [
       "cdmw/domain/xml_text.py": 70,
       "cdmw/modding/scene_gltf_embedded_images.py": 61,
       "cdmw/ui/replace_assistant/workers.py": 315,
-      "cdmw/ui/shell/problem_report_dialog.py": 1103,
       "cdmw/workers/appearance_workers.py": 85,
       "cdmw/workers/attachment_loose_workers.py": 252,
       "tools/report_crimson_normal_y_policy.py": 16
@@ -91602,7 +91721,7 @@ MESSAGE_REFERENCE = [
     "message": "input_item",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 714
+      "cdmw/ui/shell/problem_report_dialog.py": 713
     }
   },
   {
@@ -91610,7 +91729,7 @@ MESSAGE_REFERENCE = [
     "message": "input_source",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 711
+      "cdmw/ui/shell/problem_report_dialog.py": 710
     }
   },
   {
@@ -91626,7 +91745,7 @@ MESSAGE_REFERENCE = [
     "message": "install_method",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 731
+      "cdmw/ui/shell/problem_report_dialog.py": 730
     }
   },
   {
@@ -91801,6 +91920,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "libcrypto has no ChaCha20 cipher",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/chacha20.py": 153
+    }
+  },
+  {
+    "area": "other",
     "message": "list of {count} at 0x{offset} does not fit the row",
     "recovery": "internal",
     "sources": {
@@ -91876,7 +92003,7 @@ MESSAGE_REFERENCE = [
     "message": "missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1132
+      "cdmw/services/asset_authoring_service.py": 1147
     }
   },
   {
@@ -91884,7 +92011,7 @@ MESSAGE_REFERENCE = [
     "message": "mod_manager",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 729
+      "cdmw/ui/shell/problem_report_dialog.py": 728
     }
   },
   {
@@ -91892,7 +92019,7 @@ MESSAGE_REFERENCE = [
     "message": "mod_setup",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 733
+      "cdmw/ui/shell/problem_report_dialog.py": 732
     }
   },
   {
@@ -91900,7 +92027,7 @@ MESSAGE_REFERENCE = [
     "message": "mod_state",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 726
+      "cdmw/ui/shell/problem_report_dialog.py": 725
     }
   },
   {
@@ -92159,7 +92286,7 @@ MESSAGE_REFERENCE = [
     "message": "other_tool",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 707
+      "cdmw/ui/shell/problem_report_dialog.py": 706
     }
   },
   {
@@ -92255,7 +92382,7 @@ MESSAGE_REFERENCE = [
     "message": "progress_state",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 719
+      "cdmw/ui/shell/problem_report_dialog.py": 718
     }
   },
   {
@@ -93205,7 +93332,7 @@ MESSAGE_REFERENCE = [
     "message": "tool",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 703
+      "cdmw/ui/shell/problem_report_dialog.py": 702
     }
   },
   {
@@ -93261,7 +93388,7 @@ MESSAGE_REFERENCE = [
     "message": "waited",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 717
+      "cdmw/ui/shell/problem_report_dialog.py": 716
     }
   },
   {
@@ -93277,7 +93404,7 @@ MESSAGE_REFERENCE = [
     "message": "workflow",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 705
+      "cdmw/ui/shell/problem_report_dialog.py": 704
     }
   },
   {
@@ -93357,7 +93484,7 @@ MESSAGE_REFERENCE = [
     "message": "{count} {label} detected.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1331
+      "cdmw/services/asset_authoring_service.py": 1346
     }
   },
   {
@@ -93853,7 +93980,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(missing_parts)} part(s) have missing/incomplete UV data or no faces.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1098
+      "cdmw/services/asset_authoring_service.py": 1113
     }
   },
   {
@@ -93925,7 +94052,7 @@ MESSAGE_REFERENCE = [
     "message": "{missing + partial} part(s) have missing or partial tangent data.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1163
+      "cdmw/services/asset_authoring_service.py": 1178
     }
   },
   {
@@ -93933,7 +94060,7 @@ MESSAGE_REFERENCE = [
     "message": "{missing_normals} part(s) have missing or partial normals.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1167
+      "cdmw/services/asset_authoring_service.py": 1182
     }
   },
   {
@@ -93941,7 +94068,7 @@ MESSAGE_REFERENCE = [
     "message": "{missing_uv} part(s) need complete UVs before tangent generation.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/asset_authoring_service.py": 1165
+      "cdmw/services/asset_authoring_service.py": 1180
     }
   },
   {
@@ -103690,7 +103817,7 @@ MESSAGE_REFERENCE = [
     "message": "Canceled floating selection.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/texture_workflow/editor_floating_state.py": 525
+      "cdmw/ui/texture_workflow/editor_floating_state.py": 518
     }
   },
   {
@@ -105545,7 +105672,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor checkpoint is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/texture_workflow/editor_history_state.py": 472
+      "cdmw/ui/texture_workflow/editor_history_state.py": 468
     }
   },
   {
@@ -105553,7 +105680,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor checkpoint metadata is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/texture_workflow/editor_history_state.py": 476
+      "cdmw/ui/texture_workflow/editor_history_state.py": 472
     }
   },
   {
@@ -105577,7 +105704,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor history cannot evict records without a retained checkpoint.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/texture_workflow/editor_history_state.py": 614
+      "cdmw/ui/texture_workflow/editor_history_state.py": 610
     }
   },
   {
@@ -105585,7 +105712,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor history entry is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/texture_workflow/editor_history_state.py": 617
+      "cdmw/ui/texture_workflow/editor_history_state.py": 613
     }
   },
   {
@@ -108415,6 +108542,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/action_chart_binary.py",
     "cdmw/core/appearance_composite.py",
     "cdmw/core/atomic_file.py",
+    "cdmw/core/chacha20.py",
     "cdmw/core/common.py",
     "cdmw/core/compact_static.py",
     "cdmw/core/effect_binary.py",
@@ -108508,6 +108636,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/workers/directory_scan_workers.py",
     "cdmw/workers/effect_catalogue_worker.py",
     "cdmw/workers/item_icon_workers.py",
+    "cdmw/workers/problem_report_network.py",
     "cdmw/workers/problem_report_workers.py",
     "cdmw/workers/qt_worker_runner.py",
     "cdmw/workers/utility_workers.py",
@@ -108718,6 +108847,7 @@ SOURCE_COVERAGE = {
   "cdmw/app/cli.py": {},
   "cdmw/app/events.py": {},
   "cdmw/app/gui.py": {},
+  "cdmw/app/native_threads.py": {},
   "cdmw/app/pyinstaller_runtime.py": {},
   "cdmw/app/single_instance.py": {},
   "cdmw/app/startup_maintenance.py": {},
@@ -108846,7 +108976,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/archive_format.py": {
     "diagnostic_field": 4,
     "display": 2,
-    "raise": 30,
+    "raise": 29,
     "report": 2
   },
   "cdmw/core/archive_hkx.py": {
@@ -109184,6 +109314,10 @@ SOURCE_COVERAGE = {
   "cdmw/core/buffinfo_table.py": {
     "raise": 9
   },
+  "cdmw/core/chacha20.py": {
+    "finding": 1,
+    "raise": 12
+  },
   "cdmw/core/chainner.py": {
     "diagnostic_field": 4,
     "failure": 12,
@@ -109289,6 +109423,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/hkx_native.py": {
     "diagnostic_field": 1
+  },
+  "cdmw/core/image_ops.py": {
+    "raise": 8
   },
   "cdmw/core/item_dye_material.py": {
     "raise": 7
@@ -113395,7 +113532,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/shell/problem_report_catalog.py": {},
   "cdmw/ui/shell/problem_report_dialog.py": {
-    "diagnostic_field": 4,
+    "diagnostic_field": 2,
     "display": 1,
     "failure": 3,
     "finding": 27,
@@ -113805,6 +113942,9 @@ SOURCE_COVERAGE = {
   "cdmw/workers/preview_workers.py": {
     "diagnostic_field": 3,
     "signal": 3
+  },
+  "cdmw/workers/problem_report_network.py": {
+    "diagnostic_field": 3
   },
   "cdmw/workers/problem_report_workers.py": {
     "signal": 1
