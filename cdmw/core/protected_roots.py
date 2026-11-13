@@ -45,6 +45,12 @@ from cdmw.domain.output_paths import GAME_INDEX
 PERMIT_HOLDERS = frozenset({"Restore Backup", "Remove What an Older CDMW Installed"})
 #: Beside ``meta/0.papgt``, either of these marks a game installation rather than a mod.
 INSTALLATION_MARKS = (Path("bin64") / "CrimsonDesert.exe", Path("0000") / "0.pamt")
+#: How far below a folder that is cleared or replaced CDMW looks for a game installation:
+#: a Steam library's ``steamapps/common/Crimson Desert`` is three levels down.
+INSTALLATION_SEARCH_DEPTH = 4
+#: Folders that only a game library or a package root holds; a folder holding one is
+#: never cleared or replaced.
+LIBRARY_FOLDER_NAMES = frozenset({"steamapps", "game_files"})
 #: The session's roots, as a JSON list, for child processes.
 ROOTS_ENVIRONMENT = "CDMW_PROTECTED_GAME_ROOTS"
 
@@ -199,11 +205,58 @@ def check_writable(path: Path | str) -> None:
         _refuse(f"CDMW does not write into the game folder ({root}); it refused {path}.")
 
 
+def _installation_below(folder: Path) -> str | None:
+    """What makes ``folder`` hold a game, looking a few levels down, or None.
+
+    A game installation (see :func:`installation_holding`), a ``steamapps`` or
+    ``game_files`` folder, or a link that leads into a game. Links are not followed.
+    A folder that cannot be read is taken to hold one: the check fails closed.
+    """
+
+    level = [folder]
+    for depth in range(INSTALLATION_SEARCH_DEPTH + 1):
+        following = []
+        for current in level:
+            try:
+                if (current / GAME_INDEX).is_file() and any((current / mark).is_file() for mark in INSTALLATION_MARKS):
+                    return f"a game installation ({current})"
+                if depth == INSTALLATION_SEARCH_DEPTH:
+                    continue
+                with os.scandir(current) as entries:
+                    children = list(entries)
+            except FileNotFoundError:
+                continue
+            except OSError as error:
+                return f"a folder CDMW could not look into ({current}: {error.strerror or error})"
+            for child in children:
+                try:
+                    if child.is_symlink() or child.is_junction():
+                        target = _resolved(child.path)
+                        if target is not None and (_game_folder_of(target) is not None
+                                                   or any(_inside(root, target) for root in protected_roots())):
+                            return f"a link into the game ({child.path})"
+                        continue
+                    if not child.is_dir():
+                        continue
+                except OSError:
+                    continue
+                if child.name.casefold() in LIBRARY_FOLDER_NAMES:
+                    return f"a game library folder ({child.path})"
+                following.append(Path(child.path))
+        level = following
+        if not level:
+            break
+    return None
+
+
 def check_removable(path: Path | str) -> None:
     """Refuse to delete, clear or replace ``path`` when that would remove game files.
 
     Refused: a drive root, a path in a game folder (without the permit), a game
-    folder itself, and a folder that holds a protected root, whatever permit is held.
+    folder itself, a folder that holds a protected root, and a folder that holds a
+    game installation, a ``steamapps`` or ``game_files`` folder or a link into the game
+    a few levels down (:data:`INSTALLATION_SEARCH_DEPTH`), configured or not, whatever
+    permit is held.
     """
 
     resolved = _resolved(path)
@@ -218,6 +271,10 @@ def check_removable(path: Path | str) -> None:
     if root is not None and (_key(root) == _key(resolved) or _permit.get() is None):
         _refuse(f"CDMW does not write into the game folder ({root}), or clear or replace anything in it; "
                 f"it refused {path}.")
+    if root is None and resolved.is_dir():
+        held = _installation_below(resolved)
+        if held is not None:
+            _refuse(f"CDMW does not clear or replace {path}: it holds {held}.")
 
 
 @contextmanager

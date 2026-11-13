@@ -237,3 +237,41 @@ def test_a_junction_made_while_the_folder_is_made_is_caught(tmp_path, monkeypatc
         atomic_write_bytes(sneaky / "x.bin", b"x")
     monkeypatch.setattr(Path, "mkdir", real_mkdir)
     assert _files(game) == {"meta", "meta/0.papgt", "bin64", "bin64/CrimsonDesert.exe"}
+
+
+# --- K: a folder that holds an installation nobody configured.
+
+def test_clearing_a_folder_that_holds_a_steam_library_is_refused(tmp_path):
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    picked = tmp_path / "D-drive"
+    (picked / "SteamLibrary" / "steamapps" / "common").mkdir(parents=True)
+    with pytest.raises(ProtectedGameFolderWrite, match="game library folder"):
+        clear_directory_contents(picked)
+    assert (picked / "SteamLibrary" / "steamapps").is_dir()
+
+
+def test_clearing_a_folder_that_holds_a_link_into_the_game_is_refused(tmp_path):
+    import _winapi
+
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    game = _game(tmp_path / "game")
+    picked = tmp_path / "exports"
+    (picked / "deeper").mkdir(parents=True)
+    _winapi.CreateJunction(str(game), str(picked / "deeper" / "shortcut"))
+    with pytest.raises(ProtectedGameFolderWrite, match="link into the game"):
+        clear_directory_contents(picked)
+    assert (game / "bin64" / "CrimsonDesert.exe").is_file()
+
+
+def test_an_output_folder_holding_mods_with_their_own_index_still_clears(tmp_path):
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    picked = tmp_path / "exports"
+    mod = picked / "dmm" / "Frost blade"
+    (mod / "meta").mkdir(parents=True)
+    (mod / "meta" / "0.papgt").write_bytes(b"the mod's own index")
+    (mod / "0036").mkdir()
+    clear_directory_contents(picked)
+    assert picked.is_dir() and not any(picked.iterdir())

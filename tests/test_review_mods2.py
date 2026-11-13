@@ -312,3 +312,31 @@ def test_an_overlay_recorded_only_by_the_older_install_receipt_is_removed(tmp_pa
     assert plan.can_remove and "0036/0.pamt" in plan.delete_files, plan.review_lines()
     _remove(plan, root)
     assert not (root / "0036" / "0.pamt").exists() and not (root / "0036" / "0.paz").exists()
+
+
+def test_clearing_a_library_that_holds_an_unconfigured_installation_never_empties_it(tmp_path):
+    """check_removable refuses a folder that holds a game folder only when that game folder
+    is one of the session's roots. The rule that needs no state (meta/0.papgt with
+    bin64/CrimsonDesert.exe) is applied to paths inside an installation, not to a folder
+    that holds one. So in a process with no roots (a fresh start before Browse's field is
+    set, a helper or --cli started without them), or for a second library, Clear Root on
+    the library deletes the game."""
+
+    pytest.importorskip("cdmw.core.protected_roots")
+    from cdmw.core import protected_roots
+    from cdmw.core.archive_extraction import clear_directory_contents
+
+    library = tmp_path / "SteamLibrary" / "steamapps" / "common"
+    game = library / "Crimson Desert"
+    (game / "meta").mkdir(parents=True)
+    (game / "meta" / "0.papgt").write_bytes(b"papgt")
+    (game / "bin64").mkdir()
+    (game / "bin64" / "CrimsonDesert.exe").write_bytes(b"MZ")
+    reset = getattr(protected_roots, "_reset_for_tests", None)
+    if callable(reset):
+        reset()  # no root configured: the stateless rule alone must hold
+    try:
+        clear_directory_contents(library)
+    except Exception:
+        pass  # a refusal is the right outcome
+    assert (game / "bin64" / "CrimsonDesert.exe").is_file(), "clearing the library deleted an installed game"
