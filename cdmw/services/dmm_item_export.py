@@ -57,11 +57,13 @@ def _recipe_patches(before, after):
 
 
 def _reward_values(row):
+    # dmm-parser 9778425d672b names the 2.05 DropInfoData byte raw_58.
     return dict(string_key=row.name, list=[dict(raw_at_120=r.item_key, dispatch_tag=0,
         lookup_4=r.condition_references[0], lookup_6=r.condition_references[1],
         lookup_8=r.condition_references[2], raw_12=r.condition_references[3],
         raw_16=r.weight, raw_32=r.sub_weight, raw_40=r.minimum, raw_48=r.maximum,
-        raw_56=r.enhancement & 0xffff, variant=dict(tag=0, lookup=r.item_key)) for r in row.entries],
+        raw_56=r.enhancement & 0xffff, variant=dict(tag=0, lookup=r.item_key),
+        **({'raw_58': r.compact_enchant_extra[0]} if r.compact_enchant_extra else {})) for r in row.entries],
         total_drop_rate=row.total_weight, original_string=row.original_string)
 
 

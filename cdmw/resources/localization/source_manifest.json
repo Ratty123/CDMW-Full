@@ -65402,6 +65402,16 @@
       ]
     },
     {
+      "key": "Game 1.0.0.3663's updated shop data is supported. Older compact layouts remain readable, and exports retain the new shop and reward fields. Use a DMM version compatible with this game update. New-item mods still need in-game testing.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 106,
+          "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
       "key": "Game And Extraction Paths",
       "origins": [
         {

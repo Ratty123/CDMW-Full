@@ -90,18 +90,23 @@ def parse_compact_reward(raw):
     if layout.integer('_isBlocked',width=1):
         raise RecordError('Blocked reward definition')
     cursor = Cursor(layout.data('_list'))
+    enchant_widths = {member.path[1]: member.span.size for member in layout.members
+                      if member.owner == 'DropInfoData' and member.name == '_enchantLevel'
+                      and member.path[:1] == ('_list',)}
     entries = []
-    for _ in range(cursor.count()):
+    for index in range(cursor.count()):
         if cursor.unpack('B') != 1:
             raise RecordError('Reward result type is not a supported item result')
         item,kind = cursor.unpack('QB')
         if kind != 0:
             raise RecordError(f'Non-item reward result type {kind} is not decoded')
         conditions = cursor.unpack('IIII')
-        weight,sub,low,high,level,again = cursor.unpack('QQQQhI')
+        weight,sub,low,high,level = cursor.unpack('QQQQh')
+        extra = cursor.take(enchant_widths[index] - 2)
+        again = cursor.unpack('I')
         if item != again or not item or low>high or level < -1:
             raise RecordError('Item reward reference or range is not decoded')
-        entries.append(ItemReward(item,weight,sub,low,high,level,conditions))
+        entries.append(ItemReward(item,weight,sub,low,high,level,conditions,extra))
     cursor.finish()
     return ItemRewardSet(layout.integer('_key',width=4),Cursor(layout.data('_stringKey')).text(),
         b''.join(layout.data(field) for field,_ in REWARD_POLICY),tuple(entries),layout.data('_needWeight'),
@@ -111,17 +116,22 @@ def parse_compact_reward(raw):
 
 def encode_compact_reward(row):
     layout = read_compact_layout(row.compact_raw,'dropsetinfo')
-    if row == parse_compact_reward(row.compact_raw):
+    source = parse_compact_reward(row.compact_raw)
+    if row == source:
         return row.compact_raw
     policy = Cursor(row.policy)
     changes = {field:policy.take(width) for field,width in REWARD_POLICY}
     policy.finish()
     entries = []
+    source_widths = {len(value.compact_enchant_extra) for value in source.entries}
     for value in row.entries:
+        if len(value.compact_enchant_extra) not in (0, 1) or source_widths and len(value.compact_enchant_extra) not in source_widths:
+            raise RecordError('Item reward enchantment layout differs from its source')
         if not 0 < value.item_key <= 0xffffffff or not 0 <= value.minimum <= value.maximum <= 0xffffffffffffffff:
             raise RecordError('Invalid item reward quantity or identity')
-        entries.append(b'\1'+struct.pack('<QBIIIIQQQQhI',value.item_key,0,*value.condition_references,
-            value.weight,value.sub_weight,value.minimum,value.maximum,value.enhancement,value.item_key))
+        entries.append(b'\1'+struct.pack('<QBIIIIQQQQh',value.item_key,0,*value.condition_references,
+            value.weight,value.sub_weight,value.minimum,value.maximum,value.enhancement)
+            + value.compact_enchant_extra + struct.pack('<I',value.item_key))
     changes.update({'_key':struct.pack('<I',row.key),'_stringKey':text_bytes(row.name),
         '_list':struct.pack('<I',len(entries))+b''.join(entries), '_needWeight':row.cache,
         '_totalDropRate':struct.pack('<Q',row.total_weight),'_rollDiceSkipRate':struct.pack('<Q',row.skip_weight),

@@ -5668,6 +5668,7 @@
     "GUI garbage collection must be installed on the GUI thread": "GUI çöp toplama işlemi GUI iş parçacığında yapılandırılmalıdır",
     "Game": "Oyun",
     "Game / Package": "Oyun / Paket",
+    "Game 1.0.0.3663's updated shop data is supported. Older compact layouts remain readable, and exports retain the new shop and reward fields. Use a DMM version compatible with this game update. New-item mods still need in-game testing.": "Oyunun 1.0.0.3663 sürümündeki güncellenmiş mağaza verileri desteklenir. Eski kompakt biçimler okunmaya devam eder ve dışa aktarımlar yeni mağaza ve ödül alanlarını korur. Bu oyun güncellemesiyle uyumlu bir DMM sürümü kullanın. Yeni eşya modlarının hâlâ oyun içinde test edilmesi gerekir.",
     "Game And Extraction Paths": "Oyun ve Çıkarma Yolları",
     "Game Data Table": "Oyun Veri Tablosu",
     "Game File Updated": "Oyun Dosyası Güncellendi",

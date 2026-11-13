@@ -5668,6 +5668,7 @@
     "GUI garbage collection must be installed on the GUI thread": "Die GUI-Speicherbereinigung muss im GUI-Thread eingerichtet werden",
     "Game": "Spiel",
     "Game / Package": "Spiel / Paket",
+    "Game 1.0.0.3663's updated shop data is supported. Older compact layouts remain readable, and exports retain the new shop and reward fields. Use a DMM version compatible with this game update. New-item mods still need in-game testing.": "Die aktualisierten Händlerdaten aus Spielversion 1.0.0.3663 werden unterstützt. Ältere kompakte Formate bleiben lesbar, und Exporte behalten die neuen Händler- und Belohnungsfelder bei. Verwenden Sie eine DMM-Version, die mit diesem Spielupdate kompatibel ist. Mods mit neuen Gegenständen müssen weiterhin im Spiel getestet werden.",
     "Game And Extraction Paths": "Spiel- und Extraktionspfade",
     "Game Data Table": "Spieldatentabelle",
     "Game File Updated": "Spieldatei aktualisiert",

@@ -17,6 +17,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Create New Item reads the updated shop and reward tables in game 1.0.0.3663 instead of stopping with "Invalid compact static presence flag." Earlier compact layouts remain supported, and shop and reward exports preserve the updated fields. Use a DMM version compatible with the game update. Not yet checked in game.
 - Helmets, masks, glasses, hair accessories and other models that follow only a few bones now find their skeleton. Create New Item no longer stops a rigged import onto such a template with "The selected template has no unique matching skeleton", and Archive Browser exports them to GLB or FBX with the armature, bound to the bone they follow, instead of asking to export without a skeleton. Weapons and other models that follow a bone of their own still export without the character armature.
 
 ### Docs

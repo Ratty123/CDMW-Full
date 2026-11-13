@@ -5668,6 +5668,7 @@
     "GUI garbage collection must be installed on the GUI thread": "Сборку мусора интерфейса необходимо настроить в потоке интерфейса",
     "Game": "Игра",
     "Game / Package": "Игра / Пакет",
+    "Game 1.0.0.3663's updated shop data is supported. Older compact layouts remain readable, and exports retain the new shop and reward fields. Use a DMM version compatible with this game update. New-item mods still need in-game testing.": "Поддерживаются обновлённые данные магазинов из версии игры 1.0.0.3663. Старые компактные форматы по-прежнему читаются, а при экспорте сохраняются новые поля магазинов и наград. Используйте версию DMM, совместимую с этим обновлением игры. Моды с новыми предметами всё ещё требуют проверки в игре.",
     "Game And Extraction Paths": "Игра и пути добычи",
     "Game Data Table": "Таблица данных игры",
     "Game File Updated": "Файл игры обновлён",

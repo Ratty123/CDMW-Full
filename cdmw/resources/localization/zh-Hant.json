@@ -5668,6 +5668,7 @@
     "GUI garbage collection must be installed on the GUI thread": "GUI記憶體回收必須在GUI執行緒上設定",
     "Game": "遊戲",
     "Game / Package": "遊戲 / 套件",
+    "Game 1.0.0.3663's updated shop data is supported. Older compact layouts remain readable, and exports retain the new shop and reward fields. Use a DMM version compatible with this game update. New-item mods still need in-game testing.": "支援遊戲 1.0.0.3663 版本更新後的商店資料。舊版緊湊格式仍可讀取，匯出時會保留商店和獎勵的新增欄位。請使用與此次遊戲更新相容的 DMM 版本。新增物品的模組仍需在遊戲內測試。",
     "Game And Extraction Paths": "遊戲和提取路徑",
     "Game Data Table": "遊戲資料表",
     "Game File Updated": "遊戲檔案已更新",

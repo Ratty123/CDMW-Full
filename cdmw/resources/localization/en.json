@@ -5668,6 +5668,7 @@
     "GUI garbage collection must be installed on the GUI thread": "GUI garbage collection must be installed on the GUI thread",
     "Game": "Game",
     "Game / Package": "Game / Package",
+    "Game 1.0.0.3663's updated shop data is supported. Older compact layouts remain readable, and exports retain the new shop and reward fields. Use a DMM version compatible with this game update. New-item mods still need in-game testing.": "Game 1.0.0.3663's updated shop data is supported. Older compact layouts remain readable, and exports retain the new shop and reward fields. Use a DMM version compatible with this game update. New-item mods still need in-game testing.",
     "Game And Extraction Paths": "Game And Extraction Paths",
     "Game Data Table": "Game Data Table",
     "Game File Updated": "Game File Updated",

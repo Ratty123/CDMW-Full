@@ -13,7 +13,7 @@ def drop_item(drop):
     if len(drop) < 9:
         raise RecordError('Compact shop drop data is truncated.')
     item = int.from_bytes(drop[:8], 'little') if drop[8] == 0 else 0
-    if item and (len(drop) != 63 or int.from_bytes(drop[-4:], 'little') != item):
+    if item and (len(drop) not in (63, 64) or int.from_bytes(drop[-4:], 'little') != item):
         raise RecordError('Compact shop item identity is inconsistent.')
     return item
 
@@ -69,7 +69,7 @@ def encode_compact_stock(entry):
         ('_refillByResetStore','_isStockSellable','_isStockBuyable','_isRestoreItem'),entry.flags)})
     drop = bytearray(entry.drop_bytes)
     if entry.item_key:
-        if len(drop) != 63 or drop[8] != 0:
+        if len(drop) not in (63, 64) or drop[8] != 0:
             raise RecordError('This shop result is not an editable item.')
         struct.pack_into('<Q',drop,0,entry.item_key)
         struct.pack_into('<I',drop,len(drop)-4,entry.item_key)
