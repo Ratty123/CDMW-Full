@@ -22,6 +22,7 @@ public sealed class ArchiveExportService(
         var destination = Path.TrimEndingDirectorySeparator(Path.GetFullPath(request.Destination));
         var parent = Path.GetDirectoryName(destination)
             ?? throw new InvalidDataException("Export destination has no parent directory.");
+        RejectProtectedDestination(destination, session.PackageRoot, sessions.CacheRoot, request.ReplaceDestination);
         Directory.CreateDirectory(parent);
         var destinationName = Path.GetFileName(destination);
         if (string.IsNullOrWhiteSpace(destinationName))
@@ -455,6 +456,51 @@ public sealed class ArchiveExportService(
             {
                 return candidate;
             }
+        }
+    }
+
+    // CDMW never writes into a game installation. An export destination comes
+    // from the request, and publishing it may move the folder there aside and
+    // delete it (ReplaceDestination) or write over files in it (Overwrite), so
+    // it may not be, hold or sit inside the archive source or the archive
+    // cache, sit inside a game installation, hold game archives, or be a link.
+    internal static void RejectProtectedDestination(
+        string destination,
+        string packageRoot,
+        string cacheRoot,
+        bool replaceDestination)
+    {
+        var source = File.Exists(packageRoot) ? Path.GetDirectoryName(packageRoot) ?? packageRoot : packageRoot;
+        if (GameFolderPolicy.Overlaps(destination, source))
+        {
+            throw new InvalidDataException(
+                "Export destination overlaps the archive source. CDMW does not write into the game folder; choose a folder outside it.");
+        }
+        if (GameFolderPolicy.Overlaps(destination, cacheRoot))
+        {
+            throw new InvalidDataException("Export destination overlaps the archive cache; choose a folder outside it.");
+        }
+        bool inGame;
+        try
+        {
+            inGame = GameFolderPolicy.IsInsideGameInstallation(destination)
+                || GameFolderPolicy.HoldsArchiveFiles(destination)
+                || (replaceDestination && Directory.Exists(destination)
+                    && Directory.EnumerateDirectories(destination).Any(GameFolderPolicy.IsGameRoot));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new InvalidDataException($"Export destination could not be checked: {exception.Message}");
+        }
+        if (inGame)
+        {
+            throw new InvalidDataException(
+                "Export destination is inside a game installation or holds game archives. CDMW does not write into the game folder; choose a folder outside it.");
+        }
+        var info = new DirectoryInfo(destination);
+        if (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException("Export destination is a link; choose the folder it points to directly.");
         }
     }
 

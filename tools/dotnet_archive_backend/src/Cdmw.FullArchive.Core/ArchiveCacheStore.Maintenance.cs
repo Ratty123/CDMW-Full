@@ -96,6 +96,7 @@ public sealed partial class ArchiveCacheStore
     private static async Task<FileStream> OpenGenerationUseAsync(string path, CancellationToken cancellationToken)
     {
         var leasePath = GenerationUsePath(path);
+        GameFolderPolicy.RejectLinks(Path.GetDirectoryName(leasePath)!);
         Directory.CreateDirectory(Path.GetDirectoryName(leasePath)!);
         while (true)
         {

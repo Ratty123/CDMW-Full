@@ -179,6 +179,7 @@ public sealed partial class ArchiveCacheStore
 
             var generationId = $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}"[..30];
             var generationsRoot = Path.Combine(RootDirectory(rootId), "g");
+            GameFolderPolicy.RejectLinks(RootDirectory(rootId), generationsRoot);
             Directory.CreateDirectory(generationsRoot);
             var stagingPath = Path.Combine(generationsRoot, $".{generationId}.staging");
             var generationPath = Path.Combine(generationsRoot, generationId);
@@ -509,13 +510,18 @@ public sealed partial class ArchiveCacheStore
         if (!TryGenerationDirectory(rootId, generationId, out var source)
             || !Directory.Exists(source)
             || IsActive(source)
-            || HoldsGameFiles(source))
+            || GameFolderPolicy.IsProtected(source))
         {
             return;
         }
         try
         {
             var quarantine = Path.Combine(RootDirectory(rootId), "quarantine");
+            // A planted link would carry the generation out of the cache.
+            if (IsExistingLink(quarantine))
+            {
+                return;
+            }
             Directory.CreateDirectory(quarantine);
             var destination = Path.Combine(quarantine, $"{generationId}-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}");
             Directory.Move(source, destination);
@@ -633,35 +639,6 @@ public sealed partial class ArchiveCacheStore
     {
         var info = new DirectoryInfo(path);
         return info.Exists && IsLink(info);
-    }
-
-    // A folder that holds game archives, or lies inside a game installation,
-    // is never moved, whatever led to it.
-    private static bool HoldsGameFiles(string path)
-    {
-        try
-        {
-            if (Directory.EnumerateFiles(path, "*.pamt").Any()
-                || Directory.EnumerateFiles(path, "*.paz").Any()
-                || Directory.EnumerateFiles(path, "*.papgt").Any())
-            {
-                return true;
-            }
-            for (var folder = new DirectoryInfo(path); folder is not null; folder = folder.Parent)
-            {
-                if (File.Exists(Path.Combine(folder.FullName, "CrimsonDesert.exe"))
-                    || File.Exists(Path.Combine(folder.FullName, "bin64", "CrimsonDesert.exe"))
-                    || File.Exists(Path.Combine(folder.FullName, "meta", "0.papgt")))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return true;  // when in doubt, leave it where it is
-        }
     }
 
     private static string CanonicalRoot(string packageRoot)

@@ -68,6 +68,7 @@ internal sealed class ArchiveContentArtifactService
     {
         var directory = Path.GetDirectoryName(destination)
             ?? throw new InvalidDataException("Content-analysis artifact has no parent directory.");
+        GameFolderPolicy.RejectLinks(Path.GetDirectoryName(directory)!, directory);
         Directory.CreateDirectory(directory);
         var staging = Path.Combine(directory, $".{Path.GetFileName(destination)}.{Guid.NewGuid():N}.tmp");
         try

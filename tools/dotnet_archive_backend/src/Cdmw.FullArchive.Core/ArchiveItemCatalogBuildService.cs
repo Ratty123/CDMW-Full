@@ -193,7 +193,8 @@ public sealed class ArchiveItemCatalogBuildService(
                 await publishProgress(new ProgressUpdate(index, payloads.Count, "item_catalog_extract", name)).ConfigureAwait(false);
             }
             var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
-            var destination = Path.Combine(payloadRoot, name);
+            // The names carry parts of archive entry paths: they stay inside payloadRoot.
+            var destination = ExportPathPolicy.ResolveContainedPath(payloadRoot, name);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             await File.WriteAllBytesAsync(destination, decoded.Bytes, cancellationToken).ConfigureAwait(false);
         }

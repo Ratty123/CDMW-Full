@@ -68,6 +68,7 @@ public sealed class ArchiveEntryPreparationService(
             destination = legacy;
             preparedRoot = Path.GetDirectoryName(legacy)!;
         }
+        GameFolderPolicy.RejectLinks(Path.GetDirectoryName(preparedRoot)!, preparedRoot);
         Directory.CreateDirectory(preparedRoot);
         if (File.Exists(destination))
         {

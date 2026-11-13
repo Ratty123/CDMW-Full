@@ -207,7 +207,7 @@ internal sealed class ArchiveItemSources
         {
             if (!path.StartsWith(LocalizationRoot)) continue;
             var parts = path[LocalizationRoot.Length..].Split('/');
-            if (parts.Length != 2 || parts[1] != domain + ".paloc") continue;
+            if (parts.Length != 2 || parts[1] != domain + ".paloc" || !IsLanguageName(parts[0])) continue;
             var entry = candidates.Where(Accepts).OrderByDescending(Order).FirstOrDefault();
             if (entry is not null) result[parts[0]] = entry;
         }
@@ -217,8 +217,10 @@ internal sealed class ArchiveItemSources
             {
                 var name = path.StartsWith(LocalizationRoot) ? path[LocalizationRoot.Length..] : "";
                 if (!name.StartsWith("localizationstring_") || !name.EndsWith(".paloc")) continue;
+                var language = name["localizationstring_".Length..^6];
+                if (!IsLanguageName(language)) continue;
                 var entry = candidates.Where(Accepts).OrderByDescending(Order).FirstOrDefault();
-                if (entry is not null) result[name["localizationstring_".Length..^6]] = entry;
+                if (entry is not null) result[language] = entry;
             }
         return result;
     }
@@ -260,8 +262,17 @@ internal sealed class ArchiveItemSources
                 if (!relative.StartsWith("localizationstring_") || !relative.EndsWith(".paloc")) continue;
                 language = relative["localizationstring_".Length..^6];
             }
+            if (!IsLanguageName(language)) continue;
             var selected = options.Where(Accepts).OrderByDescending(Order).FirstOrDefault();
             if (selected is not null) Localizations[language] = selected;
         }
     }
+
+    // A language comes from an archive entry's path and becomes part of a file
+    // name (loc_<language>.bin), so it is one plain segment: letters, digits,
+    // '_' or '-'. An entry path such as localizationstring_/../../x.paloc is
+    // the archive's to choose and must not reach the disk.
+    internal static bool IsLanguageName(string value) =>
+        value.Length is > 0 and <= 32
+        && value.All(static c => c is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= '0' and <= '9') or '_' or '-');
 }
