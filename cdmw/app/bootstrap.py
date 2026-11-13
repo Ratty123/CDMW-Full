@@ -51,6 +51,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # guard. It only relays to the app that is already open.
         from cdmw.mcp.bridge import run_bridge
 
+        # A packaged bridge runs from its own unpacked folder for as long as its
+        # client keeps it: marked, an app opened meanwhile leaves that folder alone.
+        write_current_pyinstaller_runtime_marker()
         return run_bridge()
 
     if args.automation:

@@ -76915,6 +76915,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "AI connections could not start; the app runs without them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/shell/app_window.py": 71
+    }
+  },
+  {
+    "area": "other",
     "message": "Active advanced damping requires its referenced group record.",
     "recovery": "input",
     "sources": {
@@ -102744,7 +102752,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. Windows did not accept the application job object.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 119
+      "cdmw/app/bootstrap.py": 122
     }
   },
   {
@@ -102752,7 +102760,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW could not enable automatic cleanup of its helper processes. Startup stopped before launching any helpers. {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 119
+      "cdmw/app/bootstrap.py": 122
     }
   },
   {
@@ -102760,7 +102768,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose isolated renderer host without --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 127
+      "cdmw/app/bootstrap.py": 130
     }
   },
   {
@@ -102768,7 +102776,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose only one of --cli or --gui.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 125
+      "cdmw/app/bootstrap.py": 128
     }
   },
   {
@@ -102936,7 +102944,7 @@ MESSAGE_REFERENCE = [
     "message": "Legacy isolated renderer hosts were removed; model previews use the resident Preview renderer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 129
+      "cdmw/app/bootstrap.py": 132
     }
   },
   {
@@ -103432,7 +103440,7 @@ MESSAGE_REFERENCE = [
     "message": "Use --cditem-device-tests without other application modes or options.",
     "recovery": "internal",
     "sources": {
-      "cdmw/app/bootstrap.py": 72
+      "cdmw/app/bootstrap.py": 75
     }
   },
   {
@@ -113463,6 +113471,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/shell/app_state.py": {},
   "cdmw/ui/shell/app_window.py": {
+    "log": 1,
     "raise": 1
   },
   "cdmw/ui/shell/archive_backend_client.py": {

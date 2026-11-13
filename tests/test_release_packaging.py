@@ -819,3 +819,16 @@ exit 0
     )
 
     assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+
+
+def test_the_package_holds_the_mesh_editor_commands_settings_reads() -> None:
+    """Settings > Shortcuts lists the Mesh Editor's rows from this file while no editor
+    runs; without it in the package those rows are missing (packaging review, 2026-11-13)."""
+
+    from cdmw.ui.commands import keymap
+
+    relative = keymap.RESOURCE.relative_to(ROOT).as_posix()
+    destination = Path(relative).parent.as_posix()
+    assert keymap.RESOURCE.is_file()
+    assert (f'_add_data_if_exists(datas, "{relative}", "{destination}", required_release=True)'
+            in SPEC.read_text(encoding="utf-8"))

@@ -56,6 +56,22 @@ from cdmw.ui.app_icon import load_app_icon
 from cdmw.constants import APP_TITLE, APP_VERSION
 
 
+def _start_ai_connections(window: object, settings: object) -> object | None:
+    """Start AI connections with the window, or None when they cannot start.
+
+    An error here leaves the app without AI connections, never without its window
+    (the packaged start-up smoke ends before this point).
+    """
+
+    try:
+        from cdmw.ui.ai_connections.controller import install_ai_connections
+
+        return install_ai_connections(window, settings)
+    except Exception:
+        logging.getLogger(__name__).exception("AI connections could not start; the app runs without them.")
+        return None
+
+
 def _shutdown_qt(window: object, app: object) -> bool:
     from PySide6.QtCore import QCoreApplication, QEvent
     from PySide6.QtWidgets import QApplication
@@ -556,12 +572,11 @@ def run_gui() -> int:
             automation.attach(window)
         # AI connections (P13 stage C): a setting already on starts with the app,
         # and Full access ends unless it was kept.
-        from cdmw.ui.ai_connections.controller import install_ai_connections
-
-        ai_connections = install_ai_connections(window, application_startup.settings)
+        ai_connections = _start_ai_connections(window, application_startup.settings)
         queue_startup_archive_autoload(window, startup_splash, _write_heartbeat)
         exit_code = run_shell_event_loop(app, _write_crash_report)
-        ai_connections.stop()
+        if ai_connections is not None:
+            ai_connections.stop()
         if automation is not None:
             automation.stop()
         teardown_ok = _shutdown_qt(window, app)

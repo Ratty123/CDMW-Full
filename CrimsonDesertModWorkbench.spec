@@ -189,6 +189,8 @@ _add_data_tree_if_exists(
 )
 # Only the catalogue validator reads this list, at build time.
 datas = [item for item in datas if Path(item[0]).name != "source_identical_terms.json"]
+# Settings > Shortcuts reads the Mesh Editor's commands from here while no editor runs.
+_add_data_if_exists(datas, "cdmw/resources/mesh_editor_commands.json", "cdmw/resources", required_release=True)
 _add_data_if_exists(datas, "THIRD_PARTY_NOTICES.md", ".")
 _add_data_if_exists(datas, "LICENSE", ".")
 _add_data_if_exists(datas, "README.md", ".", required_release=True)
