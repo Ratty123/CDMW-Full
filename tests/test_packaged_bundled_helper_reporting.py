@@ -263,10 +263,8 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
 
         self.assertTrue(snapshot, "expected at least one bundled helper")
         keys = {entry["key"] for entry in snapshot}
-        # OpenImageIO is not part of the package; it is checked only while a copy ships.
-        from cdmw.services.bundled_helper_availability import find_bundled_openimageio_binary
-
-        self.assertEqual(find_bundled_openimageio_binary() is not None, "openimageio" in keys)
+        # OpenImageIO is not part of the package (P20 tier 1, removal list item 8).
+        self.assertNotIn("openimageio", keys)
         self.assertIn("cdmw_mesh_core", keys)
         for removed in ("material_maker", "ufbx", "meshoptimizer"):
             self.assertNotIn(removed, keys)

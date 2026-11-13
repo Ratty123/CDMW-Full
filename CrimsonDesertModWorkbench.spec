@@ -147,16 +147,8 @@ unused_qt_runtime_payloads = {
 
 # The app never installs a QTranslator, so the bundled Qt message catalogues can
 # never be loaded.
-#
-# The second entry is the same idea for OpenImageIO. Following oiiotool.exe's
-# imports makes PyInstaller re-collect its DLLs at their package-relative
-# OpenImageIO\bin\, 15 MB on top of the copy the openimageio/ payload already
-# places beside the executable. oiiotool loads them from its own directory, and
-# the OpenImageIO Python module is not bundled, so nothing can open the second
-# copy.
 unused_payload_prefixes = (
     "PySide6\\translations\\",
-    "OpenImageIO\\bin\\",
     # The problem report goes through urllib now; nothing uses Qt's TLS or network
     # information. Qt6Network.dll stays for Qt Multimedia (removal list item 7).
     "PySide6\\plugins\\tls\\",
@@ -485,56 +477,8 @@ if vgmstream_dir.exists():
         elif runtime_file.suffix.lower() in {".dll", ".exe"}:
             binaries.append((str(runtime_file), "vgmstream"))
 
-# OpenImageIO ships as a wheel whose console script in Scripts/ is only a
-# launcher shim. The real oiiotool lives in the package's own bin/ and loads its
-# DLL closure from that directory, so the tool and the DLLs travel together or
-# not at all. idiff and maketx sit in the same directory and CDMW invokes
-# neither. The wheel's lib/*.lib are import libraries for building against
-# OpenImageIO, and share/fonts serves oiiotool's text drawing, which CDMW does
-# not use; taking bin/*.{exe,dll} alone leaves all three behind.
-unused_openimageio_tools = {
-    "idiff.exe",
-    "maketx.exe",
-}
-
-
-def _openimageio_package_root():
-    try:
-        module_spec = importlib.util.find_spec("OpenImageIO")
-    except (ImportError, ModuleNotFoundError, ValueError):
-        return None
-    if module_spec is None:
-        return None
-    for location in tuple(getattr(module_spec, "submodule_search_locations", ()) or ()):
-        if not str(location or "").strip():
-            continue
-        root = Path(location)
-        if (root / "bin" / "oiiotool.exe").is_file():
-            return root
-    return None
-
-
-openimageio_root = _openimageio_package_root()
-if openimageio_root is not None:
-    blocked_openimageio = {name.casefold() for name in unused_openimageio_tools}
-    for runtime_file in sorted(path for path in (openimageio_root / "bin").iterdir() if path.is_file()):
-        if runtime_file.name.casefold() in blocked_openimageio:
-            continue
-        if runtime_file.suffix.lower() in {".dll", ".exe"}:
-            binaries.append((str(runtime_file), "openimageio"))
-    # Apache-2.0 with small BSD-3-Clause portions; redistribution carries both.
-    for notice_name in ("LICENSE.md", "THIRD-PARTY.md"):
-        notice = next(
-            iter(sorted(openimageio_root.parent.glob(f"openimageio-*.dist-info/licenses/{notice_name}"))),
-            None,
-        )
-        if notice is not None:
-            datas.append((str(notice), "openimageio"))
-elif PROFILE == "release":
-    raise SystemExit(
-        "OpenImageIO is bundled in release builds but its package was not found. "
-        "Install it into the build environment: .\\.venv\\Scripts\\python.exe -m pip install openimageio"
-    )
+# OpenImageIO is not bundled: the user's own copy reads .exr, .ptx/.ptex and layered
+# .psd sources (removal list item 8).
 
 numpy_datas, numpy_binaries, numpy_hiddenimports = collect_all(
     "numpy",
