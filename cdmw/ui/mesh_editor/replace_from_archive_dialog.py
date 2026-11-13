@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableView,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -830,10 +829,13 @@ class ReplaceFromArchiveReviewDialog(QDialog):
                 action.target_path,
                 action.note,
             )
+            # The table's model makes the cells (the shape of B1's fix): no item is
+            # made in Python for it.
+            model = table.model()
             for column, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                item.setToolTip(value)
-                table.setItem(row, column, item)
+                index = model.index(row, column)
+                model.setData(index, value)
+                model.setData(index, value, Qt.ItemDataRole.ToolTipRole)
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Interactive)
         header.setStretchLastSection(True)

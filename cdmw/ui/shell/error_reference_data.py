@@ -13595,7 +13595,7 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/ui/mesh_editor/archive_mesh_comparison.py": 183,
-      "cdmw/ui/mesh_editor/replace_from_archive_dialog.py": 206
+      "cdmw/ui/mesh_editor/replace_from_archive_dialog.py": 205
     }
   },
   {
@@ -14387,7 +14387,7 @@ MESSAGE_REFERENCE = [
     "message": "Source preparation failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/replace_from_archive_dialog.py": 704
+      "cdmw/ui/mesh_editor/replace_from_archive_dialog.py": 703
     }
   },
   {
@@ -15324,7 +15324,7 @@ MESSAGE_REFERENCE = [
     "message": "The current target cannot also be the replacement source.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replace_from_archive_dialog.py": 660
+      "cdmw/ui/mesh_editor/replace_from_archive_dialog.py": 659
     }
   },
   {
@@ -52243,7 +52243,7 @@ MESSAGE_REFERENCE = [
     "message": "No compatible hairstyle base is available for this character.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 303
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 305
     }
   },
   {
@@ -59373,7 +59373,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive catalogue changed. Open Hair again after loading completes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 449
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 451
     }
   },
   {
@@ -59798,7 +59798,7 @@ MESSAGE_REFERENCE = [
     "message": "The hairstyle exceeds the supported 64 MiB PAC size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 329
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 331
     }
   },
   {
@@ -60062,7 +60062,7 @@ MESSAGE_REFERENCE = [
     "message": "The registered hairstyle needs one unambiguous mounted prefab.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 332
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 334
     }
   },
   {
@@ -60551,7 +60551,7 @@ MESSAGE_REFERENCE = [
     "message": "This choice has incomplete or ambiguous dependencies.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 384,
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 386,
       "cdmw/ui/mesh_editor/item_set_preparation.py": 49
     }
   },
@@ -60659,7 +60659,7 @@ MESSAGE_REFERENCE = [
     "message": "This hairstyle has incomplete or ambiguous dependencies.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 326
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 328
     }
   },
   {

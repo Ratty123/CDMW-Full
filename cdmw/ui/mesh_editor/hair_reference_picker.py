@@ -4,7 +4,7 @@ from pathlib import Path
 import threading
 from PySide6.QtCore import QProcess, QSize, QTimer, Qt, Signal
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QListView, QListWidget, QPushButton, QVBoxLayout
 from cdmw.domain.archives.character_catalogue import CharacterCatalogSearchRequest, CharacterCatalogSearchResult, CharacterCatalogDetailRequest, CharacterCatalogDetailResult
 from cdmw.ui.character_finder.preview_controller import CharacterFinderPreviewController
 from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
@@ -229,16 +229,18 @@ class HairReferencePickerDialog(QDialog):
             prefix = f"{self._profile.prefix}_00_" + ("head_00_" if self._role == "head" else "nude_00_")
             variant = stem.removeprefix(prefix).replace("_", " ")
             label = self._profile.name + (" head " if self._role == "head" else " base body ") + variant
-        item = QListWidgetItem(label)
-        if row.key in self._icon_images:
-            item.setIcon(self._icon_images[row.key])
-        item.setToolTip(row.path)
-        item.setData(Qt.UserRole, row.key); item.setSizeHint(QSize(168, 192))
         ranks = {stem: index for index, stem in self._styles}
         rank = ranks.get(Path(row.path).stem, 1 << 30)
         position = next((i for i in range(self.grid.count())
                          if ranks.get(Path(self._rows[self.grid.item(i).data(Qt.UserRole)].path).stem, 1 << 30) > rank), self.grid.count())
-        self.grid.insertItem(position, item)
+        # The grid makes its own item, as Build Mod's layer list does after B1: an
+        # item made in Python preceded a native fault there.
+        self.grid.insertItem(position, label)
+        item = self.grid.item(position)
+        if row.key in self._icon_images:
+            item.setIcon(self._icon_images[row.key])
+        item.setToolTip(row.path)
+        item.setData(Qt.UserRole, row.key); item.setSizeHint(QSize(168, 192))
 
     def _key(self):
         item = self.grid.currentItem()
