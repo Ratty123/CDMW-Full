@@ -8,10 +8,13 @@ from pathlib import Path
 CONTRACT = Path(__file__).resolve().parents[1] / "cdmw" / "resources" / "mesh_editor_texture_contract.json"
 
 NAMES = {
-    "cdmw.services.model_textures": ("model_texture_list", "texture_sharing", "make_texture_unique", "TEXTURE_GROUPS"),
+    "cdmw.services.model_textures": ("model_texture_list_from_preview", "texture_sharing", "make_texture_unique",
+                                     "TEXTURE_GROUPS"),
     "cdmw.domain.textures.original_output": ("check_texture_editable", "original_texture_output", "TextureOutputRefused"),
-    "cdmw.services.texture_document_authority": ("TextureDocumentAuthority", "TextureDocumentKey", "TextureDocumentOpenElsewhere"),
-    "cdmw.services.mesh_draft_textures": ("save_draft_texture", "load_draft_textures", "DraftTexture", "LoadedDraftTexture"),
+    "cdmw.services.texture_document_authority": ("TextureDocumentAuthority", "TextureDocumentKey", "TextureDocumentOpenElsewhere",
+                                                 "TextureDocumentStale"),
+    "cdmw.services.mesh_draft_textures": ("save_draft_texture", "load_draft_textures", "DraftTexture", "LoadedDraftTexture",
+                                          "source_changed"),
     "cdmw.services.texture_editor_service": ("TextureEditorNativeDdsService",),
     "cdmw.domain.textures.editor_brush": ("apply_texture_editor_stroke",),
 }
@@ -21,7 +24,9 @@ def test_the_contract_is_json_with_every_section():
     contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
     assert contract["protocol"] == "cdmw_rust_mesh_editor_protocol_v1"
     assert {row["event"] for row in contract["helper_to_host"]} >= {"paint_stroke"}
-    assert [row["event"] for row in contract["host_to_helper"]] == ["texture_region_update"]
+    assert [row["event"] for row in contract["host_to_helper"]] == [
+        "texture_paint_arm", "texture_paint_disarm", "texture_paint_refused", "texture_region_update"]
+    assert contract["channels"]["map"]["base"] == "base_color"
     assert len(contract["tab_hooks"]) >= 9 and contract["refusal_codes"]
 
 
@@ -34,6 +39,9 @@ def test_every_python_name_it_calls_exists():
             assert hasattr(module, name), f"{module_name}.{name}"
     assert hasattr(importlib.import_module("cdmw.services.texture_editor_service").TextureEditorNativeDdsService,
                    "export_matching_original")
+    authority = importlib.import_module("cdmw.services.texture_document_authority").TextureDocumentAuthority
+    for method in ("open", "commit", "reload_from_store", "adopt", "close"):
+        assert method in text and hasattr(authority, method), method
     from cdmw.services.model_textures import TEXTURE_GROUPS
 
     assert all(group in text for group in TEXTURE_GROUPS)
@@ -41,7 +49,7 @@ def test_every_python_name_it_calls_exists():
 
 def test_the_region_update_is_the_queues_own_shape():
     contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
-    shape = contract["host_to_helper"][0]["shape"]
+    shape = next(row for row in contract["host_to_helper"] if row["event"] == "texture_region_update")["shape"]
     source = (Path(__file__).resolve().parents[1] / "cdmw" / "ui" / "mesh_editor" / "resident_texture_update_queue.py").read_text(encoding="utf-8")
     assert "cdmw_resident_texture_region_update_v1" in shape and '"cdmw_resident_texture_region_update_v1"' in source
     for field in ("edit_revision", "texture_revision", "generation", "affected_submeshes", "texture_width",
