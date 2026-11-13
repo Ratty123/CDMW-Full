@@ -463,6 +463,9 @@ _add_native_binary("native/cd_hkx/target/release/cd-hkx.exe", "native")
 unused_vgmstream_payloads = {
     "in_vgmstream.dll",
     "xmp-vgmstream.dll",
+    # vgmstream-cli.exe imports neither (its import table; removal list item 2).
+    "libao-4.dll",
+    "swresample-vgmstream-4.dll",
 }
 
 vgmstream_dir = ROOT / ".tools" / "vgmstream"
