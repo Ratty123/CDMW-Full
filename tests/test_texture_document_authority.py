@@ -149,3 +149,77 @@ def test_a_resized_document_is_written_whole_and_a_closed_session_forgets_its_do
     assert _store_bytes(service, session_id, key.resource_id) == flattened_bgra(bigger, {"paint": _pixels(6, 32, 16)}).tobytes()
     authority.close_session(session_id)
     assert authority.get(key) is None
+
+
+# ----- review follow-ups before the merge -------------------------------------------------
+class _LateWriter:
+    """The real service, with another writer landing between the authority's check and its write."""
+
+    def __init__(self, service, session_id, key):
+        self.service, self.session_id, self.key, self.armed = service, session_id, key, False
+
+    def __getattr__(self, name):
+        return getattr(self.service, name)
+
+    def _land(self):
+        if self.armed:
+            self.armed = False
+            self.service.commit_texture_snapshot(self.session_id, self.key.resource_id, channel=self.key.channel,
+                                                 width=16, height=8, row_pitch=64, bgra=bytes(_pixels(77).tobytes()))
+
+    def commit_texture_snapshot(self, *args, **kwargs):
+        self._land()
+        return self.service.commit_texture_snapshot(*args, **kwargs)
+
+    def commit_texture_region(self, *args, **kwargs):
+        self._land()
+        return self.service.commit_texture_region(*args, **kwargs)
+
+
+@pytest.mark.parametrize("whole", [True, False])
+def test_a_writer_landing_between_the_check_and_the_write_is_refused_not_overwritten(editor, whole):  # noqa: F811
+    service, session_id = editor
+    key = TextureDocumentKey.of(session_id, "character/texture/own0.dds")
+    late = _LateWriter(service, session_id, key)
+    authority = TextureDocumentAuthority(late)
+    entry = authority.open(key, _document(), {"paint": _pixels(3)}, owner="Mesh Editor")
+    if not whole:
+        authority.commit(key, _document(), {"paint": _pixels(3)}, token=entry.token)
+    late.armed = True
+    pixels = _pixels(4)
+    pixels[0, 0, 0] = 200
+    with pytest.raises(TextureDocumentStale):
+        authority.commit(key, _document(), {"paint": pixels}, token=entry.token)
+    # The other writer's copy is what the store holds.
+    assert _store_bytes(service, session_id, key.resource_id) == bytes(_pixels(77).tobytes())
+
+
+def test_a_whole_commit_with_an_expected_revision_is_checked_by_the_service(editor):  # noqa: F811
+    service, session_id = editor
+    with pytest.raises(RuntimeError, match="stale resident texture revision"):
+        service.commit_texture_snapshot(session_id, "character/texture/own9.dds", width=16, height=8, row_pitch=64,
+                                        bgra=bytes(_pixels(1).tobytes()), expected_revision=3)
+    first = service.commit_texture_snapshot(session_id, "character/texture/own9.dds", width=16, height=8,
+                                            row_pitch=64, bgra=bytes(_pixels(1).tobytes()), expected_revision=0)
+    assert service.commit_texture_snapshot(session_id, "character/texture/own9.dds", width=16, height=8, row_pitch=64,
+                                           bgra=bytes(_pixels(2).tobytes()), expected_revision=first) == first + 1
+
+
+def test_a_truncated_working_copy_is_that_textures_problem_only(editor):  # noqa: F811
+    from cdmw.services.texture_document_authority import TextureDocumentUnreadable
+
+    service, session_id = editor
+    authority = TextureDocumentAuthority(service)
+    broken = TextureDocumentKey.of(session_id, "character/texture/own0.dds")
+    fine = TextureDocumentKey.of(session_id, "character/texture/own1.dds")
+    entries = {}
+    for key in (broken, fine):
+        entries[key] = authority.open(key, _document(), {"paint": _pixels(5)}, owner="Mesh Editor")
+        authority.commit(key, _document(), {"paint": _pixels(5)}, token=entries[key].token)
+    path = Path(_resource(service, session_id, broken.resource_id).raw_bgra_path)
+    path.write_bytes(path.read_bytes()[:100])
+    with pytest.raises(TextureDocumentUnreadable) as raised:
+        authority.reload_from_store(broken, token=entries[broken].token)
+    assert "own0.dds" in str(raised.value) and "100 bytes" in str(raised.value)
+    assert authority.get(broken) is entries[broken]  # still open, nothing changed
+    assert authority.reload_from_store(fine, token=entries[fine].token).shape == (8, 16, 4)

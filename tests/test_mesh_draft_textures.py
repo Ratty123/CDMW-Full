@@ -57,7 +57,7 @@ def test_saving_again_replaces_the_texture_and_keys_are_stable(tmp_path):
 
 def test_an_unreadable_project_is_reported_and_the_rest_still_load(tmp_path):
     other = DraftTexture(resource_id="character/texture/own1.dds", channel="base", source_path="character/texture/own1.dds",
-                         output_path="character/texture/own1.dds")
+                         output_path="character/texture/own1.dds", in_place=True)
     save_draft_texture(tmp_path, TEXTURE, _document(), _pixels())
     project = save_draft_texture(tmp_path, other, _document(), _pixels())
     project.write_text("{ not json", encoding="utf-8")
@@ -96,7 +96,7 @@ def test_two_saves_at_once_keep_both_textures(tmp_path):
     import threading
 
     others = [DraftTexture(resource_id=f"character/texture/own{i}.dds", channel="base",
-                           source_path=f"character/texture/own{i}.dds", output_path=f"character/texture/own{i}.dds")
+                           source_path=f"character/texture/own{i}.dds", output_path=f"character/texture/own{i}.dds", in_place=True)
               for i in range(6)]
     threads = [threading.Thread(target=save_draft_texture, args=(tmp_path, texture, _document(), _pixels()))
                for texture in others]
@@ -133,3 +133,95 @@ def test_a_bad_manifest_row_costs_only_that_texture(tmp_path):
     manifest_path.write_text(json.dumps(manifest))
     loaded = {item.texture.resource_id: item for item in load_draft_textures(tmp_path)}
     assert loaded[TEXTURE.resource_id].problem == "" and loaded["broken"].problem
+
+
+# ----- review follow-ups before the merge -------------------------------------------------
+def _sharing(in_place, needs_unique=False):
+    from cdmw.services.model_textures import TextureSharing
+
+    return TextureSharing(path="character/texture/own0.dds", other_parts=(), shared_name=False, other_files=None,
+                          needs_unique=needs_unique, reason="", in_place=in_place)
+
+
+def test_an_edit_at_the_source_path_needs_the_in_place_decision(tmp_path):
+    """Sharing that is not known yet (needs_unique False, in_place False) cannot write in place."""
+    import pytest
+
+    from cdmw.services.mesh_draft_textures import draft_texture_write_path
+
+    same = dict(resource_id="character/texture/own0.dds", channel="base", source_path="character/texture/own0.dds",
+                output_path="Character\\Texture\\OWN0.dds")
+    with pytest.raises(ValueError, match="Make it unique first"):
+        DraftTexture.for_sharing(_sharing(in_place=False), **same)
+    with pytest.raises(ValueError, match="Make it unique first"):
+        DraftTexture(**same)
+    allowed = DraftTexture.for_sharing(_sharing(in_place=True), **same)
+    save_draft_texture(tmp_path, allowed, _document(), _pixels())
+    (loaded,) = load_draft_textures(tmp_path)
+    assert loaded.texture.in_place and draft_texture_write_path(loaded.texture) == same["output_path"]
+    # A unique copy needs no decision; Build writes it at its own path.
+    assert draft_texture_write_path(TEXTURE) == TEXTURE.output_path
+
+
+def test_a_saved_in_place_row_without_the_decision_is_that_textures_problem_only(tmp_path):
+    """A manifest edited by hand (or by an older build) cannot turn into an in-place write at Build."""
+    from dataclasses import replace
+
+    import pytest
+
+    from cdmw.services.mesh_draft_textures import draft_texture_write_path
+
+    own = DraftTexture(resource_id="character/texture/own1.dds", channel="base", source_path="character/texture/own1.dds",
+                       output_path="character/texture/own1.dds", in_place=True)
+    save_draft_texture(tmp_path, TEXTURE, _document(), _pixels())
+    save_draft_texture(tmp_path, own, _document(), _pixels())
+    manifest_path = tmp_path / "textures" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["textures"][own.key]["in_place"] = False
+    manifest_path.write_text(json.dumps(manifest))
+    loaded = {item.texture.resource_id: item for item in load_draft_textures(tmp_path)}
+    assert loaded["character/texture/own0.dds"].problem == ""
+    assert "Make it unique first" in loaded[own.key].problem and loaded[own.key].document is None
+    with pytest.raises(ValueError, match="Make it unique first"):
+        replace(own, in_place=False)
+    with pytest.raises(ValueError, match="no output path"):
+        draft_texture_write_path(replace(TEXTURE, output_path=""))
+
+
+def test_a_crash_between_the_two_moves_restores_the_previous_save(tmp_path):
+    """save_texture_editor_project: the project is copied to its .backup, the assets folder moved
+    to its .backup, then the new assets moved in; a crash there leaves the old JSON with new assets."""
+    import os
+    import shutil
+
+    from cdmw.core.texture_editor_project_io import _texture_editor_assets_dir
+
+    first = _pixels()
+    project = save_draft_texture(tmp_path, TEXTURE, _document(), first)
+    second = _pixels()
+    second["paint"][:] = 9
+    second_root = tmp_path / "second"
+    newer = save_draft_texture(second_root, TEXTURE, _document(), second)
+    assets = _texture_editor_assets_dir(project)
+    transaction = "0" * 32
+    shutil.copy2(project, project.parent / f".{project.name}.{transaction}.backup")
+    os.replace(assets, project.parent / f".{assets.name}.{transaction}.backup")
+    shutil.copytree(_texture_editor_assets_dir(newer), assets)
+    # The new assets hold other file names than the old JSON expects.
+    for child in assets.iterdir():
+        child.rename(child.with_name("new-" + child.name))
+    (loaded,) = load_draft_textures(tmp_path)
+    assert loaded.document is not None and "previous save was restored" in loaded.problem
+    np.testing.assert_array_equal(loaded.layer_pixels["paint"], first["paint"])
+    assert not list(project.parent.glob(f".{project.name}.*")) and not list(project.parent.glob(f".{assets.name}.*"))
+    (again,) = load_draft_textures(tmp_path)
+    assert again.problem == ""
+
+
+def test_half_a_backup_is_not_restored_and_the_project_stays_as_found(tmp_path):
+    project = save_draft_texture(tmp_path, TEXTURE, _document(), _pixels())
+    (project.parent / f".{project.name}.{'1' * 32}.backup").write_text("{}", encoding="utf-8")
+    project.write_text("{ not json", encoding="utf-8")
+    (loaded,) = load_draft_textures(tmp_path)
+    assert loaded.document is None and "could not be read" in loaded.problem
+    assert project.read_text(encoding="utf-8") == "{ not json"

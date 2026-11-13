@@ -12,9 +12,9 @@ NAMES = {
                                      "TEXTURE_GROUPS"),
     "cdmw.domain.textures.original_output": ("check_texture_editable", "original_texture_output", "TextureOutputRefused"),
     "cdmw.services.texture_document_authority": ("TextureDocumentAuthority", "TextureDocumentKey", "TextureDocumentOpenElsewhere",
-                                                 "TextureDocumentStale"),
+                                                 "TextureDocumentStale", "TextureDocumentUnreadable"),
     "cdmw.services.mesh_draft_textures": ("save_draft_texture", "load_draft_textures", "DraftTexture", "LoadedDraftTexture",
-                                          "source_changed"),
+                                          "source_changed", "draft_texture_write_path"),
     "cdmw.services.texture_editor_service": ("TextureEditorNativeDdsService",),
     "cdmw.domain.textures.editor_brush": ("apply_texture_editor_stroke",),
 }
@@ -40,6 +40,7 @@ def test_every_python_name_it_calls_exists():
     assert hasattr(importlib.import_module("cdmw.services.texture_editor_service").TextureEditorNativeDdsService,
                    "export_matching_original")
     authority = importlib.import_module("cdmw.services.texture_document_authority").TextureDocumentAuthority
+    assert "DraftTexture.for_sharing" in text and hasattr(importlib.import_module("cdmw.services.mesh_draft_textures").DraftTexture, "for_sharing")
     for method in ("open", "commit", "reload_from_store", "adopt", "close"):
         assert method in text and hasattr(authority, method), method
     from cdmw.services.model_textures import TEXTURE_GROUPS

@@ -53,10 +53,45 @@ class DraftTexture:
     source_height: int = 0
     #: The draft's Finish step that saved this texture; undo across a restart is per Finish.
     finish_generation: int = 0
+    #: The edit may be written at the source's own path: `TextureSharing.in_place` said so when
+    #: the edit started. Without it an output at the source path is refused, so a caller that
+    #: checked only `needs_unique` (False also while sharing is not known) cannot write a
+    #: shared texture in place. Use `DraftTexture.for_sharing` to set it from the decision.
+    in_place: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.in_place and self.output_path and _same_path(self.output_path, self.source_path):
+            raise ValueError(f"{self.source_path} is not known to be this model's own, so the edit cannot be "
+                             "written at its own path. Make it unique first.")
+
+    @classmethod
+    def for_sharing(cls, sharing, **values) -> "DraftTexture":
+        """A draft texture whose `in_place` is the sharing decision's (`cdmw.services.model_textures`)."""
+        return cls(in_place=bool(getattr(sharing, "in_place", False)), **values)
 
     @property
     def key(self) -> str:
         return draft_texture_key(self.resource_id, self.channel)
+
+
+def _same_path(first: str, second: str) -> bool:
+    def fold(value: str) -> str:
+        return str(value or "").strip().replace("\\", "/").strip("/").casefold()
+    return fold(first) == fold(second)
+
+
+def draft_texture_write_path(texture: "DraftTexture") -> str:
+    """Where Build Mod writes the edited texture: the one route, checked again at write time.
+
+    Refuses an output at the source's own path unless the texture was saved as `in_place`,
+    and an empty output path.
+    """
+    if not texture.output_path:
+        raise ValueError(f"The edit of {texture.source_path} has no output path.")
+    if _same_path(texture.output_path, texture.source_path) and not texture.in_place:
+        raise ValueError(f"{texture.source_path} is not known to be this model's own, so the edit cannot be "
+                         "written at its own path. Make it unique first.")
+    return texture.output_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +203,64 @@ def remove_draft_texture(draft_root: Path, resource_id: str, channel: str) -> No
             shutil.rmtree(folder, ignore_errors=True)
 
 
+def _restore_project_backup(project: Path, load):
+    """Put back the previous save of a project a crash left half published, or None.
+
+    ``save_texture_editor_project`` copies the project to ``.<name>.<id>.backup`` and moves
+    the assets folder to ``.<name>_assets.<id>.backup`` before it moves the new ones in. A
+    crash between its two moves leaves the old project beside the new assets, which does not
+    load. A backup is complete when both of its halves are there; the newest complete one is
+    restored, and kept until the restored project loads. If that fails too, everything is
+    put back as it was found and None is returned.
+    """
+    import os
+    import shutil
+
+    from cdmw.core.texture_editor_project_io import _texture_editor_assets_dir
+
+    folder, assets = project.parent, _texture_editor_assets_dir(project)
+    prefix = f".{project.name}."
+    backups = sorted((path for path in folder.glob(f"{prefix}*.backup") if path.is_file()),
+                     key=lambda path: path.stat().st_mtime, reverse=True)
+    for backup in backups:
+        transaction = backup.name[len(prefix):-len(".backup")]
+        assets_backup = folder / f".{assets.name}.{transaction}.backup"
+        if not assets_backup.is_dir():
+            continue  # half a backup: not enough to restore from
+        aside_project = folder / f".{project.name}.{transaction}.failed"
+        aside_assets = folder / f".{assets.name}.{transaction}.failed"
+        moved_project = moved_assets = restored_assets = False
+        try:
+            if project.exists():
+                os.replace(project, aside_project)
+                moved_project = True
+            if assets.exists():
+                os.replace(assets, aside_assets)
+                moved_assets = True
+            os.replace(assets_backup, assets)
+            restored_assets = True
+            shutil.copy2(backup, project)
+            document, pixels, _floating = load(project)
+        except (OSError, ValueError, KeyError, TypeError):
+            # Put it all back as it was found; the next backup, if any, is tried.
+            try:
+                project.unlink(missing_ok=True)
+                if restored_assets:
+                    os.replace(assets, assets_backup)
+                if moved_assets:
+                    os.replace(aside_assets, assets)
+                if moved_project:
+                    os.replace(aside_project, project)
+            except OSError:
+                return None
+            continue
+        for leftover in (backup, aside_project):
+            leftover.unlink(missing_ok=True)
+        shutil.rmtree(aside_assets, ignore_errors=True)
+        return document, pixels
+    return None
+
+
 def load_draft_textures(draft_root: Path) -> Tuple[LoadedDraftTexture, ...]:
     """Every saved texture of the draft, in key order.
 
@@ -187,7 +280,8 @@ def load_draft_textures(draft_root: Path) -> Tuple[LoadedDraftTexture, ...]:
                 original_format=str(row.get("original_format", "")), sidecar_path=str(row.get("sidecar_path", "")),
                 source_sha256=str(row.get("source_sha256", "") or ""),
                 source_width=int(row.get("source_width", 0) or 0), source_height=int(row.get("source_height", 0) or 0),
-                finish_generation=int(row.get("finish_generation", 0) or 0))
+                finish_generation=int(row.get("finish_generation", 0) or 0),
+                in_place=row.get("in_place", False) is True)
         except (TypeError, ValueError) as exc:
             # One bad row costs that texture only; the rest of the draft still opens.
             loaded.append(LoadedDraftTexture(DraftTexture(resource_id=key, channel="", source_path=key, output_path=""),
@@ -199,6 +293,14 @@ def load_draft_textures(draft_root: Path) -> Tuple[LoadedDraftTexture, ...]:
                 raise ValueError("its project is outside the draft")
             document, pixels, _floating = load_texture_editor_project(project)
         except (OSError, ValueError, KeyError, TypeError) as exc:
+            with _draft_lock(draft_root):  # a save of the same draft must not run while files move
+                restored = _restore_project_backup(project, load_texture_editor_project)
+            if restored is not None:
+                document, pixels = restored
+                loaded.append(LoadedDraftTexture(texture, document, pixels,
+                                                 f"The saved edit of {texture.source_path} was incomplete (CDMW may "
+                                                 "have closed while saving), so its previous save was restored."))
+                continue
             loaded.append(LoadedDraftTexture(texture, None, {}, f"The saved edit of {texture.source_path} could not be read: {exc}"))
             continue
         loaded.append(LoadedDraftTexture(texture, document, pixels))

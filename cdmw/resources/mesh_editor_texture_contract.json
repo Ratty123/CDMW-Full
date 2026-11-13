@@ -109,11 +109,12 @@
       "when": "a paint_stroke ends",
       "call": "map each sample's UV to texels with the document's size, then apply_texture_editor_stroke(document, layer_pixels, tool_settings, points, pressures=<the samples' pressures, or None when the pointer sent none>), then TextureDocumentAuthority.commit(key, document, layer_pixels, token=) (the authority measures what changed; M5), then queue texture_region_update for that rect",
       "notes": "samples may be applied as they arrive for live feedback; commit runs once per stroke so a stroke is one history step",
-      "refusal": "TextureDocumentStale (a mesh Undo or another writer changed the store): reload_from_store, rebuild the document from it, adopt, then apply the stroke again (M2 of the review)"
+      "refusal": "TextureDocumentStale (a mesh Undo or another writer changed the store, checked again inside the write for whole and partial writes): reload_from_store, rebuild the document from it, adopt, then apply the stroke again (M2 of the review). reload_from_store raises TextureDocumentUnreadable when the working copy is short or unreadable: show its message for that texture and close it; other textures are not affected"
     },
     {
       "when": "Finish (each Finish is one restorable step, decision 38)",
-      "call": "mesh_draft_textures.save_draft_texture(<the draft folder: mesh_layer_project_path's parent>, DraftTexture(resource_id, channel, source_path, output_path=<source_path or MadeUnique.new_path>, parts, affected_submeshes, original_format, sidecar_path, source_sha256, source_width, source_height, finish_generation), document, layer_pixels)"
+      "call": "mesh_draft_textures.save_draft_texture(<the draft folder: mesh_layer_project_path's parent>, DraftTexture.for_sharing(<the TextureSharing the edit started from>, resource_id=, channel=, source_path=, output_path=<source_path or MadeUnique.new_path>, parts=, affected_submeshes=, original_format=, sidecar_path=, source_sha256=, source_width=, source_height=, finish_generation=), document, layer_pixels)",
+      "rule": "an output at the source path needs in_place, taken from TextureSharing.in_place; DraftTexture refuses it otherwise, so checking only needs_unique (False also while sharing is not known) cannot write a shared texture in place"
     },
     {
       "when": "a draft is restored",
@@ -122,7 +123,7 @@
     },
     {
       "when": "Build Mod, and the archive result that sends users to it",
-      "call": "for each edited texture: TextureEditorNativeDdsService.export_matching_original(document, layer_pixels, original_texture_output(parse_dds(original)), <staging path>) and add the DDS at DraftTexture.output_path as a replacement companion",
+      "call": "for each edited texture: TextureEditorNativeDdsService.export_matching_original(document, layer_pixels, original_texture_output(parse_dds(original)), <staging path>) and add the DDS at mesh_draft_textures.draft_texture_write_path(texture) as a replacement companion; that call refuses an in-place write the texture was not saved for",
       "lift": "the mesh-only refusal at cdmw/workers/mesh_editor_workers.py ('Mesh-only outputs cannot contain texture or material authoring changes', in MeshDirectOutputWorker.run) and at cdmw/services/mesh_archive_results.py is lifted when every committed texture resource has a draft texture with an output; Export Mesh File keeps its refusal and says 'Export Mesh File writes the mesh only; use Build Mod to include texture edits.'; hair is lifted too, since its output already copies, renames and registers textures (decision 48)"
     }
   ],

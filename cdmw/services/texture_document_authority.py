@@ -74,6 +74,16 @@ class TextureDocumentStale(RuntimeError):
         self.key = key
 
 
+class TextureDocumentUnreadable(ValueError):
+    """The store's copy of this texture cannot be read back; only this texture is affected."""
+
+    def __init__(self, key: TextureDocumentKey, reason: str) -> None:
+        super().__init__(f"{key.resource_id} could not be reloaded: {reason}. "
+                         "Close this texture and open it again from the model.")
+        self.key = key
+        self.reason = reason
+
+
 @dataclass(slots=True)
 class TextureDocumentEntry:
     key: TextureDocumentKey
@@ -210,20 +220,29 @@ class TextureDocumentAuthority:
             height, width = bgra.shape[:2]
             store_id = self._store_id(key)
             previous = entry.written
-            if previous is None or previous.shape != bgra.shape:
-                revision = self._mesh.commit_texture_snapshot(
-                    key.session_id, store_id, channel=key.channel, affected_submeshes=entry.affected_submeshes,
-                    width=width, height=height, row_pitch=width * 4, bgra=bgra.tobytes(), logical_path=entry.logical_path)
-            else:
-                changed = _changed_rect(previous, bgra)
-                if changed is None:
-                    entry.document, entry.layer_pixels = document, dict(layer_pixels)
-                    return int(entry.mesh_revision)
-                x, y, w, h = changed
-                region = np.ascontiguousarray(bgra[y:y + h, x:x + w])
-                revision = self._mesh.commit_texture_region(
-                    key.session_id, store_id, channel=key.channel, affected_submeshes=entry.affected_submeshes,
-                    rect=(x, y, w, h), row_pitch=w * 4, bgra=region.tobytes(), expected_revision=entry.mesh_revision)
+            # Both writes carry the revision this document last saw (0: no copy yet), so a writer
+            # landing between the check above and the write is refused, not overwritten.
+            expected = 0 if entry.mesh_revision is None else int(entry.mesh_revision)
+            try:
+                if previous is None or previous.shape != bgra.shape:
+                    revision = self._mesh.commit_texture_snapshot(
+                        key.session_id, store_id, channel=key.channel, affected_submeshes=entry.affected_submeshes,
+                        width=width, height=height, row_pitch=width * 4, bgra=bgra.tobytes(),
+                        logical_path=entry.logical_path, expected_revision=expected)
+                else:
+                    changed = _changed_rect(previous, bgra)
+                    if changed is None:
+                        entry.document, entry.layer_pixels = document, dict(layer_pixels)
+                        return int(entry.mesh_revision)
+                    x, y, w, h = changed
+                    region = np.ascontiguousarray(bgra[y:y + h, x:x + w])
+                    revision = self._mesh.commit_texture_region(
+                        key.session_id, store_id, channel=key.channel, affected_submeshes=entry.affected_submeshes,
+                        rect=(x, y, w, h), row_pitch=w * 4, bgra=region.tobytes(), expected_revision=expected)
+            except RuntimeError as exc:
+                if "stale resident texture revision" in str(exc):
+                    raise TextureDocumentStale(key) from exc
+                raise
             entry.document = document
             entry.layer_pixels = dict(layer_pixels)
             entry.mesh_revision = int(revision)
@@ -247,8 +266,16 @@ class TextureDocumentAuthority:
                 return None
             from pathlib import Path
 
-            data = Path(resource.raw_bgra_path).read_bytes()
             width, height, pitch = int(resource.width), int(resource.height), int(resource.row_pitch)
+            try:
+                data = Path(resource.raw_bgra_path).read_bytes()
+            except OSError as exc:
+                raise TextureDocumentUnreadable(key, f"its working copy cannot be read ({exc.strerror or exc})") from exc
+            if pitch < width * 4 or len(data) < pitch * height:
+                # A truncated working copy costs this texture only: the document and the store
+                # stay as they were, and the caller shows the reason for this texture.
+                raise TextureDocumentUnreadable(
+                    key, f"its working copy holds {len(data):,} bytes; {width}x{height} needs {pitch * height:,}")
             rows = np.frombuffer(data, dtype=np.uint8)[: pitch * height].reshape(height, pitch)
             bgra = np.ascontiguousarray(rows[:, : width * 4].reshape(height, width, 4))
             entry.mesh_revision = int(resource.revision)
@@ -269,5 +296,6 @@ __all__ = [
     "TextureDocumentKey",
     "TextureDocumentOpenElsewhere",
     "TextureDocumentStale",
+    "TextureDocumentUnreadable",
     "flattened_bgra",
 ]
