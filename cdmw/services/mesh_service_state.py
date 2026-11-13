@@ -190,6 +190,8 @@ class MeshExportSnapshot:
     hair_state: HairAuthoringState | None = None
     # Per-source PAC sections, interpreted only after validated exact geometry.
     asset_part_inclusion: tuple[bool, ...] = ()
+    #: The geometry layers' revision with ``mesh_revision`` (None: not captured).
+    geometry_layer_revision: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

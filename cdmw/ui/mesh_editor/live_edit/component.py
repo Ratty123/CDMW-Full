@@ -37,7 +37,8 @@ HOST_NAMES = (
 
 #: The state the component owns (everything its code assigns).
 STATE_NAMES = (
-    "_archive_refit_picker_active", "_hair_entry_generation", "_pending_hair_start",
+    "_archive_refit_picker_active", "_bound_viewport_wait_since", "_hair_entry_generation",
+    "_pending_hair_start",
     "_rust_last_crash_at",
     "_rust_follows_keymap", "_rust_keymap_echo", "_shared_preview_settings_connected",
     "_engine_window_refused_session",
@@ -46,6 +47,7 @@ STATE_NAMES = (
     "standalone_rust_active_event", "standalone_rust_authoring_session",
     "standalone_rust_checked_executable", "standalone_rust_checked_executable_signature",
     "standalone_rust_child_hwnd", "standalone_rust_close_session_pending", "standalone_rust_closing",
+    "standalone_rust_discard_requested",
     "standalone_rust_dispose_active_root", "standalone_rust_dispose_active_session",
     "standalone_rust_dispose_pending", "standalone_rust_dispose_queue", "standalone_rust_dispose_thread",
     "standalone_rust_dispose_worker", "standalone_rust_executable_path", "standalone_rust_failure_reported",

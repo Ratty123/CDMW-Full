@@ -763,7 +763,7 @@ class MeshDirectOutputWorker(QObject):
                 self.service.mark_history_clean(
                     self.session_id,
                     expected_revision=int(snapshot.mesh_revision),
-                    expected_layer_revision=getattr(snapshot, "geometry_layer_revision", None),
+                    expected_layer_revision=snapshot.geometry_layer_revision,
                 )
                 record = register_built_mod(
                     self.saved_work_root,

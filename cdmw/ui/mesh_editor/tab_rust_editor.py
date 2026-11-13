@@ -210,6 +210,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_prepare_service: object | None = None
         self.standalone_rust_prepare_session_id = ""
         self.standalone_rust_prepare_process_generation = 0
+        #: A Discard chosen while the editor was still opening (section 8.9).
+        self.standalone_rust_discard_requested = False
         self.standalone_rust_protocol_thread: QThread | None = None
         self.standalone_rust_protocol_worker: object | None = None
         self.standalone_rust_protocol_request_id = 0
@@ -832,6 +834,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         request_id = self.standalone_rust_prepare_request_id
         process_generation = self.standalone_rust_process_generation
         self.standalone_rust_prepare_active_request_id = request_id
+        self.standalone_rust_discard_requested = False
         self.standalone_rust_prepare_controller = controller
         self.standalone_rust_prepare_service = expected_service
         self.standalone_rust_prepare_session_id = expected_session_id
@@ -1001,6 +1004,10 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         if not context_is_current:
             if request_id == self.standalone_rust_prepare_active_request_id:
                 self._stop_rust_session_prepare(invalidate=True)
+            if getattr(self, "standalone_rust_discard_requested", False):
+                # The user chose Discard while it opened: its recovery point goes too.
+                self.standalone_rust_discard_requested = False
+                session.discard_requested = True
             self._start_rust_dispose_worker(session, session.root)
             return
         self.standalone_rust_prepare_active_request_id = 0

@@ -136,8 +136,17 @@ def resolve_pending_edit(parent: QWidget | None, tab: object, *, file_label: str
 
 
 def mark_discarded(tab: object) -> None:
-    """The user chose Discard: this document's close ends its recovery point."""
+    """The user chose Discard: this document's close ends its recovery point.
 
+    While the editor is still opening there is no session yet: the tab remembers
+    the Discard, and the session the open prepares is disposed as discarded.
+    """
+
+    if getattr(tab, "standalone_rust_prepare_thread", None) is not None:
+        try:
+            tab.standalone_rust_discard_requested = True
+        except AttributeError:
+            pass
     session = getattr(tab, "standalone_rust_authoring_session", None)
     if session is not None:
         try:

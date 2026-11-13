@@ -422,6 +422,7 @@ class MeshRebuildServiceMixin:
             return MeshExportSnapshot(
                 session_id=session.session_id,
                 mesh_revision=captured_revision,
+                geometry_layer_revision=int(session.geometry_layer_revision),
                 native_edit_revision=native_revision,
                 material_generation=int(session.material_generation),
                 texture_revisions=texture_revisions,

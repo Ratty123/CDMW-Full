@@ -52324,7 +52324,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot reopen because the accepted session is closed.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 526
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 528
     }
   },
   {
@@ -52332,7 +52332,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot retry because the mesh session is closed.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 515
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 517
     }
   },
   {
@@ -52365,7 +52365,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not bind the resolved preview textures: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 788,
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 790,
       "cdmw/workers/mesh_rust_editor_workers.py": 145
     }
   },
@@ -52382,7 +52382,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not prepare its shadow session: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 1037
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 1044
     }
   },
   {
@@ -52398,7 +52398,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not start because the selected mesh session changed.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 814
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 816
     }
   },
   {
@@ -52553,7 +52553,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor preparation was cancelled because the mesh session changed.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 884
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 887
     }
   },
   {
@@ -52914,7 +52914,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor unavailable: {reason}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 780
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 782
     }
   },
   {
@@ -64149,7 +64149,7 @@ MESSAGE_REFERENCE = [
     "message": "This replacement requires companion files. Use Build Mod.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 735
+      "cdmw/services/mesh_service_rebuild.py": 736
     }
   },
   {
@@ -65146,7 +65146,7 @@ MESSAGE_REFERENCE = [
     "message": "Use Build Mod to save all body and armor archive assets together",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 770
+      "cdmw/services/mesh_service_rebuild.py": 771
     }
   },
   {
@@ -69927,7 +69927,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh rebuild blocked: {codes}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 792
+      "cdmw/services/mesh_service_rebuild.py": 793
     }
   },
   {
@@ -69935,7 +69935,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh rebuild output must not overwrite the original source asset",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 724,
+      "cdmw/services/mesh_service_rebuild.py": 725,
       "cdmw/workers/mesh_editor_workers.py": 390
     }
   },
@@ -69944,7 +69944,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh rebuild output path is required",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 720
+      "cdmw/services/mesh_service_rebuild.py": 721
     }
   },
   {
@@ -69952,7 +69952,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh rebuild report requires original source bytes",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 772
+      "cdmw/services/mesh_service_rebuild.py": 773
     }
   },
   {
@@ -71529,7 +71529,7 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/services/mesh_service.py": 2191,
-      "cdmw/services/mesh_service_rebuild.py": 570
+      "cdmw/services/mesh_service_rebuild.py": 571
     }
   },
   {
@@ -73977,7 +73977,7 @@ MESSAGE_REFERENCE = [
     "message": "resident texture working copy is truncated: {raw_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_service_rebuild.py": 497
+      "cdmw/services/mesh_service_rebuild.py": 498
     }
   },
   {
@@ -74889,7 +74889,7 @@ MESSAGE_REFERENCE = [
     "message": "the bundled editor was not found",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 311
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 313
     }
   },
   {
@@ -104625,7 +104625,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid DDS preview dimensions",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/preview/texture_view.py": 236
+      "cdmw/ui/preview/texture_view.py": 238
     }
   },
   {
@@ -104937,7 +104937,7 @@ MESSAGE_REFERENCE = [
     "message": "No image preview available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview/texture_view.py": 55
+      "cdmw/ui/preview/texture_view.py": 56
     }
   },
   {
