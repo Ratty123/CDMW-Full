@@ -501,9 +501,20 @@ def build_results_panel(tab: object) -> QWidget:
     tab.empty_results_label.setObjectName("HintLabel")
     tab.empty_results_label.setWordWrap(True)
     tab.empty_results_label.setVisible(False)
-    layout.addWidget(tab.column_filter_row)
-    layout.addWidget(tab.empty_results_label)
-    layout.addWidget(tab.results_tree, stretch=1)
+    # P11 step 6: with nothing loaded at all, the filters and the list give their place to an
+    # empty state that runs the next step; no matches keep the list and the hint above it.
+    from cdmw.ui.empty_states import ActionEmptyState, EmptyStateSwitch
+
+    results_area = QWidget()
+    results_layout = QVBoxLayout(results_area)
+    results_layout.setContentsMargins(0, 0, 0, 0)
+    results_layout.setSpacing(layout.spacing())
+    results_layout.addWidget(tab.column_filter_row)
+    results_layout.addWidget(tab.empty_results_label)
+    results_layout.addWidget(tab.results_tree, stretch=1)
+    tab.results_empty_state = ActionEmptyState(MODEL_LIBRARY_NO_INDEX_TEXT, "Build Search Index", run=tab.build_mirror_index)
+    tab.results_switch = EmptyStateSwitch(results_area, tab.results_empty_state)
+    layout.addWidget(tab.results_switch, stretch=1)
 
     # Checked-row actions; the result counts live in the task row below.
     footer = QWidget()
@@ -727,3 +738,8 @@ __all__ = [
     "build_task_row",
     "finish_model_library_layout",
 ]
+
+
+#: The results' empty states when nothing is loaded (P11 step 6).
+MODEL_LIBRARY_NO_INDEX_TEXT = "Build the search index under Sources, then search the mirror catalogue."
+MODEL_LIBRARY_NO_LOCAL_TEXT = "Add a folder of your own models to list them here."
