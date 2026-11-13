@@ -247,6 +247,9 @@ class CharacterFinderDialog(QDialog):
             ui_localizer=getattr(self._window, "ui_localizer", None))
         self._host.setMinimumSize(360, 250)
         right_layout.addWidget(self._host, 3)
+        from cdmw.ui.preview.scene_panel_binding import attach_scene_panel
+
+        self._scene_panel = attach_scene_panel(self._host)  # P5
         preview_tools = QHBoxLayout()
         reset = QPushButton("Reset view")
         reset.clicked.connect(self._reset_view)

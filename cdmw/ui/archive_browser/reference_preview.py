@@ -204,6 +204,9 @@ class ArchiveReferencePreviewMixin:
         preview_tab_layout.addWidget(preview_info_tools)
         preview_tab_layout.addWidget(preview_stack)
         preview_stack.currentChanged.connect(_update_reference_preview_text_tools_visibility)
+        from cdmw.ui.preview.scene_panel_binding import attach_scene_panel
+
+        attach_scene_panel(preview_d3d11_host, preview_stack)  # P5: shown while the 3D page is
 
         details_edit = ArchiveDetailsEditor(
             theme_key=self.shell.current_theme_key,

@@ -697,6 +697,12 @@ class ItemPreviewFrame(QWidget):
         self.host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.layout().insertWidget(1, self.host, 1)
         self.placeholder.setVisible(False)
+        try:
+            from cdmw.ui.preview.scene_panel_binding import attach_scene_panel
+
+            self.scene_panel = attach_scene_panel(self.host)  # P5: the model's files and parts
+        except (AttributeError, TypeError, ValueError):
+            self.scene_panel = None  # a stand-in host in tests
         self.host.controller.state_changed.connect(self._host_state)
         self.host.controller.capture_completed.connect(self._capture_completed)
         self.host.alignment_drag_started.connect(self._drag_started)

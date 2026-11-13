@@ -13504,7 +13504,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview reference preview rejected the canonical package.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/reference_preview.py": 323
+      "cdmw/ui/archive_browser/reference_preview.py": 326
     }
   },
   {
@@ -29653,7 +29653,7 @@ MESSAGE_REFERENCE = [
     "message": "Fast textures remain visible; full textures failed to load: {failure}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 1322
+      "cdmw/ui/new_item/item_preview.py": 1328
     }
   },
   {
@@ -40629,7 +40629,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1223,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6179
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6187
     }
   },
   {
@@ -40646,7 +40646,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1205,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6166
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6174
     }
   },
   {
@@ -43667,7 +43667,7 @@ MESSAGE_REFERENCE = [
     "message": "Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5870
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5878
     }
   },
   {
@@ -45937,7 +45937,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layer visibility cannot change in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6053
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6061
     }
   },
   {
@@ -45945,7 +45945,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layers cannot be activated in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6035
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6043
     }
   },
   {
@@ -46637,7 +46637,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon capture failed: Preview rejected the capture request.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 466
+      "cdmw/ui/model_library/preview.py": 470
     }
   },
   {
@@ -46645,7 +46645,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon capture failed: {message or 'Preview framebuffer is empty.'}",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 484
+      "cdmw/ui/model_library/preview.py": 488
     }
   },
   {
@@ -52102,6 +52102,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "No Scene panel for %r: it is not in a box layout or a splitter",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/preview/scene_panel_binding.py": 90
+    }
+  },
+  {
+    "area": "mesh",
     "message": "No archive entries under {game_root}: {errors[:1]}",
     "recovery": "internal",
     "sources": {
@@ -55471,7 +55479,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview failed to load.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 314
+      "cdmw/ui/model_library/preview.py": 318
     }
   },
   {
@@ -55479,7 +55487,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 142,
+      "cdmw/ui/model_library/preview.py": 146,
       "cdmw/ui/text_search/preview_panel.py": 138
     }
   },
@@ -55488,7 +55496,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 376
+      "cdmw/ui/model_library/preview.py": 380
     }
   },
   {
@@ -55635,7 +55643,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview rejected the prepared package.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/model_library/preview.py": 115
+      "cdmw/ui/model_library/preview.py": 119
     }
   },
   {
@@ -60865,7 +60873,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency is unavailable for this mesh.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6422
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6430
     }
   },
   {
@@ -73940,7 +73948,7 @@ MESSAGE_REFERENCE = [
     "message": "Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 1147
+      "cdmw/ui/character_finder/dialog.py": 1150
     }
   },
   {
@@ -74348,7 +74356,7 @@ MESSAGE_REFERENCE = [
     "message": "Character Creator {error.version or '?'} is not supported yet. CDMW reads the files of version {supported}; a newer version may number its menus differently.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 715
+      "cdmw/ui/character_finder/dialog.py": 718
     }
   },
   {
@@ -76875,7 +76883,7 @@ MESSAGE_REFERENCE = [
     "message": "Export failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 822
+      "cdmw/ui/character_finder/dialog.py": 825
     }
   },
   {
@@ -76891,7 +76899,7 @@ MESSAGE_REFERENCE = [
     "message": "Export needs the selection's complete file set; its details are bounded.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 757
+      "cdmw/ui/character_finder/dialog.py": 760
     }
   },
   {
@@ -79422,7 +79430,7 @@ MESSAGE_REFERENCE = [
     "message": "No matching bodies or faces",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 550
+      "cdmw/ui/character_finder/dialog.py": 553
     }
   },
   {
@@ -82210,7 +82218,7 @@ MESSAGE_REFERENCE = [
     "message": "The hairstyle's material dependencies are incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 870
+      "cdmw/ui/character_finder/dialog.py": 873
     }
   },
   {
@@ -82242,7 +82250,7 @@ MESSAGE_REFERENCE = [
     "message": "The interactive preview could not load this package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 914
+      "cdmw/ui/character_finder/dialog.py": 917
     }
   },
   {
@@ -107038,6 +107046,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/preview/rust_host.py": {},
   "cdmw/ui/preview/rust_session.py": {},
+  "cdmw/ui/preview/scene_panel_binding.py": {
+    "log": 1
+  },
   "cdmw/ui/preview/texture_view.py": {
     "raise": 3,
     "report": 1,

@@ -38,9 +38,11 @@ class ItemSetComponentsWidget(QWidget):
     #: Open in Mesh Editor on one file, by its path.
     openFileRequested = Signal(str)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, opens_editor: bool = True) -> None:
         super().__init__(parent)
         self.setObjectName("ScenePanel")
+        #: False beside a preview that cannot open the Mesh Editor: visibility actions only.
+        self.opens_editor = bool(opens_editor)
         self.active = False
         self._updating = False
         self._scope: tuple[str, ...] = ()
@@ -69,6 +71,7 @@ class ItemSetComponentsWidget(QWidget):
         self.edit_set_button = QPushButton(OPEN_TICKED_LABEL)
         self.edit_set_button.clicked.connect(self.editSetRequested.emit)
         layout.addWidget(self.edit_set_button)
+        self.edit_set_button.setVisible(self.opens_editor)
         self.tree.itemChanged.connect(self._item_changed)
         self.tree.currentItemChanged.connect(self._current_changed)
         self.show_all_button.clicked.connect(lambda: self.set_hidden_indices(()))
@@ -273,14 +276,18 @@ class ItemSetComponentsWidget(QWidget):
         path = self._path_of(item)
         loaded = bool(self._indices_for(item))
         group = self._groups.get(path)
-        return [
+        actions = [
             ("Isolate", lambda: self.isolate_item(item), loaded),
             ("Show all", lambda: self.set_hidden_indices(()), bool(self._parts)),
             ("Hide", lambda: self.hide_item(item), loaded),
             ("Preview only this file", lambda: self.isolate_item(group), bool(group is not None and loaded)),
-            ("Open in Mesh Editor", lambda: self.openFileRequested.emit(path), bool(path) and loaded),
-            (OPEN_TICKED_LABEL, self.editSetRequested.emit, bool(self.ticked_files())),
         ]
+        if self.opens_editor:
+            actions += [
+                ("Open in Mesh Editor", lambda: self.openFileRequested.emit(path), bool(path) and loaded),
+                (OPEN_TICKED_LABEL, self.editSetRequested.emit, bool(self.ticked_files())),
+            ]
+        return actions
 
     def _show_context_menu(self, position: QPoint) -> None:
         item = self.tree.itemAt(position)

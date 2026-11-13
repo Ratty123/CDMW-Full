@@ -74,6 +74,10 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         host.controller.capture_completed.connect(self._handle_inline_dotnet_capture_completed)
         self.inline_preview_stack.addWidget(host)
         self.inline_d3d11_preview_host = host
+        # P5: the Scene panel beside the preview, shown while the 3D page is.
+        from cdmw.ui.preview.scene_panel_binding import attach_scene_panel
+
+        self.inline_scene_panel = attach_scene_panel(host, self.inline_preview_stack)
         return host
 
     def _start_inline_d3d11_status_timer(self) -> None:
