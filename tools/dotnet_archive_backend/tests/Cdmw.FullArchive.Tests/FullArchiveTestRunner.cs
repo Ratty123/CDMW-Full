@@ -28,6 +28,7 @@ internal static class FullArchiveTestRunner
             ("cache_maintenance_pointer_outside_cache", CacheMaintenanceTests.PointerOutsideCacheAsync),
             ("export_destination_outside_game_and_cache", PathSafetyTests.ExportDestinationAsync),
             ("item_catalogue_language_names", PathSafetyTests.LanguageNamesAsync),
+            ("index_sources_inside_package_root", PathSafetyTests.TamperedIndexAsync),
             ("archive_discovery_excludes_backups", ArchiveDiscoveryTests.ScanAndExportAsync),
             ("existing_backup_cache_is_rebuilt", ArchiveDiscoveryTests.ExistingBackupCacheAsync),
             ("custom_ignored_folders", ArchiveDiscoveryTests.CustomFoldersAsync),

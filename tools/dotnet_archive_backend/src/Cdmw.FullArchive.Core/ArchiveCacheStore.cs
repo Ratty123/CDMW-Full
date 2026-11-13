@@ -465,7 +465,66 @@ public sealed partial class ArchiveCacheStore
             index.Dispose();
             throw new InvalidDataException("The archive generation entry count is inconsistent.");
         }
+        try
+        {
+            RequireSourcesInsideRoot(index, packageRoot);
+        }
+        catch
+        {
+            index.Dispose();
+            throw;
+        }
         return index;
+    }
+
+    // The PAMT and PAZ paths the index names are opened by every decode. A
+    // damaged or crafted index could name any file, or a path on another host,
+    // which Windows would send the user's credentials to. Each must lie under
+    // the package root the request named (its own UNC prefix too, so a game on
+    // a network share still works), with no link on the way from the root;
+    // the strings are checked before anything touches the paths. Otherwise
+    // the index is invalid and the open rebuilds it.
+    internal static void RequireSourcesInsideRoot(ArchiveIndex index, string packageRoot)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(
+            File.Exists(packageRoot) ? Path.GetDirectoryName(packageRoot) ?? packageRoot : packageRoot));
+        var prefix = root + Path.DirectorySeparatorChar;
+        var seen = new HashSet<ArchiveIndexStringRange>();
+        var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (long entryId = 0; entryId < index.EntryCount; entryId++)
+        {
+            foreach (var range in new[] { index.GetPamtPathRange(entryId), index.GetPazPathRange(entryId) })
+            {
+                if (!seen.Add(range))
+                {
+                    continue;
+                }
+                var text = index.ReadString(range);
+                string full;
+                try
+                {
+                    full = Path.IsPathFullyQualified(text) ? Path.GetFullPath(text) : string.Empty;
+                }
+                catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+                {
+                    full = string.Empty;
+                }
+                if (full.Length <= prefix.Length || !full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException($"The archive index names a source outside its package root: {text}");
+                }
+                for (var folder = Path.GetDirectoryName(full);
+                     folder is not null && folder.Length > root.Length && folders.Add(folder);
+                     folder = Path.GetDirectoryName(folder))
+                {
+                    var info = new DirectoryInfo(folder);
+                    if (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0)
+                    {
+                        throw new InvalidDataException($"The archive index names a source through a link: {text}");
+                    }
+                }
+            }
+        }
     }
 
     private static async Task<ArchiveGenerationManifest> BuildManifestAsync(

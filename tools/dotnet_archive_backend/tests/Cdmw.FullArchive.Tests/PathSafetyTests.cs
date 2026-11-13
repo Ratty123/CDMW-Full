@@ -88,6 +88,50 @@ internal static class PathSafetyTests
         Directory.Delete(link);  // the junction only, never its target
     }
 
+    // archive.ali names every entry's PAMT and PAZ. An index whose names lead
+    // outside the package root (another folder, or another host by UNC) is
+    // invalid: cache_health says so, the open rebuilds it, and nothing opens
+    // the path it named.
+    public static async Task TamperedIndexAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync();
+        var cacheRoot = Path.Combine(fixture.OutputRoot, "cache");
+        var native = new NativeArchiveCore();
+        string generation;
+        {
+            var seed = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, seed);
+            var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None);
+            generation = sessions.GetRequired(handle.SessionId).GenerationPath;
+        }
+        var outside = Path.Combine(fixture.OutputRoot, "outside") + Path.DirectorySeparatorChar;
+        foreach (var prefix in new[] { outside, @"\\127.0.0.1\share\" })
+        {
+            var indexPath = Path.Combine(generation, "archive.ali");
+            var original = await File.ReadAllBytesAsync(indexPath);
+            // The header's records and strings offsets, then entry 0's PAMT string range.
+            var records = (int)BitConverter.ToUInt64(original, 24);
+            var strings = (int)BitConverter.ToUInt64(original, 32);
+            var pamtOffset = (int)BitConverter.ToUInt64(original, records + 8);
+            var pamtLength = (int)BitConverter.ToUInt32(original, records + 52);
+            Require(prefix.Length + 5 < pamtLength, "the test's replacement path does not fit");
+            var replacement = prefix + new string('x', pamtLength - prefix.Length - 5) + ".pamt";
+            System.Text.Encoding.ASCII.GetBytes(replacement).CopyTo(original, strings + pamtOffset);
+            await File.WriteAllBytesAsync(indexPath, original);
+            var cache = new ArchiveCacheStore(cacheRoot);
+            var health = await cache.InspectAsync(fixture.Root, CancellationToken.None);
+            Require(health.State == "invalid", $"an index naming '{prefix}' was not reported invalid");
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var reopened = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None);
+            Require(!reopened.CacheHit, $"an index naming '{prefix}' was reused");
+            var session = sessions.GetRequired(reopened.SessionId);
+            Require(session.ReadEntry(0).SourcePamt.StartsWith(fixture.Root, StringComparison.OrdinalIgnoreCase),
+                "the rebuilt index does not name the package's own files");
+            generation = session.GenerationPath;
+        }
+        Require(!Directory.Exists(Path.Combine(fixture.OutputRoot, "outside")), "a source outside the root was created");
+    }
+
     public static Task LanguageNamesAsync()
     {
         foreach (var name in new[] { "eng", "kor", "zh-TW", "pt_BR", "a" })
