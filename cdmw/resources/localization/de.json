@@ -7723,7 +7723,6 @@
     "Mesh .NET editor command failed: {value_0}: {value_1}": "Mesh .NET-Editor-Befehl fehlgeschlagen: {value_0}: {value_1}",
     "Mesh .NET editor did not acknowledge deactivation; helper stopped before saving resident edits.": "Mesh .NET-Editor hat die Deaktivierung nicht bestätigt; Helfer wurde vor dem Speichern residenter Änderungen angehalten.",
     "Mesh .NET editor helper unavailable; preview cannot start.": "Mesh .NET-Editor-Helper nicht verfügbar; Vorschau kann nicht gestartet werden.",
-    "Mesh .NET editor layer command failed: {value_0}": "Fehler beim Ausführen des Ebenenbefehls des Mesh .NET-Editors: {value_0}",
     "Mesh .NET editor part action failed: {value_0}: {value_1}": "Mesh .NET Editor-Teilaktion fehlgeschlagen: {value_0}: {value_1}",
     "Mesh .NET editor protocol exceeded its input limit.": "Mesh .NET Editor-Protokoll hat sein Eingabelimit überschritten.",
     "Mesh .NET editor protocol ignored an oversized message.": "Mesh .NET Editor-Protokoll Eine übergroße Nachricht wurde ignoriert.",

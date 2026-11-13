@@ -7723,7 +7723,6 @@
     "Mesh .NET editor command failed: {value_0}: {value_1}": "Mesh .NET エディターのコマンドが失敗しました: {value_0}: {value_1}",
     "Mesh .NET editor did not acknowledge deactivation; helper stopped before saving resident edits.": "Mesh .NET エディターは非アクティブ化を認識しませんでした。常駐編集を保存する前にヘルパーが停止しました。",
     "Mesh .NET editor helper unavailable; preview cannot start.": "メッシュ .NET エディター ヘルパーは使用できません。プレビューを開始できません。",
-    "Mesh .NET editor layer command failed: {value_0}": "Mesh .NET エディタのレイヤーコマンドが失敗しました: {value_0}",
     "Mesh .NET editor part action failed: {value_0}: {value_1}": "メッシュ .NET エディター パーツのアクションが失敗しました: {value_0}: {value_1}",
     "Mesh .NET editor protocol exceeded its input limit.": "メッシュ .NET エディタープロトコルが入力制限を超えました。",
     "Mesh .NET editor protocol ignored an oversized message.": "メッシュ .NET エディタのプロトコルは、サイズが大きいメッセージを無視しました。",

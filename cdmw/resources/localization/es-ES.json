@@ -7723,7 +7723,6 @@
     "Mesh .NET editor command failed: {value_0}: {value_1}": "Error del comando del editor de malla .NET: {value_0}: {value_1}",
     "Mesh .NET editor did not acknowledge deactivation; helper stopped before saving resident edits.": "El editor de malla .NET no reconoció la desactivación; el asistente se detuvo antes de guardar las ediciones residentes.",
     "Mesh .NET editor helper unavailable; preview cannot start.": "El asistente del editor .NET de mallas no está disponible; la vista previa no puede iniciarse.",
-    "Mesh .NET editor layer command failed: {value_0}": "El comando de capa del editor de malla .NET falló: {value_0}",
     "Mesh .NET editor part action failed: {value_0}: {value_1}": "Error en la acción de la parte del editor Mesh .NET: {value_0}: {value_1}",
     "Mesh .NET editor protocol exceeded its input limit.": "Mesh El protocolo del editor .NET superó su límite de entrada.",
     "Mesh .NET editor protocol ignored an oversized message.": "El protocolo del editor .NET de malla ignoró un mensaje de gran tamaño.",

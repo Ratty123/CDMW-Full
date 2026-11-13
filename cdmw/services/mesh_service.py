@@ -2040,6 +2040,10 @@ class _MeshServiceSessionLayerCore(
             return manifest if manifest.is_file() else None
 
 
+#: A private worker action: the window's layer commands, run off its thread.
+GEOMETRY_LAYER_WORKER_ACTION = "_geometry_layer_command"
+
+
 @dataclass(slots=True)
 class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
     def export_free_edit_output(
@@ -2370,6 +2374,30 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
             "Python base mesh clone fallback blocked while native mesh core is available",
         )
 
+    def _apply_geometry_layer_command_locked(self, session: _MeshEditSession,
+                                             command: MeshEditCommand) -> MeshEditResult:
+        """Activate, rename, show or hide, or move a layer from a worker.
+
+        Each takes the session's lock, which an autosave holds while it saves the
+        draft (opening its native session first, which may take a minute on a
+        busy machine): run from the window, they would block it that long.
+        """
+
+        params = dict(command.params)
+        name = str(params.get("command", "") or "").strip().lower()
+        layer_id = str(params.get("layer_id", "") or "").strip()
+        if name == "layer_activate":
+            self.activate_geometry_layer(session.session_id, layer_id)
+        elif name == "layer_rename":
+            self.rename_geometry_layer(session.session_id, layer_id, str(params.get("name", "") or ""))
+        elif name == "layer_visibility":
+            self.set_geometry_layer_visibility(session.session_id, layer_id, _truthy(params.get("visible")))
+        elif name == "layer_move":
+            self.move_geometry_layer(session.session_id, layer_id, int(params.get("direction", 0) or 0))
+        else:
+            raise ValueError(f"Unsupported mesh edit action: {name!r}")
+        return self._result(session, name)
+
     def apply_command(self, session_id: str, command: MeshEditCommand | str) -> MeshEditResult:
         session = self._session(session_id)
         with session.export_lock:
@@ -2384,6 +2412,8 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
     ) -> MeshEditResult:
         edit_command = _coerce_command(command)
         action = str(edit_command.action or "").strip().lower()
+        if action == GEOMETRY_LAYER_WORKER_ACTION:  # the same checks as when called directly
+            return self._apply_geometry_layer_command_locked(session, edit_command)
         if action not in {"select", "set_mode", "morph_refresh", "refit_restore_shape_apply", "refit_restore_shape_cancel"}:
             self._require_no_pending_refit_shape_restore_locked(session)
         morph_data = self._morph_sessions.get(session.session_id)

@@ -7723,7 +7723,6 @@
     "Mesh .NET editor command failed: {value_0}: {value_1}": "Mesh .NET düzenleyici komutu başarısız oldu: {value_0}: {value_1}",
     "Mesh .NET editor did not acknowledge deactivation; helper stopped before saving resident edits.": "Mesh .NET düzenleyici devre dışı bırakmayı onaylamadı; yardımcı, yerleşik düzenlemeleri kaydetmeden önce durduruldu.",
     "Mesh .NET editor helper unavailable; preview cannot start.": "Mesh .NET düzenleyici yardımcısı mevcut değil; önizleme başlatılamıyor.",
-    "Mesh .NET editor layer command failed: {value_0}": "Mesh .NET düzenleyici katman komutu başarısız oldu: {value_0}",
     "Mesh .NET editor part action failed: {value_0}: {value_1}": "Mesh .NET düzenleyici parçası işlemi başarısız oldu: {value_0}: {value_1}",
     "Mesh .NET editor protocol exceeded its input limit.": "Mesh .NET düzenleyici protokolü giriş sınırını aştı.",
     "Mesh .NET editor protocol ignored an oversized message.": "Mesh .NET düzenleyici protokolü, büyük boyutlu bir mesajı yok saydı.",

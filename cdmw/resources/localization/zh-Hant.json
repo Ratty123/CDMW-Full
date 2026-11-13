@@ -7723,7 +7723,6 @@
     "Mesh .NET editor command failed: {value_0}: {value_1}": "網格 .NET 編輯器指令失敗：{value_0}：{value_1}",
     "Mesh .NET editor did not acknowledge deactivation; helper stopped before saving resident edits.": "網格 .NET 編輯器未確認停用；輔助程式在儲存駐留編輯內容之前已停止。",
     "Mesh .NET editor helper unavailable; preview cannot start.": "網格 .NET 編輯器助理無法使用；預覽無法啟動。",
-    "Mesh .NET editor layer command failed: {value_0}": ".NET 網格編輯器圖層指令失敗：{value_0}",
     "Mesh .NET editor part action failed: {value_0}: {value_1}": "網格 .NET 編輯器部件操作失敗：{value_0}: {value_1}",
     "Mesh .NET editor protocol exceeded its input limit.": "網格 .NET 編輯器協定超出了其輸入限制。",
     "Mesh .NET editor protocol ignored an oversized message.": "網格 .NET 編輯器協定忽略了過大的消息。",

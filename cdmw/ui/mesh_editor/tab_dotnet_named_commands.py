@@ -15,6 +15,7 @@ from typing import Mapping
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
+from cdmw.services.mesh_service import GEOMETRY_LAYER_WORKER_ACTION
 from cdmw.ui.shell.settings_bridge import read_bool_setting
 from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
 
@@ -249,40 +250,25 @@ class MeshEditorDotNetNamedCommandMixin(MeshEditorDotNetLifecycleMixin):
             )
         if command not in {"layer_activate", "layer_rename", "layer_visibility", "layer_move"}:
             return None
-        layer_id = str(payload.get("layer_id", "") or "").strip()
-        try:
-            if command == "layer_activate":
-                controller.activate_geometry_layer(layer_id)
-            elif command == "layer_rename":
-                controller.rename_geometry_layer(layer_id, str(payload.get("name", "") or ""))
-            elif command == "layer_visibility":
-                controller.set_geometry_layer_visibility(layer_id, bool(payload.get("visible", False)))
-            else:
-                controller.move_geometry_layer(
-                    layer_id,
-                    self._standalone_native_payload_int(payload.get("direction"), 0),
-                )
-            revision = controller.session_view().revision
-        except Exception as exc:
-            self._set_dotnet_status(f"Mesh .NET editor layer command failed: {exc}", error=True)
-            self._send_dotnet_command_result(
-                command,
-                ok=False,
-                status="error",
-                diagnostics=(str(exc),),
-                request_payload=payload,
-            )
-            self._send_dotnet_session_state()
-            return False
-        self._send_dotnet_command_result(
-            command,
-            ok=True,
-            status="applied",
-            revision=revision,
+        # On the worker, like Delete: each waits for the session's lock, which a
+        # draft autosave holds while it opens the native session (up to a minute).
+        return self._start_dotnet_action_worker(
+            controller,
+            _tab.MeshEditCommand(
+                GEOMETRY_LAYER_WORKER_ACTION,
+                params={
+                    "command": command,
+                    "layer_id": str(payload.get("layer_id", "") or "").strip(),
+                    "name": str(payload.get("name", "") or ""),
+                    "visible": bool(payload.get("visible", False)),
+                    "direction": self._standalone_native_payload_int(payload.get("direction"), 0),
+                },
+                mode="edit",
+                label="Layer",
+            ),
+            command_name=command,
             request_payload=payload,
         )
-        self._send_dotnet_session_state()
-        return True
 
     def _handle_dotnet_direct_command(
         self,

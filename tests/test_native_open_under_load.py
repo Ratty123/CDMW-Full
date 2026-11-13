@@ -40,13 +40,14 @@ def slow_open(monkeypatch):
         finally:
             state.open = False
 
-    def read_line(self, timeout_seconds, *, stop_event=None):
+    def read_line(self, timeout_seconds, *, stop_event=None, keep_alive=False):
         if getattr(state, "open", False):
             waits.append(float(timeout_seconds))
             if timeout_seconds < SLOW_OPEN_SECONDS:
-                self._kill_locked()  # what the client does when the reply is late
+                if not keep_alive:
+                    self._kill_locked()  # what the client does when the reply is late
                 raise ProcessTimeoutExpired([str(self.binary), "--service"], float(timeout_seconds))
-        return read(self, timeout_seconds, stop_event=stop_event)
+        return read(self, timeout_seconds, stop_event=stop_event, keep_alive=keep_alive)
 
     monkeypatch.setattr(client.NativeMeshCoreServiceClient, "run_inline_job", run_inline_job)
     monkeypatch.setattr(client.NativeMeshCoreServiceClient, "_read_stdout_line_locked", read_line)

@@ -178,12 +178,6 @@ class MeshEditorController:
             label=label,
         )
 
-    def copy_selection(self, *, target: str) -> MeshEditResult:
-        return self.mesh_service.copy_selection(self._session_id(), target=target)
-
-    def paste_selection(self) -> MeshEditResult:
-        return self.mesh_service.paste_selection(self._session_id())
-
     def activate_geometry_layer(self, layer_id: str) -> dict[str, object]:
         return self.mesh_service.activate_geometry_layer(self._session_id(), layer_id)
 

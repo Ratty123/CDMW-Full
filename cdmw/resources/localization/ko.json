@@ -7723,7 +7723,6 @@
     "Mesh .NET editor command failed: {value_0}: {value_1}": "메시 .NET 편집기 명령 실패: {value_0}: {value_1}",
     "Mesh .NET editor did not acknowledge deactivation; helper stopped before saving resident edits.": "메시 .NET 편집기가 비활성화를 인식하지 못했습니다. 상주 편집 내용을 저장하기 전에 도우미가 중지되었습니다.",
     "Mesh .NET editor helper unavailable; preview cannot start.": "메시 .NET 편집기 도우미를 사용할 수 없습니다. 미리보기를 시작할 수 없습니다.",
-    "Mesh .NET editor layer command failed: {value_0}": "메시 .NET 편집기 레이어 명령이 실패했습니다: {value_0}",
     "Mesh .NET editor part action failed: {value_0}: {value_1}": "메시 .NET 편집기 파트 작업 실패: {value_0}: {value_1}",
     "Mesh .NET editor protocol exceeded its input limit.": "메시 .NET 편집기 프로토콜이 입력 제한을 초과했습니다.",
     "Mesh .NET editor protocol ignored an oversized message.": "메시 .NET 편집기 프로토콜 너무 큰 메시지를 무시했습니다.",

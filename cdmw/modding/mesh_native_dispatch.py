@@ -96,6 +96,8 @@ def _run_native_mesh_core_service_job(
         service_kwargs: dict[str, object] = {"timeout_seconds": max(0.5, float(timeout_seconds))}
         if stop_event is not None:
             service_kwargs["stop_event"] = stop_event
+        if session_command and payload.get("session_id"):
+            service_kwargs["session_id"] = str(payload.get("session_id"))
         _get_native_mesh_core_service(binary).run_job(
             command,
             job_path,
@@ -125,6 +127,11 @@ def _run_native_mesh_core_service_job(
         return report
     except RunCancelled:
         raise
+    except ProcessTimeoutExpired as exc:
+        # The service skips this job's reply and closes its session; the other
+        # sessions in it stay open (section 8.9).
+        note_failure(f"resident {type(exc).__name__}: {exc}")
+        return None
     except Exception as exc:
         note_failure(f"resident {type(exc).__name__}: {exc}", exc_info=True)
         shutdown_native_mesh_core_service()
@@ -181,6 +188,9 @@ def _run_native_mesh_core_service_inline_job(
         return report
     except RunCancelled:
         raise
+    except ProcessTimeoutExpired as exc:
+        note_failure(f"inline {type(exc).__name__}: {exc}")  # only its own session ends
+        return None
     except Exception as exc:
         note_failure(f"inline {type(exc).__name__}: {exc}", exc_info=True)
         shutdown_native_mesh_core_service()
