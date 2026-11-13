@@ -5,9 +5,12 @@ import pytest
 
 from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput as Slot
 from cdmw.services.model_textures import (
+    TEXTURE_FILES_UNCHECKED_TEXT,
     TEXTURE_GROUPS,
+    TEXTURE_PARTS_UNKNOWN_TEXT,
     make_texture_unique,
     model_texture_list,
+    model_texture_list_from_preview,
     texture_group,
     texture_sharing,
     unique_texture_path,
@@ -76,9 +79,38 @@ def _texture(path):
     return next(texture for group in model_texture_list(_slots()) for texture in group.textures if texture.path == path)
 
 
-def test_a_texture_only_the_edited_parts_read_can_be_edited_in_place():
-    sharing = texture_sharing(_texture("character/texture/own0.dds"), ["part0"])
-    assert not sharing.needs_unique and sharing.reason == "" and sharing.other_files is None
+def test_a_texture_only_the_edited_parts_read_is_edited_in_place_once_other_files_are_checked():
+    texture = _texture("character/texture/own0.dds")
+    # Before the scan nobody knows whether other game files use it: no in-place edit (H2).
+    unchecked = texture_sharing(texture, ["part0"])
+    assert not unchecked.needs_unique and not unchecked.in_place and unchecked.other_files is None
+    assert unchecked.reason == TEXTURE_FILES_UNCHECKED_TEXT
+    checked = texture_sharing(texture, ["part0"], other_files=[])
+    assert checked.in_place and not checked.needs_unique and checked.reason == ""
+
+
+def test_a_texture_whose_parts_are_not_named_is_never_edited_in_place():
+    unnamed = model_texture_list([Slot(slot_kind="base", source_texture_path="character/texture/x0.dds")])
+    sharing = texture_sharing(unnamed[0].textures[0], ["part0"], other_files=[])
+    assert unnamed[0].textures[0].parts_unknown and not sharing.in_place
+    assert sharing.reason == TEXTURE_PARTS_UNKNOWN_TEXT
+
+
+def test_the_preview_models_parts_name_the_rows_the_producers_leave_unnamed():
+    """H1: the app's slot producers set no part_name, so two parts reading one texture
+    looked like nobody else read it. The preview builder stamps each mesh's part."""
+    from cdmw.models import ModelPreviewMesh
+
+    def mesh(index, name):
+        rows = (Slot(slot_kind="normal", source_texture_path=SHARED),
+                Slot(slot_kind="base", source_texture_path=f"character/texture/own{index}.dds"))
+        return ModelPreviewMesh(material_name=name, source_submesh_index=index, preview_material_texture_inputs=rows)
+
+    groups = model_texture_list_from_preview([mesh(0, "part0"), mesh(1, "part1"), mesh(2, "")])
+    normal = next(group for group in groups if group.key == "normal").textures[0]
+    assert normal.parts == ("part0", "part1", "part 2") and not normal.parts_unknown
+    sharing = texture_sharing(normal, ["part0"], other_files=[])
+    assert sharing.needs_unique and sharing.other_parts == ("part1", "part 2")
 
 
 def test_another_part_of_the_model_makes_it_shared():
@@ -124,3 +156,20 @@ def test_make_unique_refuses_a_taken_name_and_parts_that_do_not_use_the_texture(
                             parts=["part0"], stem="thing")
     with pytest.raises(ValueError, match="at least one part"):
         make_texture_unique(SHARED, sidecar_path="x.pac_xml", sidecar_data=SIDECAR.encode(), parts=[], stem="thing")
+
+
+def test_make_unique_sees_a_taken_name_in_any_spelling_and_drafts_get_their_own_copy():
+    """M10: a mod listed with backslashes or in another case still holds the name, and two
+    drafts of one model no longer pick the same copy."""
+    taken = unique_texture_path(SHARED, "thing")
+    for listed in (taken.upper(), taken.replace("/", "\\"), "/" + taken):
+        with pytest.raises(ValueError, match="already exists"):
+            make_texture_unique(SHARED, sidecar_path="x.pac_xml", sidecar_data=SIDECAR.encode(), parts=["part0"],
+                                stem="thing", existing_paths={listed})
+    first = unique_texture_path(SHARED, "thing", owner="draft-a")
+    second = unique_texture_path(SHARED, "thing", owner="draft-b")
+    assert first != second and first.endswith("_n.dds") and second.endswith("_n.dds")
+    assert unique_texture_path(SHARED, "thing", owner="DRAFT-A") == first
+    made = make_texture_unique(SHARED, sidecar_path="x.pac_xml", sidecar_data=SIDECAR.encode(), parts=["part0"],
+                               stem="thing", existing_paths={taken}, owner="draft-a")
+    assert made.new_path == first

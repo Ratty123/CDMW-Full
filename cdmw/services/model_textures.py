@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Container, Iterable, Optional, Sequence, Tuple
+from typing import Iterable, Optional, Sequence, Tuple
 
 from cdmw.domain.textures.semantics import is_stock_or_shared_texture_path
 
@@ -49,7 +49,9 @@ def texture_group(slot) -> str:
     layer_role = str(getattr(slot, "layer_role", "") or "").strip().lower()
     path = _norm(getattr(slot, "source_texture_path", "") or getattr(slot, "texture_name", ""))
     if layer_role and layer_role not in {"base", "material_response"} and slot_kind not in {"normal", "emissive"}:
-        return "detail"
+        # A layer whose role names a known kind (material, height, mask) belongs to that kind;
+        # only the other layer roles are detail and layer textures.
+        return _GROUP_BY_SLOT.get(layer_role, "detail") if layer_role not in {"vector", "flow", "eye"} else "other"
     if PurePosixPath(path).name.startswith(_DETAIL_PREFIXES):
         return "detail"
     if slot_kind in _GROUP_BY_SLOT:
@@ -76,6 +78,8 @@ class ModelTexture:
     parts: Tuple[str, ...]
     #: True when the name marks a stock texture many materials share (`is_stock_or_shared_texture_path`).
     shared_name: bool
+    #: Some slot row that reads it names no part, so who else reads it is not known.
+    parts_unknown: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,8 +104,10 @@ def model_texture_list(slots: Iterable[object]) -> Tuple[ModelTextureGroup, ...]
         row = rows.get(key)
         if row is None:
             row = rows[key] = {"path": path, "group": texture_group(slot), "slot_kinds": [], "parameters": [],
-                               "materials": [], "parts": []}
+                               "materials": [], "parts": [], "parts_unknown": False}
             order.append(key)
+        if not str(getattr(slot, "part_name", "") or "").strip():
+            row["parts_unknown"] = True
         for field, value in (("slot_kinds", getattr(slot, "slot_kind", "")), ("parameters", getattr(slot, "parameter_name", "")),
                              ("materials", getattr(slot, "material_name", "")), ("parts", getattr(slot, "part_name", ""))):
             value = str(value or "").strip()
@@ -109,7 +115,8 @@ def model_texture_list(slots: Iterable[object]) -> Tuple[ModelTextureGroup, ...]
                 row[field].append(value)
     textures = [ModelTexture(path=row["path"], group=row["group"], slot_kinds=tuple(row["slot_kinds"]),
                              parameters=tuple(row["parameters"]), materials=tuple(row["materials"]),
-                             parts=tuple(row["parts"]), shared_name=is_stock_or_shared_texture_path(row["path"]))
+                             parts=tuple(row["parts"]), shared_name=is_stock_or_shared_texture_path(row["path"]),
+                             parts_unknown=row["parts_unknown"])
                 for row in (rows[key] for key in order)]
     return tuple(ModelTextureGroup(group, tuple(t for t in textures if t.group == group))
                  for group in TEXTURE_GROUPS if any(t.group == group for t in textures))
@@ -127,6 +134,9 @@ class TextureSharing:
     needs_unique: bool
     #: Why, as the sentence to show; "" when the texture is this model's own.
     reason: str
+    #: Known to be read only by the parts being edited, so it may be edited at its own path.
+    #: False when it is shared and also when that is not known yet (no scan, unnamed parts).
+    in_place: bool = False
 
 
 def texture_sharing(
@@ -155,8 +165,49 @@ def texture_sharing(
         reason = f"Other game files use this texture: {shown}."
     else:
         reason = ""
+    needs_unique = bool(reason)
+    in_place = False
+    if not needs_unique:
+        # Not shared as far as is known. An in-place edit needs that to be known, not assumed.
+        if texture.parts_unknown:
+            reason = TEXTURE_PARTS_UNKNOWN_TEXT
+        elif others is None:
+            reason = TEXTURE_FILES_UNCHECKED_TEXT
+        else:
+            in_place = True
     return TextureSharing(path=texture.path, other_parts=other_parts, shared_name=texture.shared_name,
-                          other_files=others, needs_unique=bool(reason), reason=reason)
+                          other_files=others, needs_unique=needs_unique, reason=reason, in_place=in_place)
+
+
+#: Why an edit at the texture's own path is not offered yet (H2 of the review).
+TEXTURE_FILES_UNCHECKED_TEXT = ("Other game files may use this texture. Check other files before editing it in "
+                                "place, or make it unique.")
+TEXTURE_PARTS_UNKNOWN_TEXT = ("It is not known which parts of this model use this texture, so it is edited as a "
+                              "unique copy.")
+
+
+def model_texture_list_from_preview(meshes: Iterable[object]) -> Tuple[ModelTextureGroup, ...]:
+    """The list for a preview model's parts (``ModelPreviewMesh`` rows): each slot row is
+    stamped with its part, which the app's slot producers do not set themselves (H1).
+
+    A part is named by its material binding (``material_name``, the name its sidecar wrapper
+    binds); a part without one is named by its sub-mesh index.
+    """
+    from dataclasses import replace
+
+    stamped = []
+    for position, mesh in enumerate(meshes):
+        index = int(getattr(mesh, "source_submesh_index", -1))
+        part = str(getattr(mesh, "material_name", "") or "").strip() or f"part {index if index >= 0 else position}"
+        for slot in getattr(mesh, "preview_material_texture_inputs", ()) or ():
+            if str(getattr(slot, "part_name", "") or "").strip():
+                stamped.append(slot)
+            else:
+                try:
+                    stamped.append(replace(slot, part_name=part))
+                except TypeError:  # a slot that is not a dataclass keeps its own fields
+                    stamped.append(slot)
+    return model_texture_list(stamped)
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,12 +223,27 @@ class MadeUnique:
 _TEXTURE_ATTR_RE = re.compile(r'(?P<lead><ResourceReferencePath_ITexture\b[^>]*?\b_path=)(?P<q>["\'])(?P<path>[^"\']*)(?P=q)')
 
 
-def unique_texture_path(source_path: str, stem: str) -> str:
+def unique_texture_path(source_path: str, stem: str, *, owner: str = "") -> str:
     """The copy's path: beside the source, named for the model, keeping the role suffix
-    (`_n`, `_sp`, ...) the texture registry and DMM read the kind from."""
+    (`_n`, `_sp`, ...) the texture registry and DMM read the kind from.
+
+    `owner` (a draft's id) goes into the name, so two drafts of one model that each make
+    the same texture unique get two copies, not one file both would write (M10).
+    """
     from cdmw.services.new_item_resource_copies import private_texture_path
 
-    return private_texture_path(str(stem), _norm(source_path))
+    if not str(owner or "").strip():
+        return private_texture_path(str(stem), _norm(source_path))
+    import hashlib
+
+    from cdmw.core.pathc_format import _TAG_BY_SUFFIX
+
+    source = _norm(source_path)
+    digest = hashlib.sha256(f"{source}|{str(owner).strip().casefold()}".encode("utf-8")).hexdigest()[:16]
+    name_stem = PurePosixPath(source).stem
+    suffix = name_stem.rsplit("_", 1)[-1] if "_" in name_stem else ""
+    kind = f"_{suffix}" if suffix in _TAG_BY_SUFFIX else ""
+    return str(PurePosixPath(source).with_name(f"{stem}_r{digest}{kind}.dds"))
 
 
 def make_texture_unique(
@@ -187,7 +253,8 @@ def make_texture_unique(
     sidecar_data: bytes,
     parts: Iterable[str],
     stem: str,
-    existing_paths: Container[str] = (),
+    existing_paths: Iterable[str] = (),
+    owner: str = "",
 ) -> MadeUnique:
     """Point the edited parts' materials at a new copy of `source_path`.
 
@@ -199,8 +266,10 @@ def make_texture_unique(
     """
     from cdmw.core.pac_xml_standard_material import find_material_wrappers
 
-    new_path = unique_texture_path(source_path, stem)
-    if new_path in existing_paths or _norm(new_path) in existing_paths:
+    new_path = unique_texture_path(source_path, stem, owner=owner)
+    # Taken in any spelling: Windows separators, another case, a leading slash (M10).
+    taken = {_norm(path).lstrip("/") for path in existing_paths}
+    if _norm(new_path).lstrip("/") in taken:
         raise ValueError(f"{new_path} already exists, so a unique copy cannot take that name.")
     try:
         text = bytes(sidecar_data).decode("utf-8")
