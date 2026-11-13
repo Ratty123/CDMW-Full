@@ -22,7 +22,7 @@ import re
 import shutil
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
@@ -400,7 +400,9 @@ def draft_baseline_entries(
         entry_from_record(record) if isinstance(record, Mapping) else None)
     if base_entry is None:
         raise ValueError("This draft does not record its game file location.")
-    mesh_note = edited_note if _positive_int(manifest.get("edit_pass"), 1) > 1 else ""
+    # A later pass over a material-only mod still starts from the game's own mesh.
+    mesh_note = edited_note if (_positive_int(manifest.get("edit_pass"), 1) > 1
+                                and mesh_sha != _clean_sha(manifest.get("game_source_sha256"))) else ""
     mesh_entry = replace(base_entry, prepared_path=mesh_path, prepared_sha256=mesh_sha,
                          prepared_size=mesh_size, prepared_note=mesh_note,
                          content_analysis_json_path=None, content_analysis_text_path=None,
@@ -876,6 +878,96 @@ def _mesh_files(mod_root: Path, limit: int = 4096) -> list[Path]:
     return found
 
 
+_MATERIAL_SIDECAR_SUFFIX = ".pac_xml"
+MAX_FOLDER_MODELS = 64
+# An extracted game folder holds far more models than one mod; the user picks from these.
+MAX_FOLDER_CATALOGUE = 100_000
+MAX_FOLDER_COMPANIONS = 512
+MAX_FOLDER_COMPANION_BYTES = 1024 * 1024 * 1024
+
+
+def _archive_path_in_folder(folder: Path, file: Path) -> str:
+    """The game path a loose file stands for, whatever folders wrap the payload."""
+
+    from cdmw.domain.packages.layout import normalize_mod_package_payload_path
+
+    return normalize_mod_package_payload_path(file.relative_to(folder).as_posix()).as_posix().strip("/")
+
+
+def _loose_files(mod_root: Path, suffixes: tuple[str, ...] = (), limit: int = 65536) -> list[Path]:
+    found: list[Path] = []
+    for current, dirs, files in os.walk(mod_root):
+        dirs[:] = sorted(name for name in dirs if not name.startswith("."))
+        for name in sorted(files):
+            if not suffixes or name.casefold().endswith(suffixes):
+                found.append(Path(current) / name)
+                if len(found) >= limit:
+                    return found
+    return found
+
+
+def material_sidecar_path_for_mesh(mesh_archive_path: str) -> str:
+    """Where the game keeps a skinned mesh's material sidecar."""
+
+    path = str(mesh_archive_path or "").replace("\\", "/").strip("/")
+    return path.replace("/model/", "/modelproperty/", 1) + "_xml"
+
+
+def mesh_path_for_material_sidecar(sidecar_archive_path: str) -> str:
+    """The skinned mesh a material sidecar belongs to, or an empty string."""
+
+    path = str(sidecar_archive_path or "").replace("\\", "/").strip("/")
+    if not path.casefold().endswith(_MATERIAL_SIDECAR_SUFFIX) or "/modelproperty/" not in path.casefold():
+        return ""
+    at = path.casefold().index("/modelproperty/")
+    return "/".join((path[:at], "model", path[at + len("/modelproperty/"):-len("_xml")]))
+
+
+def folder_model_paths(mod_root: Path | str, *, limit: int = MAX_FOLDER_MODELS) -> list[str]:
+    """Game paths of the models a loose folder holds a mesh or a material sidecar for.
+
+    One mod per folder: a parent of several variants names the same game file
+    more than once, and continuing it would pick one of them at random.
+    """
+
+    folder = Path(mod_root)
+    paths: dict[str, str] = {}
+    owners: dict[str, Path] = {}
+
+    def add(path: str, file: Path, owner_key: str) -> None:
+        if not path:
+            return
+        previous = owners.setdefault(owner_key, file)
+        if previous != file:
+            raise ValueError(
+                "This folder holds more than one copy of the same game file. "
+                "Choose the folder of a single mod or variant."
+            )
+        paths.setdefault(path.casefold(), path)
+
+    for mesh in _mesh_files(folder, limit=limit * 4):
+        path = _archive_path_in_folder(folder, mesh)
+        add(path, mesh, path.casefold())
+    for sidecar in _loose_files(folder, (_MATERIAL_SIDECAR_SUFFIX,), limit=limit * 4):
+        path = _archive_path_in_folder(folder, sidecar)
+        add(mesh_path_for_material_sidecar(path), sidecar, path.casefold())
+    return list(paths.values())[:limit]
+
+
+def folder_model_choices(mod_root: Path | str) -> list[str]:
+    """Every model of a folder too large to list whole, sorted; empty for a mod-sized folder.
+
+    An extracted game folder holds thousands of models. Listing 64 of them at
+    random helps nobody, so the caller asks which ones to add.
+    """
+
+    folder = Path(mod_root).expanduser().resolve()
+    if not folder.is_dir():
+        raise ValueError("Choose an existing mod folder.")
+    paths = folder_model_paths(folder, limit=MAX_FOLDER_CATALOGUE)
+    return sorted(paths, key=str.casefold) if len(paths) > MAX_FOLDER_MODELS else []
+
+
 def _guess_archive_path(relative: PurePosixPath) -> str:
     parts = list(relative.parts)
     if parts and parts[0].casefold() == "files":
@@ -885,8 +977,19 @@ def _guess_archive_path(relative: PurePosixPath) -> str:
     return "/".join(parts)
 
 
-def add_built_mod_folder(draft_root: Path | str, mod_root: Path | str, *, project_id: str = "") -> dict[str, object]:
-    """List a mod folder made before saved drafts existed, or by someone else."""
+def add_built_mod_folder(
+    draft_root: Path | str,
+    mod_root: Path | str,
+    *,
+    project_id: str = "",
+    model_paths: Sequence[str] | None = None,
+) -> dict[str, object]:
+    """List a mod folder made before saved drafts existed, or by someone else.
+
+    ``model_paths`` names the models to list from a folder too large to list
+    whole (see ``folder_model_choices``). Such a folder is not one export, so
+    its export history is not looked up; that lookup hashes every file.
+    """
 
     from cdmw.core.mod_export_history import mod_metadata_path
 
@@ -894,41 +997,47 @@ def add_built_mod_folder(draft_root: Path | str, mod_root: Path | str, *, projec
     if not folder.is_dir():
         raise ValueError("Choose an existing mod folder.")
     root = Path(draft_root).expanduser().resolve()
-    with _INDEX_LOCK:
-        if any(Path(str(record.get("mod_root") or "")).resolve() == folder for record in _read_index(root)):
-            raise ValueError("This mod folder is already in the list.")
-    metadata = _read_json(mod_metadata_path(folder, "mesh-editor-session.json")) or {}
-    source_path = str(metadata.get("source_path") or "").replace("\\", "/").strip("/")
-    if not source_path:
-        meshes = _mesh_files(folder, limit=1)
-        candidates = ([_guess_archive_path(PurePosixPath(meshes[0].relative_to(folder).as_posix()))]
-                      if meshes else _archive_group_mesh_paths(folder))
-        source_path = candidates[0] if candidates else ""
-    if not source_path:
+    if model_paths is not None:
+        held = {path.casefold(): path for path in folder_model_paths(folder, limit=MAX_FOLDER_CATALOGUE)}
+        chosen = {str(path or "").replace("\\", "/").strip("/").casefold() for path in model_paths}
+        if not chosen or len(chosen) > MAX_FOLDER_MODELS or not chosen <= set(held):
+            raise ValueError("Choose between 1 and 64 models that this folder contains.")
+        metadata, source_path = {}, ""
+        source_paths = [path for key, path in held.items() if key in chosen]
+    else:
+        metadata = _read_json(mod_metadata_path(folder, "mesh-editor-session.json")) or {}
+        source_path = str(metadata.get("source_path") or "").replace("\\", "/").strip("/")
+        # A folder of loose files lists every model it has a mesh or a material
+        # sidecar for; a material-only mod continues over the game's own mesh.
+        source_paths = [source_path] if source_path else (folder_model_paths(folder) or _archive_group_mesh_paths(folder)[:1])
+    if not source_paths:
         raise ValueError("This folder contains no mesh files.")
-    record = {
-        "id": uuid4().hex,
-        "display_name": folder.name,
-        "mod_root": str(folder),
-        "zip_path": "",
-        "built_at": folder.stat().st_mtime,
-        "manager_profile": "",
-        "output_kind": "added_folder",
-        "source_archive_path": source_path,
-        "source_package": "",
-        "source_entry": {},
-        "source_sha256": _clean_sha(metadata.get("source_sha256")),
-        "game_source_sha256": "",
-        "edit_pass": 0,
-        "draft_dir": "",
-        "project_id": str(project_id or ""),
-        "notes": "",
-    }
     with _INDEX_LOCK:
         records = _read_index(root)
-        records.append(record)
-        _write_index(root, records)
-    return record
+        listed = {str(record.get("source_archive_path") or "").casefold() for record in records
+                  if Path(str(record.get("mod_root") or "")).resolve() == folder}
+        added = [{
+            "id": uuid4().hex,
+            "display_name": folder.name if len(source_paths) == 1 else f"{folder.name} - {PurePosixPath(path).stem}",
+            "mod_root": str(folder),
+            "zip_path": "",
+            "built_at": folder.stat().st_mtime,
+            "manager_profile": "",
+            "output_kind": "added_folder",
+            "source_archive_path": path,
+            "source_package": "",
+            "source_entry": {},
+            "source_sha256": _clean_sha(metadata.get("source_sha256")) if path == source_path else "",
+            "game_source_sha256": "",
+            "edit_pass": 0,
+            "draft_dir": "",
+            "project_id": str(project_id or ""),
+            "notes": "",
+        } for path in source_paths if path.casefold() not in listed]
+        if not added:
+            raise ValueError("This mod folder is already in the list.")
+        _write_index(root, [*records, *added])
+    return added[0]
 
 
 def _archive_group_mesh_paths(mod_root: Path) -> list[str]:
@@ -952,15 +1061,63 @@ def read_built_mod_mesh(
 ) -> bytes:
     """Read the finished mesh for ``archive_path`` from a loose or DMM mod folder."""
 
+    data = _find_built_mod_file(mod_root, archive_path, stop_event=stop_event)
+    if data is None:
+        raise ValueError("The mod folder no longer contains the edited mesh.")
+    return data
+
+
+class _FolderFiles:
+    """A mod folder's loose files by game path: one walk per file type, however many lookups.
+
+    Continuing one model asks for its mesh, its sidecar and every texture the
+    sidecar names. Walking an extracted game folder once per question takes
+    minutes; this walks it once per extension.
+    """
+
+    def __init__(self, folder: Path, stop_event: threading.Event | None = None) -> None:
+        self.folder = folder
+        self._stop_event = stop_event
+        self._by_suffix: dict[str, dict[str, list[tuple[str, Path]]]] = {}
+
+    def find(self, wanted: str) -> Path | None:
+        suffix = PurePosixPath(wanted).suffix
+        names = self._by_suffix.get(suffix)
+        if names is None:
+            names = {}
+            for candidate in _loose_files(self.folder, (suffix,) if suffix else (), limit=MAX_FOLDER_CATALOGUE * 16):
+                raise_if_cancelled(self._stop_event, "Saved work was cancelled.")
+                relative = candidate.relative_to(self.folder).as_posix().casefold()
+                names.setdefault(relative.rsplit("/", 1)[-1], []).append((relative, candidate))
+            self._by_suffix[suffix] = names
+        # Walk order, as before: the first file whose path ends with the game path.
+        for relative, candidate in names.get(wanted.rsplit("/", 1)[-1], ()):
+            if relative == wanted or relative.endswith("/" + wanted):
+                return candidate
+        return None
+
+
+def _find_built_mod_file(
+    mod_root: Path | str,
+    archive_path: str,
+    *,
+    stop_event: threading.Event | None = None,
+    files: _FolderFiles | None = None,
+) -> bytes | None:
+    """One file of a loose or DMM mod folder by its game path, or None.
+
+    ``files`` shares one walk of the folder between several lookups.
+    """
+
     folder = Path(mod_root).resolve()
     if not folder.is_dir():
         raise ValueError("The mod folder no longer exists.")
     wanted = str(archive_path or "").replace("\\", "/").strip("/").casefold()
-    for candidate in _mesh_files(folder):
-        raise_if_cancelled(stop_event, "Saved work was cancelled.")
-        relative = candidate.relative_to(folder).as_posix().casefold()
-        if relative == wanted or relative.endswith("/" + wanted):
-            return candidate.read_bytes()
+    if files is None or files.folder != folder:
+        files = _FolderFiles(folder, stop_event)
+    candidate = files.find(wanted)
+    if candidate is not None:
+        return candidate.read_bytes()
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.services.archive_read_service import read_archive_entry_data
 
@@ -973,7 +1130,82 @@ def read_built_mod_mesh(
         for entry in entries:
             if entry.path.replace("\\", "/").strip("/").casefold() == wanted:
                 return read_archive_entry_data(entry, stop_event=stop_event)[0]
-    raise ValueError("The mod folder no longer contains the edited mesh.")
+    return None
+
+
+def _material_texture_paths(sidecar: bytes) -> list[str]:
+    """Texture game paths a material sidecar names, in document order."""
+
+    from cdmw.domain.pac_xml_editor import decode_pac_xml_payload
+
+    try:
+        text, _format = decode_pac_xml_payload(sidecar)
+    except Exception:
+        return []
+    paths: dict[str, str] = {}
+    for match in re.finditer(r'\b_path="([^"]+)"', text):
+        path = match.group(1).replace("\\", "/").strip("/")
+        if path:
+            paths.setdefault(path.casefold(), path)
+    return list(paths.values())
+
+
+def built_mod_companion_entries(
+    draft_root: Path | str,
+    row: SavedWorkRow,
+    live_entry: ArchiveEntry,
+    game_entry_for_path: Callable[[str], ArchiveEntry | None],
+    *,
+    edited_note: str,
+    added_note: str = "",
+    stop_event: threading.Event | None = None,
+    files: _FolderFiles | None = None,
+) -> tuple[ArchiveEntry, ...]:
+    """The mod folder's own material sidecar and the textures that sidecar names.
+
+    A file that equals the current game file is left to the game. One that
+    replaces a game file takes that file's archive location; one the game does
+    not have is an added file beside the mesh, as Build Mod records them.
+    """
+
+    from cdmw.services.archive_read_service import read_archive_entry_data
+
+    folder = row.mod_root or row.folder
+    sidecar_path = material_sidecar_path_for_mesh(row.source_archive_path)
+    if files is None:
+        files = _FolderFiles(Path(folder).resolve(), stop_event)
+    sidecar = _find_built_mod_file(folder, sidecar_path, stop_event=stop_event, files=files)
+    wanted = [(sidecar_path, sidecar)] if sidecar is not None else []
+    if sidecar is None:
+        # Without its own sidecar the mod can still replace textures the game's one names.
+        game_sidecar = game_entry_for_path(sidecar_path)
+        if game_sidecar is not None:
+            sidecar = read_archive_entry_data(game_sidecar, stop_event=stop_event)[0]
+    for texture in _material_texture_paths(sidecar or b"")[:MAX_FOLDER_COMPANIONS]:
+        data = _find_built_mod_file(folder, texture, stop_event=stop_event, files=files)
+        if data is not None:
+            wanted.append((texture, data))
+    companions: list[ArchiveEntry] = []
+    total = 0
+    for path, data in wanted:
+        raise_if_cancelled(stop_event, "Saved work was cancelled.")
+        total += len(data)
+        if total > MAX_FOLDER_COMPANION_BYTES:
+            raise ValueError("The mod folder's material files exceed the 1 GiB limit.")
+        digest = hashlib.sha256(data).hexdigest()
+        game_entry = game_entry_for_path(path)
+        if game_entry is not None:
+            if hashlib.sha256(read_archive_entry_data(game_entry, stop_event=stop_event)[0]).hexdigest() == digest:
+                continue
+            base, note = game_entry, edited_note
+        else:
+            base = replace(live_entry, path=path, offset=0, comp_size=0, orig_size=len(data))
+            note = added_note or edited_note
+        copy_path = _save_built_mod_copy(draft_root, PurePosixPath(path).name, data, digest)
+        companions.append(replace(base, prepared_path=copy_path, prepared_sha256=digest, prepared_size=len(data),
+                                  prepared_note=note, content_analysis_json_path=None,
+                                  content_analysis_text_path=None, content_analysis_version=""))
+    return tuple(companions)
 
 
 def save_built_mod_mesh_copy(
@@ -983,10 +1215,14 @@ def save_built_mod_mesh_copy(
 ) -> Path:
     """Keep the finished mesh that starts a new edit pass beside the drafts."""
 
+    return _save_built_mod_copy(draft_root, PurePosixPath(row.source_archive_path).name or "mesh", data,
+                                hashlib.sha256(data).hexdigest())
+
+
+def _save_built_mod_copy(draft_root: Path | str, name: str, data: bytes, digest: str) -> Path:
     root = Path(draft_root).expanduser().resolve() / "built_mod_meshes"
     root.mkdir(parents=True, exist_ok=True)
-    digest = hashlib.sha256(data).hexdigest()
-    target = root / f"{digest[:16]}-{PurePosixPath(row.source_archive_path).name or 'mesh'}"
+    target = root / f"{digest[:16]}-{name}"
     if not target.is_file() or _sha256_file(target) != digest:
         temporary = target.with_name(target.name + f".{uuid4().hex[:8]}.tmp")
         temporary.write_bytes(data)
@@ -1012,12 +1248,16 @@ def prepare_saved_work_launch(
     live_entry: ArchiveEntry,
     *,
     edited_note: str,
+    added_note: str = "",
+    game_entry_for_path: Callable[[str], ArchiveEntry | None] | None = None,
     stop_event: threading.Event | None = None,
 ) -> SavedWorkLaunch:
     """Choose the source bytes and draft for continuing ``row`` over ``live_entry``.
 
     ``live_entry`` is the current game file at the row's path. Saved copies
     replace its bytes when the draft started from a different version.
+    ``game_entry_for_path`` finds the game's material files, so a mod folder's
+    own sidecar and textures can stand in for them.
     """
 
     from cdmw.services.archive_read_service import read_archive_entry_data
@@ -1025,14 +1265,34 @@ def prepare_saved_work_launch(
     current = hashlib.sha256(read_archive_entry_data(live_entry, stop_event=stop_event)[0]).hexdigest()
     game_updated = saved_work_status(row, found=True, current_sha256=current) == STATUS_GAME_UPDATED
     if row.is_built_mod and row.manifest_path is None:
-        data = read_built_mod_mesh(row.mod_root or row.folder, row.source_archive_path, stop_event=stop_event)
+        files = _FolderFiles(Path(row.mod_root or row.folder).resolve(), stop_event)
+        companions = (built_mod_companion_entries(
+            draft_root, row, live_entry, game_entry_for_path,
+            edited_note=edited_note, added_note=added_note, stop_event=stop_event, files=files,
+        ) if game_entry_for_path is not None else ())
+        data = _find_built_mod_file(row.mod_root or row.folder, row.source_archive_path, stop_event=stop_event,
+                                    files=files)
+        if data is None:
+            folder = row.mod_root or row.folder
+            if not companions and _find_built_mod_file(
+                    folder, material_sidecar_path_for_mesh(row.source_archive_path), stop_event=stop_event,
+                    files=files) is None:
+                raise ValueError("The mod folder no longer contains the edited mesh.")
+            # A material-only mod: the game's mesh with the mod's sidecar and textures.
+            # Extracted files that still equal the game's open as the game's own model.
+            request = MeshDraftRequest(edit_pass=max(1, row.edit_pass) + 1 if companions else 1,
+                                       display_name=row.display_name,
+                                       game_source_sha256=row.game_source_sha256 or current,
+                                       baseline_entries=companions, project_id=row.project_id)
+            return SavedWorkLaunch(row, live_entry, companions, None, request, game_updated)
         copy_path = save_built_mod_mesh_copy(draft_root, row, data)
         selected = replace(live_entry, prepared_path=copy_path, prepared_sha256=hashlib.sha256(data).hexdigest(),
                            prepared_size=len(data), prepared_note=edited_note, content_analysis_json_path=None,
                            content_analysis_text_path=None, content_analysis_version="")
         request = MeshDraftRequest(edit_pass=max(1, row.edit_pass) + 1, display_name=row.display_name,
-                                   game_source_sha256=row.game_source_sha256, project_id=row.project_id)
-        return SavedWorkLaunch(row, selected, (selected,), None, request, game_updated)
+                                   game_source_sha256=row.game_source_sha256, baseline_entries=companions,
+                                   project_id=row.project_id)
+        return SavedWorkLaunch(row, selected, (selected, *companions), None, request, game_updated)
     manifest = read_draft_manifest(row.manifest_path or "")
     if manifest is None:
         raise ValueError("This draft can no longer be read.")
@@ -1086,6 +1346,11 @@ __all__ = [
     "SavedWorkProject",
     "SavedWorkRow",
     "add_built_mod_folder",
+    "built_mod_companion_entries",
+    "folder_model_choices",
+    "folder_model_paths",
+    "material_sidecar_path_for_mesh",
+    "mesh_path_for_material_sidecar",
     "assign_project",
     "clean_name",
     "clean_notes",
