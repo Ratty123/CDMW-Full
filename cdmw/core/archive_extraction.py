@@ -612,7 +612,7 @@ def read_archive_entry_data(
     # in-process decodes) and reports encrypted entries as unsupported, so as
     # the primary path it charged every legacy read the round trip and then
     # decoded here anyway. It remains the fallback for payloads this process
-    # cannot decode, such as a missing lz4 or cryptography package.
+    # cannot decode, such as a missing lz4 package.
     try:
         data = read_archive_entry_raw_data(entry, stop_event=stop_event)
         return _decode_archive_entry_data(entry, data, stop_event=stop_event)

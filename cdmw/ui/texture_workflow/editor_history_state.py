@@ -8,10 +8,10 @@ import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Dict, List, Optional, Sequence, Tuple
 
-import cv2
 import lz4.frame
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.models import TextureEditorCommand, TextureEditorDocument, TextureEditorHistoryEntry
 
 
@@ -229,14 +229,10 @@ def _decode_texture_editor_rgba_bytes(blob: Optional[bytes]) -> Optional[np.ndar
         if len(raw) != expected:
             return None
         return np.frombuffer(raw, dtype=np.uint8).reshape((height, width, 4)).copy()
-    decoded = cv2.imdecode(np.frombuffer(blob, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    decoded = image_ops.decode_png_rgba(blob)
     if decoded is None:
         return None
-    if decoded.ndim == 2:
-        decoded = cv2.cvtColor(decoded, cv2.COLOR_GRAY2BGRA)
-    elif decoded.shape[2] == 3:
-        decoded = cv2.cvtColor(decoded, cv2.COLOR_BGR2BGRA)
-    return np.asarray(cv2.cvtColor(decoded, cv2.COLOR_BGRA2RGBA), dtype=np.uint8).copy()
+    return np.asarray(decoded, dtype=np.uint8).copy()
 
 
 def decode_texture_editor_rgba_blob(blob: object) -> Optional[np.ndarray]:

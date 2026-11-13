@@ -9,9 +9,8 @@ from contextlib import ExitStack
 from dataclasses import asdict
 from html import escape
 
-from PySide6.QtCore import QByteArray, QPoint, QSignalBlocker, QTimer, QUrl, Qt, Slot
+from PySide6.QtCore import QPoint, QSignalBlocker, QTimer, QUrl, Qt, Slot
 from PySide6.QtGui import QDesktopServices, QImage, QPainter, QPalette, QPen, QPixmap
-from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication, QBoxLayout, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QStackedWidget,
@@ -26,6 +25,7 @@ from cdmw.services.problem_report_service import (
     detail_errors, parse_report_receipt, parse_report_verification, parse_report_verification_status,
     report_delivery_failure, report_verification_request,
 )
+from cdmw.workers.problem_report_network import ReportHttpResult, ReportNetworkRequest
 from cdmw.workers.problem_report_workers import ProblemReportCollection
 from cdmw.ui.shell.problem_report_catalog import (
     ACTION_HELP, GAME_INVOLVEMENT, INSTALL_METHODS, INTERFACE_ACTION, MOD_MANAGERS, MOD_STATES,
@@ -163,7 +163,6 @@ class ProblemReportDialog(QDialog):
         self._loading_draft = False
         self._restoring_form = False
         self._screenshots: tuple[str, ...] = ()
-        self._network = QNetworkAccessManager(self)
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._timeout)
@@ -1070,37 +1069,32 @@ class ProblemReportDialog(QDialog):
         self._request_report_network("/verification/start", "start", report_verification_request(self._reviewed))
 
     def _request_report_network(self, path: str, stage: str, body: bytes | None = None) -> None:
-        request = QNetworkRequest(QUrl(REPORT_ENDPOINT.rsplit("/", 1)[0] + path))
-        request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/json")
-        if self._verification_ticket:
-            request.setRawHeader(b"Authorization", f"Bearer {self._verification_ticket}".encode("ascii"))
-        # Never forward the access key or evidence to a redirect target.
-        request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute,
-                             QNetworkRequest.RedirectPolicy.ManualRedirectPolicy)
-        request.setTransferTimeout(45000)
+        # Never forward the access key or evidence to a redirect target: the request follows none.
+        reply = ReportNetworkRequest(REPORT_ENDPOINT.rsplit("/", 1)[0] + path, body,
+                                     ticket=self._verification_ticket, timeout=45.0)
         self._network_stage = stage
-        reply = self._network.get(request) if body is None else self._network.post(request, QByteArray(body))
         self._reply = reply
-        reply.finished.connect(lambda target=reply, generation=self._generation, step=stage:
-                               self._report_network_finished(target, generation, step))
+        reply.finished.connect(lambda result, target=reply, generation=self._generation, step=stage:
+                               self._report_network_finished(target, result, generation, step))
+        reply.start()
         self._timer.start(45000)
         self._update_buttons()
 
-    def _report_network_finished(self, reply: QNetworkReply, generation: int, stage: str) -> None:
+    def _report_network_finished(self, reply: ReportNetworkRequest, result: ReportHttpResult,
+                                 generation: int, stage: str) -> None:
         if self._closed or generation != self._generation or reply is not self._reply or self._reviewed is None:
-            reply.deleteLater()
             return
         if stage == "upload":
             self._clear_verification_state()
-            self._upload_finished()
+            self._upload_finished(result)
             return
         self._reply = None
         self._timer.stop()
         try:
-            status = int(reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute) or 0)
-            body = bytes(reply.readAll())
-            if reply.error() != QNetworkReply.NetworkError.NoError or status != 200:
-                failure = report_delivery_failure(body, status, bytes(reply.rawHeader("Retry-After")).decode("ascii", errors="ignore"),
+            status = result.status
+            body = result.body
+            if result.error or status != 200:
+                failure = report_delivery_failure(body, status, result.retry_after,
                                                   report_id=self._reviewed.report_id)
                 if failure.retry_seconds:
                     self._retry_until = time.monotonic() + failure.retry_seconds
@@ -1122,8 +1116,6 @@ class ProblemReportDialog(QDialog):
                 self._verification_poll.start()
         except ValueError as error:
             self._verification_failed(str(error))
-        finally:
-            reply.deleteLater()
         self._update_buttons()
 
     @Slot()
@@ -1176,8 +1168,7 @@ class ProblemReportDialog(QDialog):
         if self._reply is not None:
             self._reply.abort()
 
-    @Slot()
-    def _upload_finished(self) -> None:
+    def _upload_finished(self, result: ReportHttpResult) -> None:
         reply = self._reply
         if reply is None:
             return
@@ -1185,10 +1176,10 @@ class ProblemReportDialog(QDialog):
         self._timer.stop()
         if not self._closed and self._reviewed is not None:
             try:
-                status = int(reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute) or 0)
-                body = bytes(reply.readAll())
-                if reply.error() != QNetworkReply.NetworkError.NoError or status not in (200, 201):
-                    failure = report_delivery_failure(body, status, bytes(reply.rawHeader("Retry-After")).decode("ascii", errors="ignore"),
+                status = result.status
+                body = result.body
+                if result.error or status not in (200, 201):
+                    failure = report_delivery_failure(body, status, result.retry_after,
                                                       report_id=self._reviewed.report_id)
                     if failure.retry_seconds:
                         self._retry_until = time.monotonic() + failure.retry_seconds
@@ -1208,7 +1199,6 @@ class ProblemReportDialog(QDialog):
             self._set_form_enabled(not self._sent)
             self.consent.setEnabled(not self._sent)
             self._update_buttons()
-        reply.deleteLater()
 
     def _shutdown(self) -> None:
         if self._closed:

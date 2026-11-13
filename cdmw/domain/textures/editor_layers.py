@@ -7,9 +7,9 @@ import time
 import uuid
 from typing import Dict, List, Optional, Tuple
 
-import cv2
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.domain.textures.editor_common import _new_layer_id, _safe_slug
 from cdmw.domain.textures.editor_composite import (
     _apply_mask_to_src_region,
@@ -117,8 +117,7 @@ def capture_texture_editor_snapshot(
 ) -> Dict[str, object]:
     layer_blobs: Dict[str, bytes] = {}
     for layer_id, pixels in layer_pixels.items():
-        encoded = cv2.imencode(".png", cv2.cvtColor(np.asarray(pixels, dtype=np.uint8), cv2.COLOR_RGBA2BGRA))[1]
-        layer_blobs[layer_id] = bytes(encoded)
+        layer_blobs[layer_id] = image_ops.encode_png(np.asarray(pixels, dtype=np.uint8))
     return {
         "entry": TextureEditorHistoryEntry(label=label, timestamp=time.time()),
         "document": dataclasses.replace(document),
@@ -130,14 +129,9 @@ def restore_texture_editor_snapshot(snapshot: Dict[str, object]) -> Tuple[Textur
     entry = snapshot["entry"]  # type: ignore[assignment]
     layer_pixels: Dict[str, np.ndarray] = {}
     for layer_id, blob in (snapshot.get("layer_blobs") or {}).items():
-        decoded = cv2.imdecode(np.frombuffer(blob, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-        if decoded is None:
+        rgba = image_ops.decode_png_rgba(blob)
+        if rgba is None:
             continue
-        if decoded.ndim == 2:
-            decoded = cv2.cvtColor(decoded, cv2.COLOR_GRAY2BGRA)
-        elif decoded.shape[2] == 3:
-            decoded = cv2.cvtColor(decoded, cv2.COLOR_BGR2BGRA)
-        rgba = cv2.cvtColor(decoded, cv2.COLOR_BGRA2RGBA)
         layer_pixels[str(layer_id)] = np.asarray(rgba, dtype=np.uint8).copy()
     return document, layer_pixels, entry
 

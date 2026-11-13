@@ -1,0 +1,19 @@
+# Hash-locked Windows x64 wheels for scripts/vendor_qt_sdk.py only.
+# py7zr unpacks the Qt SDK archives that native/cdmw_qt_rhi builds against.
+# It is a developer tool: nothing the app ships imports it, so it and its
+# dependencies are kept out of requirements-build.txt and constraints-release.txt.
+# Install with:
+#   python -m pip install -r requirements-qt-sdk.txt
+--require-hashes
+--only-binary :all:
+
+backports.zstd==1.7.0 ; python_version < "3.14" --hash=sha256:ae840be71108f6020567dd389c973e70a4374a6c0b03c02d3242c8a98a9b3cdb
+brotli==1.2.1 --hash=sha256:7248c282d7d6aef4ae89363da5fc3df7b9250eb04b252622955296eb5d0ea82f --hash=sha256:972a2e19dbaab47d0aa77c1d07f71c930bdc53538f2b33decc905e92a4be5cbd
+inflate64==1.0.4 --hash=sha256:7056148548c1f25dcb38251f88c19b4635a5f32af4c7bad00621c85509e3d8c0 --hash=sha256:fb2fdd63ef3933b67af98b3f2ee2f57e7787278041d7ba4821382fedd729b68a
+multivolumefile==0.2.3 --hash=sha256:237f4353b60af1703087cf7725755a1f6fcaeeea48421e1896940cd1c920d678
+psutil==7.2.2 --hash=sha256:eb7e81434c8d223ec4a219b5fc1c47d0417b12be7ea866e24fb5ad6e84b3d988
+py7zr==1.1.3 --hash=sha256:17934a35089e026dec6c72ee275d9b841e646881ef822d618e805c3006661d9a
+pybcj==1.0.8 --hash=sha256:090eb05fe7a2f7cd7eb42809616ce1b49437c3e995a8aae2faa92b66f218172f --hash=sha256:0074af187b1acce9e31717fc9aa42bc36b67f1a44088a8b44f4f4792af688ee6
+pycryptodomex==3.23.0 --hash=sha256:52e5ca58c3a0b0bd5e100a9fbc8015059b05cffc6c66ce9d98b4b45e023443b9
+pyppmd==1.3.1 --hash=sha256:23b83799f33f9a24577f22e092b0feecda8cd1ea33871ad8610a58629874f7bc --hash=sha256:0e64247618cb150d2909beb0137da3084fef1d3479b4cc73b5b47fda7611abf9
+texttable==1.7.0 --hash=sha256:72227d592c82b3d7f672731ae73e4d1f88cd8e2ef5b075a7a7f01a23a3743917

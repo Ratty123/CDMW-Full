@@ -6,9 +6,9 @@ import dataclasses
 import uuid
 from typing import Dict, List, Sequence, Tuple
 
-import cv2
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.domain.textures.editor_common import _new_layer_id
 from cdmw.domain.textures.editor_composite import (
     _layer_canvas_intersection,
@@ -436,11 +436,11 @@ def snap_lasso_points_to_edges(
     radius = max(1, int(search_radius))
     sensitivity = max(1, min(100, int(edge_sensitivity)))
     rgba = np.asarray(rgba_image, dtype=np.uint8)
-    gray = cv2.cvtColor(rgba, cv2.COLOR_RGBA2GRAY)
-    blurred = cv2.GaussianBlur(gray, (0, 0), sigmaX=1.2, sigmaY=1.2)
+    gray = image_ops.rgba_to_gray(rgba)
+    blurred = image_ops.gaussian_blur(gray, 1.2)
     high = max(40, min(220, int(round(210 - (sensitivity * 1.4)))))
     low = max(10, int(round(high * 0.45)))
-    edges = cv2.Canny(blurred, low, high)
+    edges = image_ops.canny_edges(blurred, low, high)
     snapped: List[Tuple[float, float]] = []
     height, width = edges.shape[:2]
     for x, y in polygon_points:
