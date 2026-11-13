@@ -574,6 +574,7 @@ a = Analysis(
         "cdmw.services.native_dotnet_preview_adapter",
         "PIL.AvifImagePlugin",
         "PIL._avif",
+        "PIL._imagingtk",  # no Tk anywhere (removal list item 3)
         *unused_qt_modules,
         "numpy._pyinstaller",
         "numpy.conftest",
@@ -583,8 +584,6 @@ a = Analysis(
         "numpy.tests",
         "numpy.typing.tests",
         "numpy.typing.mypy_plugin",
-        "pycparser.lextab",
-        "pycparser.yacctab",
     ],
     noarchive=False,
     optimize=0,
