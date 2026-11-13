@@ -132,6 +132,18 @@ unused_qt_runtime_payloads = {
     "PySide6\\Qt6VirtualKeyboard.dll",
     "PySide6\\plugins\\imageformats\\qpdf.dll",
     "PySide6\\plugins\\platforminputcontexts\\qtvirtualkeyboardplugin.dll",
+    # Nothing live uses these (P16 stage 2 / P20 removal list item 1). qoffscreen stays
+    # for the start verifier and windowsmediaplugin for audio and video (decision 22).
+    "PySide6\\opengl32sw.dll",
+    "PySide6\\Qt6OpenGL.dll",
+    "PySide6\\plugins\\platforms\\qdirect2d.dll",
+    "PySide6\\plugins\\platforms\\qminimal.dll",
+    "PySide6\\plugins\\generic\\qtuiotouchplugin.dll",
+    "PySide6\\plugins\\imageformats\\qicns.dll",
+    "PySide6\\plugins\\imageformats\\qwbmp.dll",
+    "PySide6\\plugins\\imageformats\\qsvg.dll",
+    "PySide6\\plugins\\iconengines\\qsvgicon.dll",
+    "PySide6\\plugins\\styles\\qmodernwindowsstyle.dll",
 }
 
 # The app never installs a QTranslator, so the bundled Qt message catalogues can
