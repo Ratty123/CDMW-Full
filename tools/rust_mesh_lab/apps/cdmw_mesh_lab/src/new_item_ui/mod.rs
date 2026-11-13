@@ -221,6 +221,7 @@ fn headless_report(
 ) -> Result<()> {
     let context = egui::Context::default();
     apply_theme(&context, &state.theme);
+    crate::shortcuts::apply_app_command_chords(&state.theme);
     let mut view = PresentationView::default();
     load_images(&context, &mut view, state)?;
     let mut textures = egui::TexturesDelta::default();
@@ -478,6 +479,7 @@ impl Application {
                         self.in_flight = None;
                     }
                     apply_theme(&self.context, &state.theme);
+                    crate::shortcuts::apply_app_command_chords(&state.theme);
                     load_images(&self.context, &mut self.view, &state)?;
                     self.emit(
                         &json!({"protocol":PROTOCOL,"type":"state_received","session":self.session,"generation":state.generation}),
@@ -562,12 +564,12 @@ impl Application {
         let mut palette = false;
         let output = self.context.run_ui(input, |ui| {
             // The command palette's chord belongs to CDMW, wherever the focus is (P12).
-            palette |= ui.input_mut(|input| {
-                input.consume_key(
-                    egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
-                    egui::Key::P,
-                )
-            });
+            // CDMW's keymap decides the chords (P12 E5), as for the Mesh Editor.
+            palette |=
+                !crate::cdmw_ui::keyboard::take_shortcut_presses(ui.ctx(), Vec::new(), |chord| {
+                    chord.app_command().is_some()
+                })
+                .is_empty();
             if let Some(state) = &self.state {
                 self.view.draw(ui, state);
             } else {
@@ -828,6 +830,7 @@ mod layout_input_tests {
                 "theme": {"font_pixels": font}}))
             .unwrap();
             apply_theme(&context, &state.theme);
+            crate::shortcuts::apply_app_command_chords(&state.theme);
             // Both stale child DPI and an eventual native DPI notification are
             // covered while the same context moves back and forth.
             for (window_scale, host_scale) in [

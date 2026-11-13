@@ -164,7 +164,7 @@ fn hair_tool(action: ShortcutAction) -> Option<HairTool> {
 
 /// Removes the key presses that trigger a shortcut and returns their actions.
 /// Numpad presses recorded by the window loop turn the matching egui key into its numpad key.
-fn take_shortcut_presses(
+pub(crate) fn take_shortcut_presses(
     context: &egui::Context,
     mut numpad: Vec<(egui::Key, NumpadKey)>,
     mut take: impl FnMut(KeyChord) -> bool,
@@ -323,9 +323,9 @@ impl LabApplication {
             return;
         }
         // App-wide chords (the command palette) go to CDMW before the editor's own.
-        for chord in
-            take_shortcut_presses(context, Vec::new(), |chord| chord.app_command().is_some())
-        {
+        for chord in take_shortcut_presses(context, numpad.clone(), |chord| {
+            chord.app_command().is_some()
+        }) {
             if let (Some(command), Some(bridge)) = (chord.app_command(), self.cdmw_bridge.as_ref())
             {
                 let _ = bridge.announce_app_shortcut(command);
@@ -621,7 +621,7 @@ impl LabApplication {
                 }
                 ReservedChord::CloseWindow => "Alt+F4 closes the window.",
                 ReservedChord::Clipboard => "Copy, cut and paste stay with text fields.",
-                ReservedChord::AppCommand => "Ctrl+Shift+P opens the command palette.",
+                ReservedChord::AppCommand => "This key opens the command palette.",
             }));
             return;
         }

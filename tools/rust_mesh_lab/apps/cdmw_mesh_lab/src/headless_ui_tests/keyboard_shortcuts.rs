@@ -441,6 +441,35 @@ fn the_command_palette_chord_goes_to_cdmw_even_while_typing() -> TestResult {
     Ok(())
 }
 
+/// Review of ddc81f5d: a palette key on the numpad never reached CDMW, since the
+/// palette check was given no numpad presses.
+#[test]
+fn a_numpad_palette_key_goes_to_cdmw() -> TestResult {
+    let mut ui = integrated_triangle()?;
+    let root = tempfile::tempdir()?;
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "palette-numpad", 1, 0);
+    let messages = bridge.capture_messages_for_test();
+    ui.application.cdmw_bridge = Some(bridge);
+    // Ctrl+Shift+P stays in the set: other tests in this process use it.
+    crate::shortcuts::apply_app_command_chords(&serde_json::json!({
+        "app_commands": {"command_palette": ["Ctrl+Shift+P", "Ctrl+Num7"]}
+    }));
+    ui.frame(Vec::new());
+    press_numpad(&mut ui, 7, CTRL);
+    let sent = std::iter::from_fn(|| {
+        messages
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .ok()
+    })
+    .find(|message| message["event"] == "app_shortcut");
+    crate::shortcuts::apply_app_command_chords(&serde_json::json!({
+        "app_commands": {"command_palette": ["Ctrl+Shift+P"]}
+    }));
+    let sent = sent.expect("the numpad palette key reached CDMW");
+    assert_eq!(sent["command"], "command_palette");
+    Ok(())
+}
+
 #[test]
 fn cdmw_mirrors_the_editor_s_commands_and_can_run_one() -> TestResult {
     let mut ui = integrated_triangle()?;

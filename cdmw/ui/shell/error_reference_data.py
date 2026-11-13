@@ -33151,7 +33151,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid New Item image encoding",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 275
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 276
     }
   },
   {
@@ -33223,7 +33223,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid image buffer size",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 299
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 300
     }
   },
   {
@@ -33367,7 +33367,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid presentation state acknowledgement.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 273
+      "cdmw/ui/new_item/rust_ui_tab.py": 283
     }
   },
   {
@@ -33959,7 +33959,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing New Item input",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 552
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 554
     }
   },
   {
@@ -34249,7 +34249,7 @@ MESSAGE_REFERENCE = [
     "message": "New Item image dimensions differ",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 293
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 294
     }
   },
   {
@@ -34281,7 +34281,7 @@ MESSAGE_REFERENCE = [
     "message": "New Item session message mismatch",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 460
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 461
     }
   },
   {
@@ -35294,7 +35294,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface could not prepare this page: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 347
+      "cdmw/ui/new_item/rust_ui_tab.py": 359
     }
   },
   {
@@ -35302,7 +35302,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface could not start: {self._process.errorString()}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 360
+      "cdmw/ui/new_item/rust_ui_tab.py": 372
     }
   },
   {
@@ -35310,7 +35310,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface did not finish starting within 30 seconds.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 92
+      "cdmw/ui/new_item/rust_ui_tab.py": 102
     }
   },
   {
@@ -35318,7 +35318,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface is not consuming state updates.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 354
+      "cdmw/ui/new_item/rust_ui_tab.py": 366
     }
   },
   {
@@ -35326,7 +35326,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface reported a different session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 255
+      "cdmw/ui/new_item/rust_ui_tab.py": 265
     }
   },
   {
@@ -35334,7 +35334,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface stopped acknowledging updates. Use Retry to reopen the same workspace.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 326
+      "cdmw/ui/new_item/rust_ui_tab.py": 336
     }
   },
   {
@@ -36876,7 +36876,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown New Item host message",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 501
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 503
     }
   },
   {
@@ -36884,7 +36884,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown Rust presentation message.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 304
+      "cdmw/ui/new_item/rust_ui_tab.py": 314
     }
   },
   {
@@ -37012,7 +37012,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported New Item image colour format",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 325
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 326
     }
   },
   {
@@ -38255,7 +38255,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/services/new_item_materials.py": 681,
       "cdmw/ui/new_item/model_import.py": 1282,
-      "cdmw/ui/new_item/rust_ui_tab.py": 241
+      "cdmw/ui/new_item/rust_ui_tab.py": 251
     }
   },
   {

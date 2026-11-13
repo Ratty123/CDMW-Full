@@ -29721,7 +29721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 179,
+          "line": 189,
           "sink": "show_loading"
         }
       ]
@@ -42698,16 +42698,6 @@
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 487,
           "sink": "python-return:_build_index_html"
-        }
-      ]
-    },
-    {
-      "key": "Ctrl+Shift+P opens the command palette.",
-      "origins": [
-        {
-          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs",
-          "line": 624,
-          "sink": "rust-presentation"
         }
       ]
     },
@@ -122721,12 +122711,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 80,
+          "line": 90,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 216,
+          "line": 226,
           "sink": "show_loading"
         },
         {
@@ -169566,7 +169556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 347,
+          "line": 359,
           "sink": "_fail"
         }
       ]
@@ -169576,7 +169566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 360,
+          "line": 372,
           "sink": "_fail"
         }
       ]
@@ -169586,7 +169576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 92,
+          "line": 102,
           "sink": "_fail"
         }
       ]
@@ -169596,7 +169586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 326,
+          "line": 336,
           "sink": "_fail"
         }
       ]
@@ -169606,7 +169596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 380,
+          "line": 392,
           "sink": "show_error"
         }
       ]
@@ -172166,7 +172156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 396,
+          "line": 408,
           "sink": "emit"
         }
       ]
@@ -178087,6 +178077,16 @@
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs",
           "line": 620,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "This key opens the command palette.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs",
+          "line": 624,
           "sink": "rust-presentation"
         }
       ]

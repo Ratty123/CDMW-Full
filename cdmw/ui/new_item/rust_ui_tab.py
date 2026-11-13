@@ -27,6 +27,16 @@ _DEVICE_RESET_SIGNS = (
 )
 
 
+def _palette_chords() -> list[str]:
+    try:
+        from cdmw.services.settings_service import app_settings
+        from cdmw.ui.commands.helper_keys import palette_chords
+
+        return palette_chords(app_settings())
+    except Exception:
+        return ["Ctrl+Shift+P"]
+
+
 class RustNewItemStudioTab(QWidget):
     status_message_requested = Signal(str, bool)
     open_archive_entry_requested = Signal(str)
@@ -335,6 +345,8 @@ class RustNewItemStudioTab(QWidget):
             # monitor scaling belong to the visible, detachable Qt host.
             state["theme"] = theme_snapshot(self)
             state["theme"]["pixels_per_point"] = self.devicePixelRatioF()
+            # The palette's keys from CDMW's keymap, as the Mesh Editor gets them (P12 E5).
+            state["theme"]["app_commands"] = {"command_palette": _palette_chords()}
             stable = {key: value for key, value in state.items() if key != "generation"}
             fingerprint = hashlib.blake2s(json.dumps(stable, ensure_ascii=False, sort_keys=True).encode("utf-8")).digest()
             if fingerprint == self._state_fingerprint:
