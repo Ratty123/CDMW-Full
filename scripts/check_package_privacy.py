@@ -56,7 +56,12 @@ def machine_needles(extra_roots: Sequence[str] = ()) -> list[str]:
 
     paths: list[str] = []
     profile = os.environ.get("USERPROFILE") or str(Path.home())
-    paths.append(profile)
+    # A GitHub-hosted runner's profile is the same public C:\Users\runneradmin on every
+    # runner, including the ones that built third-party wheels (numpy, cryptography), which
+    # record it. It names no person; the repository and build roots are still checked.
+    hosted_runner = os.environ.get("GITHUB_ACTIONS") == "true" and Path(profile).name.casefold() == "runneradmin"
+    if not hosted_runner:
+        paths.append(profile)
     for name in ("CARGO_HOME", "RUSTUP_HOME", "TEMP", "TMP", "LOCALAPPDATA", "APPDATA",
                  "VCPKG_ROOT"):
         if os.environ.get(name):
@@ -68,7 +73,7 @@ def machine_needles(extra_roots: Sequence[str] = ()) -> list[str]:
     for path in paths:
         needles |= _variants(str(path))
     user = os.environ.get("USERNAME") or Path(profile).name
-    if user:
+    if user and not hosted_runner:
         # The user name only as part of a profile path, wherever the profile drive is.
         for sep in ("\\", "/", "\\\\"):
             needles.add(f"{sep}Users{sep}{user}{sep}")
