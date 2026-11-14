@@ -61,9 +61,13 @@ def test_a_hosted_runner_profile_is_not_a_needle_but_its_checkout_is(machine, mo
     monkeypatch.setenv("USERPROFILE", str(runner))
     monkeypatch.setenv("USERNAME", "runneradmin")
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("LOCALAPPDATA", str(runner / "AppData" / "Local"))
+    monkeypatch.setenv("TEMP", str(runner / "AppData" / "Local" / "Temp"))
+    monkeypatch.setenv("CARGO_HOME", r"C:\Users\runneradmin\.cargo")
     needles = machine_needles([r"D:\a\CDMW-Full\CDMW-Full"])
     # Third-party wheels built on other GitHub runners record the same public profile.
     assert not scan_bytes("numpy", rb"C:\Users\runneradmin\AppData\Local\Temp\cibw-run\x", needles)
+    assert not scan_bytes("numpy config", rb"C:/Users/runneradmin/AppData/Local/Temp/build-env/python.exe", needles)
     assert scan_bytes("ours", rb"panic at D:\a\CDMW-Full\CDMW-Full\native\lib.rs", needles)
     # The same profile off GitHub Actions, or another user on it, is still refused.
     monkeypatch.delenv("GITHUB_ACTIONS")

@@ -69,6 +69,10 @@ def machine_needles(extra_roots: Sequence[str] = ()) -> list[str]:
     paths.append(sys.base_prefix)
     paths.append(sys.prefix)
     paths.extend(extra_roots)
+    if hosted_runner:
+        # TEMP, LOCALAPPDATA and the tool homes sit inside that public profile too.
+        public = str(profile).replace("/", "\\").rstrip("\\").casefold() + "\\"
+        paths = [path for path in paths if not (str(path).replace("/", "\\").casefold() + "\\").startswith(public)]
     needles: set[str] = set()
     for path in paths:
         needles |= _variants(str(path))
