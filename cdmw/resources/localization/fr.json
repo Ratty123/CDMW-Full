@@ -11381,6 +11381,7 @@
     "Reload the hairstyle with all its required material textures before recoloring.": "Rechargez la coiffure avec toutes ses textures de matériau requises avant de la recolorer.",
     "Reload this list from the current Archive Browser view and filter.": "Recharge cette liste à partir de la vue et du filtre actuels du Navigateur d'archives.",
     "Reloading Preview to apply render settings.": "rechargement de l'aperçu pour appliquer les paramètres de rendu.",
+    "Reloads when {value_0} is saved again.": "Rechargé dès que {value_0} est enregistré à nouveau.",
     "Remember pane sizes and splitters": "N'oubliez pas les tailles de vitres et les séparateurs",
     "Remembered previews": "Aperçus mémorisés",
     "Remote archive model does not provide the browser model contract.": "Le modèle d'archive distant ne fournit pas le contrat de modèle de navigateur.",

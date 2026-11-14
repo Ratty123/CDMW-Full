@@ -9,7 +9,7 @@
 | 1 | XML 원본값을 패널에 표시 | 완료 (Mesh Editor, New Item) |
 | 2 | 슬라이더 실시간 반영 | 완료 (Mesh Editor) |
 | 3 | 프리셋 | 내장 프리셋 완료. 사용자 프리셋 저장은 미구현 |
-| 4 | 텍스처 슬롯 교체·파일 감시·채널 보기 | 슬롯 교체 완료(Windows 미확인). 파일 감시·채널 보기는 미구현 |
+| 4 | 텍스처 슬롯 교체·파일 감시·채널 보기 | 슬롯 교체와 파일 감시 완료(파일 감시는 Windows 미확인). 채널 보기는 미구현 |
 | 5 | 셰이더 변경 재구성 방식 | 선택 옵션으로 완료 (망사·Glass) |
 | 6 | 폴더 열기 | 기존 "Drafts & Mods > Add Mod Folder"를 확장해 재질·텍스처까지 불러옴. 추출 폴더처럼 모델이 많으면 검색·선택 창이 뜸. 셰이더 종류 필터와 썸네일은 미구현 |
 | 7 | 새 모드 폴더 저장·이어서 작업 | 저장은 기존 Build Mod 사용. 모드 폴더 다시 열기는 6단계 기능으로 해결 |
@@ -133,6 +133,11 @@
 ### 원본 재질 보기
 - 저장된 셰이더 변경이 있을 때 패널에 "원본 재질 보기" 토글이 나온다. 기존 비교 명령(`replacement_compare`)을 그대로 쓴다. 모델 전체가 변경 전 상태로 표시되고, 다시 누르면 편집 상태로 돌아온다.
 
+### 텍스처 파일 감시
+- "교체..."로 고른 파일을 이번 실행 동안 감시한다. 파일이 다시 저장되면(수정 시각이나 크기가 바뀌고 0.6초 동안 더 바뀌지 않으면) 같은 부위·같은 슬롯에 다시 넣는다. 포토샵 등에서 저장하면 뷰포트가 따라온다.
+- 그 슬롯을 "원본"으로 되돌리거나 실행 취소하면 감시가 끝난다. 앱을 다시 켜면 감시는 이어지지 않는다(파일 경로를 초안에 저장하지 않는다).
+- 슬롯 아래에 "… 파일을 다시 저장하면 자동으로 다시 불러옵니다"가 표시된다.
+
 ### 바꾼 파일 (2차)
 | 파일 | 내용 |
 |---|---|
@@ -140,7 +145,7 @@
 | `cdmw/services/mesh_shader_controls.py` | 패널 상태에 `source`, 변형 Index, 원문 행 추가. 뷰포트 변형을 맨 앞으로 |
 | `tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs` | 카메라 uniform에 `preview_light`, `preview_settings` 추가(288 → 320바이트), `set_material_inspection`, `camera_basis` |
 | `tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs`, `cdmw_shader_controls.rs` | `MaterialInspection` 상태와 패널 UI |
-| `cdmw/resources/localization/*` | 새 문자열 21개 |
+| `cdmw/resources/localization/*` | 새 문자열 22개 |
 
 ## 남긴 결정 사항
 

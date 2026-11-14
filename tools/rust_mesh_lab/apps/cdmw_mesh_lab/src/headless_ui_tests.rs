@@ -9181,6 +9181,51 @@ fn shader_texture_slots_replace_and_restore_through_the_host() -> TestResult {
 }
 
 #[test]
+fn a_replacement_texture_is_sent_again_when_its_file_is_saved() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("my_height.png");
+    std::fs::write(&path, b"first")?;
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let digest = "ab12cd34".repeat(8);
+    let saved = json!({"shader": "SkinnedMeshTransparency", "values": {"_netThread": [0.4]}, "textures": {"_heightTexture": digest}});
+    let mut state = veil_shader_state();
+    state["catalogue"][0]["textures"] = json!([{"name": "_heightTexture", "label": "Thread width texture (red channel)"}]);
+    state["parts"][0]["shader_controls"] = saved.clone();
+    ui.application.cdmw_state["shader_controls"] = state.clone();
+    ui.application.cdmw_shader_texture_watch.push(WatchedShaderTexture {
+        part_ids: json!(["b"]), parameter: "_heightTexture".to_owned(), path: path.clone(),
+        stamp: file_stamp(&path), changed_at: None });
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    ui.reveal("Reloads when my_height.png is saved again.")?;
+
+    let start = std::time::Instant::now();
+    // Nothing changed: nothing is sent, however long it rests.
+    assert!(ui.application.due_cdmw_shader_texture_reloads(start + std::time::Duration::from_secs(5)).is_empty());
+    std::fs::write(&path, b"second, and longer")?;
+    // The change is noticed, then sent once the file has rested.
+    assert!(ui.application.due_cdmw_shader_texture_reloads(start).is_empty());
+    assert!(ui.application.due_cdmw_shader_texture_reloads(start + std::time::Duration::from_millis(200)).is_empty());
+    let reloads = ui.application.due_cdmw_shader_texture_reloads(start + std::time::Duration::from_secs(1));
+    let [UiAction::CdmwCommand { command, arguments, .. }] = reloads.as_slice() else { return Err("one reload".into()); };
+    assert_eq!(*command, "replacement_shader_controls");
+    assert_eq!(arguments["part_ids"], json!(["b"]));
+    assert_eq!(arguments["shader_controls"], saved);
+    assert_eq!(arguments["texture_files"], json!({"_heightTexture": path.to_string_lossy()}));
+    assert!(ui.application.due_cdmw_shader_texture_reloads(start + std::time::Duration::from_secs(9)).is_empty());
+
+    // Restoring the source texture ends the watch.
+    state["parts"][0]["shader_controls"] = json!({"shader": "SkinnedMeshTransparency", "values": {"_netThread": [0.4]}});
+    ui.application.cdmw_state["shader_controls"] = state;
+    std::fs::write(&path, b"third")?;
+    assert!(ui.application.due_cdmw_shader_texture_reloads(start + std::time::Duration::from_secs(20)).is_empty());
+    assert!(ui.application.cdmw_shader_texture_watch.is_empty());
+    Ok(())
+}
+
+#[test]
 fn shader_layout_rebuild_is_an_explicit_choice_sent_with_the_controls() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
     let mut state = veil_shader_state();

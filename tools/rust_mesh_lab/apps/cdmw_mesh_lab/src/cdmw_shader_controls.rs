@@ -304,6 +304,14 @@ impl LabApplication {
                                     arguments: json!({"part_ids": ids, "shader_controls": controls}), label: "Restore shader texture" });
                             }
                         });
+                        if replaced.is_some()
+                            && let Some(watch) = self.cdmw_shader_texture_watch.iter()
+                                .find(|watch| watch.parameter == parameter && watch.part_ids == json!(ids))
+                        {
+                            let file = watch.path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+                            ui.small(crate::localization::tr(format!("Reloads when {file} is saved again.")))
+                                .on_hover_text(watch.path.to_string_lossy());
+                        }
                         ui.small(match &replaced {
                             Some(digest) => crate::localization::tr(format!("Replaced with your texture ({}).", &digest[..digest.len().min(8)])),
                             None if source.is_empty() => crate::localization::tr("Not set by this material."),

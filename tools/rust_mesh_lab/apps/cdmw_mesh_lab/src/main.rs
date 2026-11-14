@@ -1640,6 +1640,26 @@ enum UiAction {
     },
 }
 
+/// A replacement texture's source file, reloaded when an image editor saves it again.
+#[derive(Debug, Clone)]
+struct WatchedShaderTexture {
+    part_ids: Value,
+    parameter: String,
+    path: PathBuf,
+    /// Modification time and size when last seen.
+    stamp: Option<(std::time::SystemTime, u64)>,
+    /// When a change was first seen; the reload waits until the file rests.
+    changed_at: Option<std::time::Instant>,
+}
+
+/// Editors write large images in pieces; reload once the file has stopped changing.
+const TEXTURE_RELOAD_SETTLE: std::time::Duration = std::time::Duration::from_millis(600);
+
+fn file_stamp(path: &Path) -> Option<(std::time::SystemTime, u64)> {
+    let metadata = std::fs::metadata(path).ok()?;
+    Some((metadata.modified().ok()?, metadata.len()))
+}
+
 /// The host stores the file and names it in these parts' shader controls.
 fn cdmw_shader_texture_action(part_ids: Value, controls: Value, parameter: &str, path: &Path) -> UiAction {
     UiAction::CdmwCommand {
@@ -2271,6 +2291,8 @@ struct LabApplication {
     cdmw_shader_live_preview: BTreeMap<u32, [f32; 32]>,
     /// A path to use instead of opening the file dialog; taken by the next texture pick.
     cdmw_shader_texture_pick: Option<PathBuf>,
+    /// Replacement texture files to send again when they are saved; this session only.
+    cdmw_shader_texture_watch: Vec<WatchedShaderTexture>,
     /// Viewport-only aids of the shader inspector.
     material_inspection: MaterialInspection,
     /// Set while the shader inspector is drawn; read and cleared by the viewport.
@@ -2482,6 +2504,7 @@ impl LabApplication {
             cdmw_material_presentations: Vec::new(),
             cdmw_shader_live_preview: BTreeMap::new(),
             cdmw_shader_texture_pick: None,
+            cdmw_shader_texture_watch: Vec::new(),
             material_inspection: MaterialInspection::default(),
             cdmw_shader_panel_shown: std::cell::Cell::new(false),
             cdmw_shader_panel_epoch: 0,
@@ -5742,8 +5765,44 @@ impl LabApplication {
                 .pick_file()
         });
         if let Some(path) = picked {
+            self.cdmw_shader_texture_watch.retain(|watch| !(watch.part_ids == part_ids && watch.parameter == parameter));
+            self.cdmw_shader_texture_watch.push(WatchedShaderTexture {
+                part_ids: part_ids.clone(), parameter: parameter.clone(), path: path.clone(),
+                stamp: file_stamp(&path), changed_at: None });
             self.handle_actions(vec![cdmw_shader_texture_action(part_ids, controls, &parameter, &path)]);
         }
+    }
+
+    /// Replacement textures whose file was saved again and has since rested.
+    ///
+    /// A watch ends when its parts no longer use that replacement (restored,
+    /// undone or rejected). One reload at a time: the host is busy after each.
+    fn due_cdmw_shader_texture_reloads(&mut self, now: std::time::Instant) -> Vec<UiAction> {
+        if self.cdmw_shader_texture_watch.is_empty() || self.cdmw_busy() {
+            return Vec::new();
+        }
+        let parts = self.cdmw_state["shader_controls"]["parts"].as_array().cloned().unwrap_or_default();
+        let mut actions = Vec::new();
+        self.cdmw_shader_texture_watch.retain_mut(|watch| {
+            let controls = parts.iter()
+                .find(|row| watch.part_ids.as_array().is_some_and(|ids| ids.contains(&row["id"])))
+                .map(|row| row["shader_controls"].clone())
+                .filter(|controls| controls["textures"][watch.parameter.as_str()].is_string());
+            let Some(controls) = controls else { return false; };
+            // An editor may remove the file for a moment while it saves.
+            let Some(stamp) = file_stamp(&watch.path) else { return true; };
+            if watch.stamp != Some(stamp) {
+                watch.stamp = Some(stamp);
+                watch.changed_at = Some(now);
+            } else if actions.is_empty()
+                && watch.changed_at.is_some_and(|at| now.duration_since(at) >= TEXTURE_RELOAD_SETTLE)
+            {
+                watch.changed_at = None;
+                actions.push(cdmw_shader_texture_action(watch.part_ids.clone(), controls, &watch.parameter, &watch.path));
+            }
+            true
+        });
+        actions
     }
 
     fn cdmw_file_dialog(&self) -> rfd::FileDialog {
@@ -6756,6 +6815,14 @@ impl LabApplication {
     }
 
     fn paint_viewport_overlay(&mut self, ui: &egui::Ui, rectangle: egui::Rect) {
+        if !self.cdmw_shader_texture_watch.is_empty() {
+            let reloads = self.due_cdmw_shader_texture_reloads(std::time::Instant::now());
+            if !reloads.is_empty() {
+                self.handle_actions(reloads);
+            }
+            // Keep checking while the window is otherwise idle.
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+        }
         if let Some(renderer) = &mut self.renderer {
             let inspection = &self.material_inspection;
             renderer.set_material_inspection(

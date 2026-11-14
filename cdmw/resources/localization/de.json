@@ -11381,6 +11381,7 @@
     "Reload the hairstyle with all its required material textures before recoloring.": "Frisur vor dem Umfärben mit allen benötigten Materialtexturen neu laden.",
     "Reload this list from the current Archive Browser view and filter.": "Lädt diese Liste aus der aktuellen Ansicht und dem Filter des Archiv-Browsers neu.",
     "Reloading Preview to apply render settings.": "Vorschau wird neu geladen, um Rendereinstellungen anzuwenden.",
+    "Reloads when {value_0} is saved again.": "Wird neu geladen, sobald {value_0} erneut gespeichert wird.",
     "Remember pane sizes and splitters": "Panelgrößen und Trenner merken",
     "Remembered previews": "Erinnerte Vorschauen",
     "Remote archive model does not provide the browser model contract.": "Remote-Archiv-Modell stellt den Browser-Modellvertrag nicht bereit.",

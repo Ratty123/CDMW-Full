@@ -11381,6 +11381,7 @@
     "Reload the hairstyle with all its required material textures before recoloring.": "變更髮色前，請連同所有必要的材質紋理重新載入髮型。",
     "Reload this list from the current Archive Browser view and filter.": "依封存檔瀏覽器目前的檢視和篩選器重新載入此清單。",
     "Reloading Preview to apply render settings.": "重新加载预览以应用渲染设置。",
+    "Reloads when {value_0} is saved again.": "再次儲存 {value_0} 時會自動重新載入。",
     "Remember pane sizes and splitters": "記住窗格大小和分隔符",
     "Remembered previews": "記住預覽",
     "Remote archive model does not provide the browser model contract.": "遠端封存檔模型不提供瀏覽器模型契約。",

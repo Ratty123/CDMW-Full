@@ -11381,6 +11381,7 @@
     "Reload the hairstyle with all its required material textures before recoloring.": "髪色を変更する前に、必要なすべてのマテリアルテクスチャとともに髪型を再読み込みしてください。",
     "Reload this list from the current Archive Browser view and filter.": "現在のアーカイブ ブラウザーの表示とフィルターからこの一覧を再読み込みします。",
     "Reloading Preview to apply render settings.": "レンダリング設定を適用するためにプレビューを再ロードしています。",
+    "Reloads when {value_0} is saved again.": "{value_0} を保存し直すと自動で再読み込みします。",
     "Remember pane sizes and splitters": "ペインのサイズとスプリッターを記憶する",
     "Remembered previews": "記憶されたプレビュー",
     "Remote archive model does not provide the browser model contract.": "リモート アーカイブ モデルはブラウザ モデル コントラクトを提供しません。",

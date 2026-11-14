@@ -1789,6 +1789,7 @@
   "Regional jiggle requires complete retained skin weights.",
   "Reload the hairstyle to recover its original color textures.",
   "Reload the hairstyle with all its required material textures before recoloring.",
+  "Reloads when {value_0} is saved again.",
   "Remove",
   "Remove Doubles",
   "Remove Doubles uses selected vertices. Other cleanup actions repair each selected element's owning Part.",

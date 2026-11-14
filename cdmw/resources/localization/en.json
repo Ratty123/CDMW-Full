@@ -11381,6 +11381,7 @@
     "Reload the hairstyle with all its required material textures before recoloring.": "Reload the hairstyle with all its required material textures before recoloring.",
     "Reload this list from the current Archive Browser view and filter.": "Reload this list from the current Archive Browser view and filter.",
     "Reloading Preview to apply render settings.": "Reloading Preview to apply render settings.",
+    "Reloads when {value_0} is saved again.": "Reloads when {value_0} is saved again.",
     "Remember pane sizes and splitters": "Remember pane sizes and splitters",
     "Remembered previews": "Remembered previews",
     "Remote archive model does not provide the browser model contract.": "Remote archive model does not provide the browser model contract.",

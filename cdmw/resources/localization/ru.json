@@ -11381,6 +11381,7 @@
     "Reload the hairstyle with all its required material textures before recoloring.": "Перед перекрашиванием загрузите причёску заново со всеми необходимыми текстурами материалов.",
     "Reload this list from the current Archive Browser view and filter.": "Перезагружает этот список из текущего вида и фильтра браузера архивов.",
     "Reloading Preview to apply render settings.": "Перезагрузка предварительного просмотра для применения настроек рендеринга.",
+    "Reloads when {value_0} is saved again.": "Перезагружается при повторном сохранении {value_0}.",
     "Remember pane sizes and splitters": "Помните о размерах панелей и разделителях",
     "Remembered previews": "Запомненные предварительные просмотры",
     "Remote archive model does not provide the browser model contract.": "Модель удаленного архива не предоставляет контракт модели браузера.",
