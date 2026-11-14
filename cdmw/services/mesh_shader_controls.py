@@ -4,8 +4,8 @@ from pathlib import PurePosixPath
 import xml.etree.ElementTree as ET
 
 from cdmw.core.common import raise_if_cancelled
-from cdmw.core.material_shader_controls import (control_material_variants, rewrite_shader_controls,
-                                                 rewrite_texture_paths, validate_source)
+from cdmw.core.material_shader_controls import (control_material_variants, material_source_details,
+                                                 rewrite_shader_controls, rewrite_texture_paths, validate_source)
 from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
 from cdmw.domain.mesh.shader_controls import (MESH_FAMILIES, ShaderControls, authored_values_payload, catalogue_payload,
                                              family_for, preview_factors)
@@ -123,7 +123,7 @@ def _shader_source_options(session):
     from cdmw.services.shader_controls_preview import source_inputs
     state = session.replacement_state
     static = session.mesh_format != "pac"
-    sources, error = {}, ""
+    sources, details, sidecar_path, error = {}, {}, "", ""
     if state is not None:
         target = state.target_path.replace("\\", "/").casefold().replace("/model/", "/modelproperty/", 1) + "_xml"
         files = {file.path.replace("\\", "/").casefold(): file
@@ -132,19 +132,39 @@ def _shader_source_options(session):
             if path != target and not (static and path.endswith(".pami")):
                 continue
             try:
-                for variant in control_material_variants(_sidecar_text(file.data), static=static):
+                text = _sidecar_text(file.data)
+                for variant in control_material_variants(text, static=static):
                     for name, source in variant.items():
                         sources.setdefault(name, []).append(source)
+                if not static:
+                    sidecar_path = file.path.replace("\\", "/")
+                    for wrapper in material_source_details(text):
+                        details.setdefault(wrapper["name"].casefold(), []).append(wrapper)
             except (ValueError, ET.ParseError) as exc:
                 error = str(exc)
     result = {}
     bindings = {part.part_id: part for part in state.parts} if state is not None else {}
     for index, part in enumerate(session.working_mesh.submeshes):
+        drawn = part
         binding = bindings.get(getattr(part, PART_ID_ATTRIBUTE, ""))
         # Target names survive replacement geometry and identify its companion wrapper.
         if binding is not None:
             part = session.base_mesh.submeshes[binding.target_index]
-        candidates = sources.get(material_binding_name(part, sources), ())
+        name = material_binding_name(part, sources)
+        candidates = sources.get(name, ())
+        wrappers = details.get(name, ())
+        owner = _owner_slot(drawn)
+        if owner < 0:
+            owner = _owner_slot(part)
+        if len(wrappers) == len(candidates) and len(wrappers) > 1:
+            # The variant the viewport draws leads, so the numbers shown first
+            # are the ones on screen; the others stay selectable.
+            lead = next((position for position, wrapper in enumerate(wrappers) if wrapper["slot"] == owner), 0)
+            order = [lead, *(position for position in range(len(wrappers)) if position != lead)]
+            candidates = [candidates[position] for position in order]
+            wrappers = [wrappers[position] for position in order]
+        elif len(wrappers) != len(candidates):
+            wrappers = ()
         if state is None:
             values, textures = source_inputs(part)
             inputs = getattr(part, "preview_material_texture_inputs", ()) or ()
@@ -154,6 +174,14 @@ def _shader_source_options(session):
             if not shader and len(shaders) == 1:
                 shader = next(iter(shaders))
             candidates = ((shader, values, textures),)
+            # Before the first edit only the preview's resolved wrapper is known.
+            wrappers = ({"slot": owner, "variant_label": "", "rows": [
+                *({"kind": "", "name": key, "item_id": "", "index": None, "value": str(value)} for key, value in values.items()),
+                *({"kind": "Texture", "name": key, "item_id": "", "index": None, "value": path}
+                  for key, path in textures.items() if path)]},)
+            if not static and not sidecar_path:
+                sidecar_path = str(getattr(session.working_mesh, "path", "") or "").replace("\\", "/").replace(
+                    "/model/", "/modelproperty/", 1) + "_xml"
         options = _shader_compatibility("", {}, {}, static=static)
         if candidates and not error:
             variants = [_shader_compatibility(*source, static=static) for source in candidates]
@@ -163,24 +191,50 @@ def _shader_source_options(session):
         if binding is not None and (binding.translucency is not None or binding.emission is not None):
             options = dict.fromkeys(options, "Restore Glow and Translucency before choosing another shader experiment.")
         result[index] = {"source_shader": ", ".join(dict.fromkeys(source[0] for source in candidates)), "shader_options": options,
-                         **_authored_panel_state(candidates, options)}
+                         "source": {"path": sidecar_path, "part": name, "viewport_slot": owner},
+                         **_authored_panel_state(candidates, options, wrappers)}
     return result
 
 
-def _authored_panel_state(candidates, options):
+def _owner_slot(part):
+    """Position of the PAC wrapper the preview drew this part from, or -1."""
+    owner = getattr(part, "preview_pac_material_owner_slot_index", -1)
+    if isinstance(owner, int) and not isinstance(owner, bool) and owner >= 0:
+        return owner
+    owners = set()
+    for item in getattr(part, "preview_material_texture_inputs", ()) or ():
+        value = item.get("owner_slot_index", -1) if isinstance(item, dict) else getattr(item, "owner_slot_index", -1)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            owners.add(value)
+    return owners.pop() if len(owners) == 1 else -1
+
+
+def _authored_panel_state(candidates, options, wrappers=()):
     """What the source material declares, for the inspector and its live preview.
 
     ``authored`` lists each distinct model variant's shader, parsed numbers and
     texture paths. ``preview_base`` holds, per compatible family, the factor
     vector the viewport draws when nothing is overridden; the inspector replaces
     single lanes of it while a slider moves. Pure parsing: no archive reads.
+
+    ``wrappers`` (parallel to ``candidates``) adds where each came from: the
+    model variants that share those numbers, the wrapper's position in the
+    file and its rows as written, so a user can check them against the file.
     """
-    variants = []
-    for shader, values, textures in candidates:
+    variants, origins = [], []
+    for position, (shader, values, textures) in enumerate(candidates):
         row = {"shader": shader, "fields": authored_values_payload(values),
                "textures": {name: path for name, path in textures.items() if path}}
-        if row not in variants:
-            variants.append(row)
+        wrapper = wrappers[position] if position < len(wrappers) else None
+        if row in variants:
+            if wrapper is not None and wrapper.get("variant_label", "") != "":
+                origins[variants.index(row)]["variants"].append(wrapper["variant_label"])
+            continue
+        variants.append(row)
+        origins.append({"variants": [wrapper["variant_label"]] if wrapper is not None and wrapper.get("variant_label", "") != "" else [],
+                        "slot": wrapper["slot"] if wrapper is not None else -1,
+                        "rows": list(wrapper["rows"]) if wrapper is not None else []})
+    variants = [{**row, **origin} for row, origin in zip(variants, origins)]
     base = {}
     if candidates:
         _, values, _ = candidates[0]

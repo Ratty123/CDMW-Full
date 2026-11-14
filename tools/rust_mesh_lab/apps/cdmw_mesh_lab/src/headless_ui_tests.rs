@@ -9051,8 +9051,79 @@ fn veil_shader_state() -> Value {
             "source_shader": "SkinnedMeshTransparency", "shader_options": {"SkinnedMeshTransparency": ""},
             "authored": [{"shader": "SkinnedMeshTransparency",
                 "fields": {"SkinnedMeshTransparency": {"_netPitch": [0.3], "_netThread": [0.727], "_glow": [0.5164705882352941], "_sheen": [0.901], "_uvScale": [0.27]}},
-                "textures": {"_heightTexture": "character/texture/cd_phw_00_hel_00_0219_disp.dds"}}],
+                "textures": {"_heightTexture": "character/texture/cd_phw_00_hel_00_0219_disp.dds"},
+                "variants": ["1"], "slot": 2,
+                "rows": [
+                    {"kind": "Texture", "name": "_heightTexture", "item_id": "4", "index": 3, "value": "character/texture/cd_phw_00_hel_00_0219_disp.dds"},
+                    {"kind": "Float", "name": "_netThread", "item_id": "3127355417559038", "index": 6, "value": "0.727000"}]}],
+            "source": {"path": "character/modelproperty/1_pc/2_phw/armor/1_helm/cd_phw_00_hel_00_0219.pac_xml",
+                "part": "cd_phw_00_hel_00_0219", "viewport_slot": 2},
             "preview_base": {"SkinnedMeshTransparency": preview_base}}]})
+}
+
+#[test]
+fn shader_panel_names_its_source_and_its_inspection_aids_change_only_the_viewport() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 2200.0));
+    let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.application.cdmw_state["shader_controls"] = veil_shader_state();
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    // Where the Original values come from, down to the rows as the file writes them.
+    ui.reveal("Material file: cd_phw_00_hel_00_0219.pac_xml")?;
+    ui.reveal("Part cd_phw_00_hel_00_0219: material wrapper 3 in that file.")?;
+    ui.click("Source material rows")?;
+    ui.reveal("0.727000")?;
+    ui.reveal("_netThread")?;
+
+    // The selection fill is withheld while the panel is open, and comes back on request.
+    assert_eq!(ui.application.material_inspection, MaterialInspection::default());
+    ui.application.cdmw_shader_panel_shown.set(true);
+    ui.application.refresh_face_selection_overlay();
+    assert!(ui.application.face_selection_overlay.is_none());
+    ui.click("Hide the selection highlight while this panel is open")?;
+    assert!(!ui.application.material_inspection.hide_selection);
+    ui.application.cdmw_shader_panel_shown.set(true);
+    ui.application.refresh_face_selection_overlay();
+    assert!(ui.application.face_selection_overlay.is_some());
+
+    // A placed light is fixed in the scene: behind means away from the camera.
+    assert!(ui.label_rect("Light strength").is_none());
+    ui.click("Behind")?;
+    let light = ui.application.material_inspection.light.expect("placed light");
+    assert_eq!(ui.application.material_inspection.placement, LightPlacement::Behind);
+    assert!((light.iter().map(|axis| axis * axis).sum::<f32>() - 1.0).abs() < 1.0e-4);
+    ui.reveal("Light strength")?;
+    ui.click("Follow camera")?;
+    assert_eq!(ui.application.material_inspection.light, None);
+
+    ui.click("3840 x 2160")?;
+    assert_eq!(ui.application.material_inspection.veil_screen, VeilScreen::Uhd2160);
+
+    // None of it reaches the host or the mesh.
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
+    // No saved shader change yet, so there is no original to compare against.
+    assert!(ui.label_rect("Show original material").is_none());
+    Ok(())
+}
+
+#[test]
+fn light_placements_follow_the_view_they_were_picked_in() {
+    let (toward, right, up) = ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+    assert_eq!(LightPlacement::Camera.direction(toward, right, up), None);
+    let behind = LightPlacement::Behind.direction(toward, right, up).unwrap();
+    assert!(behind[2] < -0.9 && behind[1] > 0.0);
+    let front = LightPlacement::Front.direction(toward, right, up).unwrap();
+    assert!(front[2] > 0.9);
+    let side = LightPlacement::Side.direction(toward, right, up).unwrap();
+    assert!(side[0] > 0.9);
+    assert!(LightPlacement::Above.direction(toward, right, up).unwrap()[1] > 0.9);
+    // The game's factor on the net pitch: 2 * sqrt(3840 * 2160 / pixels).
+    assert_eq!(VeilScreen::Hd1080.spacing_factor(), 4.0);
+    assert_eq!(VeilScreen::Uhd2160.spacing_factor(), 2.0);
+    assert_eq!(VeilScreen::Qhd1440.spacing_factor(), 0.0);
 }
 
 #[test]

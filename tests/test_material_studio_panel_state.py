@@ -140,3 +140,19 @@ def test_new_item_editor_shows_the_source_numbers_for_untouched_fields():
         editor.close()
         editor.deleteLater()
         app.processEvents()
+
+
+def test_before_the_first_edit_the_source_view_names_the_previews_wrapper():
+    part = veil_part(VEIL_B)
+    part.preview_pac_material_owner_slot_index = 3
+    opened = session(part)
+    opened.working_mesh.path = "character/model/1_pc/2_phw/armor/1_helm/cd_phw_00_hel_00_0219.pac"
+    row = _shader_source_options(opened)[0]
+    assert row["source"] == {
+        "path": "character/modelproperty/1_pc/2_phw/armor/1_helm/cd_phw_00_hel_00_0219.pac_xml",
+        "part": "cd_phw_00_hel_00_0219", "viewport_slot": 3}
+    shown = row["authored"][0]
+    assert shown["slot"] == 3 and shown["variants"] == []
+    values = {item["name"]: item["value"] for item in shown["rows"]}
+    assert values["_netPitch"] == "0.300000" and values["_dyeingColor"] == "#d9d9d9ff"
+    assert values["_heightTexture"].endswith("_0219_disp.dds")

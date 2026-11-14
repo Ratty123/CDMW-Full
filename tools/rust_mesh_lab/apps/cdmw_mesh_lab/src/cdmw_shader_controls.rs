@@ -59,6 +59,7 @@ impl LabApplication {
     pub(super) fn draw_cdmw_shader_controls(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let Some(state) = self.cdmw_state.get("shader_controls") else { return; };
         crate::localization::collapsing("Shader experiments").id_salt("shader_controls").show(ui, |ui| {
+            self.cdmw_shader_panel_shown.set(true);
             let selected = self.selected_part_indices();
             let rows = state["parts"].as_array().into_iter().flatten()
                 .filter(|row| row["index"].as_u64().is_some_and(|i| selected.contains(&(i as u32))))
@@ -105,6 +106,59 @@ impl LabApplication {
             let variants = rows.first().and_then(|row| row["authored"].as_array()).cloned().unwrap_or_default();
             let variant_key = key.with("variant");
             let mut variant = ui.ctx().data_mut(|data| data.get_temp::<usize>(variant_key)).unwrap_or(0).min(variants.len().saturating_sub(1));
+            // Where the numbers below come from, so they can be checked against the file.
+            let viewport_slot = rows.first().and_then(|row| row["source"]["viewport_slot"].as_i64()).unwrap_or(-1);
+            let variant_label = |index: usize| -> String {
+                let row = &variants[index];
+                let indexes = row["variants"].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>().join(", ");
+                let shown = viewport_slot >= 0 && row["slot"].as_i64() == Some(viewport_slot);
+                match (indexes.is_empty(), shown) {
+                    (true, _) => crate::localization::tr(format!("Model variant {}", index + 1)),
+                    (false, true) => crate::localization::tr(format!("Model variant Index {indexes} (shown in the viewport)")),
+                    (false, false) => crate::localization::tr(format!("Model variant Index {indexes}")),
+                }
+            };
+            if let Some(row) = rows.first() {
+                let path = row["source"]["path"].as_str().unwrap_or("");
+                if !path.is_empty() {
+                    ui.small(crate::localization::tr(format!("Material file: {}", path.rsplit('/').next().unwrap_or(path))))
+                        .on_hover_text(path);
+                }
+                if let Some(shown) = variants.get(variant) {
+                    let part = row["source"]["part"].as_str().unwrap_or("");
+                    let slot = shown["slot"].as_i64().unwrap_or(-1);
+                    ui.small(if slot >= 0 {
+                        crate::localization::tr(format!("Part {part}: material wrapper {} in that file.", slot + 1))
+                    } else {
+                        crate::localization::tr(format!("Part {part}."))
+                    });
+                    let source_rows = shown["rows"].as_array().cloned().unwrap_or_default();
+                    if !source_rows.is_empty() {
+                        crate::localization::collapsing("Source material rows").id_salt("shader_source_rows").show(ui, |ui| {
+                            ui.small(crate::localization::tr(
+                                "The rows of this wrapper as the file writes them. Compare them with the pac_xml to check the Original values."));
+                            let cell = |value: &Value| -> String {
+                                value.as_str().map(str::to_owned).or_else(|| value.as_i64().map(|n| n.to_string())).unwrap_or_default()
+                            };
+                            if ui.small_button(crate::localization::tr("Copy rows")).clicked() {
+                                let text = source_rows.iter().map(|item| ["kind", "name", "item_id", "index", "value"]
+                                    .map(|column| cell(&item[column])).join("\t")).collect::<Vec<_>>().join("\n");
+                                ui.ctx().copy_text(text);
+                            }
+                            egui::Grid::new("shader_source_rows_grid").striped(true).num_columns(3).show(ui, |ui| {
+                                for item in &source_rows {
+                                    let id = cell(&item["item_id"]);
+                                    ui.small(cell(&item["name"])).on_hover_text(if id.is_empty() { cell(&item["kind"]) }
+                                        else { format!("{} · ItemID {id} · Index {}", cell(&item["kind"]), cell(&item["index"])) });
+                                    let value = cell(&item["value"]);
+                                    ui.small(value.rsplit('/').next().unwrap_or(&value).to_owned()).on_hover_text(value.clone());
+                                    ui.end_row();
+                                }
+                            });
+                        });
+                    }
+                }
+            }
             let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
                 && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
             let enabled = available && editing && !self.cdmw_busy() && !ids.is_empty();
@@ -163,10 +217,9 @@ impl LabApplication {
                     }
                     if variants.len() > 1 {
                         egui::ComboBox::from_id_salt("shader_experiment_variant")
-                            .selected_text(crate::localization::tr(format!("Model variant {}", variant + 1))).show_ui(ui, |ui| {
+                            .selected_text(variant_label(variant)).show_ui(ui, |ui| {
                             for index in 0..variants.len() {
-                                if ui.add(egui::Button::selectable(variant == index,
-                                    crate::localization::tr(format!("Model variant {}", index + 1)))).clicked() {
+                                if ui.add(egui::Button::selectable(variant == index, variant_label(index))).clicked() {
                                     variant = index;
                                 }
                             }
@@ -285,6 +338,58 @@ impl LabApplication {
                     }
                 }
             });
+            // The rest of this block changes only how the viewport shows the material.
+            let inspection = self.material_inspection;
+            let mut hide_selection = inspection.hide_selection;
+            if ui.checkbox(&mut hide_selection, crate::localization::tr("Hide the selection highlight while this panel is open"))
+                .on_hover_text(crate::localization::tr(
+                    "The highlight tints the selected part and hides what a material change does. The part stays selected."))
+                .changed() {
+                actions.push(UiAction::MaterialInspection(MaterialInspectionChange::HideSelection(hide_selection)));
+            }
+            ui.horizontal_wrapped(|ui| {
+                ui.small(crate::localization::tr("Light"));
+                for (placement, label) in LightPlacement::ALL {
+                    if ui.add(egui::Button::selectable(inspection.placement == placement, crate::localization::tr(label)).small())
+                        .on_hover_text(crate::localization::tr(
+                            "Places the preview light relative to the current view; it then stays put while you orbit. Backlight glow and sheen show with the light behind or beside the cloth. Preview only."))
+                        .clicked() {
+                        actions.push(UiAction::MaterialInspection(MaterialInspectionChange::Light(placement)));
+                    }
+                }
+            });
+            if inspection.light.is_some() {
+                let mut strength = f64::from(inspection.light_strength);
+                if ui.add(crate::cdmw_ui::numeric::slider(&mut strength, 0.0..=2.0).fixed_decimals(2)
+                    .text(crate::localization::tr("Light strength"))).changed() {
+                    actions.push(UiAction::MaterialInspection(MaterialInspectionChange::LightStrength(strength as f32)));
+                }
+            }
+            if value["shader"] == "SkinnedMeshTransparency" || source_shader == "SkinnedMeshTransparency" {
+                ui.horizontal_wrapped(|ui| {
+                    ui.small(crate::localization::tr("Game screen size"));
+                    for (screen, label) in VeilScreen::ALL {
+                        if ui.add(egui::Button::selectable(inspection.veil_screen == screen, label).small())
+                            .on_hover_text(crate::localization::tr(
+                                "The game spaces the veil's net by screen size: the net is finer at 3840 x 2160 and coarser at 1920 x 1080. Preview only."))
+                            .clicked() {
+                            actions.push(UiAction::MaterialInspection(MaterialInspectionChange::VeilScreen(screen)));
+                        }
+                    }
+                });
+            }
+            // The whole model as the game ships it, through the existing comparison.
+            let comparison = self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit");
+            if (any_saved || comparison == "original")
+                && ui.add_enabled(!self.cdmw_busy(), egui::Button::selectable(comparison == "original",
+                    crate::localization::tr("Show original material")))
+                    .on_hover_text(crate::localization::tr(
+                        "Shows the model without your changes. Click again to return to the edit; nothing is discarded."))
+                    .clicked() {
+                actions.push(UiAction::CdmwCommand { command: "replacement_compare",
+                    arguments: json!({"mode": if comparison == "original" { "edit" } else { "original" }}),
+                    label: "Compare replacement output" });
+            }
             // Live preview: the renderer takes the new numbers without the host.
             let now = ui.input(|input| input.time);
             let changed_key = key.with("changed-at");

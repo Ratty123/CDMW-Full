@@ -45,6 +45,12 @@ struct CameraUniform {
     camera_up: vec4<f32>,
     scene_model: mat4x4<f32>,
     scene_normal: mat4x4<f32>,
+    // Material inspection only. xyz: direction to a key light fixed in the
+    // scene, used when w > 0.5; otherwise the key light follows the camera.
+    preview_light: vec4<f32>,
+    // x: key light strength for that light. y: veil net spacing factor for the
+    // game's screen size (0 keeps the 2560x1440 factor).
+    preview_settings: vec4<f32>,
 };
 
 struct VertexOut {
@@ -634,7 +640,8 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             let back = layer_ndotv < 0.0;
             // Game spacing is pitch x 0.0015 x 2 sqrt(3840 x 2160 / pixels); the
             // preview fixes 2560x1440 (factor 3). Thread width does not scale.
-            let pitch = max(shader_value(4u) * 0.0015, 0.0001) * 3.0;
+            let pitch = max(shader_value(4u) * 0.0015, 0.0001)
+                * select(3.0, camera.preview_settings.y, camera.preview_settings.y > 0.0);
             let thread = shader_value(5u) * 0.0003 * thread_scale * select(1.0, 4.0, back);
             let coverage = min(veil_net_coverage(sample_uv, uv_dx, uv_dy, pitch, thread), 0.999);
             let facing = max(abs(layer_ndotv), 0.08);
@@ -953,17 +960,23 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     let view_direction = safe_normalize(camera.view_direction.xyz, vec3<f32>(0.0, 0.0, -1.0));
     let camera_right = safe_normalize(camera.camera_right.xyz, vec3<f32>(1.0, 0.0, 0.0));
     let camera_up = safe_normalize(camera.camera_up.xyz, vec3<f32>(0.0, 1.0, 0.0));
-    let key_direction = safe_normalize(
+    var key_direction = safe_normalize(
         view_direction - camera_right * select(0.18, 0.72, neutral_studio)
             + camera_up * select(0.35, 0.72, neutral_studio),
         view_direction);
+    let placed_light = camera.preview_light.w > 0.5;
+    var key_strength = 1.0;
+    if placed_light {
+        key_direction = safe_normalize(camera.preview_light.xyz, key_direction);
+        key_strength = max(camera.preview_settings.x, 0.0);
+    }
     let fill_direction = safe_normalize(
         view_direction + camera_right * select(0.35, 0.55, neutral_studio)
             + camera_up * select(0.45, 0.20, neutral_studio),
         view_direction);
     let key_half_vector = safe_normalize(key_direction + view_direction, view_direction);
     let fill_half_vector = safe_normalize(fill_direction + view_direction, view_direction);
-    let key_light = wrapped_ndotl(surface_normal, key_direction, select(0.58, 0.15, neutral_studio));
+    let key_light = wrapped_ndotl(surface_normal, key_direction, select(0.58, 0.15, neutral_studio)) * key_strength;
     let fill_light = wrapped_ndotl(surface_normal, fill_direction, select(0.82, 0.40, neutral_studio));
     let ndotv = clamp(dot(surface_normal, view_direction), 0.0, 1.0);
     let rim_light = pow(1.0 - ndotv, 2.0);
@@ -1398,7 +1411,13 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             return present(max(lit - shine, vec3<f32>(0.0)) * material_alpha + shine, material_alpha);
         }
         // Approximate veil lighting: sheen and backlight glow both rise at grazing angles.
-        let veil_light = material_reference_albedo * rim_light * (shader_value(7u) * 0.5 + shader_value(6u) * 0.35);
+        var veil_light = material_reference_albedo * rim_light * (shader_value(7u) * 0.5 + shader_value(6u) * 0.35);
+        if placed_light {
+            // Backlight glow gathers transmitted light toward the eye: it shows
+            // only with the light behind the cloth. An approximation.
+            let behind = clamp(-dot(key_direction, view_direction), 0.0, 1.0);
+            veil_light += material_reference_albedo * shader_value(6u) * behind * behind * key_strength * 0.9;
+        }
         let lit = workbench_tone((diffuse + environment_diffuse + veil_light) * light_scale + reflection, exposure);
         return present(lit * layered_colour_coverage, material_alpha);
     }
@@ -1594,6 +1613,8 @@ struct CameraUniform {
     camera_up: [f32; 4],
     scene_model: [[f32; 4]; 4],
     scene_normal: [[f32; 4]; 4],
+    preview_light: [f32; 4],
+    preview_settings: [f32; 4],
 }
 
 #[repr(C)]
@@ -1659,6 +1680,8 @@ impl CameraUniform {
             camera_up: [0.0, 1.0, 0.0, 0.0],
             scene_model: Mat4::IDENTITY.to_cols_array_2d(),
             scene_normal: Mat4::IDENTITY.to_cols_array_2d(),
+            preview_light: [0.0; 4],
+            preview_settings: [1.0, 0.0, 0.0, 0.0],
         }
     }
 }
@@ -3573,6 +3596,32 @@ impl WindowRenderer {
             0,
             bytemuck::bytes_of(&self.camera_uniform),
         );
+    }
+
+    /// Direction to the camera, camera right and camera up, as last set.
+    pub fn camera_basis(&self) -> [[f32; 3]; 3] {
+        let axis = |value: [f32; 4]| [value[0], value[1], value[2]];
+        [axis(self.camera_uniform.view_direction), axis(self.camera_uniform.camera_right), axis(self.camera_uniform.camera_up)]
+    }
+
+    /// Material inspection: a key light fixed in the scene instead of one that
+    /// follows the camera, and the screen size the veil's net spacing assumes.
+    /// `light` is the direction to the light and its strength; `None` restores
+    /// the camera light. `veil_spacing_factor` 0 keeps the 2560x1440 spacing.
+    pub fn set_material_inspection(&mut self, light: Option<([f32; 3], f32)>, veil_spacing_factor: f32) {
+        let (preview_light, strength) = match light {
+            Some((direction, strength)) if direction.iter().any(|axis| axis.abs() > 1.0e-6) => {
+                ([direction[0], direction[1], direction[2], 1.0], strength.clamp(0.0, 4.0))
+            }
+            _ => ([0.0; 4], 1.0),
+        };
+        let preview_settings = [strength, veil_spacing_factor.clamp(0.0, 16.0), 0.0, 0.0];
+        if self.camera_uniform.preview_light == preview_light && self.camera_uniform.preview_settings == preview_settings {
+            return;
+        }
+        self.camera_uniform.preview_light = preview_light;
+        self.camera_uniform.preview_settings = preview_settings;
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&self.camera_uniform));
     }
 
     pub fn set_overlays(&mut self, show_normals: bool, show_bounds: bool) {
@@ -10844,9 +10893,22 @@ mod tests {
     }
 
     #[test]
+    fn the_surface_shader_parses_and_validates() {
+        // Runs without a GPU, so a WGSL mistake fails here instead of at first launch.
+        let module = wgpu::naga::front::wgsl::parse_str(SHADER).expect("WGSL parses");
+        wgpu::naga::valid::Validator::new(wgpu::naga::valid::ValidationFlags::all(), wgpu::naga::valid::Capabilities::all())
+            .validate(&module).expect("WGSL validates");
+    }
+
+    #[test]
     fn camera_uniform_matches_the_wgsl_scalar_padding_contract() {
-        assert_eq!(std::mem::size_of::<CameraUniform>(), 288);
+        assert_eq!(std::mem::size_of::<CameraUniform>(), 320);
         let uniform = CameraUniform::new(true);
+        // The default leaves the camera-following light and the 1440p veil spacing.
+        assert_eq!(uniform.preview_light, [0.0; 4]);
+        assert_eq!(uniform.preview_settings, [1.0, 0.0, 0.0, 0.0]);
+        assert!(SHADER.contains("select(3.0, camera.preview_settings.y, camera.preview_settings.y > 0.0)"));
+        assert!(SHADER.contains("if placed_light {"));
         assert_eq!(uniform.output_is_srgb, 1);
         assert_eq!(uniform.lighting_preset, 0);
         assert_eq!(uniform.view_direction, [0.0, 0.0, -1.0, 0.0]);

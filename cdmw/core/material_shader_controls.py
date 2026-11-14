@@ -54,6 +54,32 @@ def control_material_variants(text, *, static=False):
     return tuple(control_material_sources(block.group()) for block in variants) if variants else (control_material_sources(text, static=static),)
 
 
+def material_source_details(text):
+    """Every PAC material wrapper as the file writes it, for the inspector's source view.
+
+    One entry per wrapper in file order: its position among all wrappers
+    (``slot``, what the preview's owner index counts), the model variant that
+    holds it (``variant`` ordinal and that ModelProperty's ``Index`` text), the
+    part name, shader and parameter rows. Nothing is interpreted or defaulted.
+    """
+    variants = material_variant_blocks(text)
+    labels = []
+    for ordinal, block in enumerate(variants):
+        head = re.match(r'<ModelProperty\b[^>]*>', block.group())
+        index = re.search(r'\bIndex="([^"]*)"', head.group()) if head else None
+        labels.append(index.group(1) if index else str(ordinal))
+    details = []
+    for slot, wrapper in enumerate(find_material_wrappers(text)):
+        variant = next((ordinal for ordinal, block in enumerate(variants) if block.start() <= wrapper.start < block.end()), 0)
+        details.append({
+            "slot": slot, "variant": variant, "variant_label": labels[variant] if labels else "",
+            "name": wrapper.submesh_name, "shader": wrapper.shader,
+            "rows": [{"kind": row.kind, "name": row.name, "item_id": row.item_id, "index": row.index,
+                      "value": row.texture_path or row.value} for row in wrapper.parameters],
+        })
+    return details
+
+
 def control_material_sources(text, *, static=False):
     """Read material identity and authored inputs without rewriting the document."""
     if static:

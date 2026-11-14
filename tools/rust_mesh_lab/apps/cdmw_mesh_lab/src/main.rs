@@ -1443,6 +1443,92 @@ fn material_audit_file_evidence(path: &Path, output_root: &Path) -> Result<Value
     }))
 }
 
+/// Where the inspection light sits, chosen relative to the view when picked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum LightPlacement {
+    /// The renderer's own light, which follows the camera.
+    #[default]
+    Camera,
+    Front,
+    Side,
+    Behind,
+    Above,
+}
+
+impl LightPlacement {
+    pub(crate) const ALL: [(Self, &'static str); 5] = [
+        (Self::Camera, "Follow camera"), (Self::Front, "Front"), (Self::Side, "Side"),
+        (Self::Behind, "Behind"), (Self::Above, "Above"),
+    ];
+
+    /// Direction to the light from the camera basis (`toward` points at the camera).
+    fn direction(self, toward: [f32; 3], right: [f32; 3], up: [f32; 3]) -> Option<[f32; 3]> {
+        let mix = |a: f32, b: f32, c: f32| {
+            let v = [0, 1, 2].map(|i| toward[i] * a + right[i] * b + up[i] * c);
+            let length = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+            (length > 1.0e-6).then(|| v.map(|axis| axis / length))
+        };
+        match self {
+            Self::Camera => None,
+            Self::Front => mix(1.0, 0.0, 0.25),
+            Self::Side => mix(0.15, 1.0, 0.2),
+            // Slightly raised so the cloth edge catches it, as a low sun would.
+            Self::Behind => mix(-1.0, 0.0, 0.3),
+            Self::Above => mix(0.15, 0.0, 1.0),
+        }
+    }
+}
+
+/// The screen size the game's veil net spacing is computed for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum VeilScreen {
+    Hd1080,
+    #[default]
+    Qhd1440,
+    Uhd2160,
+}
+
+impl VeilScreen {
+    pub(crate) const ALL: [(Self, &'static str); 3] = [
+        (Self::Hd1080, "1920 x 1080"), (Self::Qhd1440, "2560 x 1440"), (Self::Uhd2160, "3840 x 2160"),
+    ];
+
+    /// 2 * sqrt(3840 * 2160 / pixels), the game's factor on `_netPitch`; 0 keeps the renderer default.
+    fn spacing_factor(self) -> f32 {
+        match self {
+            Self::Hd1080 => 4.0,
+            Self::Qhd1440 => 0.0,
+            Self::Uhd2160 => 2.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct MaterialInspection {
+    /// Hide the selection fill while the shader inspector is open.
+    pub(crate) hide_selection: bool,
+    pub(crate) placement: LightPlacement,
+    /// Scene-space direction to the placed light; `None` follows the camera.
+    pub(crate) light: Option<[f32; 3]>,
+    pub(crate) light_strength: f32,
+    pub(crate) veil_screen: VeilScreen,
+}
+
+impl Default for MaterialInspection {
+    fn default() -> Self {
+        Self { hide_selection: true, placement: LightPlacement::Camera, light: None, light_strength: 1.0,
+               veil_screen: VeilScreen::Qhd1440 }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum MaterialInspectionChange {
+    HideSelection(bool),
+    Light(LightPlacement),
+    LightStrength(f32),
+    VeilScreen(VeilScreen),
+}
+
 #[derive(Debug, Clone)]
 enum UiAction {
     OpenArchive,
@@ -1524,6 +1610,8 @@ enum UiAction {
     CdmwShaderPreview(Vec<(u32, Option<[f32; 32]>)>),
     /// Viewport backdrop only; see-through materials read very differently against light and dark.
     SetViewportBackground(Color32),
+    /// Viewport-only aids for judging a material; never part of the model or its export.
+    MaterialInspection(MaterialInspectionChange),
     /// Ask for a texture file, then hand it to the host with the panel's current controls.
     ChooseCdmwShaderTexture {
         part_ids: Value,
@@ -1583,6 +1671,7 @@ impl UiAction {
                 | Self::OrbitYaw(_)
                 | Self::CdmwShaderPreview(_)
                 | Self::SetViewportBackground(_)
+                | Self::MaterialInspection(_)
         )
     }
 
@@ -2182,6 +2271,10 @@ struct LabApplication {
     cdmw_shader_live_preview: BTreeMap<u32, [f32; 32]>,
     /// A path to use instead of opening the file dialog; taken by the next texture pick.
     cdmw_shader_texture_pick: Option<PathBuf>,
+    /// Viewport-only aids of the shader inspector.
+    material_inspection: MaterialInspection,
+    /// Set while the shader inspector is drawn; read and cleared by the viewport.
+    cdmw_shader_panel_shown: std::cell::Cell<bool>,
     /// Bumped when a shader edit is rejected so the inspector reloads the saved values.
     cdmw_shader_panel_epoch: u64,
     cdmw_material_key: String,
@@ -2389,6 +2482,8 @@ impl LabApplication {
             cdmw_material_presentations: Vec::new(),
             cdmw_shader_live_preview: BTreeMap::new(),
             cdmw_shader_texture_pick: None,
+            material_inspection: MaterialInspection::default(),
+            cdmw_shader_panel_shown: std::cell::Cell::new(false),
             cdmw_shader_panel_epoch: 0,
             cdmw_material_key: String::new(),
             cdmw_uploaded_texture_count: 0,
@@ -2809,6 +2904,22 @@ impl LabApplication {
                 self.status = format!("Recording {label} in the isolated CDMW shadow history…");
             }
             Err(error) => self.status = format!("Could not queue edit transaction: {error}"),
+        }
+    }
+
+    fn apply_material_inspection(&mut self, change: MaterialInspectionChange) {
+        match change {
+            MaterialInspectionChange::HideSelection(hide) => self.material_inspection.hide_selection = hide,
+            MaterialInspectionChange::LightStrength(strength) => self.material_inspection.light_strength = strength.clamp(0.0, 2.0),
+            MaterialInspectionChange::VeilScreen(screen) => self.material_inspection.veil_screen = screen,
+            MaterialInspectionChange::Light(placement) => {
+                // Placed relative to the view at this moment, then fixed in the
+                // scene: orbiting the camera afterwards moves around the light.
+                let [toward, right, up] = self.renderer.as_ref().map(|renderer| renderer.camera_basis())
+                    .unwrap_or([[0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]);
+                self.material_inspection.placement = placement;
+                self.material_inspection.light = placement.direction(toward, right, up);
+            }
         }
     }
 
@@ -4722,7 +4833,8 @@ impl LabApplication {
         let _language = crate::localization::enter(&self.egui_context);
         if actions.iter().any(|action| match action {
             UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode
-            | UiAction::CdmwShaderPreview(_) | UiAction::SetViewportBackground(_) => false,
+            | UiAction::CdmwShaderPreview(_) | UiAction::SetViewportBackground(_)
+            | UiAction::MaterialInspection(_) => false,
             UiAction::CdmwCommand { command, arguments, .. }
                 if cdmw_request_origin(command, arguments) == Some(CdmwRequestOrigin::WeaponPlacement) => false,
             _ => true,
@@ -5140,6 +5252,7 @@ impl LabApplication {
                 } => self.submit_cdmw_command(command, arguments, label),
                 UiAction::CdmwShaderPreview(changes) => self.set_cdmw_shader_live_preview(changes),
                 UiAction::SetViewportBackground(colour) => self.viewport_background_colour = colour,
+                UiAction::MaterialInspection(change) => self.apply_material_inspection(change),
                 UiAction::ChooseCdmwShaderTexture { part_ids, controls, parameter } => {
                     self.choose_cdmw_shader_texture(part_ids, controls, parameter)
                 }
@@ -6601,7 +6714,9 @@ impl LabApplication {
     }
 
     fn refresh_face_selection_overlay(&mut self) {
-        if self.cdmw_jiggle.region_colours.is_some() {
+        // The fill tints the very surface a material edit is judged on.
+        let inspecting = self.cdmw_shader_panel_shown.replace(false) && self.material_inspection.hide_selection;
+        if self.cdmw_jiggle.region_colours.is_some() || inspecting {
             self.face_selection_overlay = None;
             if let Some(renderer) = &mut self.renderer {
                 let _ = renderer.set_face_selection(&[], [0.0; 4]);
@@ -6641,6 +6756,13 @@ impl LabApplication {
     }
 
     fn paint_viewport_overlay(&mut self, ui: &egui::Ui, rectangle: egui::Rect) {
+        if let Some(renderer) = &mut self.renderer {
+            let inspection = &self.material_inspection;
+            renderer.set_material_inspection(
+                inspection.light.map(|direction| (direction, inspection.light_strength)),
+                inspection.veil_screen.spacing_factor(),
+            );
+        }
         self.refresh_cdmw_refit_overlay();
         self.refresh_cdmw_part_hover_overlay();
         self.refresh_face_selection_overlay();

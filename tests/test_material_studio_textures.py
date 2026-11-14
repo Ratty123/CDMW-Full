@@ -275,3 +275,46 @@ def test_rebuild_numbers_a_texture_row_the_replacement_added(store):
     assert rows[0] == ("Texture", "_baseColorTexture", "7", "0", owned_texture_path(MESH, "_baseColorTexture", digest))
     assert [row[1:4] for row in rows[1:4]] == [
         ("_normalTexture", "6", "1"), ("_heightTexture", "4", "2"), ("_maskTexture", "2", "3")]
+
+
+def _panel(owner_slot):
+    """Panel state for the two-variant veil when the viewport drew the wrapper at ``owner_slot``."""
+    from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
+    from cdmw.services.mesh_shader_controls import _shader_source_options
+
+    state, original = state_with(None)
+    parts = []
+    for binding, source in zip(state.parts, original.submeshes):
+        part = SimpleNamespace(name=source.name, material=source.material)
+        setattr(part, PART_ID_ATTRIBUTE, binding.part_id)
+        parts.append(part)
+    parts[0].preview_pac_material_owner_slot_index = owner_slot
+    mesh = SimpleNamespace(submeshes=parts, path=MESH)
+    session = SimpleNamespace(replacement_state=state, mesh_format="pac", working_mesh=mesh, base_mesh=mesh)
+    return _shader_source_options(session)[0]
+
+
+def test_source_view_lists_the_wrapper_rows_exactly_as_the_file_writes_them():
+    row = _panel(owner_slot=0)
+    assert row["source"] == {"path": SIDECAR, "part": PART.casefold(), "viewport_slot": 0}
+    first = row["authored"][0]
+    assert first["variants"] == ["0"] and first["slot"] == 0
+    assert [(item["kind"], item["name"], item["item_id"], item["index"], item["value"]) for item in first["rows"]] == [
+        ("Uint", "AlphaTest", "1921855275401214", 0, ""),
+        ("Texture", "_baseColorTexture", "7", 0, "character/texture/veil.dds"),
+        ("Texture", "_heightTexture", "4", 1, "character/texture/veil_disp.dds"),
+        ("Float", "_netPitch", "2027176113209342", 5, "0.300000"),
+    ]
+
+
+def test_the_variant_the_viewport_draws_leads_the_panel():
+    # Wrappers in file order: veil(0), trim(1) in Index 0; veil(2), trim(3) in Index 1.
+    shown_second = _panel(owner_slot=2)
+    assert [item["variants"] for item in shown_second["authored"]] == [["1"], ["0"]]
+    assert shown_second["authored"][0]["fields"]["SkinnedMeshTransparency"]["_netPitch"] == [0.334]
+    assert shown_second["preview_base"]["SkinnedMeshTransparency"][4] == pytest.approx(0.334)
+    shown_first = _panel(owner_slot=0)
+    assert [item["variants"] for item in shown_first["authored"]] == [["0"], ["1"]]
+    assert shown_first["preview_base"]["SkinnedMeshTransparency"][4] == pytest.approx(0.3)
+    # Unknown owner: file order, as before.
+    assert [item["variants"] for item in _panel(owner_slot=-1)["authored"]] == [["0"], ["1"]]
