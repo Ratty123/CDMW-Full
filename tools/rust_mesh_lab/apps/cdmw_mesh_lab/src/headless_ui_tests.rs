@@ -9251,6 +9251,51 @@ fn shader_layout_rebuild_is_an_explicit_choice_sent_with_the_controls() -> TestR
 }
 
 #[test]
+fn shader_panel_saves_the_shown_values_as_a_preset_and_deletes_a_saved_one() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let mut state = veil_shader_state();
+    state["catalogue"][0]["presets"].as_array_mut().ok_or("presets")?
+        .push(json!({"label": "My soft veil", "values": {"_netPitch": [0.2]}, "user": true}));
+    ui.application.cdmw_state["shader_controls"] = state;
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    ui.type_number_in_row("Thread thickness", 0.727, "0.5")?;
+    settled_shader_actions(&mut ui);
+
+    // Nothing to save under an empty name.
+    ui.click("Save preset")?;
+    assert!(!has_host_command(&settled_shader_actions(&mut ui), "replacement_shader_controls"));
+    let name = ui.reveal("Preset name")?.center();
+    ui.click_at(name);
+    ui.frame(vec![Event::Text("  Thin lace ".into())]);
+    ui.click("Save preset")?;
+    let saved = settled_shader_actions(&mut ui).into_iter().find_map(|action| match action {
+        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. } if !arguments["preset"].is_null() => Some(arguments),
+        _ => None,
+    }).ok_or("save preset command")?;
+    // Every field as shown: the changed one, the source's, and the definition default for the rest.
+    assert_eq!(saved, json!({"preset": {"action": "save", "shader": "SkinnedMeshTransparency", "name": "Thin lace", "values": {
+        "_netPitch": [0.3], "_netThread": [0.5], "_glow": [0.5164705882352941], "_sheen": [0.901], "_uvScale": [0.27],
+        "_dyeingColor": [1.0, 1.0, 1.0]}}}));
+
+    // The user's preset is offered under its own name and applies like a built-in one.
+    ui.click("Choose a preset")?;
+    ui.click("My soft veil")?;
+    assert_eq!(ui.application.cdmw_shader_live_preview.get(&1).ok_or("live preview")?[4], 0.2);
+    settled_shader_actions(&mut ui);
+    ui.click("Delete a saved preset")?;
+    ui.click("My soft veil")?;
+    assert!(settled_shader_actions(&mut ui).iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }
+        if arguments == &json!({"preset": {"action": "delete", "shader": "SkinnedMeshTransparency", "name": "My soft veil"}}))));
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+    Ok(())
+}
+
+#[test]
 fn shader_controls_open_on_the_source_values_preview_live_and_commit_on_release() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
     let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();

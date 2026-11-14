@@ -260,12 +260,31 @@ def shader_controls_ui_state(authoring, replacement):
         key = replacement_material_key(session.working_mesh, session.replacement_state)
         diagnostics = authoring.archive_refit_material_cache.get(key, {}).get("shader_diagnostics", {})
     options = _shader_source_options(session)
-    return {"available": not reason, "reason": reason, "catalogue": catalogue_payload(),
+    return {"available": not reason, "reason": reason, "catalogue": catalogue_with_user_presets(),
             "static": session.mesh_format != "pac", "parts": [
                 {**part, **options.get(part["index"], {}), "diagnostic": diagnostics.get(part["id"], ""),
                  "shader_controls": bindings[part["id"]].shader_controls.to_dict()
                  if part["id"] in bindings and bindings[part["id"]].shader_controls is not None else None}
                 for part in replacement["parts"]]}
+
+
+def catalogue_with_user_presets():
+    """The shader catalogue with this computer's saved presets after the built-in ones."""
+    from cdmw.core.shader_preset_store import user_presets
+    saved = user_presets()
+    return [{**family, "presets": [*family["presets"], *({"label": row["name"], "values": row["values"], "user": True}
+                                                         for row in saved.get(family["shader"], ()))]}
+            for family in catalogue_payload()]
+
+
+def _change_user_preset(request):
+    from cdmw.core.shader_preset_store import delete_user_preset, save_user_preset
+    if not isinstance(request, dict) or request.get("action") not in {"save", "delete"}:
+        raise ValueError("Invalid shader preset request.")
+    if request["action"] == "save":
+        save_user_preset(request.get("shader"), request.get("name"), request.get("values"))
+    else:
+        delete_user_preset(request.get("shader"), request.get("name"))
 
 
 def set_shader_controls(authoring, snapshot, args, *, entry, dependencies, stop_event):
@@ -277,6 +296,10 @@ def set_shader_controls(authoring, snapshot, args, *, entry, dependencies, stop_
     ui = shader_controls_ui_state(authoring, replacement_ui_state(authoring))
     if not ui["available"]:
         raise ValueError(ui["reason"])
+    if "preset" in args:
+        # A saved preset is a preference of this computer, not an edit of the model.
+        _change_user_preset(args["preset"])
+        return authoring.shadow_service.session_view(authoring.shadow_session_id)
     keys, reset = args.get("part_ids"), args.get("reset", False)
     if (not isinstance(keys, (list, tuple)) or not keys or any(not isinstance(key, str) for key in keys)
             or len(set(keys)) != len(keys) or not set(keys) <= {part["id"] for part in ui["parts"]}):

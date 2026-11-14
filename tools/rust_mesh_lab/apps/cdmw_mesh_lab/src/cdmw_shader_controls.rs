@@ -203,18 +203,59 @@ impl LabApplication {
                         }
                     }
                     let presets = family["presets"].as_array().cloned().unwrap_or_default();
+                    let is_user = |preset: &Value| preset["user"].as_bool() == Some(true);
+                    // A user's preset keeps the name it was given; built-in labels are translated.
+                    let preset_label = |preset: &Value| {
+                        let label = preset["label"].as_str().unwrap_or("");
+                        if is_user(preset) { label.to_owned() } else { crate::localization::tr(label) }
+                    };
                     if !presets.is_empty() {
                         egui::ComboBox::from_id_salt("shader_experiment_preset")
                             .selected_text(crate::localization::tr("Choose a preset")).show_ui(ui, |ui| {
                             for preset in &presets {
-                                let label = crate::localization::tr(preset["label"].as_str().unwrap_or(""));
-                                if ui.add(egui::Button::selectable(false, label)).clicked() {
+                                if ui.add(egui::Button::selectable(false, preset_label(preset))).clicked() {
                                     value["values"] = preset["values"].clone();
                                 }
                             }
                         }).response.on_hover_text(crate::localization::tr(
                             "Numbers taken from shipped materials and released mods. Choosing one replaces this part's changed values."));
                     }
+                    // Save what the sliders show now, under a name, for any other part or model.
+                    let name_key = egui::Id::new("shader_experiment_preset_name");
+                    let mut name = ui.ctx().data_mut(|data| data.get_temp::<String>(name_key)).unwrap_or_default();
+                    ui.horizontal(|ui| {
+                        ui.add(egui::TextEdit::singleline(&mut name).desired_width(150.0).char_limit(48)
+                            .hint_text(crate::localization::tr("Preset name")));
+                        if ui.add_enabled(!name.trim().is_empty(), egui::Button::new(crate::localization::tr("Save preset")))
+                            .on_hover_text(crate::localization::tr(
+                                "Saves every value shown below under this name on this computer. A preset of the same name is replaced."))
+                            .clicked() {
+                            let authored = variants.get(variant).map(|row| &row["fields"][shader.as_str()]);
+                            let shown = family["fields"].as_array().into_iter().flatten().filter_map(|field| {
+                                let field_name = field["name"].as_str()?;
+                                let numbers = [&value["values"][field_name], authored.map_or(&Value::Null, |fields| &fields[field_name]),
+                                    &field["default"]].into_iter().find(|numbers| numbers.is_array())?.clone();
+                                Some((field_name.to_owned(), numbers))
+                            }).collect::<serde_json::Map<String, Value>>();
+                            actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
+                                arguments: json!({"preset": {"action": "save", "shader": shader, "name": name.trim(), "values": shown}}),
+                                label: "Save shader preset" });
+                            name.clear();
+                        }
+                        if presets.iter().any(is_user) {
+                            egui::ComboBox::from_id_salt("shader_experiment_preset_delete")
+                                .selected_text(crate::localization::tr("Delete a saved preset")).show_ui(ui, |ui| {
+                                for preset in presets.iter().filter(|preset| is_user(preset)) {
+                                    if ui.add(egui::Button::selectable(false, preset_label(preset))).clicked() {
+                                        actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
+                                            arguments: json!({"preset": {"action": "delete", "shader": shader, "name": preset["label"]}}),
+                                            label: "Delete shader preset" });
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    ui.ctx().data_mut(|data| data.insert_temp(name_key, name));
                     if variants.len() > 1 {
                         egui::ComboBox::from_id_salt("shader_experiment_variant")
                             .selected_text(variant_label(variant)).show_ui(ui, |ui| {
