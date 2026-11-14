@@ -14,6 +14,7 @@ import pytest
 
 from cdmw.core.action_chart_binary import (
     ANIMATION_ARRAYS,
+    ANIMATION_ARRAYS_2_04,
     LAYOUT_CHART,
     LAYOUT_COMMON_ACTION_INFO,
     LAYOUT_COMMON_ACTION_INFO_SERIALIZED,
@@ -73,12 +74,12 @@ def frame_events() -> bytes:
     return socket + bytes(effect)
 
 
-def animation(index: int, *, end: float, arrays: dict, events: list) -> bytes:
+def animation(index: int, *, end: float, arrays: dict, events: list, layout=ANIMATION_ARRAYS) -> bytes:
     header = bytearray(0xA8)
     struct.pack_into("<ff", header, 0, 0.0, end)
     offset = 0
     body = b""
-    for slot, (name, width) in enumerate(ANIMATION_ARRAYS):
+    for slot, (name, width) in enumerate(layout):
         records = arrays.get(name, [])
         struct.pack_into("<HH", header, 0x70 + 4 * slot, offset, len(records))
         for record in records:
@@ -91,14 +92,19 @@ def animation(index: int, *, end: float, arrays: dict, events: list) -> bytes:
     return bytes(header) + body + bytes([len(events)]) + instances
 
 
-def chart_bytes(*, share_counts=(0,) * 10, tables=TABLES, trailing: bytes = b"") -> bytes:
+def chart_bytes(*, share_counts=(0,) * 10, tables=TABLES, trailing: bytes = b"",
+                ai_move: int = 0, layout=ANIMATION_ARRAYS) -> bytes:
+    """`ai_move` aiMoveSpeedInfo records go on the first animation, at `layout`'s width."""
+
+    width = dict(layout)["aiMoveSpeedInfoArray"]
     out = struct.pack("<I", 2)
     out += animation(0, end=1.5, arrays={
         "frameTag": [struct.pack("<ffI", 0.2, 0.4, 7)],
         "animationSpeedInfoArray": [struct.pack("<fffI", 0.0, 1.0, 1.0, 0x1F)],
+        "aiMoveSpeedInfoArray": [bytes([0x5A]) * width] * ai_move,
         "justTimeFrameTagInfo": [struct.pack("<ffII", 0.5, 0.8, 0x30001, 4)],
-    }, events=[(0.0, -1.0, 0), (0.3, -1.0, 8)])
-    out += animation(1, end=2.5, arrays={}, events=[(0.1, -1.0, 0)])  # shares the socket event
+    }, events=[(0.0, -1.0, 0), (0.3, -1.0, 8)], layout=layout)
+    out += animation(1, end=2.5, arrays={}, events=[(0.1, -1.0, 0)], layout=layout)  # shares the socket event
     out += struct.pack("<III", 0, 0, 0)
     out += b"".join(strings(values) for values in tables)
     out += struct.pack("<fIIfBB", 1.0, 0, 0, 1.0, 0, 0)
@@ -144,6 +150,28 @@ def test_chart_decodes_to_the_last_byte_with_named_sections():
     assert (chart.tables[7].value(payload.part), chart.tables[6].value(payload.parent), payload.mode) == (
         "MainWeapon_Sword", "RHand_Socket", 2)
 
+
+
+@pytest.mark.parametrize("layout, name, width", [(ANIMATION_ARRAYS, "2.05", 0xA0),
+                                                 (ANIMATION_ARRAYS_2_04, "2.04", 0x94)])
+def test_charts_of_both_game_layouts_decode(layout, name, width):
+    """Game 2.05 widened aiMoveSpeedInfo records; charts in mods made for 2.04 still read."""
+
+    data = chart_bytes(ai_move=2, layout=layout)
+    chart = decode_action_chart(data, virtual_path="actionchart/bin__/upperaction/sword_upper.paac")
+    assert chart.array_layout == name
+    assert chart.animations[0].array("aiMoveSpeedInfoArray").width == width
+    assert chart.animations[0].array("aiMoveSpeedInfoArray").count == 2
+    assert sum(span.size for span in chart.spans) == len(data)
+    # A value edit writes in that chart's own layout and keeps every other byte.
+    edited = apply_chart_value_edits(data, [ChartValueEdit("event.begin", 0.25, animation=0, item=1)])
+    after = decode_action_chart(edited)
+    assert after.array_layout == name and after.animations[0].events[1].begin == 0.25
+    assert sum(a != b for a, b in zip(edited, data)) <= 4 and len(edited) == len(data)
+
+
+def test_a_chart_without_ai_move_records_reads_as_the_current_layout():
+    assert decode_action_chart(chart_bytes(layout=ANIMATION_ARRAYS_2_04)).array_layout == "2.05"
 
 @pytest.mark.parametrize(
     "data",

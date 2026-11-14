@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Action charts from game 1.0.0.3663 decode again. The update made one per-animation record larger, so 99 of the 560 charts, mostly creature and NPC charts plus Kliff's `ai_basic_lower`, stopped with errors such as "onHitEventInfoArray ... run past the end". Placement & Animations' **Measure** under Timing reported one chart as unreadable, and the Archive Browser could not inspect those charts. Charts from mods made for earlier game versions are still read. Not yet checked in game.
+
 ## [0.12.0-alpha.5] - 2026-11-13
 
 ### Added
