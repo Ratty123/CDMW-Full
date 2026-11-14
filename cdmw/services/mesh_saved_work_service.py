@@ -968,6 +968,39 @@ def folder_model_choices(mod_root: Path | str) -> list[str]:
     return sorted(paths, key=str.casefold) if len(paths) > MAX_FOLDER_MODELS else []
 
 
+_MATERIAL_NAME = re.compile(rb'_materialName="([^"]{1,96})"')
+
+
+def folder_model_shaders(
+    mod_root: Path | str,
+    model_paths: Sequence[str],
+    *,
+    stop_event: threading.Event | None = None,
+) -> dict[str, tuple[str, ...]]:
+    """The shaders each model's material sidecar in the folder names, in first-use order.
+
+    Lets the model picker answer "which of these use the net veil shader".
+    A model the folder has only a mesh for maps to an empty tuple.
+    """
+
+    folder = Path(mod_root).expanduser().resolve()
+    files = _FolderFiles(folder, stop_event)
+    shaders: dict[str, tuple[str, ...]] = {}
+    for path in model_paths:
+        raise_if_cancelled(stop_event, "Saved work was cancelled.")
+        sidecar = files.find(material_sidecar_path_for_mesh(path).casefold())
+        names: dict[str, None] = {}
+        if sidecar is not None:
+            try:
+                data = sidecar.read_bytes()
+            except OSError:
+                data = b""
+            for match in _MATERIAL_NAME.finditer(data):
+                names.setdefault(match.group(1).decode("utf-8", "replace"))
+        shaders[path] = tuple(names)
+    return shaders
+
+
 def _guess_archive_path(relative: PurePosixPath) -> str:
     parts = list(relative.parts)
     if parts and parts[0].casefold() == "files":
@@ -1349,6 +1382,7 @@ __all__ = [
     "built_mod_companion_entries",
     "folder_model_choices",
     "folder_model_paths",
+    "folder_model_shaders",
     "material_sidecar_path_for_mesh",
     "mesh_path_for_material_sidecar",
     "assign_project",

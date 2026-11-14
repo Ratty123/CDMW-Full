@@ -16,6 +16,7 @@ from cdmw.services.mesh_archive_results import ADDED_RESULT_NOTE, EDITED_RESULT_
 from cdmw.services.mesh_saved_work_service import (
     MAX_FOLDER_MODELS,
     folder_model_choices,
+    folder_model_shaders,
     KIND_BUILT_MOD,
     add_built_mod_folder,
     draft_baseline_entries,
@@ -302,6 +303,7 @@ def test_one_folder_walk_serves_every_lookup_of_a_launch(game, tmp_path, monkeyp
 
 
 def test_picker_filters_keeps_hidden_choices_and_caps_the_selection(tmp_path):
+    from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
 
     from cdmw.ui.mesh_editor.folder_model_picker import VISIBLE_MODEL_ROWS, FolderModelPicker
@@ -315,7 +317,7 @@ def test_picker_filters_keeps_hidden_choices_and_caps_the_selection(tmp_path):
         assert not picker.add_button.isEnabled()
 
         picker.filter_edit.setText("MASK 0401")
-        assert [picker.list.item(row).toolTip() for row in range(picker.list.count())] == [paths[401]]
+        assert [picker.list.item(row).data(Qt.ItemDataRole.UserRole) for row in range(picker.list.count())] == [paths[401]]
         picker.list.item(0).setSelected(True)
         assert picker.add_button.isEnabled()
 
@@ -335,4 +337,53 @@ def test_picker_filters_keeps_hidden_choices_and_caps_the_selection(tmp_path):
         assert not picker.add_button.isEnabled()
     finally:
         picker.deleteLater()
+        app.processEvents()
+
+
+def test_folder_shaders_come_from_each_models_sidecar(tmp_path):
+    mod = tmp_path / "extracted"
+    veil = "character/model/1_pc/2_phw/armor/19_helm/cd_phw_00_hel_00_0219.pac"
+    plain = "character/model/1_pc/2_phw/armor/19_helm/cd_phw_00_hel_00_0001.pac"
+    bare = "character/model/1_pc/2_phw/armor/19_helm/cd_phw_00_hel_00_0002.pac"
+    _write(mod, "0009/" + material_sidecar_path_for_mesh(veil), _sidecar(_BASE, _HEIGHT, "0.5"))
+    _write(mod, "0009/" + material_sidecar_path_for_mesh(plain),
+           _sidecar(_BASE, _HEIGHT, "0.5").replace(b"SkinnedMeshTransparency", b"SkinnedMeshStandard"))
+    _write(mod, "0009/" + bare, b"PAR mesh only")
+
+    shaders = folder_model_shaders(mod, [veil, plain, bare])
+
+    assert shaders == {veil: ("SkinnedMeshTransparency",), plain: ("SkinnedMeshStandard",), bare: ()}
+
+
+def test_picker_lists_shaders_by_use_and_filters_on_one(tmp_path):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from cdmw.ui.mesh_editor.folder_model_picker import FolderModelPicker
+
+    app = QApplication.instance() or QApplication([])
+    paths = [f"character/model/cd_{index:03d}.pac" for index in range(6)]
+    shaders = {path: ("SkinnedMeshStandard",) for path in paths}
+    shaders[paths[2]] = ("SkinnedMeshStandard", "SkinnedMeshTransparency")
+    shaders[paths[5]] = ()
+    picker = FolderModelPicker(paths, shaders=shaders)
+    plain = FolderModelPicker(paths)
+    try:
+        combo = picker.shader_combo
+        assert [combo.itemData(index) for index in range(combo.count())] == [
+            "", "SkinnedMeshStandard", "SkinnedMeshTransparency"]
+        assert combo.itemText(1) == "SkinnedMeshStandard (5)"
+        combo.setCurrentIndex(2)
+        assert [picker.list.item(row).data(Qt.ItemDataRole.UserRole) for row in range(picker.list.count())] == [paths[2]]
+        assert "SkinnedMeshTransparency" in picker.list.item(0).toolTip()
+        # The name filter narrows within the shader.
+        picker.filter_edit.setText("cd_004")
+        assert picker.list.count() == 0
+        combo.setCurrentIndex(0)
+        assert picker.list.count() == 1
+        # Without shader information the choice is not offered.
+        assert plain.shader_combo.isHidden()
+    finally:
+        picker.deleteLater()
+        plain.deleteLater()
         app.processEvents()

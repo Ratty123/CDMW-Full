@@ -8,12 +8,14 @@ that Continue Editing opens with the folder's own material and textures.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Mapping, Sequence
 from pathlib import PurePosixPath
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QLabel,
@@ -35,13 +37,20 @@ _PATH_ROLE = Qt.ItemDataRole.UserRole
 class FolderModelPicker(QDialog):
     """A filterable list of a folder's models with a capped multi-selection."""
 
-    def __init__(self, model_paths: Sequence[str], parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        model_paths: Sequence[str],
+        parent: QWidget | None = None,
+        *,
+        shaders: Mapping[str, Sequence[str]] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("FolderModelPicker")
         self.setWindowTitle("Choose Models to Add")
         self._paths = tuple(model_paths)
         self._keys = tuple(path.casefold() for path in self._paths)
         self._chosen: dict[str, str] = {}
+        self._shaders = {path: tuple((shaders or {}).get(path, ())) for path in self._paths}
         layout = QVBoxLayout(self)
         intro = QLabel(
             "This folder holds more models than one mod. Choose the ones to list; "
@@ -55,6 +64,16 @@ class FolderModelPicker(QDialog):
         self.filter_edit.setPlaceholderText("Filter by model name or path")
         self.filter_edit.setClearButtonEnabled(True)
         layout.addWidget(self.filter_edit)
+        # Which models use a given shader, most used first: the quick way to find
+        # every costume the game itself gave the net veil or a glass material.
+        self.shader_combo = QComboBox(self)
+        self.shader_combo.setObjectName("FolderModelPickerShader")
+        self.shader_combo.addItem("Any shader", "")
+        used = Counter(name for names in self._shaders.values() for name in names)
+        for name, count in sorted(used.items(), key=lambda item: (-item[1], item[0].casefold())):
+            self.shader_combo.addItem(f"{name} ({count})", name)
+        self.shader_combo.setVisible(bool(used))
+        layout.addWidget(self.shader_combo)
         self.list = QListWidget(self)
         self.list.setObjectName("FolderModelPickerList")
         self.list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -72,6 +91,7 @@ class FolderModelPicker(QDialog):
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
         self.filter_edit.textChanged.connect(lambda _text: self._populate())
+        self.shader_combo.currentIndexChanged.connect(lambda _index: self._populate())
         self.list.itemSelectionChanged.connect(self._selection_changed)
         self.list.itemDoubleClicked.connect(lambda _item: self.accept() if self.add_button.isEnabled() else None)
         self.resize(720, 560)
@@ -84,7 +104,11 @@ class FolderModelPicker(QDialog):
 
     def _matches(self) -> list[str]:
         words = self.filter_edit.text().casefold().split()
-        return [path for path, key in zip(self._paths, self._keys) if all(word in key for word in words)]
+        shader = str(self.shader_combo.currentData() or "")
+        return [
+            path for path, key in zip(self._paths, self._keys)
+            if all(word in key for word in words) and (not shader or shader in self._shaders[path])
+        ]
 
     def _populate(self) -> None:
         matches = self._matches()
@@ -94,7 +118,7 @@ class FolderModelPicker(QDialog):
             pure = PurePosixPath(path)
             item = QListWidgetItem(f"{pure.name}    {pure.parent.as_posix()}")
             item.setData(_PATH_ROLE, path)
-            item.setToolTip(path)
+            item.setToolTip("\n".join((path, *self._shaders[path])))
             self.list.addItem(item)
             # A model chosen under another filter stays chosen.
             item.setSelected(path.casefold() in self._chosen)

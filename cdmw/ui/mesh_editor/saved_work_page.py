@@ -52,6 +52,7 @@ from cdmw.services.mesh_saved_work_service import (
     SavedWorkRow,
     add_built_mod_folder,
     folder_model_choices,
+    folder_model_shaders,
     assign_project,
     create_project,
     delete_project,
@@ -876,18 +877,23 @@ class SavedWorkPage(QWidget):
                 self._action_done(_token, None, error)
                 return
             models = None
-            if choices:
+            if choices and choices[0]:
                 # An extracted game folder: ask which of its models to list.
                 from cdmw.ui.mesh_editor.folder_model_picker import FolderModelPicker
 
-                picker = FolderModelPicker(tuple(choices), self)
+                paths, shaders = choices
+                picker = FolderModelPicker(tuple(paths), self, shaders=shaders)
                 if picker.exec() != QDialog.DialogCode.Accepted:
                     return
                 models = picker.selected_paths()
             self._run(lambda: add_built_mod_folder(root, folder, project_id=project_id, model_paths=models),
                       self._action_done)
 
-        self._run(lambda: folder_model_choices(folder), choices_done)
+        def choices() -> tuple[list[str], dict[str, tuple[str, ...]]]:
+            paths = folder_model_choices(folder)
+            return paths, folder_model_shaders(folder, paths)
+
+        self._run(choices, choices_done)
 
     def _add_item_package(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Add an Item Package", "", "Item package (*.cdmw *.cditem)")
