@@ -2469,12 +2469,30 @@ StringInfo, and their resource dependencies are verified during stock export.
 Unknown reward/action variants remain unavailable individually rather
 than blocking unrelated authoring.
 
-Qualification covers source codecs, owned synthetic snapshot/plan/export fixtures
-and read-only installed-table checks: 8,616 ItemInfo records, all installed shops,
-groups, crafting rows, dye rows and the 38 equipment-used buff definitions. The
-installed snapshot contains 8,374 effective items and 16,071 prefab records after
-DLC overrides. This is
-offline format evidence, not executable packaging, rendering or game acceptance.
+Game `1.0.0.3663` adds one opaque byte immediately after the signed two-byte
+`DropInfoData` enchantment level, before the result-specific reference. The
+executable reads it under the same enchantment field/error label; no gameplay
+meaning is assigned. Complete-row qualification accepts the earlier two-byte or
+the newer three-byte field only when the layout is unambiguous. Shop edits retain
+the byte in their raw drop data; reward entries retain it individually through
+cloning, appending and reordering. DropSetInfo also adds `_isToVehicle` after
+`_isEqualPercent`; edits preserve that field without exposing a new control.
+Mixed layouts within one row are refused. DMM shop operations preserve the new
+byte as `raw_h`, and reward field operations preserve it as `raw_58`, following
+[dmm-parser `9778425d672b`](https://github.com/exodiaprivate-eng/dmm-parser/tree/9778425d672b6dc747b9e80016f812ba6ae0b3c4).
+Use a DMM version compatible with this game update; the manager was not run here.
+
+Read-only verification on 13 November 2026, against `faf38eed0` plus this fix,
+loaded 8,379 effective items, 464 stores and 1,789 groups. All 440 base and 175 DLC
+shop rows (8,604 stock entries) decoded and rebuilt byte for byte. All 17,186 base/DLC DropSetInfo
+rows completed the layout walk; the 14,979 supported item-reward rows rebuilt
+byte for byte, with other reward variants still outside the typed item editor.
+Owned fixtures cover both layouts, malformed rows, snapshot/plan/export, reward
+preservation and the actual DMM shop-operation output.
+Earlier compact corpus checks additionally covered crafting, dye rows, 38
+equipment-used buff definitions and 16,071 prefab records; those checks were not
+repeated for this patch. This is source and read-only table evidence, not
+executable packaging, rendering, archive mutation or game acceptance.
 
 New Item honors the folder exclusions captured when the archive catalogue opened,
 including in its separate verification process. Mounted `dmmsa` and `dmmgen`

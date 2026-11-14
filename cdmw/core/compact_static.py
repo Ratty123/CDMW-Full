@@ -34,24 +34,44 @@ _ITEMINFO_3527 = (
     ("field", "ItemInfo", "_soundSocketNameOnMaxCharged", ("text",)),
     *_ITEMINFO_BASE[_SOUND_INSERT:],
 )
+_DROPSET_BASE = READERS[TABLE_READERS["dropsetinfo"]]
+_VEHICLE_INSERT = next(i + 1 for i, op in enumerate(_DROPSET_BASE)
+                       if isinstance(op, tuple) and op[:3] == ("field", "DropSetInfo", "_isEqualPercent"))
+_DROPSET_3663 = (
+    *_DROPSET_BASE[:_VEHICLE_INSERT],
+    ("field", "DropSetInfo", "_isToVehicle", ("raw", 1)),
+    *_DROPSET_BASE[_VEHICLE_INSERT:],
+)
 
 
 def read_compact_layout(raw, kind="iteminfo"):
-    if kind != "iteminfo":
-        return _read_compact_layout(raw, kind)
-    candidates, errors = [], []
-    for label, program in (("pre-3527", _ITEMINFO_BASE), ("3527", _ITEMINFO_3527)):
-        try:
-            candidates.append(_read_compact_layout(raw, kind, program))
-        except (RecordError, UnicodeError) as exc:
-            errors.append(f"{label}: {exc}")
+    programs = (("pre-3527", _ITEMINFO_BASE), ("3527", _ITEMINFO_3527)) if kind == "iteminfo" else ((kind, None),)
+    candidates, errors, failures = [], [], []
+    for label, program in programs:
+        drop_seen = set()
+        for enchant_width in (2, 3):
+            # A row without DropInfoData has identical layouts. Do not walk it twice.
+            if enchant_width == 3 and not drop_seen and kind != "dropsetinfo":
+                break
+            try:
+                selected = _DROPSET_3663 if kind == "dropsetinfo" and enchant_width == 3 else program
+                layout = _read_compact_layout(raw, kind, selected, enchant_width=enchant_width, drop_seen=drop_seen)
+                if layout not in candidates:
+                    candidates.append(layout)
+            except (RecordError, UnicodeError) as exc:
+                errors.append(f"{label}: {exc}")
+                failures.append(exc)
     if len(candidates) != 1:
+        if kind != "iteminfo":
+            if not candidates:
+                raise failures[0]
+            raise RecordError("Unsupported or ambiguous compact static layout.")
         detail = "; ".join(errors) if not candidates else "both known layouts match"
         raise RecordError(f"Unsupported or ambiguous compact ItemInfo layout ({detail}).")
     return candidates[0]
 
 
-def _read_compact_layout(raw, kind, program=None):
+def _read_compact_layout(raw, kind, program=None, *, enchant_width=2, drop_seen=None):
     from cdmw.core.item_layout import ItemLayout, Member, Span
 
     size_limit, step_limit = _RECORD_LIMITS.get(kind, _DEFAULT_LIMITS)
@@ -93,6 +113,13 @@ def _read_compact_layout(raw, kind, program=None):
                 walk(op[2], path + (index,), depth + 1)
         elif code == "field":
             _, owner, name, child = op
+            if owner == "DropInfoData" and name == "_enchantLevel":
+                # Build 1.0.0.3663 reads a further opaque byte after the i16
+                # enchantment level, before the result-specific reference.
+                # It shares the executable's enchantment field/error label.
+                child = ("raw", enchant_width)
+                if drop_seen is not None:
+                    drop_seen.add(True)
             start = cursor.pos
             try:
                 walk(child, path + (name,), depth + 1)

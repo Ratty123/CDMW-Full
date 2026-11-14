@@ -11,7 +11,8 @@ Every read in the loader has a read-failure message naming the member it fills
         0xA8 AnimationInfoData              +0x00 f32 start, +0x04 f32 end (seconds)
                                             +0x70 11 x (u16 offset, u16 count) arrays
                                             +0x9C u16 clip (table 1), +0xA2 u16 blend (table 5)
-        11 arrays, widths 12 16 104 148 24 36 12 96 12 12 16, counts from the header
+        11 arrays, widths 12 16 104 160 24 36 12 96 12 12 16, counts from the header
+                                            (aiMoveSpeedInfo was 148 before game 2.05)
         u8 n; n x 20 frame event instance   f32 begin, f32 end, u32 dword offset into
                                             the frame event buffer, u32 sequence, u32 condition
     u32 n; n x 8,  u32 n; n x 4,  u32 n; n x 4
@@ -72,11 +73,13 @@ MAX_STRING_BYTES = 254
 
 #: AnimationInfo arrays in stream order: member name and record width. The count of
 #: array k is the byte at header +0x72 + 4k, the read the loader makes.
+#: Game 2.05 (1.0.0.3663) widened `aiMoveSpeedInfoArray` from 0x94 to 0xA0 bytes: with it,
+#: all 560 shipped charts decode; with the old width 99 fail (every chart with such a record).
 ANIMATION_ARRAYS = (
     ("frameTag", 12),
     ("animationSpeedInfoArray", 16),
     ("moveSpeedInfoArray", 0x68),
-    ("aiMoveSpeedInfoArray", 0x94),
+    ("aiMoveSpeedInfoArray", 0xA0),
     ("verticalMoveSpeedInfoArray", 24),
     ("defenceInfoArray", 36),
     ("characterClimbTagInfoArray", 12),
@@ -85,11 +88,19 @@ ANIMATION_ARRAYS = (
     ("aiReviseTurnInfoArray", 12),
     ("justTimeFrameTagInfo", 16),
 )
+#: The same arrays as games before 2.05 wrote them. Charts in mods made for those games
+#: still use it, so a chart that does not decode in the current layout is read in this one.
+ANIMATION_ARRAYS_2_04 = tuple(
+    (name, 0x94 if name == "aiMoveSpeedInfoArray" else width) for name, width in ANIMATION_ARRAYS)
+#: Layouts tried in order; the name ends up on `ActionChart.array_layout`.
+_ARRAY_LAYOUTS = (("2.05", ANIMATION_ARRAYS), ("2.04", ANIMATION_ARRAYS_2_04))
 
 #: Frame event kinds, indexed by the u16 at the start of each event. Read from the
 #: client factory switch (185 cases) by the RTTI class each case constructs, minus
 #: the `ClientFrameEvent` prefix. Kind numbers moved with the 2.04 update (the socket
-#: event was 60 before it and is 62 now), so they are tied to this game version.
+#: event was 60 before it and is 62 now), so they are tied to this game version. Game 2.05
+#: (1.0.0.3663) did not move them: Kliff's four weapon and riding charts kept per-kind
+#: event counts identical across that update.
 FRAME_EVENT_KINDS = (
     "Attack", "AttackThrow", "AttackCatch", "ReleaseCatch", "RemoteCatch", "UpdateCatch",
     "ReleaseRemoteCatch", "Projectile", "RemoveProjectile", "UseItem", "AIEvent", "Drop",
@@ -286,6 +297,9 @@ class ActionChart:
     key_guide_events: tuple[FrameEventRef, ...] = ()
     child_events: tuple[FrameEventRef, ...] = ()
     counts: Mapping[str, int] = field(default_factory=dict)
+    #: Which game's AnimationInfo array widths the chart was read with ("2.05" or "2.04").
+    #: A chart with no aiMoveSpeedInfo record reads the same in both and reports "2.05".
+    array_layout: str = "2.05"
 
     @property
     def explained_bytes(self) -> int:
@@ -393,6 +407,18 @@ def decode_action_chart(data: bytes, *, virtual_path: str = "") -> ActionChart:
 
 
 def _decode_chart(data: bytes) -> ActionChart:
+    """Read a chart in the current game's layout, else in the 2.04 one; report the current error."""
+
+    first_error: Optional[ActionChartError] = None
+    for name, arrays in _ARRAY_LAYOUTS:
+        try:
+            return _decode_chart_layout(data, arrays, name)
+        except ActionChartError as error:
+            first_error = first_error or error
+    raise first_error
+
+
+def _decode_chart_layout(data: bytes, animation_arrays, array_layout: str) -> ActionChart:
     stream = _Stream(data)
     animations = []
     animation_count = stream.scalar("I", "animation count")
@@ -402,7 +428,7 @@ def _decode_chart(data: bytes) -> ActionChart:
         header_at = stream.records(1, ANIMATION_HEADER_SIZE, "AnimationInfoData")
         header = data[header_at:header_at + ANIMATION_HEADER_SIZE]
         arrays = []
-        for slot, (name, width) in enumerate(ANIMATION_ARRAYS):
+        for slot, (name, width) in enumerate(animation_arrays):
             count = header[0x72 + 4 * slot]
             arrays.append(ChartArray(name, stream.records(count, width, name), count, width))
         events = stream.events("_frameEventInstanceBuffer")
@@ -490,6 +516,7 @@ def _decode_chart(data: bytes) -> ActionChart:
             "sockets": socket_count,
             "included charts": include_count,
         },
+        array_layout=array_layout,
     )
 
 
@@ -1007,6 +1034,7 @@ def apply_chart_value_edits(data: bytes, edits: Iterable[ChartValueEdit], *, vir
 __all__ = [
     "ACTION_CHART_STRING_TABLES",
     "ANIMATION_ARRAYS",
+    "ANIMATION_ARRAYS_2_04",
     "ANIMATION_TABLE",
     "BLEND_TABLE",
     "ActionChart",

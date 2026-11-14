@@ -3,6 +3,7 @@
 Only changed, completely decoded fields are emitted. Unchanged opaque fields stay
 on the donor. Names follow the public V3 schema at dmm-parser 2e3b7a59c49f;
 this module neither imports that parser nor claims manager/runtime validation.
+The 2.05 shop value's raw_h byte follows dmm-parser 9778425d672b.
 """
 from cdmw.core.item_layout import read_item_layout
 from cdmw.core.new_item_record import Cursor, RecordError
@@ -120,6 +121,8 @@ def item_patches(source, final):
 
 def stock_value(raw):
     """Decode all bytes of one current StockData entry; only item variants."""
+    from cdmw.core.compact_static import read_compact_layout
+    layout = read_compact_layout(raw, 'stockdata')
     reader = Cursor(raw)
     result = record(reader, (('lookup_a', 'H'), ('raw_a', 'Q'), ('raw_b', 'Q'), ('raw_c', 'I'),
         ('low_price_threshold_count_116', 'I'), ('raw_d', 'I'), ('raw_e', 'I'), ('order_index_113', 'I'),
@@ -131,6 +134,10 @@ def stock_value(raw):
         ('raw_f', 'Q'), ('raw_g', 'H')))
     if value['disc'] != 0:
         raise RecordError('DMM V3: only item shop stock is supported.')
+    enchant = next(member for member in layout.members
+                   if member.owner == 'DropInfoData' and member.name == '_enchantLevel')
+    if enchant.span.size == 3:
+        value['raw_h'] = reader.unpack('B')
     value['payload'] = dict(type='Disc0', body=reader.unpack('I'))
     result.update(value=value, lookup_b=reader.unpack('I'), lookup_c=reader.unpack('I'))
     present = reader.unpack('B')

@@ -21,6 +21,9 @@ class ItemReward:
     # Four fixed references in DropInfoData. Keep their stored order; the
     # player/owner scope and tag interpretation are not authoring controls.
     condition_references: tuple[int, int, int, int] = (0, 0, 0, 0)
+    # Opaque byte following the compact 3663 enchantment level. Retained per
+    # entry so cloning, appending and reordering rewards cannot lose it.
+    compact_enchant_extra: bytes = field(default=b'', repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +92,8 @@ def encode_item_reward_set(row):
     out = bytearray(struct.pack("<I", row.key) + text_bytes(row.name) + b"\0" + row.policy)
     out += struct.pack("<I", len(row.entries))
     for entry in row.entries:
+        if entry.compact_enchant_extra:
+            raise RecordError("Compact reward data cannot be written in a legacy layout")
         if not 0 < entry.item_key <= 0xffffffff or not 0 <= entry.minimum <= entry.maximum <= 0xffffffffffffffff:
             raise RecordError("Invalid item reward quantity or identity")
         if len(entry.condition_references) != 4 or any(not 0 <= key <= 0xffffffff for key in entry.condition_references):

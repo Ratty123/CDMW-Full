@@ -75686,7 +75686,7 @@ MESSAGE_REFERENCE = [
     "message": "A required static field cannot be absent.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 163
+      "cdmw/core/compact_static.py": 190
     }
   },
   {
@@ -75902,7 +75902,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous compact static field.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 108
+      "cdmw/core/compact_static.py": 135
     }
   },
   {
@@ -76464,7 +76464,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/acquisition_compact.py": 91,
-      "cdmw/core/item_reward_table.py": 58
+      "cdmw/core/item_reward_table.py": 61
     }
   },
   {
@@ -77870,6 +77870,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Compact reward data cannot be written in a legacy layout",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/item_reward_table.py": 96
+    }
+  },
+  {
+    "area": "other",
     "message": "Compact shop drop data is truncated.",
     "recovery": "format",
     "sources": {
@@ -77889,7 +77897,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static list exceeds the supported bound at {path}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 91
+      "cdmw/core/compact_static.py": 111
     }
   },
   {
@@ -77897,7 +77905,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static record exceeds the layout limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 68
+      "cdmw/core/compact_static.py": 88
     }
   },
   {
@@ -78097,7 +78105,7 @@ MESSAGE_REFERENCE = [
     "message": "Conditional reward source expressions are not decoded",
     "recovery": "format",
     "sources": {
-      "cdmw/core/item_reward_table.py": 44
+      "cdmw/core/item_reward_table.py": 47
     }
   },
   {
@@ -78417,7 +78425,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 cannot preserve an edit to existing {family} record {key}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 214
+      "cdmw/services/dmm_item_export.py": 216
     }
   },
   {
@@ -78425,7 +78433,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 cannot preserve stock field edits, package links or texture modules.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 164
+      "cdmw/services/dmm_item_export.py": 166
     }
   },
   {
@@ -78433,7 +78441,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 cannot remove source records.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 202
+      "cdmw/services/dmm_item_export.py": 204
     }
   },
   {
@@ -78441,7 +78449,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 cannot represent the changed ItemInfo field {field}. Use the existing export.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/dmm_item_fields.py": 111
+      "cdmw/core/dmm_item_fields.py": 112
     }
   },
   {
@@ -78449,7 +78457,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 requires current split item localization tables.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 145
+      "cdmw/services/dmm_item_export.py": 147
     }
   },
   {
@@ -78457,7 +78465,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 requires existing models and icons without prepared resources.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 167
+      "cdmw/services/dmm_item_export.py": 169
     }
   },
   {
@@ -78465,7 +78473,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 requires existing models and icons; new resources are unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 127
+      "cdmw/services/dmm_item_export.py": 129
     }
   },
   {
@@ -78481,7 +78489,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3 supports current item tables only; use the existing export for other payloads.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 151
+      "cdmw/services/dmm_item_export.py": 153
     }
   },
   {
@@ -78489,7 +78497,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: ambiguous item localization.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 147
+      "cdmw/services/dmm_item_export.py": 149
     }
   },
   {
@@ -78497,7 +78505,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: at most four equipment passive skills are supported.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/dmm_item_fields.py": 117
+      "cdmw/core/dmm_item_fields.py": 118
     }
   },
   {
@@ -78505,7 +78513,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: conflicting retained clone identities.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 156
+      "cdmw/services/dmm_item_export.py": 158
     }
   },
   {
@@ -78513,7 +78521,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: existing localization changed or has duplicate keys.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 228
+      "cdmw/services/dmm_item_export.py": 230
     }
   },
   {
@@ -78521,7 +78529,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: existing shop stock changed; use the existing export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 108
+      "cdmw/services/dmm_item_export.py": 110
     }
   },
   {
@@ -78529,7 +78537,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: incompatible ItemInfo layouts.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/dmm_item_fields.py": 77
+      "cdmw/core/dmm_item_fields.py": 78
     }
   },
   {
@@ -78537,7 +78545,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: incomplete source/output inventory.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 122
+      "cdmw/services/dmm_item_export.py": 124
     }
   },
   {
@@ -78545,7 +78553,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: inconsistent shop stock counts.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 111
+      "cdmw/services/dmm_item_export.py": 113
     }
   },
   {
@@ -78561,7 +78569,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: invalid owned reward index.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 192
+      "cdmw/services/dmm_item_export.py": 194
     }
   },
   {
@@ -78569,7 +78577,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: item-group removal, reordering or foreign membership is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 83
+      "cdmw/services/dmm_item_export.py": 85
     }
   },
   {
@@ -78577,7 +78585,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: missing or ambiguous table source.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 135
+      "cdmw/services/dmm_item_export.py": 137
     }
   },
   {
@@ -78585,7 +78593,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: no supported item additions.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 239
+      "cdmw/services/dmm_item_export.py": 241
     }
   },
   {
@@ -78593,7 +78601,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: no witnessed donor for {family} record {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 218
+      "cdmw/services/dmm_item_export.py": 220
     }
   },
   {
@@ -78601,7 +78609,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: only additive item-group membership is supported.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 79
+      "cdmw/services/dmm_item_export.py": 81
     }
   },
   {
@@ -78609,7 +78617,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: only item shop stock is supported.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/dmm_item_fields.py": 133
+      "cdmw/core/dmm_item_fields.py": 136
     }
   },
   {
@@ -78617,7 +78625,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: shop replacements and foreign stock are unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 105
+      "cdmw/services/dmm_item_export.py": 107
     }
   },
   {
@@ -78625,7 +78633,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: shop stock requires a present item value.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/dmm_item_fields.py": 128
+      "cdmw/core/dmm_item_fields.py": 131
     }
   },
   {
@@ -78633,7 +78641,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unknown owned ItemInfo symbol.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 178
+      "cdmw/services/dmm_item_export.py": 180
     }
   },
   {
@@ -78641,7 +78649,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unknown recipe symbol.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 182
+      "cdmw/services/dmm_item_export.py": 184
     }
   },
   {
@@ -78649,7 +78657,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unknown shop stock condition.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/dmm_item_fields.py": 138
+      "cdmw/core/dmm_item_fields.py": 145
     }
   },
   {
@@ -78657,7 +78665,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unsupported default sub-item variant.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/dmm_item_fields.py": 45
+      "cdmw/core/dmm_item_fields.py": 46
     }
   },
   {
@@ -78665,7 +78673,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unsupported localization identity.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 234
+      "cdmw/services/dmm_item_export.py": 236
     }
   },
   {
@@ -78673,7 +78681,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unsupported owned namespace {family}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 171
+      "cdmw/services/dmm_item_export.py": 173
     }
   },
   {
@@ -78681,7 +78689,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unsupported owned reward symbol.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 187
+      "cdmw/services/dmm_item_export.py": 189
     }
   },
   {
@@ -78697,7 +78705,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unsupported reward policy changes.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 72
+      "cdmw/services/dmm_item_export.py": 74
     }
   },
   {
@@ -78705,7 +78713,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unsupported shop policy changes.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 91
+      "cdmw/services/dmm_item_export.py": 93
     }
   },
   {
@@ -78713,7 +78721,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM V3: unsupported table {family}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/dmm_item_export.py": 132
+      "cdmw/services/dmm_item_export.py": 134
     }
   },
   {
@@ -79077,7 +79085,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited compact reward did not round-trip.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 131
+      "cdmw/core/acquisition_compact.py": 141
     }
   },
   {
@@ -79126,7 +79134,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited reward did not round-trip",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_reward_table.py": 102
+      "cdmw/core/item_reward_table.py": 107
     }
   },
   {
@@ -79631,7 +79639,7 @@ MESSAGE_REFERENCE = [
     "message": "Extended reward cache is not decoded",
     "recovery": "format",
     "sources": {
-      "cdmw/core/item_reward_table.py": 74
+      "cdmw/core/item_reward_table.py": 77
     }
   },
   {
@@ -80623,7 +80631,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid compact static presence flag.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 85
+      "cdmw/core/compact_static.py": 105
     }
   },
   {
@@ -80823,8 +80831,8 @@ MESSAGE_REFERENCE = [
     "message": "Invalid item reward quantity or identity",
     "recovery": "input",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 122,
-      "cdmw/core/item_reward_table.py": 93
+      "cdmw/core/acquisition_compact.py": 131,
+      "cdmw/core/item_reward_table.py": 98
     }
   },
   {
@@ -81120,7 +81128,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid reward condition references",
     "recovery": "input",
     "sources": {
-      "cdmw/core/item_reward_table.py": 95
+      "cdmw/core/item_reward_table.py": 100
     }
   },
   {
@@ -81128,7 +81136,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid reward policy or cache",
     "recovery": "input",
     "sources": {
-      "cdmw/core/item_reward_table.py": 88
+      "cdmw/core/item_reward_table.py": 91
     }
   },
   {
@@ -81405,11 +81413,19 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Item reward enchantment layout differs from its source",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/acquisition_compact.py": 129
+    }
+  },
+  {
+    "area": "other",
     "message": "Item reward reference or range is not decoded",
     "recovery": "format",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 103,
-      "cdmw/core/item_reward_table.py": 70
+      "cdmw/core/acquisition_compact.py": 108,
+      "cdmw/core/item_reward_table.py": 73
     }
   },
   {
@@ -81505,7 +81521,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo.{name} at row offset 0x{start}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 101
+      "cdmw/core/compact_static.py": 128
     }
   },
   {
@@ -82634,7 +82650,7 @@ MESSAGE_REFERENCE = [
     "message": "Non-item reward result type {kind} is not decoded",
     "recovery": "format",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 99
+      "cdmw/core/acquisition_compact.py": 102
     }
   },
   {
@@ -82642,7 +82658,7 @@ MESSAGE_REFERENCE = [
     "message": "Non-item reward result type {result_type} is not decoded",
     "recovery": "format",
     "sources": {
-      "cdmw/core/item_reward_table.py": 66
+      "cdmw/core/item_reward_table.py": 69
     }
   },
   {
@@ -83939,8 +83955,8 @@ MESSAGE_REFERENCE = [
     "message": "Reward result type is not a supported item result",
     "recovery": "input",
     "sources": {
-      "cdmw/core/acquisition_compact.py": 96,
-      "cdmw/core/item_reward_table.py": 63
+      "cdmw/core/acquisition_compact.py": 99,
+      "cdmw/core/item_reward_table.py": 66
     }
   },
   {
@@ -83948,7 +83964,7 @@ MESSAGE_REFERENCE = [
     "message": "Reward-level condition is not decoded",
     "recovery": "format",
     "sources": {
-      "cdmw/core/item_reward_table.py": 78
+      "cdmw/core/item_reward_table.py": 81
     }
   },
   {
@@ -86999,7 +87015,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static generation has no such field.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/compact_static.py": 144
+      "cdmw/core/compact_static.py": 171
     }
   },
   {
@@ -87007,7 +87023,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static variant has not been qualified.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 71
+      "cdmw/core/compact_static.py": 91
     }
   },
   {
@@ -87391,7 +87407,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown compact static layout operation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 121
+      "cdmw/core/compact_static.py": 148
     }
   },
   {
@@ -87751,7 +87767,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static discriminant.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 116
+      "cdmw/core/compact_static.py": 143
     }
   },
   {
@@ -87759,7 +87775,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static record.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 59
+      "cdmw/core/compact_static.py": 79
     }
   },
   {
@@ -88017,7 +88033,15 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported or ambiguous compact ItemInfo layout ({detail}).",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 50
+      "cdmw/core/compact_static.py": 70
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unsupported or ambiguous compact static layout.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/core/compact_static.py": 68
     }
   },
   {
@@ -106875,7 +106899,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/_compact_static_schema.py": {},
   "cdmw/core/_item_layout_schema.py": {},
   "cdmw/core/acquisition_compact.py": {
-    "raise": 10
+    "raise": 11
   },
   "cdmw/core/action_chart_binary.py": {
     "raise": 53
@@ -107333,8 +107357,8 @@ SOURCE_COVERAGE = {
     "raise": 6
   },
   "cdmw/core/compact_static.py": {
-    "finding": 1,
-    "raise": 13
+    "finding": 2,
+    "raise": 15
   },
   "cdmw/core/crimson_formats.py": {
     "diagnostic_field": 1,
@@ -107454,7 +107478,7 @@ SOURCE_COVERAGE = {
     "raise": 6
   },
   "cdmw/core/item_reward_table.py": {
-    "raise": 11
+    "raise": 12
   },
   "cdmw/core/item_sources.py": {
     "raise": 2

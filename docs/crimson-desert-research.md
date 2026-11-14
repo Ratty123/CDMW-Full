@@ -269,6 +269,26 @@ checks cover compatibility, refusal, cloning and export readback. Unknown future
 layouts still refuse; this proves source/corpus reading, not packaged behavior,
 archive mutation or in-game acceptance.
 
+**13 November 2026 shop-table patch compatibility:** executable `1.0.0.3663`
+reads a further opaque byte after the signed two-byte `DropInfoData` enchantment
+level, before the result-specific reference, under the same error label. Its
+gameplay meaning remains unknown. The earlier reader lost alignment inside shop
+stock, stopping Create New Item with an invalid presence flag. Against
+`faf38eed0` plus this fix, complete-row checks distinguish the old and new widths;
+shop edits and cloned/appended/reordered rewards preserve the extra byte.
+DropSetInfo's new `_isToVehicle` field after `_isEqualPercent` is retained too.
+DMM shop and reward operations use `raw_h` and `raw_58` respectively, checked
+against [dmm-parser `9778425d672b`](https://github.com/exodiaprivate-eng/dmm-parser/tree/9778425d672b6dc747b9e80016f812ba6ae0b3c4).
+This is source-schema evidence; the manager was not run.
+All 440 base and 175 DLC shop rows (8,604 stock entries) rebuilt byte for byte.
+All 17,186 base/DLC DropSetInfo rows completed the layout walk; the 14,979 supported
+item-reward rows rebuilt byte for byte. Other reward variants remain outside the
+typed item editor. Owned exports retain the new byte in DMM shop registrations.
+A read-only snapshot loaded 8,379 effective items, 464 stores and 1,789 groups;
+source index fingerprints stayed unchanged. Owned fixtures cover both formats,
+refusal, snapshot/plan/export and reward preservation. This does not establish
+packaged behavior, archive mutation or in-game acceptance.
+
 Numbered archive groups pair a `.pamt` index with numbered `.paz` payloads.
 The index records paths, payload locations, stored/original sizes and flags.
 `meta/0.papgt` describes mounted archive groups and their ordering. Correct
