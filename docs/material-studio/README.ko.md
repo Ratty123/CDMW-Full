@@ -1,6 +1,6 @@
 # 재질 편집 개조 기록 (material-studio 브랜치)
 
-기준: upstream `Ratty123/cdmw-full` `faf38ee` (2026-11-11). 작업 지시서의 단계 번호를 그대로 쓴다.
+기준: upstream `Ratty123/cdmw-full` `faf38ee` (2026-11-11)에서 시작했고, 2026-11-15에 `97931c6`(0.12.0-alpha.5, 게임 최신 패치 대응)을 합쳤다. 작업 지시서의 단계 번호를 그대로 쓴다.
 
 ## 진행 상태
 
@@ -8,10 +8,10 @@
 |---|---|---|
 | 1 | XML 원본값을 패널에 표시 | 완료 (Mesh Editor, New Item) |
 | 2 | 슬라이더 실시간 반영 | 완료 (Mesh Editor) |
-| 3 | 프리셋 | 내장 프리셋 완료. 사용자 프리셋 저장은 미구현 |
+| 3 | 프리셋 | 내장 프리셋과 사용자 프리셋 저장·삭제 완료 |
 | 4 | 텍스처 슬롯 교체·파일 감시·채널 보기 | 슬롯 교체와 파일 감시 완료(파일 감시는 Windows 미확인). 채널 보기는 미구현 |
 | 5 | 셰이더 변경 재구성 방식 | 선택 옵션으로 완료 (망사·Glass) |
-| 6 | 폴더 열기 | 기존 "Drafts & Mods > Add Mod Folder"를 확장해 재질·텍스처까지 불러옴. 추출 폴더처럼 모델이 많으면 검색·선택 창이 뜸. 셰이더 종류 필터와 썸네일은 미구현 |
+| 6 | 폴더 열기 | 기존 "Drafts & Mods > Add Mod Folder"를 확장해 재질·텍스처까지 불러옴. 추출 폴더처럼 모델이 많으면 검색·선택 창이 뜨고, 셰이더 종류로 걸러 볼 수 있음. 썸네일은 미구현 |
 | 7 | 새 모드 폴더 저장·이어서 작업 | 저장은 기존 Build Mod 사용. 모드 폴더 다시 열기는 6단계 기능으로 해결 |
 | 8 | 원본 비교·배경 전환 | 배경 빠른 전환, 패널의 "원본 재질 보기" 토글 완료. 체크무늬 배경은 미구현 |
 | UI | 전용 "재질 편집" 화면 | 미착수 (기존 Shader experiments 패널만 개편) |
@@ -146,6 +146,29 @@
 | `tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs` | 카메라 uniform에 `preview_light`, `preview_settings` 추가(288 → 320바이트), `set_material_inspection`, `camera_basis` |
 | `tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs`, `cdmw_shader_controls.rs` | `MaterialInspection` 상태와 패널 UI |
 | `cdmw/resources/localization/*` | 새 문자열 22개 |
+
+## 3차 추가 (2026-11-15)
+
+### 사용자 프리셋
+- 프리셋 목록 아래에 이름 입력칸과 "프리셋 저장" 버튼이 있다. 지금 슬라이더에 보이는 모든 값(바꾼 값, 원본 값, 정의 기본값)을 그 이름으로 저장한다. 같은 이름(대소문자 무시)은 교체한다.
+- 저장한 프리셋은 내장 프리셋 뒤에 준 이름 그대로 나온다. "저장한 프리셋 삭제" 목록에서 지운다.
+- 저장 위치는 `%LOCALAPPDATA%/CrimsonDesertModWorkbench/shader_presets.json`이다. 셰이더당 48개까지. 초안이나 모드는 이 파일을 참조하지 않으므로 지워도 작업이 깨지지 않는다.
+- 호스트 명령은 기존 `replacement_shader_controls`에 `preset` 인자를 실어 보낸다. 모델 편집이 아니므로 실행 취소 기록을 만들지 않는다.
+
+### 모델 선택 창의 셰이더 필터
+- 추출 폴더를 Add Mod Folder로 열면, 각 모델의 pac_xml이 쓰는 셰이더 이름을 읽어 "모든 셰이더 / SkinnedMeshStandard (n) / SkinnedMeshTransparency (n) …" 목록을 만든다. 많이 쓰인 순서다.
+- `SkinnedMeshTransparency`를 고르면 게임이 망사 셰이더를 준 모델만 남는다. 이름 필터와 함께 쓸 수 있다. 원본 게임에서 망사·Glass가 어디에 쓰였는지 찾는 용도다.
+- 메시만 있고 pac_xml이 없는 모델은 셰이더 정보가 없어 "모든 셰이더"에서만 보인다.
+
+### 바꾼 파일 (3차)
+| 파일 | 내용 |
+|---|---|
+| `cdmw/core/shader_preset_store.py` | 사용자 프리셋 저장소 |
+| `cdmw/services/mesh_shader_controls.py` | `catalogue_with_user_presets`, `preset` 요청 처리 |
+| `cdmw/services/mesh_saved_work_service.py` | `folder_model_shaders` |
+| `cdmw/ui/mesh_editor/folder_model_picker.py`, `saved_work_page.py` | 셰이더 필터 |
+| `tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs` | 프리셋 저장·삭제 UI |
+| `tests/test_material_studio_presets.py` 외 | 테스트 |
 
 ## 남긴 결정 사항
 
