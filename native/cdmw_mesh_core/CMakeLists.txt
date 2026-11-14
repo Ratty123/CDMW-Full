@@ -93,6 +93,8 @@ set_target_properties(cdmw-mesh-core-owners PROPERTIES
 )
 target_compile_features(cdmw-mesh-core-owners PRIVATE cxx_std_17)
 target_compile_definitions(cdmw-mesh-core-owners PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+# The unity group can exceed COFF's default section limit with newer MSVC.
+target_compile_options(cdmw-mesh-core-owners PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
 target_include_directories(cdmw-mesh-core-owners PRIVATE src third_party/mikktspace third_party/xatlas)
 
 add_executable(cdmw-mesh-core src/main.cpp)
