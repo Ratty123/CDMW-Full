@@ -58,3 +58,38 @@ def test_depth_controls_default_on_and_emit_live_updates_without_rebuilding_asse
     finally:
         shiboken6.delete(dialog)
         app.processEvents()
+
+
+def test_changing_a_setting_keeps_the_page_you_are_on():
+    """Fredric (2026-11-15): a Lighting preset change jumped to Camera Input."""
+    from PySide6.QtWidgets import QAbstractButton, QComboBox, QSlider, QSpinBox, QDoubleSpinBox
+
+    app = QApplication.instance() or QApplication([])
+    defaults = ModelPreviewRenderSettings()
+    dialog = ModelPreviewSettingsDialog(settings=defaults)
+    try:
+        for tab in (dialog._quality_tab, dialog._general_tab):
+            if not dialog.tabs.isTabVisible(dialog.tabs.indexOf(tab)):
+                continue
+            dialog.tabs.setCurrentWidget(tab)
+            dialog.preview_lighting_preset_combo.setCurrentIndex(
+                dialog.preview_lighting_preset_combo.findData("studio_fixed"))
+            assert dialog.tabs.currentWidget() is tab
+            # Every control on the page: none may move the dialog to another page.
+            for control in tab.findChildren(QComboBox):
+                if control.isVisibleTo(tab) and control.count() > 1:
+                    control.setCurrentIndex((control.currentIndex() + 1) % control.count())
+                    assert dialog.tabs.currentWidget() is tab, control.objectName() or control.currentText()
+            for control in tab.findChildren(QAbstractButton):
+                if control.isVisibleTo(tab) and control.isCheckable():
+                    control.click()
+                    assert dialog.tabs.currentWidget() is tab, control.text()
+            for control in [w for kind in (QSlider, QSpinBox, QDoubleSpinBox) for w in tab.findChildren(kind)]:
+                if control.isVisibleTo(tab):
+                    control.setValue(control.maximum())
+                    assert dialog.tabs.currentWidget() is tab
+            dialog.set_settings(defaults)  # a re-sync from the shared settings
+            assert dialog.tabs.currentWidget() is tab
+    finally:
+        shiboken6.delete(dialog)
+        app.processEvents()
