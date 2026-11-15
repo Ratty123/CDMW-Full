@@ -9,6 +9,8 @@ thread, so a wait never blocks the UI.
 
 from __future__ import annotations
 
+import contextlib
+
 import os
 import threading
 import time
@@ -576,10 +578,30 @@ class AutomationBridge(QObject):
 
         tab_direct_output.MeshModExportDialog = _Accepted
         try:
-            tab._start_mesh_mod_build_requested()
+            with self._warnings_as_events():
+                tab._start_mesh_mod_build_requested()
         finally:
             tab_direct_output.MeshModExportDialog = original
         return True
+
+    @contextlib.contextmanager
+    def _warnings_as_events(self):
+        """A warning box would hold the UI thread (and the bridge call) until clicked;
+        during the call it is recorded as a "warning" event instead."""
+
+        from PySide6.QtWidgets import QMessageBox
+
+        original_warning = QMessageBox.warning
+
+        def recorded(_parent, title, text, *_args, **_kwargs):
+            self._push("warning", {"title": str(title), "message": str(text)})
+            return QMessageBox.StandardButton.Ok
+
+        QMessageBox.warning = staticmethod(recorded)
+        try:
+            yield
+        finally:
+            QMessageBox.warning = original_warning
 
     # ----- Mesh Editor textures (step 8) ---------------------------------------
     def _shown_mesh_tab(self):
@@ -607,7 +629,8 @@ class AutomationBridge(QObject):
         tab = self._shown_mesh_tab()
         if tab is None or not hasattr(tab, "open_texture_in_window"):
             return False
-        tab.open_texture_in_window(str(args["texture_id"]))
+        with self._warnings_as_events():
+            tab.open_texture_in_window(str(args["texture_id"]))
         return True
 
     @staticmethod
