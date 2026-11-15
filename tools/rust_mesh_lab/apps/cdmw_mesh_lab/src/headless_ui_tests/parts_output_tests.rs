@@ -109,6 +109,8 @@ fn parts_delete_guidance_offers_free_edit_without_deleting_the_selection() -> Te
     ui.settle_layout();
     ui.reveal("Delete unavailable")?;
     ui.reveal("Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.")?;
+    // An output-mode refusal keeps its Free Edit advice.
+    ui.reveal("Free Edit creates an OBJ package without the game rig or physics. Supported vertex and face deletion can stay in Exact output.")?;
     assert_eq!(ui.application.selected_part_indices(), vec![0]);
     assert_eq!(
         ui.application
@@ -173,6 +175,45 @@ fn parts_delete_shortcut_keeps_supported_vertex_deletion_in_exact_output() -> Te
         ui.application.cdmw_state["output_policy"],
         "exact_game_asset"
     );
+    Ok(())
+}
+
+#[test]
+fn delete_while_a_request_runs_names_it_and_gives_no_free_edit_advice() -> TestResult {
+    // Fredric saw "Wait for the current operation before deleting." followed by the
+    // Free Edit advice, which has nothing to do with waiting (2026-11-15).
+    let mut application = triangle_application()?;
+    let mesh = application.mesh.as_mut().ok_or("mesh")?;
+    let vertex = mesh.vertices().next().ok_or("vertex")?.0;
+    mesh.set_selection(Selection {
+        vertices: HashSet::from([vertex]),
+        ..Selection::default()
+    })?;
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 1080.0));
+    ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
+        request_id: 7,
+        event: "command_result",
+        label: "Select All".to_owned(),
+        origin: None,
+    });
+    ui.frame(vec![key_event(egui::Key::Delete, true)]);
+    ui.frame(vec![key_event(egui::Key::Delete, false)]);
+    assert!(!has_topology_action(&ui.last_actions, "delete"));
+    ui.settle_layout();
+    ui.reveal("Delete unavailable")?;
+    ui.reveal("Still running: Select All. Delete again when it has finished.")?;
+    assert!(ui
+        .label_rect("Free Edit creates an OBJ package without the game rig or physics. Supported vertex and face deletion can stay in Exact output.")
+        .is_none());
+    assert!(ui.label_rect("Choose Free Edit...").is_none());
+    ui.click("Close")?;
+    // Once the request is done, the same Delete goes through in Exact output.
+    ui.application.cdmw_pending_request = None;
+    ui.last_actions.clear();
+    ui.frame(vec![key_event(egui::Key::Delete, true)]);
+    ui.frame(vec![key_event(egui::Key::Delete, false)]);
+    assert!(has_topology_action(&ui.last_actions, "delete"));
     Ok(())
 }
 

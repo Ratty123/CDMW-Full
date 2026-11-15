@@ -13709,6 +13709,7 @@
     "Still busy with the previous step ({value_0}); wait for it to finish.": "前の手順（{value_0}）がまだ実行中です。完了までお待ちください。",
     "Still preparing Mesh Editor textures for the resident viewport...": "常駐ビューポート用のメッシュ エディタ テクスチャの準備中...",
     "Still preparing preview in isolated worker ({value_0}s)...": "分離されたワーカーでのプレビューの準備中({value_0}s)...",
+    "Still running: {value_0}. Delete again when it has finished.": "実行中: {value_0}。完了してからもう一度削除してください。",
     "Still waiting for owned background work to stop safely...": "所有されているバックグラウンド作業が安全に停止するのをまだ待っています...",
     "Still working: {value_0}. Elapsed: {value_1} seconds.": "処理を継続しています: {value_0}。経過時間: {value_1}秒。",
     "Stock quantity when unlimited stock is off; zero keeps the source entry's quantity.": "無制限在庫がオフの場合の在庫数量。ゼロはソースエントリの数量を保持します。",

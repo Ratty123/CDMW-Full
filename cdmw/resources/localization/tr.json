@@ -13709,6 +13709,7 @@
     "Still busy with the previous step ({value_0}); wait for it to finish.": "Önceki adım ({value_0}) hâlâ sürüyor; bitmesini bekleyin.",
     "Still preparing Mesh Editor textures for the resident viewport...": "Yerleşik görünüm portu için Mesh Düzenleyici dokuları hazırlamaya devam ediyorum...",
     "Still preparing preview in isolated worker ({value_0}s)...": "İzole çalışanda ({value_0}'ler) önizleme hâlâ hazırlanıyor...",
+    "Still running: {value_0}. Delete again when it has finished.": "Hâlâ sürüyor: {value_0}. Bittiğinde yeniden silin.",
     "Still waiting for owned background work to stop safely...": "Sahip olunan arka plan çalışmasının güvenli bir şekilde durdurulması hâlâ bekleniyor...",
     "Still working: {value_0}. Elapsed: {value_1} seconds.": "İşlem sürüyor: {value_0}. Geçen süre: {value_1} saniye.",
     "Stock quantity when unlimited stock is off; zero keeps the source entry's quantity.": "Sınırsız stok kapalıyken stok miktarı; sıfır, kaynak girişinin miktarını korur.",

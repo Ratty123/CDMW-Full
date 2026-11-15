@@ -13709,6 +13709,7 @@
     "Still busy with the previous step ({value_0}); wait for it to finish.": "Il passo precedente ({value_0}) è ancora in corso; attendi che finisca.",
     "Still preparing Mesh Editor textures for the resident viewport...": "Sto ancora preparando le texture dell'Editor di mesh per il viewport residente...",
     "Still preparing preview in isolated worker ({value_0}s)...": "Sto ancora preparando l'anteprima nel lavoratore isolato ({value_0}s)...",
+    "Still running: {value_0}. Delete again when it has finished.": "Ancora in corso: {value_0}. Elimina di nuovo quando è terminato.",
     "Still waiting for owned background work to stop safely...": "Sto ancora aspettando che i lavori in background di proprietà si interrompano in sicurezza...",
     "Still working: {value_0}. Elapsed: {value_1} seconds.": "Ancora in elaborazione: {value_0}. Tempo trascorso: {value_1} secondi.",
     "Stock quantity when unlimited stock is off; zero keeps the source entry's quantity.": "Quantità di stock quando lo stock illimitato è disattivato; zero mantiene la quantità della voce di origine.",

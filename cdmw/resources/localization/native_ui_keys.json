@@ -2232,6 +2232,7 @@
   "Status",
   "Step {value_0} · {value_1} undo · {value_2} redo",
   "Still",
+  "Still running: {value_0}. Delete again when it has finished.",
   "Stored",
   "Stored sculpted shape. 100% reproduces the captured body target.",
   "Stored {value_0} rule · axis {value_1} · 100% strength {value_2}",

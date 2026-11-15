@@ -13709,6 +13709,7 @@
     "Still busy with the previous step ({value_0}); wait for it to finish.": "Still busy with the previous step ({value_0}); wait for it to finish.",
     "Still preparing Mesh Editor textures for the resident viewport...": "Still preparing Mesh Editor textures for the resident viewport...",
     "Still preparing preview in isolated worker ({value_0}s)...": "Still preparing preview in isolated worker ({value_0}s)...",
+    "Still running: {value_0}. Delete again when it has finished.": "Still running: {value_0}. Delete again when it has finished.",
     "Still waiting for owned background work to stop safely...": "Still waiting for owned background work to stop safely...",
     "Still working: {value_0}. Elapsed: {value_1} seconds.": "Still working: {value_0}. Elapsed: {value_1} seconds.",
     "Stock quantity when unlimited stock is off; zero keeps the source entry's quantity.": "Stock quantity when unlimited stock is off; zero keeps the source entry's quantity.",

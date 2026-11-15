@@ -13709,6 +13709,7 @@
     "Still busy with the previous step ({value_0}); wait for it to finish.": "上一步（{value_0}）仍在進行；請等待其完成。",
     "Still preparing Mesh Editor textures for the resident viewport...": "仍在為駐留視窗準備網格編輯器紋理...",
     "Still preparing preview in isolated worker ({value_0}s)...": "仍在隔離工作執行緒 ({value_0}s) 中準備預覽...",
+    "Still running: {value_0}. Delete again when it has finished.": "仍在進行：{value_0}。完成後請再次刪除。",
     "Still waiting for owned background work to stop safely...": "仍在等待擁有的後台工作安全停止......",
     "Still working: {value_0}. Elapsed: {value_1} seconds.": "仍在處理：{value_0}。已用時：{value_1} 秒。",
     "Stock quantity when unlimited stock is off; zero keeps the source entry's quantity.": "無限庫存關閉時的庫存數量；零保留來源條目的數量。",

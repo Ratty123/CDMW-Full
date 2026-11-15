@@ -13709,6 +13709,7 @@
     "Still busy with the previous step ({value_0}); wait for it to finish.": "이전 단계({value_0})가 아직 진행 중입니다. 끝날 때까지 기다리세요.",
     "Still preparing Mesh Editor textures for the resident viewport...": "아직 상주 뷰포트에 대한 메시 편집기 텍스처를 준비하는 중입니다...",
     "Still preparing preview in isolated worker ({value_0}s)...": "아직 격리된 작업자({value_0}s)에서 미리보기를 준비하는 중입니다...",
+    "Still running: {value_0}. Delete again when it has finished.": "아직 실행 중: {value_0}. 완료된 후 다시 삭제하세요.",
     "Still waiting for owned background work to stop safely...": "여전히 소유한 백그라운드 작업이 안전하게 중지되기를 기다리고 있습니다...",
     "Still working: {value_0}. Elapsed: {value_1} seconds.": "작업이 진행 중입니다: {value_0}. 경과 시간: {value_1}초.",
     "Stock quantity when unlimited stock is off; zero keeps the source entry's quantity.": "무제한 재고가 해제된 경우 재고 수량. 0은 소스 항목의 수량을 유지합니다.",

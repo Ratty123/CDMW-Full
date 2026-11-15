@@ -3821,7 +3821,7 @@ impl LabApplication {
                 label.as_str(),
                 "Delete part" | "Delete selection" | "Delete Selection"
             ) {
-                self.show_cdmw_delete_guidance(&self.status.clone());
+                self.show_cdmw_output_delete_guidance(&self.status.clone());
             }
             self.remember_cdmw_page_feedback(origin.as_ref());
             self.finish_cdmw_history_step(request_id, false);

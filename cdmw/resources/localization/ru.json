@@ -13709,6 +13709,7 @@
     "Still busy with the previous step ({value_0}); wait for it to finish.": "Предыдущий шаг ({value_0}) ещё выполняется; дождитесь его завершения.",
     "Still preparing Mesh Editor textures for the resident viewport...": "Все еще готовим текстуры инструмента «Редактор сеток» для резидентного окна просмотра...",
     "Still preparing preview in isolated worker ({value_0}s)...": "Все еще готовим предварительный просмотр в изолированном рабочем окне ({value_0}s)...",
+    "Still running: {value_0}. Delete again when it has finished.": "Ещё выполняется: {value_0}. Удалите ещё раз, когда это закончится.",
     "Still waiting for owned background work to stop safely...": "Все еще ждем, пока собственная фоновая работа благополучно прекратится...",
     "Still working: {value_0}. Elapsed: {value_1} seconds.": "Работа продолжается: {value_0}. Прошло секунд: {value_1}.",
     "Stock quantity when unlimited stock is off; zero keeps the source entry's quantity.": "количество запасов, когда неограниченный запас отключен; ноль сохраняет количество исходной записи.",

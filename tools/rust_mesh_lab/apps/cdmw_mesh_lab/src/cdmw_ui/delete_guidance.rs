@@ -6,9 +6,21 @@ fn guidance_id() -> egui::Id {
 }
 
 impl LabApplication {
+    /// Explain why Delete did nothing. The Free Edit advice belongs only to refusals
+    /// the output mode causes; a busy, read-only or empty-selection refusal has its own fix.
     pub(crate) fn show_cdmw_delete_guidance(&mut self, message: &str) {
-        self.egui_context
-            .data_mut(|data| data.insert_temp(guidance_id(), message.to_owned()));
+        self.show_cdmw_delete_guidance_with(message, false);
+    }
+
+    /// A refusal the output mode causes: the Free Edit advice and button may follow it.
+    pub(crate) fn show_cdmw_output_delete_guidance(&mut self, message: &str) {
+        self.show_cdmw_delete_guidance_with(message, true);
+    }
+
+    fn show_cdmw_delete_guidance_with(&mut self, message: &str, about_output: bool) {
+        self.egui_context.data_mut(|data| {
+            data.insert_temp(guidance_id(), (message.to_owned(), about_output))
+        });
         self.egui_context.request_repaint();
     }
 
@@ -17,7 +29,9 @@ impl LabApplication {
         context: &egui::Context,
         actions: &mut Vec<UiAction>,
     ) {
-        let Some(message) = context.data_mut(|data| data.get_temp::<String>(guidance_id())) else {
+        let Some((message, about_output)) =
+            context.data_mut(|data| data.get_temp::<(String, bool)>(guidance_id()))
+        else {
             return;
         };
         let mut close = false;
@@ -25,13 +39,14 @@ impl LabApplication {
             ui.set_max_width((context.content_rect().width() - 40.0).clamp(180.0, 440.0));
             ui.heading(crate::localization::tr("Delete unavailable"));
             ui.add(egui::Label::new(crate::localization::tr(&message)).wrap());
-            if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
+            if about_output && state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
                 ui.add(egui::Label::new(crate::localization::tr(
                     "Free Edit creates an OBJ package without the game rig or physics. Supported vertex and face deletion can stay in Exact output.",
                 )).wrap());
             }
             ui.horizontal_wrapped(|ui| {
-                if state_bool(&self.cdmw_state, "authoring_enabled")
+                if about_output
+                    && state_bool(&self.cdmw_state, "authoring_enabled")
                     && !self.cdmw_busy()
                     && !self.cdmw_has_archive_refit()
                     && !self.cdmw_has_item_set()
@@ -45,13 +60,24 @@ impl LabApplication {
             });
         });
         if close || modal.should_close() {
-            context.data_mut(|data| data.remove::<String>(guidance_id()));
+            context.data_mut(|data| data.remove::<(String, bool)>(guidance_id()));
         }
     }
 
     pub(super) fn cdmw_part_delete_action(&mut self) -> Option<UiAction> {
+        // The refusals cdmw_part_action_reason gives in its output-policy branch, and
+        // only those, are about the output mode.
+        let about_output = !self.cdmw_busy()
+            && !self.cdmw_morph_comparison_active()
+            && state_bool(&self.cdmw_state, "authoring_enabled")
+            && state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild")
+            && self.cdmw_state["replacement"]["item_set"] != true;
         if let Some(reason) = self.cdmw_part_action_reason("delete") {
-            self.show_cdmw_delete_guidance(reason);
+            if about_output {
+                self.show_cdmw_output_delete_guidance(reason);
+            } else {
+                self.show_cdmw_delete_guidance(reason);
+            }
             return None;
         }
         Some(UiAction::CdmwCommand {
@@ -69,13 +95,23 @@ impl LabApplication {
 
     pub(super) fn cdmw_delete_guidance_open(&self) -> bool {
         self.egui_context
-            .data_mut(|data| data.get_temp::<String>(guidance_id()).is_some())
+            .data_mut(|data| data.get_temp::<(String, bool)>(guidance_id()).is_some())
     }
 
     /// The Delete shortcut; the keyboard dispatcher has already checked focus and popups.
     pub(super) fn cdmw_delete_selection(&mut self, actions: &mut Vec<UiAction>) {
-        if self.cdmw_busy() {
-            self.show_cdmw_delete_guidance("Wait for the current operation before deleting.");
+        if let Some(pending) = self.cdmw_pending_request.as_ref() {
+            // Name what is being waited for: a selection, an edit, a Finish...
+            let operation = pending.label.trim().to_owned();
+            if operation.is_empty() {
+                self.show_cdmw_delete_guidance("Wait for the current operation before deleting.");
+            } else {
+                let operation = crate::localization::tr(&operation);
+                let message = crate::localization::tr(format!(
+                    "Still running: {operation}. Delete again when it has finished."
+                ));
+                self.show_cdmw_delete_guidance(&message);
+            }
         } else if !state_bool(&self.cdmw_state, "authoring_enabled") {
             self.show_cdmw_delete_guidance("This session is read-only");
         } else if self.cdmw_morph_comparison_active()
