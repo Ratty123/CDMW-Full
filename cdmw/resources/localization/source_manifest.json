@@ -19032,6 +19032,16 @@
       ]
     },
     {
+      "key": "Base colour",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 95,
+          "sink": "python-return:texture_role_label"
+        }
+      ]
+    },
+    {
       "key": "Base mesh cannot be deleted",
       "origins": [
         {
@@ -27901,7 +27911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 309,
+          "line": 327,
           "sink": "QLabel"
         }
       ]
@@ -34981,12 +34991,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 468,
+          "line": 486,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 469,
+          "line": 487,
           "sink": "setAccessibleName"
         },
         {
@@ -38396,7 +38406,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 280,
+          "line": 285,
           "sink": "QPushButton"
         }
       ]
@@ -45500,6 +45510,11 @@
           "sink": "setHeaderLabels"
         },
         {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 101,
+          "sink": "python-return:texture_role_label"
+        },
+        {
           "path": "cdmw/ui/texture_workflow/editor_brush_presets.py",
           "line": 12,
           "sink": "python-data:BUILTIN_TEXTURE_EDITOR_BRUSH_PRESET_ORDER"
@@ -51846,7 +51861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 457,
+          "line": 475,
           "sink": "setToolTip"
         }
       ]
@@ -52038,6 +52053,11 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
           "line": 429,
           "sink": "_manual_combo"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 105,
+          "sink": "python-return:texture_role_label"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
@@ -54956,7 +54976,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 426,
+          "line": 444,
           "sink": "QPushButton"
         },
         {
@@ -56651,7 +56671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 449,
+          "line": 467,
           "sink": "setToolTip"
         }
       ]
@@ -56661,7 +56681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 428,
+          "line": 446,
           "sink": "setToolTip"
         }
       ]
@@ -58641,7 +58661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 454,
+          "line": 472,
           "sink": "QLabel"
         }
       ]
@@ -62605,6 +62625,11 @@
       "key": "Flow",
       "origins": [
         {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 123,
+          "sink": "python-return:texture_role_label"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 878,
           "sink": "_add_tool_setting_row"
@@ -65188,6 +65213,11 @@
           "path": "cdmw/ui/mesh_editor/saved_work_page.py",
           "line": 403,
           "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 524,
+          "sink": "setHeaderLabels"
         }
       ]
     },
@@ -66355,6 +66385,16 @@
       "key": "Global sidecar indexing is optional. Leave it off for faster startup and browsing; enable it when you need DDS reverse references across the archive. Worker count range: 1-16. Preview cache range: 12-256 entries.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Gloss",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 117,
+          "sink": "python-return:texture_role_label"
+        }
+      ]
     },
     {
       "key": "Gloves",
@@ -69720,6 +69760,11 @@
           "sink": "getItem"
         },
         {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 119,
+          "sink": "python-return:texture_role_label"
+        },
+        {
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 670,
           "sink": "QLabel"
@@ -72581,7 +72626,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 433,
+          "line": 451,
           "sink": "QPushButton"
         },
         {
@@ -73191,7 +73236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 435,
+          "line": 453,
           "sink": "setToolTip"
         }
       ]
@@ -82230,6 +82275,11 @@
       "key": "Layer",
       "origins": [
         {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 103,
+          "sink": "python-return:texture_role_label"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 599,
           "sink": "QLabel"
@@ -87147,6 +87197,16 @@
       ]
     },
     {
+      "key": "Mask",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 99,
+          "sink": "python-return:texture_role_label"
+        }
+      ]
+    },
+    {
       "key": "Mask / Generic",
       "origins": [],
       "manual": true
@@ -87733,6 +87793,11 @@
           "path": "cdmw/ui/archive_browser/static_replacement_material_plan_items.py",
           "line": 285,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 107,
+          "sink": "python-return:texture_role_label"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
@@ -89661,7 +89726,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 419,
+          "line": 437,
           "sink": "QPushButton"
         },
         {
@@ -90261,7 +90326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1136,
+          "line": 1137,
           "sink": "_set_rust_status"
         }
       ]
@@ -90321,7 +90386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1047,
+          "line": 1048,
           "sink": "_set_rust_status"
         }
       ]
@@ -90371,7 +90436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1056,
+          "line": 1057,
           "sink": "_set_rust_status"
         }
       ]
@@ -90886,7 +90951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 456,
+          "line": 474,
           "sink": "setAccessibleName"
         }
       ]
@@ -90901,7 +90966,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1069,
+          "line": 1070,
           "sink": "_set_rust_status"
         }
       ]
@@ -92903,6 +92968,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 6510,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Metalness",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 113,
+          "sink": "python-return:texture_role_label"
         }
       ]
     },
@@ -97406,7 +97481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 274,
+          "line": 279,
           "sink": "QPushButton"
         }
       ]
@@ -97821,7 +97896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 276,
+          "line": 281,
           "sink": "setToolTip"
         }
       ]
@@ -103667,6 +103742,16 @@
       ]
     },
     {
+      "key": "No textures were resolved for this mesh.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 553,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "No to All",
       "origins": [],
       "manual": true
@@ -104261,7 +104346,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 347,
+          "line": 365,
           "sink": "_rig_palette_button"
         }
       ]
@@ -104278,6 +104363,11 @@
           "path": "cdmw/ui/archive_browser/mesh_dds_preview.py",
           "line": 253,
           "sink": "getItem"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 97,
+          "sink": "python-return:texture_role_label"
         },
         {
           "path": "cdmw/ui/new_item/effect_playback.py",
@@ -104476,7 +104566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 347,
+          "line": 365,
           "sink": "_rig_palette_button"
         }
       ]
@@ -105782,6 +105872,16 @@
       "manual": true
     },
     {
+      "key": "Occlusion",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 115,
+          "sink": "python-return:texture_role_label"
+        }
+      ]
+    },
+    {
       "key": "Occupied equipment slots",
       "origins": [
         {
@@ -106605,6 +106705,11 @@
           "sink": "rust-presentation"
         },
         {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 121,
+          "sink": "python-return:texture_role_label"
+        },
+        {
           "path": "cdmw/ui/new_item/transparency_painter.py",
           "line": 68,
           "sink": "addRow"
@@ -106666,7 +106771,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 440,
+          "line": 458,
           "sink": "QPushButton"
         },
         {
@@ -107531,7 +107636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 314,
+          "line": 332,
           "sink": "_rig_palette_button"
         }
       ]
@@ -107728,6 +107833,21 @@
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
           "line": 702,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Open a mesh to see its textures.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 517,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 585,
+          "sink": "setText"
         }
       ]
     },
@@ -108636,7 +108756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 442,
+          "line": 460,
           "sink": "setToolTip"
         }
       ]
@@ -108926,7 +109046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 282,
+          "line": 287,
           "sink": "setToolTip"
         }
       ]
@@ -110728,6 +110848,11 @@
           "path": "cdmw/ui/archive_browser/mesh_swap_support.py",
           "line": 185,
           "sink": "python-return:_archive_entry_swap_companion_group"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 124,
+          "sink": "python-return:texture_role_label"
         },
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
@@ -113676,7 +113801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 461,
+          "line": 479,
           "sink": "QLabel"
         }
       ]
@@ -117746,7 +117871,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 323,
+          "line": 341,
           "sink": "_rig_palette_button"
         },
         {
@@ -120388,6 +120513,11 @@
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
           "line": 1051,
           "sink": "_mesh_editor_rebuilt_asset_setup"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 524,
+          "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
@@ -139890,6 +140020,11 @@
           "sink": "setHorizontalHeaderLabels"
         },
         {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 524,
+          "sink": "setHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 232,
           "sink": "setHeaderLabels"
@@ -140343,6 +140478,11 @@
           "path": "cdmw/domain/mesh/shader_controls.py",
           "line": 1,
           "sink": "rust-presentation"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 111,
+          "sink": "python-return:texture_role_label"
         },
         {
           "path": "cdmw/ui/new_item/surface_editor.py",
@@ -140856,7 +140996,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 229,
+          "line": 247,
           "sink": "setText"
         }
       ]
@@ -152182,6 +152322,16 @@
       ]
     },
     {
+      "key": "Shared",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 569,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Shared attach point",
       "origins": [
         {
@@ -155386,7 +155536,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 314,
+          "line": 332,
           "sink": "_rig_palette_button"
         },
         {
@@ -158412,6 +158562,16 @@
       ]
     },
     {
+      "key": "Specular",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 109,
+          "sink": "python-return:texture_role_label"
+        }
+      ]
+    },
+    {
       "key": "Specular base",
       "origins": [
         {
@@ -159738,6 +159898,11 @@
           "path": "cdmw/ui/archive_browser/model.py",
           "line": 507,
           "sink": "python-return:headerData"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 524,
+          "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/new_item/component_list.py",
@@ -165020,6 +165185,11 @@
           "sink": "_add_combo_choice"
         },
         {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 500,
+          "sink": "setWindowTitle"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 322,
           "sink": "QTreeWidgetItem"
@@ -169851,7 +170021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 421,
+          "line": 439,
           "sink": "setToolTip"
         }
       ]
@@ -175726,7 +175896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 323,
+          "line": 341,
           "sink": "_rig_palette_button"
         }
       ]
@@ -176351,7 +176521,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 335,
+          "line": 353,
           "sink": "_rig_palette_button"
         }
       ]
@@ -176416,7 +176586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 335,
+          "line": 353,
           "sink": "_rig_palette_button"
         }
       ]
@@ -182848,6 +183018,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 417,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Used by more than one part of this model.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 570,
+          "sink": "setToolTip"
         }
       ]
     },

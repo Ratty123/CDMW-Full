@@ -49638,7 +49638,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not prepare its shadow session: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 1056
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 1057
     }
   },
   {
@@ -108320,6 +108320,7 @@ SOURCE_COVERAGE = {
     "validation": 1
   },
   "cdmw/ui/mesh_editor/tab_ui_state.py": {},
+  "cdmw/ui/mesh_editor/textures_panel.py": {},
   "cdmw/ui/mesh_editor/workspace.py": {},
   "cdmw/ui/mesh_editor/workspace_interaction.py": {},
   "cdmw/ui/mesh_editor/workspace_lazy_panels.py": {

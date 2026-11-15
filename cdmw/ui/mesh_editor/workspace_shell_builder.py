@@ -205,7 +205,7 @@ class WorkspaceShellBuilderMixin:
         else:
             right_panels = self._build_right_panels()
         splitter.addWidget(left_palette)
-        splitter.addWidget(central_preview)
+        splitter.addWidget(self._build_dock_host(central_preview))
         splitter.addWidget(right_panels)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
@@ -216,6 +216,24 @@ class WorkspaceShellBuilderMixin:
         splitter.setSizes((0, 1, 0))
         self._install_direct_output_controls(central_preview)
         return splitter
+
+    def _build_dock_host(self, central_preview: QWidget) -> QWidget:
+        """The 3D view inside a window of its own, so panels can dock beside it, float
+        and be moved back (step 8: the Textures panel on the right)."""
+
+        from PySide6.QtWidgets import QMainWindow
+
+        from cdmw.ui.mesh_editor.textures_panel import MeshEditorTexturesPanel
+
+        host = QMainWindow(self)
+        host.setWindowFlags(Qt.WindowType.Widget)
+        host.setObjectName("MeshEditorDockHost")
+        host.setDockOptions(QMainWindow.DockOption.AnimatedDocks | QMainWindow.DockOption.AllowTabbedDocks)
+        host.setCentralWidget(central_preview)
+        self.textures_dock = MeshEditorTexturesPanel(host)
+        host.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.textures_dock)
+        self.dock_host = host
+        return host
 
     def _install_direct_output_controls(self, parent: QWidget) -> None:
         """Keep compatibility actions constructed while Rust owns the visible surface."""

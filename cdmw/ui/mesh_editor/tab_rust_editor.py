@@ -1022,6 +1022,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_prepare_process_generation = 0
         self.standalone_rust_authoring_session = session
         self.standalone_rust_session_root = session.root
+        self._show_session_textures(session.root)
         self.standalone_rust_parked = False  # a new session is never parked (P15)
         self.standalone_rust_unpark_requested = False
         self.standalone_rust_texture_unavailable_reason = str(
@@ -1183,8 +1184,16 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         ):
             self._resume_rust_relaunch_after_dispose()
 
+    def _show_session_textures(self, session_root) -> None:
+        """The Textures panel follows the document's session (step 8)."""
+
+        dock = getattr(getattr(self, "standalone_workspace", None), "textures_dock", None)
+        if dock is not None:
+            dock.show_session(session_root)
+
     def _reset_rust_session_references(self) -> None:
         self._stop_rust_session_prepare(invalidate=True)
+        self._show_session_textures(None)
         self.standalone_rust_authoring_session = None
         self.standalone_rust_target_controller = None
         self.standalone_rust_session_root = None
