@@ -799,7 +799,7 @@ class EditPanelMixin:
                 "Select the item's own child socket — that is what holds its angle."
             )
             return
-        users = session.child_socket_users(socket_name)
+        users = self._point_users(socket_name)
         if len(users) > 1:
             self.statusBar().showMessage(
                 f"{socket_name} aims {len(users)} rows ({', '.join(users)}), so turning it "
@@ -1149,9 +1149,12 @@ class EditPanelMixin:
         aims_one_row = (
             weapon is not None
             and self._selected_socket in weapon.sockets
-            and len(self._session.child_socket_users(self._selected_socket)) <= 1
+            and len(self._point_users(self._selected_socket)) <= 1
         )
         self._turn_over_button.setEnabled(bool(aims_one_row))
+        refresh_carry_points = getattr(self, "_refresh_carry_point_actions", None)
+        if refresh_carry_points is not None:
+            refresh_carry_points()
 
         if not self._selected_socket:
             self._edit_target.setText("Nothing selected")
@@ -1227,22 +1230,150 @@ class EditPanelMixin:
         return units
 
     def _shared_socket_users(self) -> dict:
-        """Child socket -> every descriptor row aimed by it, read off vanilla.
+        """Child socket -> the descriptor rows aimed by it, read off vanilla.
 
-        Deliberately counted across assets, which over-reports: child sockets are per weapon
-        file, so two rows naming `Pelvis_L_ChildSocket` may resolve against different files and
-        not actually share anything. Over-reporting costs an extra clone; under-reporting moves
+        Keyed twice. By name it counts every row naming the socket on any item, which
+        over-reports: child sockets are per socket file, so the two shield rows naming
+        `Spine2_B_Shield_ChildSocket` read different files and share nothing. By
+        `(socket file, name)` it counts the rows that read that file
+        (`PlacementSession.file_shared_users`), and the preflight uses that entry where there is
+        one. A file the rules cannot place keeps every row, since under-reporting moves
         somebody else's weapon.
         """
 
         session = self._session
         if session is None:
             return {}
-        return {
+        users = {
             name: usage.child_offset
             for name, usage in session.usage_map().items()
             if usage.child_offset
         }
+        users.update(session.file_shared_users())
+        return users
+
+    def _point_users(self, socket_name: str):
+        """The rows a change of this point moves: per file for the item's own point."""
+
+        session = self._session
+        if session is None or not socket_name:
+            return ()
+        weapon = session.weapon
+        if weapon is not None and socket_name in weapon.sockets:
+            return session.file_socket_users(weapon, socket_name)
+        return session.child_socket_users(socket_name)
+
+    # ── over the other shoulder, hang like another item ─────────────
+
+    def _other_shoulder_target(self):
+        """`(point, child socket)` when Over the other shoulder applies, else `("", None)`.
+
+        It applies to a body point with no left or right partner that the selected slot hangs
+        from in the way the view shows it: mirroring a hip point is Mirror to the other side's
+        job, and a point the slot does not use has no item to mirror.
+        """
+
+        from . import carry_plan
+
+        session = self._session
+        name = self._selected_socket
+        binding = self._current_binding() if session is not None else None
+        if session is None or binding is None or not name or session.placed(name) is None:
+            return "", None
+        if carry_plan.mirrorable(name):
+            return "", None
+        part = binding.part
+        role = self._mesh_role_box.currentData() or "held"
+        pairs = [(part.in_socket, part.in_child_socket), (part.out_socket, part.out_child_socket)]
+        if role == "held":
+            pairs.reverse()
+        weapon = session.weapon
+        for body, child_name in pairs:
+            if body != name:
+                continue
+            child = None
+            if weapon is not None and child_name:
+                child = (self._edits.socket(weapon.game_path, child_name)
+                         if self._edits is not None else None) or weapon.sockets.get(child_name)
+            return name, child
+        return "", None
+
+    def _mirror_over_other_shoulder(self) -> None:
+        """Mirror the selected item across the body and write its body point back, per file."""
+
+        from . import carry_plan
+        from .clip_names import part_label
+
+        session, edits = self._session, self._edits
+        name, child = self._other_shoulder_target()
+        if session is None or edits is None or not name:
+            self.statusBar().showMessage(
+                "Select the body point the item hangs from on the back first.")
+            return
+        try:
+            solved = carry_plan.plan_other_shoulder(edits, session.model, name, child,
+                                                    session.bind_hierarchy)
+        except carry_plan.MirrorError as exc:
+            self.statusBar().showMessage(str(exc))
+            return
+        try:
+            for result in solved:
+                edits.set_translation(result.socket_file, name, result.socket.translation)
+                edits.set_rotation_quaternion(result.socket_file, name, result.socket.rotation)
+        except EditError as exc:
+            self.statusBar().showMessage(str(exc))
+            return
+        self._after_edit()
+        self._refresh_meshes()
+        usage = session.usage(name)
+        others = [p for p in dict.fromkeys((*usage.stowed, *usage.held))
+                  if p != self._selected_part]
+        if others:
+            listed = ", ".join(part_label(p) for p in others[:4])
+            if len(others) > 4:
+                self.statusBar().showMessage(
+                    f"Mirrored {socket_label(name)} over the other shoulder. It also moves "
+                    f"{listed} and {len(others) - 4} more.")
+            else:
+                self.statusBar().showMessage(
+                    f"Mirrored {socket_label(name)} over the other shoulder. It also moves "
+                    f"{listed}.")
+        else:
+            self.statusBar().showMessage(
+                f"Mirrored {socket_label(name)} over the other shoulder.")
+
+    def _hang_like_sources(self):
+        """Other items' copies of the selected item's own point, for Hang like."""
+
+        from . import carry_plan
+
+        session = self._session
+        name = self._selected_socket
+        weapon = session.weapon if session is not None else None
+        if weapon is None or not name or name not in weapon.sockets:
+            return []
+        current = (self._edits.socket(weapon.game_path, name) if self._edits is not None
+                   else None) or weapon.sockets.get(name)
+        return carry_plan.hang_like_sources(session.weapons(), weapon.game_path, name, current)
+
+    def _hang_like(self, source) -> None:
+        """Take over another item's copy of the selected point, in this item's own file."""
+
+        session, edits = self._session, self._edits
+        name = self._selected_socket
+        weapon = session.weapon if session is not None else None
+        if edits is None or weapon is None or not name or name not in weapon.sockets:
+            return
+        try:
+            edits.set_translation(weapon.game_path, name, source.socket.translation)
+            edits.set_rotation_quaternion(weapon.game_path, name, source.socket.rotation)
+        except EditError as exc:
+            self.statusBar().showMessage(str(exc))
+            return
+        self._after_edit()
+        self._refresh_meshes()
+        self.statusBar().showMessage(
+            f"{socket_label(name)} now hangs like the {source.label}.")
 
     def _export(self) -> None:
         if self._edits is None or not self._edits.modified_paths():

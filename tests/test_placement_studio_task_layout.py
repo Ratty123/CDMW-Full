@@ -13,11 +13,10 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from tools.placement_studio import corpus
 from tests.test_papr_format import _doc, _driver_block, _entry
-from tests.test_placement_studio_operations import BODY, FILES, W1H
+from tests.test_placement_studio_operations import ALIAS, BODY, DESC, FILES, W1H
 
 
-@pytest.fixture
-def window(monkeypatch, tmp_path):
+def _open_window(monkeypatch, tmp_path, files):
     QApplication.instance() or QApplication([])
     from tools.placement_studio.window import PlacementStudioWindow
 
@@ -27,8 +26,39 @@ def window(monkeypatch, tmp_path):
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
     monkeypatch.setattr(PlacementStudioWindow, "_mod_settings", lambda self: settings)
     base = tmp_path / "vanilla"
-    records = {path: corpus._pin(base, path, data, "0009") for path, data in FILES.items()}
-    studio = PlacementStudioWindow(corpus.Baseline(base, records), background_loading=False)
+    records = {path: corpus._pin(base, path, data, "0009") for path, data in files.items()}
+    return PlacementStudioWindow(corpus.Baseline(base, records), background_loading=False)
+
+
+@pytest.fixture
+def window(monkeypatch, tmp_path):
+    studio = _open_window(monkeypatch, tmp_path, FILES)
+    yield studio
+    studio.close()
+    studio.deleteLater()
+
+
+def _two_rows_on_one_sword_file() -> dict:
+    """The fixture with a second one-hand sword row, so two rows read the sword's own file.
+
+    A child point is shared when several rows read it from the same item file. In the plain
+    fixture each file's grip is read by one row only (the two-hand sword and the shield rows
+    name `Basic_ChildSocket` too, but read their own files).
+    """
+
+    files = dict(FILES)
+    extra = ('\t<Part PartName="CD_MainWeapon_Sword_L" InSocketBone="Pelvis_R_Socket"'
+             ' OutSocketBone="RHand_Socket" InChildSocketBone="Pelvis_R_ChildSocket"'
+             ' OutChildSocketBone="Basic_ChildSocket"/>\r\n')
+    text = files[DESC].decode("utf-8").replace("</CharacterDescription>",
+                                               extra + "</CharacterDescription>")
+    files[DESC] = files[ALIAS] = text.encode("utf-8")
+    return files
+
+
+@pytest.fixture
+def shared_grip_window(monkeypatch, tmp_path):
+    studio = _open_window(monkeypatch, tmp_path, _two_rows_on_one_sword_file())
     yield studio
     studio.close()
     studio.deleteLater()
@@ -74,9 +104,10 @@ def test_the_view_shows_tools_above_and_a_show_menu_below(window) -> None:
     assert not window._show_labels.isChecked()
 
 
-def test_fine_tune_starts_on_a_point_and_avoids_a_shared_one(window) -> None:
-    # The fixture's in-hand grip is shared by every held row, so a change to it could never
-    # be saved: Fine-tune starts on the body spot instead and says so in the Adjust choice.
+def test_fine_tune_starts_on_a_point_and_avoids_a_shared_one(shared_grip_window) -> None:
+    # Both one-hand sword rows read their grip from the sword's file, so a change to it could
+    # never be saved: Fine-tune starts on the body spot instead and says so in the Adjust choice.
+    window = shared_grip_window
     assert window._selected_socket == "RHand_Socket"
     assert window._adjust_target_box.currentData() == "body"
 
@@ -160,7 +191,9 @@ def test_an_unticked_change_stays_out_and_nothing_ticked_saves_nothing(window, m
     assert window._mod_list.topLevelItem(0).checkState(0) == Qt.Unchecked
 
 
-def test_a_shared_point_edit_is_refused_with_a_plain_reason(window, monkeypatch, tmp_path) -> None:
+def test_a_shared_point_edit_is_refused_with_a_plain_reason(shared_grip_window, monkeypatch,
+                                                            tmp_path) -> None:
+    window = shared_grip_window
     window._edits.nudge(W1H, "Basic_ChildSocket", 0.0, 0.05, 0.0)
     window._after_edit()
     out = tmp_path / "mods"

@@ -93,9 +93,12 @@ class CarryGuideMixin:
         self._carry_rows_button.setToolTip(translate_active_ui_text(
             "The descriptor rows that decide where the weapon and its case hang on this body."))
         self._carry_rows_button.clicked.connect(self._show_carry_rows)
+        self._carry_mod_note = kit.hint("")
+        self._carry_mod_note.setVisible(False)
         form = kit.Form()
         form.add(translate_active_ui_text("Now"), self._carry_now)
         form.add(translate_active_ui_text("Move to"), self._carry_box)
+        form.add_wide(self._carry_mod_note)
         form.add(translate_active_ui_text("Side"), self._carry_mirror)
         form.add(translate_active_ui_text("Held in"), self._carry_hand)
         form.add(translate_active_ui_text("Rows"), kit.row(self._carry_rows_button))
@@ -188,6 +191,47 @@ class CarryGuideMixin:
             text = f"{socket_label(current)} → {socket_label(spot)}"
         self._carry_plan_label.setText(text)
         self._carry_plan_label.setToolTip("\n".join(plan.review_lines()) if plan is not None else "")
+        self._refresh_carry_mod_note(part, spot)
+
+    def _refresh_carry_mod_note(self, part, spot: str) -> None:
+        """Name the carry points this body's rows use that one of its game files lacks.
+
+        A row may hang an item on a point the game's own body file does not define, such as
+        female Kliff's musket point, which Character Creator Enhanced and Heroine of Pywel each
+        add in their copy of `phw_01`. A point no file of this body defines is left out of
+        Move to, and the note says why rather than leaving it out silently.
+        """
+
+        from .clip_names import socket_label
+
+        note = getattr(self, "_carry_mod_note", None)
+        if note is None:
+            return
+        session, edits = self._session, self._edits
+        if session is None or edits is None:
+            note.setVisible(False)
+            return
+        files = carry_plan.body_socket_files(edits, session.model)
+        named = [getattr(part, "in_socket", "") or "", getattr(part, "out_socket", "") or "",
+                 spot]
+        everywhere = []
+        for binding in session.bindings():
+            everywhere += [binding.part.in_socket, binding.part.out_socket]
+        missing = carry_plan.points_other_mods_add(edits, session.model, named + everywhere)
+        nowhere = sorted({name for _path, name in missing
+                          if sum(1 for _p, n in missing if n == name) == len(files)})
+        lines = []
+        for name in dict.fromkeys([n for n in named if n] + nowhere):
+            bodies = [carry_plan.body_file_label(path) for path, n in missing if n == name]
+            if not bodies:
+                continue
+            lines.append(translate_active_ui_text(
+                f"The game's body file for {', '.join(bodies)} has no {socket_label(name)} "
+                f"point. Another mod adds it there (for example Character Creator Enhanced or "
+                f"Heroine of Pywel), and CDMW edits the game's own files, so it cannot move "
+                f"that one here."))
+        note.setText(" ".join(lines))
+        note.setVisible(bool(lines))
 
     def _on_carry_spot_changed(self, _index: int) -> None:
         if getattr(self, "_carry_syncing", False):

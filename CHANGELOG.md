@@ -7,10 +7,18 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Placement & Animations' **Carry > Fine-tune** names what a change of a body point moves. Select a point several items hang from, such as the left hip, and the note lists them, the first few by name and how many more, so you see that moving it moves the 1H sword, the daggers and the rest too. Changing a shared body point still saves.
+- **Over the other shoulder** in **Carry > Fine-tune** mirrors an item that hangs from a back point with no left or right partner, such as the musket or the two-handed sword on the back, across the middle of the body. It writes that back point to match in each of the body's files, in the point's own bone frame, and saves as a change of that point. The note lists what else hangs there and moves with it. Hip points keep **Mirror to the other side** under **Where it hangs**. Not yet checked in game.
+- **Hang like…** in **Carry > Fine-tune** copies the selected item's own point from another item's file, for example so a round shield hangs the way a tower shield does. It is saved as a change of the item's own file, which is still written whole. Every model of a shield type reads one shared file, and the note says that all of them change together. Not yet checked in game.
+- **Where it hangs** and **Fine-tune** explain a carry point that a body's game file lacks, such as female Kliff's musket point, instead of leaving it out silently: another mod adds it (for example Character Creator Enhanced or Heroine of Pywel), and CDMW edits the game's own files, so it cannot move that point.
+
 ### Fixed
 
 - Mesh Editor's **Build Mod** with **Keep layers underneath** ticked no longer fails when the edited garment never cut the ticked layers, such as Lowerbody on the pants themselves. The mod is built without its own shrink rules, and a note names the layers the garment does cut. When Build Mod does fail, a message now says why instead of the progress bar closing with no mod.
 - When the archive backend stops unexpectedly, **Copy error report** now includes the worker's exit code and, for common Windows crash codes, what it means, such as a file removed by antivirus or a CPU instruction the worker cannot run.
+- Placement & Animations no longer refuses to save a change of a weapon's own point that only one item type reads. The check counted every row naming the point on any item, so changing the tower shields' `Spine2_B_Shield_ChildSocket` was refused because the round shield row names the same point, although it reads another file. Points are now counted per socket file; a point that several rows read from the same file is still refused.
 
 ## [0.12.0-alpha.5] - 2026-11-14
 

@@ -188,19 +188,21 @@ class MirroredSocket:
 
 
 def solve_mirrored_socket(hierarchy, source: Socket, child: Socket, *, name: str,
-                          socket_file: str = "") -> MirroredSocket:
+                          socket_file: str = "", bone: str = "") -> MirroredSocket:
     """The socket on the mirror partner of `source`'s bone that puts the item at `S W S`.
 
     The partner is found by name (`B_WeaponIn_R_00` <-> `B_WeaponIn_L_00`); a centre bone is
-    its own partner. Checked by placing the item through the solved socket again.
+    its own partner. `bone` keeps the solved socket on that bone instead. Checked by placing
+    the item through the solved socket again.
     """
 
     axis = mirror_axis(hierarchy)
     reflect = _reflection(axis)
     world = weapon_world(hierarchy, source, child)
     target = multiply(multiply(reflect, world), reflect)
-    partner = mirror_name(source.parent_bone)
-    bone = partner if hierarchy.by_name(partner) is not None else source.parent_bone
+    if not bone:
+        partner = mirror_name(source.parent_bone)
+        bone = partner if hierarchy.by_name(partner) is not None else source.parent_bone
     local = multiply(multiply(matrix_from(child.rotation, child.translation), target),
                      _inverse(_bone_matrix(hierarchy, bone)))
     rotation, translation = rigid_of(local)
@@ -219,6 +221,137 @@ def _rounded(value):
         q = Quat(*(round(v, 6) for v in (value.x, value.y, value.z, value.w)))
         return Quat(*(0.0 if abs(v) < 5e-7 else v for v in (q.x, q.y, q.z, q.w)))
     return Vec3(*(0.0 if abs(v) < 5e-7 else round(v, 6) for v in (value.x, value.y, value.z)))
+
+
+# ── over the other shoulder ──────────────────────────────────────────
+
+
+def solve_other_shoulder(hierarchy, source: Socket, child: Optional[Socket], *,
+                         socket_file: str = "") -> MirroredSocket:
+    """`source` rewritten so the item it hangs lands mirrored across the body's middle.
+
+    For a centre point with no left or right partner (`Spine2_B_SubWeapon_Socket`, the musket
+    point), which "Mirror to the other side" cannot reach: the item hung by `child` sits at
+    `W = inverse(C) * S` (row-vector form, S in the world), and its mirror image
+    `W' = R W R` across the left-right axis has rotation (x, -y, -z, w) and position (-x, y, z)
+    when that axis is x. The point is solved back as `S' = C * W'` in its own parent bone's
+    frame, with the same name and parent, so it saves as a change of that one point. Nothing
+    here is held mirrored, so there is no extra half turn about the item's length.
+    """
+
+    if mirrorable(source.name):
+        raise MirrorError(f"{source.name} has a point on the other side; mirror to that one")
+    child = child if child is not None else Socket("", rotation=Quat(), translation=Vec3())
+    return solve_mirrored_socket(hierarchy, source, child, name=source.name,
+                                 socket_file=socket_file or source.source_file,
+                                 bone=source.parent_bone)
+
+
+def plan_other_shoulder(edits, model: str, socket_name: str, child: Optional[Socket],
+                        hierarchy) -> List[MirroredSocket]:
+    """The mirrored value of `socket_name` for each of this body's files that defines it."""
+
+    if hierarchy is None:
+        raise MirrorError("This character has no skeleton to mirror across")
+    files = [path for path in body_socket_files(edits, model)
+             if edits.socket(path, socket_name) is not None]
+    if not files:
+        raise MirrorError(f"No body socket file of this character defines {socket_name}")
+    return [solve_other_shoulder(hierarchy, edits.socket(path, socket_name), child,
+                                 socket_file=path) for path in files]
+
+
+# ── points another mod adds ──────────────────────────────────────────
+
+#: Whose body each body socket file is, by file name.
+BODY_FILE_LABELS: Dict[str, str] = {
+    "phm_01.pab.sockets.xml": "Kliff",
+    "phw_01.pab.sockets.xml": "female Kliff",
+    "phw_damian_01.pab.sockets.xml": "Damiane",
+}
+
+
+def body_file_label(path: str) -> str:
+    """`female Kliff` for `phw_01.pab.sockets.xml`; otherwise the file's own name."""
+
+    name = str(path or "").replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return BODY_FILE_LABELS.get(name, name.removesuffix(".pab.sockets.xml"))
+
+
+def points_other_mods_add(edits, model: str, names: Iterable[str]) -> List[Tuple[str, str]]:
+    """`(body file, point)` for each carry point in `names` that a body file of this body lacks.
+
+    A descriptor row can name a carry point the game's own body file does not define: female
+    Kliff's rows put the musket on `Spine2_B_RangeWeapon_Musket_Socket`, which the game's
+    `phw_01` has no entry for. Character Creator Enhanced and Heroine of Pywel each add one in
+    their copy of that file. CDMW edits the game's own files, so it has nothing there to move.
+    Only carry points are reported: other names a row may hold are not attach points at all.
+    """
+
+    from .carry import CARRY_SOCKETS
+
+    carry_points = {name for name, _label in CARRY_SOCKETS}
+    wanted = [name for name in dict.fromkeys(names) if name in carry_points]
+    out: List[Tuple[str, str]] = []
+    for path in body_socket_files(edits, model):
+        defined = set(edits.sockets_in(path))
+        out.extend((path, name) for name in wanted if name not in defined)
+    return out
+
+
+# ── hang like another item ───────────────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class HangLike:
+    """Another item's file whose copy of a child point can be taken over."""
+
+    label: str
+    socket_file: str
+    socket: Socket
+
+
+def hang_like_sources(weapons, current_file: str, socket_name: str,
+                      current: Optional[Socket] = None) -> List[HangLike]:
+    """The other items' values of `socket_name`, one per kind and value, for "Hang like".
+
+    Round, tower and kite shields each read one file of their own, and all three define
+    `Spine2_B_Shield_ChildSocket`, so a round shield can be made to hang the way a tower shield
+    does by taking over that one point. Values equal to the current one are left out.
+    """
+
+    from .clip_names import weapon_label
+    from .equipment_assets import socket_file_kind, type_label
+
+    found: Dict[Tuple[str, tuple], HangLike] = {}
+    per_kind: Dict[str, int] = {}
+    seen_files = {current_file}
+    for weapon in sorted(weapons, key=lambda w: w.game_path):
+        path = weapon.game_path
+        socket = weapon.sockets.get(socket_name)
+        if path in seen_files or socket is None:
+            continue
+        seen_files.add(path)
+        if current is not None and _close(socket, current):
+            continue
+        value = (tuple(round(v, 4) for v in (socket.rotation.x, socket.rotation.y,
+                                              socket.rotation.z, socket.rotation.w)),
+                 tuple(round(v, 4) for v in (socket.translation.x, socket.translation.y,
+                                              socket.translation.z)))
+        kind = socket_file_kind(path) or weapon.weapon_id
+        if (kind, value) in found:
+            continue
+        label = type_label(path) or weapon_label(weapon.weapon_id)
+        found[(kind, value)] = HangLike(label, path, socket)
+        per_kind[kind] = per_kind.get(kind, 0) + 1
+    out = []
+    for (kind, _value), source in found.items():
+        if per_kind[kind] > 1:
+            stem = source.socket_file.rsplit("/", 1)[-1].removesuffix(".sockets.xml")
+            source = HangLike(f"{source.label} ({weapon_label(stem)})", source.socket_file,
+                              source.socket)
+        out.append(source)
+    return sorted(out, key=lambda s: s.label.lower())
 
 
 # ── the plan ─────────────────────────────────────────────────────────

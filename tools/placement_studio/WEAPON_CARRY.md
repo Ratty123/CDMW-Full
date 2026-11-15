@@ -207,3 +207,27 @@ flagged, 0.12 to 0.15 m off when they fire. Scripts: `.work/research/2026-11-09-
 
 Not in this slice: mirrored clips and the hip swing (slice 4); Help and translations of the
 new text.
+
+## Carry points
+
+Built on 2026-11-15, with `tests/test_placement_studio_carry_points.py` (the `real_game` tests
+there read Kliff's and the phw body files, the musket, the two-hand sword and the three
+shield files from the installed game into a temporary folder).
+
+- **Fine-tune** names the items a shared body point carries (first four, then how many more).
+- **Over the other shoulder** (`carry_plan.solve_other_shoulder`) is offered for a centre
+  point with no left or right partner that the selected slot hangs from. The item
+  `W = inverse(C) S` is reflected across the skeleton's left-right axis and the point solved
+  back as `S' = C W'` on its own parent bone, per body file that defines it, and recorded as
+  ordinary Fine-tune edits of that point (a `<set>` patch on save). On Kliff the musket then
+  leans over the left shoulder, the 2H sword still over the right.
+- A child point is counted per socket file: `equipment_assets.rows_reading_file` keeps the
+  rows that agree with the file on case (`_in`), hands (folder) and kind (the row's weapon
+  type is the file's kind, or ends it when no row names the kind), and keeps every row when
+  a rule would leave none. The window passes `(file, socket)` keys to the preflight next to
+  the name keys. **Hang like...** copies a child point's transform from another item's file.
+- A carry point a body file lacks (female Kliff's `phw_01` has no musket point) is explained
+  under **Where it hangs** and in the Fine-tune note.
+
+Not in this slice: Help and the Wiki do not describe the two new actions yet, and nothing has
+been tried in game.
