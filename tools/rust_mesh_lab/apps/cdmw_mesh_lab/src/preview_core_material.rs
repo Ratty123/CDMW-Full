@@ -1720,12 +1720,11 @@ fn compose_height(
 
 /// Resample a layer texture the way the layered shader repeats it.
 ///
-/// Same convention as the Python material combiner's PAC layer transform:
-/// around the UV centre, the offset is removed, the result divided by the
-/// scale and rotated, and the texture repeats. This image is in the decoded
-/// DDS row order (the combiner works on a vertically flipped copy), so the
-/// Y offset and the angle change sign here; both agree for the common
-/// centred, 180 degree or unrotated transforms.
+/// The game shader's detail UV (SkinnedMeshTransparency DXIL, variant
+/// `..._151cd770`, values %236-%249), applied in the decoded DDS row order,
+/// which is the D3D UV direction (v = 0 is the first row):
+/// `qx = (u - 0.5 - Ox) / Sx`, `qy = (v - 0.5 + Oy) / Sy`,
+/// `u' = qx cos - qy sin + 0.5`, `v' = qx sin + qy cos + 0.5`; the texture repeats.
 fn repeat_by_layer_transform(source: &[u8], width: u32, height: u32, transform: [f32; 5]) -> Vec<u8> {
     let [scale_x, scale_y, offset_x, offset_y, angle] = transform.map(f64::from);
     let (scale_x, scale_y) = (scale_x.max(1e-5), scale_y.max(1e-5));
@@ -1734,11 +1733,11 @@ fn repeat_by_layer_transform(source: &[u8], width: u32, height: u32, transform: 
     let mut target = vec![0_u8; w * h * 4];
     let sample = |x: usize, y: usize, channel: usize| f64::from(source[(y * w + x) * 4 + channel]);
     for row in 0..h {
-        let along_y = ((row as f64 + 0.5) / h as f64 - 0.5 - offset_y) / scale_y;
+        let along_y = ((row as f64 + 0.5) / h as f64 - 0.5 + offset_y) / scale_y;
         for column in 0..w {
             let along_x = ((column as f64 + 0.5) / w as f64 - 0.5 - offset_x) / scale_x;
-            let u = (along_x * cosine + along_y * sine + 0.5).rem_euclid(1.0);
-            let v = (-along_x * sine + along_y * cosine + 0.5).rem_euclid(1.0);
+            let u = (along_x * cosine - along_y * sine + 0.5).rem_euclid(1.0);
+            let v = (along_x * sine + along_y * cosine + 0.5).rem_euclid(1.0);
             let source_x = u * w as f64 - 0.5;
             let source_y = v * h as f64 - 0.5;
             let (x0, y0) = (source_x.floor(), source_y.floor());
@@ -2300,6 +2299,26 @@ mod tests {
         let turned = repeat_by_layer_transform(&source, 4, 4, [1.0, 1.0, 0.0, 0.0, std::f32::consts::PI]);
         let turned_row: Vec<u8> = turned[..16].chunks(4).map(|pixel| pixel[0]).collect();
         assert_eq!(turned_row, vec![192, 128, 64, 0]);
+        // A quarter turn follows the shader: u' = 0.5 - qy, so the source column is
+        // read from the target row, mirrored (row 0 reads the last column).
+        let quarter = repeat_by_layer_transform(&source, 4, 4, [1.0, 1.0, 0.0, 0.0, std::f32::consts::FRAC_PI_2]);
+        let first_column: Vec<u8> = quarter.chunks(16).map(|row| row[0]).collect();
+        assert_eq!(first_column, vec![192, 128, 64, 0]);
+        assert!(quarter[..16].chunks(4).all(|pixel| pixel[0] == 192));
+        // The Y offset is added: a quarter of the height moves the sample one row down.
+        let mut rows = Vec::new();
+        for row in 0..4_u8 {
+            for _column in 0..4 {
+                rows.extend_from_slice(&[row * 64, 0, 0, 255]);
+            }
+        }
+        let shifted = repeat_by_layer_transform(&rows, 4, 4, [1.0, 1.0, 0.0, 0.25, 0.0]);
+        let shifted_column: Vec<u8> = shifted.chunks(16).map(|row| row[0]).collect();
+        assert_eq!(shifted_column, vec![64, 128, 192, 0]);
+        // The X offset is removed: a quarter of the width moves the sample one column left.
+        let shifted = repeat_by_layer_transform(&source, 4, 4, [1.0, 1.0, 0.25, 0.0, 0.0]);
+        let shifted_row: Vec<u8> = shifted[..16].chunks(4).map(|pixel| pixel[0]).collect();
+        assert_eq!(shifted_row, vec![192, 0, 64, 128]);
 
         // Through the cache: the layer's height repeats, a layer without a transform does not.
         let bytes = encode_rgba8_dds(4, 4, &source, TextureRole::Unknown).unwrap();
