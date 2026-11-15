@@ -159,6 +159,10 @@ class AutomationBridge(QObject):
             "switch_piece": self._switch_piece,
             "debug_dump": self._debug_dump,
             "build_mod": self._build_mod,
+            "texture_rows": self._texture_rows,
+            "open_texture": self._open_texture,
+            "texture_window": self._texture_window,
+            "texture_edit": self._texture_edit,
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -575,6 +579,85 @@ class AutomationBridge(QObject):
             tab._start_mesh_mod_build_requested()
         finally:
             tab_direct_output.MeshModExportDialog = original
+        return True
+
+    # ----- Mesh Editor textures (step 8) ---------------------------------------
+    def _shown_mesh_tab(self):
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        view = created_tool_widget(self.window.shell.mesh_editor_tab)
+        return getattr(view, "active", None) or view
+
+    def _texture_rows(self, _args: dict) -> list[dict[str, object]]:
+        """The shown document's Textures panel rows."""
+
+        tab = self._shown_mesh_tab()
+        dock = getattr(getattr(tab, "standalone_workspace", None), "textures_dock", None)
+        rows = []
+        for group in getattr(dock, "groups", ()) or ():
+            for row in group.rows:
+                rows.append({"part": group.group_heading, "texture_id": row.texture_id, "role": row.role,
+                             "game_path": row.game_path, "shared": row.shared, "in_renderer": row.in_renderer,
+                             "source_sha256": row.source_sha256})
+        return rows
+
+    def _open_texture(self, args: dict) -> bool:
+        """Double-click a Textures panel row: open it in the floating Texture Editor."""
+
+        tab = self._shown_mesh_tab()
+        if tab is None or not hasattr(tab, "open_texture_in_window"):
+            return False
+        tab.open_texture_in_window(str(args["texture_id"]))
+        return True
+
+    @staticmethod
+    def _texture_editor_window():
+        from cdmw.ui.mesh_editor import texture_editor_window
+
+        return texture_editor_window._window
+
+    def _texture_window(self, _args: dict) -> dict[str, object]:
+        window = self._texture_editor_window()
+        tab = self._shown_mesh_tab()
+        live = getattr(tab, "_live_texture_updates", None)
+        if window is None:
+            return {"exists": False}
+        editor = window.editor
+        document = getattr(editor, "document", None)
+        busy_check = getattr(editor, "_busy", None)
+        busy = bool(busy_check()) if callable(busy_check) else False
+        return {
+            "exists": True, "visible": window.isVisible(), "title": window.windowTitle(),
+            "notice": window.notice.text() if window.notice.isVisible() else "",
+            "document": getattr(document, "title", "") if document is not None else "",
+            "source_path": getattr(getattr(document, "source_binding", None), "source_path", "") if document else "",
+            "history_index": int(getattr(editor, "history_index", -1)), "busy": busy,
+            "edited": sorted(live.edited_textures()) if live is not None else [],
+            "in_flight": {key: state.in_flight for key, state in getattr(live, "_textures", {}).items()},
+        }
+
+    def _texture_edit(self, args: dict) -> bool:
+        """One edit in the Texture Editor window, as its controls make it: ``hue`` adds a
+        Hue / Saturation adjustment and commits ``value``; ``undo`` and ``redo`` step the
+        window's history."""
+
+        window = self._texture_editor_window()
+        editor = getattr(window, "editor", None)
+        if editor is None or getattr(editor, "document", None) is None:
+            return False
+        action = str(args.get("action", "hue"))
+        if action == "undo":
+            editor.undo()
+            return True
+        if action == "redo":
+            editor.redo()
+            return True
+        combo = editor.adjustment_add_combo
+        combo.setCurrentIndex(combo.findData("hue_saturation"))
+        editor.add_adjustment_layer()
+        editor.adjustment_param_a_slider.setValue(int(args.get("value", 120)))
+        editor.preview_selected_adjustment_properties()
+        editor.commit_selected_adjustment_properties()
         return True
 
     def _debug_dump(self, _args: dict) -> dict[str, object]:
