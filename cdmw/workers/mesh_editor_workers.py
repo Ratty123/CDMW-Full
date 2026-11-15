@@ -463,6 +463,8 @@ class MeshDirectOutputWorker(QObject):
         saved_work_root: Path | str | None = None,
         include_refit_body: bool = False,
         keep_layers: tuple[str, ...] = (),
+        texture_outputs: tuple = (),
+        texture_work_root: Path | str | None = None,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -487,6 +489,12 @@ class MeshDirectOutputWorker(QObject):
         self.inherited_archive_outputs = inherited_archive_outputs
         self.include_refit_body = bool(include_refit_body)
         self.keep_layers = tuple(str(name) for name in keep_layers)
+        # Step 8: textures edited from the Mesh Editor's Textures panel, already planned
+        # (cdmw.services.mesh_live_texture_output); encoded here, off the UI thread.
+        self.texture_outputs = tuple(texture_outputs)
+        if self.texture_outputs and (self.kind not in {"loose_mod", "overlay_package"} or texture_work_root is None):
+            raise ValueError("Edited textures are written only by Build Mod.")
+        self.texture_work_root = Path(texture_work_root) if texture_work_root is not None else None
         if self.keep_layers and self.kind not in {"loose_mod", "overlay_package"}:
             raise ValueError("Layers underneath apply only to Build Mod outputs.")
         self.saved_work_root = (
@@ -630,6 +638,18 @@ class MeshDirectOutputWorker(QObject):
                     else:
                         requests.append(ArchivePatchRequest(inherited, data))
                     included.add(normalize(inherited.path))
+            if self.texture_outputs:
+                from cdmw.services.mesh_live_texture_output import encode_live_texture_outputs
+
+                self.progress_changed.emit(self.request_id, 60, "Writing the edited textures...")
+                taken = {str(request.entry.path).replace("\\", "/").casefold() for request in requests}
+                taken.update(str(item.path).replace("\\", "/").casefold() for item in additions)
+                for texture in encode_live_texture_outputs(self.texture_outputs, self.texture_work_root,
+                                                           stop_event=self.stop_event):
+                    if str(texture.entry.path).replace("\\", "/").casefold() in taken:
+                        raise ValueError(f"{texture.entry.path} is already part of this mod; the edited texture "
+                                         "cannot change it as well.")
+                    requests.append(texture)
             if not requests and not additions:
                 if editing_set:
                     raise ValueError("The included item set files have no changes to write")
@@ -640,6 +660,12 @@ class MeshDirectOutputWorker(QObject):
             if self.stop_event.is_set():
                 raise RunCancelled("Mesh output cancelled")
             metadata = self._metadata(snapshot, report)
+            if self.texture_outputs:
+                from cdmw.services.mesh_live_texture_output import live_texture_metadata
+
+                payload = json.loads(metadata)
+                payload["textures"] = live_texture_metadata(self.texture_outputs)
+                metadata = (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
             if layers is not None:
                 payload = json.loads(metadata)
                 payload["layer_visibility"] = layers.record
@@ -676,6 +702,7 @@ class MeshDirectOutputWorker(QObject):
             if replacement_baselines is not None:
                 replacement_baselines.cleanup()
             self.archive_material_sources = ()
+            self.texture_outputs = ()
             self.finished.emit()
 
     def _layer_visibility(self, requests: list, additions: list):

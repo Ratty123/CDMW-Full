@@ -40926,7 +40926,7 @@ MESSAGE_REFERENCE = [
     "message": "An archive result needs a workspace output folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 518
+      "cdmw/workers/mesh_editor_workers.py": 526
     }
   },
   {
@@ -41055,7 +41055,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output has duplicate asset paths",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 829
+      "cdmw/workers/mesh_editor_workers.py": 856
     }
   },
   {
@@ -41063,7 +41063,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output target no longer matches the loaded source",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 547
+      "cdmw/workers/mesh_editor_workers.py": 555
     }
   },
   {
@@ -41127,7 +41127,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mesh path escapes the loose package",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 827
+      "cdmw/workers/mesh_editor_workers.py": 854
     }
   },
   {
@@ -44191,7 +44191,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 812
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 845
     }
   },
   {
@@ -44239,7 +44239,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 897
+      "cdmw/workers/mesh_editor_workers.py": 924
     }
   },
   {
@@ -44247,7 +44247,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM archive-group package is missing {relative}",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 923
+      "cdmw/workers/mesh_editor_workers.py": 950
     }
   },
   {
@@ -44255,7 +44255,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM package metadata changed archive-group payload {relative}",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 950
+      "cdmw/workers/mesh_editor_workers.py": 977
     }
   },
   {
@@ -44824,6 +44824,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/mesh_glb_interchange.py": 272
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Edited textures are written only by Build Mod.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/workers/mesh_editor_workers.py": 496
     }
   },
   {
@@ -45603,7 +45611,7 @@ MESSAGE_REFERENCE = [
     "message": "Field-JSON only describes DDS assets and cannot safely package a mesh payload",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 817
+      "cdmw/workers/mesh_editor_workers.py": 844
     }
   },
   {
@@ -47368,7 +47376,7 @@ MESSAGE_REFERENCE = [
     "message": "Hairstyles require Build Mod → DMM Archive Group to add the complete barber choice.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 527
+      "cdmw/workers/mesh_editor_workers.py": 535
     }
   },
   {
@@ -49009,7 +49017,7 @@ MESSAGE_REFERENCE = [
     "message": "Layers underneath apply only to Build Mod outputs.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 491
+      "cdmw/workers/mesh_editor_workers.py": 499
     }
   },
   {
@@ -49081,7 +49089,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 815
+      "cdmw/workers/mesh_editor_workers.py": 842
     }
   },
   {
@@ -49482,7 +49490,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 974
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1007
     }
   },
   {
@@ -49546,7 +49554,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 722
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 755
     }
   },
   {
@@ -49554,7 +49562,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 928,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 961,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 837
     }
   },
@@ -49646,7 +49654,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1465
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1498
     }
   },
   {
@@ -49662,7 +49670,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1269
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1302
     }
   },
   {
@@ -49670,7 +49678,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1265
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1298
     }
   },
   {
@@ -49817,7 +49825,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1295
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1328
     }
   },
   {
@@ -49857,7 +49865,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 978
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1011
     }
   },
   {
@@ -49882,7 +49890,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1053
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1086
     }
   },
   {
@@ -50194,7 +50202,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh archive-group packages are supported only for the DMM manager profile",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 479
+      "cdmw/workers/mesh_editor_workers.py": 481
     }
   },
   {
@@ -50795,7 +50803,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh mod output already exists: {root}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 820
+      "cdmw/workers/mesh_editor_workers.py": 847
     }
   },
   {
@@ -51052,7 +51060,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output cancelled",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 507
+      "cdmw/workers/mesh_editor_workers.py": 515
     }
   },
   {
@@ -51060,7 +51068,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 341
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 357
     }
   },
   {
@@ -51557,7 +51565,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh-only outputs cannot contain texture or material authoring changes",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 537
+      "cdmw/workers/mesh_editor_workers.py": 545
     }
   },
   {
@@ -53518,7 +53526,7 @@ MESSAGE_REFERENCE = [
     "message": "Only the body is left to write. Turn on Include the body to build it.",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 636
+      "cdmw/workers/mesh_editor_workers.py": 656
     }
   },
   {
@@ -57249,7 +57257,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has an invalid or duplicate package path",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 848
+      "cdmw/workers/mesh_editor_workers.py": 875
     }
   },
   {
@@ -57257,7 +57265,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has no captured baseline: {file.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 595
+      "cdmw/workers/mesh_editor_workers.py": 603
     }
   },
   {
@@ -57313,7 +57321,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement output target no longer matches the captured archive identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 579
+      "cdmw/workers/mesh_editor_workers.py": 587
     }
   },
   {
@@ -59311,6 +59319,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Some edited textures cannot be written: {detail}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 152
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Source file not found",
     "recovery": "missing",
     "sources": {
@@ -60536,7 +60552,7 @@ MESSAGE_REFERENCE = [
     "message": "The included item set files have no changes to write",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 635
+      "cdmw/workers/mesh_editor_workers.py": 655
     }
   },
   {
@@ -60616,7 +60632,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was not built. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 428
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 444
     }
   },
   {
@@ -62105,7 +62121,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor output kind: {self.kind}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 662
+      "cdmw/workers/mesh_editor_workers.py": 688
     }
   },
   {
@@ -62297,7 +62313,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh mod manager profile: {manager_profile}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 477
+      "cdmw/workers/mesh_editor_workers.py": 479
     }
   },
   {
@@ -73332,7 +73348,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is already part of this mod; Layers underneath cannot change it as well.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 708
+      "cdmw/workers/mesh_editor_workers.py": 735
     }
   },
   {
@@ -73935,6 +73951,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5554
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{texture.entry.path} is already part of this mod; the edited texture cannot change it as well.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/workers/mesh_editor_workers.py": 650
     }
   },
   {
@@ -100018,7 +100042,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DirectXTex compressed preview failed.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 325
+      "cdmw/services/texture_editor_service.py": 353
     }
   },
   {
@@ -101017,7 +101041,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture output already exists: {dds_path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 231
+      "cdmw/services/texture_editor_service.py": 259
     }
   },
   {
@@ -101310,10 +101334,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "The edited texture is not an RGBA image.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/texture_editor_service.py": 238
+    }
+  },
+  {
+    "area": "textures",
     "message": "The editor could not show the edit.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/live_texture_updates.py": 160
+      "cdmw/ui/mesh_editor/live_texture_updates.py": 166
     }
   },
   {
@@ -101321,7 +101353,7 @@ MESSAGE_REFERENCE = [
     "message": "The encoder wrote an incomplete texture ({exc}); nothing was saved.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 276
+      "cdmw/services/texture_editor_service.py": 304
     }
   },
   {
@@ -101329,7 +101361,7 @@ MESSAGE_REFERENCE = [
     "message": "The encoder wrote {'sRGB' if written_srgb else 'linear'} colour instead of {'sRGB' if original.srgb else 'linear'}; nothing was saved.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 284
+      "cdmw/services/texture_editor_service.py": 312
     }
   },
   {
@@ -101337,7 +101369,7 @@ MESSAGE_REFERENCE = [
     "message": "The encoder wrote {header.width}x{header.height} instead of {original.width}x{original.height}; nothing was saved.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 279
+      "cdmw/services/texture_editor_service.py": 307
     }
   },
   {
@@ -101345,7 +101377,7 @@ MESSAGE_REFERENCE = [
     "message": "The encoder wrote {normalized.get('mip_count')} mips instead of {original.mip_count}; nothing was saved.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 290
+      "cdmw/services/texture_editor_service.py": 318
     }
   },
   {
@@ -101353,7 +101385,7 @@ MESSAGE_REFERENCE = [
     "message": "The encoder wrote {written} instead of {original.dds_format}; nothing was saved.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 261
+      "cdmw/services/texture_editor_service.py": 289
     }
   },
   {
@@ -101377,7 +101409,7 @@ MESSAGE_REFERENCE = [
     "message": "The output settings were made for another size; make them again for this document.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 223
+      "cdmw/services/texture_editor_service.py": 219
     }
   },
   {
@@ -102075,7 +102107,7 @@ MESSAGE_REFERENCE = [
     "message": "export_matching_original needs an OriginalTextureOutput.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 221
+      "cdmw/services/texture_editor_service.py": 251
     }
   },
   {
@@ -102968,7 +103000,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(data) - offset} of {expected} payload bytes",
     "recovery": "format",
     "sources": {
-      "cdmw/services/texture_editor_service.py": 274
+      "cdmw/services/texture_editor_service.py": 302
     }
   },
   {
@@ -106547,6 +106579,7 @@ SOURCE_COVERAGE = {
     "finding": 1,
     "raise": 6
   },
+  "cdmw/services/mesh_live_texture_output.py": {},
   "cdmw/services/mesh_material_publication.py": {
     "diagnostic_text": 1
   },
@@ -107027,7 +107060,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/texture_editor_service.py": {
     "diagnostic_field": 1,
-    "raise": 14
+    "raise": 16
   },
   "cdmw/services/texture_job_service.py": {
     "raise": 10
@@ -108248,7 +108281,7 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/ui/mesh_editor/tab_direct_output.py": {
-    "dialog": 2,
+    "dialog": 3,
     "failure": 1,
     "report": 1
   },
@@ -109210,7 +109243,7 @@ SOURCE_COVERAGE = {
   "cdmw/workers/mesh_editor_export_support.py": {},
   "cdmw/workers/mesh_editor_workers.py": {
     "diagnostic_field": 6,
-    "raise": 35,
+    "raise": 37,
     "signal": 6
   },
   "cdmw/workers/mesh_export_readback.py": {},

@@ -66,8 +66,9 @@ def unseen_texture_notice(target: LiveTextureTarget) -> str:
 class MeshEditorTextureWindow(QWidget):
     """The single floating Texture Editor of the Mesh Editor."""
 
-    texture_edited = Signal(str, str, QImage)
-    """session_id, source_sha256 and the edited texture."""
+    texture_edited = Signal(str, str, QImage, bool)
+    """session_id, source_sha256, the edited texture, and False when it was undone back
+    to the texture as it was opened."""
 
     def __init__(self, *, settings: object, base_dir: Path,
                  editor_factory: Callable[[QWidget], QWidget] | None = None,
@@ -144,7 +145,9 @@ class MeshEditorTextureWindow(QWidget):
             image = rgba_array_image(getattr(patch, "current_rgba", None))
         except (TypeError, ValueError):
             return
-        self.texture_edited.emit(session_id, source_sha256, image)
+        # The editor's first history entry is the opened file; any later one is an edit.
+        changed = int(getattr(self.editor, "history_index", 1) or 0) > 0
+        self.texture_edited.emit(session_id, source_sha256, image, changed)
 
     # Window ------------------------------------------------------------------
 

@@ -38,6 +38,7 @@ class MeshModExportDialog(QDialog):
         output_choice: str,
         manager_profile: str,
         body_files: tuple[str, ...] = (),
+        texture_plan: tuple[str, ...] = (),
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Build Mod")
@@ -75,6 +76,15 @@ class MeshModExportDialog(QDialog):
         form.addRow("Author", self.author)
         form.addRow("Description", self.description)
         layout.addLayout(form)
+        # Step 8: each edited texture, written in the original's format, size and mips.
+        self.texture_plan = QLabel(self)
+        self.texture_plan.setObjectName("mesh_mod_texture_plan")
+        self.texture_plan.setWordWrap(True)
+        self.texture_plan.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        if texture_plan:
+            self.texture_plan.setText("Edited textures in this mod:\n" + "\n".join(texture_plan))
+        self.texture_plan.setVisible(bool(texture_plan))
+        layout.addWidget(self.texture_plan)
         # Off by default: the body a Fit follows is a reference, and shipping
         # it would override every other mod that changes that body.
         self.include_body = QCheckBox("Include the body", self)

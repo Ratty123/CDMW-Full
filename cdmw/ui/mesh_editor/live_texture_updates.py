@@ -76,6 +76,9 @@ class _Texture:
     pending: QImage | None = None
     in_flight: int = 0
     written: dict[int, Path] | None = None
+    #: The texture as last edited, and whether it differs from the one it was opened from.
+    latest: QImage | None = None
+    changed: bool = False
 
 
 class _WriteSignals(QObject):
@@ -125,14 +128,17 @@ class LiveTextureUpdates(QObject):
         self._signals.written.connect(self._on_written)
         self._unsent: dict[str, tuple[int, str]] = {}
 
-    def push(self, source_sha256: str, image: QImage) -> int:
+    def push(self, source_sha256: str, image: QImage, *, changed: bool = True) -> int:
         """Show ``image`` in place of the texture loaded with ``source_sha256``; the
-        returned revision is the one its acknowledgement names."""
+        returned revision is the one its acknowledgement names. ``changed`` is False
+        when the edit was undone back to the texture as it was opened."""
 
         key = str(source_sha256).lower()
         state = self._textures.setdefault(key, _Texture(written={}))
         state.revision += 1
         state.pending = image.copy()
+        state.latest = state.pending
+        state.changed = bool(changed)
         if not state.in_flight:
             self._start(key, state)
         return state.revision
@@ -161,6 +167,12 @@ class LiveTextureUpdates(QObject):
         self._forget_older(state, keep=revision)
         if state.pending is not None:
             self._start(key, state)
+
+    def edited_textures(self) -> dict[str, QImage]:
+        """Every texture that differs from the one it was opened from, by source hash."""
+
+        return {key: state.latest for key, state in self._textures.items()
+                if state.changed and state.latest is not None}
 
     def clear(self) -> None:
         """Forget everything; the session folder (and its edits) goes with the session."""

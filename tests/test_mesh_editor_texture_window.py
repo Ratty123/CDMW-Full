@@ -71,7 +71,7 @@ def test_a_committed_edit_reaches_the_document_and_closing_only_hides(tmp_path: 
     window = _window(tmp_path)
     window.open_target(_target(tmp_path))
     edits: list[tuple[str, str, int, int]] = []
-    window.texture_edited.connect(lambda s, h, image: edits.append((s, h, image.width(), image.height())))
+    window.texture_edited.connect(lambda s, h, image, _changed: edits.append((s, h, image.width(), image.height())))
     binding = window.editor.opened[0][1]
     rgba = np.zeros((2, 3, 4), dtype=np.uint8)
     window.editor.resident_texture_patch_ready.emit(SimpleNamespace(binding=binding, current_rgba=rgba))

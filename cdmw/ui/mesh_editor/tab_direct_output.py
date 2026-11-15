@@ -145,6 +145,12 @@ class MeshEditorDirectOutputMixin:
                 output = find_available_output_path(Path(parent) / (hair.payload["template"]["target_stem"] + "-hair-mod"))
                 self._start_mesh_direct_output_worker("overlay_package", entry, output_path=output, manager_profile="dmm")
             return
+        texture_plan = self._live_texture_plan() if hasattr(self, "_live_texture_plan") else None
+        if texture_plan is not None and texture_plan.refusals:
+            message = "Some edited textures cannot be written:\n\n" + "\n".join(texture_plan.refusals)
+            self.status_message_requested.emit(message, True)
+            _tab.QMessageBox.warning(self, "Build Mod", message)
+            return
         bodies, named = self._mesh_mod_body_entries(controller, entry)
         stem = Path(str(named.basename or "mesh")).stem or "mesh"
         dialog = MeshModExportDialog(
@@ -155,6 +161,7 @@ class MeshEditorDirectOutputMixin:
             output_choice=str(self.settings.value("mesh_editor/last_mod_output_choice", "") or ""),
             manager_profile=str(self.settings.value("mesh_editor/last_mod_manager_profile", "dmm") or "dmm"),
             body_files=tuple(item.basename for item in bodies),
+            texture_plan=texture_plan.plan_lines if texture_plan is not None else (),
         )
         try:
             if dialog.exec() != dialog.DialogCode.Accepted:
@@ -198,6 +205,7 @@ class MeshEditorDirectOutputMixin:
             saved_work_root=self.mesh_editor_draft_root,
             include_refit_body=include_body,
             keep_layers=keep_layers,
+            texture_outputs=texture_plan.outputs if texture_plan is not None else (),
         )
 
     def _mesh_mod_body_entries(self, controller, entry) -> tuple[tuple, object]:
@@ -244,6 +252,7 @@ class MeshEditorDirectOutputMixin:
         saved_work_root: Path | None = None,
         include_refit_body: bool = False,
         keep_layers: tuple[str, ...] = (),
+        texture_outputs: tuple = (),
     ) -> bool:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -255,6 +264,13 @@ class MeshEditorDirectOutputMixin:
         request_id = self.standalone_output_request_id
         extra = {"archive_dependency_sources": archive_dependency_sources,
                  "archive_material_sources": archive_material_sources} if kind == "archive_result" else {}
+        if texture_outputs:
+            root = getattr(self, "standalone_rust_session_root", None)
+            if not root:
+                self.status_message_requested.emit("The edited textures need an open Mesh Editor session.", True)
+                return False
+            extra["texture_outputs"] = tuple(texture_outputs)
+            extra["texture_work_root"] = Path(root)
         if kind != "archive_result":
             from cdmw.services.mesh_archive_results import RESULT_NOTES
             dependencies = getattr(self, "archive_session_dependencies", None)

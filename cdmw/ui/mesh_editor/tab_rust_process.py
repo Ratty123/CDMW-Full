@@ -708,9 +708,42 @@ class MeshEditorRustProcessMixin:
             in_renderer=row.in_renderer,
         ))
 
-    def _on_texture_window_edit(self, session_id: str, source_sha256: str, image) -> None:
+    def _on_texture_window_edit(self, session_id: str, source_sha256: str, image, changed: bool = True) -> None:
         if session_id and session_id == self._live_texture_session_id():
-            self.push_live_texture(source_sha256, image)
+            self._live_textures().push(source_sha256, image, changed=changed)
+
+    def _live_texture_plan(self):
+        """What Build Mod writes for the textures edited live, or None when none were."""
+
+        live = getattr(self, "_live_texture_updates", None)
+        edited = live.edited_textures() if live is not None else {}
+        dock = getattr(getattr(self, "standalone_workspace", None), "textures_dock", None)
+        if not edited or dock is None:
+            return None
+        import numpy as np
+
+        from cdmw.services.mesh_live_texture_output import LiveTextureEdit, plan_live_texture_outputs
+        from cdmw.ui.mesh_editor.live_texture_updates import image_rgba8
+
+        rows = {}
+        for group in dock.groups:
+            for row in group.rows:
+                if row.source_sha256:
+                    rows.setdefault(row.source_sha256, row)
+        edits = []
+        for source_sha256, image in edited.items():
+            row = rows.get(source_sha256)
+            if row is None:
+                continue
+            width, height, data = image_rgba8(image)
+            edits.append(LiveTextureEdit(
+                source_sha256=source_sha256,
+                game_path=row.game_path,
+                original_path=row.decoded_path,
+                rgba=np.frombuffer(data, dtype=np.uint8).reshape(height, width, 4).copy(),
+                users=dock.texture_users(row.texture_id),
+            ))
+        return plan_live_texture_outputs(edits, self._archive_texture_indexes()[0])
 
     def push_live_texture(self, source_sha256: str, image) -> int:
         """Show an edited texture on the model now; returns the edit's revision."""

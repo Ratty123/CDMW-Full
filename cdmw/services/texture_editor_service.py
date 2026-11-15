@@ -215,12 +215,40 @@ class TextureEditorNativeDdsService:
         document's. The written header is checked against the request, so a helper that
         writes something else is an error rather than a silent conversion.
         """
+        if (int(document.width), int(document.height)) != (original.width, original.height):
+            raise ValueError("The output settings were made for another size; make them again for this document.")
+        return self._encode_matching_original(
+            lambda png_path: _export_flattened_png(document, layer_pixels, png_path),
+            _safe_slug(document.title), original, output_path,
+            overwrite=overwrite, temp_root=temp_root, timeout_seconds=timeout_seconds)
+
+    def export_rgba_matching_original(
+        self,
+        rgba: np.ndarray,
+        original,
+        output_path: Path,
+        *,
+        temp_root: Optional[Path] = None,
+        timeout_seconds: float = 60.0,
+    ) -> TextureEditorNativeDdsResult:
+        """`export_matching_original` for a flattened uint8 RGBA image (Mesh Editor live edits)."""
+
+        pixels = np.ascontiguousarray(np.asarray(rgba, dtype=np.uint8))
+        if pixels.ndim != 3 or pixels.shape[2] != 4:
+            raise ValueError("The edited texture is not an RGBA image.")
+        if (int(pixels.shape[1]), int(pixels.shape[0])) != (original.width, original.height):
+            raise ValueError("The output settings were made for another size; make them again for this document.")
+        return self._encode_matching_original(
+            lambda png_path: Image.fromarray(pixels, "RGBA").save(png_path),
+            "texture", original, output_path,
+            overwrite=True, temp_root=temp_root, timeout_seconds=timeout_seconds)
+
+    def _encode_matching_original(self, write_png, title, original, output_path, *, overwrite, temp_root,
+                                  timeout_seconds) -> TextureEditorNativeDdsResult:
         from cdmw.domain.textures.original_output import OriginalTextureOutput, TextureOutputRefused
 
         if not isinstance(original, OriginalTextureOutput):
             raise TypeError("export_matching_original needs an OriginalTextureOutput.")
-        if (int(document.width), int(document.height)) != (original.width, original.height):
-            raise ValueError("The output settings were made for another size; make them again for this document.")
         if texture_native.find_directxtex_texture_binary() is None:
             raise NativeTextureEditorExportError("Native DirectXTex texture backend cd-texture-dx is missing.")
         dds_path = Path(output_path).expanduser().resolve()
@@ -230,9 +258,9 @@ class TextureEditorNativeDdsService:
         if dds_path.exists() and not overwrite:
             raise FileExistsError(f"Texture output already exists: {dds_path}")
         with tempfile.TemporaryDirectory(prefix="cdmw_texture_editor_", dir=str(temp_parent) if temp_parent is not None else None) as temp_dir:
-            png_path = Path(temp_dir) / f"{_safe_slug(document.title)}.png"
+            png_path = Path(temp_dir) / f"{title}.png"
             staged = Path(temp_dir) / "matched.dds"
-            _export_flattened_png(document, layer_pixels, png_path)
+            write_png(png_path)
             report = texture_native.encode_dds_with_directxtex(
                 png_path,
                 staged,
