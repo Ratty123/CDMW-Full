@@ -86,6 +86,9 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Mesh Editor's **Delete unavailable** message names the operation it is waiting for, and gives the Free Edit advice only when the output mode is the reason.
 - Deleting a large selection across a whole worn set in the Mesh Editor no longer ends every open editing session; the delete used to be refused and the set could not be finished.
 - In the Mesh Editor's **Parts** list of a set, the file rows' **View** and **Include** boxes line up with the part rows' and their headers, and the **Physics** column is as wide as its longest value, leaving the part names at least a third of the list. Before, every cell read "Unknown p..." while the names had room to spare. A part whose physics was not inspected, such as every part of a set, now leaves the cell empty; its tooltip says why.
+- **Preview Settings** stays on the page you are on. Changing the Lighting preset, or any other setting on Quality or Lighting, moved the window to Camera Input.
+- Browse Archives no longer shows a model or set with a part selected and drawn in a yellow wire when it is first shown. Hovering a part in the **Scene** panel or the view highlights it, a click selects it, and a click on empty space or Esc clears the selection.
+- The **Scene** panel names a set's parts as the Mesh Editor's **Parts** list does, in the same order, instead of by their material names. Parts that share a name show their material or their number in the list, and a file's part count is no longer cut off.
 
 ### Docs
 
