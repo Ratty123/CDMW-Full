@@ -3145,6 +3145,8 @@ pub struct WindowRenderer {
     material_layers: BTreeMap<(usize, u32), Arc<material_layers::GpuLayers>>,
     material_factors: Vec<MaterialFactorOwnership>,
     active_material_bindings: BTreeMap<u32, GpuMaterialBinding>,
+    /// The LOD whose materials are bound, so a replaced texture can be bound again.
+    active_material_lod: Option<usize>,
     mesh_viewport: Option<[f32; 4]>,
     depth_target: DepthTarget,
     multisample_target: Option<MultisampleTarget>,
@@ -3824,6 +3826,7 @@ impl WindowRenderer {
             material_layers: BTreeMap::new(),
             material_factors: Vec::new(),
             active_material_bindings: BTreeMap::new(),
+            active_material_lod: None,
             mesh_viewport: None,
             depth_target,
             multisample_target,
@@ -4515,6 +4518,7 @@ impl WindowRenderer {
             }
         };
         let bound = active.len();
+        self.active_material_lod = Some(lod_index);
         for material in factors.keys() {
             active.entry(*material).or_default();
         }
@@ -4542,6 +4546,26 @@ impl WindowRenderer {
             })
             .collect();
         Ok(bound)
+    }
+
+    /// Replace one material texture's pixels with ``bytes`` (a DDS of the same role),
+    /// keeping its ownership, and bind the active materials again so the next frame
+    /// shows it. Used by the Mesh Editor's live texture editing (step 8).
+    pub fn replace_material_texture(&mut self, index: usize, bytes: &[u8]) -> Result<(), RenderError> {
+        let role = self
+            .material_textures
+            .get(index)
+            .map(|texture| texture.role)
+            .ok_or_else(|| RenderError::Texture(format!("no material texture {index} to replace")))?;
+        let uploaded = self.cached_dds_texture(bytes, role, None)?;
+        let texture = &mut self.material_textures[index];
+        texture.texture = uploaded.texture;
+        texture.view_format = uploaded.view_format;
+        texture.single_channel = uploaded.single_channel;
+        if let Some(lod_index) = self.active_material_lod {
+            self.set_material_lod(lod_index)?;
+        }
+        Ok(())
     }
 
     pub fn reset_texture(&mut self) {

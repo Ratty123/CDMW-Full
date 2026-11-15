@@ -1194,6 +1194,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
     def _reset_rust_session_references(self) -> None:
         self._stop_rust_session_prepare(invalidate=True)
         self._show_session_textures(None)
+        live = getattr(self, "_live_texture_updates", None)
+        if live is not None:
+            live.clear()
         self.standalone_rust_authoring_session = None
         self.standalone_rust_target_controller = None
         self.standalone_rust_session_root = None

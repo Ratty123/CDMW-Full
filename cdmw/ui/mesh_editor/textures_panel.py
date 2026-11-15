@@ -9,6 +9,7 @@ a Qt thread pool and delivered back through a queued signal.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import threading
 from collections import OrderedDict
@@ -65,6 +66,11 @@ class TextureRow:
     game_path: str
     decoded_path: str
     shared: bool = False
+    #: The hash the editor loaded this texture with; live edits name it (step 8).
+    source_sha256: str = ""
+    #: The 3D view loaded this file itself; a layer the shader combines from a
+    #: material graph is not, so its edits cannot be shown live.
+    in_renderer: bool = False
 
     @property
     def file_name(self) -> str:
@@ -185,9 +191,7 @@ def texture_rows_from_manifest(
         if existing is None:
             rows[row.texture_id] = row
         elif not _has_game_path(existing) and _has_game_path(row):
-            rows[row.texture_id] = TextureRow(
-                existing.texture_id, existing.role, row.game_path, existing.decoded_path,
-            )
+            rows[row.texture_id] = dataclasses.replace(existing, game_path=row.game_path)
 
     for raw in _sequence(manifest.get("textures")):
         if not isinstance(raw, Mapping):
@@ -203,6 +207,8 @@ def texture_rows_from_manifest(
             role=str(raw.get("role", "") or "").strip(),
             game_path=archive_paths.get(_sha(reference)) or label or texture_id,
             decoded_path=_decoded_path(reference, root),
+            source_sha256=_sha(reference).lower(),
+            in_renderer=bool(_sha(reference)),
         )
         lods = _sequence(raw.get("material_indices_by_lod"))
         for part_index in _int_values(lods[0] if lods else ()):
@@ -233,6 +239,7 @@ def texture_rows_from_manifest(
                     role=_layer_texture_role(layer_role, resource),
                     game_path=archive_path or texture_id,
                     decoded_path=_decoded_path(reference, root),
+                    source_sha256=_sha(reference).lower(),
                 ))
 
     users: dict[str, set[int]] = {}
@@ -244,8 +251,7 @@ def texture_rows_from_manifest(
     for part_index in sorted(by_part):
         rows = sorted(
             (
-                TextureRow(row.texture_id, row.role, row.game_path, row.decoded_path,
-                           len(users.get(_share_key(row), ())) > 1)
+                dataclasses.replace(row, shared=len(users.get(_share_key(row), ())) > 1)
                 for row in by_part[part_index].values()
             ),
             key=lambda row: (_ROLE_ORDER.get(row.role.casefold(), 99), row.file_name.casefold()),
@@ -589,6 +595,25 @@ class MeshEditorTexturesPanel(QDockWidget):
         """Drop pending thumbnails; the host calls this before tearing the page down."""
 
         self.thumbnails.shutdown()
+
+    def texture_row(self, texture_id: str) -> TextureRow | None:
+        for group in self.groups:
+            for row in group.rows:
+                if row.texture_id == texture_id:
+                    return row
+        return None
+
+    def texture_users(self, texture_id: str) -> tuple[str, ...]:
+        """The parts that use the same game file as ``texture_id``."""
+
+        row = self.texture_row(texture_id)
+        if row is None:
+            return ()
+        key = _share_key(row)
+        return tuple(
+            group.group_heading for group in self.groups
+            if any(_share_key(other) == key for other in group.rows)
+        )
 
     def texture_item(self, texture_id: str) -> QTreeWidgetItem | None:
         for index in range(self.tree.topLevelItemCount()):

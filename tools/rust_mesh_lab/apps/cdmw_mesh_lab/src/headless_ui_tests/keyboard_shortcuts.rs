@@ -679,3 +679,45 @@ fn the_committed_command_list_matches_the_editor_s_keymap() {
         "cdmw/resources/mesh_editor_commands.json is stale; rerun with CDMW_WRITE_MESH_COMMANDS=1"
     );
 }
+
+#[test]
+fn a_texture_update_names_a_file_inside_the_session_and_waits_for_the_textures() {
+    // Step 8: CDMW shows an edited texture live; the file must stay in the session folder.
+    let root = tempfile::tempdir().expect("temporary directory");
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "textures", 1, 0);
+    let sha = "ab".repeat(32);
+    let message = |file: &str| {
+        json!({"event": "texture_update", "protocol": cdmw_session::PROTOCOL, "session_id": "textures",
+               "process_generation": 1, "source_sha256": sha.to_ascii_uppercase(), "file": file,
+               "revision": 3})
+    };
+    let event = bridge.decode_host_event_for_test(message("texture_edits/base-3.dds"));
+    let HostEvent::TextureUpdate { source_sha256, path, revision } = event else {
+        panic!("texture_update was not decoded");
+    };
+    assert_eq!(source_sha256, sha);
+    assert_eq!(revision, 3);
+    assert!(path.starts_with(root.path()) || path.starts_with(std::fs::canonicalize(root.path()).unwrap()));
+    for outside in ["../elsewhere.dds", "C:/elsewhere.dds", "/elsewhere.dds"] {
+        assert!(
+            matches!(bridge.decode_host_event_for_test(message(outside)), HostEvent::Fatal(_)),
+            "{outside} was accepted"
+        );
+    }
+    // No renderer and no textures yet: the edit waits, latest per texture.
+    let mut application = LabApplication::new(None, None);
+    application.handle_cdmw_host_event(HostEvent::TextureUpdate {
+        source_sha256: sha.clone(),
+        path: root.path().join("one.dds"),
+        revision: 1,
+    });
+    application.handle_cdmw_host_event(HostEvent::TextureUpdate {
+        source_sha256: sha.clone(),
+        path: root.path().join("two.dds"),
+        revision: 2,
+    });
+    assert_eq!(
+        application.cdmw_pending_texture_updates.get(&sha),
+        Some(&(root.path().join("two.dds"), 2))
+    );
+}

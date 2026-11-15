@@ -461,6 +461,13 @@ pub enum HostEvent {
     BrowsePresentation(bool),
     /// Run one of the editor's own commands by its shortcut id (CDMW's palette).
     RunCommand(String),
+    /// Show an edited texture in place of the one first loaded with this source
+    /// hash (step 8); ``path`` is a DDS inside the session folder.
+    TextureUpdate {
+        source_sha256: String,
+        path: PathBuf,
+        revision: u64,
+    },
     VertexInspection {
         request_id: u64,
         ok: bool,
@@ -1377,6 +1384,54 @@ impl CdmwBridge {
 
     /// Preview settings the user changed in the editor; the host stores them
     /// as the shared Preview settings every viewport follows.
+    /// Tell CDMW an edited texture is shown, or why it is not (step 8).
+    pub fn publish_texture_updated(
+        &self,
+        source_sha256: &str,
+        revision: u64,
+        error: Option<&str>,
+    ) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "texture_updated", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation,
+            "source_sha256": source_sha256, "revision": revision,
+            "ok": error.is_none(), "error": error.unwrap_or_default(),
+        }))
+    }
+
+    fn decode_texture_update(&self, value: &Value) -> Result<HostEvent, SessionError> {
+        let invalid = |what: &str| SessionError::Protocol(format!("texture_update {what}"));
+        let source_sha256 = value
+            .get("source_sha256")
+            .and_then(Value::as_str)
+            .filter(|sha| sha.len() == 64 && sha.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .ok_or_else(|| invalid("needs the texture's source_sha256"))?
+            .to_ascii_lowercase();
+        let file = value
+            .get("file")
+            .and_then(Value::as_str)
+            .filter(|file| !file.trim().is_empty())
+            .ok_or_else(|| invalid("needs a file inside the session folder"))?;
+        let relative = Path::new(file);
+        // Only plain names below the session folder: no absolute path, no "..".
+        if !relative
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            return Err(invalid("file must stay inside the session folder"));
+        }
+        let revision = value
+            .get("revision")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| invalid("needs a revision"))?;
+        Ok(HostEvent::TextureUpdate {
+            source_sha256,
+            path: self.root.join(relative),
+            revision,
+        })
+    }
+
     pub fn publish_preview_settings(&self, settings: Value) -> Result<(), SessionError> {
         self.send_message(json!({
             "event": "preview_settings_changed", "protocol": PROTOCOL,
@@ -1840,6 +1895,7 @@ impl CdmwBridge {
                         .and_then(Value::as_bool)
                         .unwrap_or(false),
                 )),
+                "texture_update" => self.decode_texture_update(&value),
                 "run_command" => value
                     .get("command")
                     .and_then(Value::as_str)

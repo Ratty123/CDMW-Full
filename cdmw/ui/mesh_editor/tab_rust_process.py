@@ -505,6 +505,9 @@ class MeshEditorRustProcessMixin:
             if save_mesh_layout(self.settings, payload.get("layout")):
                 request_settings_sync(self.settings)
             return
+        if event == "texture_updated":
+            self._live_textures().acknowledge(payload)
+            return
         if event == "preview_settings_changed":
             from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
 
@@ -655,12 +658,74 @@ class MeshEditorRustProcessMixin:
         if getattr(self, "standalone_rust_ready", False) and self.standalone_rust_process is not None:
             self._send_rust_theme_update()
 
+    # ----- live texture edits (step 8) --------------------------------------
+    def _live_textures(self):
+        live = getattr(self, "_live_texture_updates", None)
+        if live is None:
+            from cdmw.ui.mesh_editor.live_texture_updates import LiveTextureUpdates
+
+            def session_root():
+                root = getattr(self, "standalone_rust_session_root", None)
+                return Path(root) if root else None
+
+            def send(fields):
+                if not self.standalone_rust_ready:
+                    return False
+                return self._send_rust_message(self._rust_host_message("texture_update", request_id=0, extra=fields))
+
+            live = self._live_texture_updates = LiveTextureUpdates(session_root, send, self)
+        return live
+
+    def _live_texture_session_id(self) -> str:
+        root = getattr(self, "standalone_rust_session_root", None)
+        return str(root) if root else ""
+
+    def open_texture_in_window(self, texture_id: str) -> None:
+        """Open a Textures panel row in the floating Texture Editor (step 8)."""
+
+        dock = getattr(getattr(self, "standalone_workspace", None), "textures_dock", None)
+        row = dock.texture_row(texture_id) if dock is not None else None
+        session_id = self._live_texture_session_id()
+        if row is None or not row.decoded_path or not session_id:
+            return
+        from cdmw.ui.mesh_editor.texture_editor_window import LiveTextureTarget, shared_texture_window
+
+        settings = getattr(self, "settings", None)
+        file_name = getattr(settings, "fileName", None)
+        base_dir = Path(file_name()).parent if callable(file_name) and file_name() else Path(row.decoded_path).parent
+        window = shared_texture_window(settings=settings, base_dir=base_dir)
+        if getattr(self, "_texture_window_connected", None) is not window:
+            window.texture_edited.connect(self._on_texture_window_edit)
+            self._texture_window_connected = window
+        window.open_target(LiveTextureTarget(
+            session_id=session_id,
+            source_path=row.decoded_path,
+            source_sha256=row.source_sha256,
+            channel=row.role,
+            display_name=row.file_name,
+            game_path=row.game_path,
+            users=dock.texture_users(texture_id),
+            in_renderer=row.in_renderer,
+        ))
+
+    def _on_texture_window_edit(self, session_id: str, source_sha256: str, image) -> None:
+        if session_id and session_id == self._live_texture_session_id():
+            self.push_live_texture(source_sha256, image)
+
+    def push_live_texture(self, source_sha256: str, image) -> int:
+        """Show an edited texture on the model now; returns the edit's revision."""
+
+        return self._live_textures().push(source_sha256, image)
+
     def _handle_rust_ready(self, _payload: Mapping[str, object]) -> None:
         if not self.standalone_rust_hello_received:
             self._fail_rust_editor("Mesh Editor became ready before hello.", incompatible=True)
             return
         self.standalone_rust_ready_timer.stop()
         self.standalone_rust_ready = True
+        live = getattr(self, "_live_texture_updates", None)
+        if live is not None:
+            live.flush()  # edits made while the editor was starting (step 8)
         self._release_background_warmups()
         self._query_deferred_rust_morph_state()
         self._start_rust_save_status_watch()

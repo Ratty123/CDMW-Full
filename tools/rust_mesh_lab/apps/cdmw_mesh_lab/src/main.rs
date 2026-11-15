@@ -2328,6 +2328,10 @@ struct LabApplication {
     cdmw_material_presentations: Vec<SessionMaterialPresentation>,
     cdmw_material_key: String,
     cdmw_uploaded_texture_count: usize,
+    /// The source hash of each material texture the renderer holds, in its order (step 8).
+    cdmw_texture_sources: Vec<String>,
+    /// Texture edits CDMW sent before the textures were loaded: source hash -> (file, revision).
+    cdmw_pending_texture_updates: std::collections::BTreeMap<String, (PathBuf, u64)>,
     cdmw_textured_mode_available: bool,
     cdmw_textured_mode_reason: String,
     cdmw_texture_package_reason: String,
@@ -2574,6 +2578,8 @@ impl LabApplication {
             cdmw_material_presentations: Vec::new(),
             cdmw_material_key: String::new(),
             cdmw_uploaded_texture_count: 0,
+            cdmw_texture_sources: Vec::new(),
+            cdmw_pending_texture_updates: std::collections::BTreeMap::new(),
             cdmw_textured_mode_available: false,
             cdmw_textured_mode_reason:
                 "Solid (Textured) is unavailable because no usable DDS material texture has been uploaded."
@@ -3562,6 +3568,31 @@ impl LabApplication {
         true
     }
 
+    /// Show an edited texture in place of the loaded one (step 8). Before the textures
+    /// are loaded the latest edit per texture waits and is applied once they are.
+    fn apply_cdmw_texture_update(&mut self, source_sha256: String, path: PathBuf, revision: u64) {
+        let index = self
+            .cdmw_texture_sources
+            .iter()
+            .position(|known| *known == source_sha256);
+        let (Some(renderer), Some(index)) = (self.renderer.as_mut(), index) else {
+            self.cdmw_pending_texture_updates
+                .insert(source_sha256, (path, revision));
+            return;
+        };
+        let error = std::fs::read(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))
+            .and_then(|bytes| {
+                renderer
+                    .replace_material_texture(index, &bytes)
+                    .map_err(|error| error.to_string())
+            })
+            .err();
+        if let Some(bridge) = &self.cdmw_bridge {
+            let _ = bridge.publish_texture_updated(&source_sha256, revision, error.as_deref());
+        }
+    }
+
     fn submit_cdmw_finish(&mut self) {
         if self.cdmw_busy() || self.hair.preparing() {
             if self.hair.active() {
@@ -3686,6 +3717,11 @@ impl LabApplication {
             HostEvent::HairPreset(preset) => {
                 self.hair.requested_preset = Some(preset);
             }
+            HostEvent::TextureUpdate {
+                source_sha256,
+                path,
+                revision,
+            } => self.apply_cdmw_texture_update(source_sha256, path, revision),
             HostEvent::RunCommand(command) => {
                 // Run at the next frame, where the key press would have run it.
                 self.pending_host_commands.push(command);
@@ -4633,6 +4669,7 @@ impl LabApplication {
         if let Some(renderer) = &mut self.renderer {
             if !reuse_materials {
                 renderer.reset_texture();
+                self.cdmw_texture_sources.clear();
                 #[cfg(test)]
                 {
                     self.material_reload_count += 1;
@@ -4648,7 +4685,11 @@ impl LabApplication {
                     texture.role,
                     &texture.material_indices_by_lod,
                 ) {
-                    Ok(()) => texture_upload_count = texture_upload_count.saturating_add(1),
+                    Ok(()) => {
+                        texture_upload_count = texture_upload_count.saturating_add(1);
+                        self.cdmw_texture_sources
+                            .push(texture.metadata.source_sha256.to_ascii_lowercase());
+                    }
                     Err(error) => gpu_errors.push(error.to_string()),
                 }
             }
@@ -4688,6 +4729,19 @@ impl LabApplication {
             match renderer.set_material_lod(initial_lod_index) {
                 Ok(count) => bound_material_count = count,
                 Err(error) => gpu_errors.push(error.to_string()),
+            }
+            // Texture edits that came before the textures were loaded (step 8).
+            for (source_sha256, (path, revision)) in std::mem::take(&mut self.cdmw_pending_texture_updates) {
+                let error = match self.cdmw_texture_sources.iter().position(|known| *known == source_sha256) {
+                    Some(index) => std::fs::read(&path)
+                        .map_err(|error| format!("could not read {}: {error}", path.display()))
+                        .and_then(|bytes| renderer.replace_material_texture(index, &bytes).map_err(|error| error.to_string()))
+                        .err(),
+                    None => Some("the session has no texture with that source".to_owned()),
+                };
+                if let Some(bridge) = &self.cdmw_bridge {
+                    let _ = bridge.publish_texture_updated(&source_sha256, revision, error.as_deref());
+                }
             }
             let snapshot = mesh.draw_snapshot();
             let part_colours = identity_colours_active.then(|| {

@@ -147,7 +147,11 @@ class TextureEditorResidentTextureMixin:
             return
         binding = document.source_binding
         channel = str(binding.mesh_channel or "base").strip().lower()
-        if binding.launch_origin != "mesh_editor" or channel not in {"base", "base_color", "albedo"}:
+        if binding.launch_origin != "mesh_editor":
+            return
+        # A texture opened from the Mesh Editor's Textures panel shows every
+        # channel live (step 8); the older hand-off only showed base colour.
+        if binding.mesh_commit_mode != "live" and channel not in {"base", "base_color", "albedo"}:
             return
         document_id = id(document)
         if self._resident_texture_patch_document_id not in {0, document_id}:

@@ -263,6 +263,7 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
             from cdmw.ui.mesh_editor.textures_panel import remember_dock_layout
 
             remember_dock_layout(self.standalone_workspace.dock_host, textures_dock, getattr(self, "settings", None))
+            textures_dock.texture_activated.connect(self.open_texture_in_window)
         from cdmw.ui.mesh_editor.hair_flow import build_hair_entry_bar
         entry_bar = build_hair_entry_bar(
             self, close_button=self.standalone_workspace.close_session_button,
