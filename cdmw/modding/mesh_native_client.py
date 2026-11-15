@@ -25,7 +25,10 @@ from cdmw.core.common import (
 )
 from cdmw.models import RunCancelled
 
-_MESH_CORE_PROTOCOL_LINE_MAX_BYTES = 16 * 1024 * 1024
+# One reply line can carry a whole worn set's edit report: a delete across a
+# five-file set passed 16 MiB, and the cap ended the service with every session
+# in it (built-app set pass, 2026-11-15). The cap only bounds runaway output.
+_MESH_CORE_PROTOCOL_LINE_MAX_BYTES = 256 * 1024 * 1024
 
 
 def _clear_native_mesh_core_session_cache() -> None:
@@ -245,7 +248,7 @@ class NativeMeshCoreServiceClient:
                 self._stdout_buffer.extend(chunk)
                 if len(self._stdout_buffer) > _MESH_CORE_PROTOCOL_LINE_MAX_BYTES:
                     self._kill_locked()
-                    raise ValueError("native mesh-core protocol line exceeds 16 MiB")
+                    raise ValueError("native mesh-core protocol line exceeds 256 MiB")
                 spin_deadline = time.monotonic() + 0.002
                 continue
             poll = getattr(process, "poll", None)

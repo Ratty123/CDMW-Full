@@ -96,7 +96,7 @@ from cdmw.modding.mesh_native_core_payload_helpers import (
 )
 from cdmw.models import RunCancelled
 
-_MESH_CORE_PROTOCOL_LINE_MAX_BYTES = 16 * 1024 * 1024
+_MESH_CORE_PROTOCOL_LINE_MAX_BYTES = 256 * 1024 * 1024
 def _new_native_sparse_vertex_snapshot_id(role: str) -> str:
     return f"py-sparse-vertices-{role}-{uuid4().hex}"
 

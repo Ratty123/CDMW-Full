@@ -40461,7 +40461,7 @@ MESSAGE_REFERENCE = [
     "message": "--service",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 170
+      "cdmw/modding/mesh_native_client.py": 173
     }
   },
   {
@@ -69142,10 +69142,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "native mesh-core protocol line exceeds 16 MiB",
+    "message": "native mesh-core protocol line exceeds 256 MiB",
     "recovery": "configuration",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 248
+      "cdmw/modding/mesh_native_client.py": 251
     }
   },
   {
@@ -69153,7 +69153,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service closed its stdout",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 182
+      "cdmw/modding/mesh_native_client.py": 185
     }
   },
   {
@@ -69161,7 +69161,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service did not become ready: {ready_line}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 369
+      "cdmw/modding/mesh_native_client.py": 372
     }
   },
   {
@@ -69169,7 +69169,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service is not running",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 149
+      "cdmw/modding/mesh_native_client.py": 152
     }
   },
   {
@@ -69177,7 +69177,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service read failed: {item}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 178
+      "cdmw/modding/mesh_native_client.py": 181
     }
   },
   {
@@ -69185,7 +69185,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service returned an error",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 404
+      "cdmw/modding/mesh_native_client.py": 407
     }
   },
   {
@@ -69193,7 +69193,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service sent invalid ready line: {ready_line}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 366
+      "cdmw/modding/mesh_native_client.py": 369
     }
   },
   {
@@ -69201,7 +69201,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service sent invalid response: {response_line}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 401
+      "cdmw/modding/mesh_native_client.py": 404
     }
   },
   {
@@ -69209,7 +69209,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service sent non-object response",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 440
+      "cdmw/modding/mesh_native_client.py": 443
     }
   },
   {
@@ -69217,7 +69217,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service stdin is unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 385
+      "cdmw/modding/mesh_native_client.py": 388
     }
   },
   {
@@ -69225,7 +69225,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service stdout handle is unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 200
+      "cdmw/modding/mesh_native_client.py": 203
     }
   },
   {
@@ -69233,7 +69233,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service stdout is unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 350
+      "cdmw/modding/mesh_native_client.py": 353
     }
   },
   {
@@ -69241,7 +69241,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh-core service write failed: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/modding/mesh_native_client.py": 395
+      "cdmw/modding/mesh_native_client.py": 398
     }
   },
   {
@@ -71134,7 +71134,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/final_package_preview_model.py": 258,
       "cdmw/core/mesh_native.py": 62,
       "cdmw/core/model_catalogue.py": 1165,
-      "cdmw/modding/mesh_native_client.py": 335,
+      "cdmw/modding/mesh_native_client.py": 338,
       "cdmw/modding/static_mesh_scene_frame.py": 486,
       "cdmw/rendering/model_preview_prepare.py": 83,
       "cdmw/rendering/native_preview_core.py": 407,
