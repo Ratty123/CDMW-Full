@@ -84,10 +84,12 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - The Mesh Editor opens with the same lighting, shadows, ambient occlusion, ground, view mode and background as Browse Archives. It used its own defaults, such as a black background, until a preview setting was changed.
 - The **Scene** panel lists the files and parts of a set shown from the preview cache, so **Open ticked parts in Mesh Editor** opens the set instead of asking to tick a part.
 - Mesh Editor's **Delete unavailable** message names the operation it is waiting for, and gives the Free Edit advice only when the output mode is the reason.
+- Deleting a large selection across a whole worn set in the Mesh Editor no longer ends every open editing session; the delete used to be refused and the set could not be finished.
 
 ### Docs
 
 - Help and the prepared Wiki manuals explain worn-set previews and editing, lighting controls, layered materials and GPU texture inspection in all 14 interface languages. The expanded Mesh Editor and Create New Item FAQ is retained.
+- Help and the Wiki have worked examples in every language. Mesh Editor gains **Blender round trip**, the Blender export settings that bring an edited game mesh back (Selected Objects, Attributes, Use Vertex Color > Active, Include All Bone Influences), plus examples for leaving a part out of an outfit and replacing a game mesh with your own model. Create New Item gains a first renamed-sword test, a weapon from Blender and armour or clothing from Blender. The FAQ answers why a returned mesh is refused, a mirror-like imported surface, wrong size or turn, FBX import and the vertex limit.
 
 ## [0.12.0-alpha.5] - 2026-11-14
 
