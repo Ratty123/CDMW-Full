@@ -71,27 +71,26 @@ BACKDROPS: tuple = (BACKDROP_DARK, BACKDROP_GREY, BACKDROP_BLACK)
 
 #: where the chosen backdrop is remembered between dialogs, in the scope the rest of the
 #: studio's own settings use
-_SETTINGS_SCOPE = "CrimsonDesertModWorkbench"
 _BACKDROP_SETTING = "new_item/effect_placement_backdrop"
 _ORBIT_X_SETTING = "preview/invert_orbit_x"
 _ORBIT_Y_SETTING = "preview/invert_orbit_y"
 
 
 def remembered_backdrop() -> str:
-    from PySide6.QtCore import QSettings
+    from cdmw.services.settings_service import app_settings
 
     try:
-        value = QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE).value(_BACKDROP_SETTING, BACKDROPS[0])
+        value = app_settings().value(_BACKDROP_SETTING, BACKDROPS[0])
     except Exception:  # noqa: BLE001 - a session without settings opens on the default
         return BACKDROPS[0]
     return str(value or BACKDROPS[0])
 
 
 def remember_backdrop(colour: str) -> None:
-    from PySide6.QtCore import QSettings
+    from cdmw.services.settings_service import app_settings
 
     try:
-        QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE).setValue(_BACKDROP_SETTING, str(colour))
+        app_settings().setValue(_BACKDROP_SETTING, str(colour))
     except Exception:  # noqa: BLE001 - not remembering is not worth an error
         pass
 
@@ -106,10 +105,10 @@ def _settings_bool(settings: object, key: str) -> bool:
 def remembered_orbit_inversion() -> Tuple[bool, bool]:
     """The shared resident-preview orbit preferences, horizontal then vertical."""
 
-    from PySide6.QtCore import QSettings
+    from cdmw.services.settings_service import app_settings
 
     try:
-        settings = QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE)
+        settings = app_settings()
         return (
             _settings_bool(settings, _ORBIT_X_SETTING),
             _settings_bool(settings, _ORBIT_Y_SETTING),
@@ -121,10 +120,10 @@ def remembered_orbit_inversion() -> Tuple[bool, bool]:
 def remember_orbit_inversion(invert_x: bool, invert_y: bool) -> None:
     """Share this dialog's choice with the other resident preview surfaces."""
 
-    from PySide6.QtCore import QSettings
+    from cdmw.services.settings_service import app_settings
 
     try:
-        settings = QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE)
+        settings = app_settings()
         settings.setValue(_ORBIT_X_SETTING, bool(invert_x))
         settings.setValue(_ORBIT_Y_SETTING, bool(invert_y))
     except Exception:  # noqa: BLE001 - not remembering is not worth an error

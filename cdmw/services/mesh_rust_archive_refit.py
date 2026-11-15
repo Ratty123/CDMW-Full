@@ -156,6 +156,18 @@ def stage_archive_refit_materials(authoring, mesh, context, stop_event):
         "material_presentations": [*retained["material_presentations"], *added_presentations],
         "reason": "" if textures else "No readable archive preview textures were resolved for these meshes.",
     }
+    from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+    from cdmw.services.mesh_preview_material_source import preview_core_material_contract
+    retained_layers = [
+        {"file": layer[role]}
+        for material in (retained.get("preview_core_material_graph") or {}).get("materials", ())
+        for layer in material["layers"] for role in ("diffuse", "normal", "material", "height", "mask")
+        if layer.get(role)
+    ]
+    candidate["preview_core_material_graph"] = _composite_preview_core_material_graph(
+        authoring.root, mesh, [*textures, *retained_layers], candidate["material_presentations"], "full", authoring.root_identity,
+        lambda: stop_event is not None and stop_event.is_set())
+    candidate["material_contract"] = preview_core_material_contract(mesh)
     pending = {key: payload for key, payload in {
         **authoring.archive_refit_material_cache, context.context_id: candidate,
     }.items() if key not in authoring.archive_refit_material_references}

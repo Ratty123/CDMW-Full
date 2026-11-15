@@ -131,8 +131,17 @@ def save_mesh_layer_project(
     requires_edit_operations: bool = False,
     morph_payload: Mapping[str, object] | None = None,
     viewport_hidden_parts: Sequence[int] = (),
+    prune_superseded: bool = True,
+    publish: bool = True,
 ) -> dict[str, object]:
-    """Write one complete generation, then atomically point the project at it."""
+    """Write one complete generation, then atomically point the project at it.
+
+    With ``prune_superseded`` False older generations stay for the history
+    journal (P14), which prunes them itself. With ``publish`` False the
+    generation is written but the project keeps pointing where it did (a Mesh
+    Editor state that was not finished yet); the returned descriptor then names
+    it as ``current_generation`` without having been written.
+    """
 
     stop = stop_event or threading.Event()
     source_hash = str(source_asset_sha256 or "").strip().lower()
@@ -195,7 +204,16 @@ def save_mesh_layer_project(
         if vertex_count is None or face_count is None:
             raise RuntimeError("Native Mesh Editor snapshot counts were missing")
         metadata: dict[str, object] = {}
-        if replacement_state is not None:
+        from cdmw.services.mesh_asset_context import is_item_set, ASSET_ATTRIBUTE, ORIGIN_ATTRIBUTE
+        if is_item_set(archive_refit_context):
+            attrs = dict(summary_item.get("extra_attrs") or {})
+            asset = next((item for item in archive_refit_context.assets if item.asset_id == attrs.get(ASSET_ATTRIBUTE)), None)
+            origin = next((part for i, part in enumerate(asset.source.mesh.submeshes)
+                           if asset.source_part_id(i) == attrs.get(ORIGIN_ATTRIBUTE)), None) if asset else None
+            if origin is None:
+                raise RuntimeError("Item set draft snapshot lost its source identity")
+            metadata = _submesh_snapshot_metadata(origin)
+        elif replacement_state is not None:
             # Native summaries carry live geometry/material identity, but omit
             # the immutable PAC record layout. Match that metadata by part ID,
             # since native and Python part orders need not agree.
@@ -315,8 +333,11 @@ def save_mesh_layer_project(
     if morph_payload is not None:
         descriptor["format"] = MESH_MORPH_PROJECT_FORMAT
     raise_if_cancelled(stop, "Mesh layer autosave cancelled.")
+    if not publish:
+        return descriptor
     atomic_write_text(target, json.dumps(descriptor, indent=2, sort_keys=True))
-    _prune_superseded_generations(project_root, previous_generation)
+    if prune_superseded:
+        _prune_superseded_generations(project_root, previous_generation)
     if workspace_manifest_path is not None:
         _update_modify_original_manifest(
             workspace_manifest_path,
@@ -333,14 +354,33 @@ def load_mesh_layer_project(
     *,
     expected_source_asset_sha256: str,
     stop_event: threading.Event | None = None,
+    generation: tuple[str, str] | None = None,
 ) -> dict[str, object] | None:
-    """Restore the newest valid exact-fingerprint generation, then its fallback."""
+    """Restore the newest valid exact-fingerprint generation, then its fallback.
+
+    ``generation`` (a name and its ``generation.json`` SHA-256) restores that one
+    generation instead, as a history journal step does (P14).
+    """
 
     stop = stop_event or threading.Event()
     target = Path(project_path).expanduser().resolve()
-    if not target.is_file():
+    if generation is not None:
+        # One named generation: it says what it holds itself. The project may
+        # point elsewhere (an unfinished editor state) or not exist yet.
+        manifest = (target.parent / str(generation[0] or "")).resolve() / "generation.json"
+        if target.parent.resolve() not in manifest.parents:
+            raise ValueError("Layer generation path escapes the project")
+        raw_generation = json.loads(manifest.read_text(encoding="utf-8"))
+        if not isinstance(raw_generation, Mapping):
+            raise ValueError("unsupported layer generation")
+        descriptor = {
+            "format": str(raw_generation.get("format") or "").replace("_generation_", "_project_"),
+            "source_asset_sha256": raw_generation.get("source_asset_sha256"),
+        }
+    elif not target.is_file():
         return None
-    descriptor = json.loads(target.read_text(encoding="utf-8"))
+    else:
+        descriptor = json.loads(target.read_text(encoding="utf-8"))
     if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT, MESH_JIGGLE_PROJECT_FORMAT, MESH_MORPH_PROJECT_FORMAT}:
         raise ValueError("Unsupported Mesh Editor layer project descriptor")
     expected_hash = str(expected_source_asset_sha256 or "").strip().lower()
@@ -356,7 +396,7 @@ def load_mesh_layer_project(
             str(descriptor.get("previous_generation") or ""),
             str(descriptor.get("previous_generation_manifest_sha256") or "").strip().lower(),
         ),
-    )
+    ) if generation is None else ((str(generation[0] or ""), str(generation[1] or "").strip().lower()),)
     failures: list[str] = []
     seen: set[str] = set()
     for generation_name, expected_manifest_sha256 in candidates:
@@ -392,6 +432,11 @@ def load_mesh_layer_project(
             ):
                 raise RuntimeError("native snapshot restore failed")
             refit_context = load_archive_refit_context(payload.get("archive_refit"), target.parent)
+            from cdmw.services.mesh_asset_context import is_item_set, item_set_bindings, PART_ATTRIBUTE
+            if is_item_set(refit_context):
+                item_set_bindings(restore_target, refit_context)
+                if not refit_context.excluded_part_ids.issubset({getattr(part, PART_ATTRIBUTE) for part in restore_target.submeshes}):
+                    raise ValueError("Item set draft inclusion lost its part identity")
             from cdmw.services.mesh_replacement_draft import load_replacement_state
             from cdmw.domain.mesh.replacement import bound_part_indices
             from cdmw.domain.mesh.hair import hair_state_from_payload
@@ -425,6 +470,28 @@ def load_mesh_layer_project(
         except (OSError, RuntimeError, ValueError) as exc:
             failures.append(f"{generation_name}: {exc}")
     raise RuntimeError("No valid Mesh Editor layer-project generation: " + "; ".join(failures))
+
+
+def publish_generation(project_path: Path, generation: str, manifest_sha256: str) -> dict[str, object]:
+    """Point the project at an existing generation, as a history journal step does.
+
+    The generation it pointed at becomes the fallback. Nothing is written into
+    the generation itself.
+    """
+
+    target = Path(project_path).expanduser().resolve()
+    descriptor = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(descriptor, Mapping) or not str(descriptor.get("current_generation") or ""):
+        raise ValueError("Mesh Editor layer project has no generation to step from")
+    updated = dict(descriptor)
+    if str(descriptor.get("current_generation")) != generation:
+        updated["previous_generation"] = descriptor.get("current_generation")
+        updated["previous_generation_manifest_sha256"] = descriptor.get("current_generation_manifest_sha256", "")
+    updated["current_generation"] = generation
+    updated["current_generation_manifest_sha256"] = str(manifest_sha256 or "").strip().lower()
+    updated["saved_at"] = time.time()
+    atomic_write_text(target, json.dumps(updated, indent=2, sort_keys=True))
+    return updated
 
 
 def _load_generation(

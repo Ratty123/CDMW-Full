@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from collections.abc import Mapping
 from importlib import import_module
 from pathlib import Path
 
+import shiboken6
 from PySide6.QtCore import QProcess, QProcessEnvironment, QThread, QTimer
 
 from cdmw.services.mesh_rust_contract import (
@@ -27,12 +30,25 @@ from cdmw.ui.mesh_editor.process_io import (
 )
 from cdmw.ui.mesh_editor.rust_theme_transport import protocol_line, rust_theme_digest
 
+#: How often the Mesh Editor tab checks whether the draft's last autosave failed.
+RUST_SAVE_STATUS_POLL_MS = 2000
+
 _RUST_PROTOCOL_QUEUE_LIMIT = 128
 _RUST_READY_TIMEOUT_MS = 10_000
+_RUST_RENDERER_READY_TIMEOUT_MS = 60_000
 _RUST_FINISH_EXIT_TIMEOUT_MS = 3_000
 _RUST_DIAGNOSTIC_BUFFER_LIMIT = 16 * 1024
 _RUST_DIAGNOSTIC_TEXT_LIMIT = 2 * 1024
 _RUST_DIAGNOSTIC_LINE_LIMIT = 8
+#: A second renderer crash within this many seconds stops the automatic restart (P4 V3).
+_RUST_CRASH_RETRY_WINDOW_S = 60.0
+#: Tests answer the second-crash question here: ``lambda box: "finish"`` or ``"discard"``.
+crash_prompt_override = None
+#: A second-crash prompt is open; another document's waits for it (section 8.7 F3).
+_crash_prompt_open = False
+#: ``edit_in_place_blocker`` while Browse's process is (re)starting, and how long to wait for it.
+_BOUND_VIEWPORT_NOT_READY = "the viewport is not ready"
+_BOUND_VIEWPORT_WAIT_S = 20.0
 
 
 def _rust_stderr_failure_marker(line: str) -> bool:
@@ -58,6 +74,9 @@ def _rust_stderr_backtrace_note(line: str) -> bool:
         or lowered.startswith("note: run with rust_backtrace=")
     )
 
+
+#: What a parked document says (P15 step 3).
+PARKED_STATUS = "This document is parked to save memory. Its 3D view opens again when you show it."
 
 class MeshEditorRustProcessMixin:
     def _hair_start_options(self):
@@ -98,6 +117,13 @@ class MeshEditorRustProcessMixin:
                 incompatible=True,
             )
             return
+        stages = dict(getattr(session, "open_stage_ms", None) or {})
+        if stages:
+            from cdmw.ui.mesh_editor.tab_rust_editor import _record_open_stage_timings
+
+            _record_open_stage_timings(self, stages)
+        if self._open_in_bound_viewport(session):
+            return
         host = getattr(self, "standalone_native_host_frame", None)
         prepare_launch = getattr(host, "prepare_launch", None)
         parent_hwnd = int(prepare_launch() or 0) if callable(prepare_launch) else 0
@@ -108,6 +134,88 @@ class MeshEditorRustProcessMixin:
             )
             return
         self.standalone_rust_launch_parent_hwnd = parent_hwnd
+        if self._open_in_engine_window(session, parent_hwnd):
+            return
+        self._launch_fresh_rust_editor_process(session, executable, parent_hwnd)
+
+    def _open_in_bound_viewport(self, session: object) -> bool:
+        """Edit in Browse's viewport when one is bound (P4 V3): its process enters edit mode."""
+
+        binding = getattr(self, "_viewport_binding", None)
+        if binding is None:
+            return False
+        channel = binding.borrow()
+        if channel is None:
+            reason = binding.blocker() or "Browse's viewport cannot edit now"
+            if self._wait_for_bound_viewport(session, reason):
+                return True
+            self._leave_bound_viewport(reason)
+            return False
+        self._bound_viewport_wait_since = 0.0
+        self._set_rust_status("Opening the edit in Browse's viewport...")
+        self._adopt_rust_editor_process(channel, session, keep_view=True)
+        return True
+
+    def _wait_for_bound_viewport(self, session: object, reason: str) -> bool:
+        """Browse's process is starting again (after a crash of the process the edit
+        shared): wait for it, so the edit continues in Browse's viewport and not in
+        the tab (section 8.7 F4). False once it is not that, or waited too long."""
+
+        now = time.monotonic()
+        crashed_at = float(getattr(self, "_rust_last_crash_at", 0.0) or 0.0)
+        if reason != _BOUND_VIEWPORT_NOT_READY or not crashed_at or now - crashed_at > _RUST_CRASH_RETRY_WINDOW_S:
+            self._bound_viewport_wait_since = 0.0
+            return False
+        since = float(getattr(self, "_bound_viewport_wait_since", 0.0) or 0.0)
+        if not since:
+            self._bound_viewport_wait_since = since = now
+        if now - since > _BOUND_VIEWPORT_WAIT_S:
+            self._bound_viewport_wait_since = 0.0
+            return False
+        self._set_rust_status("Waiting for Browse's viewport to start again...")
+        QTimer.singleShot(250, self, lambda current=session: self._retry_bound_viewport(current))
+        return True
+
+    def _retry_bound_viewport(self, session: object) -> None:
+        if session is not self.standalone_rust_authoring_session or getattr(session, "closed", True):
+            self._bound_viewport_wait_since = 0.0
+            return
+        if getattr(self, "_viewport_binding", None) is None:
+            return
+        if not self._open_in_bound_viewport(session):
+            self._launch_rust_editor_process(session)  # waited too long: the tab's own view
+
+    def _open_in_engine_window(self, session: object, parent_hwnd: int) -> bool:
+        """Edit in a window of Browse's process under the tab (P4 V5): no process of its own.
+
+        Falls back to the usual launch when Browse's process cannot hold it, and
+        does not ask again for a session it once refused.
+        """
+
+        if getattr(self, "_engine_window_refused_session", None) is session:
+            return False
+        from cdmw.services.engine_capture import engine_capture_router
+
+        controller = engine_capture_router().resident_controller()
+        borrow = getattr(controller, "borrow_for_window_edit", None)
+        channel = borrow(self) if callable(borrow) else None
+        if channel is None:
+            return False
+        self._set_rust_status("Opening the embedded Mesh Editor...")
+        self._adopt_rust_editor_process(channel, session, own_window_parent=parent_hwnd)
+        return True
+
+    def _leave_bound_viewport(self, reason: str) -> None:
+        """Stop using Browse's viewport; the next launch uses the host's own."""
+
+        release = getattr(self, "_release_viewport_binding", None)
+        if callable(release):
+            release()
+        moved = getattr(self, "moved_to_own_viewport", None)
+        if moved is not None and hasattr(moved, "emit"):
+            moved.emit(str(reason or ""))
+
+    def _launch_fresh_rust_editor_process(self, session: object, executable: Path, parent_hwnd: int) -> None:
         process = QProcess(self)
         process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
         process.setProgram(str(executable))
@@ -125,6 +233,13 @@ class MeshEditorRustProcessMixin:
         environment.insert("RUST_BACKTRACE", "full")
         process.setProcessEnvironment(environment)
         process.started.connect(lambda current=process: self._handle_rust_process_started(current))
+        self._connect_rust_process_signals(process)
+        self._take_rust_process(process, session)
+        register_owned_qprocess_for_exit(process)
+        self._set_rust_status("Launching the embedded Mesh Editor...")
+        process.start()
+
+    def _connect_rust_process_signals(self, process: QProcess) -> None:
         process.readyReadStandardOutput.connect(
             lambda current=process: self._handle_rust_stdout_ready(current)
         )
@@ -139,6 +254,8 @@ class MeshEditorRustProcessMixin:
                 current, code, status
             )
         )
+
+    def _take_rust_process(self, process: QProcess, session: object) -> None:
         self.standalone_rust_process = process
         self.standalone_rust_gpu_failed = False
         # Every launch starts from the manifest's theme; ready resends only a change.
@@ -146,9 +263,45 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_theme_digest = (
             rust_theme_digest(theme) if isinstance(theme, Mapping) else ""
         )
-        register_owned_qprocess_for_exit(process)
-        self._set_rust_status("Launching the embedded Mesh Editor...")
-        process.start()
+
+    def _adopt_rust_editor_process(self, process: QProcess, session: object, *, keep_view: bool = False,
+                                   own_window_parent: int = 0) -> None:
+        """Give a pre-started helper its session; it answers hello and ready as a launch does.
+
+        ``keep_view``: the helper is Browse's, already showing the model (P4 V3); it
+        keeps its camera, view and every texture whose digest matches.
+        ``own_window_parent``: the helper is Browse's and the edit gets a window of
+        its own under this one, the tab's host (P4 V5).
+        """
+
+        self._connect_rust_process_signals(process)
+        self._take_rust_process(process, session)
+        message = {
+            "event": "open_session",
+            "protocol": RUST_MESH_EDITOR_PROTOCOL,
+            "manifest": str(session.manifest_path),
+            "keep_view": bool(keep_view),
+        }
+        session_id = str(getattr(session, "session_id", "") or "")
+        if session_id:
+            # Browse's process holds one edit per document and routes by it (P15).
+            message["session_id"] = session_id
+            if hasattr(process, "session_id"):
+                process.session_id = session_id
+        if own_window_parent > 0:
+            message.update(viewport="own", parent_hwnd=int(own_window_parent))
+        line = json.dumps(message, separators=(",", ":")).encode("utf-8") + b"\n"
+        try:
+            written = int(process.write(line))
+        except RuntimeError:
+            written = -1
+        if written != len(line):
+            self._fail_rust_editor("The pre-started Mesh Editor did not accept its session.")
+            return
+        self._handle_rust_process_started(process)
+        # Output it wrote while it was being handed over is read now.
+        if process.bytesAvailable():
+            self._handle_rust_stdout_ready(process)
 
     def _handle_rust_process_started(self, process: QProcess) -> None:
         if process is not self.standalone_rust_process:
@@ -320,7 +473,30 @@ class MeshEditorRustProcessMixin:
         if event == "ready":
             self._handle_rust_ready(payload)
             return
+        if event == "app_shortcut":
+            # A chord that belongs to CDMW, pressed with focus in the editor's window (P12).
+            if str(payload.get("command", "") or "") == "command_palette":
+                from cdmw.ui.commands.palette import open_command_palette
+
+                try:
+                    window = self.window()
+                except (AttributeError, RuntimeError):
+                    window = None
+                if window is not None:
+                    open_command_palette(window)
+            return
+        if event == "commands_state":
+            self._mirror_rust_commands(payload.get("commands"))
+            return
         if event == "state_snapshot":
+            return
+        if event == "switch_item_piece":
+            index = payload.get("index")
+            if (self.standalone_rust_ready and type(index) is int
+                    and 0 < index < len(self.item_set_contexts)
+                    and not self.standalone_rust_protocol_queue
+                    and self.standalone_rust_protocol_worker is None):
+                self.switch_item_piece_requested.emit(index)
             return
         if event == "layout_changed":
             from cdmw.services.mesh_editor_layout import save_mesh_layout
@@ -329,12 +505,27 @@ class MeshEditorRustProcessMixin:
             if save_mesh_layout(self.settings, payload.get("layout")):
                 request_settings_sync(self.settings)
             return
+        if event == "preview_settings_changed":
+            from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+            hub = preview_settings_hub()
+            settings = payload.get("settings")
+            if hub is not None and isinstance(settings, Mapping):
+                hub.update(**{str(key): value for key, value in settings.items()})
+            return
         if event == "shortcuts_changed":
             from cdmw.services.mesh_editor_shortcuts import save_mesh_shortcuts
             from cdmw.ui.widgets import request_settings_sync
 
             if save_mesh_shortcuts(self.settings, payload.get("shortcuts")):
                 request_settings_sync(self.settings)
+                registry = self._rust_command_registry()
+                if registry is not None:  # Settings > Shortcuts shows the new keys
+                    self._rust_keymap_echo = True
+                    try:
+                        registry.keymap_changed.emit()
+                    finally:
+                        self._rust_keymap_echo = False
             return
         if event in {"renderer_failed", "renderer_recovered"}:
             self.standalone_rust_gpu_failed = event == "renderer_failed"
@@ -446,6 +637,11 @@ class MeshEditorRustProcessMixin:
             return
         self.standalone_rust_child_hwnd = child_hwnd
         self.standalone_rust_hello_received = True
+        # A validated child can still be compiling the driver's first shader
+        # pipelines. Keep initialization bounded without treating it as an
+        # incompatible protocol or enabling editing before the ready event.
+        self.standalone_rust_ready_timer.start(_RUST_RENDERER_READY_TIMEOUT_MS)
+        self._set_rust_status("Mesh Editor is preparing its renderer and textures...")
         self._send_rust_message(
             self._rust_host_message(
                 "hello",
@@ -454,13 +650,31 @@ class MeshEditorRustProcessMixin:
             )
         )
 
+    def _shared_preview_settings_changed(self, _values: object = None) -> None:
+        """Another viewport changed the shared Preview settings: follow them."""
+        if getattr(self, "standalone_rust_ready", False) and self.standalone_rust_process is not None:
+            self._send_rust_theme_update()
+
     def _handle_rust_ready(self, _payload: Mapping[str, object]) -> None:
         if not self.standalone_rust_hello_received:
             self._fail_rust_editor("Mesh Editor became ready before hello.", incompatible=True)
             return
         self.standalone_rust_ready_timer.stop()
         self.standalone_rust_ready = True
+        self._release_background_warmups()
+        self._query_deferred_rust_morph_state()
+        self._start_rust_save_status_watch()
+        became_ready = getattr(self, "became_ready", None)  # the live-edit component's signal
+        if became_ready is not None and hasattr(became_ready, "emit"):
+            became_ready.emit()
         self._send_rust_theme_update()
+        if not getattr(self, "_shared_preview_settings_connected", False):
+            from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+            hub = preview_settings_hub()
+            if hub is not None:
+                hub.changed.connect(self._shared_preview_settings_changed)
+                self._shared_preview_settings_connected = True
         host = getattr(self, "standalone_native_host_frame", None)
         show_editor = getattr(host, "show_editor", None)
         if callable(show_editor):
@@ -779,6 +993,59 @@ class MeshEditorRustProcessMixin:
         )
         self._send_rust_message(response)
 
+    def _rust_command_registry(self):
+        """The window's registry, or the application's one: Browse's edit component
+        has no window, and a detached tool window has no registry of its own
+        (section 8.7 E2, E6)."""
+
+        from cdmw.ui.commands import registry as registry_module
+        from cdmw.ui.commands.registry import CommandRegistry
+
+        try:
+            window = self.window()
+        except (AttributeError, RuntimeError):
+            window = None
+        registry = getattr(window, "command_registry", None)
+        if isinstance(registry, CommandRegistry):
+            return registry
+        registry = registry_module.command_registry()
+        return registry if isinstance(registry, CommandRegistry) else None
+
+    def _clear_rust_commands(self) -> None:
+        """This document's mirrored commands leave with its helper; others' stay."""
+
+        registry = self._rust_command_registry()
+        if registry is not None:
+            from cdmw.ui.mesh_editor.editor_commands import clear_helper_commands
+
+            clear_helper_commands(registry, self)
+
+    def _mirror_rust_commands(self, commands: object) -> None:
+        """The editor's own commands join the registry and the palette (P12)."""
+
+        registry = self._rust_command_registry()
+        if registry is None or not isinstance(commands, list):
+            return
+        from cdmw.ui.mesh_editor.editor_commands import mirror_helper_commands
+
+        mirror_helper_commands(registry, [row for row in commands if isinstance(row, Mapping)],
+                               self._send_rust_command, lambda: bool(self.standalone_rust_ready), owner=self)
+        if not getattr(self, "_rust_follows_keymap", False):
+            # A key changed in Settings > Shortcuts reaches the running editor at once.
+            self._rust_follows_keymap = True
+            registry.keymap_changed.connect(self._rust_keymap_changed)
+
+    def _rust_keymap_changed(self) -> None:
+        if getattr(self, "_rust_keymap_echo", False):
+            return  # the editor itself just saved these keys
+        if getattr(self, "standalone_rust_ready", False) and self.standalone_rust_process is not None:
+            self._send_rust_theme_update()
+
+    def _send_rust_command(self, helper_id: str) -> bool:
+        return self._send_rust_message(
+            self._rust_host_message("run_command", request_id=0, extra={"command": str(helper_id)})
+        )
+
     def _rust_host_message(
         self,
         event: str,
@@ -849,8 +1116,90 @@ class MeshEditorRustProcessMixin:
             )
         self._publish_rust_protocol_status("Mesh Editor finished and CDMW accepted the validated geometry.")
 
+    def _query_deferred_rust_morph_state(self) -> None:
+        """The editor shows before its morph data (P4 V3): ask for it now, send it when it comes."""
+
+        session = self.standalone_rust_authoring_session
+        arrived = getattr(self, "morph_state_arrived", None)
+        query = getattr(session, "query_deferred_morph_state", None)
+        if session is None or arrived is None or not callable(query):
+            return
+        if not getattr(session, "defer_morph_state", False) or getattr(session, "deferred_morph_ready", True):
+            return
+        # Tools unlock as their back end becomes ready (P4 V4). Said before the query
+        # starts: building a host message reads the revision, which waits behind it.
+        self._send_rust_tool_groups({"morph": "Morph data is still being prepared."})
+        if not query(lambda payload, current=session: arrived.emit(current, payload)):
+            self._send_rust_tool_groups({})
+
+    def _send_rust_morph_state(self, session: object, payload: object) -> None:
+        if (session is not self.standalone_rust_authoring_session or not self.standalone_rust_ready
+                or not isinstance(payload, Mapping)):
+            return
+        self._send_rust_message(self._rust_host_message("morph_state", request_id=0,
+                                                        extra={"payload": dict(payload)}))
+        self._send_rust_tool_groups({})
+
+    def _start_rust_save_status_watch(self) -> None:
+        """A draft autosave that fails says so in the editor (2026-11-13).
+
+        The draft saves on a background thread after each change, so its failure
+        comes after the change's own reply: the editor is told on its own line,
+        and told again when a later save succeeds.
+        """
+
+        timer = getattr(self, "standalone_rust_save_status_timer", None)
+        if timer is None:
+            timer = QTimer(self)
+            timer.setInterval(RUST_SAVE_STATUS_POLL_MS)
+            timer.timeout.connect(self._poll_rust_save_status)
+            self.standalone_rust_save_status_timer = timer
+        self.standalone_rust_save_status_sent = ""
+        timer.start()
+
+    def _rust_save_status_error(self) -> str:
+        session = self.standalone_rust_authoring_session
+        for service_name, id_name in (("shadow_service", "shadow_session_id"),
+                                      ("authoritative_service", "authoritative_session_id")):
+            service = getattr(session, service_name, None)
+            session_id = getattr(session, id_name, None)
+            if service is None or not session_id:
+                continue
+            try:
+                error = str(getattr(service._session(session_id), "mesh_layer_autosave_error", "") or "")
+            except (AttributeError, KeyError, RuntimeError, TypeError):
+                continue
+            if error:
+                return error
+        return ""
+
+    def _poll_rust_save_status(self) -> None:
+        session = self.standalone_rust_authoring_session
+        timer = getattr(self, "standalone_rust_save_status_timer", None)
+        if session is None or getattr(session, "closed", True) or not self.standalone_rust_ready:
+            if timer is not None:
+                timer.stop()
+            return
+        error = self._rust_save_status_error()
+        if error == getattr(self, "standalone_rust_save_status_sent", ""):
+            return
+        if self._send_rust_message(self._rust_host_message("save_status", request_id=0, extra={"error": error})):
+            self.standalone_rust_save_status_sent = error
+
+    def _send_rust_tool_groups(self, preparing: Mapping[str, str]) -> bool:
+        """Tell the editor which tool groups are still preparing, and why (P4 V4)."""
+
+        groups = {str(name): {"ready": False, "reason": str(reason)} for name, reason in preparing.items()}
+        return self._send_rust_message(self._rust_host_message("tool_groups", request_id=0,
+                                                               extra={"groups": groups}))
+
     def _handle_rust_ready_timeout(self) -> None:
         if self.standalone_rust_ready:
+            return
+        if self.standalone_rust_hello_received:
+            self._fail_rust_editor(
+                "Mesh Editor did not finish preparing its renderer and textures."
+            )
             return
         self._fail_rust_editor(
             "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
@@ -888,6 +1237,28 @@ class MeshEditorRustProcessMixin:
     ) -> None:
         if process is not self.standalone_rust_process:
             return
+        refusal = str(getattr(process, "refusal", "") or "")
+        session = self.standalone_rust_authoring_session
+        if refusal and not self.standalone_rust_hello_received and session is not None and not session.closed:
+            # Browse's viewport could not enter edit mode: open the editor in the
+            # host's own viewport with the same prepared session.
+            self.standalone_rust_process = None
+            self.standalone_rust_ready_timer.stop()
+            if getattr(process, "own_window", False):
+                # Browse's process could not hold the tab's window: a process of its own.
+                self._engine_window_refused_session = session
+            else:
+                self._leave_bound_viewport(refusal)
+            self._launch_rust_editor_process(session)
+            return
+        if not shiboken6.isValid(self.standalone_rust_ready_timer):
+            # The helper exited while the window tears this tab down: its Qt
+            # children are already destroyed, so only release the process.
+            self.standalone_rust_process = None
+            unregister_owned_qprocess_for_exit(process)
+            self.standalone_rust_ready = False
+            self.standalone_rust_child_hwnd = 0
+            return
         self._drain_rust_process_output(process)
         self.standalone_rust_ready_timer.stop()
         self.standalone_rust_finish_timer.stop()
@@ -903,6 +1274,14 @@ class MeshEditorRustProcessMixin:
             process.deleteLater()
         except RuntimeError:
             pass
+        if getattr(self, "standalone_rust_parked", False):
+            # Parked (P15 step 3): the view closed on purpose; the session stays.
+            self.standalone_rust_closing = False
+            if getattr(self, "standalone_rust_unpark_requested", False):
+                self.unpark_rust_editor()  # shown again while it closed
+                return
+            self._set_rust_status(PARKED_STATUS)
+            return
         if self.standalone_rust_finish_accepted:
             show_result = getattr(host, "show_result", None)
             if callable(show_result):
@@ -918,6 +1297,14 @@ class MeshEditorRustProcessMixin:
             self._publish_rust_protocol_status(
                 "Mesh Editor closed while Finish was running; waiting for the safe terminal result."
             )
+        elif (
+            (self.standalone_rust_process_error_reported
+             or (not self.standalone_rust_closing and not self.standalone_rust_failure_reported))
+            and self._recover_rust_editor_after_crash()
+        ):
+            # The shadow session outlives the renderer (P4 V3): nothing is disposed.
+            self._clear_rust_commands()
+            return
         elif (
             self.standalone_rust_process_error_reported
             or (not self.standalone_rust_closing and not self.standalone_rust_failure_reported)
@@ -935,8 +1322,157 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_closing = True
         self.standalone_rust_dispose_pending = True
         self._schedule_rust_session_dispose()
+        self._clear_rust_commands()  # the editor's commands leave with its helper
+        release = getattr(self, "_release_viewport_binding", None)
+        if callable(release):  # Browse's viewport shows its own scene again
+            release()
+        closed = getattr(self, "closed", None)  # the live-edit component's signal
+        if closed is not None and hasattr(closed, "emit"):
+            closed.emit()
+
+    def _recover_rust_editor_after_crash(self) -> bool:
+        """Keep the shadow session when the renderer exits unexpectedly (P4 V3).
+
+        The first crash starts a new renderer and enters the edit again at the last
+        accepted step. A second one within a minute stops retrying and offers Finish
+        or Discard without a viewport. False: not recoverable (it never opened).
+        """
+
+        session = self.standalone_rust_authoring_session
+        if (session is None or getattr(session, "closed", True) or not self.standalone_rust_hello_received
+                or not callable(getattr(session, "rewrite_for_relaunch", None))):
+            return False
+        now = time.monotonic()
+        previous = float(getattr(self, "_rust_last_crash_at", 0.0) or 0.0)
+        self._rust_last_crash_at = now
+        self.standalone_rust_ready = False
+        self.standalone_rust_hello_received = False
+        # The session is kept: a failure path that ran first (Qt reports a crash
+        # as an error, then as finished) must not dispose it when a request ends
+        # (section 8.7 A7).
+        self.standalone_rust_dispose_pending = False
+        self.standalone_rust_closing = False
+        host = getattr(self, "standalone_native_host_frame", None)
+        if previous and now - previous < _RUST_CRASH_RETRY_WINDOW_S:
+            message = ("The 3D view stopped again. Your edits up to the last completed step are kept; "
+                       "choose Finish or Discard.")
+            show_error = getattr(host, "show_error", None)
+            if callable(show_error):
+                show_error(message)
+            self._set_rust_status(message, error=True)
+            QTimer.singleShot(0, self, lambda current=session: self._offer_finish_or_discard_after_crash(current))
+            return True
+        message = ("The 3D view stopped and was restarted. Your edits up to the last completed step are kept; "
+                   "the step in progress was lost.")
+        show_loading = getattr(host, "show_loading", None)
+        if callable(show_loading):
+            show_loading(message)
+        self._set_rust_status(message, error=True)
+        QTimer.singleShot(0, self, lambda current=session: self._rewrite_rust_session_after_crash(current))
+        return True
+
+    def _rewrite_rust_session_after_crash(self, session: object) -> None:
+        if session is not self.standalone_rust_authoring_session or getattr(session, "closed", True):
+            return
+        if self.standalone_rust_protocol_thread is not None or self.standalone_rust_prepare_thread is not None:
+            # A request still finishing against the shadow: write the files after it.
+            QTimer.singleShot(100, self, lambda current=session: self._rewrite_rust_session_after_crash(current))
+            return
+        self.standalone_rust_process_generation += 1
+        generation = self.standalone_rust_process_generation
+        done = self.crash_rewrite_done
+
+        def rewrite() -> None:
+            try:
+                session.rewrite_for_relaunch(generation)
+            except Exception as exc:  # reported on the UI thread
+                done.emit(session, f"{type(exc).__name__}: {exc}")
+                return
+            done.emit(session, "")
+
+        threading.Thread(target=rewrite, name="cdmw-mesh-editor-crash-rewrite", daemon=True).start()
+
+    def _relaunch_rust_editor_after_crash(self, session: object, error: str) -> None:
+        if session is not self.standalone_rust_authoring_session or getattr(session, "closed", True):
+            return
+        if error:
+            self.standalone_rust_failure_reported = False
+            self._fail_rust_editor(f"Mesh Editor could not restart after its 3D view stopped: {error}")
+            return
+        self.standalone_rust_closing = False
+        self.standalone_rust_failure_reported = False
+        self.standalone_rust_process_error_reported = False
+        self.standalone_rust_finish_accepted = False
+        # A new helper (after a crash or a park) says hello once and numbers its
+        # requests from 1 again (section 8.7 A3 and A4).
+        self.standalone_rust_hello_received = False
+        self.standalone_rust_ready = False
+        self.standalone_rust_last_client_request_id = 0
+        self.standalone_rust_stdout_buffer = b""
+        self.standalone_rust_dispose_pending = False
+        self._launch_rust_editor_process(session)
+
+    def _offer_finish_or_discard_after_crash(self, session: object) -> None:
+        """Second crash: no viewport; Finish or Discard the shadow session."""
+
+        global _crash_prompt_open
+
+        if session is not self.standalone_rust_authoring_session or getattr(session, "closed", True):
+            return
+        if _crash_prompt_open:
+            # One shared process ended for several documents: ask about each in
+            # turn, never one box over another (section 8.7 F3).
+            QTimer.singleShot(250, self, lambda current=session: self._offer_finish_or_discard_after_crash(current))
+            return
+        from PySide6.QtWidgets import QMessageBox
+
+        target = getattr(self, "_current_target_entry", None)
+        try:
+            entry = target() if callable(target) else None
+        except (AttributeError, RuntimeError, TypeError):
+            entry = None
+        name = str(getattr(entry, "basename", "") or getattr(entry, "path", "") or "")
+        box = QMessageBox(self.window() if callable(getattr(self, "window", None)) else None)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Mesh Editor Stopped")
+        box.setText(f"The 3D view of {name} stopped twice within a minute." if name
+                    else "The 3D view stopped twice within a minute.")
+        box.setInformativeText("Your edits up to the last completed step are kept. Finish keeps them as a "
+                               "pending edit; Discard drops them.")
+        finish = box.addButton("Finish", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+        _crash_prompt_open = True
+        try:
+            answer = crash_prompt_override(box) if crash_prompt_override is not None else None
+            if answer is None:
+                box.exec()
+                answer = "finish" if box.clickedButton() is finish else "discard"
+        finally:
+            _crash_prompt_open = False
+        if session is not self.standalone_rust_authoring_session or getattr(session, "closed", True):
+            return
+        if answer == "finish":
+            self.standalone_rust_host_request_id += 1
+            self.standalone_rust_protocol_queue.append(self._rust_host_message(
+                "finish_request", request_id=self.standalone_rust_host_request_id, extra={"hidden_parts": []}))
+            self._start_next_rust_protocol_worker()
+            return
+        if session is not None:
+            session.discard_requested = True  # the user chose Discard
+        self.standalone_rust_closing = True
+        self.standalone_rust_dispose_pending = True
+        self._schedule_rust_session_dispose()
+        release = getattr(self, "_release_viewport_binding", None)
+        if callable(release):
+            release()
+        closed = getattr(self, "closed", None)
+        if closed is not None and hasattr(closed, "emit"):
+            closed.emit()
 
     def _fail_rust_editor(self, message: str, *, incompatible: bool = False) -> None:
+        release = getattr(self, "_release_background_warmups", None)
+        if callable(release):
+            release()
         if self.standalone_rust_failure_reported:
             return
         self.standalone_rust_failure_reported = True
@@ -948,6 +1484,53 @@ class MeshEditorRustProcessMixin:
             show_error(str(message or "Mesh Editor failed"))
         self._set_rust_status(str(message or "Mesh Editor failed"), error=True)
         self._stop_rust_editor_process()
+
+    def park_rust_editor(self) -> bool:
+        """Close this document's 3D view to free its memory, keeping its session (P15 step 3).
+
+        The shadow session, its session files, its edit and its history stay; only
+        the editor's window and its GPU resources go. ``unpark_rust_editor`` opens
+        the view again from the session files, as a restart after a crash does.
+        False when the editor is not idle (a request or Finish is running).
+        """
+
+        session = self.standalone_rust_authoring_session
+        process = self.standalone_rust_process
+        if (session is None or getattr(session, "closed", True) or process is None
+                or not self.standalone_rust_ready or getattr(self, "standalone_rust_parked", False)):
+            return False
+        if (self._rust_finish_protocol_active() or self.standalone_rust_protocol_thread is not None
+                or self.standalone_rust_prepare_thread is not None):
+            return False
+        self.standalone_rust_parked = True
+        self.standalone_rust_ready = False
+        self.standalone_rust_host_request_id += 1
+        if not self._send_rust_message(self._rust_host_message("cancel", request_id=self.standalone_rust_host_request_id)):
+            self.standalone_rust_parked = False
+            self.standalone_rust_ready = True
+            return False
+        return True
+
+    def unpark_rust_editor(self) -> bool:
+        """Open a parked document's 3D view again at its last accepted step."""
+
+        if not getattr(self, "standalone_rust_parked", False):
+            return False
+        session = self.standalone_rust_authoring_session
+        if session is None or getattr(session, "closed", True):
+            self.standalone_rust_parked = False
+            return False
+        if self.standalone_rust_process is not None:
+            # Its view is still closing: it stays parked until the helper has exited,
+            # so that exit is no crash, and opens again then (section 8.8 R13).
+            self.standalone_rust_unpark_requested = True
+            self._set_rust_status("Opening this document's 3D view again...")
+            return True
+        self.standalone_rust_parked = False
+        self.standalone_rust_unpark_requested = False
+        self._set_rust_status("Opening this document's 3D view again...")
+        self._rewrite_rust_session_after_crash(session)
+        return True
 
     def _stop_rust_editor_process(self, *, reason: str = "") -> None:
         hair_context = getattr(self, "_hair_context_preparation", None)
@@ -1010,5 +1593,8 @@ class MeshEditorRustProcessMixin:
         else:
             self.standalone_rust_dispose_pending = True
             self._schedule_rust_session_dispose()
+            release = getattr(self, "_release_viewport_binding", None)
+            if callable(release):  # stopped before its session opened: Browse shows its own view again
+                release()
         if reason:
             self._set_rust_status(reason)

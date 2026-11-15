@@ -549,3 +549,40 @@ def test_serving_prewarm_placeholder_reports_what_the_helper_is_holding(tmp_path
     controller.shutdown()
     owner.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_a_failed_process_tells_every_borrowed_edit(tmp_path, monkeypatch):
+    """Section 8.7 B6: a failure that is not an exit still ends every borrowed edit.
+
+    Ready and activation timeouts and GPU Retry all end the process here.
+    """
+
+    from cdmw.ui.preview.engine_channel import (
+        EDIT_IN_PLACE_CAPABILITY,
+        MULTI_EDIT_CAPABILITY,
+        OWN_VIEWPORT_EDIT_CAPABILITY,
+    )
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    controller, process, _ = _start_controller(tmp_path)
+    controller._test_handshake_capabilities = (
+        EDIT_IN_PLACE_CAPABILITY, MULTI_EDIT_CAPABILITY, OWN_VIEWPORT_EDIT_CAPABILITY,
+    )
+    _make_ready(controller)
+    in_view = controller.borrow_for_edit()
+    in_window = controller.borrow_for_window_edit()
+    assert in_view is not None and in_window is not None
+    ended = []
+    in_view.finished.connect(lambda code, status: ended.append(("view", status)))
+    in_window.finished.connect(lambda code, status: ended.append(("window", status)))
+    controller._fail_current_process("protocol stopped", static_failure=False)
+    QCoreApplication.sendPostedEvents()
+    for _ in range(5):
+        QCoreApplication.processEvents()
+    assert not in_view.is_running and not in_window.is_running
+    assert sorted(name for name, _ in ended) == ["view", "window"]
+    assert all(status == QProcess.ExitStatus.CrashExit for _, status in ended)
+    assert controller.open_edit_count == 0
+    process.kill()
+    process.finished.emit(1, QProcess.ExitStatus.NormalExit)
+    controller.shutdown()

@@ -11,9 +11,9 @@ from cdmw.services.workspace_layout import workspace_paths
 
 
 def bootstrap_root() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parents[2]
+    from cdmw.app.app_folder import cdmw_folder
+
+    return cdmw_folder()
 
 
 def write_bootstrap_report(kind: str, title: str, body: str) -> None:

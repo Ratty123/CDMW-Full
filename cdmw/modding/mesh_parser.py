@@ -3085,6 +3085,17 @@ def _pac_bone_palette_candidates(data, *, search_limit=None, minimum_entries=8,
     return tuple(values for _count, values in found)
 
 
+def _pac_embeds_bones(data: bytes) -> bool:
+    """Whether the PAC decodes and carries bone records of its own."""
+
+    from .pabv_parser import decode_pac_embedded_volumes
+
+    try:
+        return bool(decode_pac_embedded_volumes(data).model_bones)
+    except (ValueError, struct.error, IndexError):
+        return False
+
+
 def resolve_pac_bone_palette(data: bytes, skeleton: object) -> tuple[int, ...]:
     """Map PAC influence slots to skeleton bone indices, or () if unresolved.
 
@@ -3112,11 +3123,21 @@ def resolve_pac_bone_palette(data: bytes, skeleton: object) -> tuple[int, ...]:
             return ()
         return tuple(by_hash[value] for value in decoded)
     best: tuple[int, ...] = ()
-    for candidate in _pac_bone_palette_candidates(data, matching_hashes=by_hash):
-        if len(candidate) <= len(best) or any(value not in by_hash for value in candidate):
+    ambiguous = False
+    # Eyes can carry a single explicit bone. Accept short tables only here,
+    # where every hash must resolve against the selected skeleton, and only
+    # for a PAC with no bones of its own: a weapon's one-entry palette names
+    # its embedded root, which says nothing about a character rig.
+    minimum_entries = 8 if _pac_embeds_bones(data) else 1
+    for candidate in _pac_bone_palette_candidates(data, minimum_entries=minimum_entries, matching_hashes=by_hash):
+        if len(candidate) < len(best) or any(value not in by_hash for value in candidate):
             continue
-        best = tuple(by_hash[value] for value in candidate)
-    return best
+        resolved = tuple(by_hash[value] for value in candidate)
+        if len(resolved) == len(best):
+            ambiguous |= resolved != best
+        else:
+            best, ambiguous = resolved, False
+    return () if ambiguous else best
 
 
 def parse_mesh(data: bytes, filename: str = "") -> ParsedMesh:

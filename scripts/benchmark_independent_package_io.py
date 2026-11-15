@@ -17,7 +17,29 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from scripts.benchmark_independent_items import peak_resident_bytes
+
+
+def peak_resident_bytes():
+    if sys.platform == 'win32':
+        import ctypes
+        from ctypes import wintypes
+        class Counters(ctypes.Structure):
+            _fields_ = [('cb', wintypes.DWORD), ('faults', wintypes.DWORD)] + [
+                (name, ctypes.c_size_t) for name in ('peak_rss', 'rss', 'peak_paged', 'paged',
+                                                   'peak_nonpaged', 'nonpaged', 'pagefile', 'peak_pagefile')]
+        kernel, psapi = ctypes.WinDLL('kernel32', use_last_error=True), ctypes.WinDLL('psapi', use_last_error=True)
+        kernel.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Counters), wintypes.DWORD]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+        counters = Counters()
+        counters.cb = ctypes.sizeof(counters)
+        if not psapi.GetProcessMemoryInfo(kernel.GetCurrentProcess(), ctypes.byref(counters), counters.cb):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return counters.peak_rss
+    if sys.platform == 'linux':
+        import resource
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+    raise RuntimeError('Peak resident memory is implemented for Windows and Linux only.')
 
 
 def run_case(operation, mib, version):

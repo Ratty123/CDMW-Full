@@ -3,8 +3,8 @@ import json
 from uuid import uuid4
 import pytest
 
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services.independent_item_install import prepare_install, prepare_rebuild
+import tests.support.overlay_manager as overlays
+from tests.support.item_install import prepare_install, prepare_rebuild
 from cdmw.services.independent_item_package import from_plan, package_bytes
 from tests.test_archive_overlay_manager import Backups, shop_spec
 from tests.test_independent_item_fields import field_package

@@ -1,0 +1,498 @@
+"""Edit mesh where Browse Archives shows it (P4 V3).
+
+"Open in Mesh Editor" on a model Browse already shows switches Browse's own
+viewport into edit mode: the helper that draws the preview enters edit mode in
+the same window, so the camera, the textures and the picture stay. The Mesh
+Editor tab keeps the session, the undo history and Finish; only the viewport
+is Browse's.
+
+While editing:
+- the controls and file list collapse to narrow strips that open while the
+  pointer is over them, so the editor's panels get the room;
+- the details, warnings and the preview's own view controls are hidden, since
+  the editor's Inspector and view options replace them;
+- a banner says which file is being edited. Selecting another file shows its
+  details only; the banner then offers to preview it instead, which asks
+  Finish, Discard or Keep editing first.
+
+P15 step 5a: switching to the Mesh Editor while editing here keeps this page
+and its window on screen, in the same layout, with the Mesh Editor's document
+tabs above it (``show_edit_as_mesh_workspace``). Nothing moves or loads again.
+Choosing another document's tab shows the Mesh Editor page, which hides this
+page and its window, so only one 3D view is ever visible.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
+from PySide6.QtCore import QEvent, QObject, QTimer
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QTabBar, QWidget
+
+#: Width of a collapsed pane while editing.
+STRIP_WIDTH = 28
+#: Idle time after a model shows before the Mesh Editor tab is created ahead of use.
+_PREWARM_DELAY_MS = 1500
+_HOVER_COLLAPSE_MS = 400
+
+
+class _StripHover(QObject):
+    """Open a collapsed pane while the pointer is over it."""
+
+    def __init__(self, layout: "BrowseEditLayout") -> None:
+        super().__init__()
+        self._layout = layout
+        self._collapse_timer = QTimer(self)
+        self._collapse_timer.setSingleShot(True)
+        self._collapse_timer.timeout.connect(layout.collapse_strips)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
+        kind = event.type()
+        if kind == QEvent.Type.Enter:
+            self._collapse_timer.stop()
+            self._layout.open_strips()
+        elif kind == QEvent.Type.Leave:
+            self._collapse_timer.start(_HOVER_COLLAPSE_MS)
+        return False
+
+
+class BrowseEditLayout:
+    """Browse Archives' layout while its viewport holds an edit."""
+
+    def __init__(self, browser: QWidget) -> None:
+        self.browser = browser
+        self.active = False
+        self.entry = None
+        self._saved_sizes: list[int] = []
+        self._saved_minimums: list[int] = []
+        self._hidden: list[QWidget] = []
+        self._hover = _StripHover(self)
+        #: Browse is usable around the edit (its panes unfolded, P15 step 5a).
+        self.browsing = False
+        self.banner = self._build_banner()
+        #: The Mesh Editor's document tabs while this page is the Mesh workspace (P15 step 5a).
+        self.document_selected: Callable[[int], None] | None = None
+        self.documents_bar = self._build_documents_bar()
+
+    # ----- banner -------------------------------------------------------------
+    def _build_banner(self) -> QFrame:
+        banner = QFrame()
+        banner.setObjectName("ArchiveEditingBanner")
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(8, 4, 8, 4)
+        self.banner_label = QLabel("")
+        self.banner_label.setObjectName("ArchiveEditingBannerLabel")
+        self.preview_selected_button = QPushButton("Preview selected file instead")
+        self.preview_selected_button.setObjectName("ArchiveEditingPreviewSelectedButton")
+        self.preview_selected_button.setVisible(False)
+        # P4 V5: the edit moves to the Mesh Editor tab as it is, without reopening.
+        self.promote_button = QPushButton("Move to the Mesh Editor tab")
+        self.promote_button.setObjectName("ArchiveEditingPromoteButton")
+        row.addWidget(self.banner_label, stretch=1)
+        row.addWidget(self.preview_selected_button)
+        row.addWidget(self.promote_button)
+        banner.setVisible(False)
+        layout = getattr(self.browser, "archive_preview_main_layout", None)
+        if layout is not None:
+            layout.insertWidget(0, banner)
+        return banner
+
+    def _build_documents_bar(self) -> QTabBar:
+        bar = QTabBar()
+        bar.setObjectName("ArchiveEditingDocumentTabs")
+        bar.setDocumentMode(True)
+        bar.setExpanding(False)
+        bar.setVisible(False)
+        bar.tabBarClicked.connect(self._document_clicked)
+        layout = getattr(self.browser, "archive_preview_main_layout", None)
+        if layout is not None:
+            layout.insertWidget(0, bar)
+        return bar
+
+    def show_documents(self, labels: list[str], current: int) -> None:
+        """Show the Mesh Editor's document tabs above the edit, ``current`` selected."""
+
+        bar = self.documents_bar
+        bar.blockSignals(True)
+        try:
+            while bar.count():
+                bar.removeTab(0)
+            for label in labels:
+                bar.addTab(label)
+            if 0 <= current < bar.count():
+                bar.setCurrentIndex(current)
+        finally:
+            bar.blockSignals(False)
+        bar.setVisible(True)
+        self.promote_button.setVisible(False)  # it is already the Mesh workspace
+
+    def hide_documents(self) -> None:
+        self.documents_bar.setVisible(False)
+        self.promote_button.setVisible(True)
+
+    @property
+    def showing_documents(self) -> bool:
+        return not self.documents_bar.isHidden()
+
+    def _document_clicked(self, index: int) -> None:
+        if index >= 0 and callable(self.document_selected):
+            self.document_selected(index)
+
+    def set_status(self, message: str) -> None:
+        label = getattr(self.entry, "basename", "") or getattr(self.entry, "path", "") or ""
+        text = f"Editing {label}" if label else "Editing"
+        if message:
+            text = f"{text}: {message}"
+        self.banner_label.setText(text)
+
+    def selection_changed(self, selected_entry: object) -> None:
+        """Another file is selected: offer to preview it instead of the edit."""
+
+        if not self.active:
+            return
+        same = (selected_entry is None or self.entry is None
+                or getattr(selected_entry, "identity", None) == getattr(self.entry, "identity", None))
+        self.preview_selected_button.setVisible(not same)
+
+    # ----- layout -------------------------------------------------------------
+    def _strip_panes(self) -> list[QWidget]:
+        splitter = getattr(self.browser, "archive_splitter", None)
+        if splitter is None or splitter.count() < 3:
+            return []
+        return [splitter.widget(0), splitter.widget(1)]
+
+    def enter(self, entry: object) -> None:
+        if self.active:
+            return
+        self.active = True
+        self.entry = entry
+        self._fold()
+        self.set_status("")
+        self.preview_selected_button.setVisible(False)
+        self.banner.setVisible(True)
+
+    def browse_with_edit(self) -> None:
+        """Browse usable again while the edit stays in the view (P15 step 5a): its file
+        and control panes unfolded, its details back; the banner stays."""
+
+        if not self.active or self.browsing:
+            return
+        self.browsing = True
+        self._unfold()
+        self.hide_documents()
+
+    def fold_for_edit(self) -> None:
+        """The edit layout again (the Mesh workspace)."""
+
+        if not self.active or not self.browsing:
+            return
+        self.browsing = False
+        self._fold()
+
+    def _fold(self) -> None:
+        splitter = getattr(self.browser, "archive_splitter", None)
+        panes = self._strip_panes()
+        if splitter is not None and panes:
+            self._saved_sizes = list(splitter.sizes())
+            self._saved_minimums = [pane.minimumWidth() for pane in panes]
+            for pane in panes:
+                pane.setMinimumWidth(STRIP_WIDTH)
+                pane.installEventFilter(self._hover)
+            self.collapse_strips()
+        self._hidden = []
+        for name in ("archive_preview_meta_label", "archive_preview_health_label",
+                     "archive_preview_warning_label", "archive_item_set_components",
+                     "archive_texture_refs_group", "archive_character_context_panel"):
+            widget = getattr(self.browser, name, None)
+            if isinstance(widget, QWidget) and widget.isVisible():
+                widget.setVisible(False)
+                self._hidden.append(widget)
+        controls = getattr(self.browser, "archive_view_controls_layout", None)
+        if controls is not None:
+            for index in range(controls.count()):
+                widget = controls.itemAt(index).widget()
+                if widget is not None and widget.isVisible():
+                    widget.setVisible(False)
+                    self._hidden.append(widget)
+
+    def leave(self) -> None:
+        if not self.active:
+            return
+        self.active = False
+        if not self.browsing:
+            self._unfold()
+        self.browsing = False
+        self.banner.setVisible(False)
+        self.preview_selected_button.setVisible(False)
+        self.hide_documents()
+        self.entry = None
+
+    def _unfold(self) -> None:
+        splitter = getattr(self.browser, "archive_splitter", None)
+        for pane, minimum in zip(self._strip_panes(), self._saved_minimums):
+            pane.removeEventFilter(self._hover)
+            pane.setMinimumWidth(minimum)
+        if splitter is not None and self._saved_sizes:
+            splitter.setSizes(self._saved_sizes)
+        for widget in self._hidden:
+            try:
+                widget.setVisible(True)
+            except RuntimeError:
+                pass
+        self._hidden = []
+
+    def collapse_strips(self) -> None:
+        splitter = getattr(self.browser, "archive_splitter", None)
+        if not self.active or self.browsing or splitter is None or not self._saved_sizes:
+            return
+        total = sum(self._saved_sizes)
+        splitter.setSizes([STRIP_WIDTH, STRIP_WIDTH, max(STRIP_WIDTH, total - 2 * STRIP_WIDTH)])
+
+    def open_strips(self) -> None:
+        splitter = getattr(self.browser, "archive_splitter", None)
+        if not self.active or self.browsing or splitter is None or len(self._saved_sizes) < 3:
+            return
+        total = sum(self._saved_sizes)
+        first, second = self._saved_sizes[0], self._saved_sizes[1]
+        splitter.setSizes([first, second, max(STRIP_WIDTH, total - first - second)])
+
+
+class BrowseEditInPlaceMixin:
+    """The Archive Browser's half of editing in its own viewport."""
+
+    def _archive_edit_layout(self) -> BrowseEditLayout:
+        layout = getattr(self, "_edit_in_place_layout", None)
+        if layout is None:
+            layout = self._edit_in_place_layout = BrowseEditLayout(self)
+            layout.preview_selected_button.clicked.connect(self._preview_selected_instead_of_edit)
+            layout.promote_button.clicked.connect(self._promote_edit_to_tab)
+            tree = getattr(self, "archive_tree", None)
+            if tree is not None:
+                tree.itemSelectionChanged.connect(self._edit_in_place_selection_changed)
+        return layout
+
+    def _schedule_mesh_editor_prewarm(self) -> None:
+        """Create the Mesh Editor tab once, while Browse is idle after showing a model.
+
+        Creating it took 0.6 s on the click that opened the first edit; done ahead,
+        that click shows the edit at once (P4 V4). Never during a click's work: it
+        waits until no preview load or texture request is running.
+        """
+
+        if getattr(self, "_mesh_editor_prewarm_scheduled", False):
+            return
+        self._mesh_editor_prewarm_scheduled = True
+        QTimer.singleShot(_PREWARM_DELAY_MS, self._prewarm_mesh_editor_tab)
+
+    def _prewarm_mesh_editor_tab(self) -> None:
+        shell = getattr(self, "shell", None)
+        tab = getattr(shell, "mesh_editor_tab", None)
+        widget_if_created = getattr(tab, "widget_if_created", None)
+        ensure = getattr(tab, "ensure_widget", None)
+        if not callable(ensure) or (callable(widget_if_created) and widget_if_created() is not None):
+            return
+        busy = (getattr(self, "archive_preview_worker", None) is not None
+                or bool(getattr(self, "_archive_texture_request_loading", False))
+                or bool(getattr(self, "archive_preview_texture_upgrade_pending", False)))
+        if busy:
+            QTimer.singleShot(_PREWARM_DELAY_MS, self._prewarm_mesh_editor_tab)
+            return
+        try:
+            ensure()
+        except RuntimeError:
+            pass
+
+    def edit_in_place_blocker(self, entry: object) -> str:
+        """Why Browse's viewport cannot hold an edit of ``entry`` now ("" when it can)."""
+
+        host = getattr(self, "archive_d3d11_preview_host", None)
+        controller = getattr(host, "controller", None)
+        check = getattr(controller, "edit_in_place_blocker", None)
+        if not callable(check):
+            return "Browse's viewport cannot edit in place"
+        if getattr(self, "archive_preview_stack", None) is not None:
+            try:
+                if self.archive_preview_stack.currentWidget() is not host:
+                    return "Browse is not showing this model in 3D"
+            except RuntimeError:
+                return "Browse's viewport is closed"
+        return str(check() or "")
+
+    def begin_edit_in_place(self, entry: object):
+        """A viewport binding for the Mesh Editor, or None to open the edit in its tab."""
+
+        if self.edit_in_place_blocker(entry):
+            return None
+        from cdmw.ui.mesh_editor.live_edit.browse_viewport import BrowseViewportBinding
+
+        binding = BrowseViewportBinding(self.archive_d3d11_preview_host,
+                                        str(getattr(entry, "basename", "") or ""), self)
+        layout = self._archive_edit_layout()
+        binding.status.connect(self._edit_in_place_status)
+        binding.ended.connect(self._edit_in_place_ended)
+        layout.enter(entry)
+        self._edit_in_place_binding = binding
+        return binding
+
+    def _promote_edit_to_tab(self) -> None:
+        """Move the edit in Browse's viewport to the Mesh Editor tab (P4 V5)."""
+
+        shell = getattr(self, "shell", None)
+        tab = self._browse_edit_document()
+        live = getattr(tab, "live_edit", None)
+        if live is None or getattr(live, "viewport_binding", None) is None:
+            return
+        self._show_browse_edit_document(tab)
+        self.leave_mesh_workspace_view()
+        # The Mesh page itself, not the rail key: the rail keeps an edit in this view
+        # (P15 step 5a), and the move needs the page's host window with its size.
+        activate = getattr(shell, "_activate_tool_widget", None)
+        page = getattr(shell, "mesh_editor_tab", None)
+        if callable(activate) and page is not None:
+            activate(page)
+
+        def promote() -> None:
+            if not live.promote_to_tab():
+                set_status = getattr(shell, "set_status_message", None)
+                if callable(set_status):
+                    set_status("The edit could not move to the Mesh Editor tab now.", error=True)
+
+        QTimer.singleShot(0, promote)
+
+    def _browse_edit_document(self):
+        """The Mesh Editor document whose edit is in this viewport, not the one shown (8.7 A5)."""
+
+        shell = getattr(self, "shell", None)
+        owner = getattr(shell, "mesh_editor_tab", None)
+        created = getattr(owner, "widget_if_created", None)
+        view = created() if callable(created) else owner
+        find = getattr(view, "browse_document", None)
+        document = find() if callable(find) else None
+        return document if document is not None else view
+
+    def _show_browse_edit_document(self, document) -> None:
+        shell = getattr(self, "shell", None)
+        owner = getattr(shell, "mesh_editor_tab", None)
+        created = getattr(owner, "widget_if_created", None)
+        view = created() if callable(created) else owner
+        index_of, set_active = getattr(view, "index_of", None), getattr(view, "set_active", None)
+        if callable(index_of) and callable(set_active) and index_of(document) >= 0:
+            set_active(index_of(document))
+
+    @property
+    def editing_in_place(self) -> bool:
+        binding = getattr(self, "_edit_in_place_binding", None)
+        return binding is not None and not binding.is_ended
+
+    # ----- the Mesh workspace in this page (P15 step 5a) ----------------------
+    @property
+    def edit_shown_as_mesh_workspace(self) -> bool:
+        layout = getattr(self, "_edit_in_place_layout", None)
+        return bool(self.editing_in_place and layout is not None and layout.active and layout.showing_documents)
+
+    def show_edit_as_mesh_workspace(self, select_document: Callable[[int], None]) -> bool:
+        """Be the Mesh workspace: this page, its window and its edit layout stay, with
+        the Mesh Editor's document tabs above. ``select_document(index)`` shows
+        another document. False when no edit is in this viewport."""
+
+        layout = self._archive_edit_layout()
+        if not self.editing_in_place or not layout.active:
+            return False
+        view = self._mesh_documents_view()
+        documents = tuple(getattr(view, "documents", ()) or ())
+        if not documents:
+            return False
+        from cdmw.ui.mesh_editor.documents import document_label
+
+        browse = self._browse_edit_document()
+        layout.fold_for_edit()
+        self._tell_edit_browsing(False)
+        layout.document_selected = select_document
+        layout.show_documents([document_label(document) for document in documents],
+                              documents.index(browse) if browse in documents else -1)
+        return True
+
+    def leave_mesh_workspace_view(self) -> None:
+        """Another workspace: the document tabs go; the edit stays in this view."""
+
+        layout = getattr(self, "_edit_in_place_layout", None)
+        if layout is not None:
+            layout.hide_documents()
+
+    def show_edit_for_browsing(self) -> bool:
+        """Browse's key with an edit in this view (P15 step 5a): Browse is usable, its
+        panes unfolded, the same window still showing the edit, with the editor's
+        panels hidden and clicks orbiting. False when no edit is in this view."""
+
+        layout = getattr(self, "_edit_in_place_layout", None)
+        if not self.editing_in_place or layout is None or not layout.active:
+            return False
+        layout.browse_with_edit()
+        self._tell_edit_browsing(True)
+        return True
+
+    def _tell_edit_browsing(self, browsing: bool) -> None:
+        live = getattr(self._browse_edit_document(), "live_edit", None)
+        message = getattr(live, "_rust_host_message", None)
+        send = getattr(live, "_send_rust_message", None)
+        if callable(message) and callable(send) and getattr(live, "standalone_rust_process", None) is not None:
+            try:
+                send(message("browse_presentation", request_id=0, extra={"browsing": bool(browsing)}))
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
+
+    def _mesh_documents_view(self):
+        shell = getattr(self, "shell", None)
+        owner = getattr(shell, "mesh_editor_tab", None)
+        created = getattr(owner, "widget_if_created", None)
+        return created() if callable(created) else owner
+
+    def _edit_in_place_status(self, kind: int, message: str) -> None:
+        layout = self._archive_edit_layout()
+        from cdmw.ui.mesh_editor.live_edit.browse_viewport import STATUS_EDITING
+
+        layout.set_status("" if kind == STATUS_EDITING else message)
+
+    def _edit_in_place_ended(self) -> None:
+        self._edit_in_place_binding = None
+        layout = self._archive_edit_layout()
+        was_mesh_workspace = layout.showing_documents
+        layout.leave()
+        show_held = getattr(self, "_show_preview_held_for_edit", None)
+        if callable(show_held):
+            QTimer.singleShot(0, show_held)  # a file selected while editing (8.8 R9)
+        if was_mesh_workspace:
+            # This page shows Browse again; the rail says so (P15 step 5a).
+            from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
+
+            sync_compact_workspace_selection(self, "archive_browser")
+
+    def _edit_in_place_selection_changed(self) -> None:
+        layout = getattr(self, "_edit_in_place_layout", None)
+        if layout is None or not layout.active:
+            return
+        current = getattr(self, "_current_archive_entry", None)
+        layout.selection_changed(current() if callable(current) else None)
+
+    def _preview_selected_instead_of_edit(self) -> None:
+        """Preview the selected file: ask Finish, Discard or Keep editing first."""
+
+        from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import DISCARD, resolve_pending_edit
+
+        tab = self._browse_edit_document()
+        layout = self._archive_edit_layout()
+        label = getattr(layout.entry, "basename", "") or ""
+        answer = resolve_pending_edit(self, tab, file_label=label)
+        if answer == DISCARD or answer == "none":
+            binding = getattr(self, "_edit_in_place_binding", None)
+            if binding is not None:
+                binding.end()  # the newest selection loads once the viewport is free
+            if answer == "none":
+                # Nothing to lose yet, but the edit may still be preparing: cancel it,
+                # so it never opens through the ended binding (section 8.7 F1).
+                close = getattr(tab, "close_standalone_session", None)
+                if callable(close):
+                    close()
+
+
+__all__ = ["BrowseEditInPlaceMixin", "BrowseEditLayout", "STRIP_WIDTH"]

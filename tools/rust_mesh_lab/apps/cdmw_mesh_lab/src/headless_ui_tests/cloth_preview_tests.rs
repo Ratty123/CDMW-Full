@@ -7,7 +7,8 @@ mod profiles {
     use super::*;
 
     #[test]
-    fn spline_preview_loads_raw_spring_back_edits_and_refreshes_the_saved_assignment() -> TestResult {
+    fn spline_preview_loads_raw_spring_back_edits_and_refreshes_the_saved_assignment() -> TestResult
+    {
         let (_root, mut ui, _) = spline_fixture()?;
         editable_profiles(&mut ui);
         {
@@ -24,7 +25,14 @@ mod profiles {
         ui.click("Variant 0")?;
         ui.click("Use profile in preview")?;
         assert!(ui.application.cdmw_jiggle.preview.cloth_settings.spline);
-        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.00630950927734375);
+        assert_eq!(
+            ui.application
+                .cdmw_jiggle
+                .preview
+                .cloth_settings
+                .restore_angle,
+            0.00630950927734375
+        );
         ui.click("Play preview")?;
         wait(&mut ui)?;
         advance(&mut ui)?;
@@ -45,18 +53,43 @@ mod profiles {
             state["parts"][0]["bindings"][0]["path"] = json!("cloned.xml");
         }
         ui.frame(Vec::new());
-        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.5);
+        assert_eq!(
+            ui.application
+                .cdmw_jiggle
+                .preview
+                .cloth_settings
+                .restore_angle,
+            0.5
+        );
         // Authoring commands reset draw-only playback; the saved preset remains.
         ui.click("Play preview")?;
         wait(&mut ui)?;
         assert!(ui.application.cdmw_jiggle.preview.playing);
         // Unrelated state changes keep temporary adjustments to loaded values.
-        ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle = 0.3;
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .cloth_settings
+            .restore_angle = 0.3;
         ui.application.cdmw_state["physics_profiles"]["cloth_geometry"]["guide_count"] = json!(4);
         ui.frame(Vec::new());
-        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.3);
+        assert_eq!(
+            ui.application
+                .cdmw_jiggle
+                .preview
+                .cloth_settings
+                .restore_angle,
+            0.3
+        );
         ui.click("Restore manual preview settings")?;
-        assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.0);
+        assert_eq!(
+            ui.application
+                .cdmw_jiggle
+                .preview
+                .cloth_settings
+                .restore_angle,
+            0.0
+        );
         Ok(())
     }
 
@@ -119,12 +152,17 @@ mod profiles {
             ("IsCloak", "Cloak behavior", 1),
             ("UseBackStopCollision", "Backstop collisions", 0),
             ("UseInputPositionCollision", "Input-position collisions", 1),
-            ("ShrinkWhenShieldIsInSocket", "Shrink around sheathed shield", 1),
+            (
+                "ShrinkWhenShieldIsInSocket",
+                "Shrink around sheathed shield",
+                1,
+            ),
             ("UseLraConstraint", "Long-range attachments", 0),
             ("SkipSelfMeshCollidable", "Skip own model collisions", 1),
         ];
         for (key, _, value) in fields {
-            ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"][key.to_ascii_lowercase()] = json!(value.to_string());
+            ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"]
+                [key.to_ascii_lowercase()] = json!(value.to_string());
         }
         ui.click("Authored physics profile")?;
         ui.click("Variant 0")?;
@@ -134,9 +172,13 @@ mod profiles {
             ui.click(&format!("Override {label}"))?;
         }
         let cloak = ui.reveal("Override Cloak behavior")?;
-        let next = ui.label_rect("Override Backstop collisions").ok_or("next collision row")?;
+        let next = ui
+            .label_rect("Override Backstop collisions")
+            .ok_or("next collision row")?;
         // The value checkbox can wrap below its long override label.
-        ui.click_where("Enabled", |rect| rect.top() >= cloak.top() - 2.0 && rect.bottom() < next.top())?;
+        ui.click_where("Enabled", |rect| {
+            rect.top() >= cloak.top() - 2.0 && rect.bottom() < next.top()
+        })?;
         fields[0].2 = 0;
         let actions = ui.actions_from_click("Apply profile edit")?;
         let rule = profile_command(&actions)["rule"].clone();
@@ -153,8 +195,17 @@ mod profiles {
         let mut expected = rule["values"].clone();
         expected["Damping"] = json!(0.8);
         assert_eq!(profile_command(&actions)["rule"]["values"], expected);
-        assert!(!ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
-        assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+        assert!(
+            !ui.application
+                .cdmw_jiggle
+                .preview
+                .cloth_settings
+                .body_collisions
+        );
+        assert_eq!(
+            ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+            authored
+        );
         Ok(())
     }
 
@@ -168,13 +219,17 @@ mod profiles {
         ui.click("Collision and attachment overrides")?;
         for raw in ["NaN", "inf", "0.5", "invalid"] {
             ui.application.cdmw_pending_request = None;
-            ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"]["iscloak"] = json!(raw);
+            ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"]["iscloak"] =
+                json!(raw);
             ui.frame(Vec::new());
             ui.reveal("Invalid source value")?;
             assert!(ui.label_rect("Invalid source value").is_some());
             ui.click("Override Cloak behavior")?;
             let actions = ui.actions_from_click("Apply profile edit")?;
-            assert_eq!(profile_command(&actions)["rule"]["values"], json!({"IsCloak": 0.0}));
+            assert_eq!(
+                profile_command(&actions)["rule"]["values"],
+                json!({"IsCloak": 0.0})
+            );
         }
         Ok(())
     }
@@ -469,7 +524,8 @@ mod profiles {
         ui.click("Variant 0")?;
         ui.click("Use profile in preview")?;
         ui.click("Authored physics profile")?;
-        ui.application.cdmw_state["physics_profiles"]["parts"][0]["bindings"][0]["profile"] = json!("");
+        ui.application.cdmw_state["physics_profiles"]["parts"][0]["bindings"][0]["profile"] =
+            json!("");
         ui.frame(Vec::new());
         assert_eq!(
             ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
@@ -549,8 +605,10 @@ fn physics_detection_shows_spline_evidence_without_a_preview_rig() -> TestResult
         "profiles": [{"variant": "0", "profile": "WeaponSpline", "mode": "spline"}],
         "preview_reason": "spline_preview_approximate"
     }]});
-    ui.application.cdmw_state["jiggle"]["decoded"] = json!({"available": false, "reason": "No matching rig."});
-    ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
+    ui.application.cdmw_state["jiggle"]["decoded"] =
+        json!({"available": false, "reason": "No matching rig."});
+    ui.application
+        .handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
     ui.application.cdmw_pending_request = None; // Selection itself sends a host command.
     ui.settle_layout();
     ui.click("Detected physics")?;
@@ -566,7 +624,10 @@ fn physics_detection_shows_spline_evidence_without_a_preview_rig() -> TestResult
     ui.settle_layout();
     ui.reveal("Physics: Spline + jiggle")?;
     ui.reveal("12 / 870 source vertices have jiggle contribution")?;
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
     assert!(ui.application.cdmw_pending_request.is_none());
     Ok(())
@@ -582,7 +643,8 @@ fn physics_detection_morph_refit_block_pauses_regions_and_recovers() -> TestResu
     let colours = ui.application.cdmw_jiggle.region_colours.clone();
     assert!(colours.is_some());
 
-    let reason = "Physics inspection is blocked by Morph & Refit. Existing physics data is unchanged.";
+    let reason =
+        "Physics inspection is blocked by Morph & Refit. Existing physics data is unchanged.";
     let mut blocked = original.clone();
     blocked["replacement"]["blocked_by"] = json!("morph_refit");
     blocked["jiggle"] = json!({"available": false, "blocked_by": "morph_refit",
@@ -601,14 +663,21 @@ fn physics_detection_morph_refit_block_pauses_regions_and_recovers() -> TestResu
     ui.click_tool_button("Cloth")?;
     ui.reveal(reason)?;
 
-    ui.application.install_validated_cdmw_state(original, None)?;
+    ui.application
+        .install_validated_cdmw_state(original, None)?;
     ui.click_tool_button("Jiggle")?;
     assert!(ui.label_rect("Show jiggle regions").is_some());
     assert!(ui.label_rect(reason).is_none());
     assert_eq!(ui.application.cdmw_jiggle.region_colours, colours);
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     assert!(ui.application.cdmw_pending_request.is_none());
-    assert_eq!(crate::cdmw_cloth::physics_badge(&json!({"kind": "unknown"})), "Unknown physics");
+    assert_eq!(
+        crate::cdmw_cloth::physics_badge(&json!({"kind": "unknown"})),
+        "Unknown physics"
+    );
     Ok(())
 }
 
@@ -616,17 +685,20 @@ fn physics_detection_morph_refit_block_pauses_regions_and_recovers() -> TestResu
 fn physics_detection_free_edit_distinguishes_source_geometry_and_output() -> TestResult {
     let (_root, mut ui, _) = fixture()?;
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
-    let output_reason = "Free Edit exports OBJ; game rig, cloth, jiggle and physics profiles are not preserved.";
+    let output_reason =
+        "Free Edit exports OBJ; game rig, cloth, jiggle and physics profiles are not preserved.";
     ui.application.cdmw_state["physics"] = json!({"parts": [{
         "index": 0, "name": "Source cloth", "kind": "cloth", "mode_source": "profile",
         "source_only": true, "geometry_eligible": true, "output_supported": false,
         "output_reason": output_reason, "guide_counts": [3], "vertex_counts": [3],
         "jiggle_counts": [1], "profiles": [{"variant": "0", "profile": "Lower Fabric", "mode": "cloth"}]
     }]});
-    ui.application.cdmw_state["cloth"] = json!({"available": false, "reason": output_reason, "parts": []});
+    ui.application.cdmw_state["cloth"] =
+        json!({"available": false, "reason": output_reason, "parts": []});
     ui.application.cdmw_state["jiggle"] = json!({"available": false, "reason": output_reason,
         "parts": [], "overlay_parts": []});
-    ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
+    ui.application
+        .handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
     ui.application.cdmw_pending_request = None;
     ui.settle_layout();
     ui.click("Detected physics")?;
@@ -638,11 +710,16 @@ fn physics_detection_free_edit_distinguishes_source_geometry_and_output() -> Tes
     assert!(ui.label_rect("Unknown physics").is_none());
     ui.application.cdmw_state["physics"]["parts"][0]["geometry_eligible"] = json!(false);
     ui.settle_layout();
-    ui.reveal("Current geometry no longer has the source binding layout; these are source facts only.")?;
+    ui.reveal(
+        "Current geometry no longer has the source binding layout; these are source facts only.",
+    )?;
     ui.click_tool_button("Cloth")?;
     ui.reveal(output_reason)?;
     assert!(ui.label_rect("Apply cloth settings").is_none());
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     assert!(ui.application.cdmw_pending_request.is_none());
     Ok(())
 }
@@ -655,7 +732,8 @@ fn physics_detection_keeps_unknown_guides_distinct_from_no_bindings() -> TestRes
         "vertex_counts": [3, 3, 3, 3], "jiggle_counts": [0, 0, 0, 0],
         "guides": {"status": "unsupported"}, "reason": "Unknown guide layout"
     }]});
-    ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
+    ui.application
+        .handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
     ui.settle_layout();
     ui.click("Detected physics")?;
     ui.reveal("Physics: Guide bindings")?;
@@ -744,13 +822,20 @@ fn fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::er
     Ok((root, ui, payload))
 }
 
-fn spline_fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::error::Error>> {
+fn spline_fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::error::Error>>
+{
     let (root, mut ui, bytes) = fixture()?;
     let mut payload: Value = serde_json::from_slice(&bytes)?;
     let a = payload["cloth"]["source_positions"][1].as_array().unwrap();
     let b = payload["cloth"]["source_positions"][2].as_array().unwrap();
-    let distance = (0..3).map(|i| (a[i].as_f64().unwrap() - b[i].as_f64().unwrap()).powi(2)).sum::<f64>().sqrt();
-    payload["cloth"]["constraints"].as_array_mut().unwrap().push(json!({"kind": "pair", "indices": [1, 2], "rest": distance}));
+    let distance = (0..3)
+        .map(|i| (a[i].as_f64().unwrap() - b[i].as_f64().unwrap()).powi(2))
+        .sum::<f64>()
+        .sqrt();
+    payload["cloth"]["constraints"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"kind": "pair", "indices": [1, 2], "rest": distance}));
     payload["cloth"]["spline_chains"] = json!([[0, 1, 2]]);
     payload["cloth"]["alpha_blends"] = json!([1.0, 0.0, 0.0]);
     let bytes = serde_json::to_vec(&payload)?;
@@ -773,10 +858,21 @@ fn standalone_spline_starts_flexible_retains_tuning_and_resets_to_spline_setting
     assert_eq!(settings.restore_angle, 0.);
     assert!(settings.rotate_guides && settings.single_edge_rotation && settings.use_vertex_alpha);
     ui.application.cdmw_jiggle.preview.cloth_settings.bend = 0.4;
-    ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle = 0.3;
+    ui.application
+        .cdmw_jiggle
+        .preview
+        .cloth_settings
+        .restore_angle = 0.3;
     ui.frame(Vec::new());
     assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.bend, 0.4);
-    assert_eq!(ui.application.cdmw_jiggle.preview.cloth_settings.restore_angle, 0.3);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .cloth_settings
+            .restore_angle,
+        0.3
+    );
     ui.click("Spline preview settings")?;
     ui.click("Reset cloth preview settings")?;
     let reset = ui.application.cdmw_jiggle.preview.cloth_settings;
@@ -802,24 +898,57 @@ fn standalone_spline_play_pause_disable_and_reset_keep_authored_mesh_unchanged()
     wait(&mut ui)?;
     advance(&mut ui)?;
     assert!(ui.application.cdmw_jiggle.preview.playing);
-    assert_ne!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
+    assert_ne!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions,
+        authored.positions
+    );
     ui.click("Pause preview")?;
     assert!(!ui.application.cdmw_jiggle.preview.playing);
     ui.click("Resume preview")?;
     ui.click("All disabled")?;
     wait(&mut ui)?;
     advance(&mut ui)?;
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions,
+        authored.positions
+    );
     ui.click("Reset preview")?;
     assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     ui.click("Experimental features")?;
     ui.click("Collision sources")?;
     let actions = ui.actions_from_click("Choose body PABV…")?;
-    assert!(!actions.iter().any(|action| matches!(action, UiAction::ChooseClothCollisionInput { .. })));
+    assert!(
+        !actions
+            .iter()
+            .any(|action| matches!(action, UiAction::ChooseClothCollisionInput { .. }))
+    );
     ui.click("Choose weapon PAC…")?;
-    assert!(ui.actions_from_click("External file…")?.iter().any(|action|
-        matches!(action, UiAction::ChooseClothCollisionInput { role: "weapon" })));
+    assert!(
+        ui.actions_from_click("External file…")?
+            .iter()
+            .any(|action| matches!(
+                action,
+                UiAction::ChooseClothCollisionInput { role: "weapon" }
+            ))
+    );
     ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["spline_available"] = json!(false);
     ui.frame(Vec::new());
     ui.click("Play preview")?;
@@ -1193,37 +1322,71 @@ fn model_body_collision_control_uses_owned_volumes_and_preserves_authored_mesh()
 }
 
 #[test]
-fn appearance_body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> TestResult {
+fn appearance_body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> TestResult
+{
     check_body_collision_source("appearance")
 }
 
 #[test]
 fn cloth_experimental_button_expands_inline_without_interrupting_preview() -> TestResult {
     let (_root, mut ui, _) = fixture()?;
-    ui.application.cdmw_state["cloth_guides"] = json!({"available": false, "reason": "Guides already exist."});
+    ui.application.cdmw_state["cloth_guides"] =
+        json!({"available": false, "reason": "Guides already exist."});
     ui.frame(Vec::new());
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     assert!(ui.label_rect("Cloth amount").is_some());
-    for label in ["Weapon colliders", "Collision sources", "Create cloth guides", "Wind preview"] {
-        assert!(ui.label_rect(label).is_none(), "{label} stays hidden until requested");
+    for label in [
+        "Weapon colliders",
+        "Collision sources",
+        "Create cloth guides",
+        "Wind preview",
+    ] {
+        assert!(
+            ui.label_rect(label).is_none(),
+            "{label} stays hidden until requested"
+        );
     }
     ui.click("Cloth preview settings")?;
     assert!(ui.label_rect("Choose weapon PAC…").is_none());
     ui.click("Play preview")?;
     wait(&mut ui)?;
     advance(&mut ui)?;
-    let frame = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    let frame = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .clone();
     ui.application.cdmw_cloth.amount_percent = 72.5;
     ui.click("Experimental features")?;
     ui.reveal("Cloth amount")?;
     assert!(ui.label_rect("Cloth amount").is_some());
     assert_eq!(ui.application.cdmw_cloth.amount_percent, 72.5);
-    for label in ["Weapon colliders", "Collision sources", "Create cloth guides"] {
-        assert!(ui.label_rect(label).is_some(), "missing experimental section {label}");
+    for label in [
+        "Weapon colliders",
+        "Collision sources",
+        "Create cloth guides",
+    ] {
+        assert!(
+            ui.label_rect(label).is_some(),
+            "missing experimental section {label}"
+        );
     }
     assert!(ui.application.cdmw_jiggle.preview.playing);
     assert!(ui.application.cdmw_jiggle.preview.pending.is_none());
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, frame);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame,
+        frame
+    );
     ui.click("Collision sources")?;
     assert!(ui.label_rect("Choose weapon PAC…").is_some());
     ui.click("Experimental features")?;
@@ -1231,11 +1394,18 @@ fn cloth_experimental_button_expands_inline_without_interrupting_preview() -> Te
     assert!(ui.label_rect("Cloth amount").is_some());
     assert_eq!(ui.application.cdmw_cloth.amount_percent, 72.5);
     assert!(ui.label_rect("Choose weapon PAC…").is_none());
-    for label in ["Weapon colliders", "Collision sources", "Create cloth guides"] {
+    for label in [
+        "Weapon colliders",
+        "Collision sources",
+        "Create cloth guides",
+    ] {
         assert!(ui.label_rect(label).is_none());
     }
     assert!(ui.application.cdmw_jiggle.preview.playing);
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     Ok(())
 }
 
@@ -1260,11 +1430,16 @@ fn collision_input_controls_choose_roles_even_with_model_volumes() -> TestResult
         ui.application.cdmw_pending_request = None;
         ui.frame(Vec::new());
     }
-    ui.application.cdmw_state["jiggle"]["collision_inputs"] = json!({"body": "character/model/body/chosen.pabv"});
-    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_source"] = json!("pac_model");
+    ui.application.cdmw_state["jiggle"]["collision_inputs"] =
+        json!({"body": "character/model/body/chosen.pabv"});
+    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_source"] =
+        json!("pac_model");
     ui.frame(Vec::new());
     assert!(ui.label_rect("Body volumes: chosen.pabv").is_some());
-    assert!(ui.label_rect("Body volumes: character/model/body/chosen.pabv").is_none());
+    assert!(
+        ui.label_rect("Body volumes: character/model/body/chosen.pabv")
+            .is_none()
+    );
     for role in ["body", "head"] {
         ui.click(&format!("Choose {role} PABV…"))?;
         assert!(ui.actions_from_click("External file…")?.iter().any(|action|
@@ -1277,19 +1452,29 @@ fn collision_input_controls_choose_roles_even_with_model_volumes() -> TestResult
         ui.frame(Vec::new());
     }
     ui.click("Choose weapon PAC…")?;
-    assert!(ui.actions_from_click("External file…")?.iter().any(|action|
-        matches!(action, UiAction::ChooseClothCollisionInput { role: "weapon" })));
+    assert!(
+        ui.actions_from_click("External file…")?
+            .iter()
+            .any(|action| matches!(
+                action,
+                UiAction::ChooseClothCollisionInput { role: "weapon" }
+            ))
+    );
     let actions = ui.actions_from_click("Clear collision inputs")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "cloth_collision_input", arguments, .. } if arguments == &json!({"clear": true})
     )));
     assert!(ui.application.cdmw_pending_request.is_some());
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     Ok(())
 }
 
 #[test]
-fn weapon_export_controls_work_without_guides_and_restore_when_geometry_is_unavailable() -> TestResult {
+fn weapon_export_controls_work_without_guides_and_restore_when_geometry_is_unavailable()
+-> TestResult {
     let (_root, mut ui, _) = fixture()?;
     ui.application.cdmw_state["cloth"]["available"] = json!(false);
     ui.application.cdmw_state["weapon_collisions"] = json!({"available": true, "active": false});
@@ -1302,7 +1487,8 @@ fn weapon_export_controls_work_without_guides_and_restore_when_geometry_is_unava
         if arguments == &json!({"enabled": true})
     )));
     ui.application.cdmw_pending_request = None;
-    ui.application.cdmw_state["weapon_collisions"] = json!({"available": false, "active": true, "reason": "Edited attachment"});
+    ui.application.cdmw_state["weapon_collisions"] =
+        json!({"available": false, "active": true, "reason": "Edited attachment"});
     ui.frame(Vec::new());
     assert!(ui.actions_from_click("Create weapon colliders")?.is_empty());
     let actions = ui.actions_from_click("Restore source colliders")?;
@@ -1347,8 +1533,7 @@ fn collision_shapes_send_only_their_changes_and_restore() -> TestResult {
     ui.click("Body: phm_01.pabv")?;
     assert!(ui.label_rect("Every model on this body uses these volumes. Build Mod ships the edited file, which changes them all and conflicts with other mods that ship it.").is_some());
     ui.click("This model's shapes")?;
-    ui.application.cdmw_state["collision_volumes"]["sources"][0]["edit"] =
-        json!({"changes": [{"ordinal": 1, "removed": true, "parameters": null, "position": null}], "copies": []});
+    ui.application.cdmw_state["collision_volumes"]["sources"][0]["edit"] = json!({"changes": [{"ordinal": 1, "removed": true, "parameters": null, "position": null}], "copies": []});
     ui.frame(Vec::new());
     let actions = ui.actions_from_click("Restore source shapes")?;
     assert!(actions.iter().any(|action| matches!(action,
@@ -1401,17 +1586,47 @@ fn weapon_collision_preview_and_overlay_follow_centring_without_authoring_edits(
     ui.click("Play preview")?;
     wait(&mut ui)?;
     advance(&mut ui)?;
-    let without = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    let without = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .clone();
     ui.click("Reset preview")?;
     ui.click("Experimental features")?;
     ui.click("Weapon colliders")?;
     ui.click("Weapon collisions")?;
-    assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
-    assert!(!ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
+    assert!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .cloth_settings
+            .weapon_collisions
+    );
+    assert!(
+        !ui.application
+            .cdmw_jiggle
+            .preview
+            .cloth_settings
+            .body_collisions
+    );
     ui.click("Show collision shapes")?;
     wait(&mut ui)?;
     assert!(!ui.application.cdmw_jiggle.preview.playing);
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions,
+        authored.positions
+    );
     assert!(!ui.application.jiggle_collider_lines().is_empty());
     ui.click("Resume preview")?;
     advance(&mut ui)?;
@@ -1434,12 +1649,21 @@ fn weapon_collision_preview_and_overlay_follow_centring_without_authoring_edits(
     ui.click("Show collision shapes")?;
     assert!(ui.application.jiggle_collider_lines().is_empty());
     ui.click("Pause preview")?;
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
     ui.click("Reset preview")?;
     ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["weapon_collider_count"] = json!(0);
     ui.frame(Vec::new());
-    assert!(!ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
+    assert!(
+        !ui.application
+            .cdmw_jiggle
+            .preview
+            .cloth_settings
+            .weapon_collisions
+    );
     Ok(())
 }
 
@@ -1465,7 +1689,10 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
     state["cloth"]["body_collider_source"] = json!("pac_model");
     state["cloth"]["weapon_collider_count"] = json!(1);
     ui.frame(Vec::new());
-    assert!(ui.label_rect("Body collisions").is_none(), "preview settings stay collapsed");
+    assert!(
+        ui.label_rect("Body collisions").is_none(),
+        "preview settings stay collapsed"
+    );
     ui.reveal("Collision shapes: 3 body · 1 weapon")?;
     ui.click("Show collision shapes")?;
     wait(&mut ui)?;
@@ -1476,8 +1703,20 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
     let lines = ui.application.jiggle_collider_lines();
     assert_eq!(lines.len(), 672);
     assert!(lines.iter().all(|v| Vec3::from(v.position).is_finite()));
-    assert_eq!(lines.iter().filter(|v| v.colour == [0.2, 0.85, 1., 1.]).count(), 472);
-    assert_eq!(lines.iter().filter(|v| v.colour == [1., 0.7, 0.15, 1.]).count(), 200);
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|v| v.colour == [0.2, 0.85, 1., 1.])
+            .count(),
+        472
+    );
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|v| v.colour == [1., 0.7, 0.15, 1.])
+            .count(),
+        200
+    );
     ui.click("Turning")?;
     wait(&mut ui)?;
     assert!(!ui.application.cdmw_jiggle.preview.playing);
@@ -1487,20 +1726,45 @@ fn cloak_collision_shapes_prepare_without_playback_and_show_both_sources() -> Te
     ui.click("Experimental features")?;
     ui.click("Weapon colliders")?;
     ui.click("Weapon collisions")?;
-    assert!(ui.application.cdmw_jiggle.preview.cloth_settings.body_collisions);
-    assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
+    assert!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .cloth_settings
+            .body_collisions
+    );
+    assert!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .cloth_settings
+            .weapon_collisions
+    );
     ui.click("Reset preview")?;
     assert!(ui.application.jiggle_collider_lines().is_empty());
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
     Ok(())
 }
 
-fn load_weapon_reference(root: &std::path::Path, ui: &mut HeadlessUi, payload: &mut Value, x: f64) -> TestResult {
+fn load_weapon_reference(
+    root: &std::path::Path,
+    ui: &mut HeadlessUi,
+    payload: &mut Value,
+    x: f64,
+) -> TestResult {
     load_weapon_reference_at(root, ui, payload, [x, 0., 0.])
 }
 
-fn load_weapon_reference_at(root: &std::path::Path, ui: &mut HeadlessUi, payload: &mut Value, offset: [f64; 3]) -> TestResult {
+fn load_weapon_reference_at(
+    root: &std::path::Path,
+    ui: &mut HeadlessUi,
+    payload: &mut Value,
+    offset: [f64; 3],
+) -> TestResult {
     let [x, y, z] = offset;
     payload["weapon_reference"] = json!({"positions": [[x, y, z], [x + 0.3, y, z], [x, y + 1., z]], "indices": [0, 1, 2],
         "collider_count": 1, "placement": {"offset": offset, "rotation": [0., 0., 0.]}});
@@ -1530,7 +1794,15 @@ fn weapon_reference_load_place_clear_and_preview_controls_keep_cloak_unchanged()
     advance(&mut ui)?;
     assert!(!ui.application.cdmw_jiggle.preview.playing);
     assert!(!ui.application.jiggle_collider_lines().is_empty());
-    let display = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display.clone();
+    let display = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .display
+        .clone();
     assert_eq!(display.positions.len(), authored.positions.len() + 3);
     assert_eq!(display.indices.len(), authored.indices.len() + 3);
     assert_eq!(display.triangle_materials.last(), Some(&u32::MAX));
@@ -1538,25 +1810,53 @@ fn weapon_reference_load_place_clear_and_preview_controls_keep_cloak_unchanged()
     ui.click("Weapon colliders")?;
     assert!(ui.label_rect("Create weapon colliders").is_none());
     ui.click("Weapon collisions")?;
-    assert!(ui.application.cdmw_jiggle.preview.cloth_settings.weapon_collisions);
+    assert!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .cloth_settings
+            .weapon_collisions
+    );
     ui.click("Pause preview")?;
     assert!(ui.application.cdmw_pending_request.is_none());
-    assert!(ui.label_rect("Weapon colliders").unwrap().top() < ui.label_rect("Collision sources").unwrap().top());
+    assert!(
+        ui.label_rect("Weapon colliders").unwrap().top()
+            < ui.label_rect("Collision sources").unwrap().top()
+    );
     ui.reveal("2 simulated vertices")?;
     let baseline = ui.label_rect("2 simulated vertices").unwrap().top();
-    ui.application.submit_cdmw_command("cloth_collision_input",
-        json!({"weapon_placement": {"offset": [1.2, 0., 0.], "rotation": [0., 0., 0.]}}), "Place weapon preview");
+    ui.application.submit_cdmw_command(
+        "cloth_collision_input",
+        json!({"weapon_placement": {"offset": [1.2, 0., 0.], "rotation": [0., 0., 0.]}}),
+        "Place weapon preview",
+    );
     ui.settle_layout();
-    assert_eq!(ui.label_rect("2 simulated vertices").unwrap().top(), baseline);
+    assert_eq!(
+        ui.label_rect("2 simulated vertices").unwrap().top(),
+        baseline
+    );
     ui.application.cdmw_pending_request = None;
     load_weapon_reference(root.path(), &mut ui, &mut payload, 1.2)?;
     ui.settle_layout();
-    assert_eq!(ui.label_rect("2 simulated vertices").unwrap().top(), baseline);
+    assert_eq!(
+        ui.label_rect("2 simulated vertices").unwrap().top(),
+        baseline
+    );
     // Keep the last renderable reference while its replacement loads.
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display, display);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .display,
+        display
+    );
     let stale = ui.application.cdmw_jiggle.preview.pending.unwrap();
     load_weapon_reference(root.path(), &mut ui, &mut payload, 1.4)?;
-    ui.application.accept_prepared_jiggle(stale, Err("stale weapon placement".into()));
+    ui.application
+        .accept_prepared_jiggle(stale, Err("stale weapon placement".into()));
     assert!(ui.application.cdmw_jiggle.preview.pending.is_some());
     wait(&mut ui)?;
     advance(&mut ui)?;
@@ -1566,7 +1866,18 @@ fn weapon_reference_load_place_clear_and_preview_controls_keep_cloak_unchanged()
     assert_eq!(scene.frame.positions, authored.positions);
     ui.click("Show collision shapes")?;
     assert!(ui.application.jiggle_collider_lines().is_empty());
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display.positions.len(), display.positions.len());
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .display
+            .positions
+            .len(),
+        display.positions.len()
+    );
     let mut state = ui.application.cdmw_state.clone();
     state["jiggle"]["collision_inputs"] = json!({});
     state["jiggle"]["weapon_placement"] = Value::Null;
@@ -1574,7 +1885,10 @@ fn weapon_reference_load_place_clear_and_preview_controls_keep_cloak_unchanged()
     ui.application.install_validated_cdmw_state(state, None)?;
     ui.frame(Vec::new());
     assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     Ok(())
 }
 
@@ -1582,7 +1896,8 @@ fn weapon_reference_load_place_clear_and_preview_controls_keep_cloak_unchanged()
 fn weapon_placement_rows_keep_vertical_positions_at_different_values_and_fonts() -> TestResult {
     for font in [10., 14., 18.] {
         let (root, mut ui, bytes) = fixture()?;
-        ui.application.apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": "comfortable"}));
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": "comfortable"}));
         let mut payload: Value = serde_json::from_slice(&bytes)?;
         load_weapon_reference(root.path(), &mut ui, &mut payload, 0.)?;
         wait(&mut ui)?;
@@ -1592,48 +1907,111 @@ fn weapon_placement_rows_keep_vertical_positions_at_different_values_and_fonts()
         ui.reveal("Clear collision inputs")?;
         let mut baseline: Option<(f32, f32, f32)> = None;
         for value in [0., 0.01, -9.999999999, 100., -100., 1.234567891] {
-            let placement = cdmw_jiggle::weapon::Placement { offset: [value; 3], rotation: [value; 3] };
+            let placement = cdmw_jiggle::weapon::Placement {
+                offset: [value; 3],
+                rotation: [value; 3],
+            };
             ui.application.place_weapon_preview(placement);
-            assert_eq!(ui.application.weapon_placement(), placement, "local placement: font {font}, value {value}");
+            assert_eq!(
+                ui.application.weapon_placement(),
+                placement,
+                "local placement: font {font}, value {value}"
+            );
             ui.frame(Vec::new());
-            assert_eq!(ui.application.weapon_placement(), placement,
+            assert_eq!(
+                ui.application.weapon_placement(),
+                placement,
                 "first frame: font {font}, value {value}, scene {}, pending {:?}, source {}",
-                ui.application.cdmw_jiggle.preview.scene.is_some(), ui.application.cdmw_jiggle.preview.pending,
-                ui.application.cdmw_state["jiggle"]["weapon_placement"]);
+                ui.application.cdmw_jiggle.preview.scene.is_some(),
+                ui.application.cdmw_jiggle.preview.pending,
+                ui.application.cdmw_state["jiggle"]["weapon_placement"]
+            );
             ui.settle_layout();
-            assert_eq!(ui.application.weapon_placement(), placement, "display formatting must not round placement");
-            let positions = (ui.label_rect("Weapon preview rotation").ok_or("rotation label")?.top(),
-                ui.label_rect("Clear collision inputs").ok_or("clear label")?.top());
-            let position_label = ui.label_rect("Weapon preview position").ok_or("position label")?;
-            let axes = ["X", "Y", "Z"].map(|axis| ui.label_rect_where(axis, |r|
-                r.top() > position_label.bottom() && r.top() < positions.0));
-            let [Some(x), Some(y), Some(z)] = axes else { panic!("XYZ must all remain visible: font {font}, value {value}, {axes:?}"); };
-            assert!((x.top() - y.top()).abs() < 0.1 && (y.top() - z.top()).abs() < 0.1, "font {font}, value {value}: {axes:?}");
+            assert_eq!(
+                ui.application.weapon_placement(),
+                placement,
+                "display formatting must not round placement"
+            );
+            let positions = (
+                ui.label_rect("Weapon preview rotation")
+                    .ok_or("rotation label")?
+                    .top(),
+                ui.label_rect("Clear collision inputs")
+                    .ok_or("clear label")?
+                    .top(),
+            );
+            let position_label = ui
+                .label_rect("Weapon preview position")
+                .ok_or("position label")?;
+            let axes = ["X", "Y", "Z"].map(|axis| {
+                ui.label_rect_where(axis, |r| {
+                    r.top() > position_label.bottom() && r.top() < positions.0
+                })
+            });
+            let [Some(x), Some(y), Some(z)] = axes else {
+                panic!("XYZ must all remain visible: font {font}, value {value}, {axes:?}");
+            };
+            assert!(
+                (x.top() - y.top()).abs() < 0.1 && (y.top() - z.top()).abs() < 0.1,
+                "font {font}, value {value}: {axes:?}"
+            );
             assert!(x.left() < y.left() && y.left() < z.left());
-            let rotation_axes = ["X", "Y", "Z"].map(|axis| ui.label_rect_where(axis, |r|
-                r.top() > positions.0 && r.top() < positions.1));
-            let [Some(x), Some(y), Some(z)] = rotation_axes else { panic!("rotation XYZ: {rotation_axes:?}"); };
+            let rotation_axes = ["X", "Y", "Z"].map(|axis| {
+                ui.label_rect_where(axis, |r| r.top() > positions.0 && r.top() < positions.1)
+            });
+            let [Some(x), Some(y), Some(z)] = rotation_axes else {
+                panic!("rotation XYZ: {rotation_axes:?}");
+            };
             assert!((x.top() - y.top()).abs() < 0.1 && (y.top() - z.top()).abs() < 0.1);
-            for (top, bottom) in [(position_label.bottom(), positions.0), (positions.0, positions.1)] {
-                let menus = ui.output.shapes.iter().filter(|clipped| {
-                    let egui::Shape::Text(text) = &clipped.shape else { return false; };
-                    let rect = text.visual_bounding_rect();
-                    text.galley.job.text == "⋮" && rect.top() > top && rect.bottom() < bottom
-                        && clipped.clip_rect.contains_rect(rect)
-                }).count();
-                let bounds = ui.output.shapes.iter().filter_map(|clipped| {
-                    let egui::Shape::Text(text) = &clipped.shape else { return None; };
-                    let rect = text.visual_bounding_rect();
-                    (text.galley.job.text == "⋮" && rect.top() > top && rect.bottom() < bottom)
-                        .then_some((rect, clipped.clip_rect))
-                }).collect::<Vec<_>>();
-                assert_eq!(menus, 3, "every number and increment must fit: font {font}, value {value}, {bounds:?}");
+            for (top, bottom) in [
+                (position_label.bottom(), positions.0),
+                (positions.0, positions.1),
+            ] {
+                let menus = ui
+                    .output
+                    .shapes
+                    .iter()
+                    .filter(|clipped| {
+                        let egui::Shape::Text(text) = &clipped.shape else {
+                            return false;
+                        };
+                        let rect = text.visual_bounding_rect();
+                        text.galley.job.text == "⋮"
+                            && rect.top() > top
+                            && rect.bottom() < bottom
+                            && clipped.clip_rect.contains_rect(rect)
+                    })
+                    .count();
+                let bounds = ui
+                    .output
+                    .shapes
+                    .iter()
+                    .filter_map(|clipped| {
+                        let egui::Shape::Text(text) = &clipped.shape else {
+                            return None;
+                        };
+                        let rect = text.visual_bounding_rect();
+                        (text.galley.job.text == "⋮" && rect.top() > top && rect.bottom() < bottom)
+                            .then_some((rect, clipped.clip_rect))
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    menus, 3,
+                    "every number and increment must fit: font {font}, value {value}, {bounds:?}"
+                );
             }
-            let layout = (positions.0, positions.1, ui.application.viewport_rect.unwrap().left());
+            let layout = (
+                positions.0,
+                positions.1,
+                ui.application.viewport_rect.unwrap().left(),
+            );
             if let Some(baseline) = baseline {
-                assert!((layout.0 - baseline.0).abs() < 0.1 && (layout.1 - baseline.1).abs() < 0.1
+                assert!(
+                    (layout.0 - baseline.0).abs() < 0.1
+                        && (layout.1 - baseline.1).abs() < 0.1
                         && (layout.2 - baseline.2).abs() < 0.1,
-                    "font {font}, value {value}: {layout:?} != {baseline:?}");
+                    "font {font}, value {value}: {layout:?} != {baseline:?}"
+                );
             } else {
                 baseline = Some(layout);
             }
@@ -1657,55 +2035,130 @@ fn weapon_gizmo_drags_reference_and_cloth_independently_and_ack_keeps_playback()
         advance(&mut ui)?;
         let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
         ui.application.cdmw_jiggle.preview.cloth_settings = cdmw_mesh::cloth::Settings {
-            gravity: 0., stretch: 0., bend: 0., restore_angle: 0., damping: 0.,
-            weapon_collisions: enabled, ..Default::default()
+            gravity: 0.,
+            stretch: 0.,
+            bend: 0.,
+            restore_angle: 0.,
+            damping: 0.,
+            weapon_collisions: enabled,
+            ..Default::default()
         };
         let rect = ui.application.viewport_rect.unwrap();
         let (_, pivot) = ui.application.weapon_gizmo().ok_or("weapon gizmo")?;
-        let (_, start, end, _) = gizmo_segments(&ui.application.camera, pivot, rect).into_iter()
-            .find(|(axis, _, _, _)| *axis == GizmoAxis::X).ok_or("X axis")?;
+        let (_, start, end, _) = gizmo_segments(&ui.application.camera, pivot, rect)
+            .into_iter()
+            .find(|(axis, _, _, _)| *axis == GizmoAxis::X)
+            .ok_or("X axis")?;
         let press = start.lerp(end, 0.8);
-        assert_eq!(ui.application.hit_test_gizmo(ViewportTool::Move, press, pivot, rect), Some(GizmoAxis::X));
-        let delta = ui.application.camera.project(pivot + Vec3::X, rect).unwrap().screen
+        assert_eq!(
+            ui.application
+                .hit_test_gizmo(ViewportTool::Move, press, pivot, rect),
+            Some(GizmoAxis::X)
+        );
+        let delta = ui
+            .application
+            .camera
+            .project(pivot + Vec3::X, rect)
+            .unwrap()
+            .screen
             - ui.application.camera.project(pivot, rect).unwrap().screen;
-        ui.frame(vec![Event::PointerMoved(egui::pos2(press.x, press.y)),
-            pointer_button(egui::pos2(press.x, press.y), PointerButton::Primary, true)]);
+        ui.frame(vec![
+            Event::PointerMoved(egui::pos2(press.x, press.y)),
+            pointer_button(egui::pos2(press.x, press.y), PointerButton::Primary, true),
+        ]);
         let target = press + delta;
         ui.frame(vec![Event::PointerMoved(egui::pos2(target.x, target.y))]);
-        assert!(ui.application.cdmw_pending_request.is_none(), "no host work during dragging");
+        assert!(
+            ui.application.cdmw_pending_request.is_none(),
+            "no host work during dragging"
+        );
         ui.application.advance_jiggle_preview(1. / 60.)?;
         let placement = ui.application.weapon_placement();
         assert!(placement.offset[0] > 1.0, "{placement:?}");
         assert_eq!(placement.offset[1..], [-1., -1.]);
         let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
         assert_eq!(scene.frame.positions[0], authored.positions[0]);
-        if enabled { assert!(scene.frame.positions[1][0] > authored.positions[1][0] + 0.1,
-            "contact: before {:?}, after {:?}, placement {placement:?}", authored.positions, scene.frame.positions); }
-        else { assert_eq!(scene.frame.positions, authored.positions); }
-        assert!((f64::from(scene.display.positions[authored.positions.len()][0]) - placement.offset[0]).abs() < 1e-5);
-        assert!(ui.application.jiggle_collider_lines().iter().all(|p| p.position[0] > 0.8));
-        ui.frame(vec![pointer_button(egui::pos2(target.x, target.y), PointerButton::Primary, false)]);
+        if enabled {
+            assert!(
+                scene.frame.positions[1][0] > authored.positions[1][0] + 0.1,
+                "contact: before {:?}, after {:?}, placement {placement:?}",
+                authored.positions,
+                scene.frame.positions
+            );
+        } else {
+            assert_eq!(scene.frame.positions, authored.positions);
+        }
+        assert!(
+            (f64::from(scene.display.positions[authored.positions.len()][0]) - placement.offset[0])
+                .abs()
+                < 1e-5
+        );
+        assert!(
+            ui.application
+                .jiggle_collider_lines()
+                .iter()
+                .all(|p| p.position[0] > 0.8)
+        );
+        ui.frame(vec![pointer_button(
+            egui::pos2(target.x, target.y),
+            PointerButton::Primary,
+            false,
+        )]);
         assert!(ui.application.cdmw_pending_request.is_some());
-        let frame = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+        let frame = ui
+            .application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .clone();
         ui.application.cdmw_pending_request = None;
         load_weapon_reference_at(root.path(), &mut ui, &mut payload, placement.offset)?;
-        assert!(ui.application.cdmw_jiggle.preview.pending.is_none(), "placement acknowledgement must not reload cloth");
-        assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, frame);
+        assert!(
+            ui.application.cdmw_jiggle.preview.pending.is_none(),
+            "placement acknowledgement must not reload cloth"
+        );
+        assert_eq!(
+            ui.application
+                .cdmw_jiggle
+                .preview
+                .scene
+                .as_ref()
+                .unwrap()
+                .frame,
+            frame
+        );
         assert!(ui.application.cdmw_jiggle.preview.playing);
-        assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
-        assert!(ui.application.history.undo_len() == 0 && ui.application.cdmw_transaction_attempts == 0);
+        assert_eq!(
+            ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+            authored
+        );
+        assert!(
+            ui.application.history.undo_len() == 0 && ui.application.cdmw_transaction_attempts == 0
+        );
         // Cancel and camera ownership restore an in-progress placement without host edits.
         for cancel_by_camera in [false, true] {
             let rect = ui.application.viewport_rect.unwrap();
             let (_, pivot) = ui.application.weapon_gizmo().unwrap();
             let point = ui.application.camera.project(pivot, rect).unwrap().screen;
-            for event in [ViewportPointerEvent::PrimaryPressed(point), ViewportPointerEvent::PrimaryMoved(point + Vec2::splat(20.))] {
+            for event in [
+                ViewportPointerEvent::PrimaryPressed(point),
+                ViewportPointerEvent::PrimaryMoved(point + Vec2::splat(20.)),
+            ] {
                 ui.application.pointer_events.push(event);
             }
             ui.frame(Vec::new());
             assert_ne!(ui.application.weapon_placement(), placement);
-            if cancel_by_camera { ui.application.pointer_events.push(ViewportPointerEvent::Orbit(Vec2::new(5., 0.))); ui.frame(Vec::new()); }
-            else { ui.application.cancel_active_gesture("Escape"); }
+            if cancel_by_camera {
+                ui.application
+                    .pointer_events
+                    .push(ViewportPointerEvent::Orbit(Vec2::new(5., 0.)));
+                ui.frame(Vec::new());
+            } else {
+                ui.application.cancel_active_gesture("Escape");
+            }
             assert_eq!(ui.application.weapon_placement(), placement);
             assert!(ui.application.cdmw_pending_request.is_none());
         }
@@ -1728,22 +2181,47 @@ fn weapon_rotation_gizmo_and_contacts_use_the_same_placement() -> TestResult {
     let (tool, pivot) = ui.application.weapon_gizmo().unwrap();
     assert_eq!(tool, ViewportTool::Rotate);
     let ring = rotation_ring(&ui.application.camera, pivot, GizmoAxis::Z, rect);
-    let index = ring.iter().position(|&p| ui.application.hit_test_gizmo(tool, p, pivot, rect) == Some(GizmoAxis::Z)).ok_or("Z ring")?;
+    let index = ring
+        .iter()
+        .position(|&p| ui.application.hit_test_gizmo(tool, p, pivot, rect) == Some(GizmoAxis::Z))
+        .ok_or("Z ring")?;
     let points = [ring[index], ring[(index + ring.len() / 4) % ring.len()]];
     ui.drag(&points, PointerButton::Primary);
     let placement = ui.application.weapon_placement();
     assert!(placement.rotation[2].abs() > 30., "{placement:?}");
     ui.application.advance_jiggle_preview(1. / 60.)?;
     let transform = placement.transform();
-    let displayed = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display;
-    for (local, actual) in [[0., 0., 0.], [0.3, 0., 0.], [0., 1., 0.]].into_iter()
-        .zip(&displayed.positions[authored.positions.len()..]) {
-        assert!(transform.transform_point3(glam::DVec3::from(local)).as_vec3().distance(Vec3::from(*actual)) < 1e-5);
+    let displayed = &ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .display;
+    for (local, actual) in [[0., 0., 0.], [0.3, 0., 0.], [0., 1., 0.]]
+        .into_iter()
+        .zip(&displayed.positions[authored.positions.len()..])
+    {
+        assert!(
+            transform
+                .transform_point3(glam::DVec3::from(local))
+                .as_vec3()
+                .distance(Vec3::from(*actual))
+                < 1e-5
+        );
     }
     let lines = ui.application.jiggle_collider_lines();
-    let first_ring_center = lines[..32].iter().map(|p| Vec3::from(p.position)).sum::<Vec3>() / 32.;
+    let first_ring_center = lines[..32]
+        .iter()
+        .map(|p| Vec3::from(p.position))
+        .sum::<Vec3>()
+        / 32.;
     assert!(first_ring_center.distance(Vec3::from(placement.offset.map(|v| v as f32))) < 1e-5);
-    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
     Ok(())
 }
 
@@ -1758,7 +2236,15 @@ fn weapon_drag_holds_the_current_body_pose_and_failed_save_keeps_the_scene() -> 
     ui.click("Resume preview")?;
     ui.click("Keep model centred")?;
     advance(&mut ui)?;
-    let body_position = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions[0];
+    let body_position = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .positions[0];
     ui.click("Experimental features")?;
     ui.click("Collision sources")?;
     ui.click("Move weapon")?;
@@ -1767,11 +2253,25 @@ fn weapon_drag_holds_the_current_body_pose_and_failed_save_keeps_the_scene() -> 
     let rect = ui.application.viewport_rect.unwrap();
     let (_, pivot) = ui.application.weapon_gizmo().unwrap();
     let point = ui.application.camera.project(pivot, rect).unwrap().screen;
-    ui.drag(&[point, point + Vec2::new(35., -20.)], PointerButton::Primary);
+    ui.drag(
+        &[point, point + Vec2::new(35., -20.)],
+        PointerButton::Primary,
+    );
     assert_ne!(ui.application.weapon_placement(), before);
     advance(&mut ui)?;
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions[0], body_position);
-    ui.application.install_validated_cdmw_state(accepted, None)?;
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions[0],
+        body_position
+    );
+    ui.application
+        .install_validated_cdmw_state(accepted, None)?;
     ui.application.reject_weapon_placement();
     ui.application.cdmw_pending_request = None;
     assert_eq!(ui.application.weapon_placement(), before);
@@ -1793,7 +2293,15 @@ fn weapon_reference_invalid_reload_preserves_the_last_renderable_scene() -> Test
     load_weapon_reference(root.path(), &mut ui, &mut payload, 0.2)?;
     wait(&mut ui)?;
     advance(&mut ui)?;
-    let before = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display.clone();
+    let before = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .display
+        .clone();
     payload["weapon_reference"]["indices"] = json!([0, 1, 900]);
     let bytes = serde_json::to_vec(&payload)?;
     std::fs::write(root.path().join("jiggle-rig.json"), &bytes)?;
@@ -1803,7 +2311,16 @@ fn weapon_reference_invalid_reload_preserves_the_last_renderable_scene() -> Test
     ui.application.install_validated_cdmw_state(state, None)?;
     ui.frame(Vec::new());
     wait(&mut ui)?;
-    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().display, before);
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .display,
+        before
+    );
     ui.reveal("Invalid weapon reference geometry.")?;
     Ok(())
 }
@@ -1835,30 +2352,53 @@ fn weapon_reference_renders_solid_pixels_and_clears_without_cloak_changes() -> T
         let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
         let frame = scene.frame.clone();
         let reference = scene.display.clone();
-        ui.application.place_weapon_preview(cdmw_jiggle::weapon::Placement {
-            offset: [1.5, 0.5, 0.], rotation: [0., 0., 45.],
-        });
+        ui.application
+            .place_weapon_preview(cdmw_jiggle::weapon::Placement {
+                offset: [1.5, 0.5, 0.],
+                rotation: [0., 0., 45.],
+            });
         let scene = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap();
         assert_eq!(scene.frame, frame);
         let moved_reference = scene.display.clone();
-        let window = std::sync::Arc::new(event_loop.create_window(Window::default_attributes()
-            .with_visible(false).with_inner_size(winit::dpi::PhysicalSize::new(160, 120)))?);
+        let window = std::sync::Arc::new(
+            event_loop.create_window(
+                Window::default_attributes()
+                    .with_visible(false)
+                    .with_inner_size(winit::dpi::PhysicalSize::new(160, 120)),
+            )?,
+        );
         let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
         renderer.set_clear_colour([0., 0., 0., 1.]);
-        renderer.set_camera(glam::Mat4::orthographic_rh(-3., 3., -2., 2., 0.1, 10.)
-            * glam::Mat4::look_at_rh(Vec3::new(0., 0., 5.), Vec3::ZERO, Vec3::Y));
+        renderer.set_camera(
+            glam::Mat4::orthographic_rh(-3., 3., -2., 2., 0.1, 10.)
+                * glam::Mat4::look_at_rh(Vec3::new(0., 0., 5.), Vec3::ZERO, Vec3::Y),
+        );
         for mode in [ViewMode::TexturedSolid, ViewMode::Solid] {
             renderer.set_view_mode(mode);
             renderer.set_snapshot(&frame)?;
             let cloak = renderer.capture_frame(160, 120, None)?.read_rgba()?;
             renderer.set_snapshot(&reference)?;
             let pixels = renderer.capture_frame(160, 120, None)?.read_rgba()?;
-            assert!(cloak.chunks_exact(4).zip(pixels.chunks_exact(4)).filter(|(a, b)| a != b).count() > 20,
-                "the weapon reference must produce visible pixels in {mode:?}");
+            assert!(
+                cloak
+                    .chunks_exact(4)
+                    .zip(pixels.chunks_exact(4))
+                    .filter(|(a, b)| a != b)
+                    .count()
+                    > 20,
+                "the weapon reference must produce visible pixels in {mode:?}"
+            );
             renderer.set_snapshot(&moved_reference)?;
             let moved = renderer.capture_frame(160, 120, None)?.read_rgba()?;
-            assert!(pixels.chunks_exact(4).zip(moved.chunks_exact(4)).filter(|(a, b)| a != b).count() > 20,
-                "moving and rotating the weapon must update rendered pixels in {mode:?}");
+            assert!(
+                pixels
+                    .chunks_exact(4)
+                    .zip(moved.chunks_exact(4))
+                    .filter(|(a, b)| a != b)
+                    .count()
+                    > 20,
+                "moving and rotating the weapon must update rendered pixels in {mode:?}"
+            );
             renderer.set_snapshot(&frame)?;
             assert_eq!(renderer.capture_frame(160, 120, None)?.read_rgba()?, cloak);
         }
@@ -1896,15 +2436,31 @@ fn check_body_collision_source(source: &str) -> TestResult {
     } else {
         "Uses the matched rig's default volumes."
     };
-    assert!(ui.label_rect(source_label).is_none(), "source guidance belongs in hover help");
-    ui.application.egui_context.style_mut_of(ui.application.egui_context.theme(),
-        |style| style.interaction.tooltip_delay = 0.0);
+    assert!(
+        ui.label_rect(source_label).is_none(),
+        "source guidance belongs in hover help"
+    );
+    ui.application
+        .egui_context
+        .style_mut_of(ui.application.egui_context.theme(), |style| {
+            style.interaction.tooltip_delay = 0.0
+        });
     ui.reveal("Body collisions")?;
-    for _ in 0..12 { ui.frame(vec![Event::PointerGone]); }
-    let position = ui.label_rect("Body collisions").ok_or("body collisions checkbox")?.center();
+    for _ in 0..12 {
+        ui.frame(vec![Event::PointerGone]);
+    }
+    let position = ui
+        .label_rect("Body collisions")
+        .ok_or("body collisions checkbox")?
+        .center();
     ui.frame(vec![Event::PointerMoved(position)]);
-    for _ in 0..3 { ui.frame(Vec::new()); }
-    assert!(ui.label_rect(source_label).is_some(), "source guidance remains available on hover");
+    for _ in 0..3 {
+        ui.frame(Vec::new());
+    }
+    assert!(
+        ui.label_rect(source_label).is_some(),
+        "source guidance remains available on hover"
+    );
     ui.click("Play preview")?;
     wait(&mut ui)?;
     advance(&mut ui)?;
@@ -1942,7 +2498,8 @@ fn check_body_collision_source(source: &str) -> TestResult {
     assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
     ui.click("Reset preview")?;
     // A populated but unrecognized source must not enable contacts.
-    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_source"] = json!("unknown");
+    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_source"] =
+        json!("unknown");
     ui.frame(Vec::new());
     ui.click("Body collisions")?;
     assert!(ui.label_rect("Collision margin").is_none());

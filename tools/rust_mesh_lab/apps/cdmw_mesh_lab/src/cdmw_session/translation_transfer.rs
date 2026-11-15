@@ -46,7 +46,9 @@ impl Transfer {
             || transfer.sha256.len() != 64
             || !transfer.sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
         {
-            return Err(invalid("translation transfer size, part count or SHA-256 is invalid"));
+            return Err(invalid(
+                "translation transfer size, part count or SHA-256 is invalid",
+            ));
         }
         Ok(transfer)
     }
@@ -121,13 +123,21 @@ impl TranslationTransfers {
             if self.pending.is_some() {
                 return Err(invalid("a theme update interrupted a translation transfer"));
             }
-            return match value.get("payload").and_then(|payload| payload.get("translations")) {
+            return match value
+                .get("payload")
+                .and_then(|payload| payload.get("translations"))
+            {
                 Some(translations) => validate_catalog(translations).map(drop),
                 None => Ok(()),
             };
         };
-        if descriptor.as_object().is_none_or(|fields| fields.len() != 4) {
-            return Err(invalid("translation transfer descriptor has unexpected fields"));
+        if descriptor
+            .as_object()
+            .is_none_or(|fields| fields.len() != 4)
+        {
+            return Err(invalid(
+                "translation transfer descriptor has unexpected fields",
+            ));
         }
         let request_id = required_u64(value, "request_id")?;
         let transfer = Transfer::read(descriptor)?;
@@ -136,7 +146,9 @@ impl TranslationTransfers {
             .pending
             .take()
             .filter(|pending| pending.request_id == request_id && pending.transfer == transfer)
-            .ok_or_else(|| invalid("theme update names a translation transfer that was not sent"))?;
+            .ok_or_else(|| {
+                invalid("theme update names a translation transfer that was not sent")
+            })?;
         if pending.received != transfer.part_count
             || pending.text.len() as u64 != transfer.byte_length
             || sha256_upper(pending.text.as_bytes()) != transfer.sha256
@@ -280,7 +292,8 @@ mod tests {
 
     fn update(request_id: u64, descriptor: &Value, entry_count: usize) -> Value {
         let mut update = message("theme_update", request_id);
-        update["payload"] = json!({"schema": "cdmw_ui_theme_v1", "language": "ru", "theme": "nord"});
+        update["payload"] =
+            json!({"schema": "cdmw_ui_theme_v1", "language": "ru", "theme": "nord"});
         update["translations_transfer"] = descriptor.clone();
         update["translations_transfer"]["entry_count"] = json!(entry_count);
         update
@@ -342,26 +355,41 @@ mod tests {
         assert!(parts.len() >= 3);
 
         let (_root, mut bridge) = fresh_bridge();
-        assert!(is_fatal(bridge.decode_host_message(parts[1].clone())), "a transfer starts at part 0");
+        assert!(
+            is_fatal(bridge.decode_host_message(parts[1].clone())),
+            "a transfer starts at part 0"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
         assert!(bridge.decode_host_message(parts[0].clone()).is_none());
-        assert!(is_fatal(bridge.decode_host_message(parts[2].clone())), "gap");
+        assert!(
+            is_fatal(bridge.decode_host_message(parts[2].clone())),
+            "gap"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
         assert!(bridge.decode_host_message(parts[0].clone()).is_none());
-        assert!(is_fatal(bridge.decode_host_message(parts[0].clone())), "overlap");
+        assert!(
+            is_fatal(bridge.decode_host_message(parts[0].clone())),
+            "overlap"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
         let mut changed = parts[1].clone();
         changed["sha256"] = json!("0".repeat(64));
         assert!(bridge.decode_host_message(parts[0].clone()).is_none());
-        assert!(is_fatal(bridge.decode_host_message(changed)), "descriptor changed mid-transfer");
+        assert!(
+            is_fatal(bridge.decode_host_message(changed)),
+            "descriptor changed mid-transfer"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
         let mut oversized = parts[0].clone();
         oversized["data"] = json!(text.clone() + " ");
-        assert!(is_fatal(bridge.decode_host_message(oversized)), "more text than declared");
+        assert!(
+            is_fatal(bridge.decode_host_message(oversized)),
+            "more text than declared"
+        );
 
         for (field, bad) in [
             ("part_count", json!(0)),
@@ -389,24 +417,37 @@ mod tests {
 
         let (_root, mut bridge) = fresh_bridge();
         complete(&mut bridge);
-        assert!(is_fatal(bridge.decode_host_message(update(5, &descriptor, 3))), "entry count");
+        assert!(
+            is_fatal(bridge.decode_host_message(update(5, &descriptor, 3))),
+            "entry count"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
         complete(&mut bridge);
         let mut extra = update(5, &descriptor, 2);
         extra["translations_transfer"]["schema"] = json!("other");
-        assert!(is_fatal(bridge.decode_host_message(extra)), "descriptor field");
+        assert!(
+            is_fatal(bridge.decode_host_message(extra)),
+            "descriptor field"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
         complete(&mut bridge);
         let mut twice = update(5, &descriptor, 2);
         twice["payload"]["translations"] = json!({});
-        assert!(is_fatal(bridge.decode_host_message(twice)), "translations in two forms");
+        assert!(
+            is_fatal(bridge.decode_host_message(twice)),
+            "translations in two forms"
+        );
 
         let malformed = json!({"Mesh Editor": 7}).to_string();
         let (malformed_parts, malformed_descriptor) = transfer(6, &malformed, 1024);
         let (_root, mut bridge) = fresh_bridge();
-        assert!(bridge.decode_host_message(malformed_parts[0].clone()).is_none());
+        assert!(
+            bridge
+                .decode_host_message(malformed_parts[0].clone())
+                .is_none()
+        );
         assert!(
             is_fatal(bridge.decode_host_message(update(6, &malformed_descriptor, 1))),
             "entry shape"
@@ -432,27 +473,42 @@ mod tests {
         // An update must follow its own complete transfer.
         let (_root, mut bridge) = fresh_bridge();
         assert!(bridge.decode_host_message(parts[0].clone()).is_none());
-        assert!(is_fatal(bridge.decode_host_message(update(5, &descriptor, 2))), "incomplete");
+        assert!(
+            is_fatal(bridge.decode_host_message(update(5, &descriptor, 2))),
+            "incomplete"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
         assert!(bridge.decode_host_message(parts[0].clone()).is_none());
         let mut inline = message("theme_update", 6);
         inline["payload"] = json!({"theme": "nord", "translations": {}});
-        assert!(is_fatal(bridge.decode_host_message(inline)), "inline update mid-transfer");
+        assert!(
+            is_fatal(bridge.decode_host_message(inline)),
+            "inline update mid-transfer"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
         assert!(bridge.decode_host_message(parts[0].clone()).is_none());
         let (newer, _) = transfer(6, &text, 16);
-        assert!(is_fatal(bridge.decode_host_message(newer[0].clone())), "racing transfer");
+        assert!(
+            is_fatal(bridge.decode_host_message(newer[0].clone())),
+            "racing transfer"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
         for part in &parts {
             assert!(bridge.decode_host_message(part.clone()).is_none());
         }
-        assert!(is_fatal(bridge.decode_host_message(update(4, &descriptor, 2))), "request id");
+        assert!(
+            is_fatal(bridge.decode_host_message(update(4, &descriptor, 2))),
+            "request id"
+        );
 
         let (_root, mut bridge) = fresh_bridge();
-        assert!(is_fatal(bridge.decode_host_message(update(5, &descriptor, 2))), "never sent");
+        assert!(
+            is_fatal(bridge.decode_host_message(update(5, &descriptor, 2))),
+            "never sent"
+        );
 
         // Other host events may interleave; a completed request cannot be replayed.
         let (_root, mut bridge) = fresh_bridge();
@@ -467,7 +523,10 @@ mod tests {
             bridge.decode_host_message(update(5, &descriptor, 2)),
             Some(HostEvent::Theme(_))
         ));
-        assert!(is_fatal(bridge.decode_host_message(parts[0].clone())), "replayed transfer");
+        assert!(
+            is_fatal(bridge.decode_host_message(parts[0].clone())),
+            "replayed transfer"
+        );
     }
 
     #[test]

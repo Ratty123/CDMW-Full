@@ -2,7 +2,7 @@
 
 from weakref import WeakSet
 
-from PySide6.QtCore import QSettings
+from cdmw.services.settings_service import app_settings
 from PySide6.QtWidgets import QCheckBox
 from shiboken6 import isValid
 
@@ -20,13 +20,13 @@ class PreviewGizmoCheckBox(QCheckBox):
         self.setToolTip(
             "Show the model or effect transform handles. The upper-right orientation control stays available."
         )
-        settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        settings = app_settings()
         self.setChecked(settings.value(GIZMO_VISIBLE_SETTING, True, type=bool))
         self._instances.add(self)
         self.toggled.connect(self._remember)
 
     def _remember(self, visible: bool) -> None:
-        settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        settings = app_settings()
         settings.setValue(GIZMO_VISIBLE_SETTING, visible)
         for checkbox in tuple(self._instances):
             if checkbox is not self and isValid(checkbox) and checkbox.isChecked() != visible:

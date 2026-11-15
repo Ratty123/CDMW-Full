@@ -5,9 +5,9 @@ from __future__ import annotations
 import math
 from typing import List, Optional, Tuple
 
-import cv2
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.models import TextureEditorSelection
 
 
@@ -15,7 +15,7 @@ def _selection_mask_to_polygons(mask: np.ndarray) -> Tuple[Tuple[Tuple[float, fl
     binary = np.asarray(mask > 0, dtype=np.uint8)
     if not np.any(binary):
         return ()
-    contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = image_ops.find_outer_contours_ccomp(binary)
     if hierarchy is not None and hierarchy.size:
         flattened_hierarchy = np.asarray(hierarchy).reshape(-1, 4)
         if np.any(flattened_hierarchy[:, 3] >= 0):
@@ -24,8 +24,8 @@ def _selection_mask_to_polygons(mask: np.ndarray) -> Tuple[Tuple[Tuple[float, fl
     for contour in contours:
         if contour.shape[0] < 3:
             continue
-        epsilon = max(0.35, cv2.arcLength(contour, True) * 0.002)
-        simplified = cv2.approxPolyDP(contour, epsilon, closed=True)
+        epsilon = max(0.35, image_ops.contour_arc_length(contour, True) * 0.002)
+        simplified = image_ops.approx_polygon(contour, epsilon, True)
         points = tuple((float(point[0][0]), float(point[0][1])) for point in simplified)
         if len(points) >= 3:
             polygons.append(points)
@@ -38,17 +38,14 @@ def _encode_selection_mask_png(mask: Optional[np.ndarray]) -> bytes:
     array = np.asarray(mask, dtype=np.uint8)
     if array.size == 0 or not np.any(array):
         return b""
-    encoded = cv2.imencode(".png", array)[1]
-    return bytes(encoded)
+    return image_ops.encode_png(array)
 
 def _decode_selection_mask_png(blob: bytes, width: int, height: int) -> Optional[np.ndarray]:
     if not blob or width <= 0 or height <= 0:
         return None
-    decoded = cv2.imdecode(np.frombuffer(blob, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    decoded = image_ops.decode_png_mask(blob)
     if decoded is None:
         return None
-    if decoded.ndim == 3:
-        decoded = decoded[..., -1]
     mask = np.asarray(decoded, dtype=np.uint8)
     if mask.shape[:2] != (height, width):
         return None
@@ -135,12 +132,8 @@ def build_texture_editor_selection_mask(
             shifted[:, 0] = (points[:, 0] - float(min_x)) * float(scale_factor)
             shifted[:, 1] = (points[:, 1] - float(min_y)) * float(scale_factor)
             polygon = np.round(shifted).astype(np.int32).reshape((-1, 1, 2))
-            cv2.fillPoly(supersampled, [polygon], 255, lineType=cv2.LINE_AA)
-            antialiased_patch = cv2.resize(
-                supersampled,
-                (patch_width, patch_height),
-                interpolation=cv2.INTER_AREA,
-            )
+            image_ops.fill_polygon_antialiased(supersampled, polygon, 255)
+            antialiased_patch = image_ops.resize(supersampled, patch_width, patch_height, "area")
             current_patch = mask[min_y:max_y, min_x:max_x]
             mask[min_y:max_y, min_x:max_x] = np.maximum(current_patch, antialiased_patch)
     elif decoded_mask is None and selection.mode == "rect" and selection.rect is not None:
@@ -167,12 +160,8 @@ def build_texture_editor_selection_mask(
                 shifted[:, 0] = (points[:, 0] - float(min_x)) * float(scale_factor)
                 shifted[:, 1] = (points[:, 1] - float(min_y)) * float(scale_factor)
                 polygon = np.round(shifted).astype(np.int32).reshape((-1, 1, 2))
-                cv2.fillPoly(supersampled, [polygon], 255, lineType=cv2.LINE_AA)
-                antialiased_patch = cv2.resize(
-                    supersampled,
-                    (patch_width, patch_height),
-                    interpolation=cv2.INTER_AREA,
-                )
+                image_ops.fill_polygon_antialiased(supersampled, polygon, 255)
+                antialiased_patch = image_ops.resize(supersampled, patch_width, patch_height, "area")
                 current_patch = mask[min_y:max_y, min_x:max_x]
                 mask[min_y:max_y, min_x:max_x] = np.maximum(current_patch, antialiased_patch)
     if not np.any(mask):
@@ -180,7 +169,7 @@ def build_texture_editor_selection_mask(
     feather_radius = max(0, int(selection.feather_radius))
     if feather_radius > 0:
         kernel = max(3, feather_radius * 2 + 1)
-        mask = cv2.GaussianBlur(mask, (kernel, kernel), sigmaX=max(0.8, feather_radius / 2.0))
+        mask = image_ops.gaussian_blur(mask, max(0.8, feather_radius / 2.0), kernel)
     if selection.inverted:
         mask = 255 - mask
     return mask if np.any(mask) else None

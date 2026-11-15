@@ -38,13 +38,6 @@ from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_service_state import MeshExportSnapshot, MeshExportTextureSnapshot
 from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
 from cdmw.domain.archives.filters import archive_entry_game_root, archive_entry_package_group
-from cdmw.services.archive_overlay_install import (
-    OverlayInstallPreparation,
-    apply_overlay_install,
-    prepare_overlay_install,
-    restore_last_overlay_install,
-)
-from cdmw.services.new_item_service import game_is_running
 from cdmw.workers.mesh_editor_aux_workers import (
     MeshArchiveMaterialContextResult,
     MeshArchiveMaterialContextWorker,
@@ -432,8 +425,6 @@ class MeshDirectOutputResult:
     output_path: Path | None
     manager_profile: str = ""
     rebuild_report: object | None = None
-    overlay_preparation: OverlayInstallPreparation | None = None
-    install_result: object | None = None
     zip_path: Path | None = None
     archive_result: object | None = None
     # The Drafts & Mods record for a built mod, or why it failed.
@@ -555,6 +546,12 @@ class MeshDirectOutputWorker(QObject):
                 if components[0][0].identity != self.entry.identity:
                     raise RuntimeError("Archive Refit output target no longer matches the loaded source")
             body = self._fit_body_flags(snapshot, components)
+            from cdmw.services.mesh_asset_context import is_item_set
+            editing_set = is_item_set(getattr(snapshot, "archive_refit_context", None))
+            if editing_set:
+                from cdmw.services.mesh_item_set_editing import item_set_omitted_assets
+                omitted = item_set_omitted_assets(snapshot)
+                body = tuple(entry.identity in omitted for entry, _component in components)
             omitted_paths = [entry.path for (entry, _component), omit in zip(components, body) if omit]
             requests = []
             additions = []
@@ -570,6 +567,8 @@ class MeshDirectOutputWorker(QObject):
                 if not index:
                     report = component_report
                 if body[index]:
+                    continue
+                if editing_set and rebuilt.data == component.original_data:
                     continue
                 if getattr(component, "replacement_state", None) is not None:
                     from cdmw.services.mesh_replacement_import import archive_entry, archive_location
@@ -632,7 +631,11 @@ class MeshDirectOutputWorker(QObject):
                         requests.append(ArchivePatchRequest(inherited, data))
                     included.add(normalize(inherited.path))
             if not requests and not additions:
+                if editing_set:
+                    raise ValueError("The included item set files have no changes to write")
                 raise ValueError("Only the body is left to write. Turn on Include the body to build it.")
+            # Saved work lists every game file this build writes, not only the primary.
+            self._built_target_paths = tuple(str(entry.path) for entry, _component in written)
             layers = self._layer_visibility(requests, additions) if self.keep_layers else None
             if self.stop_event.is_set():
                 raise RunCancelled("Mesh output cancelled")
@@ -655,20 +658,6 @@ class MeshDirectOutputWorker(QObject):
                 result = self._write_loose_mod(tuple(requests), metadata, report, additions=tuple(additions)) if additions else self._write_loose_mod(tuple(requests), metadata, report)
             elif self.kind == "overlay_package":
                 result = self._write_overlay_package(tuple(requests), metadata, report, additions=tuple(additions)) if additions else self._write_overlay_package(tuple(requests), metadata, report)
-            elif self.kind == "overlay_prepare":
-                package_root = archive_entry_game_root(self.entry)
-                preparation = prepare_overlay_install(
-                    tuple(requests),
-                    additions=tuple(additions),
-                    package_root=package_root,
-                    stop_event=self.stop_event,
-                )
-                result = MeshDirectOutputResult(
-                    kind=self.kind,
-                    output_path=None,
-                    rebuild_report=report,
-                    overlay_preparation=preparation,
-                )
             else:
                 raise ValueError(f"Unsupported Mesh Editor output kind: {self.kind}")
             if layers is not None:
@@ -746,6 +735,13 @@ class MeshDirectOutputWorker(QObject):
                 draft = self.service.save_mesh_draft_for_revision(
                     self.session_id, expected_mesh_revision=snapshot.mesh_revision,
                 )
+                # P14: the built state is clean, with a draft or without (8.8 R12), and
+                # only while the session still holds it (section 8.9).
+                self.service.mark_history_clean(
+                    self.session_id,
+                    expected_revision=int(snapshot.mesh_revision),
+                    expected_layer_revision=snapshot.geometry_layer_revision,
+                )
                 record = register_built_mod(
                     self.saved_work_root,
                     mod_root=result.output_path,
@@ -755,6 +751,7 @@ class MeshDirectOutputWorker(QObject):
                     zip_path=result.zip_path,
                     manager_profile=result.manager_profile,
                     kind=self.kind,
+                    target_paths=getattr(self, "_built_target_paths", ()),
                 )
         except Exception as exc:
             return replace(result, saved_work_error=f"{type(exc).__name__}: {exc}")
@@ -791,33 +788,10 @@ class MeshDirectOutputWorker(QObject):
         )
 
     def _publish_mod_output(self, staging: Path, root: Path) -> Path | None:
-        from cdmw.core.mod_export_history import retain_mod_history
-        from cdmw.core.mod_package import _write_package_zip
+        from cdmw.services.mesh_mod_publish import publish_mesh_mod_output
 
-        # DMM reads the same name/version/author/description from manifest.json.
-        # Remove the duplicate before binding local history to the final files.
-        if self.manager_profile == "dmm":
-            (staging / "modinfo.json").unlink(missing_ok=True)
-        elif self.manager_profile == "cdumm":
-            # CDUMM detects modinfo.json + files/ and reads the mod details
-            # from modinfo.json. Its importer derives encryption from the game.
-            (staging / "manifest.json").unlink(missing_ok=True)
-            (staging / ".no_encrypt").unlink(missing_ok=True)
-        retain_mod_history(staging, stop_event=self.stop_event)
-        (staging / "README.txt").unlink(missing_ok=True)
-        zip_path = root.with_name(root.name + ".zip") if self.create_zip else None
-        staged_zip = staging.with_name(staging.name + ".zip") if self.create_zip else None
-        try:
-            outputs = [(staging, root)]
-            if staged_zip is not None:
-                _write_package_zip(staging, zip_path=staged_zip, stop_event=self.stop_event)
-                outputs.append((staged_zip, zip_path))
-            _raise_export_cancelled(self.stop_event)
-            atomic_publish_paths(outputs, replace_existing=False)
-            return zip_path
-        finally:
-            if staged_zip is not None:
-                staged_zip.unlink(missing_ok=True)
+        return publish_mesh_mod_output(staging, root, manager_profile=self.manager_profile,
+                                       create_zip=bool(self.create_zip), stop_event=self.stop_event)
 
     def _write_loose_mod(
         self,
@@ -977,87 +951,6 @@ class MeshDirectOutputWorker(QObject):
         )
 
 
-class MeshOverlayApplyWorker(QObject):
-    completed = Signal(int, object)
-    cancelled = Signal(int, str)
-    error = Signal(int, str)
-    finished = Signal()
-
-    def __init__(
-        self,
-        request_id: int,
-        preparation: OverlayInstallPreparation,
-        mutation_service: object,
-    ) -> None:
-        super().__init__()
-        self.request_id = int(request_id)
-        self.preparation = preparation
-        self.mutation_service = mutation_service
-        self.stop_event = threading.Event()
-
-    def stop(self) -> None:
-        self.stop_event.set()
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            def backup(paths, label):
-                return self.mutation_service.backup_files(paths, description=label)
-
-            def restore(path):
-                return self.mutation_service.restore_backup(path, confirmed=True)
-
-            result = apply_overlay_install(
-                self.preparation,
-                confirmed=True,
-                backup=backup,
-                restore_backup=restore,
-                game_running=game_is_running,
-                stop_event=self.stop_event,
-            )
-            self.completed.emit(
-                self.request_id,
-                MeshDirectOutputResult(
-                    kind="overlay_install",
-                    output_path=result.directory,
-                    install_result=result,
-                ),
-            )
-        except RunCancelled:
-            self.cancelled.emit(self.request_id, "Overlay installation cancelled.")
-        except Exception as exc:
-            self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
-        finally:
-            self.finished.emit()
-
-
-class MeshOverlayRestoreWorker(QObject):
-    completed = Signal(int, object)
-    error = Signal(int, str)
-    finished = Signal()
-
-    def __init__(self, request_id: int, receipt_path: Path | str, mutation_service: object) -> None:
-        super().__init__()
-        self.request_id = int(request_id)
-        self.receipt_path = Path(receipt_path)
-        self.mutation_service = mutation_service
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            root = restore_last_overlay_install(
-                self.receipt_path,
-                confirmed=True,
-                restore_backup=lambda path: self.mutation_service.restore_backup(path, confirmed=True),
-                game_running=game_is_running,
-            )
-            self.completed.emit(self.request_id, root)
-        except Exception as exc:
-            self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
-        finally:
-            self.finished.emit()
-
-
 class MeshReportWriteWorker(QObject):
     """Stage and atomically publish a small Mesh Editor JSON report."""
 
@@ -1136,7 +1029,5 @@ __all__ = [
     "MeshExportValidationWorker",
     "MeshReportWriteWorker",
     "MeshRebuildReportWorker",
-    "MeshOverlayApplyWorker",
-    "MeshOverlayRestoreWorker",
     "MeshTextureSourceResolveWorker",
 ]

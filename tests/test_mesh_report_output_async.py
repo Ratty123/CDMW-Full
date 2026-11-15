@@ -5,6 +5,7 @@ import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -68,7 +69,7 @@ def test_report_worker_mid_write_cancel_does_not_publish(tmp_path: Path) -> None
 def test_report_save_handler_returns_before_slow_atomic_publish(tmp_path: Path) -> None:
     _app()
     target = tmp_path / "report.json"
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshReportAsync"))
+    tab = MeshEditorTab(settings=owned_settings("MeshReportAsync"))
     tab.standalone_last_rebuild_report = {"mesh_format": "pac", "warnings": ()}
     real_fsync = os.fsync
 

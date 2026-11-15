@@ -1,4 +1,8 @@
-"""Best-effort background prewarm task for the resident Rust preview host."""
+"""Best-effort background prewarm task for the resident Rust preview host.
+
+The hidden spare helper that dialogs used to adopt is gone (P4 V6): a dialog's
+preview is a window of Browse's helper process (P4 V5).
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QRunnable, Signal
 
 from cdmw.services.mesh_rust_preview_package import build_rust_preview_prewarm_package
+from cdmw.workers.runnable_signals import application_owned, release
 
 
 class _DotNetPreviewPrewarmSignals(QObject):
@@ -19,11 +24,18 @@ class DotNetPreviewPrewarmTask(QRunnable):
         super().__init__()
         self.cache_root = Path(cache_root)
         self.executable = Path(executable) if executable else None
-        self.signals = _DotNetPreviewPrewarmSignals()
+        # Owned by the application, deleted on the GUI thread (REPORT-crash, item 1).
+        self.signals = application_owned(_DotNetPreviewPrewarmSignals)
 
     def run(self) -> None:
         """Contain all errors because the global pool may outlive the owning host."""
 
+        try:
+            self._run()
+        finally:
+            release(self.signals)
+
+    def _run(self) -> None:
         started_at = time.perf_counter()
         try:
             package = build_rust_preview_prewarm_package(self.cache_root)

@@ -96,6 +96,12 @@ class ArchivePreviewWorkerMixin:
         prefer_loose_preview: bool = False,
         force: bool = False,
     ) -> None:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        preview_entry = getattr(remote_bridge, "preview_entry_for", None)
+        if callable(preview_entry):
+            entry = preview_entry(entry)
+            if remote_bridge.item_set_contains(entry) and not remote_bridge.item_set_preview_requested:
+                force = True
         self.shell._ensure_archive_preview_startup_state()
         # The chosen sound belongs to the entry it was chosen in. Without this, the
         # fifth sound of one bank would be asked for in the next file opened, which
@@ -147,6 +153,8 @@ class ArchivePreviewWorkerMixin:
         # The entry this request previews; its results are tagged with it, not with
         # whatever the selection is when they arrive.
         self.archive_preview_request_entry = entry
+        if callable(preview_entry) and remote_bridge.item_set_contains(entry):
+            remote_bridge.item_set_preview_requested = True
         self.shell.append_archive_log(
             f"Archive Browser activation timing | cause=preview_start | path={getattr(entry, 'path', '')}",
             verbose=True,
@@ -284,7 +292,7 @@ class ArchivePreviewWorkerMixin:
         if remote_bridge is None or not remote_bridge.displays_v2 or entry is None:
             return None, False
 
-        current_provider = getattr(remote_bridge, "current_compatibility_entry", None)
+        current_provider = getattr(remote_bridge, "current_preview_entry", None) or getattr(remote_bridge, "current_compatibility_entry", None)
         if callable(current_provider):
             current_entry = current_provider()
             if current_entry is None:
@@ -710,6 +718,7 @@ class ArchivePreviewWorkerMixin:
             visible_texture_mode=preview_settings.visible_texture_mode,
             support_texture_slots=self._archive_preview_support_texture_slots(preview_settings),
             render_settings=preview_settings,
+            prefer_gpu_texture=True,
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
             native_preview_core_enabled=(self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11),
@@ -796,8 +805,16 @@ class ArchivePreviewWorkerMixin:
         )
         if native_preview_diagnostics.get("native_preview_core_process_pid") or native_preview_diagnostics.get("preview_core_process_pid"):
             self._schedule_native_preview_core_idle_shutdown()
+        # The worker's stage times (Preview Core, the Rust package, ...) for the
+        # runtime record, in milliseconds (P4 V6's hand-off measurement).
+        stage_ms = {
+            f"stage_{key.removesuffix('_s')}_ms": round(float(value) * 1000.0, 1)
+            for key, value in dict(getattr(payload, "timings", {}) or {}).items()
+            if isinstance(value, (int, float))
+        } if isinstance(payload, ArchivePreviewResult) else {}
         self.shell._record_runtime_event(
             "archive_preview_ready",
+            **stage_ms,
             request_id=request_id,
             source=source,
             current_request_id=self.archive_preview_request_id,

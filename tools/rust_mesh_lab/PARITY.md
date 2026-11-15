@@ -78,9 +78,13 @@ hydrate from the selected bound garment's saved settings before applying changes
 Integrated CDMW sessions carry already-resolved DDS inputs as bounded,
 hash-checked owned resources with explicit roles and per-LOD material ranges;
 Rust validates and rebinds them whenever a shadow document revision is
-installed. Bevel/chamfer, UV1 editing and a 2D UV workspace, a true weight-paint
-heatmap and brush, normal-direction extrusion, and full layered/dye material
-composition are not part of the current contract. The Bones overlay is hierarchy inspection, not
+installed. Verified, unchanged source materials also carry the bounded native
+layer graph: supported fabric/dye/metal layers use the shared GPU path, with
+CPU composition for unsupported graphs. Edited/imported materials and view-only
+references retain their existing compositor and export semantics.
+Bevel/chamfer, UV1 editing and a 2D UV workspace, a true weight-paint
+heatmap and brush, and normal-direction extrusion are not part of the current
+contract. The Bones overlay is hierarchy inspection, not
 skinned deformation or pose preview, and selected-weight rows are a bounded
 numeric readout rather than weight paint. Missing capabilities are not hidden by
 enabled placeholder controls; protected channels still remain inside the
@@ -89,9 +93,9 @@ versioned authoring package and validated Finish path.
 ### Finish and validation
 
 Finish returns an accepted revision to CDMW. **Run validation** must then pass
-for that revision before **Build Mod** can publish a DMM, CDUMM, or Crimson
-Sharp loose package or a DMM archive group. **Install as Overlay** is gated by
-the same revision and retains its existing confirmed backup/rollback lifecycle.
+for that revision before **Build Mod** can publish a supported loose package.
+Archive patching and **Install as Overlay** are currently unavailable after the
+DLC update; retained mutation code is not an available workflow.
 Package outputs are staged and published atomically. The source PAMT/PAZ bytes
 are not rewritten.
 

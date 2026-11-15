@@ -57,6 +57,26 @@ _DECLARED_PYTHON_UI_RETURN_METHODS = {
 
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Command reasons (cdmw/ui/shell/shell_commands.py); the command views set
+        # them as tooltips at run time, where the localizer translates them.
+        "Wait for the current task to finish.",
+        "This tool cannot be moved to a window of its own.",
+        "This tool is not in a window of its own.",
+        "No tool is in a window of its own.",
+        "The Mesh Editor is not ready.",
+        # Settings > Shortcuts refuses the palette a Mesh Editor command's key
+        # (cdmw/ui/commands/shortcuts_page.py); {name} is the command's label.
+        "The Mesh Editor command {name} uses this key.",
+        "Open an image first.",
+        # The close guard's status line (cdmw/ui/shell/close_controller.py, P4 V3).
+        "Finishing the edit. Close CDMW again when it has finished.",
+        # Settings > Shortcuts: a context name and the conflict line, both translated at run time.
+        "Everywhere",
+        "Also used by: {names}",
+        # Item-set preparation forwards these through worker callbacks/signals.
+        "Preparing reference meshes...",
+        "The archive catalogue changed while preparing the item set.",
+        "Item set dependencies do not match the selected mesh",
         # The Wiki exporter uses this shared navigation label without a widget sink.
         "Independent items",
         # Dynamic reference-search confidence and progress labels.
@@ -432,6 +452,84 @@ MANUAL_SOURCE_KEYS = frozenset(
         "None of the look's models is in the loaded archives.",
         "{value_0} is missing; reinstall Character Creator.",
         "{value_0} could not be read: {value_1}",
+        # Recovery problems (P15 repair A11): the Mesh Editor's status line shows them.
+        "Unfinished Mesh Editor edits are not restored while Morph & Refit has a profile open.",
+        "Unfinished Mesh Editor edits were made from an earlier state of this draft and were not restored; the draft has changed since.",
+        "Unfinished Mesh Editor edits could not be restored ({value_0}). The draft opens as it was last finished.",
+        # AI connections (P13 stage C): texts the Settings section and the title mark show at run time.
+        " [AI connections on, Full access]",
+        " [AI connections on]",
+        "AI connections could not start: {value_0}",
+        "Allow without asking",
+        "An AI app",
+        "Ask first",
+        "CDMW asks you every time a tool uses the network: no setting, session allowance or Full access answers it.",
+        "Change an open session or document; undoable.",
+        "Delete a draft or saved work row in the CDMW folder.",
+        "Destructive tool",
+        "Destructive tools",
+        "Edit tool",
+        "Edit tools",
+        "It changes the open session or document. You can undo it.",
+        "It deletes something you made in the CDMW folder. Undo cannot bring it back.",
+        "It writes files outside the session (a mod, an export or a draft folder). Nothing is written into the game.",
+        "Network tool: sends data off this computer",
+        "Output tool",
+        "Output tools",
+        "Reading a file outside what CDMW has loaded",
+        "Write a mod, an export or a draft folder outside the session.",
+        # The preview host's status when its helper window cannot be embedded (REPORT-crash item 3).
+        "The preview window could not be placed in its viewport (Windows error {value_0}).",
+        # Command labels and reasons the registry shows (section 8.7 E8): the palette,
+        # Settings > Shortcuts and menus read them at run time, so the scan cannot see them.
+        "Command Palette",
+        "Texture Editor",
+        "First key",
+        "Second key",
+        "Copy layer or selection",
+        "Copy selection to new layer",
+        "Cut selection",
+        "Paint tool",
+        "Erase tool",
+        "Fill tool",
+        "Gradient tool",
+        "Smudge tool",
+        "Dodge/Burn tool",
+        "Move tool",
+        "Rect select tool",
+        "Lasso tool",
+        "Heal tool",
+        "Patch tool",
+        "Fit view",
+        "Float active layer copy",
+        "Hardness harder",
+        "Hardness softer",
+        "New layer",
+        "Open current source in Compare",
+        "Open file",
+        "Open project",
+        "Save project",
+        "Paste centered",
+        "Paste layer or selection",
+        "Send to Icon Creator",
+        "Send to Texture Replacer",
+        "Send to Texture Workflow",
+        "Toggle quick mask overlay",
+        "Switch Textures to Edit first.",
+        "The Mesh Editor cannot use this key.",
+        "The command failed. The log has the details.",
+        "This command needs a key, not Ctrl, Alt or Shift on its own.",
+        "This command takes Ctrl, Alt or Shift on its own; change it in the Mesh Editor.",
+        "Select PAC, PAM or PAMLOD file rows first",
+        "Select an archive file first",
+        "Select a mesh/model archive entry first",
+        "Select a .hkx or .hkt archive entry first",
+        "Select a .hkx/.hkt file, or a .pac/.pam/.pamlod model with a related HKX/HKT file, first",
+        "Select a structured sidecar/metadata archive entry first",
+        "Select an archive file with recoverable asset-family relationships first",
+        "Select an .app_xml, .pac/.pam/.pamlod, .prefabdata_xml, .prefab, or .pappt file first",
+        "Wait for the current background task to finish",
+        "Open a file with recovered Asset Family relationships first",
     }
 )
 RETIRED_MANUAL_SOURCE_KEYS = frozenset({
@@ -1848,6 +1946,13 @@ def build_manifest() -> dict[str, object]:
                     "sink": "python-data:TextureEditorDdsPreset",
                 })
 
+    # One view-mode list for Browse's preview and the Mesh Editor (P4 V3): both draw these names.
+    from cdmw.domain.preview_view_modes import SHARED_VIEW_MODES
+
+    for _mode, text in SHARED_VIEW_MODES:
+        origins.setdefault(text, []).append({
+            "path": "cdmw/domain/preview_view_modes.py", "line": 1, "sink": "rust-presentation",
+        })
     for family in (*MESH_FAMILIES, EYE_COVER):
         for text in (family.label, family.note, *(field.label for field in family.fields)):
             origins.setdefault(text, []).append({

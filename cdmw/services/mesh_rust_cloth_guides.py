@@ -22,23 +22,36 @@ def authored_cloth_source(authoring, session):
     if (not state or not any(p.included and p.cloth_guides for p in state.parts)
             or authoring.replacement_comparison == "original"):
         return session.original_data, None
-    key = (session.revision, session.material_generation, id(session.original_data), state)
+    key = _guide_output_key(session)
     cached = authoring.cloth_guide_output_cache
     if cached is None or cached[0] != key:
         from cdmw.services.mesh_replacement_output import prepare_replacement_output
         snapshot = authoring.shadow_service.capture_export_snapshot(authoring.shadow_session_id)
         base = replace(state, parts=tuple(replace(p, cloth=None) for p in state.parts))
         try:
-            data = prepare_replacement_output(replace(snapshot, replacement_state=base)).data
-            authoring.cloth_guide_output_cache = (key, data, pac_cloth_lods(data)[0].submeshes)
+            output = prepare_replacement_output(replace(snapshot, replacement_state=base))
+            authoring.cloth_guide_output_cache = (key, output.data, pac_cloth_lods(output.data)[0].submeshes,
+                                                  output.guide_report)
         except ValueError as exc:
             # A refused build stays refused until the mesh or the rules change; every
             # state refresh asks again, so keep the answer instead of rebuilding.
-            authoring.cloth_guide_output_cache = (key, None, str(exc))
+            authoring.cloth_guide_output_cache = (key, None, str(exc), None)
     cached = authoring.cloth_guide_output_cache
     if cached[1] is None:
         raise ValueError(cached[2])
-    return cached[1:]
+    return cached[1:3]
+
+
+def _guide_output_key(session):
+    return (session.revision, session.material_generation, id(session.original_data), session.replacement_state)
+
+
+def _skipped_triangles(authoring, session):
+    """What the last guide build of this exact state left out, per part (from the cache)."""
+    cached = authoring.cloth_guide_output_cache
+    report = cached[3] if cached and len(cached) > 3 and cached[0] == _guide_output_key(session) else None
+    return [{"part": row.part, "lod": row.lod, "collapsed": row.collapsed, "flat": row.flat}
+            for row in getattr(report, "skipped", ())]
 
 
 def guide_authoring_ui_state(authoring, replacement):
@@ -88,7 +101,8 @@ def guide_authoring_ui_state(authoring, replacement):
                              "reduce_skinning": rule.reduce_skinning, "pins": bool(saved_pins)} if rule else None})
     return {"available": not reason, "reason": reason, "parts": rows,
             "lod_count": len(levels), "guide_limit": 1024,
-            "active": any(p.cloth_guides is not None for p in saved.values())}
+            "active": any(p.cloth_guides is not None for p in saved.values()),
+            "skipped_triangles": _skipped_triangles(authoring, session) if not reason else []}
 
 
 def set_guide_rule(authoring, snapshot, args, *, entry, dependencies, stop_event):

@@ -32,7 +32,7 @@ from cdmw.services.preview_rendering_service import (
 )
 from cdmw.services.mesh_rust_preview_cache import (
     rust_preview_package_cache_root,
-    validate_rust_preview_cache_package as validate_dotnet_preview_package,
+    validate_resident_rust_preview_package as validate_dotnet_preview_package,
 )
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 from cdmw.ui.archive_browser.preview_package_retirement import track_archive_preview_package
@@ -199,7 +199,7 @@ class ArchivePreviewCacheMixin:
                 str(entry.flags),
                 str(entry.paz_index),
                 f"renderer:{renderer_backend_key}",
-                "texture:native-v2",
+                "texture:native-v2:dds-view-gpu-v1" if entry.extension.lower() == ".dds" else "texture:native-v2",
                 f"sidecars:{self.archive_sidecar_generation if sidecar_generation is None else int(sidecar_generation)}",
                 str(preview_settings.visible_texture_mode),
                 f"texdim:{int(preview_settings.preview_texture_max_dimension)}",

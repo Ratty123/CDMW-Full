@@ -43,7 +43,7 @@ the shared multi-role DDS upload plus renderer draw path has an opt-in offscreen
 validation/readback gate.
 
 It is not LAB READY because private real-game and PAB corpus parity, complete
-layered/dye and blended-alpha material composition, non-global and true vertex
+material-family and blended-alpha coverage, non-global and true vertex
 displacement, Partial PAR and unsupported DDS subresources/transcoding, PAC
 palette/weight skinning and PABC/morph appearance, representative stress/performance
 evidence, cache, versioned lab projects, fuzzing, and source fingerprint sessions remain
@@ -77,9 +77,12 @@ protected extra-influence lanes are disabled rather than silently flattened. The
 integrated capabilities do not change the standalone readiness claims below.
 
 Bevel/chamfer, UV1 and a 2D UV workspace, a true weight-paint heatmap/brush,
-normal-direction extrusion, and full integrated layered/dye material composition remain
-open; already-resolved DDS inputs now travel through the isolated CDMW package and
-remain bound across shadow revisions.
+normal-direction extrusion remain open. Managed preview and authoring packages
+now render supported layered fabric/dye/metal directly from owned DDS mips. Only
+verified, unchanged source materials use this authoring route; imported/edited
+materials and view-only references retain bounded composition. GPU and owned-asset
+captures establish this subset, not every shader family or game appearance.
+Already-resolved inputs remain bound across shadow revisions.
 
 ## Implemented and locally proven
 
@@ -150,16 +153,16 @@ remain bound across shadow revisions.
   bands; a non-hair owner remains byte-identical. Exact `_colorBlendingMaskTexture` and
   `_detailMaskTexture` parameters bind a separate linear Layer Mask role with the
   production R and B selectors. The Layer Mask view renders only that component in
-  grayscale and leaves Textured output unchanged because actual dye/detail sources are
-  not yet composed.
+  grayscale and does not change Textured output. Managed packages bind supported
+  dye/detail graphs separately through the shared layered-material shader.
 
   The approximation also samples unique explicit roughness, metallic/metalness, and
   specular Float or Byte4 factors clamped to 0–1, preserves authored zero independently
   from absence, applies a unique hex emissive color plus finite float intensity clamped
   to 0–32 only with a bound emissive texture, and follows production
   true/false/string/numeric alpha-enable semantics. Conflicting or invalid values leave
-  only that field unbound. Channel-authoritative opacity, blend transparency, actual
-  layered/dye composition, non-global displacement, and remaining scalar/vector
+  only that field unbound. Complete channel-authoritative opacity, blend policy,
+  material-family coverage, non-global displacement and remaining scalar/vector
   parameters remain incomplete.
 - Immutable decoded source document and separate editable working document.
 - Generational vertex/edge/face handles and topology generation.
@@ -302,7 +305,7 @@ remain bound across shadow revisions.
 | Private archive corpus | Not run | Archive READY cannot be claimed |
 | Real PAC/PAM/PAMLOD parity | All four LODs of one supplied PAC exercised; corpus parity not run | Geometry support remains partial |
 | Partial/Sparse DDS reconstruction | Synthetic pass; private corpus not run | Supported 2D Partial DDS uses exact PATHC identity and bounded LZ4 reconstruction; supported Sparse DDS validates and zero-pads to the declared size. Real archive breadth, Partial PAR, arrays/cubes, and fallback transcode remain unproven |
-| Native texture/material binding | Partial | Multiple sidecar DDS files can render with role-correct color space on distinct owning submesh ranges, including reordered LOD ownership; the approximation samples base color, tangent-space normal, `_materialTexture` G roughness/B metalness, separate roughness/metalness overrides, occlusion, emissive, RGB Specular plus independent red-channel Glossiness/Smoothness inverted to roughness when no authoritative roughness exists, explicit-cutout Opacity, exact global `_heightTexture` fragment relief, qualified two-channel hair Flow, diagnostic `_colorBlendingMaskTexture` R / `_detailMaskTexture` B, and unique explicit roughness/metalness/specular/height-scale plus emissive color/intensity and alpha-enable factors. Flow activates only for proven hair/fur shader families and remains inert elsewhere. Layer Mask is inspection-only and does not alter the lit material. Typed and unknown parameters are preserved with provenance. Remaining scalar/vector, actual layered/dye, non-global/true displacement, channel-authoritative opacity, and blend transparency plus arrays/cubes and fallback transcode remain incomplete |
+| Native texture/material binding | Partial | Multiple sidecar DDS files can render with role-correct color space on distinct owning submesh ranges, including reordered LOD ownership; the approximation samples base color, tangent-space normal, `_materialTexture` G roughness/B metalness, separate roughness/metalness overrides, occlusion, emissive, RGB Specular plus independent red-channel Glossiness/Smoothness inverted to roughness when no authoritative roughness exists, explicit-cutout Opacity, exact global `_heightTexture` fragment relief, qualified two-channel hair Flow, diagnostic `_colorBlendingMaskTexture` R / `_detailMaskTexture` B, and unique explicit roughness/metalness/specular/height-scale plus emissive color/intensity and alpha-enable factors. Flow activates only for proven hair/fur shader families and remains inert elsewhere. Layer Mask is inspection-only; managed graph-v5 packages separately compose supported dye/detail layers on the GPU with bounded CPU fallback. Eligible unchanged authoring materials share this path. Typed and unknown parameters are preserved with provenance. Remaining scalar/vector and material-family coverage, non-global/true displacement, complete channel-authoritative opacity and blend policy, arrays/cubes and fallback transcode remain incomplete |
 | PAB hierarchy / PAC skin palette / PABC / morph | PAB fixed-layout hierarchy is synthetic-proven; binding/variation/morph incomplete | Real PAB corpus breadth, PAC palette/weight/rigid binding, PABC, morph, pose, and character appearance parity are not proven |
 | Lab project | Incomplete | Camera/tool/history persistence is not published yet |
 | Neutral export | OBJ/MTL implemented | GLB, skinning/material preservation, and private corpus re-import parity remain incomplete |
@@ -326,8 +329,8 @@ relationship, validate supported Partial/Sparse DDS reconstruction across a priv
 archive corpus, decode Partial PAR and unsupported array/cube or fallback-transcode
 cases, sample every supported texture role and subresource, apply non-global
 displacement and the remaining preserved scalar/vector factors, channel-authoritative
-opacity and blend policy, and compose actual layered materials rather than only
-inspecting their masks on their owning submeshes.
+opacity and blend policy, and extend layered-material coverage beyond the supported
+managed graph-v5 subset. Current captures do not establish all-family parity.
 
 The rainbow surface remains the normal-based placeholder wherever no authoritative
 material role can bind; the plain shader is an approximation, not proof of the

@@ -56,6 +56,45 @@ ConvertTo-Json -InputObject @($script:stopped.ToArray()) -Compress
 
 
 @pytest.mark.skipif(POWERSHELL is None, reason="PowerShell is required")
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_pyinstaller_dependency_search_excludes_ambient_tools_and_restores_path(tmp_path, exit_code):
+    foreign = tmp_path / "unrelated-tools"
+    foreign.mkdir()
+    (foreign / "icuuc.dll").write_bytes(b"unrelated ICU runtime")
+    observed = tmp_path / "packaging-environment.json"
+    probe = tmp_path / "observe-packaging.py"
+    probe.write_text(
+        "import json, os, pathlib, sys\n"
+        "pathlib.Path(sys.argv[1]).write_text(json.dumps({'path': os.environ['PATH'], "
+        "'base': sys.base_prefix, 'system': os.environ['SystemRoot']}))\n"
+        "sys.exit(int(sys.argv[2]))\n",
+        encoding="utf-8",
+    )
+    quote = lambda value: "'" + str(value).replace("'", "''") + "'"
+    script = f"""
+. {quote(BUILDER)} -DescribeOnly | Out-Null
+$env:PATH = {quote(foreign)} + ';' + $env:PATH
+$expectedPath = $env:PATH
+$failed = $false
+try {{
+    Invoke-PyInstallerBuild -PythonExe {quote(sys.executable)} -Arguments @({quote(probe)}, {quote(observed)}, '{exit_code}') -BuildMode onefile -Profile release
+}} catch {{ $failed = $true }}
+if ($env:PATH -cne $expectedPath) {{ throw 'Caller PATH was not restored' }}
+ConvertTo-Json -Compress @{{ failed = $failed }}
+"""
+    run = subprocess.run([POWERSHELL, "-NoProfile", "-Command", script], cwd=ROOT, capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert json.loads(run.stdout.strip().splitlines()[-1])["failed"] == bool(exit_code)
+    result = json.loads(observed.read_text(encoding="utf-8"))
+    paths = {Path(path) for path in result["path"].split(";")}
+    assert foreign not in paths
+    assert paths == {
+        Path(result["system"]) / "System32", Path(result["system"]),
+        Path(sys.executable).parent, Path(result["base"]), Path(result["base"]) / "DLLs",
+    }
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="PowerShell is required")
 @pytest.mark.parametrize("mode", ["onefile", "onedir"])
 @pytest.mark.parametrize("profile", ["release", "fast", "debug"])
 def test_builder_and_gui_agree_on_output_name(mode, profile):
@@ -77,47 +116,35 @@ def test_release_constraints_are_exact_complete_and_installed() -> None:
 
     assert SUPPORTED_PYTHON_RELEASES == ((3, 11), (3, 14))
     assert {
-        "brotli",
-        "cryptography",
-        "inflate64",
         "lz4",
-        "multivolumefile",
         "numpy",
-        "opencv-python-headless",
         "pillow",
-        "psutil",
-        "py7zr",
-        "pybcj",
-        "pycryptodomex",
         "pyinstaller",
-        "pyppmd",
         "pyside6",
         "pyside6-addons",
         "pyside6-essentials",
         "shiboken6",
-        "texttable",
     }.issubset(pins)
     assert {key: version for key, (_display_name, version) in pins.items()} == locked_versions
     lock_source = RELEASE_LOCK.read_text(encoding="utf-8")
     assert "--require-hashes" in lock_source
     assert "--only-binary :all:" in lock_source
-    assert 'backports.zstd==1.7.0 ; python_version < "3.14"' in lock_source
     assert verify_release_environment(CONSTRAINTS) == ()
 
 
 def test_release_verifier_rejects_an_unhashed_or_incomplete_lock(tmp_path: Path) -> None:
     source = RELEASE_LOCK.read_text(encoding="utf-8")
-    texttable_line = next(line for line in source.splitlines() if line.startswith("texttable=="))
+    altgraph_line = next(line for line in source.splitlines() if line.startswith("altgraph=="))
     hashless = tmp_path / "hashless-lock.txt"
-    hashless.write_text(source.replace(texttable_line, "texttable==1.7.0"), encoding="utf-8")
+    hashless.write_text(source.replace(altgraph_line, "altgraph==0.17.5"), encoding="utf-8")
     with pytest.raises(ValueError, match="has no SHA-256 hash"):
         read_hashed_release_lock(hashless)
 
     incomplete = tmp_path / "incomplete-lock.txt"
-    incomplete.write_text(source.replace(texttable_line + "\n", ""), encoding="utf-8")
+    incomplete.write_text(source.replace(altgraph_line + "\n", ""), encoding="utf-8")
     errors = verify_release_environment(CONSTRAINTS, incomplete)
-    assert "texttable: release constraint has no hashed lock entry" in errors
-    assert "py7zr: active dependency texttable is not pinned in the release lock" in errors
+    assert "altgraph: release constraint has no hashed lock entry" in errors
+    assert "pyinstaller: active dependency altgraph is not pinned in the release lock" in errors
 
 
 @pytest.mark.parametrize(
@@ -792,3 +819,16 @@ exit 0
     )
 
     assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+
+
+def test_the_package_holds_the_mesh_editor_commands_settings_reads() -> None:
+    """Settings > Shortcuts lists the Mesh Editor's rows from this file while no editor
+    runs; without it in the package those rows are missing (packaging review, 2026-11-13)."""
+
+    from cdmw.ui.commands import keymap
+
+    relative = keymap.RESOURCE.relative_to(ROOT).as_posix()
+    destination = Path(relative).parent.as_posix()
+    assert keymap.RESOURCE.is_file()
+    assert (f'_add_data_if_exists(datas, "{relative}", "{destination}", required_release=True)'
+            in SPEC.read_text(encoding="utf-8"))

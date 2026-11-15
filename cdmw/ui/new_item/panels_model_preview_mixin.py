@@ -5,9 +5,10 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog
 
+from cdmw.services.settings_service import app_settings
 from cdmw.domain.new_item.spec import IconSource, ModelSource
 from cdmw.ui.new_item.model_import import ModelPlacement
 from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN
@@ -148,7 +149,7 @@ class ModelPanelPreviewMixin:
         self.preview.show(build, token=token, framing_key=self._controller.draft.template_key)
 
     def _pick_model_file(self) -> None:
-        settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        settings = app_settings()
         start_dir = str(settings.value(IMPORT_DIR_SETTING, "") or "")
         if not start_dir or not Path(start_dir).is_dir():
             start_dir = str(Path.home())

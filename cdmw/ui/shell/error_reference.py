@@ -82,6 +82,7 @@ CODE_GUIDANCE = {
     "invalid_archive": "The native reader rejected the archive format. Check that index and data files belong together; this code alone does not prove corruption.",
     "unsupported_operation": "The backend does not support the requested operation or input. Use a supported route.",
     "invalid_data": "The worker encountered data that violates the expected structure. Keep the input and include the detail in a report.",
+    "export_destination_protected": "CDMW does not write into the game folder or the archive cache. The export destination is inside, contains or leads through a link into one of them; choose a folder outside both, with no junction or symbolic link on its path, and export again.",
     "worker_failure": "An unclassified worker exception occurred. The full exception detail is needed to diagnose it.",
     "protocol_failure": "Communication with the archive worker was invalid or incomplete. Restart with matching components and report repeated failures.",
     "startup_timeout": "The archive helper did not become ready within the startup limit. Check missing files, security blocking and the diagnostic tail.",

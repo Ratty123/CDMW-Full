@@ -119,7 +119,8 @@ public static class ExportPathPolicy
 
     private static void RejectReparsePoint(string path)
     {
-        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        // Links only (GameFolderPolicy.IsLinkTag): a OneDrive placeholder folder is not one.
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0 && GameFolderPolicy.IsLink(path))
         {
             throw new InvalidDataException($"Output path crosses a reparse point: {path}");
         }

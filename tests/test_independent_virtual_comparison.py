@@ -7,12 +7,12 @@ import pytest
 
 from cdmw.domain.archives.overlay_merge import OverlayConflict
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.domain.virtual_loader import VirtualProfile
+from tests.support.virtual_domain import VirtualProfile
 from cdmw.services import independent_item_compatibility as comparison
-from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_remove
+from tests.support.item_install import load_registry, prepare_install, prepare_remove
 from cdmw.services.independent_item_package import from_plan, package_bytes
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import PROFILE_PATH, generation_path, load_profile, publish_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import PROFILE_PATH, generation_path, load_profile, publish_profile
 from tests.test_archive_overlay_manager import Backups, shop_spec
 from tests.test_independent_item_compatibility import table_change
 from tests.test_independent_item_regressions import files_in
@@ -47,10 +47,10 @@ def test_two_virtual_items_are_compared_from_applied_versions_without_writes(tmp
     assert report.compatible and report.virtual_profile
     assert {'VirtualOne', 'VirtualTwo'} <= {name for row in report.findings for name in row.mods}
     assert 'Install an independent item' not in report.text()
-    assert 'Use Apply changes in Mods' in report.text()
+    assert 'Remove What an Older CDMW Installed...' in report.text()
     assert not (root / '.cdmw/overlays.json').exists()
     assert files_in(root) == before
-    with pytest.raises(OverlayConflict, match='Archive export cannot include'):
+    with pytest.raises(OverlayConflict, match='archive export cannot include'):
         comparison.prepare_independent_mod_merge(root)
     assert files_in(root) == before
 
@@ -198,7 +198,7 @@ def test_virtual_scan_preserves_cancellation(tmp_path, monkeypatch):
     with pytest.raises(RunCancelled):
         comparison.scan_independent_conflicts(root, stop_event=stop)
     stop.clear()
-    from cdmw.services import independent_item_install
+    import tests.support.item_install as independent_item_install
     resolve = independent_item_install.resolve_items
     def cancelled(*args, **kwargs):
         stop.set()

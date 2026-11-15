@@ -29,28 +29,58 @@ fn every_theme_distinguishes_controls_states_and_status_text() {
         let enabled = cdmw_contrast(text, button);
         let disabled = cdmw_contrast(cdmw_mix(text, faded, alpha), faded);
         assert!(disabled >= 4.4, "{key}: disabled text {disabled:.2}:1");
-        assert!(disabled <= enabled * 0.75, "{key}: disabled {disabled:.2} vs enabled {enabled:.2}");
+        assert!(
+            disabled <= enabled * 0.75,
+            "{key}: disabled {disabled:.2} vs enabled {enabled:.2}"
+        );
 
         // Primary, destructive and selected controls keep readable labels.
         let accent = visuals.hyperlink_color;
         let accent_text = context
             .data(|data| data.get_temp::<Color32>(egui::Id::new(CDMW_ACCENT_TEXT)))
             .expect("theme accent text");
-        assert!(cdmw_contrast(accent_text, accent) >= 4.5, "{key}: primary label");
-        assert!(cdmw_contrast(cdmw_danger_colour(&visuals), button) >= 4.5, "{key}: destructive label");
-        assert_ne!(cdmw_danger_colour(&visuals), text, "{key}: destructive label is not tinted");
-        assert!(cdmw_contrast(visuals.selection.stroke.color, visuals.selection.bg_fill) >= 4.5, "{key}: selected label");
+        assert!(
+            cdmw_contrast(accent_text, accent) >= 4.5,
+            "{key}: primary label"
+        );
+        assert!(
+            cdmw_contrast(cdmw_danger_colour(&visuals), button) >= 4.5,
+            "{key}: destructive label"
+        );
+        assert_ne!(
+            cdmw_danger_colour(&visuals),
+            text,
+            "{key}: destructive label is not tinted"
+        );
+        assert!(
+            cdmw_contrast(visuals.selection.stroke.color, visuals.selection.bg_fill) >= 4.5,
+            "{key}: selected label"
+        );
 
         // Values read as fields, and slider rails and fills stand out from the panel.
-        assert!(cdmw_contrast(text, visuals.text_edit_bg_color()) >= 4.5, "{key}: value text");
-        assert!(cdmw_contrast(cdmw_slider_rail(&visuals), panel) >= 3.0, "{key}: slider rail");
+        assert!(
+            cdmw_contrast(text, visuals.text_edit_bg_color()) >= 4.5,
+            "{key}: value text"
+        );
+        assert!(
+            cdmw_contrast(cdmw_slider_rail(&visuals), panel) >= 3.0,
+            "{key}: slider rail"
+        );
         assert!(cdmw_contrast(accent, panel) >= 3.0, "{key}: slider fill");
 
         // Status colours chosen for dark themes read on light themes too.
-        for status in [REFIT_BODY_COLOUR, REFIT_ARMOR_COLOUR, REFIT_READY_COLOUR, Color32::from_rgb(245, 105, 105)] {
+        for status in [
+            REFIT_BODY_COLOUR,
+            REFIT_ARMOR_COLOUR,
+            REFIT_READY_COLOUR,
+            Color32::from_rgb(245, 105, 105),
+        ] {
             let readable = cdmw_readable_in(&visuals, status);
             for background in [panel, visuals.window_fill] {
-                assert!(cdmw_contrast(readable, background) >= 4.5, "{key}: status {status:?} on {background:?}");
+                assert!(
+                    cdmw_contrast(readable, background) >= 4.5,
+                    "{key}: status {status:?} on {background:?}"
+                );
             }
         }
     }

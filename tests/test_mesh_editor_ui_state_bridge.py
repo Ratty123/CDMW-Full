@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from unittest.mock import patch
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -20,7 +21,7 @@ from tools.mesh_harness.fixtures import build_synthetic_mesh
 
 def _tab(name: str) -> tuple[QApplication, MeshEditorTab]:
     app = QApplication.instance() or QApplication([])
-    settings = QSettings("CDMWTests", name)
+    settings = owned_settings(name)
     settings.clear()
     return app, MeshEditorTab(settings=settings)
 

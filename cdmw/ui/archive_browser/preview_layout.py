@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.archive_browser.actions import archive_context_menu_icons
+from cdmw.ui.archive_browser.item_set_components import ItemSetComponentsWidget
 from cdmw.ui.archive_browser.preview_state import archive_model_preview_refresh_tooltip
 from cdmw.ui.preview import DotNetPreviewProfile, RustPreviewHostFrame
 from cdmw.ui.widgets import (
@@ -39,6 +40,12 @@ from cdmw.ui.widgets import (
 
 class ArchivePreviewLayoutMixin:
     """Build the Archive Preview panel."""
+
+    def _build_archive_gpu_texture_preview(self) -> None:
+        from cdmw.ui.preview.texture_view import GpuTexturePreview
+        self.archive_texture_preview = GpuTexturePreview(self.archive_preview_stack, zoom_controls=False)
+        self.archive_texture_preview.view_state_changed.connect(self._handle_archive_texture_view_state_changed)
+        self.archive_preview_stack.addWidget(self.archive_texture_preview)
 
     def _build_archive_model_toolbar_toggles(self) -> None:
         """Create the model toolbar checkboxes, hidden until a model loads."""
@@ -60,6 +67,7 @@ class ArchivePreviewLayoutMixin:
         archive_preview_main_widget.setMinimumWidth(0)
         archive_preview_main_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         archive_preview_main_layout = QVBoxLayout(archive_preview_main_widget)
+        self.archive_preview_main_layout = archive_preview_main_layout  # P4 V3 editing banner
         archive_preview_main_layout.setContentsMargins(0, 0, 0, 0)
         archive_preview_main_layout.setSpacing(4)
         self.character_context_service = None
@@ -297,8 +305,10 @@ class ArchivePreviewLayoutMixin:
         )
         self.archive_restore_patch_backup_button = QPushButton("Restore Backup...")
         self.archive_restore_patch_backup_button.setToolTip(
-            "Restore a previously created archive patch backup."
+            "Put back the archive files an older CDMW version changed in the game, from the backup it made at the time."
         )
+        # Decision 42: the action wires its click, tooltip and enabled state.
+        self.archive_remove_old_install_button = QPushButton("Remove What an Older CDMW Installed...")
         self.archive_import_loose_mod_button = QPushButton("Import Loose Mod Folder...")
         self.archive_import_loose_mod_button.setToolTip(
             "Load a whole loose mod folder, match files by virtual path, review asset families, and write selected replacements as one loose package."
@@ -450,6 +460,7 @@ class ArchivePreviewLayoutMixin:
                     "Maintenance",
                     (
                         ("Restore Backup", self.archive_restore_patch_backup_button),
+                        ("Remove What an Older CDMW Installed", self.archive_remove_old_install_button),
                     ),
                 ),
             ),
@@ -468,6 +479,7 @@ class ArchivePreviewLayoutMixin:
         archive_preview_toolbar_layout.setContentsMargins(0, 0, 0, 0)
         archive_preview_toolbar_layout.setSpacing(4)
         archive_view_controls_layout = QHBoxLayout()
+        self.archive_view_controls_layout = archive_view_controls_layout  # hidden while editing (P4 V3)
         archive_view_controls_layout.setContentsMargins(0, 0, 0, 0)
         archive_view_controls_layout.setSpacing(6)
         for button, width in (
@@ -553,6 +565,7 @@ class ArchivePreviewLayoutMixin:
             self.archive_sidecar_inspect_button,
             self.archive_sidecar_corpus_button,
             self.archive_restore_patch_backup_button,
+            self.archive_remove_old_install_button,
             self.archive_import_loose_mod_button,
         ):
             button.setMinimumWidth(0)
@@ -593,6 +606,7 @@ class ArchivePreviewLayoutMixin:
         self._build_archive_texture_references_panel()
 
         self.archive_preview_stack = QStackedWidget()
+        self._build_archive_gpu_texture_preview()
         self.archive_preview_label = PreviewLabel("Select an archive file to preview it here.")
         self.archive_preview_scroll = PreviewScrollArea()
         self.archive_preview_scroll.setWidgetResizable(False)
@@ -610,6 +624,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_d3d11_preview_host = RustPreviewHostFrame(
             profile=DotNetPreviewProfile.PREVIEW,
             terminate_on_close=False,
+            resident_engine=True,
         )
         self.archive_d3d11_preview_host.setObjectName("DotNetVorticePreviewHost")
         self.archive_d3d11_preview_host.setAttribute(Qt.WA_NativeWindow, True)
@@ -655,7 +670,22 @@ class ArchivePreviewLayoutMixin:
         archive_preview_tab_layout = QVBoxLayout(archive_preview_tab)
         archive_preview_tab_layout.setContentsMargins(0, 0, 0, 0)
         archive_preview_tab_layout.setSpacing(6)
-        archive_preview_tab_layout.addWidget(self.archive_preview_stack)
+        preview_with_components = QSplitter(Qt.Horizontal)
+        self.archive_item_set_components = ItemSetComponentsWidget()
+        self.archive_item_set_components.visibilityChanged.connect(self._archive_item_set_visibility_changed)
+        from cdmw.ui.mesh_editor.item_set_preparation import open_ticked_parts
+        self.archive_item_set_components.editSetRequested.connect(lambda: open_ticked_parts(self.shell))
+        self.archive_item_set_components.highlightRequested.connect(
+            self.archive_d3d11_preview_host.set_highlighted_source_submeshes
+        )
+        self.archive_item_set_components.prefabComponentToggled.connect(self._archive_scene_prefab_toggled)
+        self.archive_item_set_components.openFileRequested.connect(self._archive_scene_open_file)
+        preview_with_components.addWidget(self.archive_preview_stack)
+        preview_with_components.addWidget(self.archive_item_set_components)
+        preview_with_components.setStretchFactor(0, 1)
+        preview_with_components.setStretchFactor(1, 0)
+        preview_with_components.setSizes([600, 220])
+        archive_preview_tab_layout.addWidget(preview_with_components)
         archive_preview_tab_layout.addWidget(self.archive_preview_text_tools)
         archive_preview_tab_layout.addWidget(self.archive_preview_info_tools)
         archive_details_tab = QWidget()

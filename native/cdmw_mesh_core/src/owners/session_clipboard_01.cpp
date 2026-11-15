@@ -119,6 +119,21 @@ MeshSessionSubmesh mesh_editor_clipboard_fragment(
     copied.bone_weights = mesh_editor_clipboard_copy_vertex_channel(source.bone_weights, source_vertex_indices, source_vertex_count);
     copied.source_vertex_map = mesh_editor_clipboard_copy_vertex_channel(source.source_vertex_map, source_vertex_indices, source_vertex_count);
     copied.source_vertex_offsets = mesh_editor_clipboard_copy_vertex_channel(source.source_vertex_offsets, source_vertex_indices, source_vertex_count);
+    if (source.extra_attrs.get("_cdmw_mesh_asset_id") != nullptr && source.topology_rebuild_valid) {
+        copied.topology_original_vertex_count = source.topology_original_vertex_count;
+        copied.topology_original_face_count = source.topology_original_face_count;
+        copied.vertex_origin_offsets.push_back(0);
+        for (const int index : source_vertex_indices) {
+            const int first = source.vertex_origin_offsets[index];
+            const int last = source.vertex_origin_offsets[index + 1];
+            copied.vertex_origin_parents.insert(copied.vertex_origin_parents.end(),
+                source.vertex_origin_parents.begin() + first, source.vertex_origin_parents.begin() + last);
+            copied.vertex_origin_weights.insert(copied.vertex_origin_weights.end(),
+                source.vertex_origin_weights.begin() + first, source.vertex_origin_weights.begin() + last);
+            copied.vertex_origin_offsets.push_back(static_cast<int>(copied.vertex_origin_parents.size()));
+        }
+        copied.topology_rebuild_valid = true;
+    }
     return copied;
 }
 
@@ -207,6 +222,15 @@ std::vector<SubmeshMeshEditResult> mesh_editor_paste_results(
         result.added_vertices = static_cast<int>(pasted.vertices.size());
         result.added_faces = static_cast<int>(pasted.faces.size());
         result.topology_changed = true;
+        if (pasted.extra_attrs.get("_cdmw_mesh_asset_id") != nullptr && pasted.topology_rebuild_valid) {
+            result.topology_original_vertex_count = pasted.topology_original_vertex_count;
+            result.topology_original_face_count = pasted.topology_original_face_count;
+            result.topology_vertex_origin_offsets = pasted.vertex_origin_offsets;
+            result.topology_vertex_origin_parents = pasted.vertex_origin_parents;
+            result.topology_vertex_origin_weights = pasted.vertex_origin_weights;
+            result.topology_rebuild_valid = true;
+            result.topology_provenance_prepared = true;
+        }
         result.suppress_vertex_remap_report = true;
         mesh_editor_set_result_output_paths(result, delta_output_dir, session_id);
         results.push_back(std::move(result));

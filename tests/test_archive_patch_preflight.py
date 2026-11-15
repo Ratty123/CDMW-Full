@@ -4,12 +4,8 @@ import unittest
 from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
-from cdmw.core.archive_modding import (
-    ArchivePatchRequest,
-    _calculate_pa_checksum,
-    _verify_crc_chain,
-    patch_archive_entries,
-)
+from cdmw.core.archive_modding import ArchivePatchRequest, _calculate_pa_checksum
+from tests.support.archive_patch_writer import _verify_crc_chain, patch_archive_entries
 from cdmw.models import ArchiveEntry
 
 
@@ -121,7 +117,7 @@ class ArchivePatchPreflightTests(unittest.TestCase):
         manages about 6 MiB/s; whichever answers, the number has to be the same one, tails
         and empty files included, or the PAMT it goes into stops matching the PAZ."""
 
-        from cdmw.core.archive_patching import paz_checksums
+        from tests.support.archive_patch_writer import paz_checksums
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -137,7 +133,7 @@ class ArchivePatchPreflightTests(unittest.TestCase):
                 self.assertEqual(measured[path], (_calculate_pa_checksum(data), len(data)), f"{path.name} disagrees")
 
     def test_the_checksum_helper_falls_back_when_the_accelerator_is_gone(self) -> None:
-        from cdmw.core import archive_patching
+        from tests.support import archive_patch_writer as archive_patching
 
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "sample.paz"
@@ -225,7 +221,7 @@ class ArchivePatchPreflightTests(unittest.TestCase):
             entry = _write_test_archive(root)
             original_paz = entry.paz_file.read_bytes()
 
-            with patch("cdmw.core.archive_patching._write_bytes_preserve_timestamps", side_effect=RuntimeError("boom")):
+            with patch("tests.support.archive_patch_writer._write_bytes_preserve_timestamps", side_effect=RuntimeError("boom")):
                 with self.assertRaisesRegex(RuntimeError, "boom"):
                     patch_archive_entries((ArchivePatchRequest(entry, b"new-payload"),))
 

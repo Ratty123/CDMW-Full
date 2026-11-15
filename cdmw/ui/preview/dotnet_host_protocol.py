@@ -15,6 +15,39 @@ from cdmw.ui.preview.dotnet_host_values import _indices, _triple
 _HELD_OVER_STATES = frozenset({"empty", "prewarmed", "launching", "connecting", "resuming", "preparing", "ready"})
 #: States with work under way; the status panel shows its activity bar for these.
 _BUSY_STATES = frozenset({"preparing", "launching", "connecting", "resuming"})
+#: Why the helper's window could not be placed in its viewport (REPORT-crash, item 3).
+EMBEDDING_FAILED = "The preview window could not be placed in its viewport (Windows error {code})."
+_USER32 = None
+
+
+def _typed_user32():
+    """A private user32 loader with use_last_error and its own argument types.
+
+    The shared ``ctypes.windll`` does not record errors for ``get_last_error``, so a
+    failed SetParent read as success, and its types are shared by every module.
+    """
+
+    global _USER32
+    if _USER32 is None:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.IsWindow.argtypes = [wintypes.HWND]
+        user32.IsWindow.restype = wintypes.BOOL
+        user32.GetParent.argtypes = [wintypes.HWND]
+        user32.GetParent.restype = wintypes.HWND
+        user32.SetParent.argtypes = [wintypes.HWND, wintypes.HWND]
+        user32.SetParent.restype = wintypes.HWND
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+        user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user32.GetClientRect.restype = wintypes.BOOL
+        user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                                        ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        user32.SetWindowPos.restype = wintypes.BOOL
+        _USER32 = user32
+    return _USER32
 
 
 class DotNetPreviewHostProtocolMixin:
@@ -29,7 +62,7 @@ class DotNetPreviewHostProtocolMixin:
                 from ctypes import wintypes
 
                 owner_pid = wintypes.DWORD()
-                ctypes.windll.user32.GetWindowThreadProcessId(
+                _typed_user32().GetWindowThreadProcessId(
                     wintypes.HWND(hwnd), ctypes.byref(owner_pid)
                 )
                 if int(owner_pid.value) != int(self.controller.process_id or 0):
@@ -68,7 +101,7 @@ class DotNetPreviewHostProtocolMixin:
             import ctypes
             from ctypes import wintypes
 
-            user32 = ctypes.windll.user32
+            user32 = _typed_user32()
             if not user32.IsWindow(wintypes.HWND(hwnd)):
                 self._embedded_child_hwnd = 0
                 return
@@ -84,8 +117,16 @@ class DotNetPreviewHostProtocolMixin:
                 previous_parent = user32.SetParent(
                     wintypes.HWND(hwnd), wintypes.HWND(parent)
                 )
-                if not previous_parent and ctypes.get_last_error():
+                error = ctypes.get_last_error()
+                if not previous_parent and error:
+                    # Stop: sizing a window that is not the viewport's child leaves a
+                    # helper window floating on its own. Say so instead.
+                    self.embedding_error = EMBEDDING_FAILED.format(code=int(error))
+                    show = getattr(self, "show_preparation_status", None)
+                    if callable(show):
+                        show(self.embedding_error, busy=False)
                     return
+                self.embedding_error = ""
             rect = wintypes.RECT()
             if not user32.GetClientRect(wintypes.HWND(parent), ctypes.byref(rect)):
                 return

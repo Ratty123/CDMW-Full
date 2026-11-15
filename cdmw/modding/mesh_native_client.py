@@ -32,8 +32,28 @@ def _clear_native_mesh_core_session_cache() -> None:
     import_module("cdmw.modding.mesh_native_core")._clear_native_mesh_core_session_cache()
 
 
+def _forget_native_mesh_core_session(session_id: str) -> None:
+    import_module("cdmw.modding.mesh_native_core")._forget_native_mesh_core_session(session_id)
+
+
+def _native_backend_id() -> str:
+    return str(import_module("cdmw.modding.mesh_native_core").NATIVE_MESH_CORE_BACKEND_ID)
+
+
+#: Replies still owed by jobs that timed out or were cancelled. Past this many the
+#: service is taken to be stuck, not slow, and ended.
+_MAX_LATE_REPLIES = 3
+
+
 class NativeMeshCoreServiceClient:
-    """Persistent JSON-line client for cdmw-mesh-core.exe helper jobs."""
+    """Persistent JSON-line client for cdmw-mesh-core.exe helper jobs.
+
+    The service answers one line per request, in order. A job that times out or is
+    cancelled no longer ends the service and every session in it (section 8.9):
+    its reply is skipped when it comes, and the session it worked on is closed,
+    since its result may have landed after CDMW gave up on it. The next use of
+    that session opens it again from CDMW's own geometry.
+    """
 
     def __init__(self, binary: Path) -> None:
         self.binary = Path(binary)
@@ -47,6 +67,7 @@ class NativeMeshCoreServiceClient:
         self._stdout_buffer = bytearray()
         self._stderr_thread: threading.Thread | None = None
         self._stderr_tail = BoundedTextTail()
+        self._late_replies = 0
 
     @staticmethod
     def resolve_binary_signature(binary: Path) -> tuple[int, int]:
@@ -80,6 +101,7 @@ class NativeMeshCoreServiceClient:
         process = self._process
         self._process = None
         self._jobs_completed = 0
+        self._late_replies = 0
         if process is None:
             return
         # A cancelled/failed service job cannot be reused safely. Kill this
@@ -120,7 +142,8 @@ class NativeMeshCoreServiceClient:
     def stderr_tail(self) -> str:
         return self._stderr_tail.text()
 
-    def _read_stdout_line_locked(self, timeout_seconds: float, *, stop_event: threading.Event | None = None) -> str:
+    def _read_stdout_line_locked(self, timeout_seconds: float, *, stop_event: threading.Event | None = None,
+                                 keep_alive: bool = False) -> str:
         process = self._process
         if process is None:
             raise RuntimeError("native mesh-core service is not running")
@@ -130,17 +153,20 @@ class NativeMeshCoreServiceClient:
                 self._stdout_stream,
                 timeout_seconds,
                 stop_event=stop_event,
+                keep_alive=keep_alive,
             )
         deadline = time.monotonic() + max(0.1, float(timeout_seconds))
         while True:
             try:
                 raise_if_cancelled(stop_event, "Native mesh-core job cancelled.")
             except RunCancelled:
-                self._kill_locked()
+                if not keep_alive:
+                    self._kill_locked()
                 raise
             remaining = deadline - time.monotonic()
             if remaining <= 0.0:
-                self._kill_locked()
+                if not keep_alive:
+                    self._kill_locked()
                 raise ProcessTimeoutExpired([str(self.binary), "--service"], float(timeout_seconds))
             try:
                 item = self._stdout_lines.get(timeout=min(0.02, remaining))
@@ -163,6 +189,7 @@ class NativeMeshCoreServiceClient:
         timeout_seconds: float,
         *,
         stop_event: threading.Event | None = None,
+        keep_alive: bool = False,
     ) -> str:
         deadline = time.monotonic() + max(0.1, float(timeout_seconds))
         try:
@@ -192,11 +219,13 @@ class NativeMeshCoreServiceClient:
             try:
                 raise_if_cancelled(stop_event, "Native mesh-core job cancelled.")
             except RunCancelled:
-                self._kill_locked()
+                if not keep_alive:
+                    self._kill_locked()
                 raise
             remaining = deadline - time.monotonic()
             if remaining <= 0.0:
-                self._kill_locked()
+                if not keep_alive:
+                    self._kill_locked()
                 raise ProcessTimeoutExpired([str(self.binary), "--service"], float(timeout_seconds))
             available = ctypes.c_uint32(0)
             if not peek_named_pipe(
@@ -230,6 +259,46 @@ class NativeMeshCoreServiceClient:
             if time.monotonic() >= spin_deadline:
                 time.sleep(min(0.001, remaining))
 
+    def _read_reply_locked(self, timeout_seconds: float, *, stop_event: threading.Event | None,
+                           session_id: str = "") -> str:
+        deadline = time.monotonic() + max(0.1, float(timeout_seconds))
+        while True:
+            try:
+                line = self._read_stdout_line_locked(max(0.1, deadline - time.monotonic()),
+                                                     stop_event=stop_event, keep_alive=True)
+            except (ProcessTimeoutExpired, RunCancelled):
+                self._give_up_on_job_locked(session_id)
+                raise
+            if self._late_replies:
+                self._late_replies -= 1  # a job given up on, or its session's close
+                continue
+            return line
+
+    def _give_up_on_job_locked(self, session_id: str) -> None:
+        """The reply will come later; the job's session is closed after it.
+
+        Other sessions in the service keep their state. A job with no session
+        (a file conversion, say) leaves nothing behind to close.
+        """
+
+        self._late_replies += 1
+        process = self._process
+        if session_id:
+            _forget_native_mesh_core_session(session_id)
+        if session_id and process is not None and process.stdin is not None:
+            close = {"command": "mesh-editor-session-json", "payload": {
+                "version": 1, "backend": _native_backend_id(), "protocol": "mesh-editor-session-json",
+                "command": "close", "session_id": session_id}}
+            try:
+                process.stdin.write(json.dumps(close, separators=(",", ":")) + "\n")
+                process.stdin.flush()
+                self._late_replies += 1
+            except OSError:
+                self._kill_locked()
+                return
+        if self._late_replies > _MAX_LATE_REPLIES:
+            self._kill_locked()  # stuck, not slow
+
     def _start_stdout_reader_locked(self, stream: object) -> None:
         self._stdout_lines = queue.Queue(maxsize=8)
 
@@ -262,6 +331,7 @@ class NativeMeshCoreServiceClient:
             self._close_process_streams_locked(process)
         _clear_native_mesh_core_session_cache()
         self._jobs_completed = 0
+        self._late_replies = 0
         self._process = subprocess.Popen(
             [str(self.binary), "--service"],
             stdin=subprocess.PIPE,
@@ -270,7 +340,7 @@ class NativeMeshCoreServiceClient:
             text=True,
             encoding="utf-8",
             errors="replace",
-            **hidden_process_group_kwargs(),
+            **hidden_process_group_kwargs(detached=True),
         )
         stderr = self._process.stderr
         stdout = self._process.stdout
@@ -306,6 +376,7 @@ class NativeMeshCoreServiceClient:
         *,
         timeout_seconds: float,
         stop_event: threading.Event | None = None,
+        session_id: str = "",
     ) -> None:
         with self._lock:
             self._start_locked(stop_event=stop_event)
@@ -322,7 +393,7 @@ class NativeMeshCoreServiceClient:
             except OSError as exc:
                 self._kill_locked()
                 raise RuntimeError(f"native mesh-core service write failed: {exc}") from exc
-            response_line = self._read_stdout_line_locked(timeout_seconds, stop_event=stop_event)
+            response_line = self._read_reply_locked(timeout_seconds, stop_event=stop_event, session_id=session_id)
             try:
                 response = json.loads(response_line)
             except json.JSONDecodeError as exc:
@@ -357,7 +428,8 @@ class NativeMeshCoreServiceClient:
             except OSError as exc:
                 self._kill_locked()
                 raise RuntimeError(f"native mesh-core service write failed: {exc}") from exc
-            response_line = self._read_stdout_line_locked(timeout_seconds, stop_event=stop_event)
+            session_id = str(dict(payload).get("session_id") or "") if command == "mesh-editor-session-json" else ""
+            response_line = self._read_reply_locked(timeout_seconds, stop_event=stop_event, session_id=session_id)
             try:
                 response = json.loads(response_line)
             except json.JSONDecodeError as exc:

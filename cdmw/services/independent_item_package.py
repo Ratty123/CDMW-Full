@@ -886,6 +886,9 @@ def write_package(package, path, *, expected_digest=None, stop_event=None, valid
         del old  # Retain its exact artifact guard, not every decompressed resource.
     elif expected_digest is not None:
         raise IndependentItemError("The package selected for update is missing.")
+    from cdmw.core.protected_roots import check_writable
+
+    check_writable(path)  # never a package inside the game folder (decision 46)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".cditem-", suffix=".tmp", dir=path.parent)
     try:

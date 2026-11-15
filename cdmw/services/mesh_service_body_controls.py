@@ -63,6 +63,18 @@ def _source_groups(session, indices):
         return ((indices, source, tuple(indices), bytes(getattr(session, "original_data", b"") or b"")),)
     if not isinstance(context, ArchiveRefitContext):
         raise ValueError("The loaded outfit has no verified archive Part ownership.")
+    from cdmw.services.mesh_asset_context import is_item_set, item_set_bindings, ORIGIN_ATTRIBUTE
+    if is_item_set(context):
+        bindings = item_set_bindings(mesh, context)
+        groups = []
+        for asset in context.assets:
+            selected = tuple(index for index in bindings[asset.asset_id] if index in indices)
+            origins = {asset.source_part_id(i): i for i in range(len(asset.source.mesh.submeshes))}
+            if selected:
+                groups.append((selected, asset.source.mesh,
+                    tuple(origins[getattr(mesh.submeshes[index], ORIGIN_ATTRIBUTE)] for index in selected),
+                    bytes(asset.source.original_data)))
+        return tuple(groups)
     all_indices = [index for asset in context.assets for index in asset.part_indices]
     if sorted(all_indices) != list(range(len(mesh.submeshes))):
         raise ValueError("Archive body Part identities changed. Reopen the body and outfit.")

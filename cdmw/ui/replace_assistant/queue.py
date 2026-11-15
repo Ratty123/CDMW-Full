@@ -309,6 +309,8 @@ class ReplaceAssistantQueueMixin:
             self.queue_tree.setCurrentItem(current_row)
         elif self.queue_tree.topLevelItemCount() and self.queue_tree.currentItem() is None:
             self.queue_tree.setCurrentItem(self.queue_tree.topLevelItem(0))
+        elif not self.items and self.workspace is not None:
+            self.texture_preview.clear_preview()
         self._update_summary()
         self._update_controls()
 
@@ -380,6 +382,8 @@ class ReplaceAssistantQueueMixin:
         if self.preview_refresh_suspended:
             return
         if current is None:
+            if self.workspace is not None:
+                self.texture_preview.clear_preview()
             return
         raw = current.data(0, Qt.UserRole)
         if not isinstance(raw, int) or raw < 0 or raw >= len(self.items):

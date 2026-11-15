@@ -1,5 +1,52 @@
 # CDMW Rust Mesh Lab
 
+## Managed materials, lighting and item sets
+
+Managed Preview Core graph-v5 packages render supported fabric/dye/metal layers
+from compressed DDS mips, with wrapper-owned UV affines and channel/opacity
+controls. Unchanged source-backed Mesh Editor and Create New Item materials use
+the same path; imported/edited materials and unsupported graphs retain bounded
+composition. Grime is conserved but hidden. Export semantics are unchanged.
+
+Textured and Game Outdoor expose Shadows and Ambient occlusion, on by default.
+Studio (fixed lights) adds a fixed key/fill/rim environment without changing the
+default preset. Transparent icon captures keep self-shadowing.
+
+Item Finder opens worn sets without drop models. Browse keeps per-file component
+visibility and selection; Mesh Editor can open one editable file with references,
+or a whole set with per-file View/Include and separate changed PAC outputs.
+Ownership, rig palettes, topology/clipboard provenance and budgets remain
+validated. Oversized sets name the pieces retained as reduced-detail references.
+These are source, owned-fixture and offscreen rendering contracts, not game proof.
+
+## Read-only DDS viewer
+
+`--cdmw-texture-view --embedded-parent-hwnd <decimal>` opens the dedicated 2D
+viewer used by Browse Archives and Textures' replacement preview. It validates
+the bounded DDS and uploads its original compressed mip chain; it does not run
+the DDS-to-PNG helper. RGB and raw R/G/B/A isolation use a non-sRGB source view and
+target. Signed values map to 0–1; BC5/RG8 can reconstruct normal Z. The viewport
+supports mip selection, pan, Fit and 100%, including Qt's device pixel ratio.
+
+The line-delimited JSON protocol is `cdmw_texture_view_v1`. Commands are `load`
+(`generation`, absolute `path`), `view` (`generation`, `state`), `resize` (`width`,
+`height`) and `close`. State contains `channel` (0=RGB, 1–4=R/G/B/A), `mip`,
+`reconstruct_z`, `fit`, `zoom` (0.1–16), `pixel_ratio` and two physical-pixel `pan`
+coordinates. Load/view events carry their generation; stale requests are ignored.
+`ready` identifies the protocol/child HWND, `uploaded` confirms GPU upload,
+`loaded` confirms the first presented frame, and `view` acknowledges controls.
+An occluded window can upload but cannot promise a presented frame. Input lines
+are limited to 64 KiB and DDS data to 512 MiB; arrays, volumes and cubemaps are
+refused by the shared 2D upload contract. The Qt host retains its cancellable PNG
+fallback and stops the owned helper on hide, replacement, close or shutdown.
+
+`--capture-dds-texture <absolute DDS> <new PNG>` exercises the same shader offscreen
+without a native window. It emits `frame_ready` before PNG encoding and `captured`
+afterward. Existing outputs are refused. Capture dimensions are bounded to 4096 on each axis. This is synthetic
+GPU evidence, not visible UI or game proof. Run the ignored
+`texture_view_gpu_known_bc1_bc5_bc7_channels_mips_and_pan` test for known BC texels,
+signed channels, raw sRGB-tagged channels, reconstructed Z, mips, pan and DPI.
+
 [Shader experiments](../../cdmw/ui/mesh_editor/SHADER_CONTROLS.md) use the
 existing authoring commands and resident preview. `replacement_shader_controls`
 accepts selected part IDs and typed controls, or `reset: true`. Python owns source
@@ -87,7 +134,7 @@ as a validated neutral OBJ/MTL directory.
 Its app flow, archive reconstruction boundary, relationship failures, material-parameter
 Inspector, multi-role DDS upload, and offscreen D3D12 renderer can also be exercised
 without creating a window. Partial PAR, DDS arrays/cubes and fallback transcoding,
-actual layered/dye and blended-alpha material composition, non-global displacement/layer
+complete material-family and blended-alpha coverage, non-global displacement/layer
 semantics, remaining scalar/vector sampling, PAC skin/appearance parity, versioned lab
 projects, representative performance evidence, and private real-game parity remain
 incomplete. See [READINESS.md](READINESS.md).
@@ -419,7 +466,38 @@ window and CDMW then exchange bounded JSONL control messages under
 use stderr. Large geometry and state arrays stay in hash-checked files beneath
 the owned session directory rather than being embedded in JSONL.
 
-For a layered PAC material, CDMW uses the shared Archive Browser PAC/PAC_XML graph,
+Full preview packages bind eligible RGB detail layers from the shared PAC graph
+as source-resolution DDS in bind group 2. Group 0 and its 288-byte material uniform
+remain compatible. The renderer requests 32 sampled textures when available;
+other adapters and unsupported graphs use the CPU compositor. Each detail has
+an affine UV transform, linear dye, mean luminance and direct packed response.
+The layer sampler uses zero LOD bias. Technical masks use sequential overlays
+with separate authored colour, normal and packed-response flags and opacity.
+Missing channels use base maps; colour
+seeds affect channels without detail. Grime is hidden unless the internal
+`CDMW_PREVIEW_DRAW_GRIME=1` comparison switch is set. Both capture and window
+recorders use this route. Every graph DDS is still hash-validated, even when
+disabled grime does not require decoding or upload.
+
+The package reader carries verified DDS digests into inspection and the GPU
+cache. Unknown callers still hash their input. Resident Preview uploads at most
+8 MiB per frame, stopping between resources after 2 ms, and leaves 1x1 defaults
+bound until a texture is complete. Geometry is installed before those slices;
+captures wait for the final textures and fail if their scene is superseded.
+Old immutable textures remain alive during promotion so matching SHA-256 inputs
+reuse GPU allocations. `texture_upload_report` records actual uploads, bytes and
+slice timing for headless diagnostics. Synchronous capture and staged preview
+share the same mip upload cursor; the ignored pixel comparison checks all mips
+of RGBA8, BC1, BC5 and BC7, including a cancelled partial upload.
+
+When all layer DDS are already prepared, native package preparation publishes
+full quality directly. Promotion otherwise hard-links immutable verified direct
+resources when supported, with a checked copy fallback. Per-file fsync and
+atomic publication remain. A hidden dialog spare advertises
+`dialog_prewarm_hold_v1`; `prewarm_hold_request` retains its idle device until
+ordinary activation/deactivation or shutdown. It never shows its window.
+
+For an authoring PAC material, CDMW uses the shared Archive Browser PAC/PAC_XML graph,
 leased DDS cache, and material-combiner path to publish an sRGB base composite and
 linear packed-surface composite for each Part with a proven layer graph; direct-only
 Parts retain their authored DDS. Packed surface green is roughness and blue is
@@ -459,6 +537,27 @@ target; every disabled row must have a reason. Rust contract generation does
 not resolve, launch, hash, or read a Vortice executable or report.
 
 ## Materials in CDMW previews
+
+Textured and Game Outdoor rendering share a 2048-pixel key-light shadow map and a 12-tap
+scene-depth ambient-occlusion pass in window and headless recorders. Shadows affect only
+the key contribution, use base alpha for cutouts, and skip blended/glass casters. The
+light camera fits visible material bounds, including editable transforms and isolated
+captures. The current wgpu bias is constant 2 / slope 1.5, with a radius-scaled receiver
+offset and 5x5 comparison sampling. Devices limited to 16 sampled textures retain
+unshadowed rendering; 17 enables shadows and 32 supports shadows with GPU layers.
+Ambient occlusion reconstructs world position and normals from per-sample depth,
+supports orthographic projection, preserves destination alpha, and runs before soft
+particles. Both controls default on and leave diagnostic modes unchanged. Icon captures
+use transparent clear alpha, including the Dark preset. These are preview effects, not a
+game-lighting validation.
+
+The fourth preset, **Studio (fixed lights)**, keeps its key and two fill lights in
+world space. It uses GGX/height-correlated Smith visibility, a hemisphere and glossy
+environment lobe, normal-variance specular filtering, and a hue-preserving shoulder
+curve. Ambient occlusion multiplies linear radiance before that curve: a second
+layer of the shadow depth array stores camera depth, capped at 2048 pixels per side.
+The 16-texture compatibility path retains approximate post-curve AO. Other presets
+retain their existing rendering, and Neutral studio remains the default.
 
 The authoring Parts panel also exposes **Translucency (experimental)** for original
 PAC parts and imported replacements. Apply/Restore send selected stable part IDs
@@ -1099,7 +1198,7 @@ bounded pointer/latency queues, exact cancellation, and the configured total Und
 history budget.
 
 These gates prove CPU/offscreen execution and control routing, not visible usability, OS
-working-set stability, true displacement, full layer composition, PAC skinning, or
+working-set stability, true displacement, all material-family coverage, PAC skinning, or
 real-game appearance parity. `cargo deny`, `cargo audit`, and fuzzing are separate
 optional gates when installed.
 

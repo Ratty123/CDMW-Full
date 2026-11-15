@@ -28,7 +28,7 @@ def _entry(root, name, source):
     pamt, paz = group / "0.pamt", group / "0.paz"
     pamt.write_bytes(b"owned archive index")
     paz.write_bytes(source)
-    return ArchiveEntry(name, pamt, paz, 0, len(source), len(source), 0, 0)
+    return ArchiveEntry(f"character/model/{name}", pamt, paz, 0, len(source), len(source), 0, 0)
 
 
 def _load_pair(tmp_path, *, assign_body=True, texture_paths=None,

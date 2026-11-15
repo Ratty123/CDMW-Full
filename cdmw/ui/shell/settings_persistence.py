@@ -74,6 +74,8 @@ _MODEL_PREVIEW_SETTING_KEY_OVERRIDES = {
     "high_quality_by_default": "archive/model_high_quality",
     "preview_texture_max_dimension": "preview/texture_max_dimension",
     "low_quality_texture_max_dimension": "preview/low_quality_texture_max_dimension",
+    # One view mode for every viewport (P4 V3), replacing preview/d3d11_view_mode.
+    "d3d11_view_mode": "preview/view_mode",
 }
 _MODEL_PREVIEW_SETTINGS_NOT_PERSISTED = {"alignment_use_final_output_preview"}
 

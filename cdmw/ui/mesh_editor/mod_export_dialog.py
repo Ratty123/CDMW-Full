@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
-    QListWidgetItem,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -98,7 +97,11 @@ class MeshModExportDialog(QDialog):
         self.layers.setObjectName("mesh_mod_layers")
         self.layers.setMaximumHeight(140)
         for name in CLOTHING_LAYERS:
-            item = QListWidgetItem(name, self.layers)
+            # The list makes its own rows (B1): rows made in Python with the list as
+            # their parent preceded a native fault when the Mesh Editor tab was
+            # deleted after this dialog (6 of 8 runs; 0 of 8 made this way).
+            self.layers.addItem(name)
+            item = self.layers.item(self.layers.count() - 1)
             item.setData(Qt.ItemDataRole.UserRole, name)
             item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Unchecked)

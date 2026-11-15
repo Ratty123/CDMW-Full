@@ -11,8 +11,11 @@ impl LabApplication {
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
         let pending = state_bool(state, "authoring_baseline_ready")
             || state_str(state, "correction_definition_id").is_some_and(|id| !id.is_empty());
-        let macros = state.get("macro_definitions").and_then(Value::as_array)
-            .cloned().unwrap_or_default();
+        let macros = state
+            .get("macro_definitions")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         let values = pair_number_list(state, "macro_values");
         ui.push_id("morph-body-controls", |ui| {
             if macros.is_empty() {
@@ -94,17 +97,27 @@ impl LabApplication {
         actions: &mut Vec<UiAction>,
         state: &Value,
     ) {
-        let Some(pairs) = state.get("side_pairs").and_then(Value::as_array)
-            .filter(|pairs| !pairs.is_empty()) else {
-            ui.weak(crate::localization::tr("No paired sliders in this profile."));
+        let Some(pairs) = state
+            .get("side_pairs")
+            .and_then(Value::as_array)
+            .filter(|pairs| !pairs.is_empty())
+        else {
+            ui.weak(crate::localization::tr(
+                "No paired sliders in this profile.",
+            ));
             return;
         };
         let ready = state_bool(&self.cdmw_state, "authoring_enabled")
             && !state_bool(state, "authoring_baseline_ready")
             && state_str(state, "correction_definition_id").is_none_or(|id| id.is_empty());
         let manual = pair_number_list(state, "manual_values");
-        let mode_id = egui::Id::new(("morph-side-mode", state_str(state, "profile_id").unwrap_or("")));
-        let mut side = ui.data_mut(|data| data.get_temp::<String>(mode_id)).unwrap_or_else(|| "both".into());
+        let mode_id = egui::Id::new((
+            "morph-side-mode",
+            state_str(state, "profile_id").unwrap_or(""),
+        ));
+        let mut side = ui
+            .data_mut(|data| data.get_temp::<String>(mode_id))
+            .unwrap_or_else(|| "both".into());
         ui.push_id("morph-side-controls", |ui| {
             ui.add_enabled_ui(ready, |ui| {
                 let mut linked = state_bool(state, "symmetry_enabled");

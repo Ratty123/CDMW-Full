@@ -126,6 +126,30 @@ class ModelLibraryResultsMixin:
                     message = "No local models are loaded. Add a model folder under Sources."
         self.empty_results_label.setText(message)
         self.empty_results_label.setVisible(bool(message))
+        self._sync_results_empty_state(visible_count, total_count)
+
+    def _sync_results_empty_state(self, visible_count: int, total_count: int) -> None:
+        """Nothing loaded at all: the next step in the list's place (P11 step 6)."""
+        switch = getattr(self, "results_switch", None)
+        if switch is None:
+            return
+        from cdmw.ui.model_library.panels import MODEL_LIBRARY_NO_INDEX_TEXT, MODEL_LIBRARY_NO_LOCAL_TEXT
+
+        wanted = None
+        if visible_count <= 0 and total_count <= 0:
+            if self._active_results_view == "mirror":
+                if not getattr(self, "_catalogue_index_available", False):
+                    wanted = (MODEL_LIBRARY_NO_INDEX_TEXT, "Build Search Index", self.build_mirror_index)
+            elif not getattr(self, "local_roots", None):
+                wanted = (MODEL_LIBRARY_NO_LOCAL_TEXT, "Add Folder", self.add_local_root)
+        if wanted is None:
+            switch.set_empty(False)
+            return
+        state = self.results_empty_state
+        if getattr(state, "_shown_state", None) != wanted[0]:
+            state.set_state(wanted[0], wanted[1], run=wanted[2])
+            state._shown_state = wanted[0]
+        switch.set_empty(True)
 
     def _populate_results(self, rows: list[dict[str, object]]) -> None:
         if bool(getattr(self, "_model_library_shutting_down", False)):

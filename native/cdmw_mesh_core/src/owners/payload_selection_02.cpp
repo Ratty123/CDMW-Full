@@ -725,7 +725,7 @@ std::vector<char> read_binary_payload(const JsonValue* value, std::size_t elemen
     if (path.empty()) {
         return {};
     }
-    std::ifstream input(path, std::ios::binary | std::ios::ate);
+    std::ifstream input(cdmw_native_path(path), std::ios::binary | std::ios::ate);
     if (!input) {
         throw std::runtime_error("cannot open binary " + label + " payload: " + path);
     }

@@ -23,6 +23,17 @@ ASSET_AUTHORING_UV_REPORT_SCHEMA = "cdmw_asset_authoring_uv_report_v1"
 ASSET_AUTHORING_TANGENT_REPORT_SCHEMA = "cdmw_asset_authoring_tangent_report_v1"
 
 _OPENIMAGEIO_SOURCE_SUFFIXES = frozenset({".psd", ".tga", ".exr", ".tif", ".tiff", ".ptx", ".ptex"})
+# OpenImageIO is not part of the package (P16 decision 23). What each source
+# format has without the user's own oiiotool:
+OPENIMAGEIO_SOURCE_FALLBACKS: Mapping[str, str] = {
+    ".exr": "none: needs your own OpenImageIO",
+    ".ptx": "none: needs your own OpenImageIO",
+    ".ptex": "none: needs your own OpenImageIO",
+    ".psd": "Pillow reads the flattened image a .psd stores; layers need your own OpenImageIO",
+    ".tga": "Pillow: Texture Workflow's Add Textures and the Texture Editor open it",
+    ".tif": "Pillow: Texture Workflow's Add Textures opens it",
+    ".tiff": "Pillow: Texture Workflow's Add Textures opens it",
+}
 _EXISTING_IMAGE_WORKFLOW_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".bmp", ".dds"})
 _CDMW_MESH_CORE_BACKEND_LABELS = {
     "xatlas": "bundled in CDMW Mesh Core",
@@ -76,21 +87,46 @@ _HELPERS = (
     AssetAuthoringHelperSpec(
         key="openimageio",
         label="OpenImageIO",
-        role="bundled source image ingest/diff helper",
+        role="optional source image ingest/diff helper; the user's own OpenImageIO copy",
         setting_key="asset_authoring/oiio_path",
         env_key="CDMW_OIIO_BIN",
         executables=("oiiotool",),
         module="OpenImageIO",
         capabilities=("read_source_images", "convert_intermediate", "image_diff", "metadata"),
-        bundled=True,
+        bundled=False,
         package_safe=True,
     ),
 )
 
 
+class _SettingsValues:
+    """Helper settings read on the settings object's own thread, for a worker to use."""
+
+    __slots__ = ("_values",)
+
+    def __init__(self, values: Mapping[str, object]) -> None:
+        self._values = dict(values)
+
+    def value(self, key: str, default: object = None) -> object:
+        return self._values.get(key, default)
+
+
 @dataclass(slots=True)
 class AssetAuthoringService:
     settings: object | None = None
+
+    def with_settings_snapshot(self) -> "AssetAuthoringService":
+        """A copy that reads helper settings taken now instead of the live settings object.
+
+        One QSettings object is not safe to use from two threads at once; a
+        discovery that runs on a worker uses this copy, made on the GUI thread.
+        """
+
+        reader = getattr(self.settings, "value", None)
+        if not callable(reader):
+            return AssetAuthoringService(settings=None)
+        values = {spec.setting_key: reader(spec.setting_key, "") for spec in _HELPERS if spec.setting_key}
+        return AssetAuthoringService(settings=_SettingsValues(values))
 
     def discovery_report(
         self,
@@ -260,6 +296,7 @@ class AssetAuthoringService:
             "source_format": suffix.lstrip(".") or "unknown",
             "helper": helper,
             "openimageio_source_candidate": suffix in _OPENIMAGEIO_SOURCE_SUFFIXES,
+            "without_openimageio": OPENIMAGEIO_SOURCE_FALLBACKS.get(suffix, ""),
             "existing_workflow_unaffected": existing_workflow,
             "can_read_metadata": bool(helper_ready and source.is_file()),
             "can_convert": bool(helper_ready and source.is_file()),
@@ -282,7 +319,7 @@ class AssetAuthoringService:
                 "source_path": str(source),
                 "argv": [],
                 "can_run": False,
-                "message": "OpenImageIO oiiotool is not configured or detected.",
+                "message": "OpenImageIO is not included with CDMW. Reading .exr, .ptx/.ptex and layered .psd sources needs your own copy: install OpenImageIO, then put oiiotool on PATH or set CDMW_OIIO_BIN to its oiiotool.exe.",
             }
         if not source.is_file():
             return {
@@ -342,7 +379,7 @@ class AssetAuthoringService:
                 "helper": helper,
                 "argv": [],
                 "can_run": False,
-                "message": "OpenImageIO oiiotool is not configured or detected.",
+                "message": "OpenImageIO is not included with CDMW. Reading .exr, .ptx/.ptex and layered .psd sources needs your own copy: install OpenImageIO, then put oiiotool on PATH or set CDMW_OIIO_BIN to its oiiotool.exe.",
             }
         if not source.is_file():
             return {
@@ -413,7 +450,7 @@ class AssetAuthoringService:
                 "helper": helper,
                 "argv": [],
                 "can_run": False,
-                "message": "OpenImageIO oiiotool is not configured or detected.",
+                "message": "OpenImageIO is not included with CDMW. Reading .exr, .ptx/.ptex and layered .psd sources needs your own copy: install OpenImageIO, then put oiiotool on PATH or set CDMW_OIIO_BIN to its oiiotool.exe.",
             }
         if missing:
             return {
@@ -587,7 +624,10 @@ def _helper_report(
         "path": str(path or configured_path or ""),
         "role": spec.role,
         "capabilities": list(spec.capabilities),
-        "bundled": bool(spec.bundled),
+        # A helper that is not part of the package still reports bundled while a
+        # build carries a copy (source "bundled_lookup"), so the packaged start
+        # check covers it until the copy leaves the spec.
+        "bundled": bool(spec.bundled or source == "bundled_lookup"),
         "package_safe": bool(spec.package_safe and status == "available"),
         "version": "",
         "version_status": "not_checked",

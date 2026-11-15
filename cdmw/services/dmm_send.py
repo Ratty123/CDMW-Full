@@ -126,6 +126,9 @@ def write_operations(folder: Path, title: str, targets, *, owned_items=()) -> No
 def destination(mods: Path, title: str) -> tuple[Path, bool]:
     """The mod folder for `title` and whether it replaces a folder CDMW wrote earlier."""
     folder = Path(mods) / sanitize_mod_package_folder_name(title)
+    from cdmw.core.protected_roots import check_writable
+
+    check_writable(folder)  # DMM's mods folder must not lie inside the game folder (decision 46)
     if not folder.exists():
         return folder, False
     if folder.is_dir() and _written_by_cdmw(folder):
@@ -318,16 +321,12 @@ def _storage_flags(path: str, data: bytes, flags: int) -> int:
 
 
 def _keep_identities(root: Path, registry) -> None:
-    from cdmw.core.atomic_file import atomic_write_bytes
-    from cdmw.services.independent_item_install import REGISTRY_PATH, _validate_registry
+    """Keep the item identities in the CDMW folder, keyed by this game folder (decision 46)."""
+    from cdmw.services.game_records import write_registry
+    from cdmw.services.independent_item_install import _validate_registry
     from cdmw.services.independent_item_package import canonical
 
-    data = canonical(_validate_registry(registry))
-    target = root / REGISTRY_PATH
-    if target.is_file() and target.read_bytes() == data:
-        return
-    target.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_bytes(target, data)
+    write_registry(root, canonical(_validate_registry(registry)))
 
 
 @dataclass(frozen=True)

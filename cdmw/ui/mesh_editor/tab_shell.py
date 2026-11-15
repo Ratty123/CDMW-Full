@@ -187,8 +187,6 @@ class MeshEditorTabShellMixin(
         page.build_mod_requested.connect(self._start_mesh_mod_build_requested)
         page.add_to_archive_browser_requested.connect(self._start_archive_browser_result_requested)
         page.continue_modified_mesh_requested.connect(self._continue_editing_modified_mesh_requested)
-        page.install_overlay_requested.connect(self._start_mesh_overlay_prepare_requested)
-        page.restore_overlay_requested.connect(self._restore_last_mesh_overlay_requested)
         page.reopen_edit_requested.connect(self._reopen_rust_editor_requested)
         page.close_session_requested.connect(self._close_standalone_session_requested)
         page.save_rebuild_report_requested.connect(self._save_standalone_rebuild_report_requested)
@@ -209,8 +207,6 @@ class MeshEditorTabShellMixin(
         self.standalone_replace_from_archive_button = page.replace_from_archive_button
         self.standalone_export_mesh_file_button = page.export_mesh_file_button
         self.standalone_build_mod_button = page.build_mod_button
-        self.standalone_install_overlay_button = page.install_overlay_button
-        self.standalone_restore_overlay_button = page.restore_overlay_button
         self.standalone_export_editable_package_button = page.export_editable_package_button
         self.standalone_import_edited_package_button = page.import_edited_package_button
         self.standalone_open_editable_package_folder_button = page.open_editable_package_folder_button
@@ -322,6 +318,8 @@ class MeshEditorTabShellMixin(
             ("standalone_rust_dispose", self.standalone_rust_dispose_thread, self.standalone_rust_dispose_worker),
         )
     def request_shutdown(self) -> None:
+        if self.item_set_preparation is not None:
+            self.item_set_preparation.cancel()
         self._cancel_dotnet_material_compile()
         self._discard_queued_archive_session_open()
         self.close_standalone_session()
@@ -968,7 +966,15 @@ class MeshEditorTabShellMixin(
             if callable(choice_showing) and choice_showing():
                 self.show_empty_state()
             return
-        if int(getattr(self, "current_undo_count", 0) or 0) > 0:
+        controller = self.standalone_controller
+        closing = getattr(controller, "closing_loses_work", None)
+        try:
+            loses_work = bool(closing()) if callable(closing) else True
+        except Exception:
+            loses_work = True
+        # The clean mark decides, not the undo steps: a change the history does not
+        # hold is lost on close too (section 8.7 D4).
+        if loses_work:
             confirmed = _tab.QMessageBox.question(
                 self,
                 "Discard Unsaved Mesh Editor Changes?",
@@ -978,4 +984,7 @@ class MeshEditorTabShellMixin(
             )
             if confirmed != _tab.QMessageBox.Yes:
                 return
+            from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import mark_discarded
+
+            mark_discarded(self)  # the user chose to lose them
         self.show_empty_state()

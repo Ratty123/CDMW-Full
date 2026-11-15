@@ -711,6 +711,9 @@ class TextureEditorToolSettings:
     recolor_tolerance: int = 48
     recolor_strength: int = 100
     recolor_preserve_luminance: bool = True
+    #: Pen pressure (0 to 1) for strokes that bring no per-point pressure. 1.0 paints at
+    #: full strength, as before pressure existed; strokes from a tablet pass their own.
+    pressure: float = 1.0
 
 
 @dataclass(slots=True)
@@ -1089,6 +1092,8 @@ class ArchivePreviewResult:
     loose_preview_title: str = ""
     loose_preview_metadata_summary: str = ""
     loose_preview_detail_text: str = ""
+    # Optional direct DDS handoff; appended to retain positional construction compatibility.
+    preview_texture_path: str = ""
 
 
 @dataclass(slots=True)
@@ -1734,29 +1739,9 @@ MODEL_PREVIEW_DIFFUSE_SWIZZLE_LABELS: Dict[str, str] = {
     "alpha_forced_opaque": "Alpha Forced Opaque",
 }
 
-D3D11_PREVIEW_VIEW_MODES: Tuple[str, ...] = (
-    "lit",
-    "game_outdoor",
-    "base_direct",
-    "uv_checker",
-    "base_alpha",
-    "part_id",
-    "normal",
-    "material_response",
-    "layer_mask",
-)
-
-D3D11_PREVIEW_VIEW_MODE_LABELS: Dict[str, str] = {
-    "lit": "Lit",
-    "game_outdoor": "Game Outdoor Approx",
-    "base_direct": "Base Texture",
-    "uv_checker": "UV Checker",
-    "base_alpha": "Alpha",
-    "part_id": "Part ID",
-    "normal": "Normals",
-    "material_response": "Material Response",
-    "layer_mask": "Layer Mask",
-}
+# One list for every 3D viewport (P4 V3); see cdmw/domain/preview_view_modes.py.
+from cdmw.domain.preview_view_modes import SHARED_VIEW_MODE_IDS as D3D11_PREVIEW_VIEW_MODES  # noqa: E402
+from cdmw.domain.preview_view_modes import SHARED_VIEW_MODE_LABELS as D3D11_PREVIEW_VIEW_MODE_LABELS  # noqa: E402
 
 D3D11_NORMAL_Y_MODES: Tuple[str, ...] = (
     "asset",
@@ -1783,8 +1768,16 @@ D3D11_TEXTURE_ADDRESS_MODE_LABELS: Dict[str, str] = {
 
 @dataclass(slots=True)
 class ModelPreviewRenderSettings:
-    use_textures_by_default: bool = False
+    # On by default since P3; stored profiles are moved once by
+    # cdmw/ui/archive_browser/preview_settings_migration.py.
+    use_textures_by_default: bool = True
     high_quality_by_default: bool = True
+    preview_shadows: bool = True
+    preview_ambient_occlusion: bool = True
+    preview_lighting_preset: str = "neutral_studio"
+    # Studio floor under the model (P2): on by default in every viewport.
+    preview_ground_visible: bool = True
+    preview_ground_grid_visible: bool = True
     alignment_use_final_output_preview: bool = False
     visible_texture_mode: str = "mesh_base_first"
     render_diagnostic_mode: str = "lit"
@@ -1834,7 +1827,7 @@ class ModelPreviewRenderSettings:
     d3d11_vertex_color: str = "#FFAE28"
     d3d11_grid_spacing_scale: float = 1.0
     d3d11_grid_line_count: int = 10
-    d3d11_view_mode: str = "lit"
+    d3d11_view_mode: str = "textured"
     d3d11_cull_back_faces: bool = False
     d3d11_light_azimuth_degrees: float = -10.0
     d3d11_light_elevation_degrees: float = 0.0
@@ -1954,6 +1947,10 @@ def clamp_model_preview_render_settings(
             }
         )
 
+    value.preview_lighting_preset = str(value.preview_lighting_preset or "").strip().lower()
+    if value.preview_lighting_preset not in {"neutral_studio", "showcase", "dark", "studio_fixed"}:
+        value.preview_lighting_preset = defaults.preview_lighting_preset
+
     int_fields = {
         "preview_texture_max_dimension",
         "low_quality_texture_max_dimension",
@@ -2019,10 +2016,9 @@ def clamp_model_preview_render_settings(
     if normalized_swizzle not in MODEL_PREVIEW_DIFFUSE_SWIZZLE_MODES:
         normalized_swizzle = ModelPreviewRenderSettings().diffuse_swizzle_mode
     value.diffuse_swizzle_mode = normalized_swizzle
-    normalized_d3d11_view_mode = str(getattr(value, "d3d11_view_mode", "") or "").strip().lower()
-    if normalized_d3d11_view_mode not in D3D11_PREVIEW_VIEW_MODES:
-        normalized_d3d11_view_mode = ModelPreviewRenderSettings().d3d11_view_mode
-    value.d3d11_view_mode = normalized_d3d11_view_mode
+    from cdmw.domain.preview_view_modes import shared_view_mode
+
+    value.d3d11_view_mode = shared_view_mode(getattr(value, "d3d11_view_mode", ""))
     normalized_d3d11_normal_y_mode = str(getattr(value, "d3d11_normal_y_mode", "") or "").strip().lower()
     if normalized_d3d11_normal_y_mode not in D3D11_NORMAL_Y_MODES:
         normalized_d3d11_normal_y_mode = ModelPreviewRenderSettings().d3d11_normal_y_mode

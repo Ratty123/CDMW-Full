@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import hashlib
 import math
 import os
@@ -213,6 +214,8 @@ from cdmw.services.mesh_service_payloads import (
     _stop_event_from_params,
 )
 from cdmw.services.mesh_service_history import (
+    _dispose_history_snapshot_without_state_failure,
+    _reconcile_journal_depth,
     _capture_history_material_state,
     _capture_history_session_state,
     _restore_history_session_state,
@@ -655,6 +658,187 @@ def _apply_loaded_mesh_layer_project(
     session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
 
 
+class MeshHistoryJournalError(RuntimeError):
+    """A saved history step could not be restored; the current state is unchanged."""
+
+
+def _recovery_point_size(session: _MeshEditSession, project_root: Path, generation: str) -> int:
+    """The recovery point's size, walked once per generation: a recovery point is
+    written under a new generation name each time, so a name keeps its size."""
+
+    from cdmw.services.mesh_history_journal import generation_size
+
+    cached = session.history_recovery_size
+    if cached is not None and cached[0] == generation:
+        return cached[1]
+    size = generation_size(project_root, generation)
+    session.history_recovery_size = (generation, size)
+    return size
+
+
+def _open_history_journal(session: _MeshEditSession, project_path: Path) -> None:
+    """Place a reopened draft at its step in the history journal (P14)."""
+
+    from cdmw.services.mesh_history_journal import read_journal
+
+    try:
+        journal = read_journal(Path(project_path).parent)
+    except (OSError, ValueError) as exc:
+        # The draft opens without its history, and this session never writes the
+        # journal: from depth 0 the next save would delete every step (8.8 R8).
+        session.history_journal_readonly = f"{type(exc).__name__}: {exc}"
+        return
+    if journal.unreadable_lines:
+        session.history_journal_readonly = f"{journal.unreadable_lines} line(s) of the history could not be read"
+    record = journal.record_for(session.mesh_layer_loaded_generation) if session.mesh_layer_loaded_generation else None
+    if record is None and not journal.records and session.mesh_layer_loaded_generation:
+        session.history_journal_base_generation = str(session.mesh_layer_loaded_generation)
+    if record is not None:
+        session.history_journal_depth = record.depth
+    elif journal.records:
+        session.history_journal_depth = journal.records[-1].depth + 1
+
+
+def _morph_profile_active(service: object, session: _MeshEditSession) -> bool:
+    """Morph & Refit has a profile open, whose state a journal step does not hold."""
+
+    cache = getattr(service, "_morph_sessions", {}).get(session.session_id)
+    return cache is not None and getattr(cache, "profile", None) is not None
+
+
+def _history_journal_of(session: _MeshEditSession):
+    """The session's journal, read again only when its file changed."""
+
+    from cdmw.services.mesh_history_journal import Journal, journal_path, read_journal
+
+    if session.mesh_layer_project_path is None:
+        return Journal()
+    project_root = Path(session.mesh_layer_project_path).parent
+    try:
+        stat = journal_path(project_root).stat()
+    except OSError:
+        return Journal()
+    key = (str(project_root), stat.st_mtime_ns, stat.st_size)
+    cached = session.history_journal_cache
+    if cached is not None and cached[0] == key:
+        return cached[1]
+    journal = read_journal(project_root)
+    session.history_journal_cache = (key, journal)
+    return journal
+
+
+def _clear_requested_recovery(session: _MeshEditSession, project_root: Path) -> None:
+    """The draft now holds what an editor finished: remove that editor's recovery point
+    (section 8.7 A1), but never one a newer editor wrote meanwhile (8.8 R13)."""
+
+    from cdmw.services.mesh_history_journal import clear_editor_recovery, read_editor_recovery
+
+    if not session.history_recovery_clear_on_save:
+        return
+    session.history_recovery_clear_on_save = False
+    requested, session.history_recovery_clear_generation = session.history_recovery_clear_generation, ""
+    current = read_editor_recovery(project_root)
+    if current is not None and requested and str(current["generation"]) == requested:
+        clear_editor_recovery(project_root)
+
+
+def _history_clean(session: _MeshEditSession) -> bool:
+    if session.mesh_layer_project_path is None:
+        # Layer renames, visibility and activation move the layer revision only.
+        key = (int(session.revision), int(session.geometry_layer_revision))
+        if session.history_clean_key is not None:
+            return key == session.history_clean_key
+        return not session.undo_stack and not session.geometry_layer_revision
+    if (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key:
+        return False
+    try:
+        clean = _history_journal_of(session).clean_generation
+    except OSError:
+        return False
+    return bool(clean) and clean == session.mesh_layer_loaded_generation
+
+
+def _journal_step_target(session: _MeshEditSession, direction: int):
+    """The draft step a journal undo (-1) or redo (+1) would load, or None (P14)."""
+
+    from cdmw.services.mesh_history_journal import KIND_DRAFT
+
+    if session.undo_stack or (direction > 0 and session.redo_stack):
+        return None  # the in-memory history goes first
+    _reconcile_journal_depth(session)
+    if direction > 0 and session.history_journal_edited:
+        return None  # an edit since the last record ends the journal's future
+    try:
+        journal = _history_journal_of(session)
+    except OSError:
+        return None
+    depth = session.history_journal_depth
+    candidates = [record for record in journal.records if record.kind == KIND_DRAFT]
+    if direction < 0:
+        earlier = [record for record in candidates if record.depth < depth]
+        return earlier[-1] if earlier else None
+    later = [record for record in candidates if record.depth > depth]
+    return later[0] if later else None
+
+
+def _install_journal_state(session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> _MeshRestoreOutcome:
+    """Install a loaded journal state; unlike an undo, nothing is captured to return to."""
+
+    before_signature = _mesh_structure_signature(session.working_mesh)
+    session.working_mesh = snapshot.mesh
+    session.mode = snapshot.mode
+    session.selection = snapshot.selection
+    session.edit_operations = tuple(snapshot.edit_operations)
+    if snapshot.object_transform is not None:
+        session.object_transform = snapshot.object_transform
+    session.native_editor_selection_signature = ()
+    _restore_history_session_state(session, snapshot)
+    after_signature = _mesh_structure_signature(session.working_mesh)
+    topology_changed, affected, delta = _restore_topology_delta(before_signature, after_signature)
+    return _MeshRestoreOutcome(
+        snapshot=None, topology_changed=topology_changed, affected_submesh_indices=affected,
+        submesh_count_delta=delta, submesh_counts=after_signature,
+    )
+
+
+def _journal_snapshot(session: _MeshEditSession, mesh: ParsedMesh, loaded: Mapping[str, object]) -> _MeshHistorySnapshot:
+    """A full-state history entry holding one loaded journal generation."""
+
+    layers = _geometry_layers_from_project_payload(loaded, len(mesh.submeshes))
+    active = str(loaded.get("active_layer_id") or "base")
+    if not any(layer.layer_id == active and layer.visible for layer in layers):
+        active = "base"
+    raw_transform = loaded.get("object_transform")
+    transform = session.object_transform
+    if isinstance(raw_transform, Mapping) and raw_transform:
+        transform = MeshObjectTransformState(
+            location=tuple(raw_transform.get("location", (0.0, 0.0, 0.0))),
+            rotation_degrees=tuple(raw_transform.get("rotation_degrees", (0.0, 0.0, 0.0))),
+            scale=tuple(raw_transform.get("scale", (1.0, 1.0, 1.0))),
+            pivot=tuple(raw_transform.get("pivot", session.object_transform.pivot)),
+        )
+    return _MeshHistorySnapshot(
+        mesh=mesh,
+        mode=session.mode,
+        selection=MeshEditSelection(),
+        edit_operations=tuple(loaded.get("edit_operations") or ()),
+        history_action="journal_step",
+        history_label="Saved step",
+        geometry_layers=layers,
+        active_geometry_layer_id=active,
+        geometry_layer_copy_counter=_project_non_negative_int(loaded.get("copy_counter"), field="copy counter"),
+        restore_geometry_layer_state=True,
+        object_transform=transform,
+        archive_refit_context=loaded.get("archive_refit_context"),
+        restore_archive_refit_context=True,
+        replacement_state=loaded.get("replacement_state"),
+        restore_replacement_state=True,
+        hair_state=loaded.get("hair_state"),
+        restore_hair_state=True,
+        requires_edit_operations=bool(loaded.get("requires_edit_operations", False)),
+    )
+
+
 @dataclass(slots=True)
 class _MeshServiceSessionLayerCore(
     MeshRiggingServiceMixin,
@@ -794,6 +978,8 @@ class _MeshServiceSessionLayerCore(
             loaded_layer_project,
             len(working_mesh.submeshes),
         )
+        if project_path is not None:
+            _open_history_journal(session, project_path)
         if project_path is not None and draft_plan is not None:
             session.mesh_draft_plan = draft_plan
             # An untouched session has nothing to save; its first accepted
@@ -881,6 +1067,11 @@ class _MeshServiceSessionLayerCore(
                 raise RuntimeError(message or "native Mesh Editor copy failed")
             session.native_editor_selection_signature = _mesh_edit_selection_signature(effective_selection)
             session.native_clipboard_ready = True
+            from cdmw.services.mesh_asset_context import is_item_set
+            if is_item_set(session.archive_refit_context):
+                from cdmw.services.mesh_item_set_editing import selected_asset_ids
+                owners, _indices = selected_asset_ids(self.working_mesh(session_id), session.archive_refit_context, effective_selection)
+                session.item_set_clipboard_assets = frozenset(owners)
             return self._result(session, "copy", metrics=_native_editor_metrics(report))
 
     def paste_selection(self, session_id: str) -> MeshEditResult:
@@ -1161,7 +1352,9 @@ class _MeshServiceSessionLayerCore(
     def _schedule_mesh_layer_autosave(self, session: _MeshEditSession) -> None:
         if session.session_id in self._refit_shape_recoveries:
             return
-        if session.mesh_layer_project_path is None or len(session.mesh_asset_source_hash) != 64:
+        if session.mesh_layer_project_path is None and session.history_recovery_target is not None:
+            pass  # a Mesh Editor shadow: its recovery point, on the same delay (P14)
+        elif session.mesh_layer_project_path is None or len(session.mesh_asset_source_hash) != 64:
             return
         session.mesh_layer_autosave_requested_key = (session.revision, session.geometry_layer_revision)
         session.mesh_layer_autosave_error = ""
@@ -1230,11 +1423,15 @@ class _MeshServiceSessionLayerCore(
     ) -> None:
         self._require_no_pending_refit_shape_restore_locked(session)
         if session.mesh_layer_project_path is None:
+            if session.history_recovery_target is not None:
+                self._save_editor_recovery_locked(session, stop_event=stop_event)
             return
         if session.mesh_draft_plan is not None:
             from cdmw.services.mesh_saved_work_service import ensure_session_draft_workspace
             ensure_session_draft_workspace(session.mesh_draft_plan, session.original_data, stop_event=stop_event)
-        if (session.replacement_state is not None or session.edit_operations) and not session.native_editor_session_ready:
+        # The generation is an export of the native session, which a journal step
+        # or a change that never needed one (a layer rename) has not opened (P14).
+        if not session.native_editor_session_ready:
             if session.native_editor_mesh_dirty:
                 raise RuntimeError("Replacement draft cannot save stale resident geometry.")
             opened = open_native_mesh_editor_session(session.working_mesh, session.session_id,
@@ -1247,7 +1444,128 @@ class _MeshServiceSessionLayerCore(
         from cdmw.services.mesh_morph_draft import capture_morph_draft
         morph_payload = capture_morph_draft(self, session)
         promote = len(session.geometry_layers) > 1 or session.replacement_state is not None or session.hair_state is not None
-        descriptor = save_mesh_layer_project(
+        from cdmw.services.mesh_history_journal import project_lock
+
+        journal_lock = project_lock(Path(session.mesh_layer_project_path).parent)
+        journal_lock.acquire()
+        try:
+            descriptor = self._save_mesh_layer_generation_locked(
+                session, layer_payload, morph_payload, promote, stop_event,
+            )
+            # A brand-new draft opened from the game's file has no generation for the
+            # state it opened with: write it beside the first step, so that step can be
+            # undone after a restart too (section 8.7 D3, option a). Only after the
+            # draft's own state is safe, and only as a bonus: its failure costs that
+            # one Undo step, never the save (review of 5d3785f5f).
+            try:
+                self._save_opened_state_generation_locked(session, layer_payload, stop_event)
+            except RunCancelled:
+                raise
+            except Exception:
+                session.history_journal_base_generation = ""
+                logging.getLogger(__name__).warning(
+                    "The opened state of %s could not be journalled; its first step stays the oldest Undo.",
+                    session.session_id, exc_info=True)
+            self._record_history_journal_locked(session, descriptor)
+        finally:
+            journal_lock.release()
+        session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
+        session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
+        session.mesh_layer_autosave_error = ""
+        if promote and session.mesh_layer_workspace_mode == "internal_app_session":
+            session.mesh_layer_workspace_mode = "persistent_app_draft"
+
+    def _save_opened_state_generation_locked(
+        self,
+        session: _MeshEditSession,
+        layer_payload: Mapping[str, object],
+        stop_event: threading.Event | None,
+    ) -> None:
+        """Write the state a brand-new draft opened with as an unpublished generation.
+
+        It is rebuilt from the history entry that restores journal depth 0, on a copy
+        of the mesh and in a native session of its own, so the session itself does not
+        move. The journal records it one step below the first saved step (D3's first
+        part). Nothing is written when that entry is not a whole snapshot (a sparse
+        stroke delta), when the opened layers differ from today's, or for a draft
+        whose state is more than geometry (replacement, hair, refit, Morph & Refit).
+        """
+
+        from cdmw.services import mesh_history_journal as journal
+        from cdmw.services.mesh_service_history import _reconcile_journal_depth
+
+        if (session.mesh_layer_loaded_generation or session.history_journal_base_generation
+                or session.history_journal_readonly or session.replacement_state is not None
+                or session.hair_state is not None or session.archive_refit_context is not None
+                or _morph_profile_active(self, session)):
+            return
+        project_root = Path(session.mesh_layer_project_path).parent
+        try:
+            if journal.read_journal(project_root).records:
+                return
+        except (OSError, ValueError):
+            return
+        _reconcile_journal_depth(session)
+        if session.history_journal_depth < 1:
+            return
+        opened_entry = next((entry for entry in session.undo_stack
+                             if entry.journal_depth == 0 and not entry.selection_only), None)
+        if opened_entry is None or opened_entry.vertex_position_deltas:
+            return
+        if opened_entry.restore_geometry_layer_state and opened_entry.geometry_layers is not None \
+                and tuple(opened_entry.geometry_layers) != tuple(session.geometry_layers):
+            return
+        if opened_entry.native_submesh_snapshot is not None:
+            opened_mesh = copy.deepcopy(session.working_mesh)
+            if not restore_native_mesh_submesh_snapshot(opened_mesh, opened_entry.native_submesh_snapshot,
+                                                        stop_event=stop_event, timeout_seconds=30.0):
+                return
+        elif opened_entry.mesh is not None:
+            opened_mesh = copy.deepcopy(opened_entry.mesh)
+        else:
+            return
+        native_id = f"{session.session_id}:opened-state"
+        if open_native_mesh_editor_session(opened_mesh, native_id, stop_event=stop_event) is None:
+            return
+        transform = opened_entry.object_transform or session.object_transform
+        try:
+            descriptor = save_mesh_layer_project(
+                session_id=native_id,
+                mesh=opened_mesh,
+                project_path=session.mesh_layer_project_path,
+                source_asset_sha256=session.mesh_asset_source_hash,
+                layers=layer_payload["layers"],
+                active_layer_id=session.active_geometry_layer_id,
+                copy_counter=session.geometry_layer_copy_counter,
+                mesh_revision=0,
+                layer_revision=session.geometry_layer_revision,
+                object_transform={
+                    "location": transform.location,
+                    "rotation_degrees": transform.rotation_degrees,
+                    "scale": transform.scale,
+                    "pivot": transform.pivot,
+                },
+                workspace_manifest_path=session.mesh_layer_workspace_manifest_path,
+                stop_event=stop_event,
+                edit_operations=tuple(opened_entry.edit_operations),
+                requires_edit_operations=session.requires_edit_operations,
+                viewport_hidden_parts=session.viewport_hidden_parts,
+                prune_superseded=False,
+                publish=False,
+            )
+        finally:
+            close_native_mesh_editor_session(native_id, timeout_seconds=2.0)
+        session.history_journal_base_generation = str(descriptor.get("current_generation") or "")
+
+    def _save_mesh_layer_generation_locked(
+        self,
+        session: _MeshEditSession,
+        layer_payload: Mapping[str, object],
+        morph_payload: Mapping[str, object] | None,
+        promote: bool,
+        stop_event: threading.Event | None,
+    ) -> dict[str, object]:
+        return save_mesh_layer_project(
             session_id=session.session_id,
             mesh=session.working_mesh,
             project_path=session.mesh_layer_project_path,
@@ -1273,12 +1591,419 @@ class _MeshServiceSessionLayerCore(
             requires_edit_operations=session.requires_edit_operations,
             morph_payload=morph_payload,
             viewport_hidden_parts=session.viewport_hidden_parts,
+            prune_superseded=False,
         )
-        session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
+
+    def _save_editor_recovery_locked(
+        self,
+        session: _MeshEditSession,
+        *,
+        stop_event: threading.Event | None = None,
+    ) -> None:
+        """Keep a Mesh Editor shadow's unfinished state as the draft's recovery point (P14).
+
+        The generation is written beside the draft's own but not published: the
+        draft keeps the state that was last finished. It is in the shadow's own
+        coordinates and is only loaded back into a shadow opened the same way.
+        """
+
+        from cdmw.services import mesh_history_journal as journal
+
+        target = session.history_recovery_target
+        if target is None or _morph_profile_active(self, session):
+            return  # Morph & Refit keeps its runtime state only for the session
+        project_path, source_hash, base_generation = target
+        if session.history_recovery_draft is not None:
+            from cdmw.services.mesh_saved_work_service import ensure_session_draft_workspace
+
+            plan, original_data = session.history_recovery_draft
+            ensure_session_draft_workspace(plan, original_data, stop_event=stop_event)
+        if not session.native_editor_session_ready:
+            if session.native_editor_mesh_dirty:
+                return
+            opened = open_native_mesh_editor_session(session.working_mesh, session.session_id,
+                                                     stop_event=stop_event, timeout_seconds=10.0)
+            if opened is None:
+                raise RuntimeError("Mesh Editor recovery snapshot session failed to open.")
+            session.native_editor_session_ready = True
+            session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
+        layer_payload = _geometry_layer_state_payload(session)
+        project_root = Path(project_path).parent
+        with journal.project_lock(project_root):
+            if session.history_recovery_target is None:
+                return  # finished or discarded meanwhile
+            descriptor = save_mesh_layer_project(
+                session_id=session.session_id,
+                mesh=session.working_mesh,
+                project_path=Path(project_path),
+                source_asset_sha256=source_hash,
+                layers=layer_payload["layers"],
+                active_layer_id=session.active_geometry_layer_id,
+                copy_counter=session.geometry_layer_copy_counter,
+                mesh_revision=session.revision,
+                layer_revision=session.geometry_layer_revision,
+                object_transform={
+                    "location": session.object_transform.location,
+                    "rotation_degrees": session.object_transform.rotation_degrees,
+                    "scale": session.object_transform.scale,
+                    "pivot": session.object_transform.pivot,
+                },
+                stop_event=stop_event,
+                archive_refit_context=session.archive_refit_context,
+                replacement_state=session.replacement_state,
+                hair_state=session.hair_state,
+                edit_operations=session.edit_operations,
+                requires_edit_operations=session.requires_edit_operations,
+                viewport_hidden_parts=session.viewport_hidden_parts,
+                prune_superseded=False,
+                publish=False,
+            )
+            journal.write_editor_recovery(
+                project_root, str(descriptor["current_generation"]), base_generation=base_generation,
+            )
         session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
         session.mesh_layer_autosave_error = ""
-        if promote and session.mesh_layer_workspace_mode == "internal_app_session":
-            session.mesh_layer_workspace_mode = "persistent_app_draft"
+
+    def attach_editor_recovery(
+        self,
+        session_id: str,
+        project_path: Path,
+        source_asset_sha256: str,
+        *,
+        base_generation: str,
+        draft: tuple[object, bytes] | None = None,
+    ) -> float:
+        """Let a Mesh Editor shadow keep its unfinished state beside the draft (P14).
+
+        When the draft holds a recovery point made from ``base_generation`` (an
+        editor that did not finish or discard, as after a crash), the shadow
+        continues from it, with one undo step back to the draft's state. Returns
+        when that point was saved, or 0.0 when there was none to continue from.
+        """
+
+        from cdmw.services import mesh_history_journal as journal
+
+        session = self._session(session_id)
+        with session.export_lock:
+            source_hash = str(source_asset_sha256 or "").strip().lower()
+            if len(source_hash) != 64:
+                return 0.0
+            session.history_recovery_target = (Path(project_path), source_hash, str(base_generation or ""))
+            session.history_recovery_draft = draft
+            project_root = Path(project_path).parent
+            recovery = journal.read_editor_recovery(project_root)
+            session.history_recovery_problem = ""
+            if recovery is None:
+                return 0.0
+            # A recovery point that is not restored is reported (section 8.7 A11).
+            if _morph_profile_active(self, session):
+                session.history_recovery_problem = (
+                    "Unfinished Mesh Editor edits are not restored while Morph & Refit has a profile open.")
+                return 0.0
+            if recovery["base_generation"] != str(base_generation or ""):
+                session.history_recovery_problem = (
+                    "Unfinished Mesh Editor edits were made from an earlier state of this draft and were not "
+                    "restored; the draft has changed since.")
+                return 0.0
+            record = journal.JournalRecord(
+                generation=str(recovery["generation"]), depth=0, digest=str(recovery["digest"]), size_bytes=0,
+            )
+            template = copy.copy(session.base_mesh)
+            problem = journal.verify_record(project_root, record)
+            loaded = None
+            if not problem:
+                try:
+                    loaded = load_mesh_layer_project(
+                        template, Path(project_path), expected_source_asset_sha256=source_hash,
+                        generation=(record.generation, record.digest),
+                    )
+                except (OSError, RuntimeError, ValueError) as exc:
+                    problem = str(exc)
+            if loaded is None:
+                session.history_recovery_problem = (
+                    f"Unfinished Mesh Editor edits could not be restored ({problem or 'nothing to load'}). "
+                    "The draft opens as it was last finished.")
+                return 0.0
+            if session.native_editor_mesh_dirty:
+                self._working_mesh_locked(session, clone=False)
+            # The state the editor opened at stays one undo away.
+            self._push_history(session, action="recovered_edits", label="Recovered edits")
+            _close_native_editor_session(session)
+            _install_journal_state(session, _journal_snapshot(session, template, loaded))
+            session.viewport_hidden_parts = _loaded_viewport_hidden_parts(loaded, len(session.working_mesh.submeshes))
+            refresh_mesh_totals(session.working_mesh)
+            session.revision += 1
+            session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
+            return float(recovery["saved_at"]) or 1.0
+
+    def detach_editor_recovery(self, session_id: str, *, clear: bool) -> None:
+        """Stop keeping the shadow's recovery point; ``clear`` deletes it (Finish or Discard)."""
+
+        from cdmw.services import mesh_history_journal as journal
+
+        session = self._sessions.get(str(session_id))
+        if session is None:
+            return
+        with session.export_lock:
+            target = session.history_recovery_target
+            session.history_recovery_target = None
+            timer = session.mesh_layer_autosave_timer
+            if timer is not None:
+                timer.cancel()
+            if session.mesh_layer_autosave_stop_event is not None:
+                session.mesh_layer_autosave_stop_event.set()
+        if target is not None and clear:
+            project_root = Path(target[0]).parent
+            with journal.project_lock(project_root):
+                journal.clear_editor_recovery(project_root)
+
+    def _record_history_journal_locked(self, session: _MeshEditSession, descriptor: Mapping[str, object]) -> None:
+        """Append the generation just saved to the draft's history journal (P14).
+
+        The draft is saved whatever happens here; a journal that cannot be
+        written only leaves its history behind, which the next save retries.
+        """
+
+        from cdmw.services import mesh_history_journal as journal
+
+        project_root = Path(session.mesh_layer_project_path).parent
+        generation = str(descriptor.get("current_generation") or "")
+        keep = (generation, str(descriptor.get("previous_generation") or ""))
+        if session.history_journal_readonly:
+            session.history_journal_error = (
+                "The draft's history could not be read fully when it opened, so this session adds no "
+                f"step to it and removes nothing ({session.history_journal_readonly}).")
+            _clear_requested_recovery(session, project_root)
+            return
+        _reconcile_journal_depth(session)
+        try:
+            base = session.history_journal_base_generation
+            if base and base != generation and session.history_journal_depth >= 1:
+                # The state the draft opened with, one step below the first saved one.
+                journal.record_state(
+                    project_root,
+                    journal.new_record(project_root, base, depth=session.history_journal_depth - 1,
+                                       kind=journal.KIND_DRAFT),
+                    future_valid=True, max_steps=self.max_history, max_bytes=self.max_history_bytes,
+                    keep=(base, *keep),
+                )
+                session.history_journal_base_generation = ""
+            record = journal.new_record(
+                project_root, generation, depth=session.history_journal_depth, kind=journal.KIND_DRAFT,
+                labels=session.history_journal_labels, part_ids=session.history_journal_parts,
+            )
+            # The unfinished edits kept for a crash count toward the cap; material
+            # files drafts share do not, since they are no step of history (8.7 D5).
+            recovery = journal.read_editor_recovery(project_root)
+            reserved = _recovery_point_size(session, project_root, str(recovery["generation"])) if recovery else 0
+            journal.record_state(
+                project_root, record, future_valid=not session.history_journal_edited,
+                max_steps=self.max_history, max_bytes=self.max_history_bytes, keep=keep,
+                recovery_bytes=reserved,
+            )
+            journal.prune_unjournaled_generations(project_root, keep=keep)
+        except (OSError, ValueError) as exc:
+            session.history_journal_error = f"{type(exc).__name__}: {exc}"
+            return
+        session.history_journal_error = ""
+        session.history_journal_labels.clear()
+        session.history_journal_parts.clear()
+        session.history_journal_edited = False
+        if session.history_journal_clean_pending:
+            session.history_journal_clean_pending = False
+            journal.mark_clean(project_root, generation)
+        _clear_requested_recovery(session, project_root)
+
+    def _step_history_journal_if_any(self, session: _MeshEditSession, direction: int) -> MeshEditResult | None:
+        if session.mesh_layer_project_path is None or _journal_step_target(session, direction) is None:
+            return None
+        return self.step_history_journal(session.session_id, direction)
+
+    def _save_redo_states_locked(self, session: _MeshEditSession) -> None:
+        """Write every state on the in-memory redo stack to the journal, then come back."""
+
+        def settle() -> None:
+            timer = session.mesh_layer_autosave_timer
+            if timer is not None:
+                timer.cancel()
+
+        from cdmw.services.mesh_history_journal import read_journal
+
+        if (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key:
+            self._save_mesh_layer_project_locked(session)
+        # A redo state the journal holds is at a depth it has a record for: any edit
+        # drops the redo stack and the deeper records together. Only the others are
+        # exported, and the position comes back even when one fails (section 8.8 R7).
+        journalled = {record.depth for record in read_journal(Path(session.mesh_layer_project_path).parent).records}
+        steps = 0
+        try:
+            while session.redo_stack:
+                self._redo_locked(session)
+                settle()
+                steps += 1
+                if session.history_journal_depth not in journalled:
+                    self._save_mesh_layer_project_locked(session)
+        finally:
+            for _ in range(steps):
+                self._undo_locked(session)
+                settle()
+        if (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key:
+            self._save_mesh_layer_project_locked(session)
+
+    def clear_editor_recovery_after_next_save(self, session_id: str) -> None:
+        """Remove the editor's recovery point once the draft's next save is on disk (8.7 A1).
+
+        When the draft already holds the current state, it goes now.
+        """
+
+        from cdmw.services.mesh_history_journal import clear_editor_recovery, project_lock
+
+        session = self._session(session_id)
+        with session.export_lock:
+            if session.mesh_layer_project_path is None:
+                return
+            saved = (session.revision, session.geometry_layer_revision) == session.mesh_layer_autosave_saved_key
+            if not saved:
+                from cdmw.services.mesh_history_journal import read_editor_recovery
+
+                current = read_editor_recovery(Path(session.mesh_layer_project_path).parent)
+                session.history_recovery_clear_on_save = True
+                session.history_recovery_clear_generation = str(current["generation"]) if current else ""
+                return
+            project_root = Path(session.mesh_layer_project_path).parent
+            with project_lock(project_root):
+                clear_editor_recovery(project_root)
+
+    def mark_history_clean(self, session_id: str, *, expected_revision: int | None = None,
+                           expected_layer_revision: int | None = None) -> None:
+        """Record the draft's current state as finished or built (P14).
+
+        When that state is not on disk yet, the next autosave records it. With an
+        expected revision (a Build's snapshot), nothing is marked once the session has
+        moved on from it: an edit made during the Build is not "built" (8.9).
+        """
+
+        from cdmw.services.mesh_history_journal import JournalNotWritable, mark_clean, project_lock
+
+        session = self._session(session_id)
+        with session.export_lock:
+            if expected_revision is not None and int(session.revision) != int(expected_revision):
+                return
+            if expected_layer_revision is not None and int(session.geometry_layer_revision) != int(
+                    expected_layer_revision):
+                return
+            if session.mesh_layer_project_path is None:
+                session.history_clean_key = (int(session.revision), int(session.geometry_layer_revision))
+                return
+            saved = (session.revision, session.geometry_layer_revision) == session.mesh_layer_autosave_saved_key
+            if not saved or not session.mesh_layer_loaded_generation:
+                session.history_journal_clean_pending = True
+                return
+            project_root = Path(session.mesh_layer_project_path).parent
+            try:
+                with project_lock(project_root):
+                    mark_clean(project_root, session.mesh_layer_loaded_generation)
+            except (JournalNotWritable, OSError) as exc:
+                session.history_journal_error = f"{type(exc).__name__}: {exc}"
+
+    def closing_loses_work(self, session_id: str) -> bool:
+        """Whether closing the session now would lose an edit (P14).
+
+        A draft's state is saved on close (or was autosaved), so only a failed
+        save loses it; a mesh opened from disk has no draft and loses its edits.
+        """
+
+        session = self._session(session_id)
+        with session.export_lock:
+            if session.mesh_layer_project_path is None:
+                return not _history_clean(session)
+            return bool(session.mesh_layer_autosave_error)
+
+    def step_history_journal(self, session_id: str, direction: int) -> MeshEditResult:
+        """Load the draft's saved step before (-1) or after (+1) this one (P14).
+
+        Only past the in-memory history: undo and redo use it first. The step's
+        digest is checked before anything changes; a step that does not match
+        stops here, says so, and leaves the current state and the draft as they
+        were. The loaded state is the one that was saved, not an edit run again.
+        """
+
+        from cdmw.services.mesh_history_journal import verify_record
+        from cdmw.services.mesh_layer_project_service import publish_generation
+
+        session = self._session(session_id)
+        action = "journal_undo" if int(direction) < 0 else "journal_redo"
+        with session.export_lock:
+            self._require_no_pending_refit_shape_restore_locked(session)
+            if session.mesh_layer_project_path is None:
+                return self._result(session, action, status="noop")
+            if _morph_profile_active(self, session):
+                raise MeshHistoryJournalError(
+                    "Saved steps are not restored while Morph & Refit is open; its history ends with the session."
+                )
+            if int(direction) < 0 and session.redo_stack:
+                # The in-memory redo stack may hold states the journal does not
+                # (an edit undone before its save ran): save each before the step
+                # clears the stacks, so Redo still reaches them (section 8.7 A2).
+                self._save_redo_states_locked(session)
+            # The state being left must be on disk first, or stepping away loses it.
+            if (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key:
+                timer = session.mesh_layer_autosave_timer
+                if timer is not None:
+                    timer.cancel()
+                self._save_mesh_layer_project_locked(session)
+            target = _journal_step_target(session, -1 if int(direction) < 0 else 1)
+            if target is None:
+                return self._result(session, action, status="noop")
+            project_path = Path(session.mesh_layer_project_path)
+            problem = verify_record(project_path.parent, target)
+            if problem:
+                raise MeshHistoryJournalError(
+                    f"The saved step could not be restored ({problem}). History stops at the last good step; "
+                    "the draft is unchanged."
+                )
+            template = copy.copy(session.base_mesh)
+            try:
+                loaded = load_mesh_layer_project(
+                    template, project_path,
+                    expected_source_asset_sha256=session.mesh_asset_source_hash,
+                    generation=(target.generation, target.digest),
+                )
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise MeshHistoryJournalError(
+                    f"The saved step could not be restored ({exc}). History stops at the last good step; "
+                    "the draft is unchanged."
+                ) from exc
+            if loaded is None or loaded.get("morph_payload") is not None:
+                raise MeshHistoryJournalError(
+                    "This saved step holds Morph & Refit state, which is restored only when the draft reopens."
+                )
+            if session.native_editor_mesh_dirty:
+                self._working_mesh_locked(session, clone=False)
+            _close_native_editor_session(session)
+            outcome = _install_journal_state(session, _journal_snapshot(session, template, loaded))
+            # The in-memory history led to and from the state that was left.
+            _clear_history_stack(session.undo_stack)
+            _clear_history_stack(session.redo_stack)
+            session.viewport_hidden_parts = _loaded_viewport_hidden_parts(loaded, len(session.working_mesh.submeshes))
+            refresh_mesh_totals(session.working_mesh)
+            session.revision += 1
+            session.history_journal_depth = target.depth
+            session.history_journal_labels.clear()
+            session.history_journal_parts.clear()
+            session.history_journal_edited = False
+            publish_generation(project_path, target.generation, target.digest)
+            session.mesh_layer_loaded_generation = target.generation
+            session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
+            submesh_count = len(session.working_mesh.submeshes)
+            return self._result(
+                session, action,
+                affected=set(range(submesh_count)) | set(outcome.affected_submesh_indices),
+                topology_changed=True,
+                submesh_count_delta=outcome.submesh_count_delta,
+                submesh_counts=outcome.submesh_counts,
+                metrics={"journal_depth": float(target.depth)},
+            )
 
     def retry_mesh_layer_autosave(self, session_id: str) -> None:
         session = self._session(session_id)
@@ -1313,6 +2038,10 @@ class _MeshServiceSessionLayerCore(
                 self._save_mesh_layer_project_locked(session, stop_event=stop_event)
             manifest = session.mesh_layer_workspace_manifest_path
             return manifest if manifest.is_file() else None
+
+
+#: A private worker action: the window's layer commands, run off its thread.
+GEOMETRY_LAYER_WORKER_ACTION = "_geometry_layer_command"
 
 
 @dataclass(slots=True)
@@ -1528,6 +2257,10 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
             face_count=int(session.working_mesh.total_faces or 0),
             undo_count=len(session.undo_stack),
             redo_count=len(session.redo_stack),
+            journal_undo_available=_journal_step_target(session, -1) is not None,
+            journal_redo_available=_journal_step_target(session, 1) is not None,
+            history_clean=_history_clean(session),
+            history_journal_error=str(session.history_journal_error or ""),
             history_entries=_history_entries(session),
             history_cursor=len(session.undo_stack),
             object_transform=session.object_transform,
@@ -1573,6 +2306,13 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
         if session.native_editor_mesh_dirty and not _sync_native_editor_session_to_working_mesh(session):
             raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
         mesh = session.working_mesh
+        from cdmw.services.mesh_asset_context import is_item_set, item_set_bindings
+        if is_item_set(session.archive_refit_context):
+            context = session.archive_refit_context
+            bindings = item_set_bindings(mesh, context)
+            if any(asset.part_indices != bindings[asset.asset_id] for asset in context.assets):
+                session.archive_refit_context = replace(context, assets=tuple(
+                    replace(asset, part_indices=bindings[asset.asset_id]) for asset in context.assets))
         if not clone:
             return mesh
         return _clone_mesh_for_service_native_snapshot(
@@ -1634,6 +2374,30 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
             "Python base mesh clone fallback blocked while native mesh core is available",
         )
 
+    def _apply_geometry_layer_command_locked(self, session: _MeshEditSession,
+                                             command: MeshEditCommand) -> MeshEditResult:
+        """Activate, rename, show or hide, or move a layer from a worker.
+
+        Each takes the session's lock, which an autosave holds while it saves the
+        draft (opening its native session first, which may take a minute on a
+        busy machine): run from the window, they would block it that long.
+        """
+
+        params = dict(command.params)
+        name = str(params.get("command", "") or "").strip().lower()
+        layer_id = str(params.get("layer_id", "") or "").strip()
+        if name == "layer_activate":
+            self.activate_geometry_layer(session.session_id, layer_id)
+        elif name == "layer_rename":
+            self.rename_geometry_layer(session.session_id, layer_id, str(params.get("name", "") or ""))
+        elif name == "layer_visibility":
+            self.set_geometry_layer_visibility(session.session_id, layer_id, _truthy(params.get("visible")))
+        elif name == "layer_move":
+            self.move_geometry_layer(session.session_id, layer_id, int(params.get("direction", 0) or 0))
+        else:
+            raise ValueError(f"Unsupported mesh edit action: {name!r}")
+        return self._result(session, name)
+
     def apply_command(self, session_id: str, command: MeshEditCommand | str) -> MeshEditResult:
         session = self._session(session_id)
         with session.export_lock:
@@ -1648,6 +2412,8 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
     ) -> MeshEditResult:
         edit_command = _coerce_command(command)
         action = str(edit_command.action or "").strip().lower()
+        if action == GEOMETRY_LAYER_WORKER_ACTION:  # the same checks as when called directly
+            return self._apply_geometry_layer_command_locked(session, edit_command)
         if action not in {"select", "set_mode", "morph_refresh", "refit_restore_shape_apply", "refit_restore_shape_cancel"}:
             self._require_no_pending_refit_shape_restore_locked(session)
         morph_data = self._morph_sessions.get(session.session_id)
@@ -1868,6 +2634,18 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
         command_mode: str,
     ) -> MeshEditResult:
         service_started = time.perf_counter()
+        from cdmw.services.mesh_asset_context import is_item_set
+        asset_context_before = session.archive_refit_context
+        if is_item_set(session.archive_refit_context) and _command_may_change_topology(action, command, selection):
+            from cdmw.services.mesh_item_set_editing import guard_item_set_topology
+            from cdmw.services.mesh_asset_context import PART_ATTRIBUTE
+            mesh_before = self.working_mesh(session.session_id)
+            guard_item_set_topology(session, mesh_before, action, selection, command.params)
+            # Capture ownership before deletion/reordering can change an index.
+            session.edit_operations = tuple(
+                replace(row, metadata={**row.metadata, "asset_part_id": getattr(mesh_before.submeshes[row.submesh_index], PART_ATTRIBUTE)})
+                if "asset_part_id" not in row.metadata and 0 <= row.submesh_index < len(mesh_before.submeshes)
+                else row for row in mesh_edit_operations_from_dicts(session.edit_operations))
         geometry_layers_before = session.geometry_layers
         active_geometry_layer_before = session.active_geometry_layer_id
         geometry_layer_copy_counter_before = session.geometry_layer_copy_counter
@@ -1923,6 +2701,21 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
         result = self._finish_geometry_command(execution)
         if result.ok and result.topology_changed:
             self._record_topology_edit_operations(session, action, command, result)
+            if is_item_set(session.archive_refit_context):
+                from cdmw.services.mesh_asset_context import PART_ATTRIBUTE, item_set_bindings
+                mesh = self.working_mesh(session.session_id)
+                item_set_bindings(mesh, session.archive_refit_context)
+                live_ids = {getattr(part, PART_ATTRIBUTE) for part in mesh.submeshes}
+                context = session.archive_refit_context
+                if not context.excluded_part_ids.issubset(live_ids):
+                    if session.undo_stack:
+                        session.undo_stack[-1].archive_refit_context = asset_context_before
+                        session.undo_stack[-1].restore_archive_refit_context = True
+                    session.archive_refit_context = replace(context, excluded_part_ids=context.excluded_part_ids & live_ids)
+                session.edit_operations = tuple(
+                    replace(row, metadata={**row.metadata, "asset_part_id": getattr(mesh.submeshes[row.submesh_index], PART_ATTRIBUTE)})
+                    if "asset_part_id" not in row.metadata and 0 <= row.submesh_index < len(mesh.submeshes)
+                    else row for row in mesh_edit_operations_from_dicts(session.edit_operations))
         if result.ok and result.topology_changed and topology_before is not None:
             after_count = (
                 len(result.submesh_counts)

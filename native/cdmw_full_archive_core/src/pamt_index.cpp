@@ -303,7 +303,7 @@ std::vector<std::vector<Entry>> parse_pamt_files(
     std::vector<std::uint64_t> sizes(pamt_files.size(), 0);
     for (size_t index = 0; index < pamt_files.size(); ++index) {
         std::error_code size_error;
-        sizes[index] = fs::file_size(pamt_files[index], size_error);
+        sizes[index] = fs::file_size(cdmw::long_path(pamt_files[index]), size_error);
         if (size_error) sizes[index] = 0;
     }
     std::sort(schedule.begin(), schedule.end(), [&sizes](size_t left, size_t right) {
@@ -440,7 +440,7 @@ void write_sections(
     const std::vector<std::uint8_t>& header,
     const std::vector<std::uint8_t>& records,
     const std::vector<std::uint8_t>& strings) {
-    std::ofstream output(staging, std::ios::binary | std::ios::trunc);
+    std::ofstream output(cdmw::long_path(staging), std::ios::binary | std::ios::trunc);
     if (!output) throw std::runtime_error("could not create archive index staging file");
     for (const auto* section : {&header, &records, &strings}) {
         output.write(reinterpret_cast<const char*>(section->data()), static_cast<std::streamsize>(section->size()));
@@ -453,8 +453,8 @@ void write_sections(
 void publish_file(const fs::path& staging, const fs::path& destination) {
 #if defined(_WIN32)
     if (!MoveFileExW(
-            staging.c_str(),
-            destination.c_str(),
+            cdmw::long_path(staging).c_str(),
+            cdmw::long_path(destination).c_str(),
             MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
         throw std::runtime_error("could not atomically publish archive index");
     }
@@ -469,14 +469,16 @@ void publish_file(const fs::path& staging, const fs::path& destination) {
 
 std::vector<Entry> scan_package_root(const fs::path& package_root, const ProgressSink& progress) {
     std::error_code error;
-    if (!fs::exists(package_root, error) || error) throw std::runtime_error("archive root does not exist");
+    if (!fs::exists(cdmw::long_path(package_root), error) || error) throw std::runtime_error("archive root does not exist");
     std::vector<fs::path> pamt_files;
-    if (fs::is_regular_file(package_root, error)) {
+    if (fs::is_regular_file(cdmw::long_path(package_root), error)) {
         if (lower_copy(package_root.extension().string()) != ".pamt") throw std::runtime_error("archive file is not a PAMT");
         pamt_files.push_back(package_root);
         if (progress) progress(1, 0, "discover", package_root.filename().u8string());
     } else {
-        fs::recursive_directory_iterator iterator(package_root, fs::directory_options::skip_permission_denied, error);
+        // Walk the extended-length form; record each file under the root as given.
+        const fs::path long_root = cdmw::long_path(package_root);
+        fs::recursive_directory_iterator iterator(long_root, fs::directory_options::skip_permission_denied, error);
         const fs::recursive_directory_iterator end;
         for (; iterator != end; iterator.increment(error)) {
             if (error) {
@@ -485,7 +487,7 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
             }
             const auto& item = *iterator;
             if (item.is_directory(error)) {
-                const auto name = lower_copy(item.path().lexically_relative(package_root).generic_u8string());
+                const auto name = lower_copy(item.path().lexically_relative(long_root).generic_u8string());
                 if (name == "cdmods" || name == "backups" || name == ".cdmw" || name == "crimsonforge_backups"
                     || name == "dmmsa" || name == "dmmgen" || name == "crimsonfastload.backup"
                     || name == ".crimsonmodscache" || name == "bin64/.crimsonmodscache") {
@@ -494,7 +496,7 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
                 }
             }
             if (item.is_regular_file(error) && lower_copy(item.path().extension().string()) == ".pamt") {
-                pamt_files.push_back(item.path());
+                pamt_files.push_back(package_root / item.path().lexically_relative(long_root));
                 if (progress && (pamt_files.size() == 1 || (pamt_files.size() & 0x3F) == 0)) {
                     progress(pamt_files.size(), 0, "discover", item.path().filename().u8string());
                 }
@@ -529,7 +531,7 @@ void write_index_atomic(
     const std::vector<Entry>& entries,
     const ProgressSink& progress) {
     if (index_path.empty()) throw std::invalid_argument("index path must not be empty");
-    if (!index_path.parent_path().empty()) fs::create_directories(index_path.parent_path());
+    if (!index_path.parent_path().empty()) fs::create_directories(cdmw::long_path(index_path.parent_path()));
     std::vector<std::uint8_t> records;
     std::vector<std::uint8_t> strings;
     std::vector<std::uint32_t> override_metadata(entries.size(), 0);
@@ -626,7 +628,7 @@ void write_index_atomic(
         if (progress) progress(1, 1, "index_publish", "complete");
     } catch (...) {
         std::error_code remove_error;
-        fs::remove(staging, remove_error);
+        fs::remove(cdmw::long_path(staging), remove_error);
         throw;
     }
 }

@@ -84,9 +84,7 @@ mod keyboard_focus {
             // A queued host request can arrive after the user changed tabs or
             // switched applications. It must never activate a hidden child or
             // take keyboard focus back from another foreground window.
-            if IsWindowVisible(window) != 0
-                && GetForegroundWindow() == GetAncestor(window, 2)
-            {
+            if IsWindowVisible(window) != 0 && GetForegroundWindow() == GetAncestor(window, 2) {
                 SetFocus(window);
             }
         }

@@ -18,12 +18,13 @@ class _SearchRequest:
     group_key: int | None
     sort_column: int
     descending: bool
+    wearer_kinds: frozenset[str] | None = None
 
     def run_template_search(self, stop_event=None):
         return search_template_options(
             self.catalogue, self.text, group_key=self.group_key,
             sort_column=self.sort_column, descending=self.descending,
-            limit=None, stop_event=stop_event,
+            limit=None, wearer_kinds=self.wearer_kinds, stop_event=stop_event,
         )
 
 
@@ -69,11 +70,14 @@ class TemplateSearchLane(QObject):
         self._reap_timer.setSingleShot(True)
         self._reap_timer.timeout.connect(self._thread_finished)
 
-    def request(self, catalogue, text, *, group_key=None, sort_column=-1, descending=False, debounce_ms=150):
+    def request(self, catalogue, text, *, group_key=None, sort_column=-1, descending=False, debounce_ms=150,
+                wearer_kinds=None):
         if self._shutdown_requested:
             return
         self.cancel()
-        self._pending = (self._generation, _SearchRequest(catalogue, str(text), group_key, sort_column, descending))
+        kinds = frozenset(wearer_kinds) if wearer_kinds is not None else None
+        self._pending = (self._generation, _SearchRequest(catalogue, str(text), group_key, sort_column, descending,
+                                                          kinds))
         if self._synchronous:
             self._start_pending()
         else:

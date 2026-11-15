@@ -176,7 +176,10 @@ class MeshRebuildServiceMixin:
         row_pitch: int,
         bgra: bytes | bytearray | memoryview | Path,
         logical_path: str = "",
+        expected_revision: int | None = None,
     ) -> int:
+        """Replace the whole texture. With ``expected_revision`` (0: no copy yet), a store that
+        another writer changed since is refused, as ``commit_texture_region`` refuses it."""
         session = self._session(session_id)
         key = _normalized_resource_key(resource_id, channel)
         parsed_width, parsed_height, parsed_pitch, tight_pitch = _checked_texture_layout(width, height, row_pitch)
@@ -184,9 +187,14 @@ class MeshRebuildServiceMixin:
         tight = _tight_bgra_bytes(data, parsed_width, parsed_height, parsed_pitch)
         with session.export_lock:
             _raise_if_session_closed(session)
+            previous = session.committed_texture_resources.get(key)
+            current = int(previous.revision if previous is not None else 0)
+            if expected_revision is not None and int(expected_revision) != current:
+                raise RuntimeError(
+                    f"stale resident texture revision: expected {int(expected_revision)}, current {current}"
+                )
             target = _resource_working_path(session, *key)
             atomic_write_bytes(target, tight)
-            previous = session.committed_texture_resources.get(key)
             revision = int(previous.revision if previous is not None else 0) + 1
             session.committed_texture_resources[key] = _MeshCommittedTextureResource(
                 resource_id=key[0],
@@ -422,6 +430,7 @@ class MeshRebuildServiceMixin:
             return MeshExportSnapshot(
                 session_id=session.session_id,
                 mesh_revision=captured_revision,
+                geometry_layer_revision=int(session.geometry_layer_revision),
                 native_edit_revision=native_revision,
                 material_generation=int(session.material_generation),
                 texture_revisions=texture_revisions,
@@ -799,6 +808,9 @@ class MeshRebuildServiceMixin:
             output_path=output_path,
             original_mesh=snapshot.base_mesh,
         )
+        if snapshot.asset_part_inclusion:
+            from cdmw.services.mesh_item_set_output import apply_part_inclusion
+            result = apply_part_inclusion(result, snapshot)
         override_entries = _service_call("_developer_override_report_entries",
             developer_override_reason,
             overridden_blockers,

@@ -13,6 +13,10 @@ Its principal runtime dependencies are:
   locked crate
 - rfd — MIT
 - windows-rs — MIT OR Apache-2.0
+- Microsoft DirectX Shader Compiler (`dxcompiler.dll`, `dxil.dll`) from the
+  Windows SDK — Microsoft/LLVM permissive terms. The complete upstream notices
+  are bundled as `DXC-THIRD-PARTY-NOTICES.txt` and `DXC-LLVM-LICENSE.txt`.
+  Upstream: https://github.com/microsoft/DirectXShaderCompiler
 
 The locked transitive graph also contains components under compatible
 permissive terms including 0BSD, BSD-2-Clause, BSD-3-Clause, BSL-1.0, ISC,

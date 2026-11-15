@@ -183,7 +183,8 @@ def extract(archive_path: Path, dest: Path) -> None:
         import py7zr
     except ImportError as exc:
         raise VendorError(
-            "py7zr is required to unpack the Qt archives: pip install py7zr"
+            "py7zr is required to unpack the Qt archives: "
+            "python -m pip install -r requirements-qt-sdk.txt"
         ) from exc
     with py7zr.SevenZipFile(archive_path, mode="r") as bundle:
         bundle.extractall(path=dest)

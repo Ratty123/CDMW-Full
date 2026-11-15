@@ -151,8 +151,11 @@ impl LabApplication {
                 let row = binding.segment as usize + usize::from(binding.t >= 0.5);
                 if editing.is_none() && !guide.pinned.is_empty() && guide.is_pinned(row) {
                     let index = first + binding.vertex as usize;
-                    snapshot.positions[index] = pose.head_point(Vec3::from(scene.rest.positions[index])).to_array();
-                    snapshot.normals[index] = (pose.head * Vec3::from(scene.rest.normals[index])).to_array();
+                    snapshot.positions[index] = pose
+                        .head_point(Vec3::from(scene.rest.positions[index]))
+                        .to_array();
+                    snapshot.normals[index] =
+                        (pose.head * Vec3::from(scene.rest.normals[index])).to_array();
                 }
             }
             for lock in state
@@ -194,13 +197,25 @@ impl LabApplication {
             let mut indices = vec![];
             let mut materials = vec![];
             for (i, face) in snapshot.indices.chunks_exact(3).enumerate() {
-                let erased_face = scene.parts.iter().find(|p| p.0 == snapshot.triangle_materials[i])
-                    .is_some_and(|(part, first, _, _)| self.hair.erased_faces.get(part).is_some_and(|faces|
-                        faces.contains(&[face[0] - *first as u32, face[1] - *first as u32, face[2] - *first as u32])));
-                if !erased_face && !face.iter().any(|v| {
-                    scene.vertex_locks[*v as usize]
-                        .is_some_and(|id| self.hair.selected.contains(&(id as usize)))
-                }) {
+                let erased_face = scene
+                    .parts
+                    .iter()
+                    .find(|p| p.0 == snapshot.triangle_materials[i])
+                    .is_some_and(|(part, first, _, _)| {
+                        self.hair.erased_faces.get(part).is_some_and(|faces| {
+                            faces.contains(&[
+                                face[0] - *first as u32,
+                                face[1] - *first as u32,
+                                face[2] - *first as u32,
+                            ])
+                        })
+                    });
+                if !erased_face
+                    && !face.iter().any(|v| {
+                        scene.vertex_locks[*v as usize]
+                            .is_some_and(|id| self.hair.selected.contains(&(id as usize)))
+                    })
+                {
                     indices.extend_from_slice(face);
                     materials.push(snapshot.triangle_materials[i]);
                 }
@@ -212,16 +227,27 @@ impl LabApplication {
         // serial worker prepares them. Completed geometry already owns vertices
         // in the resident base and must not be drawn twice.
         let stroke = self.hair.stroke.as_ref().unwrap_or(state);
-        let drawing: Vec<_> = stroke.locks.iter()
+        let drawing: Vec<_> = stroke
+            .locks
+            .iter()
             .filter(|lock| lock.kind == LockKind::Generated && lock.vertices.is_empty())
-            .map(|lock| lock.id).collect();
-        self.hair.drawn_previews.retain(|id, _| drawing.contains(id));
+            .map(|lock| lock.id)
+            .collect();
+        self.hair
+            .drawn_previews
+            .retain(|id, _| drawing.contains(id));
         for id in &drawing {
             if !self.hair.drawn_previews.contains_key(id)
-                && let Ok(generated) = hair::generate_cached(stroke, &AtomicBool::new(false),
-                    &scene.scalp_picking, &scene.scalp_indices, Some(&[*id])) {
-                    self.hair.drawn_previews.insert(*id, generated);
-                }
+                && let Ok(generated) = hair::generate_cached(
+                    stroke,
+                    &AtomicBool::new(false),
+                    &scene.scalp_picking,
+                    &scene.scalp_indices,
+                    Some(&[*id]),
+                )
+            {
+                self.hair.drawn_previews.insert(*id, generated);
+            }
             if let Some(generated) = self.hair.drawn_previews.get(id) {
                 for geometry in generated {
                     let first = snapshot.positions.len() as u32;
@@ -238,7 +264,9 @@ impl LabApplication {
                             .map(|n| (pose.head * Vec3::from(*n)).to_array()),
                     );
                     snapshot.uvs.extend_from_slice(&geometry.uvs);
-                    snapshot.shader_masks.resize(snapshot.positions.len(), [1.0, 1.0, 0.0]);
+                    snapshot
+                        .shader_masks
+                        .resize(snapshot.positions.len(), [1.0, 1.0, 0.0]);
                     snapshot
                         .indices
                         .extend(geometry.indices.iter().map(|i| first + i));
@@ -247,9 +275,9 @@ impl LabApplication {
                         geometry.indices.len() / 3,
                     ));
                     // Each cached buffer was generated for exactly this lock.
-                    scene.vertex_locks.extend(std::iter::repeat_n(
-                        Some(*id), geometry.positions.len(),
-                    ));
+                    scene
+                        .vertex_locks
+                        .extend(std::iter::repeat_n(Some(*id), geometry.positions.len()));
                 }
             }
         }
@@ -265,10 +293,11 @@ impl LabApplication {
         self.hair.draw_revision += 1;
         snapshot.draw_revision = self.hair.draw_revision;
         if let Some(renderer) = &mut self.renderer
-            && let Err(error) = renderer.set_snapshot_with_deformation_interactive(snapshot, None) {
-                self.hair.feedback = format!("Hair display stopped: {error}");
-                self.hair.playing = false;
-            }
+            && let Err(error) = renderer.set_snapshot_with_deformation_interactive(snapshot, None)
+        {
+            self.hair.feedback = format!("Hair display stopped: {error}");
+            self.hair.playing = false;
+        }
         scene.applied = true;
     }
 }

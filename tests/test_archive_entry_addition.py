@@ -15,15 +15,9 @@ from unittest.mock import patch
 
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import calculate_pa_checksum, parse_archive_pamt
-from cdmw.core.archive_modding import (
-    ArchiveAddRequest,
-    ArchivePatchRequest,
-    _verify_crc_chain,
-    add_archive_entries,
-    apply_archive_mutations,
-    patch_archive_entries,
-)
-from cdmw.core.archive_entry_addition import parse_pamt_document
+from cdmw.core.archive_modding import ArchiveAddRequest, ArchivePatchRequest
+from tests.support.archive_entry_addition import add_archive_entries, apply_archive_mutations, parse_pamt_document
+from tests.support.archive_patch_writer import _verify_crc_chain, patch_archive_entries
 
 
 def _flat_name(name: str) -> bytes:
@@ -172,7 +166,8 @@ class AddArchiveEntriesTests(unittest.TestCase):
         # papgt slot follows the new pamt crc
         _verify_crc_chain(self.papgt_path, (self.pamt_path,))
         # backup holds papgt, pamt and the PAZ that grew
-        backed = sorted(p.name for p in result.backup_dir.iterdir())
+        # Copies are numbered so same-named files never share one (the number is dropped here).
+        backed = sorted(p.name.split('_', 1)[1] if p.name[:5].isdigit() else p.name for p in result.backup_dir.iterdir())
         self.assertEqual(backed, ["0009_0.pamt", "0009_1.paz", "backup_manifest.json", "meta_0.papgt"])
 
     def test_first_and_last_slots_of_a_folder_and_the_last_folder(self) -> None:
@@ -225,7 +220,8 @@ class AddArchiveEntriesTests(unittest.TestCase):
         self.assertEqual(after["character/model/armor_0003.pac"].paz_index, 1)
         self.assertEqual(sorted(result.changed_paths), ["character/model/armor_0001.pac", "character/model/armor_0003.pac"])
         self.assertEqual(result.added_paths, ["character/model/armor_0003.pac"])
-        backed = sorted(p.name for p in result.backup_dir.iterdir())
+        # Copies are numbered so same-named files never share one (the number is dropped here).
+        backed = sorted(p.name.split('_', 1)[1] if p.name[:5].isdigit() else p.name for p in result.backup_dir.iterdir())
         self.assertEqual(backed, ["0009_0.pamt", "0009_0.paz", "0009_1.paz", "backup_manifest.json", "meta_0.papgt"])
         document = parse_pamt_document(self.pamt_path.read_bytes())
         for index in (0, 1):
@@ -282,7 +278,7 @@ class AddArchiveEntriesTests(unittest.TestCase):
         request = ArchiveAddRequest(self.pamt_path, "character/model/weapon/sword_0005.pac", b"new sword payload", 0)
         pamt_before = self.pamt_path.read_bytes()
         papgt_before = self.papgt_path.read_bytes()
-        with patch("cdmw.core.archive_patching._write_bytes_preserve_timestamps", side_effect=RuntimeError("boom")):
+        with patch("tests.support.archive_patch_writer._write_bytes_preserve_timestamps", side_effect=RuntimeError("boom")):
             with self.assertRaisesRegex(RuntimeError, "boom"):
                 add_archive_entries((request,))
         self.assertEqual(self.pamt_path.read_bytes(), pamt_before)

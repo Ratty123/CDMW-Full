@@ -128,7 +128,7 @@ def _write_schema8_preview_core_fixture(
             {
                 "schema_version": 8,
                 "material_semantics_version": 10,
-                "material_graph_version": 4,
+                "material_graph_version": 5,
                 "material_conservation": {
                     "schema_version": 1,
                     "declared_parameter_count": 0,
@@ -196,6 +196,53 @@ def _write_schema8_preview_core_fixture(
         encoding="utf-8",
     )
     return package, geometry_bytes, identity_bytes, texture_bytes
+
+
+def test_layer_transforms_follow_wrapper_and_component_through_promotion(tmp_path: Path):
+    from cdmw.domain.material_layer_uv import pac_layer_uv_transform
+    from cdmw.services.mesh_rust_preview_promotion import promote_rust_preview_package_from_preview_core
+
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    native["material_graph_version"] = 4  # Older native sources also upgrade to v5.
+    base = native["batches"][0]["material_layers"][0]
+    detail = dict(base, layer_role="detail", component_scope_id="piece-a",
+                  source_parameter="_detailDiffuseMaskR")
+    native["batches"][0]["material_layers"].extend([
+        detail, dict(detail, layer_role="grime", mask_channel="g"),
+    ])
+    parameters = []
+    for scope, owner, wrapper, value in (
+        ("piece-a", "fixture-wrapper-1", 0, 13 | (13 << 8)),
+        ("piece-b", "fixture-wrapper-1", 0, 26 | (26 << 8)),
+        ("piece-a", "fixture-wrapper-2", 0, 18 | (18 << 8)),
+        ("piece-a", "fixture-wrapper-1", 1, 255 | (255 << 8)),
+    ):
+        parameters.append(dict(component_scope_id=scope, owner_wrapper_item_id=owner,
+                               material_wrapper_index=wrapper, parameter_name="_dyeingTransformProperty0",
+                               integer_value=value))
+    for name, value in (("_colorBlendingFlag", 10), ("_dyeingGlobalOpacity", 127)):
+        parameters.append(dict(component_scope_id="piece-a", owner_wrapper_item_id="fixture-wrapper-1",
+                               material_wrapper_index=0, parameter_name=name, integer_value=value))
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=6,
+                                           transported_parameter_count=6)
+    (source / "manifest.json").write_text(json.dumps(native))
+    direct = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "direct", material_quality="direct")
+    full = promote_rust_preview_package_from_preview_core(
+        direct, source, source_manifest=native, output_package_dir=tmp_path / "full")
+    for package in (direct, full):
+        manifest = json.loads(package.manifest_path.read_text())
+        graph = manifest["preview_core_material_graph"]
+        assert graph["graph_version"] == manifest["material_contract"]["graph_version"] == 5
+        layers = graph["materials"][0]["layers"]
+        assert "uv_transform" not in layers[0]
+        assert layers[1]["uv_transform"] == pytest.approx(pac_layer_uv_transform(
+            (("_dyeingTransformProperty0", 13 | (13 << 8)),), "r"))
+        assert layers[2]["uv_transform"] == [1, 0, 0, 1, 0, 0]
+        assert layers[1]["blend_flags"] == 10
+        assert layers[1]["blend_opacity"] == pytest.approx(127 / 255)
+        assert layers[1]["tint"][3] == 0  # No authored dye is not a white dye.
 
 
 def _called_names(path: Path) -> set[str]:
@@ -432,9 +479,9 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
 ) -> None:
     from cdmw.services import mesh_rust_preview_cache as cache
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 8
+    assert RUST_PREVIEW_CACHE_SCHEMA == 10
     upgraded = cache.rust_preview_package_cache_key("same-archive-identity")
-    monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 7)
+    monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 8)
     assert cache.rust_preview_package_cache_key("same-archive-identity") != upgraded
     assert root == tmp_path / "rust_wgpu_v1"
     assert "dotnet" not in root.name.casefold()
@@ -537,9 +584,9 @@ def test_schema8_preview_core_geometry_bypasses_python_and_large_json_roundtrip(
     assert warm.package_dir == package.package_dir
     direct = manifest["preview_core_geometry"]
     assert direct["schema_version"] == 8
-    assert direct["material_graph_version"] == 4
+    assert direct["material_graph_version"] == 5
     assert direct["material_semantics_version"] == 10
-    assert manifest["material_contract"]["graph_version"] == 4
+    assert manifest["material_contract"]["graph_version"] == 5
     assert manifest["material_contract"]["semantics_version"] == 10
     assert manifest["material_contract"]["conservation"]["conserved"] is True
     graph = manifest["preview_core_material_graph"]
@@ -663,7 +710,24 @@ def test_repeated_material_sources_are_copied_once_without_reusing_changed_input
     assert all(layer["diffuse"] == payload["textures"][0]["file"] for layer in graph["materials"][0]["layers"])
 
 
-def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
+@pytest.mark.parametrize("layers, prepared", [
+    ([], True),
+    ([{"diffuse_archive_path": "game/base.dds", "diffuse_source": "ready.dds"}], True),
+    ([{"diffuse_archive_path": "game/base.dds", "diffuse_source": ""}], False),
+    ([{"diffuse_source": "missing.dds"}], False),
+    (None, False),
+])
+def test_full_only_tier_requires_every_declared_source(tmp_path, layers, prepared):
+    from types import SimpleNamespace
+    from cdmw.services.mesh_rust_preview_cache import _PreviewCorePackageRequest
+
+    (tmp_path / "ready.dds").write_bytes(b"prepared immutable source")
+    request = SimpleNamespace(source_package=tmp_path, cancelled=None,
+        source_manifest={"batches": [{"material_layers": layers}]})
+    assert _PreviewCorePackageRequest.all_layer_sources_prepared(request) is prepared
+
+
+def test_prepared_schema8_preview_core_publishes_full_without_a_redundant_tier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -696,19 +760,10 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     )
 
     assert synthesis_flags == [False]
-    assert len(direct_packages) == 1
-    direct = direct_packages[0]
-    assert direct.package_dir != full.package_dir
-    direct_manifest = json.loads(direct.manifest_path.read_text(encoding="utf-8"))
+    assert direct_packages == []
     full_manifest = json.loads(full.manifest_path.read_text(encoding="utf-8"))
-    assert direct_manifest["texture_status"]["quality"] == "direct"
     assert full_manifest["texture_status"]["quality"] == "full"
-    assert direct_manifest["preview_core_material_graph"]["resources_included"] is False
-    assert direct_manifest["preview_core_material_graph"]["materials"][0]["layers"][0][
-        "diffuse"
-    ] is None
     assert full_manifest["preview_core_material_graph"]["resources_included"] is True
-    assert direct_manifest["source"] == full_manifest["source"]
     from cdmw.services.mesh_rust_preview_cache import rust_preview_overlays_from_preview_core_package
     ordinary = build_rust_preview_package_from_preview_core(
         source, output_package_dir=tmp_path / "ordinary-full",
@@ -753,6 +808,11 @@ def test_full_material_promotion_preserves_direct_on_failure(
     stop = threading.Event()
     original_copy = promotion.shutil.copyfile
 
+    def unavailable_link(*_args):
+        raise OSError("hard links unavailable on this volume")
+
+    monkeypatch.setattr(promotion.os, "link", unavailable_link)
+
     def copy_with_failure(src, dst):
         if failure == "copy":
             raise OSError("injected copy failure")
@@ -782,6 +842,28 @@ def test_full_material_promotion_preserves_direct_on_failure(
     assert not list(tmp_path.glob(".rust-preview-*"))
     assert direct.manifest_path.read_bytes() == original_manifest
     assert validate_rust_preview_package(direct.package_dir) == ()
+
+
+@pytest.mark.parametrize("links_available", (True, False))
+def test_full_material_promotion_reuses_immutable_files(tmp_path, monkeypatch, links_available):
+    from cdmw.services import mesh_rust_preview_promotion as promotion
+
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    direct = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "direct", material_quality="direct")
+    before = json.loads(direct.manifest_path.read_text(encoding="utf-8"))
+    if not links_available:
+        def unavailable(*_args):
+            raise OSError("different volume")
+        monkeypatch.setattr(promotion.os, "link", unavailable)
+    full = promotion.promote_rust_preview_package_from_preview_core(
+        direct, source, source_manifest=json.loads((source / "manifest.json").read_text(encoding="utf-8")),
+        output_package_dir=tmp_path / "full")
+    for name in promotion._resource_names(before):
+        original, promoted = direct.package_dir / name, full.package_dir / name
+        assert original.read_bytes() == promoted.read_bytes()
+        assert (original.stat().st_ino == promoted.stat().st_ino) is links_available
+    assert validate_rust_preview_package(full.package_dir) == ()
 
 
 def test_native_material_rebasing_preserves_caller_parameters(tmp_path: Path) -> None:
@@ -947,7 +1029,8 @@ def test_gpu_startup_errors_use_the_paused_renderer_failure_protocol() -> None:
     assert "self.renderer_failed(error.to_string())" in gpu_startup
     assert "self.renderer_failed(error)" in gpu_startup
     assert "self.exit_requested = true" not in gpu_startup
-    assert resumed.index("self.window = Some(window.clone())") < resumed.index("WindowRenderer::new")
+    # The renderer goes through make_renderer (P4 V5: another viewport draws on the engine's device).
+    assert resumed.index("self.window = Some(window.clone())") < resumed.index("self.make_renderer(")
 
 
 def test_hidden_preview_retains_renderer_until_the_idle_release_is_due() -> None:
@@ -1024,3 +1107,32 @@ def test_active_rust_material_and_preview_paths_have_no_vortice_launcher() -> No
         assert "resolve_mesh_dotnet_experiment_editor" not in source
         assert "mesh_dotnet_experiment_command" not in source
         assert "--export-material-layer-composites" not in source
+
+
+@pytest.mark.parametrize("durable", [True, False])
+def test_session_material_resource_links_cache_file_only_when_not_durable(tmp_path, durable):
+    import os
+
+    from cdmw.services import mesh_rust_preview_package as owner
+    from cdmw.services.mesh_rust_authoring import _session_root_identity
+
+    package = tmp_path / "session"
+    package.mkdir()
+    source = tmp_path / "cache" / "layer.dds"
+    source.parent.mkdir()
+    payload = b"DDS " + b"m" * 70_000
+    source.write_bytes(payload)
+    resources = {}
+
+    reference, next_index, aggregate = owner._copy_preview_core_material_resource(
+        package, source, expected_root_identity=_session_root_identity(package),
+        resources=resources, next_index=0, aggregate_bytes=0, cancelled=None, durable=durable,
+    )
+
+    published = package / reference["path"]
+    assert reference["sha256"] == hashlib.sha256(payload).hexdigest().upper()
+    assert (next_index, aggregate) == (1, len(payload))
+    assert published.read_bytes() == payload
+    # Durable cache packages own their bytes; a session may share the cache file.
+    assert os.path.samefile(source, published) is (not durable)
+    assert sorted(path.name for path in package.iterdir()) == [reference["path"]]

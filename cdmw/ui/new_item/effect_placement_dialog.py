@@ -537,9 +537,7 @@ class EffectPlacementWorkspace(
         tuning = getattr(self.host, "set_render_tuning", None)
         if callable(tuning):
             tuning(self._render_settings)
-        lighting = getattr(self.host, "set_lighting_preset", None)
-        if callable(lighting):
-            lighting(self._lighting_preset)
+        # Lighting follows the shared Preview settings.
         self.host.set_alignment_preview_transform(
             translation=self._frame.to_scene_point(self.offset),
             rotation_degrees=self._frame.to_scene_euler(self.rotation),

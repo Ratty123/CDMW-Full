@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -19,7 +20,7 @@ _APP = QApplication.instance() or QApplication([])
 
 
 def _embedded_tab(name: str) -> tuple[MeshEditorTab, _EmbeddedMeshBuilder]:
-    settings = QSettings("CDMWTests", name)
+    settings = owned_settings(name)
     settings.clear()
     tab = MeshEditorTab(settings=settings)
     builder = _EmbeddedMeshBuilder()

@@ -98,6 +98,7 @@ def _open_exact_session(
     resolved_rig: bool = False,
     base_texture_path: Path | None = None,
     neutral_appearance: object | None = None,
+    mesh_path: str = "owned-rust-exact.pac",
 ) -> tuple[bytes, MeshService, RustMeshAuthoringSession]:
     source = _pac_fixture(skinned=True)
     skeleton = None
@@ -118,7 +119,7 @@ def _open_exact_session(
             source,
             tuple(bone.name_hash for bone in skeleton.bones),
         )
-    mesh = parse_pac(source, "owned-rust-exact.pac")
+    mesh = parse_pac(source, mesh_path)
     setattr(mesh, "_cdmw_original_data", source)
     setattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", 8)
     setattr(

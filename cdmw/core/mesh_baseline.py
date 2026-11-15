@@ -3,13 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
-from cdmw.constants import APP_NAME
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.models import ArchiveEntry
 from cdmw.domain.archives.filters import archive_entry_package_group
@@ -28,10 +26,15 @@ def _normalize_virtual_path(path: str) -> str:
 
 
 def _default_baseline_root() -> Path:
-    local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
-    if local_app_data:
-        return Path(local_app_data) / APP_NAME / "mesh_baselines"
-    return Path(tempfile.gettempdir()) / APP_NAME / "mesh_baselines"
+    """`mesh_baselines` in the CDMW folder's workspace (`cdmw.app.app_folder`).
+
+    It was under %LOCALAPPDATA%, outside the CDMW folder, so every copy of the
+    app and every test run shared it and the user's profile kept it.
+    """
+
+    from cdmw.app.app_folder import workspace_folder
+
+    return workspace_folder() / "mesh_baselines"
 
 
 def _entry_cache_key(entry: ArchiveEntry) -> str:

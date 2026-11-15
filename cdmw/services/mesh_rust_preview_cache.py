@@ -74,9 +74,9 @@ _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
 _MAX_CLOTH_PARTICLES = 2_000_000
 _MAX_CLOTH_CONSTRAINTS = 4_000_000
 _LOGGER = logging.getLogger(__name__)
-# Rebuild previews that omitted authored translucent shader absorption.
+# Rebuild previews that omitted authored layer UV and sequential blend controls.
 # Source DDS caches stay reusable; only derived renderer packages change.
-RUST_PREVIEW_CACHE_SCHEMA = 8
+RUST_PREVIEW_CACHE_SCHEMA = 10
 
 
 def _cancelled(callback: Callable[[], bool] | None) -> bool:
@@ -545,15 +545,29 @@ def build_or_lookup_rust_preview_package_with_builder(
             release_dotnet_preview_package_staging_dir(staging, cleanup=True)
 
 
-def _validate_rust_cache_package(package_dir: Path) -> tuple[bool, tuple[str, ...]]:
-    missing = validate_rust_preview_package(package_dir)
+def _validate_rust_cache_package(
+    package_dir: Path, *, hash_unverified: bool = True,
+) -> tuple[bool, tuple[str, ...]]:
+    missing = validate_rust_preview_package(package_dir, hash_unverified=hash_unverified)
     return not missing, missing
 
 
-def validate_rust_preview_cache_package(package_dir: Path | str) -> tuple[bool, tuple[str, ...]]:
+def validate_rust_preview_cache_package(
+    package_dir: Path | str, *, hash_unverified: bool = True,
+) -> tuple[bool, tuple[str, ...]]:
     """Validate one derived Rust package without touching its source package."""
 
-    return _validate_rust_cache_package(Path(package_dir))
+    return _validate_rust_cache_package(Path(package_dir), hash_unverified=hash_unverified)
+
+
+def validate_resident_rust_preview_package(package_dir: Path | str) -> tuple[bool, tuple[str, ...]]:
+    """The UI thread's check of a package this process already prepared.
+
+    It hashes nothing: structure, sizes and containment only, plus any digest
+    this process has already verified for the same unchanged file.
+    """
+
+    return _validate_rust_cache_package(Path(package_dir), hash_unverified=False)
 
 
 def _source_manifest(package_dir: Path) -> Mapping[str, object]:
@@ -759,6 +773,7 @@ class _PreviewCorePackageRequest:
             quality == "full"
             and fast_package_ready is not None
             and _safe_int(self.source_manifest.get("schema_version"), 0) >= 8
+            and not self.all_layer_sources_prepared()
         )
         if not progressive:
             return self.build_or_lookup_quality(quality)
@@ -766,6 +781,27 @@ class _PreviewCorePackageRequest:
             return self._progressive_durable(fast_package_ready)
         direct_package, _ = self.emit_direct(fast_package_ready, retain_lease=False)
         return self.build_or_lookup_quality("full", direct_package)
+
+    def all_layer_sources_prepared(self) -> bool:
+        from cdmw.services.mesh_rust_preview_package import _preview_core_material_source
+
+        batches = self.source_manifest.get("batches", ())
+        if not batches:
+            return False
+        for batch in batches:
+            _check_cancelled(self.cancelled)
+            if not isinstance(batch, Mapping) or not isinstance(batch.get("material_layers"), list):
+                return False
+            for layer in batch["material_layers"]:
+                if not isinstance(layer, Mapping):
+                    return False
+                for role in ("diffuse", "normal", "material", "height", "mask"):
+                    source = str(layer.get(f"{role}_source", "") or "").strip()
+                    if layer.get(f"{role}_archive_path") and not source:
+                        return False
+                    if source and _preview_core_material_source(self.source_package, source) is None:
+                        return False
+        return True
 
 
 def build_or_lookup_rust_preview_package(
@@ -1193,5 +1229,6 @@ __all__ = [
     "rust_preview_package_cache_root",
     "RUST_PREVIEW_CACHE_SCHEMA",
     "validate_rust_preview_package",
+    "validate_resident_rust_preview_package",
     "validate_rust_preview_cache_package",
 ]

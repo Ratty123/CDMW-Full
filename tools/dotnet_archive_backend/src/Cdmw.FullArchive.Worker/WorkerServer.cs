@@ -208,6 +208,7 @@ internal sealed class WorkerServer(Stream input, Stream output, string cacheRoot
             NativeArchiveException native when native.Status == NativeStatus.FormatError => "invalid_archive",
             NativeArchiveException native when native.Status == NativeStatus.Unsupported => "unsupported_operation",
             JsonException => "protocol_failure",
+            ExportDestinationRefusedException => "export_destination_protected",
             InvalidDataException => "invalid_data",
             _ => "worker_failure",
         };

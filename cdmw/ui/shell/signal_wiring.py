@@ -10,19 +10,23 @@ class ShellSignalWiringMixin:
         return None
 
     def _connect_shell_signals(self) -> None:
-        self.export_profile_action.triggered.connect(self.export_profile)
-        self.import_profile_action.triggered.connect(self.import_profile)
+        # The shell's menu entries are views of registry commands (P12): state,
+        # reason and running come from the command, wherever the action is shown.
+        from cdmw.ui.shell.shell_commands import install_shell_commands
+
+        install_shell_commands(self)
+        from PySide6.QtWidgets import QWidget
+
+        if isinstance(self, QWidget):  # a real window, not a wiring stub
+            from cdmw.ui.commands.keymap import QtShortcutBinder
+            from cdmw.ui.commands.palette import install_command_palette
+
+            install_command_palette(self)
+            # Keys from the one keymap for shell and Browse Archives commands (P12).
+            self.command_shortcut_binder = QtShortcutBinder(
+                self.command_registry, self.settings, shell_parent=self,
+                browse_parent=getattr(self, "archive_browser_tab", None))
         self.mod_package_tool_action.triggered.connect(lambda _checked=False: self._activate_tool_key('mod_package_retrofit'))
-        self.detach_current_tab_action.triggered.connect(self._detach_current_tool_tab)
-        self.attach_current_tool_action.triggered.connect(self._attach_current_tool_tab)
-        self.attach_all_tools_action.triggered.connect(self._attach_all_detached_tools)
-        self.report_problem_action.triggered.connect(self.show_problem_report_dialog)
-        self.export_diagnostics_action.triggered.connect(self.export_diagnostic_bundle)
-        self.copy_problem_summary_action.triggered.connect(self.copy_latest_problem_summary)
-        self.open_crash_reports_action.triggered.connect(self.open_crash_reports_folder)
-        self.open_settings_action.triggered.connect(self.show_settings)
-        self.open_documentation_action.triggered.connect(self.show_documentation_dialog)
-        self.open_about_action.triggered.connect(self.show_about_dialog)
         self.support_corner_button.clicked.connect(self.show_support_dialog)
         self.textures.scan_button.clicked.connect(self.textures.start_scan)
         self.textures.preview_policy_button.clicked.connect(self.textures.preview_texture_policy)

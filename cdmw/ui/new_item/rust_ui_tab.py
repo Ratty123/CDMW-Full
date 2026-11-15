@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+import weakref
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QProcess, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import QVBoxLayout, QWidget
@@ -25,6 +26,35 @@ _DEVICE_RESET_SIGNS = (
     "device instance has been suspended", "DEVICE_REMOVED", "DEVICE_RESET", "DEVICE_HUNG",
     "0x887A0005", "0x887A0006", "0x887A0007", "Parent device is lost", "Device lost", "device lost",
 )
+
+
+def _palette_chords() -> list[str]:
+    try:
+        from cdmw.services.settings_service import app_settings
+        from cdmw.ui.commands.helper_keys import palette_chords
+
+        return palette_chords(app_settings())
+    except Exception:
+        return ["Ctrl+Shift+P"]
+
+
+def _follow_keymap(tab: "RustNewItemStudioTab") -> None:
+    """Send the palette's new keys as soon as the keymap is saved (review of 9ff3c4bd8).
+
+    The page's state carries them; its fingerprint changes, so the next publish
+    sends it. A closed tab drops out: the listener holds it weakly.
+    """
+
+    from cdmw.services.keymap_store import on_keymap_saved
+
+    reference = weakref.ref(tab)
+
+    def keymap_saved(_settings) -> None:
+        current = reference()
+        if current is not None and isValid(current):
+            QTimer.singleShot(0, current, current._publish_state)
+
+    on_keymap_saved(keymap_saved)
 
 
 class RustNewItemStudioTab(QWidget):
@@ -53,6 +83,8 @@ class RustNewItemStudioTab(QWidget):
         self._closed = False
         self._rust_mode = False
         self._process = None
+        from cdmw.ui.preview.engine_viewport import engine_page_factory
+        self._process_factory = engine_page_factory(fallback=lambda owner: QProcess(owner))
         self._prepare_thread = None
         self._prepare_worker = None
         self._launch = None
@@ -69,6 +101,7 @@ class RustNewItemStudioTab(QWidget):
         self._received_generation = 0
         self._state_fingerprint = b""
         self._state_delivery = QElapsedTimer()
+        _follow_keymap(self)
         self._bridge = None
 
         layout = QVBoxLayout(self)
@@ -202,7 +235,8 @@ class RustNewItemStudioTab(QWidget):
         self._stderr = ""
         self._state_fingerprint = b""
         self._sent_generation = self._received_generation = 0
-        process = QProcess(self)
+        # A page of Browse's helper process when it can open one (P4 V5).
+        process = self._process_factory(self)
         self._process = process
         process.setProcessChannelMode(QProcess.SeparateChannels)
         process.readyReadStandardOutput.connect(self._read_stdout)
@@ -291,6 +325,12 @@ class RustNewItemStudioTab(QWidget):
                     self._portals.update(self._bridge.document, message)
         elif kind == "failed":
             self._fail(str(message.get("message", "The Rust renderer stopped.")))
+        elif kind == "app_shortcut":
+            # A chord that belongs to CDMW, pressed with focus in this page (P12).
+            if message.get("command") == "command_palette":
+                from cdmw.ui.commands.palette import open_command_palette
+
+                open_command_palette(self.window())
         else:
             raise PresentationProtocolError("Unknown Rust presentation message.")
 
@@ -326,6 +366,8 @@ class RustNewItemStudioTab(QWidget):
             # monitor scaling belong to the visible, detachable Qt host.
             state["theme"] = theme_snapshot(self)
             state["theme"]["pixels_per_point"] = self.devicePixelRatioF()
+            # The palette's keys from CDMW's keymap, as the Mesh Editor gets them (P12 E5).
+            state["theme"]["app_commands"] = {"command_palette": _palette_chords()}
             stable = {key: value for key, value in state.items() if key != "generation"}
             fingerprint = hashlib.blake2s(json.dumps(stable, ensure_ascii=False, sort_keys=True).encode("utf-8")).digest()
             if fingerprint == self._state_fingerprint:

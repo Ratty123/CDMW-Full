@@ -86,6 +86,10 @@ def _should_collect_cdmw_submodule(name):
         "cdmw.services.mesh_dotnet_preview_package",
         "cdmw.services.mesh_dotnet_runtime_status",
         "cdmw.services.native_dotnet_preview_adapter",
+        # Only tools/*.py import these (removal list item 5).
+        "cdmw.rendering.ingame_capture",
+        "cdmw.rendering.preview_comparison",
+        "cdmw.rendering.test_run_sword_tuning",
     )
     return not any(
         name == prefix or name.startswith(prefix + ".")
@@ -104,11 +108,6 @@ hiddenimports += collect_submodules("tools.placement_studio")
 # Same reasoning for Translation Studio: its AI provider modules are imported from inside
 # button handlers, which is the shape static analysis is worst at following.
 hiddenimports += collect_submodules("tools.translation_studio")
-hiddenimports += [
-    "cdmw.rendering.ingame_capture",
-    "cdmw.rendering.preview_comparison",
-    "cdmw.rendering.test_run_sword_tuning",
-]
 
 unused_qt_modules = [
     "PySide6.QtQml",
@@ -132,20 +131,28 @@ unused_qt_runtime_payloads = {
     "PySide6\\Qt6VirtualKeyboard.dll",
     "PySide6\\plugins\\imageformats\\qpdf.dll",
     "PySide6\\plugins\\platforminputcontexts\\qtvirtualkeyboardplugin.dll",
+    # Nothing live uses these (P16 stage 2 / P20 removal list item 1). qoffscreen stays
+    # for the start verifier and windowsmediaplugin for audio and video (decision 22).
+    "PySide6\\opengl32sw.dll",
+    "PySide6\\Qt6OpenGL.dll",
+    "PySide6\\plugins\\platforms\\qdirect2d.dll",
+    "PySide6\\plugins\\platforms\\qminimal.dll",
+    "PySide6\\plugins\\generic\\qtuiotouchplugin.dll",
+    "PySide6\\plugins\\imageformats\\qicns.dll",
+    "PySide6\\plugins\\imageformats\\qwbmp.dll",
+    "PySide6\\plugins\\imageformats\\qsvg.dll",
+    "PySide6\\plugins\\iconengines\\qsvgicon.dll",
+    "PySide6\\plugins\\styles\\qmodernwindowsstyle.dll",
 }
 
 # The app never installs a QTranslator, so the bundled Qt message catalogues can
 # never be loaded.
-#
-# The second entry is the same idea for OpenImageIO. Following oiiotool.exe's
-# imports makes PyInstaller re-collect its DLLs at their package-relative
-# OpenImageIO\bin\, 15 MB on top of the copy the openimageio/ payload already
-# places beside the executable. oiiotool loads them from its own directory, and
-# the OpenImageIO Python module is not bundled, so nothing can open the second
-# copy.
 unused_payload_prefixes = (
     "PySide6\\translations\\",
-    "OpenImageIO\\bin\\",
+    # The problem report goes through urllib now; nothing uses Qt's TLS or network
+    # information. Qt6Network.dll stays for Qt Multimedia (removal list item 7).
+    "PySide6\\plugins\\tls\\",
+    "PySide6\\plugins\\networkinformation\\",
 )
 
 
@@ -171,13 +178,19 @@ def _exclude_collected_prefixes(entries, prefixes):
 _add_data_if_exists(datas, "assets/cdmw.ico", "assets")
 _add_data_if_exists(datas, "assets/cdmw.png", "assets")
 _add_data_tree_if_exists(datas, "assets/theme_icons", "assets/theme_icons", suffixes={".ico", ".png"})
-_add_data_tree_if_exists(datas, "schemas", "schemas", suffixes={".json"})
+# The one schema the app reads at run time; the others serve tools and tests
+# (removal list item 4).
+_add_data_if_exists(datas, "schemas/archive_content_capabilities.v1.json", "schemas")
 _add_data_tree_if_exists(
     datas,
     "cdmw/resources/localization",
     "cdmw/resources/localization",
     suffixes={".json"},
 )
+# Only the catalogue validator reads this list, at build time.
+datas = [item for item in datas if Path(item[0]).name != "source_identical_terms.json"]
+# Settings > Shortcuts reads the Mesh Editor's commands from here while no editor runs.
+_add_data_if_exists(datas, "cdmw/resources/mesh_editor_commands.json", "cdmw/resources", required_release=True)
 _add_data_if_exists(datas, "THIRD_PARTY_NOTICES.md", ".")
 _add_data_if_exists(datas, "LICENSE", ".")
 _add_data_if_exists(datas, "README.md", ".", required_release=True)
@@ -224,6 +237,8 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
         "executable": root / "cdmw_mesh_lab.exe",
         "control_contract": root / "cdmw_mesh_lab.control-contract.json",
         "manifest": root / "cdmw_mesh_lab.manifest.json",
+        "shader_compiler": root / "dxcompiler.dll",
+        "shader_validator": root / "dxil.dll",
     }
     missing = [path for path in expected_files.values() if not path.is_file()]
     if missing:
@@ -255,6 +270,12 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
         "control_contract": expected_files["control_contract"].name,
         "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
     }
+    compiler_files = manifest.get("shader_compiler_files", {})
+    if not isinstance(compiler_files, dict) or set(compiler_files) != {"dxcompiler.dll", "dxil.dll"}:
+        raise SystemExit("Rust Mesh Editor shader compiler provenance is incomplete or invalid.")
+    for name in ("dxcompiler.dll", "dxil.dll"):
+        if not isinstance(compiler_files[name], str) or compiler_files[name].lower() != _sha256(root / name).lower():
+            raise SystemExit(f"Rust Mesh Editor shader compiler provenance does not match: {name}")
     mismatches = [
         f"{field}={manifest.get(field)!r}"
         for field, expected in expected_manifest.items()
@@ -375,19 +396,9 @@ _add_native_binary(
     required_release=True,
 )
 _add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.exe", "native", required_release=True)
-_add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.dll", "native", required_release=True)
-# DMM loads CDMW's items; the game runtime (an ASI and a session host .exe) ships only
-# while CDMW's own loading is switched on.
-from cdmw import constants as _cdmw_constants
-if _cdmw_constants.VIRTUAL_LOADING_ENABLED:
-    for virtual_binary in ("CDMWVirtualLoader.asi", "cdmw_virtual_session.exe"):
-        _add_native_binary(
-            f"native/cdmw_virtual_loader/build/Release/{virtual_binary}",
-            "native/cdmw_virtual_loader",
-            required_release=True,
-        )
-    _add_data_if_exists(datas, "native/cdmw_virtual_loader/build/Release/provenance.json",
-                        "native/cdmw_virtual_loader", required_release=True)
+# cdmw-mesh-core.dll is built for the native ABI tests only; nothing in the app loads it (removal list item 6).
+# DMM loads CDMW's items; CDMW's own game runtime (the virtual loader) is retired
+# and not packaged (rr/parity-mods-2, removal list item 9).
 rust_mesh_editor_stage = f"native/rust_mesh_editor/build/{NATIVE_CONFIGURATION}"
 _validate_rust_mesh_editor_payload(
     ROOT / rust_mesh_editor_stage,
@@ -398,6 +409,8 @@ _add_native_binary(
     "native/rust_mesh_editor",
     required_release=True,
 )
+for compiler_file in ("dxcompiler.dll", "dxil.dll"):
+    _add_native_binary(f"{rust_mesh_editor_stage}/{compiler_file}", "native/rust_mesh_editor", required_release=True)
 for rust_mesh_editor_data in (
     "cdmw_mesh_lab.manifest.json",
     "cdmw_mesh_lab.control-contract.json",
@@ -414,6 +427,8 @@ _add_data_if_exists(
     "native/rust_mesh_editor",
     required_release=True,
 )
+for compiler_notice in ("DXC-LLVM-LICENSE.txt", "DXC-THIRD-PARTY-NOTICES.txt"):
+    _add_data_if_exists(datas, f"tools/rust_mesh_lab/{compiler_notice}", "native/rust_mesh_editor", required_release=True)
 # Self-contained .NET publishes include crash-dump/debugger data-access tools
 # for post-mortem debugging. The archive worker never invokes or loads them;
 # excluding them preserves the worker/runtime/ABI while avoiding several MB of
@@ -439,6 +454,9 @@ _add_native_binary("native/cd_hkx/target/release/cd-hkx.exe", "native")
 unused_vgmstream_payloads = {
     "in_vgmstream.dll",
     "xmp-vgmstream.dll",
+    # vgmstream-cli.exe imports neither (its import table; removal list item 2).
+    "libao-4.dll",
+    "swresample-vgmstream-4.dll",
 }
 
 vgmstream_dir = ROOT / ".tools" / "vgmstream"
@@ -451,56 +469,8 @@ if vgmstream_dir.exists():
         elif runtime_file.suffix.lower() in {".dll", ".exe"}:
             binaries.append((str(runtime_file), "vgmstream"))
 
-# OpenImageIO ships as a wheel whose console script in Scripts/ is only a
-# launcher shim. The real oiiotool lives in the package's own bin/ and loads its
-# DLL closure from that directory, so the tool and the DLLs travel together or
-# not at all. idiff and maketx sit in the same directory and CDMW invokes
-# neither. The wheel's lib/*.lib are import libraries for building against
-# OpenImageIO, and share/fonts serves oiiotool's text drawing, which CDMW does
-# not use; taking bin/*.{exe,dll} alone leaves all three behind.
-unused_openimageio_tools = {
-    "idiff.exe",
-    "maketx.exe",
-}
-
-
-def _openimageio_package_root():
-    try:
-        module_spec = importlib.util.find_spec("OpenImageIO")
-    except (ImportError, ModuleNotFoundError, ValueError):
-        return None
-    if module_spec is None:
-        return None
-    for location in tuple(getattr(module_spec, "submodule_search_locations", ()) or ()):
-        if not str(location or "").strip():
-            continue
-        root = Path(location)
-        if (root / "bin" / "oiiotool.exe").is_file():
-            return root
-    return None
-
-
-openimageio_root = _openimageio_package_root()
-if openimageio_root is not None:
-    blocked_openimageio = {name.casefold() for name in unused_openimageio_tools}
-    for runtime_file in sorted(path for path in (openimageio_root / "bin").iterdir() if path.is_file()):
-        if runtime_file.name.casefold() in blocked_openimageio:
-            continue
-        if runtime_file.suffix.lower() in {".dll", ".exe"}:
-            binaries.append((str(runtime_file), "openimageio"))
-    # Apache-2.0 with small BSD-3-Clause portions; redistribution carries both.
-    for notice_name in ("LICENSE.md", "THIRD-PARTY.md"):
-        notice = next(
-            iter(sorted(openimageio_root.parent.glob(f"openimageio-*.dist-info/licenses/{notice_name}"))),
-            None,
-        )
-        if notice is not None:
-            datas.append((str(notice), "openimageio"))
-elif PROFILE == "release":
-    raise SystemExit(
-        "OpenImageIO is bundled in release builds but its package was not found. "
-        "Install it into the build environment: .\\.venv\\Scripts\\python.exe -m pip install openimageio"
-    )
+# OpenImageIO is not bundled: the user's own copy reads .exr, .ptx/.ptex and layered
+# .psd sources (removal list item 8).
 
 numpy_datas, numpy_binaries, numpy_hiddenimports = collect_all(
     "numpy",
@@ -547,6 +517,7 @@ a = Analysis(
         "cdmw.services.native_dotnet_preview_adapter",
         "PIL.AvifImagePlugin",
         "PIL._avif",
+        "PIL._imagingtk",  # no Tk anywhere (removal list item 3)
         *unused_qt_modules,
         "numpy._pyinstaller",
         "numpy.conftest",
@@ -556,8 +527,6 @@ a = Analysis(
         "numpy.tests",
         "numpy.typing.tests",
         "numpy.typing.mypy_plugin",
-        "pycparser.lextab",
-        "pycparser.yacctab",
     ],
     noarchive=False,
     optimize=0,

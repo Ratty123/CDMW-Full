@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from cdmw.domain.preview_view_modes import read_view_mode, write_view_mode
+
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Dict, Optional
 
@@ -91,6 +93,15 @@ from cdmw.ui.themes import UI_THEME_SCHEMES
 if TYPE_CHECKING:
     from cdmw.services.asset_authoring_service import AssetAuthoringService
 
+
+
+def mesh_history_limits() -> tuple[int, int]:
+    """The Mesh Editor service's history limits: steps, and MiB a draft (section 8.7 D5)."""
+
+    from cdmw.services.mesh_service import MeshService
+
+    service = MeshService()
+    return int(service.max_history), int(service.max_history_bytes) // (1024 * 1024)
 
 class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, QWidget):
     theme_changed = Signal(str)
@@ -194,26 +205,26 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         appearance_layout.addRow("Density", self.density_combo)
         self.ui_font_size_spin = QSpinBox()
         self.ui_font_size_spin.setRange(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX)
-        self.ui_font_size_spin.setSuffix(" px")
+        self.ui_font_size_spin.setSuffix(" pt")
         self.ui_font_size_spin.setKeyboardTracking(False)
         self.ui_font_size_spin.setAccelerated(True)
         self.ui_font_size_spin.setToolTip(
-            f"Global UI font size. Minimum {UI_FONT_SIZE_MIN} px, maximum {UI_FONT_SIZE_MAX} px."
+            f"Global UI font size. Minimum {UI_FONT_SIZE_MIN} pt, maximum {UI_FONT_SIZE_MAX} pt."
         )
         appearance_layout.addRow(
-            f"Global font size ({UI_FONT_SIZE_MIN}-{UI_FONT_SIZE_MAX} px)",
+            f"Global font size ({UI_FONT_SIZE_MIN}-{UI_FONT_SIZE_MAX} pt)",
             self.ui_font_size_spin,
         )
         self.data_font_size_spin = QSpinBox()
         self.data_font_size_spin.setRange(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX)
-        self.data_font_size_spin.setSuffix(" px")
+        self.data_font_size_spin.setSuffix(" pt")
         self.data_font_size_spin.setKeyboardTracking(False)
         self.data_font_size_spin.setAccelerated(True)
         self.data_font_size_spin.setToolTip(
-            f"Used for dense lists, trees, tables, and column-heavy views. Minimum {UI_FONT_SIZE_MIN} px, maximum {UI_FONT_SIZE_MAX} px."
+            f"Used for dense lists, trees, tables, and column-heavy views. Minimum {UI_FONT_SIZE_MIN} pt, maximum {UI_FONT_SIZE_MAX} pt."
         )
         appearance_layout.addRow(
-            f"Lists / columns font size ({UI_FONT_SIZE_MIN}-{UI_FONT_SIZE_MAX} px)",
+            f"Lists / columns font size ({UI_FONT_SIZE_MIN}-{UI_FONT_SIZE_MAX} pt)",
             self.data_font_size_spin,
         )
         self.log_font_family_combo = QComboBox()
@@ -222,8 +233,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.log_font_family_combo.setToolTip("Used for logs and code/text preview panes.")
         appearance_layout.addRow("Log / code font", self.log_font_family_combo)
         self.log_font_size_spin = QSpinBox()
-        self.log_font_size_spin.setRange(8, 18)
-        self.log_font_size_spin.setSuffix(" px")
+        self.log_font_size_spin.setRange(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX)
+        self.log_font_size_spin.setSuffix(" pt")
         self.log_font_size_spin.setKeyboardTracking(False)
         self.log_font_size_spin.setAccelerated(True)
         appearance_layout.addRow("Log / code size", self.log_font_size_spin)
@@ -952,6 +963,22 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         safety_layout.addWidget(self.confirm_archive_cleanup_checkbox)
         safety_layout.addWidget(self.capture_crash_details_checkbox)
         safety_layout.addWidget(self.verbose_archive_logs_checkbox)
+        steps, mib = mesh_history_limits()
+        self.history_limits_label = QLabel(
+            f"Mesh Editor drafts keep their undo history after CDMW closes: up to {steps} steps and {mib} MiB a draft. "
+            "Edits that were not finished are kept until you finish or discard them; they use at most half of that "
+            "space, and the three newest steps always stay. A mesh opened from disk keeps its history only while it is open."
+        )
+        self.history_limits_label.setWordWrap(True)
+        self.history_limits_label.setObjectName("HintLabel")
+        safety_layout.addWidget(self.history_limits_label)
+        self.document_budget_label = QLabel(
+            "The Mesh Editor keeps the 3D view of up to 4 open documents. When you open more, the one shown "
+            "longest ago is parked: its view closes, and it opens again with its edits and history when you show it."
+        )
+        self.document_budget_label.setWordWrap(True)
+        self.document_budget_label.setObjectName("HintLabel")
+        safety_layout.addWidget(self.document_budget_label)
         self.safety_page_layout.addWidget(safety_group)
 
         profile_group = QGroupBox("Profile")
@@ -1147,6 +1174,27 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             "Appearance",
             "Layout, theme, language, fonts, preview colors, and 3D graphics defaults.",
         )
+        self.shortcuts_page_layout = _add_settings_page(
+            "shortcuts",
+            "Shortcuts",
+            "Keys for every command, in every tool. Search, change, unbind or reset them; a key used twice is named.",
+        )
+        self.ai_connections_page_layout = _add_settings_page(
+            "ai_connections",
+            "AI connections",
+            "Let AI apps on this computer use CDMW's tools, and choose what they may do without asking.",
+        )
+        from cdmw.ui.ai_connections.settings_section import AiConnectionsSettingsSection
+
+        self.ai_connections_section = AiConnectionsSettingsSection(self.settings)
+        self.ai_connections_page_layout.addWidget(self.ai_connections_section)
+        from cdmw.ui.commands.registry import command_registry
+        from cdmw.ui.commands.shortcuts_page import ShortcutsPage
+
+        registry = command_registry()
+        if registry is not None:
+            self.shortcuts_page = ShortcutsPage(registry, self.settings)
+            self.shortcuts_page_layout.addWidget(self.shortcuts_page)
         self.section_nav_list.currentRowChanged.connect(self.section_stack.setCurrentIndex)
         self.section_nav_list.setCurrentRow(0)
 
@@ -1515,7 +1563,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.settings.setValue("archive/model_high_quality", preview_settings.high_quality_by_default)
         self.settings.setValue("preview/visible_texture_mode", preview_settings.visible_texture_mode)
         self.settings.setValue("preview/render_diagnostic_mode", preview_settings.render_diagnostic_mode)
-        self.settings.setValue("preview/d3d11_view_mode", preview_settings.d3d11_view_mode)
+        write_view_mode(self.settings, preview_settings.d3d11_view_mode)
         self.settings.setValue("preview/d3d11_normal_y_mode", preview_settings.d3d11_normal_y_mode)
         self.settings.setValue("preview/d3d11_texture_address_mode", preview_settings.d3d11_texture_address_mode)
         self.settings.setValue("preview/alpha_handling_mode", preview_settings.alpha_handling_mode)
@@ -1572,6 +1620,11 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.settings.setValue("preview/shininess_min", preview_settings.shininess_min)
         self.settings.setValue("preview/shininess_max", preview_settings.shininess_max)
         self.settings.setValue("preview/height_shininess_boost", preview_settings.height_shininess_boost)
+        self.settings.setValue("preview/preview_shadows", preview_settings.preview_shadows)
+        self.settings.setValue("preview/preview_lighting_preset", preview_settings.preview_lighting_preset)
+        self.settings.setValue("preview/preview_ambient_occlusion", preview_settings.preview_ambient_occlusion)
+        self.settings.setValue("preview/preview_ground_visible", preview_settings.preview_ground_visible)
+        self.settings.setValue("preview/preview_ground_grid_visible", preview_settings.preview_ground_grid_visible)
         self.settings.setValue("preview/d3d11_ao_strength", preview_settings.d3d11_ao_strength)
         self.settings.setValue("preview/d3d11_roughness_bias", preview_settings.d3d11_roughness_bias)
         self.settings.setValue("preview/d3d11_metalness_scale", preview_settings.d3d11_metalness_scale)
@@ -1581,6 +1634,11 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.settings.setValue("preview/d3d11_tone_contrast", preview_settings.d3d11_tone_contrast)
         self.settings.setValue("preview/d3d11_tone_gamma", preview_settings.d3d11_tone_gamma)
         self.settings.sync()
+        # Every open viewport follows the shared Preview settings just saved.
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+        hub = preview_settings_hub()
+        if hub is not None:
+            hub.refresh()
         self._apply_checkbox_states()
         if previous_capture_value != current_capture_value:
             self.crash_capture_changed.emit(current_capture_value)
@@ -1865,6 +1923,9 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.language_combo.blockSignals(False)
 
     def _read_model_preview_render_settings(self) -> ModelPreviewRenderSettings:
+        from cdmw.ui.archive_browser.preview_settings_migration import migrate_textures_on_by_default
+
+        migrate_textures_on_by_default(self.settings)
         defaults = clamp_model_preview_render_settings()
         return clamp_model_preview_render_settings(
             ModelPreviewRenderSettings(
@@ -1878,10 +1939,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
                     self.settings.value("preview/render_diagnostic_mode", defaults.render_diagnostic_mode)
                     or defaults.render_diagnostic_mode
                 ),
-                d3d11_view_mode=str(
-                    self.settings.value("preview/d3d11_view_mode", defaults.d3d11_view_mode)
-                    or defaults.d3d11_view_mode
-                ),
+                d3d11_view_mode=read_view_mode(self.settings),
                 d3d11_normal_y_mode=str(
                     self.settings.value("preview/d3d11_normal_y_mode", defaults.d3d11_normal_y_mode)
                     or defaults.d3d11_normal_y_mode
@@ -1999,6 +2057,11 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
                     "preview/height_shininess_boost",
                     defaults.height_shininess_boost,
                 ),
+                preview_shadows=self._read_bool("preview/preview_shadows", defaults.preview_shadows),
+                preview_lighting_preset=str(self.settings.value("preview/preview_lighting_preset", defaults.preview_lighting_preset)),
+                preview_ambient_occlusion=self._read_bool("preview/preview_ambient_occlusion", defaults.preview_ambient_occlusion),
+                preview_ground_visible=self._read_bool("preview/preview_ground_visible", defaults.preview_ground_visible),
+                preview_ground_grid_visible=self._read_bool("preview/preview_ground_grid_visible", defaults.preview_ground_grid_visible),
                 d3d11_ao_strength=self._read_float("preview/d3d11_ao_strength", defaults.d3d11_ao_strength),
                 d3d11_roughness_bias=self._read_float("preview/d3d11_roughness_bias", defaults.d3d11_roughness_bias),
                 d3d11_metalness_scale=self._read_float(
@@ -2116,6 +2179,11 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             ModelPreviewRenderSettings(
                 use_textures_by_default=self.model_preview_use_textures_checkbox.isChecked(),
                 high_quality_by_default=self.model_preview_high_quality_checkbox.isChecked(),
+                preview_shadows=stored.preview_shadows,
+                preview_lighting_preset=stored.preview_lighting_preset,
+                preview_ambient_occlusion=stored.preview_ambient_occlusion,
+                preview_ground_visible=stored.preview_ground_visible,
+                preview_ground_grid_visible=stored.preview_ground_grid_visible,
                 visible_texture_mode=str(
                     self.visible_texture_mode_combo.currentData() or ModelPreviewRenderSettings().visible_texture_mode
                 ),

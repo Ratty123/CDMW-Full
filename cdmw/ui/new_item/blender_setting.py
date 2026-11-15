@@ -14,19 +14,18 @@ from typing import Optional
 __all__ = ["BLENDER_SETTING", "blender_for_fbx", "remember_blender", "suggested_blender"]
 
 #: the studio's own settings scope, the one the Model step already writes into
-_SETTINGS_SCOPE = "CrimsonDesertModWorkbench"
 BLENDER_SETTING = "new_item/blender_executable"
 
 
 def blender_for_fbx() -> str:
     """The Blender the reader chose, or "" when they have not chosen one."""
 
-    from PySide6.QtCore import QSettings
+    from cdmw.services.settings_service import app_settings
 
     from cdmw.services.fbx_blender_conversion import is_blender_executable
 
     try:
-        stored = str(QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE).value(BLENDER_SETTING, "") or "")
+        stored = str(app_settings().value(BLENDER_SETTING, "") or "")
     except Exception:  # noqa: BLE001 - a session with no settings has chosen nothing
         return ""
     return stored if is_blender_executable(stored) else ""
@@ -35,7 +34,7 @@ def blender_for_fbx() -> str:
 def remember_blender(path: object) -> str:
     """Store `path` as the studio's Blender; "" forgets it. Returns what was stored."""
 
-    from PySide6.QtCore import QSettings
+    from cdmw.services.settings_service import app_settings
 
     from cdmw.services.fbx_blender_conversion import is_blender_executable
 
@@ -43,7 +42,7 @@ def remember_blender(path: object) -> str:
     if chosen and not is_blender_executable(chosen):
         return blender_for_fbx()
     try:
-        QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE).setValue(BLENDER_SETTING, chosen)
+        app_settings().setValue(BLENDER_SETTING, chosen)
     except Exception:  # noqa: BLE001 - not remembering is not worth an error
         pass
     return chosen

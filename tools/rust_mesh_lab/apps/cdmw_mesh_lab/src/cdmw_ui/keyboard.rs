@@ -11,6 +11,27 @@ use cdmw_mesh::hair::GroupMode;
 
 pub(super) const CDMW_REVEAL_VIEWPORT: &str = "cdmw_reveal_viewport_section";
 
+/// Every editor command with its label, group, scope and default keys, as
+/// `cdmw/resources/mesh_editor_commands.json` lists them for CDMW's Shortcuts
+/// page when no editor is running (a test keeps the two equal).
+#[cfg(test)]
+pub(crate) fn mesh_editor_commands_resource() -> Value {
+    Value::Array(
+        SHORTCUTS
+            .iter()
+            .map(|spec| {
+                json!({
+                    "id": spec.id,
+                    "label": shortcut_label(spec.action),
+                    "group": format!("{:?}", spec.group),
+                    "scope": format!("{:?}", spec.scope),
+                    "defaults": spec.defaults,
+                })
+            })
+            .collect(),
+    )
+}
+
 fn shortcut_label(action: ShortcutAction) -> &'static str {
     use ShortcutAction as A;
     match action {
@@ -143,7 +164,7 @@ fn hair_tool(action: ShortcutAction) -> Option<HairTool> {
 
 /// Removes the key presses that trigger a shortcut and returns their actions.
 /// Numpad presses recorded by the window loop turn the matching egui key into its numpad key.
-fn take_shortcut_presses(
+pub(crate) fn take_shortcut_presses(
     context: &egui::Context,
     mut numpad: Vec<(egui::Key, NumpadKey)>,
     mut take: impl FnMut(KeyChord) -> bool,
@@ -176,15 +197,24 @@ fn take_shortcut_presses(
     })
 }
 
+/// A numpad press, under the egui key it produced: egui reports numpad digits as
+/// top-row digits, so each window loop records them for take_shortcut_presses.
+pub(crate) fn numpad_press(event: &WindowEvent) -> Option<(egui::Key, NumpadKey)> {
+    if let WindowEvent::KeyboardInput { event, .. } = event
+        && event.state == ElementState::Pressed
+        && let winit::keyboard::PhysicalKey::Code(code) = event.physical_key
+        && let Some(numpad) = NumpadKey::from_key_code(code)
+        && let Some(key) = crate::shortcuts::numpad_egui_key(numpad, &event.logical_key)
+    {
+        return Some((key, numpad));
+    }
+    None
+}
+
 impl LabApplication {
     pub(crate) fn capture_shortcut_numpad_event(&mut self, event: &WindowEvent) {
-        if let WindowEvent::KeyboardInput { event, .. } = event
-            && event.state == ElementState::Pressed
-            && let winit::keyboard::PhysicalKey::Code(code) = event.physical_key
-            && let Some(numpad) = NumpadKey::from_key_code(code)
-            && let Some(key) = crate::shortcuts::numpad_egui_key(numpad, &event.logical_key)
-        {
-            self.shortcut_numpad_presses.push((key, numpad));
+        if let Some(press) = numpad_press(event) {
+            self.shortcut_numpad_presses.push(press);
         }
     }
 
@@ -217,6 +247,52 @@ impl LabApplication {
         self.shortcut_editor.persist = overrides.is_some_and(Value::is_object);
         self.shortcut_keymap =
             crate::shortcuts::Keymap::from_overrides(overrides.unwrap_or(&Value::Null));
+    }
+
+    /// Why a command cannot run now, as far as the editor can say before running it.
+    /// Running it still checks again and says why in the status line.
+    fn shortcut_refusal(&self, action: ShortcutAction) -> Option<String> {
+        if let Some(page) = rail_page(action) {
+            return self.rail_page_refusal(page);
+        }
+        let hair =
+            crate::shortcuts::spec_for(action).scope == crate::shortcuts::ShortcutScope::Hair;
+        if hair && !self.hair.active() {
+            return Some("This command is for hair sessions.".to_owned());
+        }
+        None
+    }
+
+    /// Tell CDMW which editor commands exist, their keys and whether they can run, so its
+    /// registry and palette mirror them (P12). Sent only when something changed.
+    fn publish_commands_state(&mut self) {
+        let Some(bridge) = self.cdmw_bridge.as_ref() else {
+            return;
+        };
+        let commands: Vec<Value> = crate::shortcuts::SHORTCUTS
+            .iter()
+            .map(|spec| {
+                let keys: Vec<String> = self
+                    .shortcut_keymap
+                    .bindings(spec.action)
+                    .into_iter()
+                    .map(|binding| binding.text())
+                    .collect();
+                json!({
+                    "id": spec.id,
+                    "label": shortcut_label(spec.action),
+                    "keys": keys,
+                    "reason": self.shortcut_refusal(spec.action).unwrap_or_default(),
+                })
+            })
+            .collect();
+        let encoded = Value::Array(commands.clone()).to_string();
+        if encoded == self.published_commands_state {
+            return;
+        }
+        if bridge.announce_commands_state(&commands).is_ok() {
+            self.published_commands_state = encoded;
+        }
     }
 
     fn publish_shortcuts(&mut self) {
@@ -255,6 +331,28 @@ impl LabApplication {
             self.capture_shortcut(context, numpad);
             return;
         }
+        // App-wide chords (the command palette) go to CDMW before the editor's own.
+        for chord in take_shortcut_presses(context, numpad.clone(), |chord| {
+            chord.app_command().is_some()
+        }) {
+            if let (Some(command), Some(bridge)) = (chord.app_command(), self.cdmw_bridge.as_ref())
+            {
+                let _ = bridge.announce_app_shortcut(command);
+            }
+        }
+        // Commands CDMW's palette asked for run here, as their key press would.
+        for command in std::mem::take(&mut self.pending_host_commands) {
+            if command == "session.finish" {
+                // CDMW's Finish, Discard, Keep editing prompt (P4 V3) finishes here,
+                // as the Finish button does.
+                actions.push(UiAction::FinishCdmw);
+                continue;
+            }
+            if let Some(spec) = crate::shortcuts::spec_for_id(&command) {
+                self.run_shortcut(context, spec.action, actions);
+            }
+        }
+        self.publish_commands_state();
         if context.egui_wants_keyboard_input()
             || egui::Popup::is_any_open(context)
             || self.cdmw_delete_guidance_open()
@@ -279,7 +377,10 @@ impl LabApplication {
         }
     }
 
-    fn rail_page_refusal(&self, page: CdmwRailPage) -> Option<String> {
+    pub(crate) fn rail_page_refusal(&self, page: CdmwRailPage) -> Option<String> {
+        if let Some(reason) = self.cdmw_tool_groups.refusal(page) {
+            return Some(crate::localization::tr(reason));
+        }
         if self.cdmw_show_busy_controls() {
             return Some("Wait for the current shadow operation".to_owned());
         }
@@ -529,6 +630,7 @@ impl LabApplication {
                 }
                 ReservedChord::CloseWindow => "Alt+F4 closes the window.",
                 ReservedChord::Clipboard => "Copy, cut and paste stay with text fields.",
+                ReservedChord::AppCommand => "This key opens the command palette.",
             }));
             return;
         }

@@ -30,6 +30,45 @@ from cdmw.ui.preview.profile import DotNetPreviewProfile
 
 _APP = QApplication.instance() or QApplication([])
 
+
+def test_process_completion_after_qt_owner_destruction_ignores_deleted_timers() -> None:
+    parent = QObject()
+    controller = DotNetPreviewSessionController(parent=parent, host_hwnd=lambda: 0)
+    deleted = []
+    process = SimpleNamespace(deleteLater=lambda: deleted.append(True))
+    controller._process = process
+    controller._process_generation = 7
+    controller._pending_process_exits.add(7)
+    shiboken6.delete(parent)
+    assert not shiboken6.isValid(controller)
+    controller._process_finished(process, 7, 0, QProcess.ExitStatus.NormalExit)
+    assert deleted == [True]
+    assert not controller._pending_process_exits
+
+
+def test_depth_toggles_and_icon_alpha_travel_in_live_presentation(tmp_path: Path) -> None:
+    controller, _process, package = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    try:
+        assert host.load_package(package)
+        # Shadows and AO are shared Preview settings: the store wins over a
+        # caller's own settings object, and its changes reach live viewports.
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+        assert host.set_render_tuning(SimpleNamespace(preview_shadows=True, preview_ambient_occlusion=True))
+        assert preview_settings_hub().update(shadows=False)
+        _, payload = controller._resident_state["presentation"]
+        assert payload["display"]["quality"]["preview_shadows"] is False
+        assert payload["display"]["quality"]["preview_ambient_occlusion"] is True
+        assert host.set_icon_capture_mode(True)
+        _, payload = controller._resident_state["presentation"]
+        assert payload["display"]["icon_capture_mode"] is True
+        assert host.set_icon_capture_mode(False)
+        _, payload = controller._resident_state["presentation"]
+        assert payload["display"]["icon_capture_mode"] is False
+    finally:
+        controller.shutdown()
+        shiboken6.delete(host)
+
 #: Controllers built without a parent, so nothing outside this module owns them.
 _UNPARENTED: list[DotNetPreviewSessionController] = []
 
@@ -306,7 +345,10 @@ def _make_ready(controller: DotNetPreviewSessionController) -> None:
             "event": "ready",
             **identity,
             "child_hwnd": 7,
-            "embedded_parent_hwnd": 1,
+            # The window the controller embeds into. A dialog spare's parking widget
+            # has a real id, which under offscreen Qt depends on how many native
+            # windows earlier tests made; a fixed 1 made that test order-dependent.
+            "embedded_parent_hwnd": controller._safe_host_hwnd(),  # noqa: SLF001
         },
         generation,
     )
@@ -1763,6 +1805,27 @@ def test_authoritative_rehydrator_prevents_controller_scene_replay_ownership() -
     controller.shutdown()
 
 
+def test_a_failed_finished_package_says_browse_shows_the_file_as_before(tmp_path: Path) -> None:
+    """Section 8.9 (C1): when the package of a finished edit fails, the helper puts
+    Browse's own scene back and says so; CDMW shows that, not only the load error."""
+
+    from cdmw.ui.preview.dotnet_session import RESTORED_PREVIOUS_SCENE_MESSAGE
+
+    controller, _process, _first = _start_controller(tmp_path)
+    _make_ready(controller)
+    failures: list[str] = []
+    controller.package_failed.connect(lambda path, generation, message: failures.append(message))
+    second = _package(tmp_path, "package-finished")
+    assert controller.load_package(second)
+    request = next(payload for payload in reversed(_process.writes) if payload.get("event") == "package_load_request")
+    controller._handle_protocol_event(  # noqa: SLF001
+        {**request, "event": "package_load_failed", "error": "missing texture", "restored_previous_scene": True},
+        controller.process_generation,
+    )
+    assert failures[-1] == RESTORED_PREVIOUS_SCENE_MESSAGE
+    controller.shutdown()
+
+
 @pytest.mark.parametrize("detail_key", ["message", "error"])
 def test_package_failure_keeps_resident_scene_and_process_retryable(
     tmp_path: Path,
@@ -1979,7 +2042,12 @@ def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path)
     assert host.set_lighting_preset("showcase")
     live = process.writes[-1]
     assert live["event"] == "presentation_state_update"
-    assert live["display"] == {"lighting_preset": "showcase"}
+    # A viewport's own lighting is a local setting carried with the shared
+    # display values (ground, grid); still a display-only update.
+    assert live["display"]["lighting_preset"] == "showcase"
+    assert set(live["display"]) <= {"lighting_preset", "ground_visible", "ground_grid_visible", "quality",
+                                    "view_mode", "viewport_background_color"}  # shared since P4 V3
+    assert host.has_local_preview_settings
     assert not {"camera", "uv", "visibility", "part_transforms", "comparison_mode"}.intersection(live)
     event, payload = controller._resident_state["presentation"]  # noqa: SLF001
     assert event == "presentation_state_update"
@@ -1990,7 +2058,11 @@ def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path)
     ) == package_requests_before
 
     assert host.set_lighting_preset("dark")
-    assert process.writes[-1]["display"] == {"lighting_preset": "dark"}
+    assert process.writes[-1]["display"]["lighting_preset"] == "dark"
+    assert set(process.writes[-1]["display"]) <= {"lighting_preset", "ground_visible", "ground_grid_visible", "quality",
+                                                  "view_mode", "viewport_background_color"}
+    assert host.set_lighting_preset("studio_fixed")
+    assert process.writes[-1]["display"]["lighting_preset"] == "studio_fixed"
     assert controller._resident_state["presentation"][1]["camera"]["yaw"] == 27.0
     assert host.set_lighting_preset("unknown")
     _event, payload = controller._resident_state["presentation"]  # noqa: SLF001

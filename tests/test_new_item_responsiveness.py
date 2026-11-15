@@ -11,7 +11,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 
-pytestmark = pytest.mark.usefixtures("retained_archive_overlays")
 from PySide6.QtCore import QObject, QProcess, QSettings, QTimer
 from PySide6.QtWidgets import QApplication, QComboBox, QPlainTextEdit
 
@@ -291,30 +290,6 @@ def test_compatibility_requests_are_batched_off_gui_and_publish_on_gui(studio, m
     assert len(calls) == 2 and all(thread != threading.get_ident() for thread, _ in calls)
     assert delivered == [threading.get_ident()]
     assert controller.effect_target_compatibility("fx_first").supported
-
-
-def test_recovery_scan_is_read_only_worker_preflight_and_confirmation_is_gui(tmp_path, monkeypatch):
-    from cdmw.ui.tools.mod_management import ModManagementTab
-    app = QApplication.instance() or QApplication([])
-    tab = ModManagementTab()
-    tab._migration_preview_lane._synchronous = False
-    service = object()
-    calls, notices = [], []
-    monkeypatch.setattr(tab, "_overlay_services", lambda title: (service, tmp_path))
-    def inspect(root, *, stop_event):
-        calls.append((root, threading.get_ident()))
-        return SimpleNamespace(is_empty=True)
-    monkeypatch.setattr("cdmw.services.archive_overlay_migration.plan_migration", inspect)
-    monkeypatch.setattr("cdmw.ui.tools.mod_management.QMessageBox.information", lambda *a: notices.append(threading.get_ident()))
-    monkeypatch.setattr(tab.controller, "start_overlay_migration", lambda *a: pytest.fail("an empty preview must not mutate"))
-    tab._migrate_overlay()
-    assert not calls
-    pump(app, lambda: bool(notices) and not tab._migration_preview_lane.busy)
-    assert calls[0][0] == tmp_path and calls[0][1] != threading.get_ident()
-    assert notices == [threading.get_ident()]
-    tab.request_shutdown()
-    pump(app, lambda: not tab.iter_shutdown_workers())
-    tab.deleteLater()
 
 
 def test_latest_lookup_cancels_obsolete_work_and_close_drops_results():

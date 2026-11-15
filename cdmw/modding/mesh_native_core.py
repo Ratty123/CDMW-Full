@@ -105,6 +105,7 @@ from cdmw.modding.mesh_native_session_state import (
     _native_mesh_core_session_cache as _native_mesh_core_session_cache,
     _native_mesh_core_session_cache_lock as _native_mesh_core_session_cache_lock,
     _clear_native_mesh_core_session_cache as _clear_native_mesh_core_session_cache,
+    _forget_native_mesh_core_session as _forget_native_mesh_core_session,
     _native_mesh_session_token as _native_mesh_session_token,
     _native_mesh_session_cache_key as _native_mesh_session_cache_key,
     _native_mesh_session_id as _native_mesh_session_id,

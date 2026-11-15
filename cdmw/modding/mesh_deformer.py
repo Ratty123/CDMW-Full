@@ -49,6 +49,7 @@ _EXTRA_SUBMESH_ATTRS = (
     "cloth_paint",
     "cloth_pin",
     "_cdmw_replacement_part_id",
+    "_cdmw_mesh_asset_id", "_cdmw_mesh_asset_part_id", "_cdmw_mesh_asset_origin_id",
     "texture_slots",
     "preview_color",
     "preview_role", "preview_source_asset_path",

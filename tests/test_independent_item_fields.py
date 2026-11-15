@@ -11,20 +11,20 @@ from cdmw.domain.archives.iteminfo_composition import rows_of
 from cdmw.domain.new_item.independent import IndependentItemError
 from cdmw.domain.new_item.iteminfo_operations import ItemFieldConflict
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.domain.virtual_loader import VirtualProfile
-from cdmw.services import archive_overlay_manager as overlays
-from cdmw.services.independent_item_install import (MOD_PROFILE_FORMAT, load_registry, prepare_install, prepare_rebuild,
+from tests.support.virtual_domain import VirtualProfile
+import tests.support.overlay_manager as overlays
+from tests.support.item_install import (MOD_PROFILE_FORMAT, load_registry, prepare_install, prepare_rebuild,
     prepare_remove, export_profile, prepare_profile_import, inventory)
 from cdmw.services.independent_item_package import from_plan, package_bytes
 from cdmw.services.independent_item_operations import from_iteminfo_operations
-from cdmw.services.virtual_loader_composition import prepare_profile
-from cdmw.services.virtual_loader_state import publish_profile, generation_path, load_profile
+from tests.support.virtual_composition import prepare_profile
+from tests.support.virtual_state import publish_profile, generation_path, load_profile
 from tests.test_archive_overlay_manager import Backups, shop_spec, snapshot_of
 from tests.test_independent_items import setup_game
 from tests.test_independent_item_regressions import files_in
 from tests.test_iteminfo_operations import assignment
 from tests.test_iteminfo_row import DDD
-from tests.test_virtual_loader import game_bytes
+from tests.support.game_fixtures import game_bytes
 
 
 def field_package(snapshot, *, stat=False, value=7, identity=None):
@@ -91,39 +91,6 @@ def test_virtual_disjoint_fields_compose_and_remove_without_game_writes(tmp_path
     assert row.max_stack_count == snapshot.rows[1001295].max_stack_count and row.stat(0, DDD).value == 13000
     publish_profile(prepare_profile(VirtualProfile(), root))
     assert not load_profile(root)['items'] and game_bytes(root) == stock
-
-
-@pytest.mark.parametrize('reverse', [False, True])
-@pytest.mark.parametrize('disabled', [False, True])
-def test_rebuild_installed_overlays_preserves_disjoint_field_intent(tmp_path, reverse, disabled):
-    from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
-    from cdmw.services.archive_overlay_manager import prepare_overlay_enabled
-
-    _, snapshot, _ = setup_game(tmp_path)
-    root, backups = tmp_path / 'game', Backups(tmp_path)
-    packages = [field_package(snapshot), field_package(snapshot, stat=True, value=13000)]
-    selected = packages[::-1] if reverse else packages
-    backups.apply(prepare_install([package_bytes(p) for p in selected], root).preparation)
-    registry = load_registry(root)
-    if disabled:
-        backups.apply(prepare_overlay_enabled(root, registry['items'][packages[0].identity]['layer'], False))
-    before = files_in(root)
-    prepared = prepare_overlay_rebuild(root)
-    assert files_in(root) == before
-    backups.apply(prepared)
-    if disabled:
-        row = snapshot_of(root).rows[1001295]
-        assert row.max_stack_count == snapshot.rows[1001295].max_stack_count
-        assert row.stat(0, DDD).value == 13000
-        backups.apply(prepare_overlay_enabled(root, registry['items'][packages[0].identity]['layer'], True))
-    row = snapshot_of(root).rows[1001295]
-    assert row.max_stack_count == 7 and row.stat(0, DDD).value == 13000
-    assert load_registry(root) == registry
-    assert prepare_install([package_bytes(p) for p in selected], root).preparation is None
-    backups.apply(prepare_remove(packages[0].identity, root))
-    row = snapshot_of(root).rows[1001295]
-    assert row.max_stack_count == snapshot.rows[1001295].max_stack_count
-    assert row.stat(0, DDD).value == 13000
 
 
 @pytest.mark.parametrize('reverse', [False, True])
@@ -241,21 +208,6 @@ def test_existing_overlay_install_preserves_field_only_reservations_and_complete
     assert plan.spec.item_key in snapshot_of(root).rows
 
 
-def test_virtual_field_package_uses_real_worker_process_and_no_op_owner_can_be_removed(tmp_path):
-    from cdmw.services.virtual_loader_process import prepare_profile_in_subprocess
-    _, snapshot, _ = setup_game(tmp_path)
-    root, path = tmp_path / 'game', tmp_path / 'item.cditem'
-    package = field_package(snapshot, value=snapshot.rows[1001295].max_stack_count)
-    path.write_bytes(package_bytes(package))
-    prepared = prepare_profile_in_subprocess(VirtualProfile((path,)), root)
-    publish_profile(prepared)
-    assert virtual_row(root).raw == snapshot.rows[1001295].raw
-    publish_profile(prepare_profile(VirtualProfile(), root))
-    backups = Backups(tmp_path)
-    backups.apply(prepare_install([path], root).preparation)
-    backups.apply(prepare_remove(package.identity, root))
-
-
 def test_cancel_during_field_composition_leaves_previous_installation_unchanged(tmp_path, monkeypatch):
     import cdmw.domain.new_item.iteminfo_operations as operations
     _, snapshot, _ = setup_game(tmp_path)
@@ -306,42 +258,3 @@ def test_active_composition_operation_budget_refuses_before_publication(tmp_path
     assert files_in(root) == before
 
 
-@pytest.mark.parametrize('virtual', [False, True])
-def test_one_v2_package_executes_legacy_and_unrelated_field_modules(tmp_path, virtual):
-    from copy import deepcopy
-    from cdmw.services.independent_mod_package import migrate_v1, read_v2
-    from cdmw.services.new_item_service import NewItemService
-    from tests.test_new_item_service import build_package, _read, _table4
-    from tests.test_iteminfo_row import build_row
-    _, source, source_entries = setup_game(tmp_path / 'source')
-    files = {entry.path: source.payload(entry.path) for entry in source_entries}
-    body = 'gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody'
-    header = body.replace('.staticinfobody', '.staticinfoheader')
-    raw = build_row(key=992000, string_key='UnrelatedStock')
-    files[body], files[header] = _table4([*rows_of(files[body], files[header]).items(), (992000, raw)])
-    root = tmp_path / 'game'
-    entries = parse_archive_pamt(build_package(root, files))
-    (root / 'meta/0.pathc').write_bytes((tmp_path / 'source/game/meta/0.pathc').read_bytes())
-    service = NewItemService()
-    snapshot = service.build_snapshot(entries, read_entry=_read)
-    original = from_plan(service.plan(shop_spec('MixedModules'), snapshot, capture_independent=True), uuid4().hex)
-    envelope = deepcopy(migrate_v1(original).manifest)
-    envelope['requires']['item.fields'] = 1
-    envelope['modules'].append({'id': 'edits', 'type': 'item.fields', 'version': 1, 'required': True,
-                                'data': {'operations': [assignment(raw, value=13)]}})
-    package = read_v2(envelope, original.blobs)
-    if virtual:
-        path = tmp_path / 'mixed.cditem'
-        path.write_bytes(package_bytes(package))
-        publish_profile(prepare_profile(VirtualProfile((path,)), root))
-        assert virtual_row(root, 992000).max_stack_count == 13
-        key = load_registry(root)['items'][original.identity]['values']['iteminfo']['item']
-        assert virtual_row(root, key).key == key
-    else:
-        from cdmw.services.archive_overlay_rebuild import prepare_overlay_rebuild
-        backups = Backups(tmp_path)
-        backups.apply(prepare_install([package_bytes(package)], root).preparation)
-        backups.apply(prepare_overlay_rebuild(root))
-        assert snapshot_of(root).rows[992000].max_stack_count == 13
-        key = load_registry(root)['items'][original.identity]['values']['iteminfo']['item']
-        assert key in snapshot_of(root).rows

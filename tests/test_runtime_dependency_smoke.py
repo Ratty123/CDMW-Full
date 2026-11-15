@@ -24,7 +24,6 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
     def test_documented_runtime_dependencies_import(self) -> None:
         packages = {
             "PySide6": "PySide6",
-            "cryptography": "cryptography",
             "lz4": "lz4.block",
             "Pillow": "PIL",
             "numpy": "numpy",

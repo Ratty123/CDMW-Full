@@ -1,5 +1,5 @@
 void write_text_file(const std::string& path, const std::string& text) {
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    std::ofstream output(cdmw_native_path(path), std::ios::binary | std::ios::trunc);
     if (!output) {
         throw std::runtime_error("cannot open output file: " + path);
     }
@@ -10,7 +10,7 @@ void write_escaped(std::ostream& out, const std::string& text);
 void write_json_value(std::ostream& out, const JsonValue& value);
 
 void write_binary_file(const std::string& path, const std::vector<char>& data, bool append) {
-    std::ofstream output(path, std::ios::binary | (append ? std::ios::app : std::ios::trunc));
+    std::ofstream output(cdmw_native_path(path), std::ios::binary | (append ? std::ios::app : std::ios::trunc));
     if (!output) {
         throw std::runtime_error("cannot open output file: " + path);
     }
@@ -29,7 +29,7 @@ void write_vec3_binary_file(const std::string& path, const std::vector<Vec3>& va
             throw std::runtime_error("non-finite vec3 output value: " + path);
         }
     }
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    std::ofstream output(cdmw_native_path(path), std::ios::binary | std::ios::trunc);
     if (!output) {
         throw std::runtime_error("cannot open output file: " + path);
     }
@@ -54,7 +54,7 @@ void write_vec2_binary_file(const std::string& path, const std::vector<Vec2>& va
             throw std::runtime_error("non-finite vec2 output value: " + path);
         }
     }
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    std::ofstream output(cdmw_native_path(path), std::ios::binary | std::ios::trunc);
     if (!output) {
         throw std::runtime_error("cannot open output file: " + path);
     }
@@ -73,7 +73,7 @@ void write_double_binary_file(const std::string& path, const std::vector<double>
     if (path.empty()) {
         throw std::runtime_error("missing f64 output path");
     }
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    std::ofstream output(cdmw_native_path(path), std::ios::binary | std::ios::trunc);
     if (!output) {
         throw std::runtime_error("cannot open output file: " + path);
     }
@@ -92,7 +92,7 @@ void write_int_binary_file(const std::string& path, const std::vector<int>& valu
     if (path.empty()) {
         throw std::runtime_error("missing int output path");
     }
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    std::ofstream output(cdmw_native_path(path), std::ios::binary | std::ios::trunc);
     if (!output) {
         throw std::runtime_error("cannot open output file: " + path);
     }
@@ -121,7 +121,7 @@ void write_faces_binary_file(const std::string& path, const std::vector<std::arr
     if (path.empty()) {
         throw std::runtime_error("missing face output path");
     }
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    std::ofstream output(cdmw_native_path(path), std::ios::binary | std::ios::trunc);
     if (!output) {
         throw std::runtime_error("cannot open output file: " + path);
     }

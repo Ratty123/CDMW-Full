@@ -98,14 +98,20 @@ def test_direct_workspace_constructs_only_the_rust_native_host(tmp_path: Path) -
 
 
 def test_rust_theme_payload_carries_exact_app_palette_type_scale_and_density(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch,
 ) -> None:
+    from cdmw.ui.shell import theme_controller
+
+    # Small screens force Compact (P11): this case is about a large one.
+    monkeypatch.setattr(theme_controller, "available_screen_size_for", lambda _widget: (2560, 1440))
     tab = _tab(tmp_path)
     application = QApplication.instance()
     assert application is not None
     original_font = QFont(application.font())
     try:
         application.setFont(QFont("Verdana", 12))
+        # Since P11 the sizes come from the saved settings, as on every surface.
+        tab.settings.setValue("appearance/ui_font_size", 12)
         tab.settings.setValue("appearance/data_font_size", 11)
         tab.settings.setValue("appearance/ui_density", "comfortable")
         tab.theme_key = "light"
@@ -618,8 +624,6 @@ def test_result_page_actions_and_retry_are_explicit_signals() -> None:
     host.export_pac_requested.connect(lambda: emitted.append("pac"))
     host.add_to_archive_browser_requested.connect(lambda: emitted.append("browser"))
     host.continue_modified_mesh_requested.connect(lambda: emitted.append("next_pass"))
-    host.install_overlay_requested.connect(lambda: emitted.append("install"))
-    host.restore_overlay_requested.connect(lambda: emitted.append("restore"))
     host.reopen_edit_requested.connect(lambda: emitted.append("reopen"))
     host.close_session_requested.connect(lambda: emitted.append("close"))
 
@@ -705,3 +709,39 @@ def test_hello_requires_embedded_capability_and_passes_pid_to_host(tmp_path: Pat
     assert attached == [(123, 77, 456)]
     assert tab.standalone_rust_hello_received is True
     assert sent
+    assert not tab.standalone_rust_ready
+    assert tab.standalone_rust_ready_timer.isActive()
+    assert tab.standalone_rust_ready_timer.interval() == 60_000
+    tab._handle_rust_ready({})
+    assert tab.standalone_rust_ready
+    assert not tab.standalone_rust_ready_timer.isActive()
+
+
+@pytest.mark.parametrize("hello_received", [False, True])
+def test_startup_timeout_distinguishes_handshake_from_renderer(
+    tmp_path: Path, hello_received: bool,
+) -> None:
+    tab = _tab(tmp_path)
+    tab.standalone_rust_hello_received = hello_received
+    failures = []
+    tab._fail_rust_editor = lambda message, **kwargs: failures.append((message, kwargs))
+    tab._handle_rust_ready_timeout()
+    assert len(failures) == 1
+    message, options = failures[0]
+    assert ("handshake" in message) is not hello_received
+    assert bool(options.get("incompatible")) is not hello_received
+    tab.standalone_rust_ready = True
+    tab._handle_rust_ready_timeout()
+    assert len(failures) == 1
+
+
+def test_rejected_hello_cannot_extend_startup_deadline(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    failures = []
+    tab._fail_rust_editor = lambda message, **kwargs: failures.append(message)
+    tab.standalone_rust_ready_timer.start(10_000)
+    tab._handle_rust_hello({"renderer": "wrong renderer"})
+    assert failures
+    assert not tab.standalone_rust_hello_received
+    assert tab.standalone_rust_ready_timer.interval() == 10_000
+    tab.standalone_rust_ready_timer.stop()

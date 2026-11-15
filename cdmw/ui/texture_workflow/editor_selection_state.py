@@ -6,9 +6,9 @@ import dataclasses
 from dataclasses import dataclass
 from typing import AbstractSet, Dict, List, Optional, Sequence, Tuple
 
-import cv2
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.domain.textures.editor_composite import flatten_texture_editor_layers
 from cdmw.domain.textures.editor_document import snap_lasso_points_to_edges
 from cdmw.domain.textures.editor_layers import extract_texture_editor_selection
@@ -213,7 +213,7 @@ def simplified_texture_editor_lasso_points(
     if len(points) < 3:
         return [(float(x), float(y)) for x, y in points]
     contour = np.array(points, dtype=np.float32).reshape((-1, 1, 2))
-    simplified = cv2.approxPolyDP(contour, 0.35, closed=False)
+    simplified = image_ops.approx_polygon(contour, 0.35, False)
     output = [(float(point[0][0]), float(point[0][1])) for point in simplified]
     if len(output) < 3:
         return [(float(x), float(y)) for x, y in points]

@@ -124,11 +124,18 @@ impl InteractionSnapshot {
     /// Frontmost triangle under the pointer, using the resident depth index.
     #[must_use]
     pub fn nearest_triangle(&self, point: Vec2) -> Option<usize> {
-        if !point.is_finite() { return None; }
-        self.depth_index.candidate_indices(point).into_iter().filter_map(|index| {
-            let depth = interpolated_depth(&self.depth_triangles[index], point)?;
-            (0.0..=1.0).contains(&depth).then_some((index, depth))
-        }).min_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0))).map(|(index, _)| index)
+        if !point.is_finite() {
+            return None;
+        }
+        self.depth_index
+            .candidate_indices(point)
+            .into_iter()
+            .filter_map(|index| {
+                let depth = interpolated_depth(&self.depth_triangles[index], point)?;
+                (0.0..=1.0).contains(&depth).then_some((index, depth))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)))
+            .map(|(index, _)| index)
     }
 
     fn depth_visible(&self, element: &ProjectedElement) -> (bool, usize) {
@@ -1070,7 +1077,8 @@ impl OperatorController {
         }
         let mut positions = stroke.positions(delta)?;
         positions.retain(|handle, position| {
-            mesh.vertex(*handle).is_some_and(|vertex| vertex.position != *position)
+            mesh.vertex(*handle)
+                .is_some_and(|vertex| vertex.position != *position)
         });
         if !positions.is_empty() {
             mesh.apply_positions(&positions)?;
@@ -1085,13 +1093,21 @@ impl OperatorController {
         gesture_id: u64,
     ) -> Result<Vec<VertexHandle>, InteractionError> {
         self.require_running(gesture_id)?;
-        let before = &self.active.as_ref()
-            .ok_or(InteractionError::InvalidTransition)?.before;
-        if before.identity() != mesh.identity() || before.topology_generation != mesh.topology_generation {
+        let before = &self
+            .active
+            .as_ref()
+            .ok_or(InteractionError::InvalidTransition)?
+            .before;
+        if before.identity() != mesh.identity()
+            || before.topology_generation != mesh.topology_generation
+        {
             return Err(InteractionError::InvalidTransition);
         }
-        Ok(mesh.vertices()
-            .filter_map(|(handle, vertex)| (before.vertex(handle) != Some(vertex)).then_some(handle))
+        Ok(mesh
+            .vertices()
+            .filter_map(|(handle, vertex)| {
+                (before.vertex(handle) != Some(vertex)).then_some(handle)
+            })
             .collect())
     }
 
@@ -1167,39 +1183,65 @@ mod tests {
     use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh, decode_mesh};
 
     #[test]
-    fn cached_smooth_matches_edge_scan_for_boundaries_islands_and_undo() -> Result<(), Box<dyn std::error::Error>> {
+    fn cached_smooth_matches_edge_scan_for_boundaries_islands_and_undo()
+    -> Result<(), Box<dyn std::error::Error>> {
         let mut document = decode_mesh(&cdmw_formats::synthetic::two_lod_pac(), MeshFormat::Pac)?;
         let mut isolated_part = document.lods[1].submeshes[0].clone();
-        for position in &mut isolated_part.positions { position[0] += 10.0; }
+        for position in &mut isolated_part.positions {
+            position[0] += 10.0;
+        }
         document.lods[1].submeshes.push(isolated_part);
-        document.lods[1].submeshes[0].positions.push([90.0, 90.0, 90.0]);
+        document.lods[1].submeshes[0]
+            .positions
+            .push([90.0, 90.0, 90.0]);
         let mut mesh = WorkingMesh::from_document_lod(&document, 1)?;
         let before = mesh.clone();
-        let weights = mesh.vertices().enumerate()
+        let weights = mesh
+            .vertices()
+            .enumerate()
             .map(|(index, (handle, _))| (handle, if index % 2 == 0 { 0.25 } else { 0.75 }))
             .collect::<HashMap<_, _>>();
-        let expected_positions = weights.iter().map(|(handle, weight)| {
-            let position = Vec3::from_array(before.vertex(*handle).unwrap().position);
-            let mut neighbors = before.edges().filter_map(|(_, edge)| {
-                if edge.vertices[0] == *handle { Some(edge.vertices[1]) }
-                else if edge.vertices[1] == *handle { Some(edge.vertices[0]) }
-                else { None }
-            }).collect::<Vec<_>>();
-            neighbors.sort_unstable();
-            let next = if neighbors.is_empty() { position } else {
-                let sum = neighbors.iter().fold(Vec3::ZERO, |total, neighbor| {
-                    total + Vec3::from_array(before.vertex(*neighbor).unwrap().position)
-                });
-                position.lerp(sum / neighbors.len() as f32, 0.5 * weight)
-            };
-            (*handle, next.to_array())
-        }).collect::<HashMap<_, _>>();
+        let expected_positions = weights
+            .iter()
+            .map(|(handle, weight)| {
+                let position = Vec3::from_array(before.vertex(*handle).unwrap().position);
+                let mut neighbors = before
+                    .edges()
+                    .filter_map(|(_, edge)| {
+                        if edge.vertices[0] == *handle {
+                            Some(edge.vertices[1])
+                        } else if edge.vertices[1] == *handle {
+                            Some(edge.vertices[0])
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                neighbors.sort_unstable();
+                let next = if neighbors.is_empty() {
+                    position
+                } else {
+                    let sum = neighbors.iter().fold(Vec3::ZERO, |total, neighbor| {
+                        total + Vec3::from_array(before.vertex(*neighbor).unwrap().position)
+                    });
+                    position.lerp(sum / neighbors.len() as f32, 0.5 * weight)
+                };
+                (*handle, next.to_array())
+            })
+            .collect::<HashMap<_, _>>();
         let mut expected = before.clone();
         expected.apply_positions(&expected_positions)?;
         let mut operator = OperatorController::default();
         let gesture = operator.begin(&mesh, "smooth cached adjacency")?;
-        operator.sculpt_weighted(&mut mesh, gesture, SculptTool::Smooth, &weights,
-            Vec3::ZERO, Vec3::ZERO, 0.5)?;
+        operator.sculpt_weighted(
+            &mut mesh,
+            gesture,
+            SculptTool::Smooth,
+            &weights,
+            Vec3::ZERO,
+            Vec3::ZERO,
+            0.5,
+        )?;
         assert_eq!(mesh.draw_snapshot(), expected.draw_snapshot());
         let mut history = History::new(1_000_000);
         operator.confirm(&mut mesh, &mut history, gesture)?;
@@ -1600,18 +1642,36 @@ mod tests {
     #[test]
     fn nearest_triangle_uses_surface_depth_and_rejects_empty_or_clipped_space() {
         let triangle = |depth| ProjectedTriangle {
-            positions: [Vec2::new(-10.0, -10.0), Vec2::new(10.0, -10.0), Vec2::new(0.0, 10.0)],
+            positions: [
+                Vec2::new(-10.0, -10.0),
+                Vec2::new(10.0, -10.0),
+                Vec2::new(0.0, 10.0),
+            ],
             depths: [depth; 3],
         };
-        let snapshot = InteractionSnapshot::new(1, 1, 1, 1, Vec2::splat(100.0), Vec::new(),
-            vec![triangle(0.8), triangle(-0.1), triangle(0.3), triangle(1.1)]);
+        let snapshot = InteractionSnapshot::new(
+            1,
+            1,
+            1,
+            1,
+            Vec2::splat(100.0),
+            Vec::new(),
+            vec![triangle(0.8), triangle(-0.1), triangle(0.3), triangle(1.1)],
+        );
         // Surface interiors near a corner are hits even far from the face centre.
         assert_eq!(snapshot.nearest_triangle(Vec2::new(8.0, -9.0)), Some(2));
         assert_eq!(snapshot.nearest_triangle(Vec2::ZERO), Some(2));
         assert_eq!(snapshot.nearest_triangle(Vec2::new(9.0, 9.0)), None);
         assert_eq!(snapshot.nearest_triangle(Vec2::splat(f32::NAN)), None);
-        let clipped = InteractionSnapshot::new(1, 1, 1, 1, Vec2::splat(100.0), Vec::new(),
-            vec![triangle(-0.1), triangle(1.1)]);
+        let clipped = InteractionSnapshot::new(
+            1,
+            1,
+            1,
+            1,
+            Vec2::splat(100.0),
+            Vec::new(),
+            vec![triangle(-0.1), triangle(1.1)],
+        );
         assert_eq!(clipped.nearest_triangle(Vec2::ZERO), None);
     }
 

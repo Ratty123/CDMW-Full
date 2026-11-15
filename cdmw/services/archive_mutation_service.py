@@ -1,3 +1,20 @@
+"""Backups and Restore for the game files an older CDMW changed.
+
+CDMW never writes into the game's archives. What is left here:
+
+- ``list_backups`` and ``restore_backup``, behind Browse Archives' **Restore
+  Backup...**, which puts back the archive files an older CDMW version patched
+  into the game, from the backup it made then;
+- ``backup_files`` and ``restore_backup`` behind Browse Archives' **Remove What
+  an Older CDMW Installed...** (``cdmw.services.old_install_removal``), which
+  backs up the index files it changes first, so Restore Backup can undo it, and
+  restores that backup itself if the removal fails halfway.
+
+The direct patch plan (``prepare_patch`` and ``apply_patch``) was removed with the
+"Patch Game Files" route (decision 35), and the overlay and virtual-loader
+installs with decision 39.
+"""
+
 from __future__ import annotations
 
 import threading
@@ -6,41 +23,74 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, ArchivePatchResult, MetaFileWrite
+from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, ArchivePatchResult
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.domain.archives.safety import ArchiveMutationSafety, require_explicit_archive_mutation
-from cdmw.models import RunCancelled
 from cdmw.services.application_shutdown_service import archive_write_scope
-from cdmw.services.installation_lane import installation_lane
+
+
+class RestoreOutsideGameFolder(PermissionError):
+    """Restore Backup refused a backup before writing anything (decision 41)."""
+
+
+def _inside(path: Path, folder: Path) -> bool:
+    try:
+        path.relative_to(folder)
+    except ValueError:
+        return False
+    return True
+
+
+def check_backup_targets(backup: Path | str, game_root: Path | str | None) -> list[tuple[Path, Path]]:
+    """Every (copy, target) pair of ``backup``, or a refusal naming the first path that is not allowed.
+
+    A target is allowed when its recorded path, with every link resolved, lies inside
+    ``game_root`` (also resolved). The copy it is restored from must lie inside the
+    backup folder itself. Nothing is written here.
+    """
+
+    import json
+
+    if game_root is None or not str(game_root).strip() or not Path(game_root).is_dir():
+        raise RestoreOutsideGameFolder(
+            "Choose the game folder in Browse Archives first. Restore Backup only writes inside it.")
+    root = Path(game_root).expanduser().resolve()
+    folder = Path(backup).expanduser().resolve()
+    manifest_path = folder / "backup_manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Backup manifest was not found under {folder}.")
+    try:
+        rows = json.loads(manifest_path.read_text(encoding="utf-8")).get("files", [])
+    except (OSError, ValueError, AttributeError) as error:
+        raise ValueError(f"The backup manifest in {folder} cannot be read: {error}") from error
+    pairs = []
+    if not isinstance(rows, list):
+        raise ValueError(f"The backup manifest in {folder} cannot be read: its file list is not a list.")
+    for row in rows:
+        recorded = str((row or {}).get("original_path", "")) if isinstance(row, dict) else ""
+        copy = str((row or {}).get("backup_path", "")) if isinstance(row, dict) else ""
+        if not recorded or not Path(recorded).is_absolute():
+            raise RestoreOutsideGameFolder(
+                f"Restore Backup refused {folder.name}: it names a file without a full path ({recorded or 'empty'}). "
+                "Nothing was written.")
+        target = Path(recorded).resolve()
+        if not _inside(target, root):
+            raise RestoreOutsideGameFolder(
+                f"Restore Backup refused {folder.name}: it would write {recorded}, which is outside the game folder "
+                f"CDMW is set to ({root}). Nothing was written. Point CDMW at the game folder the backup was made "
+                "for, then try again.")
+        source = Path(copy).resolve() if copy else None
+        if source is None or not _inside(source, folder):
+            raise RestoreOutsideGameFolder(
+                f"Restore Backup refused {folder.name}: the copy of {recorded} is not inside the backup folder "
+                f"({copy or 'empty'}). Nothing was written.")
+        pairs.append((source, target))
+    return pairs
 
 
 def _archive_patching():
     from cdmw.core import archive_patching
 
     return archive_patching
-
-
-def _archive_entry_addition():
-    from cdmw.core import archive_entry_addition
-
-    return archive_entry_addition
-
-
-@dataclass(frozen=True, slots=True)
-class ArchiveMutationPlan:
-    requests: tuple[ArchivePatchRequest, ...]
-    safety: ArchiveMutationSafety
-    confirmed: bool = False
-    #: Brand-new entries the plan adds; they share the patch's backup and checksum chain.
-    additions: tuple[ArchiveAddRequest, ...] = ()
-    #: Loose index files beside the archives (`meta/0.pathc`) rewritten whole under the same backup.
-    meta_files: tuple[MetaFileWrite, ...] = ()
-
-    @property
-    def target_paths(self) -> tuple[str, ...]:
-        return tuple(request.entry.path for request in self.requests) + tuple(
-            request.path for request in self.additions
-        ) + tuple(request.path for request in self.meta_files)
 
 
 @dataclass(slots=True)
@@ -50,82 +100,6 @@ class ArchiveMutationService:
     @property
     def backup_root(self) -> Path:
         return _archive_patching().ARCHIVE_PATCH_BACKUP_ROOT
-
-    def prepare_patch(
-        self,
-        command: ArchivePatchRequest | Iterable[ArchivePatchRequest],
-        *,
-        additions: ArchiveAddRequest | Iterable[ArchiveAddRequest] = (),
-        meta_files: MetaFileWrite | Iterable[MetaFileWrite] = (),
-        confirmed: bool = False,
-        description: str = "",
-    ) -> ArchiveMutationPlan:
-        requests = (command,) if isinstance(command, ArchivePatchRequest) else tuple(command)
-        added = (additions,) if isinstance(additions, ArchiveAddRequest) else tuple(additions)
-        metas = (meta_files,) if isinstance(meta_files, MetaFileWrite) else tuple(meta_files)
-        if not requests and not added:
-            raise ValueError("No archive modifications were provided.")
-        if any(not isinstance(request, ArchivePatchRequest) for request in requests):
-            raise TypeError("Archive mutation plans accept ArchivePatchRequest values only.")
-        if any(not isinstance(request, ArchiveAddRequest) for request in added):
-            raise TypeError("Archive mutation plan additions accept ArchiveAddRequest values only.")
-        if any(not isinstance(request, MetaFileWrite) for request in metas):
-            raise TypeError("Archive mutation plan meta files accept MetaFileWrite values only.")
-        if description:
-            detail = str(description).strip()
-        elif requests and added:
-            detail = f"Patch {len(requests)} and add {len(added)} archive entrie(s)"
-        elif added:
-            detail = f"Add {len(added)} archive entrie(s)"
-        else:
-            detail = f"Patch {len(requests)} archive entrie(s)"
-        return ArchiveMutationPlan(
-            requests=requests,
-            safety=require_explicit_archive_mutation(detail),
-            confirmed=bool(confirmed),
-            additions=added,
-            meta_files=metas,
-        )
-
-    def validate_patch(
-        self,
-        plan: ArchiveMutationPlan,
-        *,
-        stop_event: Optional[threading.Event] = None,
-    ) -> ArchiveMutationPlan:
-        plan = self._require_plan(plan)
-        raise_if_cancelled(stop_event, "Archive patch cancelled before preflight.")
-        papgt_path, grouped_requests, grouped_additions = self._patch_context(plan.requests, plan.additions)
-        _archive_patching()._preflight_archive_patch_requests(papgt_path, grouped_requests)
-        _archive_entry_addition().preflight_archive_add_requests(papgt_path, grouped_additions)
-        raise_if_cancelled(stop_event, "Archive patch cancelled after preflight.")
-        return plan
-
-    @archive_write_scope()
-    def create_backup(
-        self,
-        plan: ArchiveMutationPlan,
-        *,
-        on_log: Optional[Callable[[str], None]] = None,
-        stop_event: Optional[threading.Event] = None,
-    ) -> Path:
-        plan = self.validate_patch(plan, stop_event=stop_event)
-        papgt_path, grouped_requests, grouped_additions = self._patch_context(plan.requests, plan.additions)
-        targets = {papgt_path}
-        for pamt_path, requests in grouped_requests.items():
-            targets.add(pamt_path)
-            targets.update(request.entry.paz_file.resolve() for request in requests)
-        add_plans = _archive_entry_addition().preflight_archive_add_requests(papgt_path, grouped_additions)
-        for pamt_path, add_plan in add_plans.items():
-            targets.add(pamt_path)
-            targets.add((pamt_path.parent / f"{add_plan.target_paz_index}.paz").resolve())
-        targets.update((papgt_path.parent.parent / request.path).resolve() for request in plan.meta_files)
-        # Backup publication is intentionally non-interruptible once copying starts.
-        return _archive_patching()._create_backup(
-            sorted(targets),
-            description=plan.safety.description,
-            on_log=on_log,
-        )
 
     @archive_write_scope()
     def backup_files(
@@ -147,56 +121,47 @@ class ArchiveMutationService:
             raise ValueError("A backup needs at least one file.")
         return _archive_patching()._create_backup(targets, description=str(description or "Archive backup"), on_log=on_log)
 
-    @archive_write_scope()
-    def apply_patch(
-        self,
-        plan: ArchiveMutationPlan,
-        *,
-        on_log: Optional[Callable[[str], None]] = None,
-        stop_event: Optional[threading.Event] = None,
-    ) -> ArchivePatchResult:
-        plan = self._require_confirmed(plan)
-        root = self._patch_context(plan.requests, plan.additions)[0].parent.parent
-        with installation_lane(root):
-            return self._apply_confirmed_patch(plan, on_log=on_log, stop_event=stop_event)
+    def backup_roots(self) -> tuple[Path, ...]:
+        """Where backups are looked for: the current root, then the one older versions used.
 
-    def _apply_confirmed_patch(self, plan, *, on_log=None, stop_event=None):
-        raise_if_cancelled(stop_event, "Archive patch cancelled before writing game files.")
-        backup_dir: Optional[Path] = None
-        result: Optional[ArchivePatchResult] = None
+        CDMW now keeps its temporary files in ``workspace\\temp``; an older version
+        made its backups under the system's temp folder, and those are the ones
+        Restore Backup exists for.
+        """
 
-        def guarded_log(message: str) -> None:
-            nonlocal backup_dir
-            text = str(message)
-            if text.startswith("Backup created: "):
-                backup_dir = Path(text.removeprefix("Backup created: "))
-            if text.startswith("Creating archive patch backup"):
-                raise_if_cancelled(stop_event, "Archive patch cancelled before backup creation.")
-            # Once backup creation starts it runs to completion as a safety unit.
-            if backup_dir is not None:
-                raise_if_cancelled(stop_event, "Archive patch cancelled; restoring the backup.")
-            if on_log is not None:
-                on_log(text)
+        from cdmw.app.app_folder import system_temp_dir, workspace_temp_folder
+        from cdmw.constants import APP_NAME
 
-        try:
-            if plan.additions or plan.meta_files:
-                result = _archive_entry_addition().apply_archive_mutations(plan.requests, plan.additions, meta_files=plan.meta_files, on_log=guarded_log)
-            else:
-                result = _archive_patching().patch_archive_entries(plan.requests, on_log=guarded_log)
-            raise_if_cancelled(stop_event, "Archive patch cancelled; restoring the backup.")
-            return result
-        except RunCancelled:
-            rollback_dir = result.backup_dir if result is not None else backup_dir
-            if rollback_dir is not None:
-                _archive_patching().restore_archive_patch_backup(rollback_dir, on_log=on_log)
-            raise
-        except Exception:
-            if backup_dir is not None:
-                _archive_patching().restore_archive_patch_backup(backup_dir, on_log=on_log)
-            raise
+        roots = [Path(self.backup_root)]
+        # Where this version kept them while its temp folder was workspace/temp (when
+        # there are any), then where older versions kept them.
+        earlier = workspace_temp_folder() / APP_NAME / "archive_patch_backups"
+        legacy = system_temp_dir() / APP_NAME / "archive_patch_backups"
+        for candidate in (earlier, legacy):
+            if candidate is earlier and not candidate.is_dir():
+                continue
+            try:
+                known = any(candidate.resolve() == root.resolve() for root in roots)
+            except OSError:
+                known = False
+            if not known:
+                roots.append(candidate)
+        return tuple(roots)
 
     def list_backups(self, *, limit: Optional[int] = None) -> list[Path]:
-        return _archive_patching().list_archive_patch_backups(limit=limit)
+        """Every backup folder with a manifest, newest first, from every backup root."""
+
+        found: dict[Path, Path] = {}
+        for root in self.backup_roots():
+            try:
+                children = list(root.iterdir()) if root.is_dir() else []
+            except OSError:
+                children = []
+            for path in children:
+                if path.is_dir() and (path / "backup_manifest.json").is_file():
+                    found.setdefault(path.resolve(), path)
+        backups = sorted(found.values(), key=lambda path: path.name, reverse=True)
+        return backups if limit is None else backups[: max(0, int(limit))]
 
     @archive_write_scope()
     def restore_backup(
@@ -204,63 +169,35 @@ class ArchiveMutationService:
         backup: Path | str,
         *,
         confirmed: bool = False,
+        game_root: Path | str | None = None,
         on_log: Optional[Callable[[str], None]] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> Path:
+        """Put back the files ``backup`` holds, but only inside ``game_root`` (decision 41).
+
+        Every file the manifest names is checked before the first write: its recorded
+        path, links resolved, must lie inside the configured game folder, and its copy
+        inside the backup folder. Otherwise the whole backup is refused
+        (``RestoreOutsideGameFolder``) and nothing is written.
+        """
+
         if not confirmed:
             raise PermissionError("Archive backup restore requires explicit confirmation.")
         raise_if_cancelled(stop_event, "Archive backup restore cancelled before writing game files.")
+        # The check and the copy use the same parsed list: the manifest is not read twice.
+        pairs = check_backup_targets(backup, game_root)
         # A partial multi-file restore can break the checksum chain, so finish once started.
+        from cdmw.core.protected_roots import game_folder_write_permit
         from cdmw.services.installation_lane import backup_installation_lanes
-        with backup_installation_lanes(Path(backup)):
-            return _archive_patching().restore_archive_patch_backup(Path(backup), on_log=on_log)
-
-    @staticmethod
-    def _require_plan(plan: ArchiveMutationPlan) -> ArchiveMutationPlan:
-        if not isinstance(plan, ArchiveMutationPlan):
-            raise TypeError("Archive mutations require an ArchiveMutationPlan.")
-        return plan
-
-    @classmethod
-    def _require_confirmed(cls, plan: ArchiveMutationPlan) -> ArchiveMutationPlan:
-        plan = cls._require_plan(plan)
-        if plan.safety.requires_confirmation and not plan.confirmed:
-            raise PermissionError("Archive patch requires explicit confirmation.")
-        return plan
-
-    @staticmethod
-    def _patch_context(
-        requests: tuple[ArchivePatchRequest, ...],
-        additions: tuple[ArchiveAddRequest, ...] = (),
-    ) -> tuple[Path, dict[Path, list[ArchivePatchRequest]], dict[Path, list[ArchiveAddRequest]]]:
-        package_roots = {
-            _archive_patching()._package_root_from_entry(request.entry).resolve()
-            for request in requests
-        }
-        package_roots.update(Path(request.pamt_path).resolve().parent.parent for request in additions)
-        if len(package_roots) != 1:
-            raise ValueError(
-                "Archive patching currently requires all modified entries to come from the same package root."
-            )
-        if requests:
-            papgt_path = _archive_patching()._resolve_papgt_path(requests[0].entry)
-        else:
-            papgt_path = next(iter(package_roots)) / "meta" / "0.papgt"
-            if not papgt_path.is_file():
-                raise FileNotFoundError(f"Could not find PAPGT root index at {papgt_path}.")
-        grouped: dict[Path, list[ArchivePatchRequest]] = {}
-        for request in requests:
-            grouped.setdefault(request.entry.pamt_path.resolve(), []).append(request)
-        grouped_additions: dict[Path, list[ArchiveAddRequest]] = {}
-        for request in additions:
-            grouped_additions.setdefault(Path(request.pamt_path).resolve(), []).append(request)
-        return papgt_path, grouped, grouped_additions
+        with backup_installation_lanes(Path(backup)), game_folder_write_permit("Restore Backup"):
+            return _archive_patching().restore_archive_patch_backup(Path(backup), on_log=on_log, pairs=pairs)
 
 
 __all__ = [
     "ArchiveAddRequest",
-    "ArchiveMutationPlan",
     "ArchiveMutationService",
     "ArchivePatchRequest",
     "ArchivePatchResult",
+    "RestoreOutsideGameFolder",
+    "check_backup_targets",
 ]

@@ -212,6 +212,29 @@ static void run_material_declaration_conservation_self_test() {
             && shared_logical_declarations.front().owner_wrapper_item_id == "712"
             && shared_logical_declarations.front().material_parameters.size() == 4,
         "source parameter declaration inventory is incomplete");
+    // cd_phm_02_sword_0015 shape: a source-layered wrapper with no declared
+    // base. The selector mask must not become a layer, and a support-map
+    // filename must not invent a base colour edge the source never declares.
+    const std::string layered_wrapper_sidecar =
+        "<Root><ModelProperty Index=\"0\"><SkinnedMeshMaterialWrapper ItemID=\"1334\" _subMeshName=\"flag\">"
+        "<Material _materialName=\"SkinnedMeshCloth_Ver2\"/>"
+        "<MaterialParameterTexture _name=\"_normalTexture\" Value=\"character/texture/flag_0001_n.dds\"/>"
+        "<MaterialParameterTexture _name=\"_colorBlendingMaskTexture\" Value=\"character/texture/flag_0001_ma.dds\"/>"
+        "<MaterialParameterTexture _name=\"_detailMaskTexture\" Value=\"character/texture/flag_0001_mg.dds\"/>"
+        "<MaterialParameterTexture _name=\"_detailDiffuseMaskG\" Value=\"character/texture/layer_002.dds\"/>"
+        "<MaterialParameterTexture _name=\"_detailNormalMaskR\" Value=\"character/texture/layer_001_n.dds\"/>"
+        "</SkinnedMeshMaterialWrapper></ModelProperty></Root>";
+    const std::vector<SidecarTextureRef> layered_refs = extract_sidecar_texture_refs(layered_wrapper_sidecar, 0);
+    require_material_contract(
+        std::none_of(layered_refs.begin(), layered_refs.end(), [](const SidecarTextureRef& ref) {
+            return lower_copy(ref.path) == "character/texture/flag_0001.dds";
+        }),
+        "a source-layered wrapper gained a guessed base colour or an unchannelled selector layer");
+    require_material_contract(
+        std::any_of(layered_refs.begin(), layered_refs.end(), [](const SidecarTextureRef& ref) {
+            return lower_copy(ref.path) == "character/texture/layer_001.dds";
+        }),
+        "a channelled detail layer lost its sibling colour map");
     require_material_contract(
         layer_channel_from_parameter("_detailMaskTexture").empty()
             && layer_channel_from_parameter("_colorBlendingMaskTexture").empty()
@@ -472,6 +495,30 @@ static void run_material_source_resolution_self_test() {
         binding.archive_path = row.parameter.texture_path;
         require_material_contract(finding(binding) == "cross_owner_binding",
             "an actual foreign-owner source no longer fails ownership validation");
+        row.parameter.name = "_emissiveTexture";
+        binding.parameter_name = "_emissiveIntensityTexture";
+        binding.source_authority = "exact_sidecar";
+        binding.source_path = "resolved-intensity.dds";
+        require_material_contract(finding(binding) == "source_dds_unavailable",
+            "another owner's intensity map suppressed a required RGB source");
+        binding.owner_wrapper_item_id = row.owner_wrapper_item_id;
+        binding.material_wrapper_index = row.material_wrapper_index;
+        NativePackage inactive_package;
+        inactive_package.material_conservation_rows.push_back(row);
+        MaterialBindingBuildState inactive_state{job, index, meshes, inactive_package, techniques};
+        inactive_state.bindings.push_back(binding);
+        finish_material_bindings(inactive_state, 1);
+        const auto& inactive = inactive_package.material_conservation_rows.front();
+        require_material_contract(inactive_package.material_conservation_ok
+            && inactive.logical_graph_edge && !inactive.texture_resolved
+            && inactive.declared_source_missing
+            && inactive.status == "transported_inactive_rgb_emission",
+            "unused missing RGB emission discarded the resolved native material graph");
+        const auto inactive_json = native_material_conservation_json(inactive_package);
+        require_material_contract(inactive_json.find("\"conserved\":true") != std::string::npos
+            && inactive_json.find("\"unresolved_texture_count\":1") != std::string::npos
+            && inactive_json.find("\"inactive_unavailable_texture_count\":1") != std::string::npos,
+            "inactive source evidence was lost or refused at publication");
     }
     EntryJob source_resolution_job;
     ArchiveEntryRef source_resolution_sidecar;

@@ -563,7 +563,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         self._queued_pages.add(start)
         if not self._page_dispatch_scheduled:
             self._page_dispatch_scheduled = True
-            QTimer.singleShot(0, self._dispatch_queued_pages)
+            QTimer.singleShot(0, self, self._dispatch_queued_pages)
 
     def _dispatch_queued_pages(self) -> None:
         self._page_dispatch_scheduled = False
@@ -594,7 +594,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
             node.next_offset,
             self._child_page_size,
         )
-        QTimer.singleShot(0, lambda current=fetch: self._dispatch_children(current))
+        QTimer.singleShot(0, self, lambda current=fetch: self._dispatch_children(current))
 
     def _dispatch_children(self, fetch: RemoteChildrenFetch) -> None:
         node = self._nodes_by_key.get(fetch.node_key)

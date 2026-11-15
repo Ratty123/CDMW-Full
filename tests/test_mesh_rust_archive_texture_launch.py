@@ -138,7 +138,7 @@ def _canonical_rust_package(root: Path, entry: ArchiveEntry) -> tuple[Path, Path
     texture.write_bytes(b"DDS " + b"owned body texture" * 8)
     (native / "manifest.json").write_text(json.dumps({
         "source_path": entry.path,
-        "material_graph_version": 4,
+        "material_graph_version": 5,
         "batches": [{
             "editor_identity": {"source_local_submesh_index": 0},
             "material_layers": [{"layer_role": "base", "tint": [0.8, 0.4, 0.2, 1]}],

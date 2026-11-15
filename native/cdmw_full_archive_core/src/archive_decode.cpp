@@ -136,12 +136,12 @@ std::vector<std::uint8_t> read_entry_raw(
     std::uint64_t stored_size) {
     if (stored_size > kMaximumDecodedEntryBytes) throw std::runtime_error("stored entry exceeds the one GiB resource limit");
     std::error_code error;
-    const auto file_size = fs::file_size(paz_path, error);
+    const auto file_size = fs::file_size(cdmw::long_path(paz_path), error);
     if (error) throw std::runtime_error("could not determine PAZ size: " + paz_path.string());
     if (archive_offset > file_size || stored_size > file_size - archive_offset) {
         throw std::runtime_error("archive entry range is outside the PAZ file");
     }
-    std::ifstream stream(paz_path, std::ios::binary);
+    std::ifstream stream(cdmw::long_path(paz_path), std::ios::binary);
     if (!stream) throw std::runtime_error("could not open PAZ file: " + paz_path.string());
     stream.seekg(static_cast<std::streamoff>(archive_offset), std::ios::beg);
     std::vector<std::uint8_t> data(static_cast<size_t>(stored_size));

@@ -7,8 +7,17 @@ from collections.abc import Mapping
 
 class ArchivePreviewZoomMixin:
     """Archive preview zoom controls and D3D11 view-state hooks."""
+    def _handle_archive_texture_view_state_changed(self, zoom_factor, fit_to_view):
+        if self.archive_preview_stack.currentWidget() is self.archive_texture_preview:
+            self.archive_preview_zoom_factor = min(max(float(zoom_factor), 0.1), 16.0)
+            self.archive_preview_fit_to_view = bool(fit_to_view)
+            self._update_archive_preview_zoom_label()
+
     def _active_archive_preview_zoom_widget(self):
         current_widget = self.archive_preview_stack.currentWidget()
+        texture_preview = getattr(self, "archive_texture_preview", None)
+        if texture_preview is not None and current_widget is texture_preview:
+            return texture_preview
         if current_widget is self.archive_preview_scroll:
             return self.archive_preview_label
         if current_widget is self.archive_d3d11_preview_host:
@@ -49,8 +58,9 @@ class ArchivePreviewZoomMixin:
     def _apply_archive_preview_zoom(self) -> None:
         target = self._active_archive_preview_zoom_widget()
         if target is not None:
-            target.set_fit_to_view(self.archive_preview_fit_to_view)
-            target.set_zoom_factor(self.archive_preview_zoom_factor)
+            fit, zoom = self.archive_preview_fit_to_view, self.archive_preview_zoom_factor
+            target.set_fit_to_view(fit)
+            target.set_zoom_factor(zoom)
         self._update_archive_preview_zoom_label()
 
     def _set_archive_preview_fit_mode(self) -> None:

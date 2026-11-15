@@ -7,10 +7,10 @@ import pytest
 from cdmw.core.papgt_format import serialize_papgt
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.new_item.compilation import compilation_record
-from cdmw.domain.virtual_loader import VirtualProfile
+from tests.support.virtual_domain import VirtualProfile
 from cdmw.services import independent_item_package as package_owner
-from cdmw.services import virtual_loader_cache as cache_owner
-from cdmw.services import virtual_loader_composition as composition
+import tests.support.virtual_cache as cache_owner
+import tests.support.virtual_composition as composition
 from tests.test_independent_item_streaming import package
 
 

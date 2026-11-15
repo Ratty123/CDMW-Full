@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
+from shiboken6 import isValid
 
 from cdmw.core.owned_temp import cleanup_owned_temp_directory, create_owned_temp_directory
 
@@ -20,6 +22,7 @@ from cdmw.services.preview_rendering_service import (
     acquire_dotnet_preview_package_cache_lease_for_path,
 )
 from cdmw.services.mesh_rust_contract import (
+    RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_RENDERER,
     RUST_PREVIEW_BACKEND,
     RUST_PREVIEW_PROTOCOL,
@@ -78,6 +81,13 @@ _AUTHORING_PROTOCOL_CAPABILITIES = (
     "geometry_layers_v1",
 )
 
+
+#: Edits one engine process holds at once (P15): open documents beyond it edit in
+#: a helper of their own, and the document budget parks the oldest.
+MAX_ENGINE_EDITS = 4
+
+#: Said when a finished edit's package failed and Browse's own scene came back.
+RESTORED_PREVIOUS_SCENE_MESSAGE = "The finished mesh could not be shown; Browse shows the file as it was before the edit."
 
 class RustPreviewSessionController(
     DotNetPreviewSessionLocalizationMixin,
@@ -165,6 +175,14 @@ class RustPreviewSessionController(
         self._stdout_tail = ""
         self._stderr_tail = ""
         self._capabilities: set[str] = set()
+        # P4 V3: an edit borrowing this helper's viewport (cdmw.ui.preview.engine_channel).
+        self._edit_channel = None
+        #: Edits in windows of their own in this process, one per document (P15).
+        self._window_edit_channels: list = []
+        # P4 V5: other previews' windows in this process, by viewport id.
+        self._viewport_channels: dict[str, object] = {}
+        # P4 V5: Create New Item and Mod Management pages in this process, by page id.
+        self._page_channels: dict[str, object] = {}
         self._session_id = uuid.uuid4().hex
         self._resident_state: OrderedDict[str, tuple[str, dict[str, object]]] = OrderedDict()
         self._authoring_scene_modes: dict[str, str] = {}
@@ -331,6 +349,18 @@ class RustPreviewSessionController(
             # helper, so any release it declared on the way out is withdrawn.
             self._session_released = False
             return True
+        if (
+            "rust_preview_runtime_v1" in self._capabilities
+            and self.serving_prewarm_placeholder
+            and self._desired_package is None
+        ):
+            # The read-only preview runtime has no edit document to transfer.
+            # Bind the first real authoring scene without discarding its device.
+            self._session_id = normalized
+            return self._send_json({
+                "event": "preview_session_state", "session_id": normalized,
+                "process_generation": self._process_generation, "protocol_version": 2,
+            })
         if self._session_established and not self._session_provisional:
             if self._launch_is_prewarm and self._desired_package is None:
                 # A prewarm holding a session it cannot hand back must never be
@@ -781,6 +811,30 @@ class RustPreviewSessionController(
             return False
         return bool(self._send_json({"event": "reembed_request", "parent_hwnd": hwnd}))
 
+    def adopt_prewarmed_host(
+        self, *, parent: QObject, host_hwnd: Callable[[], int],
+        profile: DotNetPreviewProfile | str, terminate_on_close: bool,
+        direct_authoring: bool,
+    ) -> Mapping[str, object] | None:
+        """Transfer an unused, ready helper; a real scene can never be stolen."""
+        if (
+            self._closed or not self.is_running or not self._renderer_ready
+            or not self._session_established or not self.serving_prewarm_placeholder
+            or self._desired_package is not None or self._gpu_failed
+        ):
+            return None
+        self.setParent(parent)
+        self._host_hwnd = host_hwnd
+        self.profile = DotNetPreviewProfile.normalize(profile)
+        self._terminate_on_close = bool(terminate_on_close)
+        self._direct_authoring = bool(direct_authoring)
+        self.set_visible(False)
+        self.reembed(self._safe_host_hwnd())
+        payload = dict(self._renderer_ready_payload or {})
+        payload["embedded_parent_hwnd"] = self._safe_host_hwnd()
+        self._renderer_ready_payload = payload
+        return payload
+
     def set_visible(self, visible: bool) -> None:
         self._visible = bool(visible)
         if self._closed:
@@ -1155,6 +1209,7 @@ class RustPreviewSessionController(
         self._read_stdout(process, generation)
         self._read_stderr(process, generation)
         self._process = None
+        self._tell_borrowers_process_lost(exit_code)
         self._fail_pending_captures(f"Preview exited with code {exit_code} before capture completed.")
         if self._closed:
             self._cleanup_preview_runtime_outputs()
@@ -1184,6 +1239,10 @@ class RustPreviewSessionController(
                 f"Preview exited with code {exit_code}{suffix}",
                 static_failure=False,
             )
+        elif not self._closed:
+            # No retry for a hidden or empty host: say so, so an owner such as the
+            # dialog spare drops it instead of keeping a controller with no process.
+            self._set_state("inactive", f"Preview exited with code {exit_code}.")
 
     def _process_error(self, process: object, generation: int, error: object) -> None:
         if error == QProcess.ProcessError.FailedToStart:
@@ -1226,6 +1285,30 @@ class RustPreviewSessionController(
             try:
                 payload = json.loads(line)
             except ValueError:
+                continue
+            page_id = payload.get("page_id") if isinstance(payload, Mapping) else None
+            if page_id:
+                # A Create New Item or Mod Management page in this process (P4 V5).
+                page = self._page_channels.get(str(page_id))
+                if page is not None:
+                    page.feed(raw_line)
+                continue
+            viewport_id = payload.get("viewport_id") if isinstance(payload, Mapping) else None
+            if viewport_id:
+                # Another preview's window in this process (P4 V5); a closed one's
+                # late lines are dropped, never taken as this preview's.
+                viewport = self._viewport_channels.get(str(viewport_id))
+                if viewport is not None:
+                    viewport.feed(raw_line)
+                continue
+            if isinstance(payload, Mapping) and payload.get("protocol") == RUST_MESH_EDITOR_PROTOCOL:
+                # The editor's half of this process (P4 V3) belongs to the borrowed
+                # edit; with several (P15) to the one whose session the line names.
+                channel = self._edit_channel_for(payload)
+                if channel is not None:
+                    channel.feed(raw_line)
+                if payload.get("event") in {"edit_entered", "edit_viewing", "edit_left", "edit_refused"}:
+                    self.protocol_event.emit(dict(payload))  # for the runtime record and journeys
                 continue
             if isinstance(payload, Mapping):
                 self._handle_protocol_event(dict(payload), generation)
@@ -1486,6 +1569,9 @@ class RustPreviewSessionController(
         package = self._desired_package
         if self._gpu_failed or package is None or not self._can_send_protocol():
             return False
+        if self._edit_channel is not None:
+            # An edit holds the viewport; the newest selection loads when it ends.
+            return False
         if not (
             self._protocol_ready
             and self._session_established
@@ -1562,6 +1648,11 @@ class RustPreviewSessionController(
             )
             or "Package load failed."
         )
+        if payload.get("restored_previous_scene") is True:
+            # After a Finish the view had kept the edit's geometry; the helper put the
+            # file's own scene back when the finished package failed (section 8.9, C1).
+            logging.getLogger(__name__).warning("The finished package failed to load (%s); Browse's own scene is back.", message)
+            message = RESTORED_PREVIOUS_SCENE_MESSAGE
         self._fail_current_package(message)
 
     def _accept_applied_package(
@@ -1936,9 +2027,26 @@ class RustPreviewSessionController(
             f"Preview package load failed: {detail} The current model was kept; retry when ready.",
         )
 
+    def _tell_borrowers_process_lost(self, exit_code: int) -> None:
+        """Every edit, window and page borrowing this process: it is gone."""
+
+        channel, self._edit_channel = self._edit_channel, None
+        if channel is not None:
+            channel.process_lost(exit_code)
+        window_channels, self._window_edit_channels = list(self._window_edit_channels), []
+        for window_channel in window_channels:
+            window_channel.process_lost(exit_code)
+        viewports, self._viewport_channels = list(self._viewport_channels.values()), {}
+        pages, self._page_channels = list(self._page_channels.values()), {}
+        for viewport in (*viewports, *pages):
+            viewport.process_lost(exit_code)
+
     def _fail_current_process(self, reason: str, *, static_failure: bool) -> None:
         process = self._process
         self._process = None
+        # Its exit arrives as a retired process and tells no one: tell them now
+        # (section 8.7 B6).
+        self._tell_borrowers_process_lost(-1)
         self._fail_pending_captures(reason)
         self._ready_timer.stop()
         self._package_timer.stop()
@@ -2015,6 +2123,248 @@ class RustPreviewSessionController(
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
 
+    # ----- edit in place (P4 V3) -------------------------------------------
+    def edit_in_place_blocker(self) -> str:
+        """Why this viewport cannot hold an edit now, or "" when it can."""
+
+        from cdmw.ui.preview.engine_channel import EDIT_IN_PLACE_CAPABILITY
+
+        if not self._can_send_protocol() or not self._protocol_ready or not self._renderer_ready:
+            return "the viewport is not ready"
+        if EDIT_IN_PLACE_CAPABILITY not in self._capabilities:
+            return "this viewport's helper cannot edit in place"
+        if self._edit_channel is not None:
+            return "this viewport is already editing"
+        from cdmw.ui.preview.engine_channel import MULTI_EDIT_CAPABILITY
+
+        if self._window_edit_channels and MULTI_EDIT_CAPABILITY not in self._capabilities:
+            return "the Mesh Editor tab is editing in this viewport's process"
+        if self.open_edit_count >= MAX_ENGINE_EDITS:
+            return f"this preview process already holds {MAX_ENGINE_EDITS} edits"
+        if self._pending_package_generation:
+            return "the viewport is still loading a model"
+        return ""
+
+    def borrow_for_edit(self, parent: QObject | None = None):
+        """A channel for the editor protocol in this helper, or None when it cannot edit."""
+
+        from cdmw.ui.preview.engine_channel import EngineEditChannel
+
+        if self.edit_in_place_blocker():
+            return None
+        process, generation = self._process, self._process_generation
+
+        def write(data: bytes) -> int:
+            if self._process is not process or self._process_generation != generation:
+                return -1
+            try:
+                return int(process.write(data))
+            except (AttributeError, RuntimeError, TypeError):
+                return -1
+
+        channel = EngineEditChannel(write, lambda: self.process_id, self._release_edit_channel, parent)
+        self._edit_channel = channel
+        return channel
+
+    def viewport_blocker(self) -> str:
+        """Why this process cannot open another preview's window now, or ""."""
+
+        from cdmw.ui.preview.engine_viewport import VIEWPORT_OPEN_CAPABILITY
+
+        if self._closed or not self._can_send_protocol() or not self._protocol_ready or not self._renderer_ready:
+            return "the preview process is not ready"
+        if VIEWPORT_OPEN_CAPABILITY not in self._capabilities:
+            return "this preview process cannot open other windows"
+        return ""
+
+    def open_viewport(self, channel: object, manifest: str, parent_hwnd: int) -> bool:
+        """Ask this process to open another preview's window (P4 V5)."""
+
+        if self.viewport_blocker():
+            return False
+        viewport_id = str(getattr(channel, "viewport_id", "") or "")
+        if not viewport_id or viewport_id in self._viewport_channels:
+            return False
+        self._viewport_channels[viewport_id] = channel
+        written = self.write_for_viewport(json.dumps({
+            "protocol": RUST_PREVIEW_PROTOCOL, "event": "viewport_open", "viewport_id": viewport_id,
+            "manifest": str(manifest), "parent_hwnd": int(parent_hwnd),
+        }, separators=(",", ":")).encode("utf-8") + b"\n")
+        if written <= 0:
+            self._viewport_channels.pop(viewport_id, None)
+            return False
+        return True
+
+    def page_blocker(self) -> str:
+        """Why this process cannot open a Create New Item or Mod Management page now, or ""."""
+
+        from cdmw.ui.preview.engine_viewport import PAGE_OPEN_CAPABILITY
+
+        if self._closed or not self._can_send_protocol() or not self._protocol_ready or not self._renderer_ready:
+            return "the preview process is not ready"
+        if PAGE_OPEN_CAPABILITY not in self._capabilities:
+            return "this preview process cannot open pages"
+        return ""
+
+    def open_page(self, channel: object, manifest: str, parent_hwnd: int) -> bool:
+        """Ask this process to open a Create New Item or Mod Management page (P4 V5)."""
+
+        from cdmw.ui.preview.engine_viewport import NEW_ITEM_UI_PROTOCOL
+
+        if self.page_blocker():
+            return False
+        page_id = str(getattr(channel, "window_id", "") or "")
+        if not page_id or page_id in self._page_channels:
+            return False
+        self._page_channels[page_id] = channel
+        written = self.write_for_viewport(json.dumps({
+            "protocol": NEW_ITEM_UI_PROTOCOL, "type": "page_open", "page_id": page_id,
+            "manifest": str(manifest), "parent_hwnd": int(parent_hwnd),
+        }, separators=(",", ":")).encode("utf-8") + b"\n")
+        if written <= 0:
+            self._page_channels.pop(page_id, None)
+            return False
+        return True
+
+    def release_page(self, channel: object) -> None:
+        page_id = str(getattr(channel, "window_id", "") or "")
+        if self._page_channels.get(page_id) is channel:
+            del self._page_channels[page_id]
+
+    @property
+    def page_count(self) -> int:
+        return len(self._page_channels)
+
+    def write_for_viewport(self, data: bytes) -> int:
+        process = self._process
+        if process is None or not qprocess_is_running(process):
+            return -1
+        try:
+            return int(process.write(bytes(data)))
+        except (AttributeError, RuntimeError, TypeError):
+            return -1
+
+    def release_viewport(self, channel: object) -> None:
+        viewport_id = str(getattr(channel, "viewport_id", "") or "")
+        if self._viewport_channels.get(viewport_id) is channel:
+            del self._viewport_channels[viewport_id]
+
+    @property
+    def viewport_count(self) -> int:
+        return len(self._viewport_channels)
+
+    def window_edit_blocker(self) -> str:
+        """Why this process cannot hold an edit in a window of its own now, or ""."""
+
+        from cdmw.ui.preview.engine_channel import OWN_VIEWPORT_EDIT_CAPABILITY
+
+        if not self._can_send_protocol() or not self._protocol_ready or not self._renderer_ready:
+            return "the preview process is not ready"
+        if OWN_VIEWPORT_EDIT_CAPABILITY not in self._capabilities:
+            return "this preview process cannot hold an editor window"
+        from cdmw.ui.preview.engine_channel import MULTI_EDIT_CAPABILITY
+
+        if MULTI_EDIT_CAPABILITY not in self._capabilities:
+            if self._edit_channel is not None or self._window_edit_channels:
+                return "this preview process is already editing"
+            return ""
+        if len(self._window_edit_channels) + int(self._edit_channel is not None) >= MAX_ENGINE_EDITS:
+            return f"this preview process already holds {MAX_ENGINE_EDITS} edits"
+        return ""
+
+    def _edit_channel_for(self, payload: Mapping[str, object]):
+        """The borrowed edit an editor line belongs to (section 8.8, cause 1).
+
+        A line names its edit: by session, or by Browse's marker for the edit in
+        Browse's view before its session exists. Nothing is routed by count; a line
+        that names neither, or names an edit that is gone, belongs to no channel.
+        """
+
+        from cdmw.ui.preview.engine_channel import VIEW_SLOT
+
+        channels = [channel for channel in (self._edit_channel, *self._window_edit_channels) if channel is not None]
+        session_id = str(payload.get("session_id") or "")
+        if session_id:
+            named = next((channel for channel in channels if channel.session_id == session_id), None)
+            if named is not None:
+                return named
+            # Browse's channel learns its session from its own open_session line.
+            if payload.get("edit_slot") == VIEW_SLOT and self._edit_channel is not None \
+                    and not self._edit_channel.session_id:
+                return self._edit_channel
+            return None
+        if payload.get("edit_slot") == VIEW_SLOT:
+            return self._edit_channel
+        return None
+
+    def borrow_for_window_edit(self, parent: QObject | None = None):
+        """A channel for an edit in a window of its own in this process (P4 V5), or None.
+
+        Browse keeps previewing meanwhile: unlike an edit in its viewport, this one
+        holds back no package load.
+        """
+
+        from cdmw.ui.preview.engine_channel import EngineEditChannel
+
+        if self.window_edit_blocker():
+            return None
+        process, generation = self._process, self._process_generation
+
+        def write(data: bytes) -> int:
+            if self._process is not process or self._process_generation != generation:
+                return -1
+            try:
+                return int(process.write(data))
+            except (AttributeError, RuntimeError, TypeError):
+                return -1
+
+        channel = EngineEditChannel(write, lambda: self.process_id, self._release_window_edit_channel, parent)
+        channel.own_window = True
+        self._window_edit_channels.append(channel)
+        return channel
+
+    def _release_window_edit_channel(self, channel: object) -> None:
+        if channel in self._window_edit_channels:
+            self._window_edit_channels.remove(channel)
+
+    def promote_edit_channel(self, channel: object) -> bool:
+        """The edit in Browse's viewport moved into a window of its own (P4 V5).
+
+        Browse previews again at once: a selection made meanwhile is shown.
+        """
+
+        if self._edit_channel is not channel:
+            return False
+        self._edit_channel = None
+        channel.own_window = True  # its lines are routed by session from now on
+        self._window_edit_channels.append(channel)
+        hand_to = getattr(channel, "hand_to", None)
+        if callable(hand_to):
+            hand_to(self._release_window_edit_channel)
+        QTimer.singleShot(0, self, self._request_resident_package_load)
+        return True
+
+    @property
+    def editing_in_own_window(self) -> bool:
+        return bool(self._window_edit_channels)
+
+    @property
+    def open_edit_count(self) -> int:
+        """Edits this process holds now (P15: one per open document)."""
+
+        return len(self._window_edit_channels) + int(self._edit_channel is not None)
+
+    def _release_edit_channel(self, channel: object) -> None:
+        if self._edit_channel is not channel:
+            return
+        self._edit_channel = None
+        # A selection made while editing is shown now.
+        QTimer.singleShot(0, self, self._request_resident_package_load)
+
+    @property
+    def editing_in_place(self) -> bool:
+        return self._edit_channel is not None
+
     def _can_send_protocol(self) -> bool:
         return self._process is not None and qprocess_is_running(self._process)
 
@@ -2039,7 +2389,8 @@ class RustPreviewSessionController(
         return request_id == self._package_request_id and generation == self._package_generation
 
     def _is_current_process(self, process: object, generation: int) -> bool:
-        return self._process is process and generation == self._process_generation
+        # App-owned processes may finish after Qt has destroyed their host and timers.
+        return isValid(self) and self._process is process and generation == self._process_generation
 
     @staticmethod
     def _delete_process_later(process: object) -> None:

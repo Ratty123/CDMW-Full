@@ -97,6 +97,12 @@ class _RemoteExportHarness(ArchiveExtractionMixin):
     def _suggest_archive_extract_root(self) -> Path:
         return self.output_root
 
+    def _current_archive_performance_settings(self):
+        # The shell's (settings_persistence.py); exports read durable_exports from it since 2e203df3.
+        from cdmw.models import ArchivePerformanceSettings, clamp_archive_performance_settings
+
+        return clamp_archive_performance_settings(ArchivePerformanceSettings())
+
     def _prompt_remote_archive_extract_options(
         self,
         requested_count: int,

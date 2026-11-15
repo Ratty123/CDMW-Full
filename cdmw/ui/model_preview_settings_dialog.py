@@ -324,6 +324,20 @@ class ModelPreviewSettingsDialog(QDialog):
         quality_form.setContentsMargins(0, 0, 0, 0)
         quality_form.setHorizontalSpacing(12)
         quality_form.setVerticalSpacing(10)
+        self.preview_lighting_preset_combo = QComboBox()
+        self.preview_lighting_preset_combo.addItem("Neutral studio", userData="neutral_studio")
+        self.preview_lighting_preset_combo.addItem("Showcase", userData="showcase")
+        self.preview_lighting_preset_combo.addItem("Dark", userData="dark")
+        self.preview_lighting_preset_combo.addItem("Studio (fixed lights)", userData="studio_fixed")
+        quality_form.addRow("Lighting preset", self.preview_lighting_preset_combo)
+        self.preview_shadows_checkbox = QCheckBox("Shadows")
+        self.preview_ambient_occlusion_checkbox = QCheckBox("Ambient occlusion")
+        quality_form.addRow("", self.preview_shadows_checkbox)
+        quality_form.addRow("", self.preview_ambient_occlusion_checkbox)
+        self.preview_ground_visible_checkbox = QCheckBox("Ground")
+        self.preview_ground_grid_visible_checkbox = QCheckBox("Ground grid")
+        quality_form.addRow("", self.preview_ground_visible_checkbox)
+        quality_form.addRow("", self.preview_ground_grid_visible_checkbox)
         self._add_slider_row(
             quality_form,
             "Texture anisotropy",
@@ -739,6 +753,10 @@ class ModelPreviewSettingsDialog(QDialog):
         root_layout.addLayout(button_row)
 
         for checkbox in (
+            self.preview_shadows_checkbox,
+            self.preview_ambient_occlusion_checkbox,
+            self.preview_ground_visible_checkbox,
+            self.preview_ground_grid_visible_checkbox,
             self.use_textures_checkbox,
             self.high_quality_checkbox,
             self.invert_orbit_x_checkbox,
@@ -757,6 +775,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.d3d11_view_mode_combo.currentIndexChanged.connect(self._emit_settings_changed)
         self.render_diagnostic_mode_combo.currentIndexChanged.connect(self._handle_render_diagnostic_mode_changed)
         for combo in (
+            self.preview_lighting_preset_combo,
             self.alpha_handling_combo,
             self.sampler_probe_combo,
             self.diffuse_swizzle_combo,
@@ -905,6 +924,11 @@ class ModelPreviewSettingsDialog(QDialog):
         current.flip_texture_v = self.flip_texture_v_checkbox.isChecked()
         current.d3d11_cull_back_faces = self.d3d11_cull_back_faces_checkbox.isChecked()
         current.disable_all_support_maps = self.disable_all_support_maps_checkbox.isChecked()
+        current.preview_shadows = self.preview_shadows_checkbox.isChecked()
+        current.preview_lighting_preset = str(self.preview_lighting_preset_combo.currentData() or "neutral_studio")
+        current.preview_ambient_occlusion = self.preview_ambient_occlusion_checkbox.isChecked()
+        current.preview_ground_visible = self.preview_ground_visible_checkbox.isChecked()
+        current.preview_ground_grid_visible = self.preview_ground_grid_visible_checkbox.isChecked()
         current.disable_lighting = self.disable_lighting_checkbox.isChecked()
         current.disable_depth_test = self.disable_depth_test_checkbox.isChecked()
         current.show_texture_debug_strip = self.show_texture_debug_strip_checkbox.isChecked()
@@ -992,6 +1016,11 @@ class ModelPreviewSettingsDialog(QDialog):
             self.flip_texture_v_checkbox.setChecked(clamped.flip_texture_v)
             self.d3d11_cull_back_faces_checkbox.setChecked(clamped.d3d11_cull_back_faces)
             self.disable_all_support_maps_checkbox.setChecked(clamped.disable_all_support_maps)
+            self.preview_shadows_checkbox.setChecked(clamped.preview_shadows)
+            self._select_combo_value(self.preview_lighting_preset_combo, clamped.preview_lighting_preset)
+            self.preview_ambient_occlusion_checkbox.setChecked(clamped.preview_ambient_occlusion)
+            self.preview_ground_visible_checkbox.setChecked(clamped.preview_ground_visible)
+            self.preview_ground_grid_visible_checkbox.setChecked(clamped.preview_ground_grid_visible)
             self.disable_lighting_checkbox.setChecked(clamped.disable_lighting)
             self.disable_depth_test_checkbox.setChecked(clamped.disable_depth_test)
             self.show_texture_debug_strip_checkbox.setChecked(clamped.show_texture_debug_strip)

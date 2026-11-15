@@ -126,6 +126,14 @@ def native_mesh_editor_session_command(
     )
 
 
+#: The least time an open is given. A timed-out job ends the whole resident
+#: service, and with it every open session (the editor's own included), so an
+#: open that is only slow, on a busy machine or a large mesh, must finish: 10 s
+#: refused Finish on the sword under load (journey 3, 2026-11-13). A stop still
+#: cancels it at once.
+NATIVE_SESSION_OPEN_TIMEOUT_FLOOR_SECONDS = 60.0
+
+
 def open_native_mesh_editor_session(
     mesh: ParsedMesh,
     session_id: str,
@@ -134,6 +142,7 @@ def open_native_mesh_editor_session(
     stop_event: threading.Event | None = None,
     timeout_seconds: float = 10.0,
 ) -> dict[str, object] | None:
+    timeout_seconds = max(float(timeout_seconds), NATIVE_SESSION_OPEN_TIMEOUT_FLOOR_SECONDS)
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
         return None
     binary = find_native_mesh_core_binary()

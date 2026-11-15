@@ -1,6 +1,11 @@
 use super::*;
 
-fn state(root: &std::path::Path, app: &LabApplication, revision: u64, cursor: usize) -> Result<Value, Box<dyn std::error::Error>> {
+fn state(
+    root: &std::path::Path,
+    app: &LabApplication,
+    revision: u64,
+    cursor: usize,
+) -> Result<Value, Box<dyn std::error::Error>> {
     let mut document = app.document.as_deref().cloned().ok_or("document")?;
     document.lods[0].submeshes[0].positions[0][0] = cursor as f32;
     let mut value = cdmw_state_with_document(root, "history-navigation", revision, &document)?;
@@ -18,7 +23,12 @@ fn state(root: &std::path::Path, app: &LabApplication, revision: u64, cursor: us
 
 fn application(root: &std::path::Path) -> Result<LabApplication, Box<dyn std::error::Error>> {
     let mut app = triangle_application()?;
-    app.cdmw_bridge = Some(CdmwBridge::for_test(root.to_path_buf(), "history-navigation", 1, 0));
+    app.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.to_path_buf(),
+        "history-navigation",
+        1,
+        0,
+    ));
     let initial = state(root, &app, 0, 3)?;
     app.apply_cdmw_state(initial);
     assert!(!app.cdmw_exit_requested, "{}", app.status);
@@ -26,26 +36,49 @@ fn application(root: &std::path::Path) -> Result<LabApplication, Box<dyn std::er
 }
 
 fn reply(app: &mut LabApplication, value: Value, ok: bool) {
-    let id = app.cdmw_pending_request.as_ref().expect("pending history request").request_id;
+    let id = app
+        .cdmw_pending_request
+        .as_ref()
+        .expect("pending history request")
+        .request_id;
     let revision = value["base_revision"].as_u64().unwrap();
-    app.handle_cdmw_result("command_result", id, revision, ok, json!({"state":value}), if ok {""} else {"restore failed"});
+    app.handle_cdmw_result(
+        "command_result",
+        id,
+        revision,
+        ok,
+        json!({"state":value}),
+        if ok { "" } else { "restore failed" },
+    );
 }
 
 #[test]
 fn action_history_traverses_only_acknowledged_steps_and_can_restore_them() -> TestResult {
     let root = tempdir()?;
     let mut app = application(root.path())?;
-    app.handle_actions(vec![UiAction::CdmwHistoryCursor { cursor: 1, revision: 0 }]);
+    app.handle_actions(vec![UiAction::CdmwHistoryCursor {
+        cursor: 1,
+        revision: 0,
+    }]);
     assert_eq!(app.cdmw_pending_request.as_ref().unwrap().label, "Undo");
-    assert_eq!(app.document.as_deref().unwrap().lods[0].submeshes[0].positions[0][0], 3.0);
+    assert_eq!(
+        app.document.as_deref().unwrap().lods[0].submeshes[0].positions[0][0],
+        3.0
+    );
     for (revision, cursor) in [(1, 2), (2, 1)] {
         let value = state(root.path(), &app, revision, cursor)?;
         reply(&mut app, value, true);
         assert!(!app.cdmw_exit_requested, "{}", app.status);
-        assert_eq!(app.document.as_deref().unwrap().lods[0].submeshes[0].positions[0][0], cursor as f32);
+        assert_eq!(
+            app.document.as_deref().unwrap().lods[0].submeshes[0].positions[0][0],
+            cursor as f32
+        );
         assert_eq!(app.cdmw_pending_request.is_some(), cursor != 1);
     }
-    app.handle_actions(vec![UiAction::CdmwHistoryCursor { cursor: 3, revision: 2 }]);
+    app.handle_actions(vec![UiAction::CdmwHistoryCursor {
+        cursor: 3,
+        revision: 2,
+    }]);
     assert_eq!(app.cdmw_pending_request.as_ref().unwrap().label, "Redo");
     for (revision, cursor) in [(3, 2), (4, 3)] {
         let value = state(root.path(), &app, revision, cursor)?;
@@ -66,20 +99,40 @@ fn action_history_stops_at_confirmed_state_on_failure_change_noop_or_close() -> 
         app.start_cdmw_history(0, 0);
         let value = state(root.path(), &app, 1, 2)?;
         reply(&mut app, value, true);
-        let mut value = state(root.path(), &app, 2, if fault == "noop" || fault == "rejection" {2} else {1})?;
+        let mut value = state(
+            root.path(),
+            &app,
+            2,
+            if fault == "noop" || fault == "rejection" {
+                2
+            } else {
+                1
+            },
+        )?;
         if fault == "trim" {
             value["history_entries"].as_array_mut().unwrap().remove(0);
             value["redo_count"] = json!(1);
         }
-        if fault == "close" { app.handle_cdmw_host_event(HostEvent::Cancel("closed".into())); }
+        if fault == "close" {
+            app.handle_cdmw_host_event(HostEvent::Cancel("closed".into()));
+        }
         let expected = value["history_cursor"].clone();
         reply(&mut app, value, fault != "rejection");
         assert!(app.cdmw_pending_request.is_none(), "{fault}");
         assert_eq!(app.cdmw_state["history_cursor"], expected, "{fault}");
-        assert_eq!(app.document.as_deref().unwrap().lods[0].submeshes[0].positions[0][0], expected.as_u64().unwrap() as f32);
-        if fault != "close" { assert!(!app.cdmw_exit_requested, "{}", app.status); }
-        if fault == "rejection" { assert!(app.status.contains("restore failed")); }
-        if fault == "trim" || fault == "noop" { assert!(app.status.contains("last confirmed action")); }
+        assert_eq!(
+            app.document.as_deref().unwrap().lods[0].submeshes[0].positions[0][0],
+            expected.as_u64().unwrap() as f32
+        );
+        if fault != "close" {
+            assert!(!app.cdmw_exit_requested, "{}", app.status);
+        }
+        if fault == "rejection" {
+            assert!(app.status.contains("restore failed"));
+        }
+        if fault == "trim" || fault == "noop" {
+            assert!(app.status.contains("last confirmed action"));
+        }
     }
     Ok(())
 }

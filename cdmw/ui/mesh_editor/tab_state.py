@@ -118,8 +118,14 @@ class MeshEditorStateMixin(
         summary = getattr(self.standalone_workspace, "update_session_summary", None)
         if callable(summary):
             summary(view, mesh_label=self.standalone_mesh_label)
-        right_panels = getattr(self.standalone_workspace, "right_panels", None)
-        derived_panels_visible = right_panels is None or not right_panels.isHidden()
+        workspace = self.standalone_workspace
+        # Panels not built yet count as hidden: asking whether they are hidden would
+        # build them all (0.36 s on the click that opens an edit, P4 V4).
+        if getattr(workspace, "__dict__", {}).get("_legacy_panels_deferred", False):
+            derived_panels_visible = False
+        else:
+            right_panels = getattr(workspace, "right_panels", None)
+            derived_panels_visible = right_panels is None or not right_panels.isHidden()
         self._refresh_standalone_workspace_summary(view)
         self._refresh_standalone_skeleton_summary(view)
         if derived_panels_visible:
@@ -154,8 +160,9 @@ class MeshEditorStateMixin(
             active_selection_mode=str(active_selection_mode or self.current_selection_mode or "brush"),
             active_element_type=str(active_element_type or self.current_element_type or "vertex"),
             selection_empty=bool(view.selection.is_empty()),
-            undo_count=int(view.undo_count or 0),
-            redo_count=int(view.redo_count or 0),
+            # A draft's saved steps count as one more Undo or Redo (P14).
+            undo_count=int(view.undo_count or 0) + int(bool(getattr(view, "journal_undo_available", False))),
+            redo_count=int(view.redo_count or 0) + int(bool(getattr(view, "journal_redo_available", False))),
         )
     def set_active_tool_state(self, *, mode: str = "", active_selection_mode: str = "", active_element_type: str = "", active_tool_key: str | None = None) -> None:
         self.update_editor_action_state(

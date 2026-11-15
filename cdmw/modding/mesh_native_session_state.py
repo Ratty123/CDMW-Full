@@ -72,6 +72,14 @@ def _clear_native_mesh_core_session_cache() -> None:
     with _native_mesh_core_session_cache_lock:
         _native_mesh_core_session_cache.clear()
 
+
+def _forget_native_mesh_core_session(session_id: str) -> None:
+    """Drop one native session's entries; the next use opens it again."""
+
+    with _native_mesh_core_session_cache_lock:
+        for key in [key for key, (_signature, cached) in _native_mesh_core_session_cache.items() if cached == session_id]:
+            _native_mesh_core_session_cache.pop(key, None)
+
 def _native_mesh_session_token(mesh: ParsedMesh) -> str:
     token = getattr(mesh, _NATIVE_MESH_SESSION_TOKEN_ATTR, "")
     if isinstance(token, str) and token:

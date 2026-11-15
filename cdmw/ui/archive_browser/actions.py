@@ -85,6 +85,10 @@ class ArchiveBrowserActionMixin:
         button.setEnabled(bool(enabled))
         active_text = str(active_tooltip or "").strip()
         reason_text = str(disabled_reason or "").strip()
+        # The button's command (P12) shows this same state and reason in the palette.
+        from cdmw.ui.archive_browser.browse_commands import remember_button_reason
+
+        remember_button_reason(button, bool(enabled), reason_text)
         if enabled or not reason_text:
             button.setToolTip(active_text)
         elif active_text:
@@ -499,6 +503,20 @@ class ArchiveBrowserActionMixin:
             )
             _add_menu_section("mesh", "Mesh Edit")
             open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")
+            set_bridge = getattr(self, "archive_remote_bridge", None)
+            if callable(getattr(set_bridge, "item_set_contains", None)) and set_bridge.item_set_contains(entry):
+                open_set_action = menu.addAction(menu_icons["mesh"], "Open set in Mesh Editor")
+                from cdmw.ui.mesh_editor.item_set_preparation import prepare_item_set_for_editor
+                def open_set(target=entry) -> None:
+                    # This open takes the Scene panel's unticked parts, and no later one (8.9).
+                    take = getattr(self.shell, "_take_pending_hidden_parts_for_open", None)
+                    if callable(take):
+                        take()
+                    prepare_item_set_for_editor(self.shell, target, edit_set=True)
+
+                open_set_action.triggered.connect(lambda _checked=False, run=open_set: QTimer.singleShot(0, run))
+                preview_file_action = menu.addAction("Preview only this file")
+                preview_file_action.triggered.connect(set_bridge.preview_only_current_file)
             continue_work_action = menu.addAction(menu_icons["mesh"], "Continue Earlier Work...")
             continue_work_action.setToolTip("Show your saved drafts and built mods made from this file.")
 

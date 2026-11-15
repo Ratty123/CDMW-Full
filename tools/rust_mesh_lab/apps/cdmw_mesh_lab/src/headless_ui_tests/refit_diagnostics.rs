@@ -6,10 +6,14 @@ fn diagnostics_ui(selected: &[u32]) -> Result<HeadlessUi, Box<dyn std::error::Er
     ui.application.cdmw_state["base_revision"] = json!(9);
     ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(7);
     ui.application.cdmw_state["morph_refit"]["refit"]["distance_warning"] = json!(true);
-    ui.application.mesh.as_mut().ok_or("mesh")?.set_selection(Selection {
-        submeshes: selected.iter().copied().collect(),
-        ..Selection::default()
-    })?;
+    ui.application
+        .mesh
+        .as_mut()
+        .ok_or("mesh")?
+        .set_selection(Selection {
+            submeshes: selected.iter().copied().collect(),
+            ..Selection::default()
+        })?;
     ui.click("Fit")?;
     ui.click("Check current fit")?;
     Ok(ui)
@@ -62,10 +66,15 @@ fn report() -> Value {
 }
 
 fn painted_text(ui: &HeadlessUi) -> String {
-    ui.output.shapes.iter().filter_map(|shape| match &shape.shape {
-        egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
-        _ => None,
-    }).collect::<Vec<_>>().join("\n")
+    ui.output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[test]
@@ -78,28 +87,58 @@ fn diagnostics_click_queries_selected_bound_parts_or_all_without_applying_settin
         let mut ui = diagnostics_ui(&selected)?;
         let root = tempdir()?;
         ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
-            root.path().to_path_buf(), "diagnostics-click", 2, 9,
+            root.path().to_path_buf(),
+            "diagnostics-click",
+            2,
+            9,
         ));
-        ui.application.cdmw_refit_settings_dirty.mark("clearance_percent");
+        ui.application
+            .cdmw_refit_settings_dirty
+            .mark("clearance_percent");
         ui.application.cdmw_refit_clearance = 0.75;
-        let before = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+        let before = ui
+            .application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint();
         let state_before = ui.application.cdmw_state.clone();
         let actions = ui.actions_from_click("Analyze current fit")?;
-        let commands = actions.iter().filter_map(|action| match action {
-            UiAction::CdmwCommand { command, arguments, .. } => Some((*command, arguments)),
-            _ => None,
-        }).collect::<Vec<_>>();
+        let commands = actions
+            .iter()
+            .filter_map(|action| match action {
+                UiAction::CdmwCommand {
+                    command, arguments, ..
+                } => Some((*command, arguments)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         assert_eq!(commands.len(), 1, "{actions:?}");
         assert_eq!(commands[0].0, "refit_diagnostics");
-        assert_eq!(commands[0].1, &json!({
-            "submesh_indices": expected, "sample_limit": 2048, "detail_limit": 24,
-        }));
-        assert_eq!(ui.application.cdmw_pending_request.as_ref().map(|pending| pending.label.as_str()),
-            Some("Analyze current fit"));
+        assert_eq!(
+            commands[0].1,
+            &json!({
+                "submesh_indices": expected, "sample_limit": 2048, "detail_limit": 24,
+            })
+        );
+        assert_eq!(
+            ui.application
+                .cdmw_pending_request
+                .as_ref()
+                .map(|pending| pending.label.as_str()),
+            Some("Analyze current fit")
+        );
         assert_eq!(ui.application.cdmw_refit_clearance, 0.75);
         assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
         assert_eq!(ui.application.cdmw_state, state_before);
-        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), before);
+        assert_eq!(
+            ui.application
+                .mesh
+                .as_ref()
+                .ok_or("mesh")?
+                .structural_fingerprint(),
+            before
+        );
     }
     Ok(())
 }
@@ -116,7 +155,10 @@ fn diagnostics_query_is_disabled_while_a_host_request_is_pending() -> TestResult
         origin: Some(CdmwRequestOrigin::Selection),
     });
     ui.frame(Vec::new());
-    assert!(!has_host_command(&ui.actions_from_click("Analyze current fit")?, "refit_diagnostics"));
+    assert!(!has_host_command(
+        &ui.actions_from_click("Analyze current fit")?,
+        "refit_diagnostics"
+    ));
     Ok(())
 }
 
@@ -157,18 +199,33 @@ fn diagnostics_hide_stale_metrics_after_host_morph_shadow_or_scope_changes() -> 
         match change {
             "host-morph" => ui.application.cdmw_state["morph_refit"]["state_revision"] = json!(8),
             "shadow" => ui.application.cdmw_state["base_revision"] = json!(10),
-            _ => ui.application.mesh.as_mut().ok_or("mesh")?.set_selection(Selection {
-                submeshes: [2].into_iter().collect(), ..Selection::default()
-            })?,
+            _ => ui
+                .application
+                .mesh
+                .as_mut()
+                .ok_or("mesh")?
+                .set_selection(Selection {
+                    submeshes: [2].into_iter().collect(),
+                    ..Selection::default()
+                })?,
         }
         ui.last_actions.clear();
         ui.frame(Vec::new());
         ui.reveal("Fit analysis is out of date for this preview or selection. Analyze again.")?;
         let text = painted_text(&ui);
-        assert!(!text.contains("Minimum body distance:"), "stale metrics for {change}: {text}");
-        assert!(!text.contains("Minimum layer gap:"), "stale metrics for {change}: {text}");
+        assert!(
+            !text.contains("Minimum body distance:"),
+            "stale metrics for {change}: {text}"
+        );
+        assert!(
+            !text.contains("Minimum layer gap:"),
+            "stale metrics for {change}: {text}"
+        );
         assert!(!has_host_command(&ui.last_actions, "refit_diagnostics"));
-        assert!(has_host_command(&ui.actions_from_click("Analyze current fit")?, "refit_diagnostics"));
+        assert!(has_host_command(
+            &ui.actions_from_click("Analyze current fit")?,
+            "refit_diagnostics"
+        ));
     }
     Ok(())
 }
@@ -199,30 +256,64 @@ fn diagnostics_result_is_cached_only_after_a_successful_read_only_reply() -> Tes
         let mut ui = diagnostics_ui(&[])?;
         let root = tempdir()?;
         ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
-            root.path().to_path_buf(), "diagnostics-ui", 2, 9,
+            root.path().to_path_buf(),
+            "diagnostics-ui",
+            2,
+            9,
         ));
         ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
-            request_id: 1, event: "command_result", label: "Analyze current fit".to_owned(), origin: None,
+            request_id: 1,
+            event: "command_result",
+            label: "Analyze current fit".to_owned(),
+            origin: None,
         });
-        ui.application.cdmw_refit_settings_dirty.mark("clearance_percent");
-        let before = ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint();
+        ui.application
+            .cdmw_refit_settings_dirty
+            .mark("clearance_percent");
+        let before = ui
+            .application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint();
         let mut state = ui.application.cdmw_state.clone();
         state["session_id"] = json!("diagnostics-ui");
         state["selection"] = json!({
             "vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {}, "source_indices": [],
         });
         // The service query returns state without a document or revision advance.
-        ui.application.handle_cdmw_result("command_result", 1, 9, ok,
+        ui.application.handle_cdmw_result(
+            "command_result",
+            1,
+            9,
+            ok,
             json!({"state": state, "result": {"status": "ok", "refit_diagnostics": report()}}),
-            if ok { "" } else { "Analysis failed" });
-        assert!(ui.application.cdmw_pending_request.is_none(), "{}", ui.application.status);
-        assert_eq!(ui.application.cdmw_refit_diagnostics.is_some(), ok, "{}", ui.application.status);
+            if ok { "" } else { "Analysis failed" },
+        );
+        assert!(
+            ui.application.cdmw_pending_request.is_none(),
+            "{}",
+            ui.application.status
+        );
+        assert_eq!(
+            ui.application.cdmw_refit_diagnostics.is_some(),
+            ok,
+            "{}",
+            ui.application.status
+        );
         if ok {
             assert_eq!(ui.application.cdmw_refit_diagnostics, Some(report()));
         }
         assert_eq!(ui.application.cdmw_state["base_revision"], json!(9));
         assert!(ui.application.cdmw_refit_settings_dirty.is_dirty());
-        assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.structural_fingerprint(), before);
+        assert_eq!(
+            ui.application
+                .mesh
+                .as_ref()
+                .ok_or("mesh")?
+                .structural_fingerprint(),
+            before
+        );
     }
     Ok(())
 }

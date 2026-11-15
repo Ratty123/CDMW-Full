@@ -199,6 +199,26 @@ Folder...** lists a mod built before saved drafts existed, or by someone else, i
 selected project; its game path comes from CDMW's local export record, or from the
 mesh file's place in the folder.
 
+**Combine into One Mod...** ([flow](saved_work_combine.py), command
+`saved_work.combine`, registered by the page as Browse registers its own) writes two or
+more selected built mods that change different game files into one new mod (GitHub
+issue 31). It is enabled only for two or more built-mod rows whose folders exist, with
+the reason otherwise. One dialog holds every stage: a worker reads the builds and plans
+(`prepare_mesh_build_combine`, nothing written); the plan, or the refusal naming the
+shared file and the builds; a title, a new or empty folder and an optional ZIP; then a
+worker writes and lists the mod (`export_combined_mesh_builds`, `register_combined_mod`,
+[tasks](../../workers/mesh_build_combine_workers.py)). The configured game folder, read
+from Archive Browser through the page's source resolver, is always passed, so an output
+inside the game is refused on the loose route too. Cancel works at every stage: the
+workers stop, and a cancel after the mod was published removes it again (an empty
+folder the user chose is put back). The selected builds are never changed.
+
+The **Game file** column fits each path to its width with
+[`game_file_label`](../../domain/packages/game_file_label.py): the file name stays whole
+and leading folders go first, so two files of one armour stay apart. A row that writes
+several files (`SavedWorkRow.game_files`) reads "first + N more"; its tooltip and the
+Details list show every file.
+
 **Name Draft...** beside Continue Earlier Work... names the draft of the open mesh and
 chooses its project, with **New Project...** in the same dialog. It works before the
 first save too: the planned draft carries the name. Later edit passes, continued built
@@ -470,6 +490,54 @@ the UI does not expose a misleading refraction slider.
 
 ## Opening meshes and preparing sessions
 
+The helper identifies its process and parent before compiling its renderer.
+Controls become available after `ready`; a validated child gets a separate,
+bounded initialization deadline. This avoids reporting a protocol failure while
+the first launch is still compiling shaders. Release packages include the
+verified DirectX shader compiler runtime.
+
+Detached mesh metadata uses scalar fast paths, and large numeric JSON arrays
+are encoded in bounded blocks. Copies, cancellation, canonical JSON bytes and
+exact per-file output remain part of the existing session contract.
+
+From an Item Finder set preview, **Open in Mesh Editor** edits the selected PAC
+and draws the other worn files as **Reference pieces**. Their Inspector **View**
+checkboxes affect display only. **Switch editable piece** lists the set's files
+and uses the existing close/reopen confirmation, including unsaved edits.
+Selection, editing, drafts and output still belong to the selected PAC.
+
+**Open set in Mesh Editor** instead opens the worn pieces together for editing.
+The Parts list groups them by source file. **View** changes display; **Include**
+controls Build Mod output, independently, for a part or a complete file. Transform,
+sculpt, smooth, weight and normal edits can span files. Weight commands and their
+colours resolve each file's own bone palette. Topology changes, including Loop Cut,
+split, merge and Geometry Layers paste, must stay inside one source file.
+
+Each asset retains its captured dependencies, original PAC bytes and stable part
+identities. Splits, deletions and reordered parts cannot redirect another file's
+output. Build Mod rebuilds each included changed asset through its own exact writer;
+unchanged files are omitted. Removed or excluded sections retain the existing
+hidden-section representation. Deleting all geometry from a file, changing its rig,
+or pasting across file owners is refused. Turn off a file's Include checkbox to
+omit it. Hair Tools and replacement import still require opening one PAC separately.
+
+Set drafts retain per-file source hashes, source rig metadata, part ownership and
+Include choices; their identity is the sorted list of source hashes. Existing
+single-PAC and Morph & Refit drafts retain their formats. Loading an oversized set
+keeps the selected file and the greatest number of other files that fit the measured
+512 MiB geometry/texture and 768 MiB session limits, reserving the manifest's bounded
+space. The remaining files are named as references with reduced geometry and no
+textures. If the selected file and those references cannot fit, opening is refused.
+These are source and owned-fixture checks; set output has not been checked in game.
+
+Each file gets its own prepared dependency snapshot before launch. The Rust
+preparation worker loads reference geometry and materials with the same bounded
+source loader as Archive Refit, then copies immutable payloads into the owned
+session. References are separate from both the authoritative and shadow mesh;
+only the renderer's draw snapshot combines them. They cannot be selected or
+submitted as editor state, and do not contribute archive output authority.
+Cancellation, catalogue replacement, close and shutdown discard stale work.
+
 PAC readers distinguish the declared LOD count from the reserved geometry slots.
 A three-LOD game model can retain LOD0 in slot 4, with its lowest slot empty.
 Reading, cloth-record inspection and supported rebuilds retain that arrangement.
@@ -505,6 +573,29 @@ Once the editor owns the texture lease, clearing Archive Preview retires its pen
 texture acknowledgement. Each subsequent PAC starts its own request through either
 **Open in Mesh Editor** or the preview's editor button, including after closing a
 session before the archive viewport rendered its textures.
+
+Unedited parts with a verified Preview Core material source carry their native
+layer graph into the authoring package. The Rust renderer uses the same GPU
+composition as Browse Archives, with CPU composition for unsupported materials
+or adapters. File, original section, material and texture ownership are checked;
+geometry edits retain these bindings, while changed or imported materials use
+the existing authoring compositor. Painted alpha retains its dedicated channel.
+Material updates and Undo replace or restore the graph with their owned texture
+state. Layer DDS files count against the existing set/session budgets. Sources
+in an editable set resolve a separate native graph for each original PAC before
+budgeting, even when the browser's combined package is not reused. Resolution
+runs on the cancellable preparation worker and retains each source's DDS lease.
+This keeps additional pieces' authored dye and layer settings intact. Sources
+without a native graph and view-only reference packages retain their baked path.
+Create New Item's ParsedMesh preview shares this rule. Material Authority,
+Fast preview, Exact and exported material output retain their existing meanings.
+
+Viewport's **Shadows** and **Ambient occlusion** start enabled in Textured and
+Game Outdoor. **Studio (fixed lights)** keeps the key/fill/rim lighting fixed as
+the camera orbits; the default preset remains Neutral studio. Icon captures keep
+self-shadowing with transparent background pixels. These controls affect preview
+presentation, not exported game materials or verified game appearance.
+
 Large command responses, including dense jiggle data returned after part selection,
 use an atomic session-owned file with verified size and SHA-256. The control pipe
 keeps its 256 KiB limit; referenced response state is bounded to 16 MiB.

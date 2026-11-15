@@ -8,7 +8,7 @@ import pytest
 
 from cdmw.domain.new_item.spec import ModelSource
 from cdmw.domain.new_item.independent import IndependentItemError
-from cdmw.services.independent_item_install import load_registry, prepare_install, prepare_remove, resolve_items
+from tests.support.item_install import load_registry, prepare_install, prepare_remove, resolve_items
 from cdmw.services.independent_item_package import from_plan, package_bytes
 from cdmw.services.independent_item_references import audit_references
 from cdmw.services.new_item_planning import ModelFiles, _Planner
@@ -211,16 +211,16 @@ def test_two_packages_keep_private_texture_bytes_through_update_and_removal(tmp_
     root, backups = tmp_path / "game", Backups(tmp_path)
     if target == "virtual":
         monkeypatch.setattr("cdmw.services.new_item_service.game_is_running", lambda *_args, **_kwargs: False)
-    from tests.test_virtual_loader import game_bytes
+    from tests.support.game_fixtures import game_bytes
     before = game_bytes(root)
 
     def apply(packages):
         if target == "archive":
             backups.apply(prepare_install([package_bytes(package) for package in packages], root).preparation)
             return
-        from cdmw.domain.virtual_loader import VirtualProfile
-        from cdmw.services.virtual_loader_composition import prepare_profile
-        from cdmw.services.virtual_loader_state import publish_profile
+        from tests.support.virtual_domain import VirtualProfile
+        from tests.support.virtual_composition import prepare_profile
+        from tests.support.virtual_state import publish_profile
         paths = []
         for package in packages:
             source = tmp_path / f"{package.identity}.cditem"

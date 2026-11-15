@@ -41,6 +41,7 @@ from cdmw.ui.shell.settings_bridge import (
 from cdmw.ui.app_icon import load_app_icon
 from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_palette, build_app_stylesheet
 from cdmw.ui.layout_utils import available_layout_size_for, available_screen_size_for
+from cdmw.ui.layout_metrics import small_font_points
 
 
 _WINDOWS_CJK_FONT_FILES = {
@@ -212,9 +213,13 @@ def apply_app_theme(
     )
     _install_app_fonts(app, app_font, data_font)
     app.setProperty("_cdmw_theme_key", resolved_theme)
+    # Read by the surfaces drawn by the helper, so their spacing matches (P11 step 4).
+    app.setProperty("_cdmw_ui_density", effective_density_key)
+    app.setProperty("_cdmw_layout_scale", float(screen_scale))
     app.setPalette(build_app_palette(resolved_theme))
     stylesheet = build_app_stylesheet(
         resolved_theme,
+        base_font_size=app_font.pointSize() if app_font.pointSize() > 0 else DEFAULT_UI_FONT_SIZE,
         density_key=effective_density_key,
         layout_scale=screen_scale,
     )
@@ -634,7 +639,7 @@ class ThemeControllerMixin:
             return
         archive_controls_font = QFont(ui_font)
         if archive_controls_font.pointSize() > 0:
-            archive_controls_font.setPointSize(max(UI_FONT_SIZE_MIN, archive_controls_font.pointSize() - 1))
+            archive_controls_font.setPointSize(int(small_font_points(archive_controls_font.pointSize())))
         if not _same_font(archive_controls_group.font(), archive_controls_font):
             archive_controls_group.setFont(archive_controls_font)
 

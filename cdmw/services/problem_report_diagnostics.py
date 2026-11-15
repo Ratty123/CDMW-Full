@@ -237,8 +237,6 @@ def collect_report_build_identity(*, stop_event=None) -> dict:
 
         native = find_native_mesh_core_binary()
         result["native_mesh_core"] = _binary_identity(Path(native), stop_event=stop_event) if native else {"status": "missing"}
-        if native:
-            result["native_mesh_core_dll"] = _binary_identity(Path(native).with_name("cdmw-mesh-core.dll"), stop_event=stop_event)
     except RunCancelled:
         raise
     except Exception as exc:

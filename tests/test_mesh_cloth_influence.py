@@ -73,11 +73,11 @@ def cloth_session(tmp_path, monkeypatch):
     service.close_edit_session(session.authoritative_session_id, force_without_saving=True)
 
 
-def apply_rule(session, tmp_path, rule, *, reset=False):
+def apply_rule(session, tmp_path, rule, *, reset=False, archive_path="owned-rust-exact.pac"):
     part_id = session.state_payload()["cloth"]["parts"][0]["id"]
     return command(session, "replacement_cloth", {"part_ids": [part_id], "reset": reset,
         "rule": rule.to_dict(),
-        "_archive_entry": ArchiveEntry("owned-rust-exact.pac", tmp_path / "0009/0.pamt", tmp_path / "0009/0.paz", 0, 0, 0, 0, 0),
+        "_archive_entry": ArchiveEntry(archive_path, tmp_path / "0009/0.pamt", tmp_path / "0009/0.paz", 0, 0, 0, 0, 0),
         "_archive_dependencies": SimpleNamespace(entries_by_basename={}, entries_by_normalized_path={})})
 
 

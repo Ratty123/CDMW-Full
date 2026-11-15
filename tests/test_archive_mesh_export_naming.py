@@ -33,6 +33,8 @@ class _ArchiveMeshPresetFlowShell(ArchiveMeshLaunchFlowMixin, ArchiveMeshPatchFl
         self.opened: list[dict[str, object]] = []
         self.static_prompts: list[dict[str, object]] = []
         self.utility_tasks: list[dict[str, object]] = []
+        self.statuses: list[tuple[str, bool]] = []
+        self.output_mode = "loose"
 
     def _open_mesh_editor_for_entry(self, entry: ArchiveEntry, **kwargs: object) -> object:
         self.opened.append({"entry": entry, **kwargs})
@@ -42,7 +44,16 @@ class _ArchiveMeshPresetFlowShell(ArchiveMeshLaunchFlowMixin, ArchiveMeshPatchFl
         self.static_prompts.append({"entry": entry, "scene_path": scene_path, **kwargs})
         callback = kwargs.get("continue_build_callback") or kwargs.get("on_accept")
         if callable(callback):
-            callback(None, output_mode="patch") if kwargs.get("continue_build_callback") is callback else callback(None)
+            if kwargs.get("continue_build_callback") is callback:
+                callback(None, output_mode=self.output_mode)
+            else:
+                callback(None)
+
+    def _collect_archive_mod_ready_export_target(self, **_kwargs: object) -> object:
+        return (Path("mods"), None, False, False, None)
+
+    def _prompt_archive_mesh_related_file_selection(self, *_args: object, **_kwargs: object) -> tuple:
+        return ()
 
     def _run_utility_task(self, **kwargs: object) -> None:
         self.utility_tasks.append(kwargs)
@@ -51,7 +62,7 @@ class _ArchiveMeshPresetFlowShell(ArchiveMeshLaunchFlowMixin, ArchiveMeshPatchFl
         return
 
     def set_status_message(self, message: str, *, error: bool = False) -> None:
-        return
+        self.statuses.append((message, error))
 
 
 class ArchiveMeshExportNamingTests(unittest.TestCase):
@@ -250,7 +261,7 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
         for key in schema["$defs"]["submesh"]["required"]:
             self.assertIn(key, payload["lods"][0]["submeshes"][0])
 
-    def test_rebuilt_asset_preset_flows_open_mesh_editor_and_schedule_preview_and_patch(self) -> None:
+    def test_rebuilt_asset_preset_flows_open_mesh_editor_and_schedule_preview_and_build(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
             rebuilt_path = root / "rebuilt.pac"
@@ -297,6 +308,24 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
         self.assertEqual(1, len(patch_shell.utility_tasks))
         self.assertIn("Rebuilding mesh preview for body.pac", str(patch_shell.utility_tasks[0]["status_message"]))
         self.assertEqual([], patch_shell.opened)
+
+    def test_a_request_to_patch_the_game_archives_is_refused_before_anything_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            rebuilt_path = root / "rebuilt.pac"
+            rebuilt_path.write_bytes(b"pac")
+            entry = ArchiveEntry(
+                path="character/model/body.pac", pamt_path=root / "0.pamt", paz_file=root / "0.paz",
+                offset=0, comp_size=1, orig_size=1, flags=0, paz_index=0,
+            )
+            setup = MeshImportSetupSelection(scene_path=rebuilt_path, import_mode="static_replacement",
+                                             source_label="Rebuilt asset: rebuilt.pac")
+            shell = _ArchiveMeshPresetFlowShell(root / "patch.ini")
+            shell.output_mode = "patch"
+            shell._start_archive_mesh_patch(entry, preset_setup=setup)
+
+        self.assertEqual([], shell.utility_tasks)
+        self.assertIn(("CDMW no longer patches game archives. Build a mod instead.", True), shell.statuses)
 
     def test_modify_original_preset_opens_builder_without_replacing_editor(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

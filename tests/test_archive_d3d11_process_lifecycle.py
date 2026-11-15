@@ -100,7 +100,8 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
         self.messages: list[tuple[str, bool]] = []
         self.render_requests: list[tuple[object, bool]] = []
         self.entry = SimpleNamespace(path="character/body.pac")
-        self.settings = ModelPreviewRenderSettings()
+        # A user who keeps textures off; textures are on by default since P3.
+        self.settings = ModelPreviewRenderSettings(use_textures_by_default=False)
         self.archive_preview_request_id = 0
         self.current_archive_preview_result = None
         self.details_refresh_count = 0
@@ -672,7 +673,7 @@ def test_texture_checkbox_click_saves_existing_settings_key(tmp_path: Path, monk
 
     app = QApplication.instance() or QApplication([])
     harness = _LifecycleHarness()
-    harness._model_preview_render_settings = ModelPreviewRenderSettings()
+    harness._model_preview_render_settings = ModelPreviewRenderSettings(use_textures_by_default=False)
     harness.settings = QSettings(str(tmp_path / "preview.ini"), QSettings.IniFormat)
     harness.schedule_settings_save = lambda: SettingsPersistenceMixin._save_model_preview_settings_if_loaded(harness)
     checkbox = QCheckBox()

@@ -432,7 +432,8 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
             lighting_changed=changes.append,
         )
         dialog._host_state("ready", "")
-        self.assertEqual(dialog.host.lightings[-1], "neutral_studio")
+        # Lighting follows the shared Preview settings; the dialog sets none of its own.
+        self.assertEqual(dialog.host.lightings, [])
         self.assertFalse(hasattr(dialog, "lighting_choice"))
         self.assertEqual(changes, [])
 

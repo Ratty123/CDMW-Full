@@ -6,9 +6,9 @@ import math
 from pathlib import Path
 from typing import Dict, List
 
-import cv2
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.core.texture_editor import _safe_slug, save_rgba_array_png
 from cdmw.domain.textures.editor_brush import (
     _apply_dodge_burn_region,
@@ -126,15 +126,7 @@ def export_texture_editor_region_png(
         region = _trim_rgba_transparent_bounds(region)
     pad_amount = max(0, int(padding))
     if pad_amount > 0:
-        region = cv2.copyMakeBorder(
-            region,
-            pad_amount,
-            pad_amount,
-            pad_amount,
-            pad_amount,
-            cv2.BORDER_CONSTANT,
-            value=(0, 0, 0, 0),
-        )
+        region = image_ops.pad_constant(region, pad_amount, (0, 0, 0, 0))
     return save_rgba_array_png(region, output_path.expanduser().resolve())
 
 def export_texture_editor_grid_slices(
@@ -171,15 +163,7 @@ def export_texture_editor_grid_slices(
             if trim_transparent:
                 tile = _trim_rgba_transparent_bounds(tile)
             if pad_amount > 0:
-                tile = cv2.copyMakeBorder(
-                    tile,
-                    pad_amount,
-                    pad_amount,
-                    pad_amount,
-                    pad_amount,
-                    cv2.BORDER_CONSTANT,
-                    value=(0, 0, 0, 0),
-                )
+                tile = image_ops.pad_constant(tile, pad_amount, (0, 0, 0, 0))
             file_name = f"{_safe_slug(document.title)}_r{row:02d}_c{col:02d}.png"
             exported.append(save_rgba_array_png(tile, output_root / file_name))
     return exported

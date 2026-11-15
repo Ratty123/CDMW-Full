@@ -314,10 +314,8 @@ def decode_dotnet_native_preview_package(
         if canonical_graph:
             # Composition must retain the same layered graph that Browse sends to
             # Rust. The material override dictionary survives scene/placement clones.
-            submesh.preview_native_material_overrides["preview_core_material_source"] = {
-                "package": str(package_dir), "batch": dict(raw_batch),
-                "conservation": dict(manifest["material_conservation"]),
-            }
+            from cdmw.services.mesh_preview_material_source import bind_preview_core_material_source
+            bind_preview_core_material_source(submesh, package_dir, raw_batch, manifest["material_conservation"])
         decoded.append(submesh)
         total_vertices += len(submesh.vertices)
     if not decoded:

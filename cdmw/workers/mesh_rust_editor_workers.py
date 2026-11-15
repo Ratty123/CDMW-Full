@@ -62,6 +62,16 @@ def _remove_owned_session_root(
         raise
 
 
+def _draft_project_root(service: object, session_id: str) -> Path | None:
+    """The folder of the draft a session edits, or None (no draft, or no session)."""
+
+    try:
+        project_path = getattr(service._session(session_id), "mesh_layer_project_path", None)
+    except (AttributeError, KeyError, RuntimeError, TypeError):
+        return None
+    return Path(project_path).parent if project_path is not None else None
+
+
 class MeshRustSessionPrepareWorker(QObject):
     prepared = Signal(int, object)
     progress = Signal(int, str)
@@ -77,9 +87,19 @@ class MeshRustSessionPrepareWorker(QObject):
         process_generation: int,
         theme: dict[str, object] | None = None,
         hair_start_mode: str = "",
+        item_set_contexts: tuple = (),
+        edit_item_set: bool = False,
+        before_prepare=None,
+        discarded: threading.Event | None = None,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
+        #: Set when the user chose Discard while this open ran (section 8.9): an
+        #: open that then fails or stops ends the draft's recovery point too.
+        self.discarded = discarded
+        #: Runs first on this thread: binding the resolved preview materials to the
+        #: controller, which used to take tens of milliseconds on the UI thread.
+        self.before_prepare = before_prepare
         self.authoritative_controller = authoritative_controller
         self.expected_controller_identity = id(authoritative_controller)
         self.expected_authoritative_service = getattr(
@@ -91,13 +111,33 @@ class MeshRustSessionPrepareWorker(QObject):
             getattr(authoritative_controller, "active_session_id", "") or ""
         )
         self.session_root = Path(session_root)
+        #: The draft's folder, read now: a Discard closes the document's session
+        #: before this worker's abort path runs, so it cannot be looked up then.
+        self.draft_project_root = _draft_project_root(self.expected_authoritative_service, self.expected_session_id)
         self.process_generation = int(process_generation)
         self.theme = dict(theme or {})
         self.hair_start_mode = hair_start_mode
+        self.item_set_contexts = tuple(item_set_contexts)
+        self.edit_item_set = bool(edit_item_set)
         self._stop_event = threading.Event()
 
     def stop(self) -> None:
         self._stop_event.set()
+
+    def _user_discarded(self) -> bool:
+        return bool(self.discarded is not None and self.discarded.is_set())
+
+    def _discard_draft_recovery(self) -> None:
+        """Discard before any session existed: the draft's recovery point goes, as
+        the session's own close would end it."""
+
+        from cdmw.services import mesh_history_journal as journal
+
+        project_root = self.draft_project_root
+        if project_root is None:
+            return
+        with journal.project_lock(project_root):
+            journal.clear_editor_recovery(project_root)
 
     def _controller_context_is_current(self) -> bool:
         return bool(
@@ -126,6 +166,19 @@ class MeshRustSessionPrepareWorker(QObject):
             if self._stop_event.is_set() or not self._controller_context_is_current():
                 self._stop_event.set()
                 return
+            before_prepare_ms = 0.0
+            if self.before_prepare is not None:
+                import time as _time
+
+                before_started = _time.perf_counter()
+                try:
+                    self.before_prepare()
+                except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    raise RuntimeError(f"Mesh Editor could not bind the resolved preview textures: {exc}") from exc
+                if self._stop_event.is_set() or not self._controller_context_is_current():
+                    self._stop_event.set()
+                    return
+                before_prepare_ms = round((_time.perf_counter() - before_started) * 1000.0, 1)
             session = RustMeshAuthoringSession.create(
                 self.authoritative_controller,
                 self.session_root,
@@ -134,7 +187,14 @@ class MeshRustSessionPrepareWorker(QObject):
                 stop_event=self._stop_event,
                 progress=self._report_progress,
                 **({"hair_start_mode": self.hair_start_mode} if self.hair_start_mode else {}),
+                **({"item_set_contexts": self.item_set_contexts} if self.item_set_contexts else {}),
+                **({"edit_item_set": True} if self.edit_item_set else {}),
+                # The editor shows first and receives its morph data later (P4 V3).
+                **({"defer_morph_state": True} if getattr(self, "defer_morph_state", True) else {}),
             )
+            stages = getattr(session, "open_stage_ms", None)
+            if isinstance(stages, dict) and before_prepare_ms:
+                stages["material_prime_ms"] = before_prepare_ms  # resolved on this worker since V1
             if (
                 self._stop_event.is_set()
                 or not self._controller_context_is_current()
@@ -153,7 +213,8 @@ class MeshRustSessionPrepareWorker(QObject):
         except Exception as exc:  # pragma: no cover - exact text is surfaced by owning UI tests
             if session is not None:
                 try:
-                    session.cancel()
+                    # A failed open keeps the recovery point, unless the user chose Discard.
+                    session.close(discard=self._user_discarded())
                     _remove_owned_session_root(
                         self.session_root,
                         self.session_root.parent,
@@ -166,7 +227,13 @@ class MeshRustSessionPrepareWorker(QObject):
         finally:
             if session is not None:
                 try:
-                    session.cancel()
+                    # An aborted open keeps the recovery point, unless the user chose Discard.
+                    session.close(discard=self._user_discarded())
+                except Exception:
+                    pass
+            elif not transferred and self._user_discarded():
+                try:
+                    self._discard_draft_recovery()
                 except Exception:
                     pass
             if not transferred and self._stop_event.is_set() and session is not None:
@@ -393,7 +460,9 @@ class MeshRustSessionDisposeWorker(QObject):
             if self.session is not None:
                 expected_identity = self.session.root_identity
             if self.session is not None and not self.session.closed:
-                self.session.cancel()
+                # A dispose is not a Discard: only a Discard the user chose (marked on
+                # the session) ends the recovery point (section 8.9).
+                self.session.close()
         except Exception as exc:
             # Cancelling the shadow service is independent from releasing its
             # owned package.  A failed or stopped cancel must never strand the

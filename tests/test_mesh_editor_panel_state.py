@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 from unittest.mock import Mock, patch
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -23,7 +24,7 @@ from tools.mesh_editor_dev_harness import build_synthetic_mesh
 
 def _open_tab(label: str) -> MeshEditorTab:
     QApplication.instance() or QApplication([])
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", f"{label}-{time.time_ns()}"))
+    tab = MeshEditorTab(settings=owned_settings(f"{label}-{time.time_ns()}"))
     tab.standalone_workspace.right_panels.setVisible(True)
     tab.open_mesh_session(build_synthetic_mesh(), session_id=f"{label}-session", mode="edit")
     return tab

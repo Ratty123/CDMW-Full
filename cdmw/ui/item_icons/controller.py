@@ -30,6 +30,30 @@ class ItemIconRecordListMixin:
         ).casefold()
         return all(part in haystack for part in text.casefold().split())
 
+    def _sync_sources_empty_state(self) -> None:
+        """No icon sources at all: say how to get some, in the list's place (P11 step 6)."""
+        switch = getattr(self, "sources_switch", None)
+        if switch is None:
+            return
+        from cdmw.ui.item_icons.panels import ICON_SOURCES_NO_FOLDER_TEXT, ICON_SOURCES_NONE_FOUND_TEXT
+
+        if getattr(self, "records", None):
+            switch.set_empty(False)
+            return
+        state = self.sources_empty_state
+        if getattr(self, "library_roots", None) and not getattr(self, "_icon_scan_done", False):
+            # Folders are set but not scanned yet: the list and its status line say so.
+            switch.set_empty(False)
+            return
+        if getattr(self, "library_roots", None):
+            wanted = (ICON_SOURCES_NONE_FOUND_TEXT, "Rescan", lambda: self.scan_library(show_status=True))
+        else:
+            wanted = (ICON_SOURCES_NO_FOLDER_TEXT, "Add Folder", self.add_library_root)
+        if getattr(state, "_shown_state", None) != wanted[0]:
+            state.set_state(wanted[0], wanted[1], run=wanted[2])
+            state._shown_state = wanted[0]
+        switch.set_empty(True)
+
     def _schedule_records_tree_population(self, *, select_path: Optional[Path] = None) -> None:
         if select_path is not None:
             self._pending_record_select_key = str(select_path).casefold()
@@ -97,6 +121,7 @@ class ItemIconRecordListMixin:
             self.library_status_label.setText(
                 f"{self._pending_record_total:,}/{len(self.records):,} icon source(s) shown."
             )
+            self._sync_sources_empty_state()
             return
         batch = self._pending_record_rows[: self.RECORD_POPULATION_BATCH_SIZE]
         del self._pending_record_rows[: self.RECORD_POPULATION_BATCH_SIZE]

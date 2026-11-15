@@ -20,7 +20,12 @@ def replacement_ui_state(authoring):
     experimental = authoring.neutral_appearance is not None or bool(state and state.neutral_appearance is not None)
     reason = ""
     blocked_by = ""
-    if session.archive_refit_context is not None:
+    from cdmw.services.mesh_asset_context import is_item_set, PART_ATTRIBUTE, ASSET_ATTRIBUTE, item_set_bindings
+    editing_set = is_item_set(session.archive_refit_context)
+    if editing_set:
+        reason = "Open one piece separately before importing a replacement"
+        blocked_by = "item_set"
+    elif session.archive_refit_context is not None:
         reason = "Finish Morph & Refit, then choose Start next edit pass before changing part inclusion or importing replacements."
         blocked_by = "morph_refit"
     elif getattr(authoring.shadow_service._morph_sessions.get(authoring.shadow_session_id), "profile", None) is not None:
@@ -38,11 +43,16 @@ def replacement_ui_state(authoring):
     digest = state.target_sha256 if state else (session.mesh_asset_source_hash or hashlib.sha256(session.original_data).hexdigest()).lower()
     bindings = {part.part_id: part for part in state.parts} if state else {}
     parts = []
-    for index, part in enumerate(session.working_mesh.submeshes):
-        key = str(getattr(part, PART_ID_ATTRIBUTE, "")) if state else f"{digest[:16]}:{index}"
+    mesh = authoring.shadow_service.working_mesh(authoring.shadow_session_id) if editing_set else session.working_mesh
+    if editing_set:
+        item_set_bindings(mesh, session.archive_refit_context)
+    for index, part in enumerate(mesh.submeshes):
+        key = (getattr(part, PART_ATTRIBUTE) if editing_set else
+               str(getattr(part, PART_ID_ATTRIBUTE, "")) if state else f"{digest[:16]}:{index}")
         binding = bindings.get(key)
         parts.append({"index": index, "id": key, "name": part.name or f"Part {index}",
-                      "included": binding.included if binding else True})
+                      "included": key not in session.archive_refit_context.excluded_part_ids if editing_set else binding.included if binding else True,
+                      **({"asset_id": getattr(part, ASSET_ATTRIBUTE)} if editing_set else {})})
     pending = authoring.pending_replacement
     payload = {"available": not reason, "reason": reason, "active": state is not None,
                "blocked_by": blocked_by,
@@ -51,6 +61,11 @@ def replacement_ui_state(authoring):
                "weight_notes": list(authoring.replacement_weight_notes),
                "rig_export": rig_export_state(session),
                "has_import": bool(state and any(part.import_positions for part in state.parts))}
+    if editing_set:
+        payload["item_set"] = True
+        payload["groups"] = [{"id": asset.asset_id, "name": asset.entry.basename}
+                             for asset in session.archive_refit_context.assets]
+        payload["reference_only"] = [context.selected_entry.basename for context in authoring.item_set_contexts[1:]]
     if pending is not None:
         payload["pending"] = {
             "token": pending.token,
@@ -163,6 +178,11 @@ def _surface_argument(args):
 
 def run_replacement_command(authoring, command, args, stop_event):
     service, session_id = authoring.shadow_service, authoring.shadow_session_id
+    from cdmw.services.mesh_asset_context import is_item_set
+    if command == "replacement_include" and is_item_set(service._session(session_id).archive_refit_context):
+        from cdmw.services.mesh_item_set_editing import set_item_set_inclusion
+        set_item_set_inclusion(service, session_id, args.get("part_ids", ()), args.get("included"))
+        return {"status": "included"}
     if command == "replacement_cancel":
         authoring.pending_replacement = None
         authoring.replacement_weight_notes = ()

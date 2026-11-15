@@ -48,6 +48,9 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_session_load_entry: _tab.ArchiveEntry | None = None
         self.archive_session_load_material_model: object | None = None
         self.archive_session_dependencies: ArchiveWorkflowDependencyContext | None = None
+        self.item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = ()
+        self.edit_item_set = False
+        self.item_set_preparation = None
         self.archive_session_open_pending: dict[str, object] | None = None
         self.archive_session_open_retry_timer = QTimer(self)
         self.archive_session_open_retry_timer.setSingleShot(True)
@@ -125,7 +128,6 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_output_progress: object | None = None
         self.standalone_output_request_id = 0
         self.standalone_output_kind = ""
-        self.standalone_pending_overlay_apply: tuple[object, object] | None = None
         self.standalone_report_write_thread: _tab.QThread | None = None
         self.standalone_report_write_worker: _tab.MeshReportWriteWorker | None = None
         self.standalone_report_write_request_id = 0

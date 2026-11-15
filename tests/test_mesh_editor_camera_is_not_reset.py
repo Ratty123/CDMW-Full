@@ -22,6 +22,7 @@ import os
 from types import SimpleNamespace
 
 import pytest
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -85,7 +86,7 @@ def _mounted_tab(name: str):
         "Rust-only production Mesh Editor; Preview owns its camera state locally."
     )
     app = QApplication.instance() or QApplication([])
-    settings = QSettings("CDMWTests", name)
+    settings = owned_settings(name)
     settings.clear()
     tab = MeshEditorTab(settings=settings)
     builder = _EmbeddedMeshBuilder()

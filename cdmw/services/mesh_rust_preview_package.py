@@ -31,6 +31,8 @@ if TYPE_CHECKING:
 
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.domain.material_layer_uv import pac_layer_uv_transform
+from cdmw.services import mesh_rust_preview_files as _preview_files
 from cdmw.services.mesh_rust_preview_files import atomic_preview_publication, validate_preview_files
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -56,7 +58,7 @@ _LOGGER = logging.getLogger(__name__)
 _PREVIEW_CORE_VERTEX = struct.Struct("<23f")
 _PREVIEW_CORE_IDENTITY = struct.Struct("<2i")
 _PREVIEW_CORE_SCHEMA_MINIMUM = 8
-_PREVIEW_CORE_MATERIAL_GRAPH_VERSION = 4
+_PREVIEW_CORE_MATERIAL_GRAPH_VERSION = 5
 _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION = 10
 _PREVIEW_CORE_BATCH_LIMIT = 4_096
 _PREVIEW_CORE_VERTEX_LIMIT = 2_000_000
@@ -121,7 +123,7 @@ def _write_effect_texture_resources(
         if digest not in written:
             texture_dir.mkdir(parents=True, exist_ok=True)
             _session_root_identity(package_dir, expected_root_identity)
-            atomic_write_bytes(package_dir / Path(relative), data)
+            atomic_write_bytes(package_dir / Path(relative), data, durable=_preview_files.PREVIEW_CACHE_FSYNC)
             _session_root_identity(package_dir, expected_root_identity)
             written[digest] = {
                 "path": relative,
@@ -485,7 +487,8 @@ def _copy_preview_core_binary(
                 digest.update(block)
                 byte_length += len(block)
             writer.flush()
-            os.fsync(writer.fileno())
+            if _preview_files.PREVIEW_CACHE_FSYNC:
+                os.fsync(writer.fileno())
         source_after = source.stat()
         source_identity_before = (
             int(source_before.st_dev),
@@ -581,6 +584,7 @@ def _copy_preview_core_material_resource(
     next_index: int,
     aggregate_bytes: int,
     cancelled: Callable[[], bool] | None,
+    durable: bool = True,
 ) -> tuple[dict[str, object], int, int]:
     from cdmw.services.mesh_rust_authoring import (
         _session_root_identity,
@@ -596,23 +600,51 @@ def _copy_preview_core_material_resource(
     digest = hashlib.sha256()
     byte_length = 0
     try:
-        with source.open("rb") as reader, temporary.open("xb") as writer:
-            source_before = os.fstat(reader.fileno())
-            while True:
-                _cancelled(cancelled)
-                block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
-                if not block:
-                    break
-                digest.update(block)
-                writer.write(block)
-                byte_length += len(block)
-                if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
-                    raise ValueError(
-                        "Preview Core material DDS resources exceed the 512 MiB package limit."
-                    )
-            writer.flush()
-            os.fsync(writer.fileno())
-            source_after = os.fstat(reader.fileno())
+        linked = False
+        if not durable:
+            # A Mesh Editor session on the cache's volume shares the immutable
+            # cache file instead of rewriting it; it is still hashed below.
+            try:
+                os.link(source, temporary)
+                linked = True
+            except OSError:
+                linked = False
+        if linked:
+            source_before = os.stat(source)
+            with temporary.open("rb") as reader:
+                while True:
+                    _cancelled(cancelled)
+                    block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                    if not block:
+                        break
+                    digest.update(block)
+                    byte_length += len(block)
+                    if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
+                        raise ValueError(
+                            "Preview Core material DDS resources exceed the 512 MiB package limit."
+                        )
+            source_after = os.stat(source)
+        else:
+            with source.open("rb") as reader, temporary.open("xb") as writer:
+                source_before = os.fstat(reader.fileno())
+                while True:
+                    _cancelled(cancelled)
+                    block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                    if not block:
+                        break
+                    digest.update(block)
+                    writer.write(block)
+                    byte_length += len(block)
+                    if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
+                        raise ValueError(
+                            "Preview Core material DDS resources exceed the 512 MiB package limit."
+                        )
+                writer.flush()
+                if durable and _preview_files.PREVIEW_CACHE_FSYNC:
+                    # Cache packages are verified on read and rebuilt when
+                    # damaged, so they are not flushed file by file either.
+                    os.fsync(writer.fileno())
+                source_after = os.fstat(reader.fileno())
         before = (
             int(source_before.st_dev),
             int(source_before.st_ino),
@@ -671,9 +703,36 @@ def _preview_core_layer_tint(value: object) -> list[float]:
     return (components + [1.0] * 4)[:4]
 
 
+def _preview_core_layer_parameter_index(parameters):
+    """Keep layer sampling and blend controls tied to their exact wrapper."""
+    result = {}
+    for parameter in parameters:
+        if not isinstance(parameter, Mapping):
+            continue
+        name = str(parameter.get("parameter_name", ""))
+        if name.casefold().lstrip("_") not in {
+            "dyeingtransformproperty0", "dyeingtransformproperty1",
+            "dyeingtransformproperty3", "dyeingpropertyblend",
+            "colorblendingflag", "dyeingglobalopacity",
+            "dyeingdetaillayercolormaskr", "dyeingdetaillayercolormaskg",
+            "dyeingdetaillayercolormaskb",
+        }:
+            continue
+        key = (
+            str(parameter.get("component_scope_id", "") or ""),
+            str(parameter.get("owner_wrapper_item_id", "") or ""),
+            _preview_core_int(parameter.get("material_wrapper_index"), -1),
+        )
+        value = parameter.get("integer_value")
+        if value is None:
+            value = parameter.get("value", "")
+        result.setdefault(key, []).append((name, value))
+    return result
+
+
 def _copy_preview_core_material_layers(
     raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes, copied_sources,
-    materials, source_edge_count, cancelled, expected_root_identity,
+    materials, source_edge_count, cancelled, expected_root_identity, parameter_index, durable=True,
 ):
     for material_index, raw_batch in enumerate(raw_batches):
         if not isinstance(raw_batch, Mapping):
@@ -741,6 +800,22 @@ def _copy_preview_core_material_layers(
                 ),
                 "tint": _preview_core_layer_tint(raw_layer.get("tint")),
             }
+            if role in {"detail", "grime"} and channel in {"r", "g", "b"}:
+                parameter_key = (
+                    str(raw_layer.get("component_scope_id", "") or ""), owner, wrapper_index,
+                )
+                parameters = parameter_index.get(parameter_key, ())
+                layer["uv_transform"] = list(pac_layer_uv_transform(parameters, channel))
+                if role == "detail" and parameters:
+                    values = {str(name).casefold(): value for name, value in parameters}
+                    shift = {"r": 0, "g": 1, "b": 2}[channel]
+                    flags = _preview_core_int(values.get("_colorblendingflag"), 0xFFFFFFFF)
+                    opacity = _preview_core_int(values.get("_dyeingglobalopacity"), 0xFFFFFFFF)
+                    layer["blend_flags"] = (flags >> (shift * 4)) & 15
+                    layer["blend_opacity"] = ((opacity >> (shift * 8)) & 255) / 255.0
+                    if f"_dyeingdetaillayercolormask{channel}" not in values:
+                        # A native default white is not an authored white dye.
+                        layer["tint"][3] = 0.0
             layer_has_source = False
             for resource_role in ("diffuse", "normal", "material", "height", "mask"):
                 _cancelled(cancelled)
@@ -780,6 +855,7 @@ def _copy_preview_core_material_layers(
                                     next_index=next_index,
                                     aggregate_bytes=aggregate_bytes,
                                     cancelled=cancelled,
+                                    durable=durable,
                                 )
                             )
                             source_after = source.stat()
@@ -822,6 +898,7 @@ def _build_preview_core_material_graph(
     textures: Sequence[object],
     expected_root_identity: tuple[int, int],
     cancelled: Callable[[], bool] | None,
+    material_parameters: Sequence[object] = (),
 ) -> dict[str, object]:
     resources, next_index, aggregate_bytes = _preview_core_material_resource_index(
         package_dir,
@@ -836,6 +913,7 @@ def _build_preview_core_material_graph(
     ) = _copy_preview_core_material_layers(
         raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes,
         copied_sources, materials, source_edge_count, cancelled, expected_root_identity,
+        _preview_core_layer_parameter_index(material_parameters),
     )
     copied_resource_shas = set(resources).difference(initial_resource_shas)
     return {
@@ -1081,7 +1159,7 @@ def _preview_core_scene_frame(metadata_mesh, center, scale, part_identities, pre
 
 def _prepare_preview_core_materials(
     package_dir, metadata_mesh, root_identity, quality, source_package, raw_batches, cancelled,
-    include_material_resources,
+    include_material_resources, material_parameters,
 ):
     from cdmw.services.mesh_rust_authoring import (
         _RustMaterialSynthesisState,
@@ -1112,6 +1190,7 @@ def _prepare_preview_core_materials(
         textures=textures,
         expected_root_identity=root_identity,
         cancelled=cancelled,
+        material_parameters=material_parameters,
     )
     presentations = _mesh_material_presentations(
         metadata_mesh,
@@ -1263,11 +1342,11 @@ def _validated_preview_core_source(preview_core_package_dir, source_manifest):
     if source_schema < _PREVIEW_CORE_SCHEMA_MINIMUM:
         raise ValueError("Direct preview requires Preview Core schema 8 or newer.")
     if (
-        material_graph_version != _PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+        material_graph_version not in {4, _PREVIEW_CORE_MATERIAL_GRAPH_VERSION}
         or material_semantics_version != _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
     ):
         raise ValueError(
-            "Direct preview requires Preview Core material graph v4 and semantics v10."
+            "Direct preview requires Preview Core material graph v4 or v5 and semantics v10."
         )
     if (
         not isinstance(raw_material_conservation, Mapping)
@@ -1375,6 +1454,7 @@ def build_rust_preview_package_from_preview_core(
     ) = _prepare_preview_core_materials(
         package_dir, metadata_mesh, root_identity, quality, source_package, raw_batches, cancelled,
         include_material_resources,
+        raw_material_conservation.get("parameters", ()),
     )
     frame, session_id, scene_payload = _preview_core_scene_frame(metadata_mesh, center, scale, part_identities, preview_overlays, cancelled)
 
@@ -1393,7 +1473,7 @@ def build_rust_preview_package_from_preview_core(
         "channels": channels,
         "preview_core_geometry": {
             "schema_version": source_schema,
-            "material_graph_version": material_graph_version,
+            "material_graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
             "material_semantics_version": material_semantics_version,
             "format": source_format,
             "source_sha256": source_sha256,
@@ -1402,7 +1482,7 @@ def build_rust_preview_package_from_preview_core(
             "batches": direct_batches,
         },
         "material_contract": {
-            "graph_version": material_graph_version,
+            "graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
             "semantics_version": material_semantics_version,
             "conservation": copy.deepcopy(
                 dict(raw_material_conservation)
@@ -1426,6 +1506,7 @@ def build_rust_preview_package_from_preview_core(
     atomic_write_text(
         manifest_path,
         json.dumps(manifest_payload, separators=(",", ":"), sort_keys=True),
+        durable=_preview_files.PREVIEW_CACHE_FSYNC,
     )
     return RustPreviewPackage(
         package_dir=package_dir,
@@ -1511,12 +1592,13 @@ def _populate_preview_scene_overlays(
 def _composite_preview_core_material_graph(package_dir, scene, textures, presentations, quality, root_identity, cancelled):
     """Copy native layers with scene-local draw indices, including reference roles."""
     from cdmw.services.mesh_rust_authoring import _mesh_lods
+    from cdmw.services.mesh_preview_material_source import unedited_preview_core_material_source
 
     sources = []
     for lod_index, submeshes in enumerate(_mesh_lods(scene)):
         for material_index, submesh in enumerate(submeshes):
             overrides = getattr(submesh, "preview_native_material_overrides", {}) or {}
-            source = overrides.get("preview_core_material_source")
+            source = unedited_preview_core_material_source(submesh)
             if source is not None:
                 painted = overrides.get("painted_texture_channels", {})
                 channels = (1 if "opacity" in painted else 0) | (2 if "material" in painted else 0)
@@ -1535,6 +1617,8 @@ def _composite_preview_core_material_graph(package_dir, scene, textures, present
         aggregate_bytes, source_edge_count = _copy_preview_core_material_layers(
             [source["batch"]], Path(source["package"]), package_dir, quality, resources,
             next_index, aggregate_bytes, copied_sources, materials, source_edge_count, cancelled, root_identity,
+            _preview_core_layer_parameter_index(source["conservation"].get("parameters", ())),
+            durable=False,
         )
         materials[-1].update(lod_index=lod_index, material_index=material_index,
                              material_slot_index=slots.get((lod_index, material_index), material_index))
@@ -1795,23 +1879,8 @@ def build_rust_preview_package(
         )
         if graph is not None:
             manifest["preview_core_material_graph"] = graph
-            from cdmw.services.mesh_rust_authoring import _mesh_lods
-
-            reports = {}
-            for level in _mesh_lods(scene):
-                for part in level:
-                    source = (getattr(part, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source")
-                    if source is not None:
-                        reports[source["package"]] = source["conservation"]
-            manifest["material_contract"] = {
-                "graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
-                "semantics_version": _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
-                "conservation": {
-                    "conserved": all(report.get("conserved") is True for report in reports.values()),
-                    "declared_parameter_count": sum(report["declared_parameter_count"] for report in reports.values()),
-                    "transported_parameter_count": sum(report["transported_parameter_count"] for report in reports.values()),
-                },
-            }
+            from cdmw.services.mesh_preview_material_source import preview_core_material_contract
+            manifest["material_contract"] = preview_core_material_contract(scene)
     manifest_path = package_dir / "manifest.json"
     # Dense effect surfaces can exceed the shared Python/Rust 16 MiB limit
     # from indentation alone. Keep every value, and reject genuinely oversized
@@ -1819,7 +1888,7 @@ def build_rust_preview_package(
     manifest_json = json.dumps(manifest, separators=(",", ":"), sort_keys=True)
     if len(manifest_json) > _PREVIEW_MANIFEST_MAX_BYTES:  # ensure_ascii keeps bytes == characters
         raise ValueError("preview manifest exceeds its size limit")
-    atomic_write_text(manifest_path, manifest_json)
+    atomic_write_text(manifest_path, manifest_json, durable=_preview_files.PREVIEW_CACHE_FSYNC)
     return RustPreviewPackage(
         package_dir=package_dir,
         manifest_path=manifest_path,
@@ -1869,10 +1938,10 @@ def rust_preview_package_from_path(path: Path | str) -> RustPreviewPackage:
     )
 
 
-def validate_rust_preview_package(path: Path | str) -> tuple[str, ...]:
+def validate_rust_preview_package(path: Path | str, *, hash_unverified: bool = True) -> tuple[str, ...]:
     try:
         package_dir, payload = _read_preview_manifest(path)
-        validate_preview_files(package_dir, payload)
+        validate_preview_files(package_dir, payload, hash_unverified=hash_unverified)
     except (OSError, UnicodeError, ValueError, TypeError, OverflowError, RecursionError) as exc:
         return (str(exc),)
     return ()

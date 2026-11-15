@@ -108,10 +108,13 @@ class SettingsHelperDiscoveryMixin:
             return
         self.asset_authoring_helper_refresh_button.setEnabled(False)
         self.asset_authoring_helper_status_label.setText("Checking asset authoring helper versions...")
+        # Resolve the service and read its settings here, on the GUI thread: the
+        # worker must not create the service or read the app's QSettings object.
+        service = self._resolve_asset_authoring_service()
+        snapshot = getattr(service, "with_settings_snapshot", None)
+        worker_service = snapshot() if callable(snapshot) else service
         thread = QThread(self)
-        worker = UtilityWorker(
-            lambda _log: self._resolve_asset_authoring_service().discovery_report(include_versions=True)
-        )
+        worker = UtilityWorker(lambda _log: worker_service.discovery_report(include_versions=True))
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.completed.connect(self._handle_asset_authoring_helper_report, Qt.ConnectionType.QueuedConnection)

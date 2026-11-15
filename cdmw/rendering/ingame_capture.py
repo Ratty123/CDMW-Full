@@ -259,7 +259,8 @@ def _focus_window_for_input(hwnd: int) -> Mapping[str, Any]:
         if attached:
             user32.AttachThreadInput(current_thread, target_thread, False)
     time.sleep(0.1)
-    foreground_hwnd = int(user32.GetForegroundWindow())
+    # None or 0 without a foreground window, depending on the function's restype.
+    foreground_hwnd = int(user32.GetForegroundWindow() or 0)
     foreground_pid = ctypes.c_ulong(0)
     if foreground_hwnd:
         user32.GetWindowThreadProcessId(foreground_hwnd, ctypes.byref(foreground_pid))

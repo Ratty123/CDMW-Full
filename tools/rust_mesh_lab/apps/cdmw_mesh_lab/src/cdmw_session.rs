@@ -3,17 +3,18 @@
 use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh};
 use cdmw_mesh::hair::HairState;
 use cdmw_mesh::{Provenance, VertexHandle, WorkingMesh};
-use cdmw_texture::{DdsMetadata, TextureRole, inspect_dds};
+use cdmw_texture::{DdsMetadata, TextureRole, inspect_dds, inspect_dds_with_verified_sha256};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
 use serde::{Deserialize, Serialize, de::IgnoredAny};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
+use std::time::{Duration, SystemTime};
 use thiserror::Error;
 
 mod mesh_document_binary;
@@ -46,7 +47,7 @@ const MAX_PREVIEW_CORE_BATCHES: usize = 4_096;
 const MAX_PREVIEW_CORE_VERTICES: usize = 2_000_000;
 const PREVIEW_CORE_VERTEX_BYTES: usize = 23 * std::mem::size_of::<f32>();
 const PREVIEW_CORE_IDENTITY_BYTES: usize = 2 * std::mem::size_of::<i32>();
-const PREVIEW_CORE_MATERIAL_GRAPH_VERSION: u64 = 4;
+const PREVIEW_CORE_MATERIAL_GRAPH_VERSION: u64 = 5;
 const PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION: u64 = 10;
 const PREVIEW_CORE_TRANSPORT_GRAPH_SCHEMA: u64 = 1;
 const MAX_PREVIEW_CORE_MATERIAL_LAYERS: usize = 64;
@@ -65,7 +66,7 @@ pub enum SessionError {
     Json(#[from] serde_json::Error),
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct FileReference {
     pub path: String,
     pub data_type: String,
@@ -98,6 +99,7 @@ pub struct CdmwMaterialUpdate {
     pub textures: Vec<CdmwTextureResource>,
     pub material_presentations: Vec<SessionMaterialPresentation>,
     pub reason: String,
+    pub layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
 }
 
 #[derive(Deserialize)]
@@ -106,6 +108,10 @@ struct MaterialStatePayload {
     textures: Vec<SessionTextureReference>,
     material_presentations: Vec<SessionMaterialPresentation>,
     reason: String,
+    #[serde(default)]
+    preview_core_material_graph: Option<PreviewCoreMaterialGraph>,
+    #[serde(default)]
+    material_contract: Value,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -228,7 +234,7 @@ pub struct PreviewCoreGeometry {
     pub batches: Vec<PreviewCoreGeometryBatch>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PreviewCoreMaterialLayer {
     pub owner_wrapper_item_id: String,
     pub material_wrapper_index: u32,
@@ -246,6 +252,12 @@ pub struct PreviewCoreMaterialLayer {
     pub specular_hint: f32,
     pub height_scale_hint: f32,
     pub tint: [f32; 4],
+    #[serde(default)]
+    pub uv_transform: Option<[f32; 6]>,
+    #[serde(default)]
+    pub blend_flags: Option<u32>,
+    #[serde(default)]
+    pub blend_opacity: Option<f32>,
     pub diffuse_declared: bool,
     pub diffuse_archive_path: String,
     pub diffuse: Option<FileReference>,
@@ -264,6 +276,10 @@ pub struct PreviewCoreMaterialLayer {
 }
 
 impl PreviewCoreMaterialLayer {
+    pub fn sampling_transform(&self) -> [f32; 6] {
+        self.uv_transform.unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+    }
+
     fn resources(&self) -> [(&str, bool, &str, Option<&FileReference>); 5] {
         [
             (
@@ -300,7 +316,7 @@ impl PreviewCoreMaterialLayer {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PreviewCoreMaterial {
     pub lod_index: u32,
     pub material_index: u32,
@@ -314,7 +330,7 @@ pub struct PreviewCoreMaterial {
     pub authoring_channels: u8,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PreviewCoreMaterialGraph {
     pub schema_version: u64,
     pub graph_version: u64,
@@ -326,6 +342,31 @@ pub struct PreviewCoreMaterialGraph {
     pub copied_resource_count: u64,
     pub unique_resource_bytes: u64,
     pub materials: Vec<PreviewCoreMaterial>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReferencePieceManifest {
+    pub index: usize,
+    pub name: String,
+    pub role: String,
+    pub document: FileReference,
+    pub textures: Vec<SessionTextureReference>,
+    pub material_presentations: Vec<SessionMaterialPresentation>,
+    /// The piece's own native material graph, when its source PAC has one.
+    /// Composed with the same layer rule as the editable document and Browse.
+    #[serde(default)]
+    pub preview_core_material_graph: Option<PreviewCoreMaterialGraph>,
+}
+
+#[derive(Debug)]
+pub struct LoadedReferencePiece {
+    pub index: usize,
+    pub name: String,
+    pub visible: bool,
+    pub snapshot: cdmw_mesh::DrawSnapshot,
+    pub part_count: u32,
+    pub textures: Vec<CdmwTextureResource>,
+    pub material_presentations: Vec<SessionMaterialPresentation>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -366,6 +407,14 @@ pub struct SessionManifest {
     pub state: Value,
     #[serde(default)]
     pub interaction_profile: String,
+    #[serde(default)]
+    pub reference_pieces: Vec<ReferencePieceManifest>,
+    #[serde(default)]
+    pub item_set_files: Vec<String>,
+    /// A preview package's parts: each batch's `editor_identity` names the file a part
+    /// comes from and its index there (P5: a follower maps an edit's parts by them).
+    #[serde(default)]
+    pub batches: Vec<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -407,6 +456,11 @@ pub enum HostEvent {
     RendererRetry,
     Focus,
     HairPreset(String),
+    /// Browse Archives is shown around this edit (P15 step 5a): only the view is
+    /// drawn and clicks orbit; false gives the editor back (`browse_presentation`).
+    BrowsePresentation(bool),
+    /// Run one of the editor's own commands by its shortcut id (CDMW's palette).
+    RunCommand(String),
     VertexInspection {
         request_id: u64,
         ok: bool,
@@ -422,6 +476,17 @@ pub enum HostEvent {
         error: String,
     },
     StateSnapshot(Value),
+    /// The morph data of an editor that opened before its query answered (P4 V3).
+    MorphState(Value),
+    /// Which tool groups are still preparing (P4 V4).
+    ToolGroups(Value),
+    /// Why the draft's last autosave failed, or "" once a save succeeds again.
+    SaveStatus(String),
+    /// The session for an editor that was showing Browse's model (P4 V4): its
+    /// manifest and the `open_session` line itself.
+    OpenSession(PathBuf, Value),
+    /// A line a view-only editor does not act on.
+    Ignored,
     Cancel(String),
     Fatal(String),
 }
@@ -455,6 +520,8 @@ pub struct LoadedCdmwSessionPackage {
     document: MeshDocument,
     source_lod_index: usize,
     textures: Vec<CdmwTextureResource>,
+    reference_pieces: Vec<LoadedReferencePiece>,
+    layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
     effect_textures: Vec<CdmwEffectTextureResource>,
     material_composition_metrics:
         crate::preview_core_material::PreviewCoreMaterialCompositionMetrics,
@@ -537,39 +604,92 @@ impl LoadedCdmwSessionPackage {
         if expected_schema == PREVIEW_PACKAGE_SCHEMA {
             validate_document(&document)?;
         }
-        if manifest.preview_core_geometry.is_none()
-            && let Some(graph) = manifest.preview_core_material_graph.as_ref()
-        {
-            let mut owners = BTreeMap::new();
-            let slots: BTreeMap<_, _> = manifest.material_presentations.iter()
-                .map(|row| ((row.lod_index, row.material_index), row.material_slot_index))
-                .collect();
-            for (lod_index, lod) in document.lods.iter().enumerate() {
-                for (material_index, submesh) in lod.submeshes.iter().enumerate() {
-                    let key = (lod_index as u32, material_index as u32);
-                    let slot = slots.get(&key).copied().unwrap_or(key.1);
-                    owners.insert(key, (slot, submesh.material.as_str()));
-                }
-            }
-            validate_preview_core_material_graph(&manifest, graph, &owners, false)?;
-        }
+        validate_document_material_graph(&manifest, &document)?;
         reject_unexpected_initial_files(&root, &manifest, &document)?;
         validate_material_presentations(&manifest, &document)?;
         check_preview_cancelled(cancelled)?;
-        let mut textures = read_texture_resources(&root, &manifest, &document)?;
+        // One immutable snapshot per exact file reference for this package load.
+        // Different lengths, digests or types never reuse the same verification.
+        let mut texture_sources = BTreeMap::<Vec<u8>, Vec<u8>>::new();
+        let mut source_bytes = 0_u64;
+        let mut read_texture = |reference: &FileReference| -> Result<Vec<u8>, SessionError> {
+            let key = serde_json::to_vec(reference)?;
+            if let Some(bytes) = texture_sources.get(&key) {
+                return Ok(bytes.clone());
+            }
+            let bytes = read_binary_reference(&root, reference)?;
+            source_bytes = source_bytes.saturating_add(bytes.len() as u64);
+            if source_bytes > MAX_TEXTURE_TOTAL_BYTES {
+                return Err(SessionError::InvalidPayload(
+                    "verified texture sources exceed the 512 MiB limit".into(),
+                ));
+            }
+            texture_sources.insert(key, bytes.clone());
+            Ok(bytes)
+        };
+        let mut textures = read_texture_resources_with(&manifest, &document, &mut read_texture)?;
+        let mut reference_pieces = Vec::new();
+        for piece in &manifest.reference_pieces {
+            check_preview_cancelled(cancelled)?;
+            let bytes = read_mesh_document_binary_reference(&root, &piece.document, true)?;
+            let reference_document = mesh_document_binary::decode(&bytes, piece.document.count)?;
+            validate_document(&reference_document)?;
+            let mesh = WorkingMesh::from_document_lod(&reference_document, 0)
+                .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+            let mut piece_manifest = manifest.clone();
+            piece_manifest.textures = piece.textures.clone();
+            piece_manifest.material_presentations = piece.material_presentations.clone();
+            piece_manifest.preview_core_material_graph = piece.preview_core_material_graph.clone();
+            piece_manifest.preview_core_geometry = None;
+            validate_material_presentations(&piece_manifest, &reference_document)?;
+            validate_document_material_graph(&piece_manifest, &reference_document)?;
+            let mut textures = read_texture_resources_with(
+                &piece_manifest,
+                &reference_document,
+                &mut read_texture,
+            )?;
+            if let Some(graph) = piece.preview_core_material_graph.as_ref() {
+                // Reference pieces have no GPU layer slots; the CPU form of the
+                // same RGB-layer rule gives them the same pixels.
+                crate::preview_gpu_layers::prepare(
+                    graph,
+                    &piece.material_presentations,
+                    &reference_document,
+                    &mut textures,
+                    false,
+                    std::env::var("CDMW_PREVIEW_DRAW_GRIME").is_ok_and(|value| value == "1"),
+                    &mut read_texture,
+                    cancelled,
+                )?;
+            }
+            reference_pieces.push(LoadedReferencePiece {
+                index: piece.index,
+                name: piece.name.clone(),
+                visible: true,
+                snapshot: mesh.draw_snapshot(),
+                part_count: reference_document.lods[0].submeshes.len() as u32,
+                textures,
+                material_presentations: piece.material_presentations.clone(),
+            });
+        }
         let effect_textures = read_effect_texture_resources(&root, &manifest)?;
-        let material_composition_metrics =
+        let (material_composition_metrics, layers) =
             if let Some(graph) = manifest.preview_core_material_graph.as_ref() {
-                crate::preview_core_material::compose_preview_core_material_resources_cancellable(
+                crate::preview_gpu_layers::prepare(
                     graph,
                     &manifest.material_presentations,
                     &document,
                     &mut textures,
-                    |reference| read_binary_reference(&root, reference),
+                    graph.quality == "full" && crate::preview_gpu_layers::supported(),
+                    std::env::var("CDMW_PREVIEW_DRAW_GRIME").is_ok_and(|value| value == "1"),
+                    &mut read_texture,
                     cancelled,
                 )?
             } else {
-                crate::preview_core_material::PreviewCoreMaterialCompositionMetrics::default()
+                (
+                    crate::preview_core_material::PreviewCoreMaterialCompositionMetrics::default(),
+                    Vec::new(),
+                )
             };
         let source_lod_index = manifest_source_lod_index(&manifest)?;
         if source_lod_index >= document.lods.len() {
@@ -583,6 +703,8 @@ impl LoadedCdmwSessionPackage {
             document,
             source_lod_index,
             textures,
+            reference_pieces,
+            layers,
             effect_textures,
             material_composition_metrics,
         })
@@ -612,6 +734,14 @@ impl LoadedCdmwSessionPackage {
         std::mem::take(&mut self.textures)
     }
 
+    pub fn take_layers(&mut self) -> Vec<cdmw_render_wgpu::MaterialLayerSet> {
+        std::mem::take(&mut self.layers)
+    }
+
+    pub fn take_reference_pieces(&mut self) -> Vec<LoadedReferencePiece> {
+        std::mem::take(&mut self.reference_pieces)
+    }
+
     pub fn take_effect_textures(&mut self) -> Vec<CdmwEffectTextureResource> {
         std::mem::take(&mut self.effect_textures)
     }
@@ -638,9 +768,14 @@ pub struct CdmwBridge {
     shadow_revision: u64,
     source_lod_index: usize,
     textures: Vec<CdmwTextureResource>,
+    layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
+    reference_pieces: Vec<LoadedReferencePiece>,
     last_result_request_id: u64,
     state_snapshot_accepted: bool,
     translations: translation_transfer::TranslationTransfers,
+    /// Set while the editor shows Browse's resident model before its session
+    /// exists (P4 V4): the routed input, kept to hand back with `open_session`.
+    view_input: Option<Sender<Incoming>>,
 }
 
 #[derive(Clone, Debug)]
@@ -651,10 +786,15 @@ pub(super) struct JiggleSource {
 
 impl JiggleSource {
     fn new(root: PathBuf, reference: FileReference) -> Result<Self, SessionError> {
-        if reference.path != "jiggle-rig.json" || reference.data_type != "jiggle_rig_json"
-            || reference.byte_length > 32 * 1024 * 1024 || reference.count == 0 || reference.count > 4096
+        if reference.path != "jiggle-rig.json"
+            || reference.data_type != "jiggle_rig_json"
+            || reference.byte_length > 32 * 1024 * 1024
+            || reference.count == 0
+            || reference.count > 4096
         {
-            return Err(SessionError::InvalidPayload("invalid decoded jiggle snapshot reference".into()));
+            return Err(SessionError::InvalidPayload(
+                "invalid decoded jiggle snapshot reference".into(),
+            ));
         }
         Ok(Self { root, reference })
     }
@@ -667,12 +807,35 @@ impl JiggleSource {
 impl CdmwBridge {
     /// Capture a reference only; the loader performs file I/O and decoding.
     pub(super) fn jiggle_source(&self, state: &Value) -> Result<JiggleSource, SessionError> {
-        let reference = state["jiggle"]["decoded"].get("file")
-            .ok_or_else(|| SessionError::InvalidPayload("decoded jiggle snapshot is unavailable".into()))?;
-        JiggleSource::new(self.root.clone(), serde_json::from_value(reference.clone())?)
+        let reference = state["jiggle"]["decoded"].get("file").ok_or_else(|| {
+            SessionError::InvalidPayload("decoded jiggle snapshot is unavailable".into())
+        })?;
+        JiggleSource::new(
+            self.root.clone(),
+            serde_json::from_value(reference.clone())?,
+        )
     }
 
     pub fn open(manifest_path: &Path) -> Result<(Self, MeshDocument), SessionError> {
+        let (incoming_tx, incoming_rx) = bounded(CONTROL_QUEUE_BOUND);
+        spawn_input_reader(incoming_tx.clone(), None);
+        Self::open_with_input(manifest_path, incoming_tx, incoming_rx)
+    }
+
+    /// Open the session a pending helper was asked for, keeping the stdin reader it
+    /// already runs, so no line the host sent after `open_session` is lost.
+    pub fn open_pending(
+        manifest_path: &Path,
+        input: PendingSessionInput,
+    ) -> Result<(Self, MeshDocument), SessionError> {
+        Self::open_with_input(manifest_path, input.sender, input.receiver)
+    }
+
+    fn open_with_input(
+        manifest_path: &Path,
+        incoming_tx: Sender<Incoming>,
+        incoming_rx: Receiver<Incoming>,
+    ) -> Result<(Self, MeshDocument), SessionError> {
         let package = LoadedCdmwSessionPackage::load(manifest_path)?;
         let LoadedCdmwSessionPackage {
             root,
@@ -680,12 +843,12 @@ impl CdmwBridge {
             document,
             source_lod_index,
             textures,
+            reference_pieces,
             effect_textures: _,
             material_composition_metrics: _,
+            layers,
         } = package;
-        let (incoming_tx, incoming_rx) = bounded(CONTROL_QUEUE_BOUND);
         let (outbound_tx, outbound_rx) = bounded(OUTBOUND_QUEUE_BOUND);
-        spawn_input_reader(incoming_tx.clone());
         spawn_output_writer(
             root.clone(),
             manifest.session_id.clone(),
@@ -704,12 +867,64 @@ impl CdmwBridge {
                 shadow_revision,
                 source_lod_index,
                 textures,
+                layers,
+                reference_pieces,
                 last_result_request_id: 0,
                 state_snapshot_accepted: false,
                 translations: translation_transfer::TranslationTransfers::default(),
+                view_input: None,
             },
             document,
         ))
+    }
+
+    /// A bridge for the editor showing Browse's resident model before the
+    /// session exists (P4 V4). It has no session: authoring is off, nothing it
+    /// would send reaches CDMW, and the one host line it acts on is
+    /// `open_session`, which gives its input back for the real session.
+    pub fn view_only(
+        root: PathBuf,
+        mut manifest: SessionManifest,
+        source_lod_index: usize,
+        textures: Vec<CdmwTextureResource>,
+        layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
+        input: PendingSessionInput,
+    ) -> Self {
+        let (outbound, outbound_rx) = bounded::<Outbound>(OUTBOUND_QUEUE_BOUND);
+        drop(thread::spawn(move || while outbound_rx.recv().is_ok() {}));
+        manifest.state = Value::Null;
+        manifest.output_policy = Value::Null;
+        manifest.reference_pieces = Vec::new();
+        Self {
+            root,
+            manifest,
+            incoming: input.receiver,
+            outbound,
+            next_request_id: 0,
+            shadow_revision: 0,
+            source_lod_index,
+            textures,
+            layers,
+            reference_pieces: Vec::new(),
+            last_result_request_id: 0,
+            state_snapshot_accepted: false,
+            translations: translation_transfer::TranslationTransfers::default(),
+            view_input: Some(input.sender),
+        }
+    }
+
+    #[must_use]
+    pub fn is_view_only(&self) -> bool {
+        self.view_input.is_some()
+    }
+
+    /// The routed input of a view-only bridge, for the session that replaces it.
+    pub fn into_pending_input(self) -> Option<PendingSessionInput> {
+        let sender = self.view_input?;
+        Some(PendingSessionInput {
+            sender,
+            receiver: self.incoming,
+        })
     }
 
     #[must_use]
@@ -729,6 +944,10 @@ impl CdmwBridge {
 
     pub fn take_textures(&mut self) -> Vec<CdmwTextureResource> {
         std::mem::take(&mut self.textures)
+    }
+
+    pub fn take_layers(&mut self) -> Vec<cdmw_render_wgpu::MaterialLayerSet> {
+        std::mem::take(&mut self.layers)
     }
 
     pub fn take_material_presentations(&mut self) -> Vec<SessionMaterialPresentation> {
@@ -839,7 +1058,7 @@ impl CdmwBridge {
         Ok(())
     }
 
-    pub fn announce_ready(
+    pub fn announce_hello(
         &self,
         child_hwnd: u64,
         embedded_parent_hwnd: u64,
@@ -870,7 +1089,36 @@ impl CdmwBridge {
                 "control_contract_v2",
                 translation_transfer::CAPABILITY
             ]
-        }))?;
+        }))
+    }
+
+    /// The editor's commands with their keys and whether they can run (CDMW mirrors them).
+    pub fn announce_commands_state(&self, commands: &[Value]) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "commands_state",
+            "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "request_id": 0,
+            "base_revision": self.shadow_revision,
+            "process_generation": self.manifest.process_generation,
+            "commands": commands
+        }))
+    }
+
+    /// A chord that belongs to CDMW (the command palette) was pressed in this window.
+    pub fn announce_app_shortcut(&self, command: &str) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "app_shortcut",
+            "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "request_id": 0,
+            "base_revision": self.shadow_revision,
+            "process_generation": self.manifest.process_generation,
+            "command": command
+        }))
+    }
+
+    pub fn announce_ready(&self) -> Result<(), SessionError> {
         self.send_message(json!({
             "event": "ready",
             "protocol": PROTOCOL,
@@ -911,13 +1159,21 @@ impl CdmwBridge {
         label: &str,
     ) -> Result<u64, SessionError> {
         let candidate = build_vertex_candidate(
-            &self.manifest.session_id, document, mesh, self.source_lod_index, handles,
+            &self.manifest.session_id,
+            document,
+            mesh,
+            self.source_lod_index,
+            handles,
         )?;
         let request_id = self.take_request_id();
-        self.outbound.try_send(Outbound::VertexTransaction {
-            request_id, base_revision: self.shadow_revision,
-            label: label.to_owned(), candidate,
-        }).map_err(|error| SessionError::Protocol(format!("outbound queue is busy: {error}")))?;
+        self.outbound
+            .try_send(Outbound::VertexTransaction {
+                request_id,
+                base_revision: self.shadow_revision,
+                label: label.to_owned(),
+                candidate,
+            })
+            .map_err(|error| SessionError::Protocol(format!("outbound queue is busy: {error}")))?;
         Ok(request_id)
     }
 
@@ -1104,6 +1360,32 @@ impl CdmwBridge {
         }))
     }
 
+    pub fn take_reference_pieces(&mut self) -> Vec<LoadedReferencePiece> {
+        std::mem::take(&mut self.reference_pieces)
+    }
+
+    pub fn switch_item_piece(&self, index: usize) -> Result<(), SessionError> {
+        if index == 0 || index >= self.manifest.item_set_files.len() {
+            return Err(SessionError::Protocol("invalid editable piece".into()));
+        }
+        self.send_message(json!({
+            "event": "switch_item_piece", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation, "index": index,
+        }))
+    }
+
+    /// Preview settings the user changed in the editor; the host stores them
+    /// as the shared Preview settings every viewport follows.
+    pub fn publish_preview_settings(&self, settings: Value) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "preview_settings_changed", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation,
+            "settings": settings
+        }))
+    }
+
     /// Shortcut overrides of the defaults; the host saves them for later sessions.
     pub fn publish_shortcuts(&self, shortcuts: Value) -> Result<(), SessionError> {
         self.send_message(json!({
@@ -1244,13 +1526,16 @@ impl CdmwBridge {
         let mut manifest = self.manifest.clone();
         manifest.textures = payload.textures;
         manifest.material_presentations = payload.material_presentations;
+        manifest.preview_core_material_graph = payload.preview_core_material_graph;
+        manifest.material_contract = payload.material_contract;
         validate_material_presentations(&manifest, document)?;
-        let textures = read_texture_resources(&self.root, &manifest, document)?;
+        let (textures, layers) = read_updated_materials(&self.root, &manifest, document)?;
         Ok(Some(CdmwMaterialUpdate {
             key: key.to_owned(),
             textures,
             material_presentations: manifest.material_presentations,
             reason: payload.reason,
+            layers,
         }))
     }
 
@@ -1332,6 +1617,9 @@ impl CdmwBridge {
                 theme: Value::Null,
                 state: Value::Null,
                 interaction_profile: String::new(),
+                reference_pieces: Vec::new(),
+                item_set_files: Vec::new(),
+                batches: Vec::new(),
             },
             incoming,
             outbound,
@@ -1339,15 +1627,28 @@ impl CdmwBridge {
             shadow_revision,
             source_lod_index: 0,
             textures: Vec::new(),
+            layers: Vec::new(),
+            reference_pieces: Vec::new(),
             last_result_request_id: 0,
             state_snapshot_accepted: false,
             translations: translation_transfer::TranslationTransfers::default(),
+            view_input: None,
         }
     }
 
     #[cfg(test)]
     pub(crate) fn set_state_for_test(&mut self, state: Value) {
         self.manifest.state = state;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_reference_files_for_test(&mut self, files: Vec<String>) {
+        self.manifest.item_set_files = files;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn decode_host_event_for_test(&mut self, value: Value) -> HostEvent {
+        self.decode_host_event(value)
     }
 
     /// Route this bridge's outgoing JSON messages to the returned receiver.
@@ -1476,6 +1777,24 @@ impl CdmwBridge {
     }
 
     fn decode_host_event(&mut self, mut value: Value) -> HostEvent {
+        if self.view_input.is_some() {
+            // The editor shows Browse's model and has no session yet (P4 V4).
+            return match value.get("event").and_then(Value::as_str) {
+                Some("open_session") => value
+                    .get("manifest")
+                    .and_then(Value::as_str)
+                    .filter(|path| !path.trim().is_empty())
+                    .map_or_else(
+                        || HostEvent::Fatal("open_session needs a manifest path".to_owned()),
+                        |path| HostEvent::OpenSession(PathBuf::from(path), value.clone()),
+                    ),
+                Some("cancel" | "close_request") => {
+                    HostEvent::Cancel("CDMW closed the edit".to_owned())
+                }
+                // Theme and other updates wait for the session, which repeats them.
+                _ => HostEvent::Ignored,
+            };
+        }
         let result = (|| {
             validate_identity(&value, &self.manifest)?;
             if let Some(reference) = value.get("payload").and_then(|p| p.get("payload_file")) {
@@ -1484,13 +1803,20 @@ impl CdmwBridge {
                     || reference.data_type != "host_control_json"
                     || reference.count != 1
                     || reference.byte_length > MAX_MANIFEST_BYTES
-                    || value["payload"].as_object().is_none_or(|body| body.len() != 1)
+                    || value["payload"]
+                        .as_object()
+                        .is_none_or(|body| body.len() != 1)
                 {
-                    return Err(SessionError::InvalidPayload("invalid host control reference".into()));
+                    return Err(SessionError::InvalidPayload(
+                        "invalid host control reference".into(),
+                    ));
                 }
-                let payload: Value = serde_json::from_slice(&read_json_reference(&self.root, &reference)?)?;
+                let payload: Value =
+                    serde_json::from_slice(&read_json_reference(&self.root, &reference)?)?;
                 if !payload.is_object() || payload.get("payload_file").is_some() {
-                    return Err(SessionError::InvalidPayload("invalid host control payload".into()));
+                    return Err(SessionError::InvalidPayload(
+                        "invalid host control payload".into(),
+                    ));
                 }
                 value["payload"] = payload;
             }
@@ -1503,6 +1829,24 @@ impl CdmwBridge {
                 "ready" => Ok(HostEvent::Ready),
                 "renderer_retry" => Ok(HostEvent::RendererRetry),
                 "focus_request" => Ok(HostEvent::Focus),
+                "browse_presentation" => Ok(HostEvent::BrowsePresentation(
+                    value
+                        .get("browsing")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                )),
+                "run_command" => value
+                    .get("command")
+                    .and_then(Value::as_str)
+                    .filter(|command| {
+                        // Finish has no key of its own; CDMW's end-edit prompt asks for it.
+                        *command == "session.finish"
+                            || crate::shortcuts::spec_for_id(command).is_some()
+                    })
+                    .map(|command| HostEvent::RunCommand(command.to_owned()))
+                    .ok_or_else(|| {
+                        SessionError::Protocol("run_command names no editor command".to_owned())
+                    }),
                 "hair_preset" => {
                     let preset = value.get("preset").and_then(Value::as_str).unwrap_or("");
                     if !matches!(preset, "cropped" | "bob" | "long" | "ponytail" | "empty") {
@@ -1512,6 +1856,23 @@ impl CdmwBridge {
                     }
                     Ok(HostEvent::HairPreset(preset.to_owned()))
                 }
+                "tool_groups" => Ok(HostEvent::ToolGroups(value.clone())),
+                "save_status" => Ok(HostEvent::SaveStatus(
+                    value
+                        .get("error")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_owned(),
+                )),
+                // The morph data of an editor that opened before it (P4 V3).
+                "morph_state" => value
+                    .get("payload")
+                    .filter(|payload| payload.is_object())
+                    .cloned()
+                    .map(HostEvent::MorphState)
+                    .ok_or_else(|| {
+                        SessionError::Protocol("morph_state needs an object payload".to_owned())
+                    }),
                 "state_snapshot" => Ok(HostEvent::StateSnapshot(
                     value.get("payload").cloned().unwrap_or(Value::Null),
                 )),
@@ -1563,6 +1924,10 @@ impl CdmwBridge {
                         .unwrap_or("CDMW reported a protocol error")
                         .to_owned(),
                 )),
+                "open_session" => Ok(HostEvent::Fatal(
+                    "This Mesh Editor helper already has a session; each helper opens one."
+                        .to_owned(),
+                )),
                 _ => Err(SessionError::Protocol(format!(
                     "host sent unsupported event {event}"
                 ))),
@@ -1603,19 +1968,25 @@ fn validate_manifest_for(
         ));
     }
     if manifest.preview_core_geometry.is_some() || manifest.preview_core_material_graph.is_some() {
-        if expected_schema != PREVIEW_PACKAGE_SCHEMA {
+        if manifest.preview_core_geometry.is_some() && expected_schema != PREVIEW_PACKAGE_SCHEMA {
             return Err(SessionError::InvalidManifest(
                 "Preview Core geometry is allowed only in read-only preview packages".to_owned(),
             ));
         }
-        if manifest.preview_core_geometry.as_ref().is_some_and(|geometry|
-            geometry.material_graph_version != PREVIEW_CORE_MATERIAL_GRAPH_VERSION
-            || geometry.material_semantics_version != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION)
+        let graph_version = manifest
+            .material_contract
+            .get("graph_version")
+            .and_then(Value::as_u64);
+        if !graph_version
+            .is_some_and(|version| (4..=PREVIEW_CORE_MATERIAL_GRAPH_VERSION).contains(&version))
             || manifest
-                .material_contract
-                .get("graph_version")
-                .and_then(Value::as_u64)
-                != Some(PREVIEW_CORE_MATERIAL_GRAPH_VERSION)
+                .preview_core_geometry
+                .as_ref()
+                .is_some_and(|geometry| {
+                    Some(geometry.material_graph_version) != graph_version
+                        || geometry.material_semantics_version
+                            != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
+                })
             || manifest
                 .material_contract
                 .get("semantics_version")
@@ -1623,7 +1994,8 @@ fn validate_manifest_for(
                 != Some(PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION)
         {
             return Err(SessionError::InvalidManifest(
-                "Preview Core material contract must be graph v4 and semantics v10".to_owned(),
+                "Preview Core material contract must be graph v4 or v5 and semantics v10"
+                    .to_owned(),
             ));
         }
         let conservation = manifest
@@ -1657,13 +2029,95 @@ fn validate_manifest_for(
                 )
             })?;
         if let Some(geometry) = &manifest.preview_core_geometry {
-            let owners = geometry.batches.iter().enumerate()
+            let owners = geometry
+                .batches
+                .iter()
+                .enumerate()
                 .map(|(index, batch)| ((0, index as u32), (batch.index, batch.material.as_str())))
                 .collect();
             validate_preview_core_material_graph(manifest, graph, &owners, true)?;
         }
     }
     Ok(())
+}
+
+fn validate_document_material_graph(
+    manifest: &SessionManifest,
+    document: &MeshDocument,
+) -> Result<(), SessionError> {
+    if manifest.preview_core_geometry.is_none()
+        && let Some(graph) = manifest.preview_core_material_graph.as_ref()
+    {
+        let mut owners = BTreeMap::new();
+        let slots: BTreeMap<_, _> = manifest
+            .material_presentations
+            .iter()
+            .map(|row| ((row.lod_index, row.material_index), row.material_slot_index))
+            .collect();
+        for (lod_index, lod) in document.lods.iter().enumerate() {
+            for (material_index, submesh) in lod.submeshes.iter().enumerate() {
+                let key = (lod_index as u32, material_index as u32);
+                owners.insert(
+                    key,
+                    (
+                        slots.get(&key).copied().unwrap_or(key.1),
+                        submesh.material.as_str(),
+                    ),
+                );
+            }
+        }
+        validate_preview_core_material_graph(manifest, graph, &owners, false)?;
+    }
+    Ok(())
+}
+
+fn read_updated_materials(
+    root: &Path,
+    manifest: &SessionManifest,
+    document: &MeshDocument,
+) -> Result<
+    (
+        Vec<CdmwTextureResource>,
+        Vec<cdmw_render_wgpu::MaterialLayerSet>,
+    ),
+    SessionError,
+> {
+    validate_manifest_for(manifest, PACKAGE_SCHEMA, PROTOCOL, EDIT_BACKEND)?;
+    validate_document_material_graph(manifest, document)?;
+    let mut sources = BTreeMap::new();
+    let mut total = 0_u64;
+    let mut read = |reference: &FileReference| -> Result<Vec<u8>, SessionError> {
+        let key = serde_json::to_vec(reference)?;
+        if let Some(bytes) = sources.get(&key) {
+            return Ok(Vec::clone(bytes));
+        }
+        let bytes = read_binary_reference(root, reference)?;
+        total = total.saturating_add(bytes.len() as u64);
+        if total > MAX_TEXTURE_TOTAL_BYTES {
+            return Err(SessionError::InvalidPayload(
+                "verified texture sources exceed the 512 MiB limit".into(),
+            ));
+        }
+        sources.insert(key, bytes.clone());
+        Ok(bytes)
+    };
+    let mut textures = read_texture_resources_with(manifest, document, &mut read)?;
+    let layers = if let Some(graph) = &manifest.preview_core_material_graph {
+        crate::preview_gpu_layers::prepare(
+            graph,
+            &manifest.material_presentations,
+            document,
+            &mut textures,
+            graph.quality == "full" && crate::preview_gpu_layers::supported(),
+            std::env::var("CDMW_PREVIEW_DRAW_GRIME").is_ok_and(|value| value == "1"),
+            &mut read,
+            &|| false,
+        )?
+        .1
+    } else {
+        Vec::new()
+    };
+    Ok((textures, layers))
 }
 
 fn validate_preview_core_material_graph(
@@ -1674,7 +2128,12 @@ fn validate_preview_core_material_graph(
 ) -> Result<(), SessionError> {
     let quality_is_full = graph.quality == "full";
     if graph.schema_version != PREVIEW_CORE_TRANSPORT_GRAPH_SCHEMA
-        || graph.graph_version != PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+        || !(4..=PREVIEW_CORE_MATERIAL_GRAPH_VERSION).contains(&graph.graph_version)
+        || manifest
+            .material_contract
+            .get("graph_version")
+            .and_then(Value::as_u64)
+            != Some(graph.graph_version)
         || graph.semantics_version != PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
         || !matches!(graph.quality.as_str(), "direct" | "full")
         || graph.resources_included != quality_is_full
@@ -1751,6 +2210,14 @@ fn validate_preview_core_material_graph(
                 || layer.shader_family.len() > 128
                 || layer.shader_rule.len() > 128
                 || layer.evidence_grade.len() > 64
+                || layer
+                    .sampling_transform()
+                    .iter()
+                    .any(|value| !value.is_finite() || value.abs() > 1_000_000.0)
+                || layer.blend_flags.is_some_and(|value| value > 15)
+                || layer
+                    .blend_opacity
+                    .is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
                 || [
                     layer.weight,
                     layer.detail_scale,
@@ -1890,9 +2357,12 @@ fn validate_document(document: &MeshDocument) -> Result<(), SessionError> {
         // A deleted authoring Part remains a slot so Undo/Redo, materials and
         // source mappings do not shift. Asset parsing/export keep their guards.
         if document.parser == PACKAGE_SCHEMA
-            && submesh.positions.is_empty() && submesh.indices.is_empty()
-            && submesh.normals.is_empty() && submesh.uvs.is_empty()
-            && submesh.source_vertex_indices.is_empty() && submesh.shader_masks.is_empty()
+            && submesh.positions.is_empty()
+            && submesh.indices.is_empty()
+            && submesh.normals.is_empty()
+            && submesh.uvs.is_empty()
+            && submesh.source_vertex_indices.is_empty()
+            && submesh.shader_masks.is_empty()
         {
             continue;
         }
@@ -2167,7 +2637,9 @@ fn validate_material_presentations(
             validate_optional_factor(Some(v[0]), 0.0, 1.0, "RGB glow reveal")?;
             validate_optional_factor(Some(v[1]), 0.001, 1.0, "RGB glow softness")?;
             if !(v[2] == 0.0 || v[2] == 1.0) || !(v[3] == -1.0 || (0.0..=1.0).contains(&v[3])) {
-                return Err(SessionError::InvalidManifest("Invalid RGB glow reveal".to_owned()));
+                return Err(SessionError::InvalidManifest(
+                    "Invalid RGB glow reveal".to_owned(),
+                ));
             }
         }
         if let Some(values) = row.emission_animation {
@@ -2281,7 +2753,7 @@ fn read_preview_core_reference(
         )));
     }
     let bytes = read_limited(&candidate, MAX_PAYLOAD_BYTES)?;
-    if sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase() {
+    if !sha256_matches_once(&candidate, &metadata, &bytes, &reference.sha256) {
         return Err(SessionError::InvalidPayload(format!(
             "Preview Core {role} SHA-256 does not match"
         )));
@@ -2445,9 +2917,12 @@ fn decode_preview_core_document(
     })
 }
 
-fn read_document_reference(root: &Path, reference: &FileReference) -> Result<MeshDocument, SessionError> {
+fn read_document_reference(
+    root: &Path,
+    reference: &FileReference,
+) -> Result<MeshDocument, SessionError> {
     if reference.data_type == mesh_document_binary::DATA_TYPE {
-        let bytes = read_mesh_document_binary_reference(root, reference)?;
+        let bytes = read_mesh_document_binary_reference(root, reference, false)?;
         mesh_document_binary::decode(&bytes, reference.count)
     } else {
         let document = serde_json::from_slice(&read_json_reference(root, reference)?)?;
@@ -2460,48 +2935,81 @@ fn is_owned_mesh_document_binary_filename(name: &str) -> bool {
     if name == "document.bin" {
         return true;
     }
-    let Some(stem) = name.strip_suffix(".bin") else { return false; };
+    let Some(stem) = name.strip_suffix(".bin") else {
+        return false;
+    };
     let mut parts = stem.split('-');
     matches!(parts.next(), Some("state"))
-        && parts.next().is_some_and(|revision| !revision.is_empty()
-            && revision.bytes().all(|byte| byte.is_ascii_digit()))
-        && parts.next().is_some_and(|token| token.len() == 10
-            && token.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
+        && parts.next().is_some_and(|revision| {
+            !revision.is_empty() && revision.bytes().all(|byte| byte.is_ascii_digit())
+        })
+        && parts.next().is_some_and(|token| {
+            token.len() == 10
+                && token
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        })
         && parts.next().is_none()
 }
 
-fn read_mesh_document_binary_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>, SessionError> {
+fn read_mesh_document_binary_reference(
+    root: &Path,
+    reference: &FileReference,
+    reference_piece: bool,
+) -> Result<Vec<u8>, SessionError> {
     use std::io::Read;
     if reference.content_type != "application/octet-stream"
-        || reference.data_type != mesh_document_binary::DATA_TYPE || reference.count == 0
-        || reference.byte_length > MAX_PAYLOAD_BYTES || reference.byte_length < 17
+        || reference.data_type != mesh_document_binary::DATA_TYPE
+        || reference.count == 0
+        || reference.byte_length > MAX_PAYLOAD_BYTES
+        || reference.byte_length < 17
     {
-        return Err(SessionError::InvalidPayload("binary mesh reference type, count, or size is invalid".into()));
+        return Err(SessionError::InvalidPayload(
+            "binary mesh reference type, count, or size is invalid".into(),
+        ));
     }
     let relative = Path::new(&reference.path);
     let mut components = relative.components();
-    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some()
-        || !is_owned_mesh_document_binary_filename(&reference.path)
+    if !matches!(components.next(), Some(Component::Normal(_)))
+        || components.next().is_some()
+        || !(is_owned_mesh_document_binary_filename(&reference.path)
+            || (reference_piece
+                && ((1..=32).any(|index| reference.path == format!("reference-{index:02}.bin"))
+                    || (1..=33)
+                        .any(|index| reference.path == format!("companion-{index:02}.bin")))))
     {
-        return Err(SessionError::InvalidPayload("binary mesh path must be one owned document filename".into()));
+        return Err(SessionError::InvalidPayload(
+            "binary mesh path must be one owned document filename".into(),
+        ));
     }
     let candidate = fs::canonicalize(root.join(relative))?;
     if candidate.parent() != Some(root) || !candidate.is_file() {
-        return Err(SessionError::InvalidPayload("binary mesh path escaped the session root".into()));
+        return Err(SessionError::InvalidPayload(
+            "binary mesh path escaped the session root".into(),
+        ));
     }
     let file = fs::File::open(&candidate)?;
-    if file.metadata()?.len() != reference.byte_length {
-        return Err(SessionError::InvalidPayload("binary mesh reference size does not match".into()));
+    let metadata = file.metadata()?;
+    if metadata.len() != reference.byte_length {
+        return Err(SessionError::InvalidPayload(
+            "binary mesh reference size does not match".into(),
+        ));
     }
     // Bound the read itself as well as the pre-read metadata check.
     let mut bytes = Vec::new();
-    bytes.try_reserve_exact(reference.byte_length as usize)
-        .map_err(|_| SessionError::InvalidPayload("binary mesh payload exceeds available memory".into()))?;
-    file.take(reference.byte_length + 1).read_to_end(&mut bytes)?;
+    bytes
+        .try_reserve_exact(reference.byte_length as usize)
+        .map_err(|_| {
+            SessionError::InvalidPayload("binary mesh payload exceeds available memory".into())
+        })?;
+    file.take(reference.byte_length + 1)
+        .read_to_end(&mut bytes)?;
     if bytes.len() as u64 != reference.byte_length
-        || sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase()
+        || !sha256_matches_once(&candidate, &metadata, &bytes, &reference.sha256)
     {
-        return Err(SessionError::InvalidPayload("binary mesh reference size or SHA-256 does not match".into()));
+        return Err(SessionError::InvalidPayload(
+            "binary mesh reference size or SHA-256 does not match".into(),
+        ));
     }
     Ok(bytes)
 }
@@ -2523,7 +3031,7 @@ fn read_json_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>
         ));
     }
     let bytes = read_limited(&path, MAX_PAYLOAD_BYTES)?;
-    if sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase() {
+    if !sha256_matches_once(&path, &metadata, &bytes, &reference.sha256) {
         return Err(SessionError::InvalidPayload(
             "file reference SHA-256 does not match".to_owned(),
         ));
@@ -2564,7 +3072,7 @@ fn read_binary_reference(root: &Path, reference: &FileReference) -> Result<Vec<u
         ));
     }
     let bytes = read_limited(&candidate, MAX_PAYLOAD_BYTES)?;
-    if sha256_upper(&bytes) != reference.sha256.trim().to_ascii_uppercase() {
+    if !sha256_matches_once(&candidate, &metadata, &bytes, &reference.sha256) {
         return Err(SessionError::InvalidPayload(
             "texture reference SHA-256 does not match".to_owned(),
         ));
@@ -2587,10 +3095,21 @@ fn is_owned_texture_filename(value: &str) -> bool {
         && parts.next().is_none()
 }
 
+#[cfg(test)]
 fn read_texture_resources(
     root: &Path,
     manifest: &SessionManifest,
     document: &MeshDocument,
+) -> Result<Vec<CdmwTextureResource>, SessionError> {
+    read_texture_resources_with(manifest, document, &mut |reference| {
+        read_binary_reference(root, reference)
+    })
+}
+
+fn read_texture_resources_with(
+    manifest: &SessionManifest,
+    document: &MeshDocument,
+    read: &mut dyn FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
 ) -> Result<Vec<CdmwTextureResource>, SessionError> {
     if manifest.textures.len() > MAX_TEXTURE_RESOURCES {
         return Err(SessionError::InvalidManifest(
@@ -2631,8 +3150,8 @@ fn read_texture_resources(
                 }
             }
         }
-        let bytes = read_binary_reference(root, &texture.file)?;
-        let metadata = inspect_dds(&bytes, texture.role)
+        let bytes = read(&texture.file)?;
+        let metadata = inspect_dds_with_verified_sha256(&bytes, texture.role, &texture.file.sha256)
             .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
         resources.push(CdmwTextureResource {
             label: texture.label.clone(),
@@ -2828,6 +3347,65 @@ fn reject_unexpected_initial_files(
     )
     .map(str::to_owned)
     .collect::<BTreeSet<_>>();
+    // Item-set references come first and are the set's other files; read-only
+    // companions of the editable PAC (prefab eyes, teeth, scabbards) follow.
+    let set_references = manifest
+        .reference_pieces
+        .iter()
+        .filter(|piece| piece.role == "reference")
+        .count();
+    if manifest.reference_pieces.len() > 33
+        || set_references > 32
+        || manifest.item_set_files.len() > 33
+        || (!manifest.item_set_files.is_empty()
+            && manifest.item_set_files.len() != set_references + 1)
+        || (!manifest.reference_pieces.is_empty() && manifest.schema != PACKAGE_SCHEMA)
+    {
+        return Err(SessionError::InvalidManifest(
+            "invalid item set reference membership".into(),
+        ));
+    }
+    for (position, piece) in manifest.reference_pieces.iter().enumerate() {
+        let identity_valid = match piece.role.as_str() {
+            "reference" => {
+                position < set_references
+                    && manifest.item_set_files.get(piece.index) == Some(&piece.name)
+                    && piece.document.path == format!("reference-{:02}.bin", piece.index)
+            }
+            "companion" => {
+                position >= set_references
+                    && piece.document.path == format!("companion-{:02}.bin", piece.index)
+            }
+            _ => false,
+        };
+        if piece.index != position + 1
+            || !identity_valid
+            || piece.name.is_empty()
+            || piece.name.len() > 512
+        {
+            return Err(SessionError::InvalidManifest(
+                "invalid item set reference identity".into(),
+            ));
+        }
+        allowed.insert(piece.document.path.clone());
+        allowed.extend(
+            piece
+                .textures
+                .iter()
+                .map(|texture| texture.file.path.clone()),
+        );
+        allowed.extend(
+            piece
+                .preview_core_material_graph
+                .iter()
+                .flat_map(|graph| &graph.materials)
+                .flat_map(|material| &material.layers)
+                .flat_map(PreviewCoreMaterialLayer::resources)
+                .filter_map(|(_role, _declared, _archive, reference)| {
+                    reference.map(|resource| resource.path.clone())
+                }),
+        );
+    }
     if let Some(reference) = manifest.state.get("hair").and_then(|h| h.get("file")) {
         let reference: FileReference = serde_json::from_value(reference.clone())?;
         if reference.path != "hair-state.json" || reference.data_type != "hair_authoring_json" {
@@ -2838,8 +3416,16 @@ fn reject_unexpected_initial_files(
         let _: HairState = serde_json::from_slice(&read_json_reference(root, &reference)?)?;
         allowed.insert(reference.path);
     }
-    if let Some(reference) = manifest.state.get("jiggle").and_then(|j| j.get("decoded")).and_then(|d| d.get("file")) {
-        let source = JiggleSource::new(root.to_path_buf(), serde_json::from_value(reference.clone())?)?;
+    if let Some(reference) = manifest
+        .state
+        .get("jiggle")
+        .and_then(|j| j.get("decoded"))
+        .and_then(|d| d.get("file"))
+    {
+        let source = JiggleSource::new(
+            root.to_path_buf(),
+            serde_json::from_value(reference.clone())?,
+        )?;
         let _: IgnoredAny = serde_json::from_slice(&source.read()?)?;
         allowed.insert(source.reference.path);
     }
@@ -2881,9 +3467,22 @@ fn reject_unexpected_initial_files(
             let mut material_manifest = manifest.clone();
             material_manifest.textures = payload.textures;
             material_manifest.material_presentations = payload.material_presentations;
+            material_manifest.preview_core_material_graph = payload.preview_core_material_graph;
+            material_manifest.material_contract = payload.material_contract;
             validate_material_presentations(&material_manifest, document)?;
-            read_texture_resources(root, &material_manifest, document)?;
+            read_updated_materials(root, &material_manifest, document)?;
             allowed.insert(reference.path.clone());
+            allowed.extend(
+                material_manifest
+                    .preview_core_material_graph
+                    .iter()
+                    .flat_map(|graph| &graph.materials)
+                    .flat_map(|material| &material.layers)
+                    .flat_map(PreviewCoreMaterialLayer::resources)
+                    .filter_map(|(_, _, _, reference)| {
+                        reference.map(|resource| resource.path.clone())
+                    }),
+            );
             allowed.extend(
                 material_manifest
                     .textures
@@ -2897,11 +3496,18 @@ fn reject_unexpected_initial_files(
             ));
         }
     }
+    let mut total_bytes = 0_u64;
     for entry in fs::read_dir(root)? {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
         let file_type = entry.file_type()?;
         if file_type.is_file() && allowed.contains(name.as_str()) {
+            total_bytes = total_bytes.saturating_add(entry.metadata()?.len());
+            if total_bytes > 768 * 1024 * 1024 {
+                return Err(SessionError::InvalidManifest(
+                    "session exceeds 768 MiB".into(),
+                ));
+            }
             continue;
         }
         if name == "mesh_slider_profiles" && file_type.is_dir() {
@@ -3066,16 +3672,165 @@ fn required_u64(value: &Value, key: &str) -> Result<u64, SessionError> {
         .ok_or_else(|| SessionError::Protocol(format!("host message {key} is invalid")))
 }
 
-fn spawn_input_reader(sender: Sender<Incoming>) {
+/// Wakes the event loop when a host line arrives (the session reader had none).
+pub type HostWake = Box<dyn Fn() + Send>;
+
+/// The stdin reader of a helper started with `--cdmw-session-pending`: it has a
+/// window and a device but no session until the host sends `open_session`.
+pub struct PendingSessionInput {
+    sender: Sender<Incoming>,
+    receiver: Receiver<Incoming>,
+}
+
+/// Where the engine's stdin reader puts the edit state's lines.
+#[derive(Clone, Debug)]
+pub struct EditorRoute(Sender<Incoming>);
+
+impl EditorRoute {
+    /// False when the edit's queue is full or gone.
+    pub fn message(&self, value: Value) -> bool {
+        self.0.try_send(Incoming::Message(value)).is_ok()
+    }
+
+    pub fn error(&self, message: String) {
+        let _ = self.0.try_send(Incoming::LocalError(message));
+    }
+}
+
+/// What a pending helper heard from the host.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PendingRequest {
+    Open(PathBuf),
+    Close,
+}
+
+impl PendingSessionInput {
+    #[must_use]
+    pub fn start(wake: Option<HostWake>) -> Self {
+        let (sender, receiver) = bounded(CONTROL_QUEUE_BOUND);
+        spawn_input_reader(sender.clone(), wake);
+        Self { sender, receiver }
+    }
+
+    /// An input fed by the engine's one stdin reader instead of a reader of its own
+    /// (P4 V3): Browse's process routes the editor's lines here when it edits.
+    #[must_use]
+    pub fn routed() -> (Self, EditorRoute) {
+        let (sender, receiver) = bounded(CONTROL_QUEUE_BOUND);
+        (
+            Self {
+                sender: sender.clone(),
+                receiver,
+            },
+            EditorRoute(sender),
+        )
+    }
+
+    /// Put a line back at the end of the queue (the `open_session` a view-only
+    /// editor received, for the pending open that follows).
+    pub fn requeue(&self, line: Value) {
+        let _ = self.sender.try_send(Incoming::Message(line));
+    }
+
+    #[cfg(test)]
+    fn for_test() -> (Self, Sender<Incoming>) {
+        let (sender, receiver) = bounded(CONTROL_QUEUE_BOUND);
+        (
+            Self {
+                sender: sender.clone(),
+                receiver,
+            },
+            sender,
+        )
+    }
+
+    /// The first request the host sent, if any. A pending helper accepts exactly one
+    /// `open_session` (or a close); any other line refuses the helper.
+    pub fn poll(&self) -> Result<Option<PendingRequest>, SessionError> {
+        let value = match self.receiver.try_recv() {
+            Ok(Incoming::Message(value)) => value,
+            Ok(Incoming::LocalError(message)) => return Err(SessionError::Protocol(message)),
+            Err(TryRecvError::Empty) => return Ok(None),
+            Err(TryRecvError::Disconnected) => return Ok(Some(PendingRequest::Close)),
+        };
+        if value.get("protocol").and_then(Value::as_str) != Some(PROTOCOL) {
+            return Err(SessionError::Protocol(
+                "a pending Mesh Editor helper accepts only its own protocol".to_owned(),
+            ));
+        }
+        match value
+            .get("event")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+        {
+            "open_session" => value
+                .get("manifest")
+                .and_then(Value::as_str)
+                .filter(|path| !path.trim().is_empty())
+                .map(|path| Some(PendingRequest::Open(PathBuf::from(path))))
+                .ok_or_else(|| {
+                    SessionError::Protocol("open_session needs a manifest path".to_owned())
+                }),
+            "cancel" | "close_request" => Ok(Some(PendingRequest::Close)),
+            event => Err(SessionError::Protocol(format!(
+                "a pending Mesh Editor helper cannot handle {event} before open_session"
+            ))),
+        }
+    }
+}
+
+/// The one line a pending helper writes before it has a session: its window and
+/// renderer exist, so the host can embed it while it waits.
+pub fn announce_pending_ready(
+    child_hwnd: u64,
+    embedded_parent_hwnd: u64,
+    error: Option<&str>,
+) -> Result<(), SessionError> {
+    let mut message = json!({
+        "event": "pending_ready",
+        "protocol": PROTOCOL,
+        "process_id": std::process::id(),
+        "renderer": RENDERER,
+        "edit_backend": EDIT_BACKEND,
+        "child_hwnd": child_hwnd,
+        "embedded_parent_hwnd": embedded_parent_hwnd,
+    });
+    if let Some(error) = error {
+        message["event"] = json!("pending_failed");
+        message["error"] = json!(error);
+    }
+    let mut stdout = std::io::stdout().lock();
+    serde_json::to_writer(&mut stdout, &message)?;
+    stdout.write_all(b"\n")?;
+    stdout.flush()?;
+    Ok(())
+}
+
+fn spawn_input_reader(sender: Sender<Incoming>, waker: Option<HostWake>) {
     thread::Builder::new()
         .name("cdmw-rust-control-input".to_owned())
         .spawn(move || {
+            // A pending helper's reader also reports the end of input, so the helper
+            // ends with its host instead of waiting for a session that never comes.
+            let reports_end = waker.is_some();
+            let wake = || {
+                if let Some(waker) = &waker {
+                    waker();
+                }
+            };
             let stdin = std::io::stdin();
             let mut reader = BufReader::new(stdin.lock());
             loop {
                 let mut line = Vec::new();
                 match reader.read_until(b'\n', &mut line) {
-                    Ok(0) => break,
+                    Ok(0) => {
+                        if reports_end {
+                            let _ = sender.send(Incoming::LocalError(
+                                "CDMW closed the control input".to_owned(),
+                            ));
+                        }
+                        break;
+                    }
                     Ok(_) if line.len() > MAX_CONTROL_LINE_BYTES => {
                         let _ = sender.send(Incoming::LocalError(
                             "CDMW control line exceeded 256 KiB".to_owned(),
@@ -3097,6 +3852,7 @@ fn spawn_input_reader(sender: Sender<Incoming>) {
                                     ));
                                     break;
                                 }
+                                wake();
                             }
                             Err(error) => {
                                 let _ = sender.send(Incoming::LocalError(format!(
@@ -3114,6 +3870,7 @@ fn spawn_input_reader(sender: Sender<Incoming>) {
                     }
                 }
             }
+            wake();
         })
         .expect("control input thread creation must succeed");
 }
@@ -3128,18 +3885,26 @@ fn spawn_output_writer(
     thread::Builder::new()
         .name("cdmw-rust-control-output".to_owned())
         .spawn(move || {
+            // Lock stdout per message, not for the thread's life: in one engine
+            // process the Preview's writer shares the stream, and each line stays whole.
             let stdout = std::io::stdout();
-            let mut writer = BufWriter::new(stdout.lock());
             for outbound in receiver {
+                let mut writer = Vec::with_capacity(4096);
                 let result = match outbound {
-                    Outbound::Message(value) => write_control_message(&mut writer, &value),
+                    Outbound::Message(value) => {
+                        write_control_message(&mut writer, &with_session_id(value, &session_id))
+                    }
                     Outbound::HairTransaction {
                         request_id,
                         base_revision,
                         label,
                         candidate,
-                    } | Outbound::VertexTransaction {
-                        request_id, base_revision, label, candidate,
+                    }
+                    | Outbound::VertexTransaction {
+                        request_id,
+                        base_revision,
+                        label,
+                        candidate,
                     } => write_candidate(
                         &root,
                         &session_id,
@@ -3170,6 +3935,12 @@ fn spawn_output_writer(
                         &mut writer,
                     ),
                 };
+                let result = result.and_then(|()| {
+                    let mut output = stdout.lock();
+                    output.write_all(&writer)?;
+                    output.flush()?;
+                    Ok(())
+                });
                 if let Err(error) = result {
                     let _ = error_sender.send(Incoming::LocalError(error.to_string()));
                     break;
@@ -3177,6 +3948,19 @@ fn spawn_output_writer(
             }
         })
         .expect("control output thread creation must succeed");
+}
+
+/// Every line an edit writes names its session, so the host never routes one by
+/// count (section 8.8 cause 1).
+fn with_session_id(mut value: Value, session_id: &str) -> Value {
+    if !session_id.is_empty()
+        && let Some(object) = value.as_object_mut()
+    {
+        object
+            .entry("session_id")
+            .or_insert_with(|| json!(session_id));
+    }
+    value
 }
 
 fn write_control_message(writer: &mut impl Write, value: &Value) -> Result<(), SessionError> {
@@ -3373,32 +4157,59 @@ fn build_vertex_candidate(
         SessionError::InvalidPayload(format!("document has no source LOD {lod_index}"))
     })?;
     let mut candidate = Candidate {
-        schema: CANDIDATE_SCHEMA, session_id: session_id.to_owned(),
-        submeshes: lod.submeshes.iter().map(|_| CandidateSubmesh {
-            vertex_indices: Some(Vec::new()), positions: Vec::new(),
-            normals: Vec::new(), uvs: Vec::new(), indices: Vec::new(), source_vertices: None,
-        }).collect(),
-        selection: candidate_selection(mesh)?, hair: None, hair_update: None,
+        schema: CANDIDATE_SCHEMA,
+        session_id: session_id.to_owned(),
+        submeshes: lod
+            .submeshes
+            .iter()
+            .map(|_| CandidateSubmesh {
+                vertex_indices: Some(Vec::new()),
+                positions: Vec::new(),
+                normals: Vec::new(),
+                uvs: Vec::new(),
+                indices: Vec::new(),
+                source_vertices: None,
+            })
+            .collect(),
+        selection: candidate_selection(mesh)?,
+        hair: None,
+        hair_update: None,
     };
     let mut ordered = BTreeMap::new();
     for handle in handles {
-        let vertex = mesh.vertex(*handle).ok_or_else(|| SessionError::InvalidPayload("stale changed vertex".into()))?;
+        let vertex = mesh
+            .vertex(*handle)
+            .ok_or_else(|| SessionError::InvalidPayload("stale changed vertex".into()))?;
         let Provenance::Source { submesh, element } = vertex.provenance else {
-            return Err(SessionError::InvalidPayload("native topology must be committed through CDMW before export".into()));
+            return Err(SessionError::InvalidPayload(
+                "native topology must be committed through CDMW before export".into(),
+            ));
         };
         ordered.insert((submesh, element), vertex);
     }
     for ((part, index), vertex) in ordered {
-        let source = lod.submeshes.get(part as usize)
+        let source = lod
+            .submeshes
+            .get(part as usize)
             .ok_or_else(|| SessionError::InvalidPayload("vertex submesh is invalid".into()))?;
         if index as usize >= source.positions.len() {
-            return Err(SessionError::InvalidPayload("vertex source index is invalid".into()));
+            return Err(SessionError::InvalidPayload(
+                "vertex source index is invalid".into(),
+            ));
         }
         let target = &mut candidate.submeshes[part as usize];
-        target.vertex_indices.as_mut().expect("sparse candidate").push(index);
+        target
+            .vertex_indices
+            .as_mut()
+            .expect("sparse candidate")
+            .push(index);
         target.positions.push(vertex.position);
-        if !source.normals.is_empty() { target.normals.push(vertex.normal); }
-        if !source.uvs.is_empty() { target.uvs.push(vertex.uv); }
+        if !source.normals.is_empty() {
+            target.normals.push(vertex.normal);
+        }
+        if !source.uvs.is_empty() {
+            target.uvs.push(vertex.uv);
+        }
     }
     Ok(candidate)
 }
@@ -3479,11 +4290,152 @@ fn sha256_upper(bytes: &[u8]) -> String {
     format!("{:X}", Sha256::digest(bytes))
 }
 
+/// Files this process already verified, keyed by path and the metadata a
+/// rewrite changes. Package files are immutable once published, so a file is
+/// hashed when it is first loaded and trusted again while it is unchanged.
+const VERIFIED_FILE_LIMIT: usize = 16_384;
+/// A verification is remembered only this long after the file's last write:
+/// a same-size rewrite inside one timestamp tick would keep its time.
+const VERIFIED_FILE_MIN_AGE: Duration = Duration::from_millis(100);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct VerifiedFileKey {
+    path: PathBuf,
+    len: u64,
+    modified: SystemTime,
+    created: Option<SystemTime>,
+}
+
+fn verified_files() -> &'static Mutex<HashMap<VerifiedFileKey, String>> {
+    static VERIFIED: OnceLock<Mutex<HashMap<VerifiedFileKey, String>>> = OnceLock::new();
+    VERIFIED.get_or_init(Default::default)
+}
+
+fn verified_file_key(path: &Path, metadata: &fs::Metadata) -> Option<VerifiedFileKey> {
+    Some(VerifiedFileKey {
+        path: path.to_path_buf(),
+        len: metadata.len(),
+        modified: metadata.modified().ok()?,
+        created: metadata.created().ok(),
+    })
+}
+
+fn file_unchanged_since(path: &Path, key: &VerifiedFileKey) -> bool {
+    fs::metadata(path)
+        .ok()
+        .and_then(|now| verified_file_key(path, &now))
+        .is_some_and(|now| &now == key)
+}
+
+/// Whether `bytes`, read from `path` after `metadata` was taken, have the
+/// digest `expected`. Hashes only a file this process has not verified yet.
+fn sha256_matches_once(path: &Path, metadata: &fs::Metadata, bytes: &[u8], expected: &str) -> bool {
+    let expected = expected.trim().to_ascii_uppercase();
+    let key = verified_file_key(path, metadata);
+    if let Some(key) = &key {
+        let known = verified_files()
+            .lock()
+            .ok()
+            .and_then(|files| files.get(key).cloned());
+        // Re-read the metadata: the bytes were read after `metadata`.
+        if let Some(known) = known
+            && file_unchanged_since(path, key)
+        {
+            return known == expected;
+        }
+    }
+    if sha256_upper(bytes) != expected {
+        return false;
+    }
+    if let Some(key) = key {
+        let old_enough = SystemTime::now()
+            .duration_since(key.modified)
+            .is_ok_and(|age| age >= VERIFIED_FILE_MIN_AGE);
+        if old_enough
+            && file_unchanged_since(path, &key)
+            && let Ok(mut files) = verified_files().lock()
+        {
+            if files.len() >= VERIFIED_FILE_LIMIT {
+                files.clear();
+            }
+            files.insert(key, expected);
+        }
+    }
+    true
+}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use cdmw_formats::{MeshFormat, MeshLod, SourceRange, Submesh};
     use tempfile::tempdir;
+
+    fn aged_file(path: &Path, bytes: &[u8]) -> fs::Metadata {
+        fs::write(path, bytes).expect("write");
+        let file = OpenOptions::new().write(true).open(path).expect("open");
+        file.set_modified(SystemTime::now() - Duration::from_secs(60))
+            .expect("age");
+        drop(file);
+        fs::metadata(path).expect("metadata")
+    }
+
+    fn remembered(path: &Path, metadata: &fs::Metadata) -> bool {
+        let key = verified_file_key(path, metadata).expect("key");
+        verified_files().lock().unwrap().contains_key(&key)
+    }
+
+    #[test]
+    fn an_unchanged_verified_file_is_trusted_and_a_changed_one_is_hashed() {
+        let root = tempdir().expect("temp");
+        let path = root.path().join("texture-0000-000000000000.dds");
+        let metadata = aged_file(&path, b"first bytes");
+        let digest = sha256_upper(b"first bytes");
+        assert!(sha256_matches_once(
+            &path,
+            &metadata,
+            b"first bytes",
+            &digest
+        ));
+        assert!(remembered(&path, &metadata));
+        // Trusted: the remembered digest answers without these bytes.
+        assert!(sha256_matches_once(
+            &path,
+            &metadata,
+            b"other bytes",
+            &digest
+        ));
+        assert!(!sha256_matches_once(
+            &path,
+            &metadata,
+            b"first bytes",
+            &"0".repeat(64)
+        ));
+
+        // A rewrite of the same size gets a new time and is hashed again.
+        fs::write(&path, b"second byte").expect("rewrite");
+        let changed = fs::metadata(&path).expect("metadata");
+        assert!(!sha256_matches_once(
+            &path,
+            &changed,
+            b"second byte",
+            &digest
+        ));
+        assert!(sha256_matches_once(
+            &path,
+            &changed,
+            b"second byte",
+            &sha256_upper(b"second byte")
+        ));
+        // Moments after its write, a verification is not remembered.
+        assert!(!remembered(&path, &changed));
+        // Stale metadata from before the rewrite never reuses the old answer.
+        assert!(!sha256_matches_once(
+            &path,
+            &metadata,
+            b"second byte",
+            &digest
+        ));
+    }
 
     pub(super) fn document() -> MeshDocument {
         MeshDocument {
@@ -3571,7 +4523,8 @@ mod tests {
             specular: Some(0.73),
             emissive_color: Some([0.1, 0.2, 0.3]),
             emissive_intensity: Some(2.5),
-            emission_animation: None, emission_reveal: None,
+            emission_animation: None,
+            emission_reveal: None,
             height_scale: Some(0.08),
             texture_tint: Some([0.73, 0.44, 0.24]),
             base_tint_strength: Some(0.85),
@@ -3680,9 +4633,15 @@ mod tests {
     fn native_localization_manifest_theme_is_checked_when_the_package_loads() {
         let root = tempdir().unwrap();
         let manifest_path = write_loaded_package_fixture(root.path());
-        let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
         let translations = (0..6_000)
-            .map(|index| (format!("Label {index}"), json!("Редактор сетки «{value_0}» ".repeat(8))))
+            .map(|index| {
+                (
+                    format!("Label {index}"),
+                    json!("Редактор сетки «{value_0}» ".repeat(8)),
+                )
+            })
             .collect::<serde_json::Map<_, _>>();
         manifest["theme"] = json!({"language": "ru", "translations": translations});
         assert!(serde_json::to_vec(&manifest["theme"]).unwrap().len() > 1 << 20);
@@ -3698,19 +4657,106 @@ mod tests {
     }
 
     #[test]
+    fn reference_pieces_load_materials_but_never_enter_the_editable_document() {
+        let root = tempdir().unwrap();
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let bytes = mesh_document_binary::encode_test_document(&document());
+        let reference = mesh_binary_reference("reference-01.bin", &bytes);
+        fs::write(root.path().join("reference-01.bin"), &bytes).unwrap();
+        manifest["item_set_files"] = json!(["upper.pac", "lower.pac"]);
+        manifest["reference_pieces"] = json!([{
+            "index": 1, "name": "lower.pac", "role": "reference", "document": reference,
+            "textures": manifest["textures"], "material_presentations": manifest["material_presentations"],
+        }]);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let mut package = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
+        assert_eq!(package.document(), &document());
+        assert_eq!(package.reference_pieces.len(), 1);
+        assert_eq!(
+            package.reference_pieces[0].textures[0].bytes,
+            package.textures[0].bytes
+        );
+        let editable = WorkingMesh::from_document(package.document()).unwrap();
+        let mut scene = editable.draw_snapshot();
+        let editable_snapshot = scene.clone();
+        let roles =
+            crate::cdmw_references::append_to_snapshot(&mut scene, &package.reference_pieces, 1);
+        assert_eq!(scene.positions.len(), editable_snapshot.positions.len() * 2);
+        assert_eq!(scene.triangle_materials, vec![0, 1]);
+        assert!(
+            roles[..editable_snapshot.positions.len()]
+                .iter()
+                .all(|role| *role == 1)
+        );
+        assert!(
+            roles[editable_snapshot.positions.len()..]
+                .iter()
+                .all(|role| *role == 0)
+        );
+        assert_eq!(editable.draw_snapshot(), editable_snapshot);
+        assert_eq!(scene.selected_vertices, editable_snapshot.selected_vertices);
+        package.reference_pieces[0].visible = false;
+        let mut hidden = editable.draw_snapshot();
+        crate::cdmw_references::append_to_snapshot(&mut hidden, &package.reference_pieces, 1);
+        assert_eq!(hidden, editable_snapshot);
+        let reference: FileReference = serde_json::from_value(reference).unwrap();
+        // Even the host state reader cannot substitute a reference as editable geometry.
+        assert!(read_document_reference(root.path(), &reference).is_err());
+        manifest["reference_pieces"][0]["role"] = json!("editable");
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+        manifest["reference_pieces"][0]["role"] = json!("reference");
+        manifest["reference_pieces"][0]["document"]["sha256"] = json!("0".repeat(64));
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
+    fn companion_pieces_of_a_single_file_load_without_set_membership() {
+        // A head's eyes and teeth arrive as read-only companions; a session
+        // with one once failed: "binary mesh path must be one owned document
+        // filename".
+        let root = tempdir().unwrap();
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let bytes = mesh_document_binary::encode_test_document(&document());
+        let companion = mesh_binary_reference("companion-01.bin", &bytes);
+        fs::write(root.path().join("companion-01.bin"), &bytes).unwrap();
+        manifest["reference_pieces"] = json!([{
+            "index": 1, "name": "Companions of head.pac", "role": "companion",
+            "document": companion, "textures": manifest["textures"],
+            "material_presentations": manifest["material_presentations"],
+        }]);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let package = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
+        assert_eq!(package.reference_pieces.len(), 1);
+        assert!(package.manifest().item_set_files.is_empty());
+        // A companion never poses as an item-set member.
+        manifest["item_set_files"] = json!(["head.pac", "Companions of head.pac"]);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
     fn binary_mesh_document_loads_initial_and_state_documents_with_legacy_fallback() {
         let root = tempdir().unwrap();
         let manifest_path = write_loaded_package_fixture(root.path());
         let legacy = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
         let bytes = mesh_document_binary::encode_test_document(legacy.document());
-        let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
         manifest["document"] = mesh_binary_reference("document.bin", &bytes);
         fs::write(root.path().join("document.bin"), &bytes).unwrap();
         fs::remove_file(root.path().join("document.json")).unwrap();
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
         let typed = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
         let mut expected = legacy.document().clone();
-        expected.structural_fingerprint.clone_from(&typed.document().structural_fingerprint);
+        expected
+            .structural_fingerprint
+            .clone_from(&typed.document().structural_fingerprint);
         assert_eq!(typed.document(), &expected);
         assert_eq!(typed.source_lod_index(), legacy.source_lod_index());
         assert_eq!(typed.textures[0].bytes, legacy.textures[0].bytes);
@@ -3725,7 +4771,10 @@ mod tests {
         let state = json!({"document": {"path": "state-6-abcdef1234.json",
             "data_type": "mesh_document_json", "content_type": "application/json",
             "count": 1, "byte_length": legacy_bytes.len(), "sha256": sha256_upper(&legacy_bytes)}});
-        assert_eq!(bridge.document_from_state(&state).unwrap().as_ref(), Some(legacy.document()));
+        assert_eq!(
+            bridge.document_from_state(&state).unwrap().as_ref(),
+            Some(legacy.document())
+        );
     }
 
     #[test]
@@ -3735,27 +4784,41 @@ mod tests {
         let bytes = mesh_document_binary::encode_test_document(&document());
         fs::write(root.join("document.bin"), &bytes).unwrap();
         let reference = mesh_binary_reference("document.bin", &bytes);
-        assert!(read_document_reference(&root, &serde_json::from_value(reference.clone()).unwrap()).is_ok());
+        assert!(
+            read_document_reference(&root, &serde_json::from_value(reference.clone()).unwrap())
+                .is_ok()
+        );
         for (field, value) in [
-            ("path", json!("../document.bin")), ("path", json!("payload.bin")),
-            ("path", json!("state-4-ABCDEF1234.bin")), ("path", json!("state-x-abcdef1234.bin")),
-            ("path", json!("nested/document.bin")), ("data_type", json!("mesh_document_binary_v2")),
-            ("content_type", json!("application/json")), ("count", json!(0)), ("count", json!(2)),
-            ("byte_length", json!(bytes.len() - 1)), ("byte_length", json!(MAX_PAYLOAD_BYTES + 1)),
+            ("path", json!("../document.bin")),
+            ("path", json!("payload.bin")),
+            ("path", json!("state-4-ABCDEF1234.bin")),
+            ("path", json!("state-x-abcdef1234.bin")),
+            ("path", json!("nested/document.bin")),
+            ("data_type", json!("mesh_document_binary_v2")),
+            ("content_type", json!("application/json")),
+            ("count", json!(0)),
+            ("count", json!(2)),
+            ("byte_length", json!(bytes.len() - 1)),
+            ("byte_length", json!(MAX_PAYLOAD_BYTES + 1)),
             ("sha256", json!("0".repeat(64))),
         ] {
             let mut changed = reference.clone();
             changed[field] = value;
-            assert!(read_document_reference(&root, &serde_json::from_value(changed).unwrap()).is_err(), "{field}");
+            assert!(
+                read_document_reference(&root, &serde_json::from_value(changed).unwrap()).is_err(),
+                "{field}"
+            );
         }
         let mut changed = bytes;
         let last = changed.len() - 1;
         changed[last] ^= 1;
         fs::write(root.join("document.bin"), &changed).unwrap();
-        assert!(read_document_reference(&root, &serde_json::from_value(reference).unwrap()).is_err());
+        assert!(
+            read_document_reference(&root, &serde_json::from_value(reference).unwrap()).is_err()
+        );
     }
 
-    fn write_preview_core_package_fixture(root: &Path) -> PathBuf {
+    pub(crate) fn write_preview_core_package_fixture(root: &Path) -> PathBuf {
         let manifest_path = write_loaded_package_fixture(root);
         let mut vertex_bytes = Vec::new();
         for (position, uv) in [
@@ -3963,31 +5026,82 @@ mod tests {
         let handle = mesh.vertices().next().expect("vertex").0;
         let mut operator = cdmw_interaction::OperatorController::default();
         let gesture = operator.begin(&mesh, "Grab").expect("begin");
-        mesh.apply_positions(&std::collections::HashMap::from([(handle, [0.5, 0.0, 0.0])])).expect("edit");
+        mesh.apply_positions(&std::collections::HashMap::from([(
+            handle,
+            [0.5, 0.0, 0.0],
+        )]))
+        .expect("edit");
         let changes = operator.changed_vertices(&mesh, gesture).expect("changes");
-        let candidate = build_vertex_candidate("session", &document, &mesh, 0, &changes).expect("candidate");
+        let candidate =
+            build_vertex_candidate("session", &document, &mesh, 0, &changes).expect("candidate");
         let part = &candidate.submeshes[0];
-        assert!(part.positions.len() <= 3, "include changed normals, never unrelated vertices");
-        assert_eq!(part.vertex_indices.as_ref().unwrap().len(), part.positions.len());
+        assert!(
+            part.positions.len() <= 3,
+            "include changed normals, never unrelated vertices"
+        );
+        assert_eq!(
+            part.vertex_indices.as_ref().unwrap().len(),
+            part.positions.len()
+        );
         assert!(part.indices.is_empty());
         let bytes = serde_json::to_vec(&candidate).expect("serialize");
-        assert!(bytes.len() < 2_000, "small stroke encoded {} bytes", bytes.len());
-        let full = serde_json::to_vec(&build_candidate("session", &document, &mesh, 0).expect("legacy candidate")).expect("full serialize");
-        println!("150000-vertex geometry candidate: full {} bytes, sparse {} bytes", full.len(), bytes.len());
+        assert!(
+            bytes.len() < 2_000,
+            "small stroke encoded {} bytes",
+            bytes.len()
+        );
+        let full = serde_json::to_vec(
+            &build_candidate("session", &document, &mesh, 0).expect("legacy candidate"),
+        )
+        .expect("full serialize");
+        println!(
+            "150000-vertex geometry candidate: full {} bytes, sparse {} bytes",
+            full.len(),
+            bytes.len()
+        );
         let root = tempdir().expect("root");
         let mut wire = Vec::new();
-        write_candidate(root.path(), "session", 1, 1, 0, "Grab", &candidate, &mut wire).expect("write candidate");
+        write_candidate(
+            root.path(),
+            "session",
+            1,
+            1,
+            0,
+            "Grab",
+            &candidate,
+            &mut wire,
+        )
+        .expect("write candidate");
         let request: Value = serde_json::from_slice(&wire).expect("control request");
         assert_eq!(request["candidate"]["count"], 3);
         assert_eq!(request["candidate"]["byte_length"], bytes.len());
         assert_eq!(request["candidate"]["sha256"], sha256_upper(&bytes));
         // A second stroke returning to the source must still emit the vertex.
-        operator.confirm(&mut mesh, &mut cdmw_mesh::History::new(64 * 1024 * 1024), gesture).expect("commit");
+        operator
+            .confirm(
+                &mut mesh,
+                &mut cdmw_mesh::History::new(64 * 1024 * 1024),
+                gesture,
+            )
+            .expect("commit");
         let gesture = operator.begin(&mesh, "Grab").expect("second begin");
-        mesh.apply_positions(&std::collections::HashMap::from([(handle, document.lods[0].submeshes[0].positions[0])])).expect("restore");
-        let changes = operator.changed_vertices(&mesh, gesture).expect("second changes");
-        let candidate = build_vertex_candidate("session", &document, &mesh, 0, &changes).expect("second candidate");
-        assert!(candidate.submeshes[0].vertex_indices.as_ref().unwrap().contains(&0));
+        mesh.apply_positions(&std::collections::HashMap::from([(
+            handle,
+            document.lods[0].submeshes[0].positions[0],
+        )]))
+        .expect("restore");
+        let changes = operator
+            .changed_vertices(&mesh, gesture)
+            .expect("second changes");
+        let candidate = build_vertex_candidate("session", &document, &mesh, 0, &changes)
+            .expect("second candidate");
+        assert!(
+            candidate.submeshes[0]
+                .vertex_indices
+                .as_ref()
+                .unwrap()
+                .contains(&0)
+        );
     }
 
     #[test]
@@ -4133,6 +5247,62 @@ mod tests {
     }
 
     #[test]
+    fn layer_uv_roundtrip_and_legacy_identity() {
+        let root = tempdir().unwrap();
+        let path = write_preview_core_package_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        let affine = [19.0, 2.0, -2.0, 19.0, -8.0, -10.0];
+        manifest["preview_core_material_graph"]["materials"][0]["layers"][0]["uv_transform"] =
+            json!(affine);
+        let graph: PreviewCoreMaterialGraph =
+            serde_json::from_value(manifest["preview_core_material_graph"].clone()).unwrap();
+        let roundtrip: PreviewCoreMaterialGraph =
+            serde_json::from_slice(&serde_json::to_vec(&graph).unwrap()).unwrap();
+        assert_eq!(
+            roundtrip.materials[0].layers[0].sampling_transform(),
+            affine
+        );
+        for (field, value) in [("blend_flags", json!(16)), ("blend_opacity", json!(-0.1))] {
+            manifest["preview_core_material_graph"]["materials"][0]["layers"][0][field] = value;
+            fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+            assert!(LoadedCdmwSessionPackage::load_preview(&path).is_err());
+            manifest["preview_core_material_graph"]["materials"][0]["layers"][0]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+        }
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        LoadedCdmwSessionPackage::load_preview(&path).expect("v5 transform");
+        for bad in [json!([1e7, 0, 0, 1, 0, 0]), json!([1, 0, 0, 1, 0])] {
+            manifest["preview_core_material_graph"]["materials"][0]["layers"][0]["uv_transform"] =
+                bad;
+            fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+            assert!(LoadedCdmwSessionPackage::load_preview(&path).is_err());
+        }
+        manifest["preview_core_geometry"]["material_graph_version"] = json!(4);
+        manifest["material_contract"]["graph_version"] = json!(4);
+        manifest["preview_core_material_graph"]["graph_version"] = json!(4);
+        manifest["preview_core_material_graph"]["materials"][0]["layers"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("uv_transform");
+        let graph: PreviewCoreMaterialGraph =
+            serde_json::from_value(manifest["preview_core_material_graph"].clone()).unwrap();
+        assert_eq!(
+            graph.materials[0].layers[0].sampling_transform(),
+            [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        );
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        LoadedCdmwSessionPackage::load_preview(&path).expect("legacy v4 without transform");
+        manifest["preview_core_geometry"]["material_graph_version"] = json!(5);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(
+            LoadedCdmwSessionPackage::load_preview(&path).is_err(),
+            "mixed versions"
+        );
+    }
+
+    #[test]
     fn pure_preview_loader_rejects_changed_preview_core_geometry() {
         let root = tempdir().expect("root");
         let manifest_path = write_preview_core_package_fixture(root.path());
@@ -4157,7 +5327,11 @@ mod tests {
     fn write_composite_material_fixture(root: &Path) -> PathBuf {
         let path = write_preview_core_package_fixture(root);
         let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-        let geometry = manifest.as_object_mut().unwrap().remove("preview_core_geometry").unwrap();
+        let geometry = manifest
+            .as_object_mut()
+            .unwrap()
+            .remove("preview_core_geometry")
+            .unwrap();
         for batch in geometry["batches"].as_array().unwrap() {
             for role in ["vertices", "identity"] {
                 fs::remove_file(root.join(batch[role]["path"].as_str().unwrap())).unwrap();
@@ -4188,33 +5362,135 @@ mod tests {
     fn pure_preview_loader_composes_native_layers_with_document_placement_geometry() {
         let root = tempdir().unwrap();
         let path = write_composite_material_fixture(root.path());
-        let package = LoadedCdmwSessionPackage::load_preview(&path).expect("combined material graph");
+        let package =
+            LoadedCdmwSessionPackage::load_preview(&path).expect("combined material graph");
         assert_eq!(package.document().lods[0].submeshes.len(), 2);
         assert_eq!(package.document().lods[0].submeshes[0].material, "anchor");
-        assert_eq!(package.manifest().preview_core_material_graph.as_ref().unwrap().materials[0].material_index, 1);
-        assert_eq!(package.manifest().preview_core_material_graph.as_ref().unwrap().materials[0].authoring_channels, 0);
+        assert_eq!(
+            package
+                .manifest()
+                .preview_core_material_graph
+                .as_ref()
+                .unwrap()
+                .materials[0]
+                .material_index,
+            1
+        );
+        assert_eq!(
+            package
+                .manifest()
+                .preview_core_material_graph
+                .as_ref()
+                .unwrap()
+                .materials[0]
+                .authoring_channels,
+            0
+        );
         assert!(!package.textures.is_empty());
 
         let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
         manifest["preview_core_material_graph"]["materials"][0]["authoring_channels"] = json!(1);
         fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
         let painted = LoadedCdmwSessionPackage::load_preview(&path).expect("owned alpha channel");
-        assert_eq!(painted.manifest().preview_core_material_graph.as_ref().unwrap().materials[0].authoring_channels, 1);
+        assert_eq!(
+            painted
+                .manifest()
+                .preview_core_material_graph
+                .as_ref()
+                .unwrap()
+                .materials[0]
+                .authoring_channels,
+            1
+        );
         assert_eq!(painted.document(), package.document());
     }
 
     #[test]
     fn pure_preview_loader_rejects_wrong_composite_material_ownership() {
-        for (field, value) in [("material_index", json!(0)), ("material_slot_index", json!(999)),
-                               ("material_name", json!("other")), ("authoring_channels", json!(4))] {
+        for (field, value) in [
+            ("material_index", json!(0)),
+            ("material_slot_index", json!(999)),
+            ("material_name", json!("other")),
+            ("authoring_channels", json!(4)),
+        ] {
             let root = tempdir().unwrap();
             let path = write_composite_material_fixture(root.path());
             let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
             manifest["preview_core_material_graph"]["materials"][0][field] = value;
             fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
-            let error = LoadedCdmwSessionPackage::load_preview(&path).expect_err("wrong material owner");
+            let error =
+                LoadedCdmwSessionPackage::load_preview(&path).expect_err("wrong material owner");
             assert!(error.to_string().contains("ownership"));
         }
+    }
+
+    #[test]
+    fn authoring_layers_load_and_material_updates_revalidate_ownership() {
+        let root = tempdir().unwrap();
+        let path = write_composite_material_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        manifest["schema"] = json!(PACKAGE_SCHEMA);
+        manifest["protocol"] = json!(PROTOCOL);
+        manifest["edit_backend"] = json!(EDIT_BACKEND);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let package = LoadedCdmwSessionPackage::load(&path).expect("owned authoring layers");
+        assert!(package.manifest.preview_core_geometry.is_none());
+        assert!(!package.textures.is_empty());
+        assert_eq!(
+            package
+                .manifest
+                .preview_core_material_graph
+                .as_ref()
+                .unwrap()
+                .materials[0]
+                .material_index,
+            1
+        );
+        read_updated_materials(&package.root, &package.manifest, package.document())
+            .expect("Undo rehydrates original layers");
+        for (field, value) in [
+            ("material_index", json!(0)),
+            ("material_slot_index", json!(999)),
+            ("material_name", json!("other")),
+            ("authoring_channels", json!(4)),
+        ] {
+            let mut changed = manifest.clone();
+            changed["preview_core_material_graph"]["materials"][0][field] = value;
+            let changed: SessionManifest = serde_json::from_value(changed).unwrap();
+            assert!(
+                read_updated_materials(&package.root, &changed, package.document())
+                    .unwrap_err()
+                    .to_string()
+                    .contains("ownership")
+            );
+        }
+        let mut edited = package.manifest.clone();
+        edited.preview_core_material_graph = None;
+        edited.material_contract = Value::Null;
+        let (textures, layers) =
+            read_updated_materials(&package.root, &edited, package.document()).unwrap();
+        assert!(!textures.is_empty());
+        assert!(
+            layers.is_empty(),
+            "edited material state clears native layers"
+        );
+    }
+
+    #[test]
+    fn authoring_still_refuses_preview_core_geometry() {
+        let root = tempdir().unwrap();
+        let path = write_preview_core_package_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        manifest["schema"] = json!(PACKAGE_SCHEMA);
+        manifest["protocol"] = json!(PROTOCOL);
+        manifest["edit_backend"] = json!(EDIT_BACKEND);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(
+            LoadedCdmwSessionPackage::load(&path)
+                .unwrap_err()
+                .to_string()
+                .contains("read-only preview")
+        );
     }
 
     #[test]
@@ -4375,23 +5651,82 @@ mod tests {
         let manifest_path = write_loaded_package_fixture(root.path());
         let bytes = b"{\"version\":1}";
         fs::write(root.path().join("jiggle-rig.json"), bytes).unwrap();
-        let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
         let reference = json!({"path": "jiggle-rig.json", "data_type": "jiggle_rig_json",
             "count": 1, "byte_length": bytes.len(), "sha256": sha256_upper(bytes), "content_type": "application/json"});
         manifest["state"]["jiggle"] = json!({"decoded": {"available": true, "file": reference}});
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
-        LoadedCdmwSessionPackage::load(&manifest_path).expect("owned jiggle snapshot in initial package");
+        LoadedCdmwSessionPackage::load(&manifest_path)
+            .expect("owned jiggle snapshot in initial package");
         let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "jiggle", 1, 0);
-        assert_eq!(bridge.jiggle_source(&manifest["state"]).unwrap().read().unwrap(), bytes);
-        for (key, bad) in [("path", json!("../jiggle-rig.json")), ("count", json!(4097)),
-            ("byte_length", json!(32 * 1024 * 1024 + 1)), ("data_type", json!("other_json"))] {
+        assert_eq!(
+            bridge
+                .jiggle_source(&manifest["state"])
+                .unwrap()
+                .read()
+                .unwrap(),
+            bytes
+        );
+        for (key, bad) in [
+            ("path", json!("../jiggle-rig.json")),
+            ("count", json!(4097)),
+            ("byte_length", json!(32 * 1024 * 1024 + 1)),
+            ("data_type", json!("other_json")),
+        ] {
             let mut state = manifest["state"].clone();
             state["jiggle"]["decoded"]["file"][key] = bad;
             assert!(bridge.jiggle_source(&state).is_err());
         }
         fs::write(root.path().join("jiggle-rig.json"), b"{\"version\":2}").unwrap();
-        assert!(bridge.jiggle_source(&manifest["state"]).unwrap().read().is_err());
+        assert!(
+            bridge
+                .jiggle_source(&manifest["state"])
+                .unwrap()
+                .read()
+                .is_err()
+        );
         assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
+    fn a_pending_helper_accepts_one_manifest_and_a_session_refuses_a_second() {
+        let (pending, host) = PendingSessionInput::for_test();
+        assert_eq!(pending.poll().unwrap(), None);
+        let open = |manifest: Value| json!({"protocol": PROTOCOL, "event": "open_session", "manifest": manifest});
+        for refused in [
+            json!({"protocol": "cdmw_rust_preview_protocol_v1", "event": "open_session", "manifest": "m.json"}),
+            json!({"protocol": PROTOCOL, "event": "theme_update", "payload": {}}),
+            open(json!("")),
+            open(json!(7)),
+        ] {
+            host.send(Incoming::Message(refused.clone())).unwrap();
+            assert!(pending.poll().is_err(), "{refused}");
+        }
+        host.send(Incoming::Message(open(json!("session/manifest.json"))))
+            .unwrap();
+        assert_eq!(
+            pending.poll().unwrap(),
+            Some(PendingRequest::Open(PathBuf::from("session/manifest.json")))
+        );
+        host.send(Incoming::Message(
+            json!({"protocol": PROTOCOL, "event": "cancel"}),
+        ))
+        .unwrap();
+        assert_eq!(pending.poll().unwrap(), Some(PendingRequest::Close));
+        host.send(Incoming::LocalError("CDMW closed the control input".into()))
+            .unwrap();
+        assert!(pending.poll().is_err());
+
+        let root = tempdir().unwrap();
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "pending", 3, 0);
+        let mut second = open(json!("other/manifest.json"));
+        second["session_id"] = json!("pending");
+        second["process_generation"] = json!(3);
+        let HostEvent::Fatal(reason) = bridge.decode_host_event(second) else {
+            panic!("a second open_session must be refused");
+        };
+        assert!(reason.contains("already has a session"), "{reason}");
     }
 
     #[test]
@@ -4410,20 +5745,35 @@ mod tests {
             "event": "command_result", "request_id": 1, "base_revision": 1, "ok": true,
             "payload": {"payload_file": reference}});
         assert!(serde_json::to_vec(&message).unwrap().len() < MAX_CONTROL_LINE_BYTES);
-        let HostEvent::Result { payload: received, .. } = bridge.decode_host_event(message.clone()) else {
+        let HostEvent::Result {
+            payload: received, ..
+        } = bridge.decode_host_event(message.clone())
+        else {
             panic!("owned selection response was rejected");
         };
-        let prepared = bridge.prepare_host_result("command_result", 1, "command_result", 1, 1, true, &received).unwrap();
+        let prepared = bridge
+            .prepare_host_result("command_result", 1, "command_result", 1, 1, true, &received)
+            .unwrap();
         assert_eq!(prepared.into_parts().1.unwrap(), payload["state"]);
-        for (key, bad) in [("path", json!("../host-control.json")), ("count", json!(2)),
-            ("byte_length", json!(MAX_MANIFEST_BYTES + 1)), ("data_type", json!("other_json")),
-            ("sha256", json!("0".repeat(64)))] {
+        for (key, bad) in [
+            ("path", json!("../host-control.json")),
+            ("count", json!(2)),
+            ("byte_length", json!(MAX_MANIFEST_BYTES + 1)),
+            ("data_type", json!("other_json")),
+            ("sha256", json!("0".repeat(64))),
+        ] {
             let mut invalid = message.clone();
             invalid["payload"]["payload_file"][key] = bad;
-            assert!(matches!(bridge.decode_host_event(invalid), HostEvent::Fatal(_)));
+            assert!(matches!(
+                bridge.decode_host_event(invalid),
+                HostEvent::Fatal(_)
+            ));
         }
         fs::write(root.path().join("host-control.json"), b"{}").unwrap();
-        assert!(matches!(bridge.decode_host_event(message), HostEvent::Fatal(_)));
+        assert!(matches!(
+            bridge.decode_host_event(message),
+            HostEvent::Fatal(_)
+        ));
     }
 
     #[test]
@@ -4872,10 +6222,16 @@ mod tests {
         let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
         let mut request = json!({"event":"focus_request", "protocol":PROTOCOL,
             "session_id":"session", "request_id":0, "base_revision":4, "process_generation":3});
-        assert!(matches!(bridge.decode_host_event(request.clone()), HostEvent::Focus));
+        assert!(matches!(
+            bridge.decode_host_event(request.clone()),
+            HostEvent::Focus
+        ));
         assert_eq!(bridge.shadow_revision(), 4);
         request["process_generation"] = json!(2);
-        assert!(matches!(bridge.decode_host_event(request), HostEvent::Fatal(_)));
+        assert!(matches!(
+            bridge.decode_host_event(request),
+            HostEvent::Fatal(_)
+        ));
     }
 
     #[test]

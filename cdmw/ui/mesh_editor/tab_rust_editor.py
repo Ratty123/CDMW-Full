@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
+import threading
+import time
 from collections.abc import Mapping
 from importlib import import_module
 from pathlib import Path
 from uuid import uuid4
 
-from PySide6.QtCore import QProcess, QProcessEnvironment, QThread, QTimer
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QThread, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
@@ -63,10 +66,136 @@ MESH_EDITOR_BACKEND_RUST = "rust"
 
 
 
+# Sessions older than this are leftovers of a crashed or killed run; a live
+# session is never this old because each open builds a new one.
+_STALE_EDITOR_SESSION_SECONDS = 24 * 60 * 60
 
 
+#: The hold one Mesh Editor open keeps on background warm-ups, from the click
+#: in Browse Archives until the editor is ready or fails. The shell takes it
+#: before the mesh loads; the tab releases it.
+MESH_EDITOR_OPEN_WARMUP_HOLD = object()
+_WARMUP_HOLD_LIMIT_MS = 120_000
 
 
+def hold_warmups_for_mesh_editor_open(archive: object, timer_parent: object) -> None:
+    hold = getattr(archive, "hold_background_warmups", None)
+    if not callable(hold):
+        return
+    hold(MESH_EDITOR_OPEN_WARMUP_HOLD)
+    # An open that never reports back must not hold them forever.
+    release = lambda: release_warmups_for_mesh_editor_open(archive)  # noqa: E731
+    context = next((item for item in (timer_parent, archive) if isinstance(item, QObject)), None)
+    if context is not None:
+        QTimer.singleShot(_WARMUP_HOLD_LIMIT_MS, context, release)
+    else:
+        QTimer.singleShot(_WARMUP_HOLD_LIMIT_MS, release)
+
+
+def release_warmups_for_mesh_editor_open(archive: object) -> None:
+    release = getattr(archive, "release_background_warmups", None)
+    if callable(release):
+        try:
+            release(MESH_EDITOR_OPEN_WARMUP_HOLD)
+        except RuntimeError:  # the window closed first
+            pass
+
+
+def _mesh_editor_session_parent(settings: object | None) -> Path:
+    """Editor sessions live beside the workspace cache.
+
+    Session textures are hard links to the preview cache when both share a
+    volume, which turns a copy of every DDS into a directory entry. The
+    archive cache pruner only touches its own prefixes, so it leaves this
+    folder alone.
+    """
+
+    file_name = getattr(settings, "fileName", None)
+    if callable(file_name):
+        try:
+            from cdmw.domain.workspace import workspace_paths
+
+            text = str(file_name() or "").strip()
+            if text:
+                return workspace_paths(Path(text).expanduser().parent)["archive_cache_root"] / "mesh_editor_sessions"
+        except (OSError, KeyError, TypeError, ValueError):
+            pass
+    return Path(tempfile.gettempdir()) / "cdmw-rust-mesh-editor"
+
+
+def _record_open_step_timings(tab: object, **timings: float) -> None:
+    """How long an open's two UI-thread steps took (executable check, material prime)."""
+
+    try:
+        window = tab.window()  # type: ignore[attr-defined]
+    except (AttributeError, RuntimeError):
+        return
+    recorder = getattr(window, "_record_runtime_event", None)
+    if callable(recorder):
+        try:
+            recorder("mesh_editor_open_ui_steps", **{key: round(value, 2) for key, value in timings.items()})
+        except (RuntimeError, TypeError, ValueError):
+            pass
+
+
+def _palette_chords(settings) -> list[str]:
+    try:
+        from cdmw.ui.commands.helper_keys import palette_chords
+
+        return palette_chords(settings)
+    except Exception:
+        return ["Ctrl+Shift+P"]
+
+
+def _record_open_stage_timings(tab: object, stages: dict) -> None:
+    """Where the session preparation's time went (worker stages), with the launch."""
+
+    host = getattr(tab, "host", tab)
+    try:
+        window = host.window()  # type: ignore[attr-defined]
+    except (AttributeError, RuntimeError):
+        return
+    recorder = getattr(window, "_record_runtime_event", None)
+    if callable(recorder):
+        try:
+            recorder("mesh_editor_prepare_stages", **stages)
+        except (RuntimeError, TypeError, ValueError):
+            pass
+
+
+def _sweep_stale_editor_sessions(owned_root: Path) -> None:
+    """Remove session folders a crashed run left behind, off the UI thread."""
+
+    import shutil
+    import threading
+    import time
+
+    def sweep() -> None:
+        cutoff = time.time() - _STALE_EDITOR_SESSION_SECONDS
+        try:
+            entries = list(os.scandir(owned_root))
+        except OSError:
+            return
+        for entry in entries:
+            try:
+                if (
+                    entry.name.startswith("session-")
+                    and entry.is_dir(follow_symlinks=False)
+                    and entry.stat(follow_symlinks=False).st_mtime < cutoff
+                ):
+                    # Hard-linked textures only lose a link; the cache keeps its file.
+                    shutil.rmtree(entry.path, ignore_errors=True)
+            except OSError:
+                continue
+
+    threading.Thread(target=sweep, name="cdmw-editor-session-sweep", daemon=True).start()
+
+
+def _shared_preview_settings() -> dict[str, object]:
+    from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+    hub = preview_settings_hub()
+    return hub.values() if hub is not None else {}
 
 class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
     def _initialize_rust_editor_runtime_state(self) -> None:
@@ -82,6 +211,10 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_prepare_service: object | None = None
         self.standalone_rust_prepare_session_id = ""
         self.standalone_rust_prepare_process_generation = 0
+        #: A Discard chosen while the editor was still opening (section 8.9), and
+        #: the same answer for the open's worker.
+        self.standalone_rust_discard_requested = False
+        self.standalone_rust_discard_event: threading.Event | None = None
         self.standalone_rust_protocol_thread: QThread | None = None
         self.standalone_rust_protocol_worker: object | None = None
         self.standalone_rust_protocol_request_id = 0
@@ -99,7 +232,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_process_generation = 0
         self.standalone_rust_target_controller: object | None = None
         self.standalone_rust_authoring_session: object | None = None
-        self.standalone_rust_owned_root = Path(tempfile.gettempdir()) / "cdmw-rust-mesh-editor"
+        self.standalone_rust_owned_root = _mesh_editor_session_parent(getattr(self, "settings", None))
+        self.standalone_rust_stale_sessions_swept = False
         self.standalone_rust_session_root: Path | None = None
         self.standalone_rust_executable_path: Path | None = None
         self.standalone_rust_launch_executable_signature = ""
@@ -345,8 +479,25 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
                 show_error(str(message or ""))
         self.status_message_requested.emit(str(message or ""), bool(error))
 
+    def _background_warmup_owner(self):
+        window = self.window() if hasattr(self, "window") else None
+        archive = getattr(window, "archive", None)
+        return archive if callable(getattr(archive, "hold_background_warmups", None)) else None
+
+    def _hold_background_warmups(self) -> None:
+        archive = self._background_warmup_owner()
+        if archive is not None:
+            hold_warmups_for_mesh_editor_open(archive, self)
+
+    def _release_background_warmups(self) -> None:
+        archive = self._background_warmup_owner()
+        if archive is not None:
+            release_warmups_for_mesh_editor_open(archive)
+
     def _start_selected_mesh_editor(self, controller: object) -> None:
         if self._defer_rust_editor_for_material_context(controller):
+            # Texture resolution is part of the wait; keep warm-ups paused.
+            self._hold_background_warmups()
             return
         self._start_rust_editor_requested(controller)
 
@@ -482,18 +633,25 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             if key != "label"
         }
         window_colour = QColor(palette.get("window", "#1e1e1e"))
+        # The sizes and density every other surface uses (P11): clamped to the one
+        # range, with Compact forced on small screens.
+        from cdmw.constants import UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN
+        from cdmw.ui.layout_metrics import layout_metrics
+        from cdmw.ui.shell.theme_controller import _resolved_app_fonts
+
+        density = str(self.settings.value("appearance/ui_density", "compact") or "compact")
+        screen_scale = 1.0
         font_point_size = float(font.pointSizeF())
         if font_point_size <= 0.0:
             font_point_size = float(DEFAULT_UI_FONT_SIZE)
-        try:
-            data_font_point_size = float(
-                self.settings.value(
-                    "appearance/data_font_size",
-                    DEFAULT_UI_DATA_FONT_SIZE,
-                )
-            )
-        except (TypeError, ValueError):
-            data_font_point_size = float(DEFAULT_UI_DATA_FONT_SIZE)
+        data_font_point_size = float(DEFAULT_UI_DATA_FONT_SIZE)
+        if isinstance(application, QApplication):
+            try:
+                resolved_font, resolved_data, density, screen_scale = _resolved_app_fonts(application, self.settings)
+                font_point_size = float(resolved_font.pointSizeF()) or font_point_size
+                data_font_point_size = float(resolved_data.pointSizeF()) or data_font_point_size
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
         return {
             "schema": "cdmw_ui_theme_v1",
             "language": language,
@@ -501,13 +659,23 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             "layout": load_mesh_layout(self.settings),
             # Its presence tells the editor this host saves shortcuts_changed.
             "shortcuts": load_mesh_shortcuts(self.settings),
+            # The palette's chords from the keymap: the editor passes them to CDMW
+            # and its own shortcut editor refuses them (P12 E5).
+            "app_commands": {"command_palette": _palette_chords(self.settings)},
+            # The shared Preview settings; the editor reports changes with
+            # preview_settings_changed and follows other viewports' changes.
+            "preview_settings": _shared_preview_settings(),
             "theme": theme_key,
             "variant": "dark" if window_colour.lightnessF() < 0.5 else "light",
             "palette": palette,
             "font_family": font.family(),
             "font_point_size": font_point_size,
             "data_font_point_size": data_font_point_size,
-            "density": str(self.settings.value("appearance/ui_density", "compact") or "compact"),
+            "font_min_points": UI_FONT_SIZE_MIN,
+            "font_max_points": UI_FONT_SIZE_MAX,
+            "density": density,
+            # The same spacing the Qt stylesheet uses (P11 step 4).
+            "layout_metrics": layout_metrics(density, font_point_size, screen_scale).payload(),
             "scale": float(screen.devicePixelRatio()) if screen is not None else 1.0,
         }
 
@@ -553,6 +721,11 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         return True
 
     def _prime_rust_preview_material_context(self, controller: object) -> int:
+        return self._rust_preview_material_prime_call(controller)()
+
+    def _rust_preview_material_prime_call(self, controller: object):
+        """Gather the prime's inputs here (UI thread); the returned call runs on the prepare worker."""
+
         preview_model = getattr(
             self,
             "standalone_archive_material_preview_model",
@@ -577,21 +750,14 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             if callable(current_target)
             else getattr(self, "current_archive_selection", None)
         )
-        return int(
-            prime(
-                controller,
-                preview_model,
-                material_package_path=getattr(
-                    self,
-                    "archive_material_context_package_path",
-                    "",
-                ),
-                unavailable_reason=self.standalone_rust_texture_unavailable_reason,
-                target_entry=target_entry,
-                entries_by_basename=basename_index,
-                physics_profile_context=getattr(self, "archive_physics_profile_context", None),
-            )
-        )
+        arguments = {
+            "material_package_path": getattr(self, "archive_material_context_package_path", ""),
+            "unavailable_reason": self.standalone_rust_texture_unavailable_reason,
+            "target_entry": target_entry,
+            "entries_by_basename": basename_index,
+            "physics_profile_context": getattr(self, "archive_physics_profile_context", None),
+        }
+        return lambda: int(prime(controller, preview_model, **arguments))
 
     def _start_rust_editor_requested(self, controller: object) -> None:
         if self._rust_editor_task_active():
@@ -599,12 +765,14 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
                 return
             self._set_rust_status("Mesh Editor is already starting or running.")
             return
+        started = time.perf_counter()
         resolution = self._rust_executable_resolution()
         (
             executable_text,
             executable_signature,
             incompatibility_reason,
         ) = self._validate_rust_executable_resolution(resolution)
+        validated = time.perf_counter()
         self.standalone_rust_checked_executable = executable_text
         self.standalone_rust_checked_executable_signature = executable_signature
         self.standalone_rust_incompatible_reason = incompatibility_reason
@@ -618,7 +786,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             self._sync_mesh_editor_backend_controls()
             return
         try:
-            self._prime_rust_preview_material_context(controller)
+            # The prime itself (about 35 ms for the upper body) runs first on the
+            # prepare worker; only its inputs are gathered here (P4 V1).
+            prime_material_context = self._rust_preview_material_prime_call(controller)
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._set_rust_status(
                 f"Mesh Editor could not bind the resolved preview textures: {exc}",
@@ -626,6 +796,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             )
             self._sync_mesh_editor_backend_controls()
             return
+        gathered = time.perf_counter()
+        _record_open_step_timings(self, validate_ms=(validated - started) * 1000,
+                                  prime_inputs_ms=(gathered - validated) * 1000)
         try:
             theme = self._rust_theme_payload()
         except ValueError as exc:
@@ -653,6 +826,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_executable_path = Path(executable_text)
         self.standalone_rust_launch_executable_signature = executable_signature
         self.standalone_rust_session_root = self.standalone_rust_owned_root / f"session-{uuid4().hex}"
+        if not self.standalone_rust_stale_sessions_swept:
+            self.standalone_rust_stale_sessions_swept = True
+            _sweep_stale_editor_sessions(self.standalone_rust_owned_root)
         host = getattr(self, "standalone_native_host_frame", None)
         show_loading = getattr(host, "show_loading", None)
         if callable(show_loading):
@@ -661,10 +837,13 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         request_id = self.standalone_rust_prepare_request_id
         process_generation = self.standalone_rust_process_generation
         self.standalone_rust_prepare_active_request_id = request_id
+        self.standalone_rust_discard_requested = False
+        self.standalone_rust_discard_event = threading.Event()
         self.standalone_rust_prepare_controller = controller
         self.standalone_rust_prepare_service = expected_service
         self.standalone_rust_prepare_session_id = expected_session_id
         self.standalone_rust_prepare_process_generation = process_generation
+        self._hold_background_warmups()
         worker_type = getattr(
             import_module("cdmw.workers.mesh_rust_editor_workers"),
             "MeshRustSessionPrepareWorker",
@@ -676,6 +855,10 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             process_generation=process_generation,
             theme=theme,
             **self._hair_start_options(),
+            **({"item_set_contexts": self.item_set_contexts} if self.item_set_contexts else {}),
+            **({"edit_item_set": True} if getattr(self, "edit_item_set", False) else {}),
+            before_prepare=prime_material_context,
+            discarded=self.standalone_rust_discard_event,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -826,6 +1009,10 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         if not context_is_current:
             if request_id == self.standalone_rust_prepare_active_request_id:
                 self._stop_rust_session_prepare(invalidate=True)
+            if getattr(self, "standalone_rust_discard_requested", False):
+                # The user chose Discard while it opened: its recovery point goes too.
+                self.standalone_rust_discard_requested = False
+                session.discard_requested = True
             self._start_rust_dispose_worker(session, session.root)
             return
         self.standalone_rust_prepare_active_request_id = 0
@@ -835,10 +1022,32 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_prepare_process_generation = 0
         self.standalone_rust_authoring_session = session
         self.standalone_rust_session_root = session.root
+        self.standalone_rust_parked = False  # a new session is never parked (P15)
+        self.standalone_rust_unpark_requested = False
         self.standalone_rust_texture_unavailable_reason = str(
             getattr(session, "texture_unavailable_reason", "") or ""
         ).strip()
+        budget_notice = str(getattr(session, "item_set_budget_notice", "") or "")
+        if budget_notice:
+            # Said before the editor shows, and kept in the activity log (P5).
+            self._set_rust_status(budget_notice, error=False)
+            notice = getattr(self, "status_message_requested", None)
+            if notice is not None and hasattr(notice, "emit"):
+                notice.emit(budget_notice, False)
         self._launch_rust_editor_process(session)
+        problem = str(getattr(session, "recovery_problem", "") or "")
+        if problem:
+            self._set_rust_status(problem, error=True)
+            # The status line is overwritten by the next message; the shell's activity
+            # log keeps it (section 8.8 R13).
+            notice = getattr(self, "status_message_requested", None)
+            if notice is not None and hasattr(notice, "emit"):
+                notice.emit(problem, True)
+        elif float(getattr(session, "recovered_edits_at", 0.0) or 0.0) > 0.0:
+            self._set_rust_status(
+                "Mesh Editor continued from edits that were not finished before CDMW closed. "
+                "Undo returns to the draft as it was last finished."
+            )
 
     def _handle_rust_session_prepare_error(self, request_id: int, message: str) -> None:
         if request_id != self.standalone_rust_prepare_request_id:

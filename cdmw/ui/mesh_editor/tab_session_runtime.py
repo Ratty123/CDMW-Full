@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from cdmw.domain.archives.item_sets import MAX_SET_FILES
+
 import copy
 import json
 from pathlib import Path
@@ -65,6 +67,8 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         material_context_verified_for_rust: bool,
         material_source_identity: object | None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None,
+        item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = (),
+        edit_item_set: bool = False,
         prepared_result: object | None = None,
         draft_request: MeshDraftRequest | None = None,
     ) -> None:
@@ -99,6 +103,8 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             ),
             "material_source_identity": material_source_identity,
             "archive_dependencies": archive_dependencies,
+            "item_set_contexts": item_set_contexts,
+            "edit_item_set": bool(edit_item_set),
             "prepared_result": prepared_result,
             "draft_request": draft_request,
         }
@@ -148,12 +154,20 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         material_context_verified_for_rust: bool = False,
         material_source_identity: object | None = None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None = None,
+        item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = (),
+        edit_item_set: bool = False,
         prepared_result: object | None = None,
         draft_request: MeshDraftRequest | None = None,
     ) -> int | None:
         """Open an archive mesh directly in the resident authoring workspace."""
         if not isinstance(entry, _tab.ArchiveEntry):
             raise TypeError("entry must be ArchiveEntry")
+        item_set_contexts = tuple(item_set_contexts)
+        if item_set_contexts and (
+                len(item_set_contexts) > MAX_SET_FILES
+                or item_set_contexts[0].selected_entry.identity != entry.identity
+                or len({context.selected_entry.identity for context in item_set_contexts}) != len(item_set_contexts)):
+            raise ValueError("Item set dependencies do not match the selected mesh")
         if prepared_result is not None and (not isinstance(prepared_result, _tab.MeshArchiveSessionLoadResult)
                 or str(prepared_result.mesh.path).casefold() != entry.path.casefold()):
             raise ValueError("Prepared editor geometry belongs to another archive target")
@@ -201,6 +215,8 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
                 material_context_verified_for_rust=material_context_verified_for_rust,
                 material_source_identity=material_source_identity,
                 archive_dependencies=archive_dependencies,
+                item_set_contexts=item_set_contexts,
+                edit_item_set=edit_item_set,
                 prepared_result=prepared_result,
                 draft_request=draft_request,
             )
@@ -224,12 +240,16 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             "entry": entry_snapshot,
             "resume_manifest_path": resume_path,
             "archive_dependencies": archive_dependencies,
+            "item_set_contexts": item_set_contexts,
+            "edit_item_set": bool(edit_item_set),
             "material_companion_entry": copy.deepcopy(material_companion_entry),
             "material_package_path": material_package_path,
             "draft_request": draft_request,
         }
         self.archive_session_load_entry = entry
         self.archive_session_dependencies = archive_dependencies
+        self.item_set_contexts = item_set_contexts
+        self.edit_item_set = bool(edit_item_set)
         self.archive_session_load_material_model = (
             material_preview_model
             if material_preview_model is not None
@@ -395,6 +415,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             result.view.session_id,
             result.skeleton_resolution_reason if result.source_skeleton is None else "",
         )
+        self._apply_pending_view_hidden_parts(result, entry)
         view = self.standalone_controller.attach_session(result.view.session_id)
         self._show_standalone_session(view, mesh=result.mesh, target_entry=entry)
         self._restore_cached_mesh_character_context(entry)
@@ -411,7 +432,6 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
                 False,
             )
         self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
-        self._update_restore_overlay_button()
         self._sync_state()
         if result.skeleton_source_path:
             self.status_message_requested.emit(
@@ -420,6 +440,40 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             )
         if result.appearance_warning:
             self.status_message_requested.emit(f"{entry.basename}: {result.appearance_warning}", False)
+
+    def _apply_pending_view_hidden_parts(self, result: object, entry: object) -> None:
+        """Parts left unticked in the Scene panel start with View off (P5); output is unchanged."""
+
+        pending = getattr(self, "pending_view_hidden_parts", None)
+        self.pending_view_hidden_parts = None
+        if not pending:
+            return
+
+        def normal(path: object) -> str:
+            return str(path or "").replace("\\", "/").strip().casefold()
+
+        hidden_by_file = {normal(path): {int(index) for index in indices} for path, indices in pending.items()}
+        try:
+            session = result.service._session(result.view.session_id)
+        except (AttributeError, KeyError):
+            return
+        parts = session.working_mesh.submeshes
+        from cdmw.services.mesh_asset_context import ORIGIN_ATTRIBUTE, is_item_set
+
+        context = getattr(session, "archive_refit_context", None)
+        if is_item_set(context):
+            # Every file of the set: a part's origin names its file and its index
+            # there, which is what the Scene panel ticked (P5, section 8.9).
+            files = {asset.asset_id: normal(getattr(asset.entry, "path", "")) for asset in context.assets}
+            hidden = set()
+            for index, part in enumerate(parts):
+                owner, _, local = str(getattr(part, ORIGIN_ATTRIBUTE, "")).rpartition(":")
+                if local.isdigit() and int(local) in hidden_by_file.get(files.get(owner, ""), ()):
+                    hidden.add(index)
+        else:
+            hidden = {index for index in hidden_by_file.get(normal(getattr(entry, "path", "")), ())
+                      if 0 <= index < len(parts)}
+        session.viewport_hidden_parts = tuple(sorted(hidden))
 
     @staticmethod
     def _discard_archive_session_result(result: object) -> None:
@@ -725,6 +779,11 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         )
         if callable(defer_for_rust_finish) and defer_for_rust_finish():
             return False
+        preparation = getattr(self, "item_set_preparation", None)
+        if preparation is not None:
+            preparation.cancel()
+        self.item_set_contexts = ()
+        self.edit_item_set = False
         pending_open = getattr(self, "archive_session_open_pending", None)
         pending_lease = (
             pending_open.get("material_package_lease")

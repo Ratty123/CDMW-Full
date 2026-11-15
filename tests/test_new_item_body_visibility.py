@@ -301,26 +301,6 @@ def test_invalid_variant_choice_and_workflow_error_location():
     assert _workflow_step_for_issue(issue) == 2
 
 
-def test_fixture_overlay_contains_rules_and_restore_preserves_shipped_archives(tmp_path):
-    from cdmw.services.archive_mutation_service import ArchiveMutationService
-    service, snapshot, _ = game(tmp_path)
-    root = tmp_path / "fixture"
-    original = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
-    plan = service.plan(replace(spec(), body_visibility=BOTH), snapshot)
-    mutations = ArchiveMutationService()
-    result = service.install_overlay(plan, mutation_service=mutations, confirmed=True, game_running=lambda: False)
-    entries = {entry.path: entry for entry in parse_archive_pamt(result.directory / "0.pamt")}
-    for path in (SHRINK_PATH, POSTFIX_PATH):
-        assert _read(entries[path]) == plan.loose_files[path]
-    for path, payload in original.items():
-        if path.suffix in {".pamt", ".paz"}:
-            assert path.read_bytes() == payload
-    assert result.backup_dir is not None
-    mutations.restore_backup(result.backup_dir, confirmed=True)
-    for path, payload in original.items():
-        assert path.read_bytes() == payload
-
-
 def test_panel_controls_invalidate_plan_and_survive_variant_switch_and_reset(tmp_path):
     from cdmw.ui.new_item.controller import NewItemStudioController
     from cdmw.ui.new_item.panels_model import ModelPanel

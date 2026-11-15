@@ -44,7 +44,14 @@ impl TextureRole {
             .filter(char::is_ascii_alphanumeric)
             .flat_map(char::to_lowercase)
             .collect::<String>();
-        if matches!(normalized.as_str(), "wingflowtex1" | "tornpatterntexture" | "posterglownoisetex" | "dissolvenoisetex" | "hairanisotropydetailmasktexture") {
+        if matches!(
+            normalized.as_str(),
+            "wingflowtex1"
+                | "tornpatterntexture"
+                | "posterglownoisetex"
+                | "dissolvenoisetex"
+                | "hairanisotropydetailmasktexture"
+        ) {
             Self::ShaderMask
         } else if normalized == "hairanisotropydetailnormaltexture" {
             Self::ShaderNormal
@@ -261,6 +268,24 @@ pub enum TextureError {
 
 pub fn plan_2d_upload(bytes: &[u8], role: TextureRole) -> Result<DdsUploadPlan, TextureError> {
     let metadata = inspect_dds(bytes, role)?;
+    plan_inspected_upload(bytes, metadata)
+}
+
+/// Reuse a digest verified by the owning reader for these immutable bytes.
+/// This still validates the header and every mip range; it does not verify the digest.
+pub fn plan_2d_upload_with_verified_sha256(
+    bytes: &[u8],
+    role: TextureRole,
+    sha256: &str,
+) -> Result<DdsUploadPlan, TextureError> {
+    let metadata = inspect_dds_with_verified_sha256(bytes, role, sha256)?;
+    plan_inspected_upload(bytes, metadata)
+}
+
+fn plan_inspected_upload(
+    bytes: &[u8],
+    metadata: DdsMetadata,
+) -> Result<DdsUploadPlan, TextureError> {
     if metadata.depth != 1 || metadata.array_size != 1 || metadata.is_cube {
         return Err(TextureError::UnsupportedUpload);
     }
@@ -308,6 +333,61 @@ pub fn plan_2d_upload(bytes: &[u8], role: TextureRole) -> Result<DdsUploadPlan, 
 pub fn decode_dds_rgba8(bytes: &[u8], role: TextureRole) -> Result<DecodedRgba8, TextureError> {
     let plan = plan_2d_upload(bytes, role)?;
     let level = plan.levels.first().ok_or(TextureError::TruncatedPayload)?;
+    decode_planned_mip(bytes, &plan.metadata, level)
+}
+
+/// Alpha-weighted linear luminance, decoding only the first mip at most 64px.
+/// Sources without a small authored mip require the CPU composition route.
+pub fn dds_mean_luminance(bytes: &[u8]) -> Result<f32, TextureError> {
+    let plan = plan_2d_upload(bytes, TextureRole::BaseColor)?;
+    mean_luminance_from_plan(bytes, &plan)
+}
+
+/// Small-mip luminance for immutable bytes whose digest was already checked.
+pub fn dds_mean_luminance_with_verified_sha256(
+    bytes: &[u8],
+    sha256: &str,
+) -> Result<f32, TextureError> {
+    let plan = plan_2d_upload_with_verified_sha256(bytes, TextureRole::BaseColor, sha256)?;
+    mean_luminance_from_plan(bytes, &plan)
+}
+
+fn mean_luminance_from_plan(bytes: &[u8], plan: &DdsUploadPlan) -> Result<f32, TextureError> {
+    let level = plan
+        .levels
+        .iter()
+        .find(|level| level.width.max(level.height) <= 64)
+        .ok_or(TextureError::UnsupportedDecode)?;
+    let image = decode_planned_mip(bytes, &plan.metadata, level)?;
+    let mut luminance = 0.0_f64;
+    let mut alpha = 0.0_f64;
+    for pixel in image.pixels.chunks_exact(4) {
+        let linear = |value: u8| {
+            let value = f64::from(value) / 255.0;
+            if value <= 0.04045 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        let weight = f64::from(pixel[3]) / 255.0;
+        luminance +=
+            (0.2126 * linear(pixel[0]) + 0.7152 * linear(pixel[1]) + 0.0722 * linear(pixel[2]))
+                * weight;
+        alpha += weight;
+    }
+    Ok(if alpha > 0.0 {
+        (luminance / alpha) as f32
+    } else {
+        1.0
+    })
+}
+
+fn decode_planned_mip(
+    bytes: &[u8],
+    metadata: &DdsMetadata,
+    level: &DdsMipLevel,
+) -> Result<DecodedRgba8, TextureError> {
     let pixel_count = usize::try_from(level.width)
         .ok()
         .and_then(|width| {
@@ -327,7 +407,7 @@ pub fn decode_dds_rgba8(bytes: &[u8], role: TextureRole) -> Result<DecodedRgba8,
         .get(level.byte_offset..level.byte_offset.saturating_add(level.byte_length))
         .ok_or(TextureError::TruncatedPayload)?;
 
-    match plan.metadata.format {
+    match metadata.format {
         DdsFormat::Bc1Unorm | DdsFormat::Bc1Srgb => decode_rgba_blocks(
             source,
             level.width,
@@ -364,21 +444,21 @@ pub fn decode_dds_rgba8(bytes: &[u8], role: TextureRole) -> Result<DecodedRgba8,
             source,
             level.width,
             level.height,
-            matches!(plan.metadata.format, DdsFormat::Bc4Snorm),
+            matches!(metadata.format, DdsFormat::Bc4Snorm),
             &mut pixels,
         )?,
         DdsFormat::Bc5Unorm | DdsFormat::Bc5Snorm => decode_bc5_blocks(
             source,
             level.width,
             level.height,
-            matches!(plan.metadata.format, DdsFormat::Bc5Snorm),
+            matches!(metadata.format, DdsFormat::Bc5Snorm),
             &mut pixels,
         )?,
         DdsFormat::Bc6hUnsignedFloat | DdsFormat::Bc6hSignedFloat => decode_bc6_blocks(
             source,
             level.width,
             level.height,
-            matches!(plan.metadata.format, DdsFormat::Bc6hSignedFloat),
+            matches!(metadata.format, DdsFormat::Bc6hSignedFloat),
             &mut pixels,
         )?,
         DdsFormat::R8Unorm => {
@@ -772,6 +852,27 @@ fn write_u32_at(bytes: &mut [u8], offset: usize, value: u32) {
 }
 
 pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, TextureError> {
+    inspect_dds_internal(bytes, role, None)
+}
+
+/// Inspect immutable DDS bytes using their already-verified SHA-256.
+/// Callers must obtain the digest from the same bytes, not trust a manifest alone.
+pub fn inspect_dds_with_verified_sha256(
+    bytes: &[u8],
+    role: TextureRole,
+    sha256: &str,
+) -> Result<DdsMetadata, TextureError> {
+    if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(TextureError::InvalidHeader);
+    }
+    inspect_dds_internal(bytes, role, Some(sha256))
+}
+
+fn inspect_dds_internal(
+    bytes: &[u8],
+    role: TextureRole,
+    verified_sha256: Option<&str>,
+) -> Result<DdsMetadata, TextureError> {
     if bytes.len() > DDS_MAX_PAYLOAD_BYTES {
         return Err(TextureError::ResourceLimit);
     }
@@ -913,7 +1014,7 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         is_cube: caps2 & 0x0000_fe00 != 0,
         format,
         color_space,
-        source_sha256: sha256_bytes(bytes),
+        source_sha256: verified_sha256.map_or_else(|| sha256_bytes(bytes), str::to_ascii_lowercase),
         payload_offset,
         warnings,
     })
@@ -1494,6 +1595,57 @@ pub mod synthetic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn verified_digest_keeps_header_and_mip_validation() -> Result<(), TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &[127, 80, 20, 255], TextureRole::BaseColor)?;
+        let original = plan_2d_upload(&bytes, TextureRole::BaseColor)?;
+        let digest = original.metadata.source_sha256.to_ascii_uppercase();
+        assert_eq!(
+            plan_2d_upload_with_verified_sha256(&bytes, TextureRole::BaseColor, &digest)?,
+            original
+        );
+        assert_eq!(
+            dds_mean_luminance_with_verified_sha256(&bytes, &digest)?,
+            dds_mean_luminance(&bytes)?
+        );
+        assert!(
+            plan_2d_upload_with_verified_sha256(
+                &bytes[..bytes.len() - 1],
+                TextureRole::BaseColor,
+                &digest
+            )
+            .is_err()
+        );
+        assert!(
+            inspect_dds_with_verified_sha256(&bytes, TextureRole::BaseColor, "not a digest")
+                .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn layer_mean_uses_small_mip_and_alpha_weighted_linear_colour() -> Result<(), TextureError> {
+        let mut bytes =
+            encode_rgba8_mipmapped_dds(128, 64, &vec![255; 128 * 64 * 4], TextureRole::BaseColor)?;
+        let plan = plan_2d_upload(&bytes, TextureRole::BaseColor)?;
+        let first = &plan.levels[0];
+        bytes[first.byte_offset..first.byte_offset + first.byte_length].fill(0);
+        assert!(
+            (dds_mean_luminance(&bytes)? - 1.0).abs() < 1e-6,
+            "must not decode level zero"
+        );
+        let bytes = encode_rgba8_dds(
+            2,
+            1,
+            &[255, 0, 0, 255, 0, 0, 255, 0],
+            TextureRole::BaseColor,
+        )?;
+        assert!((dds_mean_luminance(&bytes)? - 0.2126).abs() < 1e-6);
+        let bytes = encode_rgba8_dds(1, 1, &[0, 0, 0, 0], TextureRole::BaseColor)?;
+        assert_eq!(dds_mean_luminance(&bytes)?, 1.0);
+        Ok(())
+    }
 
     fn dds_dx10(dxgi: u32) -> Vec<u8> {
         let mut bytes = vec![0_u8; 148];

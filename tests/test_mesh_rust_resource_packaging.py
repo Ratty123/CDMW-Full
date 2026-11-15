@@ -253,6 +253,12 @@ def test_texture_growth_during_copy_cannot_write_beyond_reserved_bytes(tmp_path,
         return TrackedStream(stream) if path == source or path.parent == output else stream
 
     monkeypatch.setattr(Path, "open", tracked_open)
+
+    def no_link(*_args, **_kwargs):
+        raise OSError("this test covers the copy, not the same-volume link")
+
+    # Same-volume sessions link instead of copying; the bound under test is the copy's.
+    monkeypatch.setattr(authoring.os, "link", no_link)
     with pytest.raises(authoring.RustMeshProtocolError, match="texture changed"):
         authoring._atomic_copy_texture_payload(
             output, source, 0, expected_root_identity=authoring._session_root_identity(output),

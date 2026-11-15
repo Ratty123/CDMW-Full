@@ -696,9 +696,24 @@ function Invoke-PyInstallerBuild {
 
     $previousMode = [Environment]::GetEnvironmentVariable("CDMW_PYINSTALLER_MODE", "Process")
     $previousProfile = [Environment]::GetEnvironmentVariable("CDMW_PYINSTALLER_PROFILE", "Process")
+    $previousPath = [Environment]::GetEnvironmentVariable("PATH", "Process")
     try {
         [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_MODE", $BuildMode, "Process")
         [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_PROFILE", $Profile, "Process")
+        $pythonBase = (& $PythonExe -I -c "import sys; print(sys.base_prefix)").Trim()
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $pythonBase -PathType Container)) {
+            throw "Cannot resolve the selected Python runtime for packaging."
+        }
+        # Dependency discovery must not bundle a same-named DLL from unrelated
+        # tools on the caller's PATH (for example a non-Windows ICU library).
+        $packagingPath = @(
+            [Environment]::GetFolderPath("System"),
+            [Environment]::GetFolderPath("Windows"),
+            (Split-Path -Parent ([IO.Path]::GetFullPath($PythonExe))),
+            $pythonBase,
+            (Join-Path $pythonBase "DLLs")
+        ) | Select-Object -Unique
+        [Environment]::SetEnvironmentVariable("PATH", ($packagingPath -join [IO.Path]::PathSeparator), "Process")
         & $PythonExe @Arguments
         if ($LASTEXITCODE -ne 0) {
             throw "PyInstaller failed with exit code $LASTEXITCODE."
@@ -706,6 +721,7 @@ function Invoke-PyInstallerBuild {
     } finally {
         [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_MODE", $previousMode, "Process")
         [Environment]::SetEnvironmentVariable("CDMW_PYINSTALLER_PROFILE", $previousProfile, "Process")
+        [Environment]::SetEnvironmentVariable("PATH", $previousPath, "Process")
     }
 }
 
@@ -733,76 +749,6 @@ function Write-BuildProgress {
     )
 
     Write-Host "::progress::$Percent::$Stage"
-}
-
-function Test-NativeOutputsPresent {
-    param(
-        [Parameter(Mandatory = $true)]
-        [ValidateSet("Release", "Debug")]
-        [string]$Configuration
-    )
-
-    $required = @(
-        "native\cd_texture_dx\build\$Configuration\cd-texture-dx.exe",
-        "native\cdmw_preview_core\build\$Configuration\cdmw-preview-core.exe",
-        "native\cdmw_archive_accelerator\build\$Configuration\cdmw-archive-accelerator.exe",
-        "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.exe",
-        "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.dll",
-        "native\cdmw_full_archive_backend\build\$Configuration\cdmw-full-archive-worker.exe",
-        "native\cdmw_full_archive_backend\build\$Configuration\cdmw-full-archive-core.dll"
-    )
-
-    foreach ($relativePath in $required) {
-        if (-not (Test-Path -LiteralPath (Join-Path $scriptDir $relativePath))) {
-            return $false
-        }
-    }
-    return $true
-}
-
-function Get-NativeMeshInteractionAbiContract {
-    # The ABI DLL exports these values at runtime, but the package manifest is
-    # written before the helper can load it. Read the version and identity from
-    # the C ABI sources so the release build records exactly the contract it
-    # compiled, including the authoritative header hash.
-    $headerPath = Join-Path $scriptDir "native\cdmw_mesh_core\src\mesh_interaction_abi.h"
-    $implementationPath = Join-Path $scriptDir "native\cdmw_mesh_core\src\mesh_interaction_abi.cpp"
-    foreach ($path in @($headerPath, $implementationPath)) {
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-            throw "Native mesh interaction ABI source is missing: $path"
-        }
-    }
-
-    $headerText = Get-Content -LiteralPath $headerPath -Raw
-    $versionMatch = [regex]::Match(
-        $headerText,
-        '#define\s+CDMW_MESH_INTERACTION_ABI_VERSION\s+(?<value>\d+)u?')
-    if (-not $versionMatch.Success) {
-        throw "Could not read CDMW_MESH_INTERACTION_ABI_VERSION from $headerPath."
-    }
-
-    $implementationText = Get-Content -LiteralPath $implementationPath -Raw
-    $contractMatch = [regex]::Match(
-        $implementationText,
-        'cdmw_mesh_interaction_abi_contract\s*\(\s*void\s*\)\s*\{\s*return\s+"(?<value>[^"]+)";',
-        [Text.RegularExpressions.RegexOptions]::Singleline)
-    if (-not $contractMatch.Success) {
-        throw "Could not read cdmw_mesh_interaction_abi_contract from $implementationPath."
-    }
-    $backendMatch = [regex]::Match(
-        $implementationText,
-        'cdmw_mesh_interaction_backend\s*\(\s*void\s*\)\s*\{\s*return\s+"(?<value>[^"]+)";',
-        [Text.RegularExpressions.RegexOptions]::Singleline)
-    if (-not $backendMatch.Success) {
-        throw "Could not read cdmw_mesh_interaction_backend from $implementationPath."
-    }
-
-    return [ordered]@{
-        AbiVersion = [int]$versionMatch.Groups['value'].Value
-        Contract = $contractMatch.Groups['value'].Value
-        Backend = $backendMatch.Groups['value'].Value
-        HeaderSha256 = Get-Sha256Hex -LiteralPath $headerPath
-    }
 }
 
 function Test-FullyQualifiedPath {
@@ -970,6 +916,23 @@ function Invoke-RustMeshEditorBuild {
     $stagedExecutable = Join-Path $outputDir "cdmw_mesh_lab.exe"
     Copy-Item -LiteralPath $builtExecutable -Destination $stagedExecutable -Force
 
+    # Ship the SDK compiler with the helper. Depending on an SDK on the user's
+    # PATH silently selected FXC and added seconds to every cold shader build.
+    $sdkBinRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+    $shaderCompilerDir = Get-ChildItem -LiteralPath $sdkBinRoot -Directory |
+        Sort-Object Name -Descending | ForEach-Object { Join-Path $_.FullName "x64" } |
+        Where-Object { (Test-Path -LiteralPath (Join-Path $_ "dxcompiler.dll")) -and
+            (Test-Path -LiteralPath (Join-Path $_ "dxil.dll")) } | Select-Object -First 1
+    if (-not $shaderCompilerDir) {
+        throw "Rust Mesh Editor requires the Windows SDK x64 dxcompiler.dll and dxil.dll."
+    }
+    $shaderCompilerHashes = [ordered]@{}
+    foreach ($compilerFile in @("dxcompiler.dll", "dxil.dll")) {
+        $destination = Join-Path $outputDir $compilerFile
+        Copy-Item -LiteralPath (Join-Path $shaderCompilerDir $compilerFile) -Destination $destination
+        $shaderCompilerHashes[$compilerFile] = Get-Sha256Hex -LiteralPath $destination
+    }
+
     $controlContractPath = Join-Path $outputDir "cdmw_mesh_lab.control-contract.json"
     $contractProcess = Start-Process -FilePath $stagedExecutable -ArgumentList @(
         "--control-contract-json", "`"$controlContractPath`""
@@ -1015,6 +978,7 @@ function Invoke-RustMeshEditorBuild {
         source_tree_sha256 = Get-RustMeshEditorSourceFingerprint
         cargo_lock_sha256 = Get-Sha256Hex -LiteralPath (Join-Path $rustRoot "Cargo.lock")
         executable_sha256 = Get-Sha256Hex -LiteralPath $stagedExecutable
+        shader_compiler_files = $shaderCompilerHashes
         control_contract_sha256 = Get-Sha256Hex -LiteralPath $controlContractPath
         cargo_version = [string]$cargoVersion
         rustc_version = [string]$rustcVersion
@@ -1054,12 +1018,6 @@ function Invoke-NativeHelperPreparation {
         -Configuration $Configuration `
         -Clean:$Clean `
         -Required:$RequireReleaseHelpers
-    $virtualPython = Join-Path $scriptDir ".venv\Scripts\python.exe"
-    if (-not (Test-Path -LiteralPath $virtualPython)) { $virtualPython = "python" }
-    & $virtualPython (Join-Path $scriptDir "scripts\build_virtual_loader.py")
-    if ($LASTEXITCODE -ne 0) {
-        throw "Virtual loader prototype build/provenance check failed with exit code $LASTEXITCODE."
-    }
 }
 
 function Assert-CleanPythonSitePackages {

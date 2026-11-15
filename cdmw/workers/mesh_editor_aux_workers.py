@@ -564,7 +564,7 @@ class MeshArchiveMaterialContextWorker(QObject):
         if apply_dotnet_native_material_batch_bindings(preview_model, batches) <= 0:
             return None
         self._native_material_graph_ready = bool(
-            int(manifest.get("material_graph_version", 0) or 0) >= 4
+            int(manifest.get("material_graph_version", 0) or 0) >= 5
             and all(
                 isinstance(batch, Mapping)
                 and isinstance(batch.get("material_layers"), list)

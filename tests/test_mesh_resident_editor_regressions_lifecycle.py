@@ -11,6 +11,7 @@ import unittest
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -49,7 +50,7 @@ _APP = QApplication.instance() or QApplication([])
 
 class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
     def test_viewport_input_failure_is_correlated_and_visible_without_process_retirement(self) -> None:
-        settings = QSettings("CDMWTests", "MeshEditorViewportInputFailure")
+        settings = owned_settings("MeshEditorViewportInputFailure")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
         builder = _EmbeddedMeshBuilder()
@@ -89,7 +90,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         _APP.processEvents()
 
     def test_embedded_finish_timeout_keeps_edit_mesh_open_and_reports_the_request(self) -> None:
-        settings = QSettings("CDMWTests", "MeshEditorResidentFinishTimeout")
+        settings = owned_settings("MeshEditorResidentFinishTimeout")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
         builder = _EmbeddedMeshBuilder()
@@ -151,7 +152,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         self.assertEqual([False], clone_requests)
 
     def test_dotnet_update_timeout_clock_starts_after_command_callback_returns(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDeferredUpdateAckTimer"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorDeferredUpdateAckTimer"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -190,7 +191,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_terminal_stroke_result_waits_for_correlated_authoritative_geometry(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorTerminalStrokeGeometry"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorTerminalStrokeGeometry"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -249,7 +250,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         builder.deleteLater()
 
     def test_failed_terminal_selection_enqueue_rejects_provisional_authority(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorSelectionEnqueueFailure"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorSelectionEnqueueFailure"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -310,7 +311,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         builder.deleteLater()
 
     def test_no_surface_change_sends_result_without_empty_mutation_batch(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNoSurfaceMutation"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorNoSurfaceMutation"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -364,7 +365,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         builder.deleteLater()
 
     def test_v2_multi_surface_mutation_enters_visible_fail_closed_degraded_mode(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorV2DegradedMutation"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorV2DegradedMutation"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -409,7 +410,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         builder.deleteLater()
 
     def test_successful_part_command_uses_current_controller_for_result_revision(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPartCommandControllerHandoff"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorPartCommandControllerHandoff"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         old_controller = builder.controller
@@ -459,7 +460,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_embedded_dotnet_edit_uses_right_workspace_and_restores_previous_tab(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedRightWorkspace"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorEmbeddedRightWorkspace"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         workspace = builder.tabs.findChild(QFrame, "MeshEditorEmbeddedMergedWorkspace")
@@ -509,7 +510,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_dotnet_move_rejects_explicit_empty_selection_instead_of_reusing_resident_parts(self) -> None:
-        settings = QSettings("CDMWTests", "MeshEditorDotNetExplicitEmptySelection")
+        settings = owned_settings("MeshEditorDotNetExplicitEmptySelection")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
         builder = _EmbeddedMeshBuilder()
@@ -552,7 +553,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_dotnet_undo_and_redo_run_in_background(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetBackgroundHistory"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorDotNetBackgroundHistory"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -572,7 +573,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_dotnet_undo_is_rejected_until_active_stroke_finishes(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetHistoryWaitsForStroke"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorDotNetHistoryWaitsForStroke"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -600,7 +601,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_dotnet_session_state_includes_live_action_history(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetActionHistoryPayload"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorDotNetActionHistoryPayload"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -626,7 +627,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_compact_selection_session_state_uses_worker_view_without_session_locks(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorCompactSelectionSessionState"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorCompactSelectionSessionState"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -664,7 +665,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_dotnet_select_all_ignores_empty_local_snapshot_and_targets_every_vertex(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetSelectAll"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorDotNetSelectAll"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -695,7 +696,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_dotnet_screen_selection_runs_in_background(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetBackgroundSelect"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorDotNetBackgroundSelect"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
@@ -765,7 +766,7 @@ class MeshResidentEditorLifecycleRegressionTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_dotnet_grow_preserves_vertex_target_without_promoting_parts(self) -> None:
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetGrowTarget"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorDotNetGrowTarget"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller

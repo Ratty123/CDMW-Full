@@ -161,9 +161,37 @@ impl ApplicationHandler for CaptureProbe {
             );
             renderer.set_clear_colour([0.02, 0.02, 0.02, 1.]);
             let dds = cdmw_texture::synthetic::rgba8_checker_dds();
+            let metadata = cdmw_texture::inspect_dds(&dds, TextureRole::BaseColor)
+                .map_err(|e| e.to_string())?;
+            let upper_hash = metadata.source_sha256.to_ascii_uppercase();
+            renderer.begin_texture_uploads();
+            let budget = metadata.width as usize * 4;
+            let (complete, _) = renderer
+                .stage_verified_dds_texture(&dds, TextureRole::BaseColor, &upper_hash, budget)
+                .map_err(|e| e.to_string())?;
+            if complete {
+                return Err("Fixture did not exercise a partially uploaded texture".into());
+            }
+            loop {
+                let (complete, _) = renderer
+                    .stage_verified_dds_texture(&dds, TextureRole::BaseColor, &upper_hash, budget)
+                    .map_err(|e| e.to_string())?;
+                if complete {
+                    break;
+                }
+            }
+            for hash in [&upper_hash, &metadata.source_sha256] {
+                let reused = renderer
+                    .stage_verified_dds_texture(&dds, TextureRole::BaseColor, hash, budget)
+                    .map_err(|e| e.to_string())?;
+                if reused != (true, 0) {
+                    return Err("Hash capitalisation duplicated a completed DDS upload".into());
+                }
+            }
             renderer
                 .add_dds_texture(&dds, TextureRole::BaseColor, &[vec![0]])
                 .map_err(|e| e.to_string())?;
+            renderer.finish_texture_uploads();
             renderer.set_material_lod(0).map_err(|e| e.to_string())?;
             let directory = tempfile::tempdir().map_err(|e| e.to_string())?;
             let capture = |renderer: &mut WindowRenderer, name: &str| -> Result<Vec<u8>, String> {
@@ -496,16 +524,37 @@ impl ApplicationHandler for EffectProbe {
                 let inputs: serde_json::Value =
                     serde_json::from_slice(&std::fs::read(dir.join("inputs.json"))?)?;
                 let effect_surfaces = crate::preview_effect_spawn::EffectSurfaces::read(
-                    &serde_json::json!({"effects_overlay": &effect}), &|| false).map_err(anyhow::Error::msg)?;
-                let offset = inputs["offset"].as_array().map(|v| Vec3::new(
-                    v[0].as_f64().unwrap() as f32, v[1].as_f64().unwrap() as f32, v[2].as_f64().unwrap() as f32)).unwrap_or(Vec3::ZERO);
+                    &serde_json::json!({"effects_overlay": &effect}),
+                    &|| false,
+                )
+                .map_err(anyhow::Error::msg)?;
+                let offset = inputs["offset"]
+                    .as_array()
+                    .map(|v| {
+                        Vec3::new(
+                            v[0].as_f64().unwrap() as f32,
+                            v[1].as_f64().unwrap() as f32,
+                            v[2].as_f64().unwrap() as f32,
+                        )
+                    })
+                    .unwrap_or(Vec3::ZERO);
                 let model = Mat4::from_translation(offset);
                 renderer.reset_effect_textures();
                 let effect_meshes = crate::preview_effect_mesh::EffectMeshes::read(
-                    &serde_json::json!({"effects_overlay": &effect}), &|| false).map_err(anyhow::Error::msg)?;
-                let mesh_indices = effect_meshes.0.iter().map(|asset|
-                    asset.as_ref().map(|asset| renderer.add_effect_mesh(asset)).transpose()
-                ).collect::<Result<Vec<_>, _>>()?;
+                    &serde_json::json!({"effects_overlay": &effect}),
+                    &|| false,
+                )
+                .map_err(anyhow::Error::msg)?;
+                let mesh_indices = effect_meshes
+                    .0
+                    .iter()
+                    .map(|asset| {
+                        asset
+                            .as_ref()
+                            .map(|asset| renderer.add_effect_mesh(asset))
+                            .transpose()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let mut textures = std::collections::HashMap::new();
                 for (name, path) in inputs["textures"].as_object().expect("texture map") {
                     textures.insert(
@@ -535,8 +584,16 @@ impl ApplicationHandler for EffectProbe {
                             Vec3::Y,
                             -Vec3::Z,
                             256,
-                            crate::preview_effect_lightning::LightningView { eye: Vec3::Z * 5., vertical_fov: 45_f32.to_radians(), height: 480. },
-                            effect_surfaces.select(index, emitter["spawn_volume_type"].as_u64().unwrap_or(0), inputs["surface_target"].as_i64().unwrap_or(0)),
+                            crate::preview_effect_lightning::LightningView {
+                                eye: Vec3::Z * 5.,
+                                vertical_fov: 45_f32.to_radians(),
+                                height: 480.,
+                            },
+                            effect_surfaces.select(
+                                index,
+                                emitter["spawn_volume_type"].as_u64().unwrap_or(0),
+                                inputs["surface_target"].as_i64().unwrap_or(0),
+                            ),
                             mesh_indices[index],
                         );
                         for p in emission.billboards {
@@ -547,20 +604,39 @@ impl ApplicationHandler for EffectProbe {
                             high = high.max(center + radius);
                         }
                         if let Some(asset) = &effect_meshes.0[index] {
-                            let material = crate::preview_effect_lightning::LightningMaterial::read(emitter).unwrap();
+                            let material =
+                                crate::preview_effect_lightning::LightningMaterial::read(emitter)
+                                    .unwrap();
                             for instance in emission.meshes {
                                 let p = instance.particle;
                                 let transform = Mat4::from_cols_array_2d(&p.transform);
                                 let particle = crate::preview_effect_lightning::LightningParticle {
-                                    age:p.scale_age[3],seed:p.seed[0],
-                                    scale:Vec3::new(p.scale_age[0],p.scale_age[1],p.scale_age[2]),parent:model,transform,
-                                    view:crate::preview_effect_lightning::LightningView {eye:Vec3::Z*5.,vertical_fov:45_f32.to_radians(),height:480.},
+                                    age: p.scale_age[3],
+                                    seed: p.seed[0],
+                                    scale: Vec3::new(
+                                        p.scale_age[0],
+                                        p.scale_age[1],
+                                        p.scale_age[2],
+                                    ),
+                                    parent: model,
+                                    transform,
+                                    view: crate::preview_effect_lightning::LightningView {
+                                        eye: Vec3::Z * 5.,
+                                        vertical_fov: 45_f32.to_radians(),
+                                        height: 480.,
+                                    },
                                 };
                                 for v in &asset.vertices {
-                                    let position = transform.transform_point3(material.deform_vertex(
-                                        Vec3::from_array(v.position),Vec3::from_array(v.normal),glam::Vec2::from_array(v.uv),
-                                        Vec3::new(v.controls[0],v.controls[1],v.controls[2]),particle));
-                                    low = low.min(position); high = high.max(position);
+                                    let position =
+                                        transform.transform_point3(material.deform_vertex(
+                                            Vec3::from_array(v.position),
+                                            Vec3::from_array(v.normal),
+                                            glam::Vec2::from_array(v.uv),
+                                            Vec3::new(v.controls[0], v.controls[1], v.controls[2]),
+                                            particle,
+                                        ));
+                                    low = low.min(position);
+                                    high = high.max(position);
                                 }
                             }
                         }
@@ -615,8 +691,16 @@ impl ApplicationHandler for EffectProbe {
                             Vec3::Y,
                             -Vec3::Z,
                             256,
-                            crate::preview_effect_lightning::LightningView { eye, vertical_fov: 45_f32.to_radians(), height: 480. },
-                            effect_surfaces.select(index, emitter["spawn_volume_type"].as_u64().unwrap_or(0), inputs["surface_target"].as_i64().unwrap_or(0)),
+                            crate::preview_effect_lightning::LightningView {
+                                eye,
+                                vertical_fov: 45_f32.to_radians(),
+                                height: 480.,
+                            },
+                            effect_surfaces.select(
+                                index,
+                                emitter["spawn_volume_type"].as_u64().unwrap_or(0),
+                                inputs["surface_target"].as_i64().unwrap_or(0),
+                            ),
                             mesh_indices[index],
                         );
                         particles.extend(emission.billboards);
@@ -626,10 +710,13 @@ impl ApplicationHandler for EffectProbe {
                         p.depth = (Vec3::from_array(p.center) - eye).dot(-Vec3::Z);
                     }
                     renderer.set_effect_particles(&particles)?;
-                    renderer.set_effect_mesh_particles(&meshes, cdmw_render_wgpu::EffectMeshView {
-                        eye_height: [eye.x,eye.y,eye.z,480.],
-                        fov_padding: [45_f32.to_radians(),0.,0.,0.],
-                    })?;
+                    renderer.set_effect_mesh_particles(
+                        &meshes,
+                        cdmw_render_wgpu::EffectMeshView {
+                            eye_height: [eye.x, eye.y, eye.z, 480.],
+                            fov_padding: [45_f32.to_radians(), 0., 0., 0.],
+                        },
+                    )?;
                     let prepare_ms = frame_start.elapsed().as_secs_f64() * 1000.;
                     renderer
                         .capture_frame(640, 480, None)?
@@ -675,4 +762,408 @@ fn capture_effect_corpus() {
     let mut probe = EffectProbe::default();
     event_loop.run_app(&mut probe).expect("event loop");
     probe.result.expect("probe ran").expect("effect captures");
+}
+
+/// P4 V3: Browse's renderer is lent to the edit and given back. Every texture
+/// the resident scene uploaded is found by digest on both switches.
+#[derive(Default)]
+struct EnterEditTextureProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for EnterEditTextureProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            let window = Arc::new(
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(128, 128)),
+                )?,
+            );
+            let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+            let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+            let digest = cdmw_texture::inspect_dds(&bytes, TextureRole::BaseColor)?.source_sha256;
+            let owners = vec![vec![0_u32]];
+            // The Preview's resident scene: the sliced path.
+            renderer.begin_texture_uploads();
+            let (complete, _) = renderer.stage_verified_dds_texture(
+                &bytes,
+                TextureRole::BaseColor,
+                &digest,
+                1 << 20,
+            )?;
+            anyhow::ensure!(complete, "a small texture stages in one slice");
+            renderer.add_verified_dds_texture(&bytes, TextureRole::BaseColor, &owners, &digest)?;
+            renderer.finish_texture_uploads();
+            anyhow::ensure!(renderer.texture_upload_count() == 1, "resident upload");
+            // enter_edit: the edit state replaces the scene's textures.
+            renderer.reset_texture();
+            renderer.add_dds_texture(&bytes, TextureRole::BaseColor, &owners)?;
+            anyhow::ensure!(
+                renderer.texture_upload_count() == 1,
+                "the edit uploaded a texture the resident scene already had"
+            );
+            // leave_edit: the Preview binds its scene again through the sliced path.
+            renderer.reset_texture();
+            renderer.begin_texture_uploads();
+            let (complete, used) = renderer.stage_verified_dds_texture(
+                &bytes,
+                TextureRole::BaseColor,
+                &digest,
+                1 << 20,
+            )?;
+            anyhow::ensure!(complete && used == 0, "the return staged bytes again");
+            renderer.add_verified_dds_texture(&bytes, TextureRole::BaseColor, &owners, &digest)?;
+            renderer.finish_texture_uploads();
+            anyhow::ensure!(
+                renderer.texture_upload_count() == 1,
+                "the return uploaded again"
+            );
+            renderer.clear_editor_overlays()?;
+            // With no scene binding it, the texture is still kept, unpinned.
+            renderer.reset_texture();
+            let report = renderer.retained_texture_report();
+            anyhow::ensure!(
+                report.entries == 1 && report.pinned_entries == 0 && report.unpinned_bytes > 0,
+                "unexpected retained textures {report:?}"
+            );
+            renderer.release_unbound_textures();
+            anyhow::ensure!(
+                renderer.retained_texture_report().entries == 0,
+                "release kept it"
+            );
+            renderer.add_dds_texture(&bytes, TextureRole::BaseColor, &owners)?;
+            anyhow::ensure!(
+                renderer.texture_upload_count() == 2,
+                "a released texture is uploaded again"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}
+
+#[test]
+#[ignore = "explicit hidden-window D3D12 texture reuse across enter_edit and leave_edit"]
+fn enter_and_leave_edit_upload_no_texture_twice() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = EnterEditTextureProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe
+        .result
+        .expect("probe ran")
+        .expect("texture reuse across the mode switch");
+}
+
+/// P2's floor, asserted on pixels (left over from P2, done with P4 V3): with the
+/// ground on, pixels around and below the model show the floor; with it off the
+/// same pixels are the background.
+#[derive(Default)]
+struct FloorProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for FloorProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            let window = Arc::new(
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(192, 192)),
+                )?,
+            );
+            let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+            let document = decode_mesh(
+                &cdmw_formats::synthetic::triangle_pam("floor.dds"),
+                MeshFormat::Pam,
+            )?;
+            let mesh = WorkingMesh::from_document(&document)?;
+            renderer.set_snapshot(&mesh.draw_snapshot())?;
+            renderer.set_view_mode(ViewMode::TexturedSolid);
+            let background = [0.02_f32, 0.02, 0.02, 1.0];
+            renderer.set_clear_colour(background);
+            let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(192., 192.));
+            let mut best = 0_usize;
+            for pitch in [0.6_f32, -0.6] {
+                let mut camera = OrbitCamera::default();
+                camera.frame_all_in_viewport(&mesh, viewport);
+                camera.set_orbit_state_with_roll(0.4, pitch, 0.0, None, Some(0.5));
+                renderer.set_camera_with_basis(
+                    camera.view_projection(viewport),
+                    camera.right(),
+                    camera.up(),
+                );
+                renderer.set_ground(true, true);
+                let with_floor = renderer.capture_frame(192, 192, None)?.read_rgba()?;
+                renderer.set_ground(false, false);
+                let without = renderer.capture_frame(192, 192, None)?.read_rgba()?;
+                let corner = &without[..4];
+                let floor_pixels = with_floor
+                    .chunks_exact(4)
+                    .zip(without.chunks_exact(4))
+                    .filter(|(on, off)| on != off && *off == corner)
+                    .count();
+                best = best.max(floor_pixels);
+            }
+            let total = 192 * 192;
+            anyhow::ensure!(
+                best * 20 > total,
+                "the floor covered only {best} of {total} pixels where the background was"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}
+
+#[test]
+#[ignore = "explicit hidden-window D3D12 floor pixels"]
+fn the_floor_draws_where_the_background_was() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = FloorProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe.result.expect("probe ran").expect("floor pixels");
+}
+
+/// Section 8.8 cause 2: Browse's idle release drops its renderer, never the
+/// process's device. Its next renderer is on the same device and uploads nothing
+/// the device's retained list still holds, and a document window opened after the
+/// release draws on that device too.
+#[test]
+#[ignore = "explicit hidden-window D3D12 engine device across an idle release"]
+fn the_engine_device_outlives_browse_s_idle_release() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = EngineDeviceProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe
+        .result
+        .expect("probe ran")
+        .expect("one device across the release");
+}
+
+#[derive(Default)]
+struct EngineDeviceProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for EngineDeviceProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            use crate::cdmw_preview::{EngineDevice, engine_renderer};
+
+            let hidden = |size: u32| {
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(size, size)),
+                )
+            };
+            let browse_window = Arc::new(hidden(128)?);
+            let device = EngineDevice::default();
+            let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+            let digest = cdmw_texture::inspect_dds(&bytes, TextureRole::BaseColor)?.source_sha256;
+            let owners = vec![vec![0_u32]];
+            let mut browse = engine_renderer(&device, browse_window.clone())?;
+            let first = device
+                .get()
+                .ok_or_else(|| anyhow::anyhow!("the first renderer made no device"))?;
+            browse.begin_texture_uploads();
+            let (complete, _) = browse.stage_verified_dds_texture(
+                &bytes,
+                TextureRole::BaseColor,
+                &digest,
+                1 << 20,
+            )?;
+            anyhow::ensure!(complete, "a small texture stages in one slice");
+            browse.add_verified_dds_texture(&bytes, TextureRole::BaseColor, &owners, &digest)?;
+            browse.finish_texture_uploads();
+            anyhow::ensure!(browse.texture_upload_count() == 1, "the resident upload");
+            // The idle release: the surface and scene go, the device stays and is trimmed.
+            drop(browse);
+            first.trim_retained();
+            let kept = device
+                .get()
+                .ok_or_else(|| anyhow::anyhow!("the release dropped the device"))?;
+            anyhow::ensure!(kept.same_device(&first), "the release replaced the device");
+            // Reactivation: a renderer on the same device binds the retained texture.
+            let mut again = engine_renderer(&device, browse_window)?;
+            anyhow::ensure!(
+                again.shared_gpu().same_device(&first),
+                "reactivation made a second device"
+            );
+            again.begin_texture_uploads();
+            let (complete, used) = again.stage_verified_dds_texture(
+                &bytes,
+                TextureRole::BaseColor,
+                &digest,
+                1 << 20,
+            )?;
+            again.finish_texture_uploads();
+            anyhow::ensure!(complete && used == 0, "the texture was staged again");
+            anyhow::ensure!(
+                again.texture_upload_count() == 0,
+                "reactivation uploaded again"
+            );
+            // A document window opened after the release draws on that device.
+            let document = engine_renderer(&device, Arc::new(hidden(96)?))?;
+            anyhow::ensure!(
+                document.shared_gpu().same_device(&first),
+                "the document window made its own device"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}
+
+/// Section 8.7 C1: Browse's scene set aside while an edit draws its own comes back
+/// whole, with its textures bound and nothing uploaded again.
+#[test]
+#[ignore = "explicit hidden-window D3D12 scene set aside and restored"]
+fn a_scene_set_aside_comes_back_without_an_upload() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = KeptSceneProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe
+        .result
+        .expect("probe ran")
+        .expect("the kept scene comes back");
+}
+
+#[derive(Default)]
+struct KeptSceneProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for KeptSceneProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            let window = Arc::new(
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(128, 128)),
+                )?,
+            );
+            let mut renderer = pollster::block_on(WindowRenderer::new(window))?;
+            let document = decode_mesh(
+                &cdmw_formats::synthetic::triangle_pam("kept.dds"),
+                MeshFormat::Pam,
+            )?;
+            let mesh = WorkingMesh::from_document(&document)?;
+            renderer.set_snapshot(&mesh.draw_snapshot())?;
+            renderer.set_view_mode(ViewMode::TexturedSolid);
+            renderer.set_clear_colour([0.02, 0.02, 0.02, 1.0]);
+            let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(128., 128.));
+            let mut camera = OrbitCamera::default();
+            camera.frame_all_in_viewport(&mesh, viewport);
+            renderer.set_camera_with_basis(
+                camera.view_projection(viewport),
+                camera.right(),
+                camera.up(),
+            );
+            let owners = vec![vec![0_u32]];
+            let browse_texture = cdmw_texture::synthetic::rgba8_checker_dds();
+            renderer.add_dds_texture(&browse_texture, TextureRole::BaseColor, &owners)?;
+            anyhow::ensure!(renderer.texture_upload_count() == 1, "Browse's upload");
+            let browse_frame = renderer.capture_frame(128, 128, None)?.read_rgba()?;
+            // The edit: Browse's scene aside, an empty scene drawn meanwhile.
+            let kept = renderer.set_scene_aside();
+            let edit_frame = renderer.capture_frame(128, 128, None)?.read_rgba()?;
+            anyhow::ensure!(edit_frame != browse_frame, "the scene did not go aside");
+            // Back to Browse: the same picture, and no texture uploaded again.
+            renderer.restore_scene(kept);
+            let back = renderer.capture_frame(128, 128, None)?.read_rgba()?;
+            anyhow::ensure!(back == browse_frame, "the restored scene draws differently");
+            anyhow::ensure!(
+                renderer.texture_upload_count() == 1,
+                "the return uploaded again"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+}
+
+/// Section 8.9 (review of b585ee0c): after a fault the engine's device is handed
+/// to no new window; the next renderer is made on a device of its own, and that
+/// device becomes the process's for every window opened after it.
+#[test]
+#[ignore = "explicit hidden-window D3D12 engine device after a fault"]
+fn a_faulted_engine_device_is_replaced_by_the_next_one() {
+    let event_loop = EventLoop::builder()
+        .with_any_thread(true)
+        .build()
+        .expect("event loop");
+    let mut probe = FaultedDeviceProbe::default();
+    event_loop.run_app(&mut probe).expect("probe event loop");
+    probe
+        .result
+        .expect("probe ran")
+        .expect("a new device after the fault");
+}
+
+#[derive(Default)]
+struct FaultedDeviceProbe {
+    result: Option<anyhow::Result<()>>,
+}
+
+impl ApplicationHandler for FaultedDeviceProbe {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.result = Some((|| -> anyhow::Result<()> {
+            use crate::cdmw_preview::{EngineDevice, engine_renderer};
+
+            let hidden = || {
+                event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(96, 96)),
+                )
+            };
+            let device = EngineDevice::default();
+            let first = engine_renderer(&device, Arc::new(hidden()?))?;
+            let faulted = first.shared_gpu();
+            faulted.record_fault("a simulated device loss");
+            anyhow::ensure!(device.get().is_none(), "a faulted device was handed out");
+            // An editor window opened after the fault (editor_window_under's path).
+            let editor = engine_renderer(&device, Arc::new(hidden()?))?;
+            anyhow::ensure!(
+                !editor.shared_gpu().same_device(&faulted),
+                "the editor drew on the faulted device"
+            );
+            let current = device
+                .get()
+                .ok_or_else(|| anyhow::anyhow!("no device after the fault"))?;
+            anyhow::ensure!(
+                current.same_device(&editor.shared_gpu()),
+                "the new device was not adopted"
+            );
+            let page = engine_renderer(&device, Arc::new(hidden()?))?;
+            anyhow::ensure!(
+                page.shared_gpu().same_device(&current),
+                "a later window made yet another device"
+            );
+            Ok(())
+        })());
+        event_loop.exit();
+    }
+    fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
 }

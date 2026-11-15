@@ -4,7 +4,80 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence, Tuple
 
-from PySide6.QtWidgets import QApplication, QSizePolicy, QWidget
+from PySide6.QtCore import QPoint, QRect, QSize, Qt
+from PySide6.QtWidgets import QApplication, QLayout, QLayoutItem, QSizePolicy, QWidget
+
+
+class FlowLayout(QLayout):
+    """A row of controls that wraps onto further lines when it is narrow.
+
+    Its minimum width is its widest item, so a row of controls never holds its
+    page wider than one control.
+    """
+
+    def __init__(self, parent: Optional[QWidget] = None, *, spacing: int = 6) -> None:
+        super().__init__(parent)
+        self._items: List[QLayoutItem] = []
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setSpacing(spacing)
+
+    def addItem(self, item: QLayoutItem) -> None:  # noqa: N802 - Qt override
+        self._items.append(item)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int) -> Optional[QLayoutItem]:  # noqa: N802 - Qt override
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index: int) -> Optional[QLayoutItem]:  # noqa: N802 - Qt override
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self) -> Qt.Orientation:  # noqa: N802 - Qt override
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802 - Qt override
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802 - Qt override
+        return self._arrange(QRect(0, 0, width, 0), move=False)
+
+    def setGeometry(self, rect: QRect) -> None:  # noqa: N802 - Qt override
+        super().setGeometry(rect)
+        self._arrange(rect, move=True)
+
+    def sizeHint(self) -> QSize:  # noqa: N802 - Qt override
+        shown = [item for item in self._items if not item.isEmpty()]
+        width = sum(item.sizeHint().width() for item in shown) + self.spacing() * max(0, len(shown) - 1)
+        height = max((item.sizeHint().height() for item in shown), default=0)
+        margins = self.contentsMargins()
+        return QSize(width + margins.left() + margins.right(), height + margins.top() + margins.bottom())
+
+    def minimumSize(self) -> QSize:  # noqa: N802 - Qt override
+        size = QSize()
+        for item in self._items:
+            if not item.isEmpty():
+                size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        return size + QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
+
+    def _arrange(self, rect: QRect, *, move: bool) -> int:
+        margins = self.contentsMargins()
+        area = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom())
+        x, y, line_height = area.x(), area.y(), 0
+        for item in self._items:
+            if item.isEmpty():
+                continue
+            hint = item.sizeHint()
+            if x > area.x() and x + hint.width() > area.right() + 1:
+                x, y = area.x(), y + line_height + self.spacing()
+                line_height = 0
+            if move:
+                item.setGeometry(QRect(QPoint(x, y), QSize(min(hint.width(), area.width()), hint.height())))
+            x += hint.width() + self.spacing()
+            line_height = max(line_height, hint.height())
+        return y + line_height - rect.y() + margins.bottom()
+
 
 def _rebalance_splitter_sizes(
     sizes: Sequence[int],

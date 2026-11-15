@@ -412,7 +412,7 @@ class NativePreviewCoreServiceClient:
             text=True,
             encoding="utf-8",
             errors="replace",
-            **hidden_process_group_kwargs(),
+            **hidden_process_group_kwargs(detached=True),
         )
         stderr = self._process.stderr
         self._stderr_tail = BoundedTextTail()
@@ -1004,7 +1004,7 @@ def build_native_preview_core_job(
             "d3d11_package": True,
             "material_index": True,
             "material_graph": True,
-            "material_graph_version": 4,
+            "material_graph_version": 5,
             "python_fallback_allowed": False,
             "native_material_runtime": True,
         },

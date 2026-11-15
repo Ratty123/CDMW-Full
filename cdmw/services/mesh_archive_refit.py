@@ -2,27 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, replace
 import copy
 import hashlib
 from pathlib import Path
-from uuid import uuid4
 
 from cdmw.domain.mesh.export_validation import MeshExportValidationReport
 from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
 from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
+from cdmw.services.mesh_asset_context import (
+    MeshAsset as ArchiveRefitAsset, MeshAssetContext as ArchiveRefitContext, is_item_set,
+)
 from cdmw.services.mesh_service_state import MeshExportSnapshot
-
-
-@dataclass(frozen=True, slots=True)
-class ArchiveRefitAsset:
-    entry: object
-    source: MeshExportSnapshot
-    part_indices: tuple[int, ...]
-    role: str
-    preview_lease: object | None = None
-    neutral_appearance: NeutralMeshAppearance | None = None
 
 
 class ArchiveRefitPreviewLease:
@@ -43,13 +35,6 @@ class ArchiveRefitPreviewLease:
             pass
 
 
-@dataclass(frozen=True, slots=True)
-class ArchiveRefitContext:
-    assets: tuple[ArchiveRefitAsset, ...]
-    context_id: str = field(default_factory=lambda: uuid4().hex)
-    neutral_coordinates: bool = False
-
-
 def _clone(mesh):
     from cdmw.services.mesh_service import _clone_mesh_for_service_native_snapshot
 
@@ -60,6 +45,9 @@ def _clone(mesh):
 
 def transform_archive_refit_mesh(mesh, context, *, to_neutral):
     """Convert each asset with its own palette; retain combined Part/LOD aliases."""
+    if is_item_set(context):
+        from cdmw.services.mesh_item_set_editing import transform_item_set_mesh
+        return transform_item_set_mesh(mesh, context, to_neutral=to_neutral)
     indices = [index for asset in context.assets for index in asset.part_indices]
     if sorted(indices) != list(range(len(mesh.submeshes))):
         raise ValueError("Archive Refit Part identities changed; undo the Part addition or removal")
@@ -86,6 +74,8 @@ def transform_archive_refit_mesh(mesh, context, *, to_neutral):
 
 def append_archive_refit(current, primary_entry, incoming, entry, role, preview_lease=None,
                          *, primary_source=None, primary_appearance=None, incoming_appearance=None):
+    if is_item_set(current.archive_refit_context):
+        raise ValueError("Open one piece separately before loading a Refit source")
     if role not in {"body", "armor"}:
         raise ValueError("Archive Refit role must be body or armor")
     if current.texture_resources or incoming.texture_resources:
@@ -135,7 +125,7 @@ def archive_refit_body_assets(context, morph_state=None):
     is a reference for an outfit mod rather than part of it. A file that also
     holds bound garment Parts is never one.
     """
-    if not isinstance(context, ArchiveRefitContext):
+    if not isinstance(context, ArchiveRefitContext) or is_item_set(context):
         return ()
     drivers = set(getattr(morph_state, "driver_submesh_indices", ()) or ())
     garments = set(getattr(getattr(morph_state, "refit", None), "garment_submesh_indices", ()) or ())
@@ -152,6 +142,9 @@ def archive_refit_snapshots(snapshot):
 
 def _archive_refit_snapshots(snapshot, *, clone_geometry):
     context = snapshot.archive_refit_context
+    if is_item_set(context):
+        from cdmw.services.mesh_item_set_editing import item_set_snapshots
+        return item_set_snapshots(snapshot)
     if not isinstance(context, ArchiveRefitContext):
         raise ValueError("Archive Refit asset identities are unavailable")
     all_indices = [index for asset in context.assets for index in asset.part_indices]
@@ -214,16 +207,23 @@ def _archive_refit_snapshots(snapshot, *, clone_geometry):
 
 
 def validate_archive_refit(service, snapshot):
+    context = snapshot.archive_refit_context
     reports = []
     issues = []
     for asset, (entry, component) in zip(snapshot.archive_refit_context.assets,
                                        _archive_refit_snapshots(snapshot, clone_geometry=False), strict=True):
         report = service.validate_export_snapshot(component)
         reports.append(report)
+        part_indices = asset.part_indices
+        if is_item_set(context):
+            from cdmw.services.mesh_asset_context import ORIGIN_ATTRIBUTE
+            part_indices = tuple(next((index for index, part in enumerate(snapshot.mesh.submeshes)
+                                       if getattr(part, ORIGIN_ATTRIBUTE, None) == asset.source_part_id(source_index)), -1)
+                                 for source_index in range(len(asset.source.mesh.submeshes)))
         issues.extend(replace(
             issue, message=f"{entry.path}: {issue.message}",
-            submesh_index=(asset.part_indices[issue.submesh_index]
-                           if 0 <= issue.submesh_index < len(asset.part_indices) else -1),
+            submesh_index=(part_indices[issue.submesh_index]
+                           if 0 <= issue.submesh_index < len(part_indices) else -1),
         ) for issue in report.issues)
     return MeshExportValidationReport(
         mesh_format=snapshot.mesh.format,
@@ -274,11 +274,16 @@ def save_archive_refit_context(context, project_root, stop_event):
             "source": relative, "sha256": digest, "size": len(asset.source.original_data),
             "parts": list(asset.part_indices), "role": asset.role,
             "skeleton_bone_count": asset.source.skeleton_bone_count,
+            **({"source_bones": [asdict(bone) for bone in getattr(
+                getattr(asset.source.mesh, "interchange_skeleton", None), "bones", ())]}
+               if is_item_set(context) else {}),
             **({"neutral_appearance": {"version": 1, **asdict(asset.neutral_appearance)}}
                if asset.neutral_appearance is not None else {}),
         })
-    return {"format": "cdmw_archive_refit_v2", "assets": assets,
-            "coordinates": "neutral" if context.neutral_coordinates else "source"}
+    return {"format": "cdmw_item_set_v1" if is_item_set(context) else "cdmw_archive_refit_v2", "assets": assets,
+            "coordinates": "neutral" if context.neutral_coordinates else "source",
+            **({"source_identity": context.draft_identity, "excluded_parts": sorted(context.excluded_part_ids)}
+               if is_item_set(context) else {})}
 
 
 def load_archive_refit_context(payload, project_root):
@@ -287,7 +292,7 @@ def load_archive_refit_context(payload, project_root):
     from cdmw.models import ArchiveEntry
     from cdmw.services.mesh_service import MeshService
 
-    if not isinstance(payload, dict) or payload.get("format") not in {"cdmw_archive_refit_v1", "cdmw_archive_refit_v2"}:
+    if not isinstance(payload, dict) or payload.get("format") not in {"cdmw_archive_refit_v1", "cdmw_archive_refit_v2", "cdmw_item_set_v1"}:
         raise ValueError("Unsupported archive Refit draft format")
     coordinates = payload.get("coordinates", "source")
     if coordinates not in {"source", "neutral"}:
@@ -314,6 +319,19 @@ def load_archive_refit_context(payload, project_root):
             source = replace(source, skeleton_bone_count=max(0, int(item["skeleton_bone_count"])))
         finally:
             service.close_edit_session(session_id, force_without_saving=True)
+        if payload["format"] == "cdmw_item_set_v1" and item.get("source_bones"):
+            import math
+            from cdmw.modding.skeleton_parser import Bone, Skeleton
+            rows = item["source_bones"]
+            if not isinstance(rows, list) or len(rows) > 4096:
+                raise ValueError("Item set draft rig exceeds the bone limit")
+            bones = [Bone(**row) for row in rows]
+            if any(type(bone.index) is not int or not 0 <= bone.index < len(bones)
+                   or not isinstance(bone.name, str) or len(bone.name) > 512
+                   or any(not math.isfinite(value) for value in (*bone.position, *bone.bind_matrix))
+                   for bone in bones) or len({bone.index for bone in bones}) != len(bones):
+                raise ValueError("Item set draft has invalid source rig metadata")
+            source.mesh.interchange_skeleton = Skeleton(bones=bones, bone_count=len(bones))
         appearance = None
         if "neutral_appearance" in item:
             from cdmw.modding.mesh_importer import _load_obj_neutral_appearance
@@ -325,7 +343,12 @@ def load_archive_refit_context(payload, project_root):
                                        neutral_appearance=appearance))
     if not assets:
         raise ValueError("Archive Refit draft contains no asset identities")
-    return ArchiveRefitContext(tuple(assets), neutral_coordinates=coordinates == "neutral")
+    context = ArchiveRefitContext(tuple(assets), neutral_coordinates=coordinates == "neutral",
+        workflow="item_set" if payload["format"] == "cdmw_item_set_v1" else "refit",
+        excluded_part_ids=frozenset(str(value) for value in payload.get("excluded_parts", ())))
+    if is_item_set(context) and context.draft_identity != payload.get("source_identity"):
+        raise ValueError("Item set draft source identity does not match its files")
+    return context
 
 
 _MAX_REFIT_MATERIAL_BYTES = 512 * 1024 * 1024

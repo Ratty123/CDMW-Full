@@ -176,7 +176,7 @@ class _Bridge:
         self._current = current
         self.model = SimpleNamespace(entry_for_index=lambda _index: self._current)
 
-    def apply_entry_id_scope(self, entry_ids, *, label: str, preferred_prefab_stems=()) -> bool:
+    def apply_entry_id_scope(self, entry_ids, *, label: str, preferred_prefab_stems=(), worn_set=False) -> bool:
         self.scopes.append((tuple(entry_ids), label))
         return True
 

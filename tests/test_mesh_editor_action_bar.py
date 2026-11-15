@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -529,7 +530,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def _retired_test_dotnet_missing_renderer_ready_stops_embedded_process(self) -> None:
         app = QApplication.instance() or QApplication([])
-        settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetBlockedReady")
+        settings = owned_settings("MeshEditorEmbeddedDotNetBlockedReady")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
         builder = _EmbeddedMeshBuilder()
@@ -560,7 +561,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             pose_skeleton = object()
             pose_rotations = {0: (0.0, 0.0, 0.0)}
             prepared = PreparedModelPreviewData(source_path="native-pose")
-            tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorSyncNativePosePackage"))
+            tab = MeshEditorTab(settings=owned_settings("MeshEditorSyncNativePosePackage"))
             try:
                 tab.open_mesh_session(mesh, session_id="sync-native-pose", mode="edit")
                 with (
@@ -590,7 +591,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def _retired_test_mesh_editor_tab_rejects_legacy_standalone_native_process(self) -> None:
         app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneNativeProcess"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorStandaloneNativeProcess"))
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-native-process", mode="edit")
         assert tab.standalone_controller is not None
         tab.standalone_controller.attach_skeleton(
@@ -625,7 +626,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def _retired_test_mesh_editor_tab_launches_configured_dotnet_experiment_process(self) -> None:
         app = QApplication.instance() or QApplication([])
-        settings = QSettings("CDMWTests", "MeshEditorDotNetExperimentLaunch")
+        settings = owned_settings("MeshEditorDotNetExperimentLaunch")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
         messages: list[tuple[str, bool]] = []
@@ -678,7 +679,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def _retired_test_mesh_editor_tab_launches_embedded_dotnet_with_parent_hwnd(self) -> None:
         app = QApplication.instance() or QApplication([])
-        settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetLaunch")
+        settings = owned_settings("MeshEditorEmbeddedDotNetLaunch")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
         builder = _EmbeddedMeshBuilder()
@@ -776,7 +777,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def _retired_test_mesh_editor_tab_reactivation_repackages_changed_material_inputs(self) -> None:
         app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetMaterialRefresh"))
+        tab = MeshEditorTab(settings=owned_settings("MeshEditorEmbeddedDotNetMaterialRefresh"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         mesh = builder.controller.working_mesh(clone=False)
@@ -812,7 +813,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def _retired_test_mesh_editor_tab_embedded_dotnet_uses_builder_hwnd_without_preview_host(self) -> None:
         app = QApplication.instance() or QApplication([])
-        settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetNoHostFallback")
+        settings = owned_settings("MeshEditorEmbeddedDotNetNoHostFallback")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
         builder = _EmbeddedMeshBuilder()
@@ -848,7 +849,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def _retired_test_mesh_editor_tab_dotnet_protocol_routes_visible_selection_and_disabled_clipboard(self) -> None:
         app = QApplication.instance() or QApplication([])
-        settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetProtocol")
+        settings = owned_settings("MeshEditorEmbeddedDotNetProtocol")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
         builder = _EmbeddedMeshBuilder()
@@ -935,7 +936,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def _retired_test_mesh_editor_tab_imports_dotnet_output_obj_after_process_exit(self) -> None:
         app = QApplication.instance() or QApplication([])
-        settings = QSettings("CDMWTests", "MeshEditorDotNetExperimentImport")
+        settings = owned_settings("MeshEditorDotNetExperimentImport")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
         messages: list[tuple[str, bool]] = []

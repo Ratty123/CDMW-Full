@@ -246,9 +246,15 @@ impl Rig {
         settings: &BTreeMap<u32, [f32; 8]>,
     ) -> Result<FrameOutput> {
         let count = self.bone_count();
-        if settings.iter().any(|(index, values)| *index as usize >= count
-            || values.iter().any(|value| !value.is_finite() || *value < 0.0)) {
-            return Err("Jiggle settings require valid original bone indices and finite nonnegative values.");
+        if settings.iter().any(|(index, values)| {
+            *index as usize >= count
+                || values
+                    .iter()
+                    .any(|value| !value.is_finite() || *value < 0.0)
+        }) {
+            return Err(
+                "Jiggle settings require valid original bone indices and finite nonnegative values.",
+            );
         }
         if input.character_space_scales.len() != count
             || previous
@@ -327,7 +333,9 @@ impl Rig {
         render_flags: u32,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<VertexBinding> {
-        if cancelled() { return Err("Jiggle preview preparation was cancelled."); }
+        if cancelled() {
+            return Err("Jiggle preview preparation was cancelled.");
+        }
         if positions.is_empty() || positions.len() > 100_000 || positions.len() != records.len() {
             return Err(
                 "Jiggle binding needs matching positions and PAC records within 100,000 vertices.",

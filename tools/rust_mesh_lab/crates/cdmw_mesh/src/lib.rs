@@ -153,12 +153,23 @@ impl WorkingMesh {
             let mut handles = Vec::with_capacity(source.positions.len());
             for (index, position) in source.positions.iter().enumerate() {
                 let element = u32::try_from(index).map_err(|_| MeshError::ResourceLimit)?;
-                let normal = source.normals.get(index).copied().unwrap_or([0.0, 1.0, 0.0]);
+                let normal = source
+                    .normals
+                    .get(index)
+                    .copied()
+                    .unwrap_or([0.0, 1.0, 0.0]);
                 let uv = source.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
-                if position.iter().chain(normal.iter()).chain(uv.iter()).any(|value| !value.is_finite()) {
+                if position
+                    .iter()
+                    .chain(normal.iter())
+                    .chain(uv.iter())
+                    .any(|value| !value.is_finite())
+                {
                     return Err(MeshError::InvalidSource);
                 }
-                let Some((handle, vertex)) = vertices.next() else { return Ok(false); };
+                let Some((handle, vertex)) = vertices.next() else {
+                    return Ok(false);
+                };
                 if vertex.provenance != (Provenance::Source { submesh, element }) {
                     return Ok(false);
                 }
@@ -167,16 +178,26 @@ impl WorkingMesh {
             for (face_index, triangle) in source.indices.chunks_exact(3).enumerate() {
                 let mut expected = [VertexHandle::null(); 3];
                 for (slot, index) in expected.iter_mut().zip(triangle) {
-                    *slot = *handles.get(*index as usize).ok_or(MeshError::InvalidSource)?;
+                    *slot = *handles
+                        .get(*index as usize)
+                        .ok_or(MeshError::InvalidSource)?;
                 }
                 // Construction retains source face indices while omitting degenerate faces.
-                if expected[0] == expected[1] || expected[1] == expected[2] || expected[0] == expected[2] {
+                if expected[0] == expected[1]
+                    || expected[1] == expected[2]
+                    || expected[0] == expected[2]
+                {
                     continue;
                 }
                 let element = u32::try_from(face_index).map_err(|_| MeshError::ResourceLimit)?;
-                let Some(face) = faces.next() else { return Ok(false); };
-                if face.vertices != expected || face.submesh != submesh || face.material != submesh
-                    || face.provenance != (Provenance::Source { submesh, element }) {
+                let Some(face) = faces.next() else {
+                    return Ok(false);
+                };
+                if face.vertices != expected
+                    || face.submesh != submesh
+                    || face.material != submesh
+                    || face.provenance != (Provenance::Source { submesh, element })
+                {
                     return Ok(false);
                 }
             }
@@ -191,7 +212,11 @@ impl WorkingMesh {
             for (index, position) in source.positions.iter().enumerate() {
                 let (handle, vertex) = vertices.next().ok_or(MeshError::InvalidSource)?;
                 vertex.position = *position;
-                vertex.normal = source.normals.get(index).copied().unwrap_or([0.0, 1.0, 0.0]);
+                vertex.normal = source
+                    .normals
+                    .get(index)
+                    .copied()
+                    .unwrap_or([0.0, 1.0, 0.0]);
                 vertex.uv = source.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
                 if let Some(mask) = source.shader_masks.get(index) {
                     self.shader_masks.insert(handle, *mask);
@@ -254,7 +279,10 @@ impl WorkingMesh {
         &self.viewport_hidden_faces
     }
 
-    pub fn set_viewport_hidden_faces(&mut self, faces: HashSet<FaceHandle>) -> Result<(), MeshError> {
+    pub fn set_viewport_hidden_faces(
+        &mut self,
+        faces: HashSet<FaceHandle>,
+    ) -> Result<(), MeshError> {
         if faces.iter().any(|handle| !self.faces.contains_key(*handle)) {
             return Err(MeshError::StaleHandle);
         }
@@ -281,18 +309,24 @@ impl WorkingMesh {
             .iter()
             .filter_map(|(handle, face)| {
                 (visible_submeshes.contains(&face.submesh)
-                    && !self.viewport_hidden_faces.contains(&handle)).then_some(handle)
+                    && !self.viewport_hidden_faces.contains(&handle))
+                .then_some(handle)
             })
             .collect::<HashSet<_>>();
-        let hidden_vertices: HashSet<_> = self.viewport_hidden_faces.iter()
+        let hidden_vertices: HashSet<_> = self
+            .viewport_hidden_faces
+            .iter()
             .filter_map(|handle| self.faces.get(*handle))
-            .flat_map(|face| face.vertices).collect();
+            .flat_map(|face| face.vertices)
+            .collect();
         let mut vertices = self
             .vertices
             .iter()
             .filter_map(|(handle, vertex)| match vertex.provenance {
                 Provenance::Source { submesh, .. }
-                    if visible_submeshes.contains(&submesh) && !hidden_vertices.contains(&handle) => {
+                    if visible_submeshes.contains(&submesh)
+                        && !hidden_vertices.contains(&handle) =>
+                {
                     Some(handle)
                 }
                 Provenance::Source { .. } | Provenance::Generated { .. } => None,
@@ -1146,7 +1180,10 @@ impl WorkingMesh {
         }
         for (face_handle, face) in &self.faces {
             for handle in face.vertices {
-                incident_faces.get_mut(handle).ok_or(MeshError::StaleHandle)?.push(face_handle);
+                incident_faces
+                    .get_mut(handle)
+                    .ok_or(MeshError::StaleHandle)?
+                    .push(face_handle);
             }
             for (first, second) in [
                 (face.vertices[0], face.vertices[1]),
@@ -1195,7 +1232,8 @@ impl WorkingMesh {
         {
             return Err(MeshError::StaleHandle);
         }
-        Ok(changed.iter()
+        Ok(changed
+            .iter()
             .filter_map(|handle| self.incident_faces.get(*handle))
             .flatten()
             .filter_map(|handle| self.faces.get(*handle))
@@ -1211,9 +1249,12 @@ impl WorkingMesh {
             }
             accumulators.insert(*handle, Vec3::ZERO);
         }
-        let mut faces = scope.iter()
+        let mut faces = scope
+            .iter()
             .filter_map(|handle| self.incident_faces.get(*handle))
-            .flatten().copied().collect::<Vec<_>>();
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>();
         faces.sort_unstable();
         faces.dedup();
         for handle in faces {
@@ -1335,7 +1376,9 @@ impl WorkingMesh {
         self.draw_snapshot_with_elements(
             Some(&elements),
             filtered_draw_revision(
-                self.geometry_revision, visible_submeshes, &self.viewport_hidden_faces,
+                self.geometry_revision,
+                visible_submeshes,
+                &self.viewport_hidden_faces,
             ),
         )
     }
@@ -1361,7 +1404,12 @@ impl WorkingMesh {
             positions.push(vertex.position);
             normals.push(vertex.normal);
             uvs.push(vertex.uv);
-            shader_masks.push(self.shader_masks.get(handle).copied().unwrap_or([1.0, 1.0, 0.0]));
+            shader_masks.push(
+                self.shader_masks
+                    .get(handle)
+                    .copied()
+                    .unwrap_or([1.0, 1.0, 0.0]),
+            );
         }
         let mut indices = Vec::with_capacity(face_capacity.saturating_mul(3));
         let mut triangle_materials = Vec::with_capacity(face_capacity);
@@ -1430,8 +1478,10 @@ fn filtered_draw_revision(
             revision = revision.wrapping_mul(0x0000_0100_0000_01b3);
         }
     }
-    let mut faces = hidden_faces.iter()
-        .map(|face| face.data().as_ffi()).collect::<Vec<_>>();
+    let mut faces = hidden_faces
+        .iter()
+        .map(|face| face.data().as_ffi())
+        .collect::<Vec<_>>();
     faces.sort_unstable();
     for face in faces {
         for byte in face.to_le_bytes() {
@@ -1827,7 +1877,10 @@ mod tests {
         }
         assert_eq!(actual.edge_by_pair, expected.edge_by_pair);
         for handle in expected.vertices.keys() {
-            assert_eq!(actual.vertex_neighbor_slice(handle), expected.vertex_neighbor_slice(handle));
+            assert_eq!(
+                actual.vertex_neighbor_slice(handle),
+                expected.vertex_neighbor_slice(handle)
+            );
         }
         assert_eq!(actual.selection, expected.selection);
         assert_eq!(actual.topology_generation, expected.topology_generation);
@@ -1864,25 +1917,46 @@ mod tests {
 
     fn assert_cached_adjacency_matches_edges(mesh: &WorkingMesh) {
         for (handle, _) in mesh.vertices() {
-            let mut expected = mesh.edges().filter_map(|(_, edge)| {
-                if edge.vertices[0] == handle { Some(edge.vertices[1]) }
-                else if edge.vertices[1] == handle { Some(edge.vertices[0]) }
-                else { None }
-            }).collect::<Vec<_>>();
+            let mut expected = mesh
+                .edges()
+                .filter_map(|(_, edge)| {
+                    if edge.vertices[0] == handle {
+                        Some(edge.vertices[1])
+                    } else if edge.vertices[1] == handle {
+                        Some(edge.vertices[0])
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
             expected.sort_unstable();
             expected.dedup();
-            assert_eq!(mesh.vertex_neighbor_slice(handle), Some(expected.as_slice()));
-            assert_eq!(mesh.vertex_neighbors(handle), Some(expected.into_iter().collect()));
-            let expected_faces = mesh.faces().filter_map(|(face, value)| value.vertices.contains(&handle).then_some(face)).collect::<Vec<_>>();
-            assert_eq!(mesh.vertex_face_slice(handle), Some(expected_faces.as_slice()));
+            assert_eq!(
+                mesh.vertex_neighbor_slice(handle),
+                Some(expected.as_slice())
+            );
+            assert_eq!(
+                mesh.vertex_neighbors(handle),
+                Some(expected.into_iter().collect())
+            );
+            let expected_faces = mesh
+                .faces()
+                .filter_map(|(face, value)| value.vertices.contains(&handle).then_some(face))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                mesh.vertex_face_slice(handle),
+                Some(expected_faces.as_slice())
+            );
         }
     }
 
     #[test]
     fn document_refresh_reuses_topology_and_matches_a_fresh_graph() -> Result<(), MeshError> {
         let mut document = cdmw_formats::decode_mesh(
-            &cdmw_formats::synthetic::two_lod_pac(), cdmw_formats::MeshFormat::Pac,
-        ).map_err(|_| MeshError::InvalidSource)?;
+            &cdmw_formats::synthetic::two_lod_pac(),
+            cdmw_formats::MeshFormat::Pac,
+        )
+        .map_err(|_| MeshError::InvalidSource)?;
         let mut mesh = WorkingMesh::from_document_lod(&document, 1)?;
         let before = mesh.clone();
         let part = &mut document.lods[1].submeshes[0];
@@ -1906,19 +1980,29 @@ mod tests {
         assert_cached_adjacency_matches_edges(&mesh);
         document.lods[1].submeshes[0].shader_masks.clear();
         assert!(mesh.refresh_from_document_lod(&document, 1)?);
-        assert_eq!(mesh.draw_snapshot().shader_masks, vec![[1.0, 1.0, 0.0]; part_vertex_count(&document, 1)]);
+        assert_eq!(
+            mesh.draw_snapshot().shader_masks,
+            vec![[1.0, 1.0, 0.0]; part_vertex_count(&document, 1)]
+        );
         Ok(())
     }
 
     fn part_vertex_count(document: &MeshDocument, lod_index: usize) -> usize {
-        document.lods[lod_index].submeshes.iter().map(|part| part.positions.len()).sum()
+        document.lods[lod_index]
+            .submeshes
+            .iter()
+            .map(|part| part.positions.len())
+            .sum()
     }
 
     #[test]
-    fn document_refresh_rejects_changed_topology_and_invalid_attributes_atomically() -> Result<(), MeshError> {
+    fn document_refresh_rejects_changed_topology_and_invalid_attributes_atomically()
+    -> Result<(), MeshError> {
         let document = cdmw_formats::decode_mesh(
-            &cdmw_formats::synthetic::two_lod_pac(), cdmw_formats::MeshFormat::Pac,
-        ).map_err(|_| MeshError::InvalidSource)?;
+            &cdmw_formats::synthetic::two_lod_pac(),
+            cdmw_formats::MeshFormat::Pac,
+        )
+        .map_err(|_| MeshError::InvalidSource)?;
         let mut mesh = WorkingMesh::from_document_lod(&document, 1)?;
         let before = mesh.clone();
         let mut changed = document.clone();
@@ -1927,7 +2011,10 @@ mod tests {
         assert_exact_working_state(&mesh, &before);
         changed = document.clone();
         changed.lods[1].submeshes[0].positions[0][0] = f32::NAN;
-        assert!(matches!(mesh.refresh_from_document_lod(&changed, 1), Err(MeshError::InvalidSource)));
+        assert!(matches!(
+            mesh.refresh_from_document_lod(&changed, 1),
+            Err(MeshError::InvalidSource)
+        ));
         assert_exact_working_state(&mesh, &before);
         let faces = mesh.faces.keys().collect();
         mesh.duplicate_faces_to_new_submesh(&faces)?;
@@ -1953,7 +2040,10 @@ mod tests {
         let faces = mesh.faces.keys().collect();
         mesh.duplicate_faces_to_new_submesh(&faces)?;
         assert!(!Arc::ptr_eq(&before_topology.neighbors, &mesh.neighbors));
-        assert!(!Arc::ptr_eq(&before_topology.incident_faces, &mesh.incident_faces));
+        assert!(!Arc::ptr_eq(
+            &before_topology.incident_faces,
+            &mesh.incident_faces
+        ));
         assert_cached_adjacency_matches_edges(&mesh);
         history.commit("duplicate", before_topology.clone(), &mesh)?;
         let after_topology = mesh.clone();
@@ -1961,7 +2051,11 @@ mod tests {
         assert_exact_working_state(&mesh, &before_topology);
         history.redo(&mut mesh)?;
         assert_exact_working_state(&mesh, &after_topology);
-        let removed = mesh.vertices.keys().next().ok_or(MeshError::InvalidSource)?;
+        let removed = mesh
+            .vertices
+            .keys()
+            .next()
+            .ok_or(MeshError::InvalidSource)?;
         let faces = mesh.faces.keys().collect();
         mesh.delete_faces(&faces)?;
         assert_eq!(mesh.vertex_neighbor_slice(removed), None);
@@ -1971,10 +2065,13 @@ mod tests {
     }
 
     #[test]
-    fn cached_adjacency_keeps_isolated_vertices_and_rejects_stale_handles() -> Result<(), MeshError> {
+    fn cached_adjacency_keeps_isolated_vertices_and_rejects_stale_handles() -> Result<(), MeshError>
+    {
         let mut mesh = triangle();
         let isolated = mesh.vertices.insert(Vertex {
-            position: [9.0, 9.0, 9.0], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0],
+            position: [9.0, 9.0, 9.0],
+            normal: [0.0, 1.0, 0.0],
+            uv: [0.0, 0.0],
             provenance: Provenance::Generated { operation: 99 },
         });
         mesh.rebuild_edges()?;
@@ -1992,17 +2089,27 @@ mod tests {
         use std::hint::black_box;
         use std::time::Instant;
         let mut mesh = WorkingMesh::empty();
-        let handles = (0..10_000).map(|index| mesh.vertices.insert(Vertex {
-            position: [(index % 100) as f32, (index / 100) as f32, 0.0],
-            normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0],
-            provenance: Provenance::Generated { operation: 1 },
-        })).collect::<Vec<_>>();
+        let handles = (0..10_000)
+            .map(|index| {
+                mesh.vertices.insert(Vertex {
+                    position: [(index % 100) as f32, (index / 100) as f32, 0.0],
+                    normal: [0.0, 0.0, 1.0],
+                    uv: [0.0, 0.0],
+                    provenance: Provenance::Generated { operation: 1 },
+                })
+            })
+            .collect::<Vec<_>>();
         for row in 0..99 {
             for column in 0..99 {
                 let first = row * 100 + column;
-                for indices in [[first, first + 1, first + 100], [first + 1, first + 101, first + 100]] {
+                for indices in [
+                    [first, first + 1, first + 100],
+                    [first + 1, first + 101, first + 100],
+                ] {
                     mesh.faces.insert(Face {
-                        vertices: indices.map(|index| handles[index]), submesh: 0, material: 0,
+                        vertices: indices.map(|index| handles[index]),
+                        submesh: 0,
+                        material: 0,
                         provenance: Provenance::Generated { operation: 1 },
                     });
                 }
@@ -2012,14 +2119,22 @@ mod tests {
         let started = Instant::now();
         let mut scanned_total = Vec3::ZERO;
         for handle in &handles {
-            let mut adjacent = mesh.edges().filter_map(|(_, edge)| {
-                if edge.vertices[0] == *handle { Some(edge.vertices[1]) }
-                else if edge.vertices[1] == *handle { Some(edge.vertices[0]) }
-                else { None }
-            }).collect::<Vec<_>>();
+            let mut adjacent = mesh
+                .edges()
+                .filter_map(|(_, edge)| {
+                    if edge.vertices[0] == *handle {
+                        Some(edge.vertices[1])
+                    } else if edge.vertices[1] == *handle {
+                        Some(edge.vertices[0])
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
             adjacent.sort_unstable();
             for neighbor in adjacent {
-                scanned_total += Vec3::from_array(black_box(mesh.vertex(neighbor).unwrap().position));
+                scanned_total +=
+                    Vec3::from_array(black_box(mesh.vertex(neighbor).unwrap().position));
             }
         }
         let scanned = started.elapsed();
@@ -2027,13 +2142,19 @@ mod tests {
         let mut cached_total = Vec3::ZERO;
         for handle in &handles {
             for neighbor in mesh.vertex_neighbor_slice(*handle).unwrap() {
-                cached_total += Vec3::from_array(black_box(mesh.vertex(*neighbor).unwrap().position));
+                cached_total +=
+                    Vec3::from_array(black_box(mesh.vertex(*neighbor).unwrap().position));
             }
         }
         let cached = started.elapsed();
         assert_eq!(black_box(scanned_total), black_box(cached_total));
-        eprintln!("vertices={} edges={} scan_ms={:.3} cached_ms={:.3}",
-            mesh.vertices.len(), mesh.edges.len(), scanned.as_secs_f64() * 1000.0, cached.as_secs_f64() * 1000.0);
+        eprintln!(
+            "vertices={} edges={} scan_ms={:.3} cached_ms={:.3}",
+            mesh.vertices.len(),
+            mesh.edges.len(),
+            scanned.as_secs_f64() * 1000.0,
+            cached.as_secs_f64() * 1000.0
+        );
         Ok(())
     }
 
@@ -2045,11 +2166,21 @@ mod tests {
                 mesh.shader_masks.insert(handle, [0.2, 0.4, 1.0]);
             }
         }
-        assert_eq!(mesh.draw_snapshot_for_submeshes(&HashSet::from([0])).shader_masks, vec![[1.0, 1.0, 0.0]; 3]);
-        let before = mesh.draw_snapshot_for_submeshes(&HashSet::from([1])).shader_masks;
+        assert_eq!(
+            mesh.draw_snapshot_for_submeshes(&HashSet::from([0]))
+                .shader_masks,
+            vec![[1.0, 1.0, 0.0]; 3]
+        );
+        let before = mesh
+            .draw_snapshot_for_submeshes(&HashSet::from([1]))
+            .shader_masks;
         assert_eq!(before, vec![[0.2, 0.4, 1.0]; 3]);
         mesh.translate_vertices(&mesh.vertices.keys().collect(), Vec3::X)?;
-        assert_eq!(mesh.draw_snapshot_for_submeshes(&HashSet::from([1])).shader_masks, before);
+        assert_eq!(
+            mesh.draw_snapshot_for_submeshes(&HashSet::from([1]))
+                .shader_masks,
+            before
+        );
         Ok(())
     }
 
@@ -3115,4 +3246,3 @@ mod tests {
         Ok(())
     }
 }
-

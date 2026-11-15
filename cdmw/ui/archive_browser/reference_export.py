@@ -290,33 +290,3 @@ class ArchiveReferenceExportMixin:
         if dialog.exec() != QDialog.Accepted:
             return None
         return tuple(result)
-
-    def _choose_archive_write_target(
-        self,
-        *,
-        title: str,
-        message: str,
-        allow_archive_patch: bool,
-    ) -> str:
-        dialog = QMessageBox(self)
-        dialog.setIcon(QMessageBox.Question)
-        dialog.setWindowTitle(title)
-        dialog.setText(message)
-        dialog.setInformativeText(
-            "Patch Game Archives updates the installed package files and recalculates checksums. "
-            "Write Mod-Ready Loose File creates a loose mod package instead."
-        )
-        patch_button = None
-        if allow_archive_patch:
-            patch_button = dialog.addButton("Patch Game Archives", QMessageBox.AcceptRole)
-        loose_button = dialog.addButton("Write Mod-Ready Loose File", QMessageBox.ActionRole)
-        cancel_button = dialog.addButton(QMessageBox.Cancel)
-        dialog.exec()
-        clicked = dialog.clickedButton()
-        if patch_button is not None and clicked is patch_button:
-            return "patch"
-        if clicked is loose_button:
-            return "loose"
-        if clicked is cancel_button:
-            return ""
-        return ""

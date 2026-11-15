@@ -63,28 +63,6 @@ class _TabLifecycleMixin:
         self.assertIsNotNone(tab._perks_panel)
         self.assertIs(tab.pages.currentWidget(), tab.perks_panel)
 
-    def test_an_install_reads_the_archives_again(self) -> None:
-        """The installed item is only in the snapshot after a re-read, so the studio does
-        one itself; without it the next item would be allocated the same key."""
-
-        tab = self._tab(get_package_root=lambda: str(self.root))
-        tab.prefill_template(TEMPLATE)
-        reread = []
-        with patch.object(tab.controller, "start_snapshot", side_effect=lambda entries, **kwargs: reread.append((tuple(entries), kwargs)) or True):
-            with patch.object(type(tab.controller), 'busy', new_callable=PropertyMock, return_value=True):
-                tab._after_install_finished(object())
-                self.app.processEvents()
-                self.assertFalse(reread, 'wait for the install worker to finish')
-            tab._resume_install_refresh(False)
-            self.app.processEvents()
-        self.assertEqual(len(reread), 1)
-        self.assertEqual(reread[0][0], (), 'discover the current mounted archives instead of stale shell entries')
-        self.assertEqual(reread[0][1]['package_root'], self.root)
-        self.assertIsNone(reread[0][1]['entries_by_normalized_path'])
-        self.assertIn("own key and stem", tab.output_panel.log.toPlainText())
-        tab.close()
-        tab.deleteLater()
-
     def test_post_install_reread_moves_a_suggested_name_on_and_keeps_a_typed_one(self) -> None:
         """The reread holds the installed item, so its suggested name is now taken."""
 
@@ -101,36 +79,6 @@ class _TabLifecycleMixin:
             tab._snapshot_ready()
         self.assertEqual(tab.identity_panel.internal_name.text(), "Typed_Name")
         self.assertEqual(tab.controller.draft.internal_name, "Typed_Name")
-        tab.close()
-        tab.deleteLater()
-
-    def test_post_install_snapshot_completion_preserves_group_picker_items(self) -> None:
-        """A reread updates archive data without rebuilding the unchanged group picker."""
-
-        tab = self._tab(get_package_root=lambda: str(self.root))
-        tab.prefill_template(TEMPLATE)
-        group_list = tab.placement_panel.group_list
-        original_snapshot = tab.controller.snapshot
-        original_groups = tuple((group.key, group.name) for group in original_snapshot.item_groups)
-        original_items = tuple(group_list.item(row) for row in range(group_list.count()))
-        self.assertTrue(original_items)
-
-        tab._after_install_finished(object())
-        self.app.processEvents()
-
-        self.assertIsNot(tab.controller.snapshot, original_snapshot, "the real snapshot task completed")
-        self.assertEqual(
-            tuple((group.key, group.name) for group in tab.controller.snapshot.item_groups),
-            original_groups,
-            "installing an item changes group membership, not the group catalogue",
-        )
-        self.assertEqual(group_list.count(), len(original_items))
-        for row, item in enumerate(original_items):
-            self.assertIs(
-                group_list.item(row),
-                item,
-                "the post-install reread must not release and recreate unchanged Qt item wrappers",
-            )
         tab.close()
         tab.deleteLater()
 
@@ -807,47 +755,3 @@ class InstallReportTests(unittest.TestCase):
     different kinds of result. Before this, three of them said "Installed 0 archive
     entr(ies)", which reads like a failure after a button that did its work."""
 
-    def test_each_route_says_what_it_did(self) -> None:
-        from cdmw.services.archive_overlay_install import OverlayInstallResult
-        from cdmw.services.archive_overlay_migration import MigrationPlan, MigrationResult, RemovalResult
-        from cdmw.ui.new_item.panels_output import install_result_report
-
-        title, message = install_result_report(
-            OverlayInstallResult(Path("g/0036"), 1, 27, 113_457_995, 4, Path("b/1"), ())
-        )
-        self.assertEqual(title, "Install as an overlay")
-        self.assertIn("0036", message)
-        self.assertIn("27 file(s)", message)
-        self.assertIn("4 of them carried forward", message)
-        self.assertIn("were not written to", message)
-
-        title, message = install_result_report(MigrationResult(Path("g/0036"), 12, (Path("a"), Path("b")), Path("b/2"), 5_000))
-        self.assertEqual(title, "Move installed items into the overlay")
-        self.assertIn("Moved 12 file(s)", message)
-        self.assertIn("2 archive file(s)", message)
-
-        title, message = install_result_report(MigrationPlan((), (), ()))
-        self.assertEqual(title, "Move installed items into the overlay")
-        self.assertIn("Nothing to move", message)
-
-        title, message = install_result_report(RemovalResult(Path("g/0036"), True, 2, Path("b/3")))
-        self.assertEqual(title, "Remove the overlay")
-        self.assertIn("Removed the overlay 0036", message)
-        self.assertIn("gone from the game", message)
-
-        # the texture registry is a loose file the overlay rewrote in place, so a removal
-        # that put it back has to say so
-        title, message = install_result_report(RemovalResult(Path("g/0036"), True, 2, Path("b/3"), ("meta/0.pathc",)))
-        self.assertIn("meta/0.pathc", message)
-        self.assertIn("back to what the game shipped", message)
-
-        title, message = install_result_report(RemovalResult(None, False, 0, None))
-        self.assertIn("no overlay to remove", message)
-
-        class _Patched:
-            changed_paths = ("a", "b", "c")
-            backup_dir = Path("b/4")
-
-        title, message = install_result_report(_Patched())
-        self.assertEqual(title, "Install as an overlay")
-        self.assertIn("unrecognised result", message)

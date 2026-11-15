@@ -139,6 +139,7 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
         splitter.setSizes([roots_min, 680, preview_min])
 
         self._refresh_roots_list()
+        self._sync_sources_empty_state()
         self.scan_library(show_status=False)
         self.refresh_targets(force=True)
 

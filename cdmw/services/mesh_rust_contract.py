@@ -7,6 +7,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 RUST_MESH_EDITOR_PROTOCOL = "cdmw_rust_mesh_editor_protocol_v1"
@@ -21,6 +22,7 @@ RUST_MESH_EDITOR_BINARY = "cdmw_mesh_lab.exe"
 RUST_MESH_MAX_PAYLOAD_BYTES = 512 * 1024 * 1024
 RUST_MESH_PROVENANCE_SCHEMA = "cdmw_rust_mesh_editor_build_provenance_v1"
 RUST_MESH_PROVENANCE_FILE = "cdmw_mesh_lab.manifest.json"
+RUST_SHADER_COMPILER_FILES = ("dxcompiler.dll", "dxil.dll")
 RUST_MESH_CONTROL_CONTRACT_FILE = "cdmw_mesh_lab.control-contract.json"
 RUST_MESH_CONTROL_CONTRACT_SCHEMA = "cdmw_rust_mesh_editor_control_contract_v2"
 RUST_HAIR_AUTHORING_CAPABILITY = "hair_authoring_v2"
@@ -225,8 +227,26 @@ def rust_mesh_editor_file_signature(resolution: RustMeshExecutableResolution) ->
 
     return (
         f"executable={file_identity(executable)}|manifest={file_identity(manifest)}|"
-        f"control_contract={file_identity(control_contract)}"
+        f"control_contract={file_identity(control_contract)}|"
+        + "|".join(file_identity(executable.with_name(name)) for name in RUST_SHADER_COMPILER_FILES)
     )
+
+
+@lru_cache(maxsize=16)
+def _executable_sha256(path: str, signature: tuple[int, ...]) -> str:
+    executable = Path(path)
+    digest = hashlib.sha256()
+    with executable.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if _executable_hash_signature(executable) != signature:
+        raise OSError("executable changed while being hashed")
+    return digest.hexdigest()
+
+
+def _executable_hash_signature(path: Path) -> tuple[int, ...]:
+    stat = path.stat()
+    return stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_dev, stat.st_ino
 
 
 def validate_rust_mesh_editor_package(
@@ -280,15 +300,27 @@ def validate_rust_mesh_editor_package(
     expected_hash = str(payload.get("executable_sha256", "") or "").strip().lower()
     if len(expected_hash) != 64:
         return "provenance executable hash is invalid"
-    digest = hashlib.sha256()
     try:
-        with executable.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
+        actual_hash = _executable_sha256(str(executable.resolve()), _executable_hash_signature(executable))
     except OSError:
         return "executable could not be hashed"
-    if digest.hexdigest().lower() != expected_hash:
+    if actual_hash != expected_hash:
         return "executable hash does not match its provenance manifest"
+    # Older compatible helpers did not bundle DXC. A manifest which declares
+    # it must never silently fall back to another compiler after a missing or
+    # replaced DLL; these files also participate in the launch cache identity.
+    compiler_files = payload.get("shader_compiler_files")
+    if compiler_files is not None:
+        if not isinstance(compiler_files, dict) or set(compiler_files) != set(RUST_SHADER_COMPILER_FILES):
+            return "shader compiler provenance is invalid"
+        for name in RUST_SHADER_COMPILER_FILES:
+            path = executable.with_name(name)
+            try:
+                digest = _executable_sha256(str(path.resolve()), _executable_hash_signature(path))
+            except OSError:
+                return f"shader compiler file is missing or unreadable: {name}"
+            if digest != str(compiler_files[name]).lower():
+                return f"shader compiler hash does not match its provenance manifest: {name}"
     contract_path = executable.with_name(RUST_MESH_CONTROL_CONTRACT_FILE)
     if not contract_path.is_file():
         return "control contract is missing"

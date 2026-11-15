@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.services.settings_service import app_settings
 from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, SheathedModel
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
 from cdmw.ui.new_item.controller import NewItemStudioController
@@ -609,7 +610,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.grid_visible.setChecked(True)
         self.grid_visible.toggled.connect(self.preview.set_grid_visible)
         view_row.addWidget(self.grid_visible)
-        self.preview.set_lighting_preset("neutral_studio")
         self.dark_preview = QCheckBox("Dark mode")
         self.dark_preview.setToolTip("Dim the preview lighting and background to see emissive glow and its bloom. This changes only the viewport.")
         self.dark_preview.toggled.connect(self._preview_lighting_changed)
@@ -1413,7 +1413,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._sync_glow_preview()
 
     def _preview_lighting_changed(self, dark: bool) -> None:
-        self.preview.set_lighting_preset("dark" if dark else "neutral_studio")
+        # Dark mode is a local choice for this preview; off returns to the
+        # shared Preview settings.
+        self.preview.set_lighting_preset("dark" if dark else None)
 
     def _translucency_changed(self, choice) -> None:
         previous = self._controller.draft.translucency
@@ -1703,12 +1705,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.invalidate_plan()
 
     def _rig_folder(self) -> str:
-        settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        settings = app_settings()
         folder = str(settings.value(RIG_DIR_SETTING, "") or "")
         return folder if folder and Path(folder).is_dir() else str(Path.home())
 
     def _remember_rig_folder(self, folder: Path) -> None:
-        QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench").setValue(RIG_DIR_SETTING, str(folder))
+        app_settings().setValue(RIG_DIR_SETTING, str(folder))
 
     def _open_bone_editor(self, source) -> None:
         from PySide6.QtWidgets import QDialog

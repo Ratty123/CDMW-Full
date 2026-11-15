@@ -78,13 +78,20 @@ impl ArrayDescriptor {
         cursor: &mut u64,
         payload_length: u64,
     ) -> Result<(), SessionError> {
-        let length = self.count.checked_mul(u64::from(components))
+        let length = self
+            .count
+            .checked_mul(u64::from(components))
             .and_then(|value| value.checked_mul(width))
             .ok_or_else(|| invalid("array size overflows"))?;
-        let end = self.offset.checked_add(length)
+        let end = self
+            .offset
+            .checked_add(length)
             .ok_or_else(|| invalid("array range overflows"))?;
-        if self.dtype != dtype || self.components != components
-            || self.offset != *cursor || self.byte_length != length || end > payload_length
+        if self.dtype != dtype
+            || self.components != components
+            || self.offset != *cursor
+            || self.byte_length != length
+            || end > payload_length
         {
             return Err(invalid("array type, count, order, or range is invalid"));
         }
@@ -93,16 +100,24 @@ impl ArrayDescriptor {
     }
 
     fn bytes<'a>(&self, payload: &'a [u8]) -> Result<&'a [u8], SessionError> {
-        let start = usize::try_from(self.offset).map_err(|_| invalid("array offset is too large"))?;
-        let length = usize::try_from(self.byte_length).map_err(|_| invalid("array is too large"))?;
-        let end = start.checked_add(length).ok_or_else(|| invalid("array range overflows"))?;
-        payload.get(start..end).ok_or_else(|| invalid("array is truncated"))
+        let start =
+            usize::try_from(self.offset).map_err(|_| invalid("array offset is too large"))?;
+        let length =
+            usize::try_from(self.byte_length).map_err(|_| invalid("array is too large"))?;
+        let end = start
+            .checked_add(length)
+            .ok_or_else(|| invalid("array range overflows"))?;
+        payload
+            .get(start..end)
+            .ok_or_else(|| invalid("array is truncated"))
     }
 
     fn reserve<T>(&self) -> Result<Vec<T>, SessionError> {
         let count = usize::try_from(self.count).map_err(|_| invalid("array count is too large"))?;
         let mut values = Vec::new();
-        values.try_reserve_exact(count).map_err(|_| invalid("array allocation exceeds available memory"))?;
+        values
+            .try_reserve_exact(count)
+            .map_err(|_| invalid("array allocation exceeds available memory"))?;
         Ok(values)
     }
 
@@ -111,7 +126,11 @@ impl ArrayDescriptor {
         for record in self.bytes(payload)?.chunks_exact(N * 8) {
             let mut row = [0.0_f32; N];
             for (component, bytes) in row.iter_mut().zip(record.chunks_exact(8)) {
-                let value = f64::from_le_bytes(bytes.try_into().map_err(|_| invalid("float is truncated"))?);
+                let value = f64::from_le_bytes(
+                    bytes
+                        .try_into()
+                        .map_err(|_| invalid("float is truncated"))?,
+                );
                 *component = value as f32;
                 if !value.is_finite() || !component.is_finite() {
                     return Err(invalid("contains non-finite geometry"));
@@ -125,7 +144,11 @@ impl ArrayDescriptor {
     fn indices(&self, payload: &[u8]) -> Result<Vec<u32>, SessionError> {
         let mut values = self.reserve()?;
         for bytes in self.bytes(payload)?.chunks_exact(4) {
-            values.push(u32::from_le_bytes(bytes.try_into().map_err(|_| invalid("index is truncated"))?));
+            values.push(u32::from_le_bytes(
+                bytes
+                    .try_into()
+                    .map_err(|_| invalid("index is truncated"))?,
+            ));
         }
         Ok(values)
     }
@@ -133,14 +156,23 @@ impl ArrayDescriptor {
     fn sources(&self, payload: &[u8]) -> Result<Vec<i32>, SessionError> {
         let mut values = self.reserve()?;
         for bytes in self.bytes(payload)?.chunks_exact(4) {
-            values.push(i32::from_le_bytes(bytes.try_into().map_err(|_| invalid("source index is truncated"))?));
+            values.push(i32::from_le_bytes(
+                bytes
+                    .try_into()
+                    .map_err(|_| invalid("source index is truncated"))?,
+            ));
         }
         Ok(values)
     }
 }
 
-fn validate_layout(metadata: &Metadata, payload: &[u8], expected_count: u64) -> Result<(), SessionError> {
-    if metadata.schema != SCHEMA || metadata.lods.is_empty()
+fn validate_layout(
+    metadata: &Metadata,
+    payload: &[u8],
+    expected_count: u64,
+) -> Result<(), SessionError> {
+    if metadata.schema != SCHEMA
+        || metadata.lods.is_empty()
         || u32::try_from(metadata.lods.len()).is_err()
     {
         return Err(invalid("schema or LOD collection is invalid"));
@@ -151,19 +183,30 @@ fn validate_layout(metadata: &Metadata, payload: &[u8], expected_count: u64) -> 
         if u32::try_from(lod.submeshes.len()).is_err() {
             return Err(invalid("submesh collection is too large"));
         }
-        total_parts = total_parts.checked_add(lod.submeshes.len() as u64)
+        total_parts = total_parts
+            .checked_add(lod.submeshes.len() as u64)
             .ok_or_else(|| invalid("submesh count overflows"))?;
         for part in &lod.submeshes {
             // Fully deleted authoring slots retain source/material indices for
             // history. Residual channels and ordinary asset empties stay invalid.
             let empty_authoring_part = metadata.parser == super::PACKAGE_SCHEMA
-                && [&part.positions, &part.normals, &part.uvs, &part.indices,
-                    &part.source_vertex_indices, &part.shader_masks]
-                    .iter().all(|array| array.count == 0);
-            if !empty_authoring_part && (!(1..=MAX_VERTICES).contains(&part.positions.count)
-                || !(3..=MAX_INDICES).contains(&part.indices.count)
-                || !part.indices.count.is_multiple_of(3)
-                || (part.shader_masks.count != 0 && part.shader_masks.count != part.positions.count)) {
+                && [
+                    &part.positions,
+                    &part.normals,
+                    &part.uvs,
+                    &part.indices,
+                    &part.source_vertex_indices,
+                    &part.shader_masks,
+                ]
+                .iter()
+                .all(|array| array.count == 0);
+            if !empty_authoring_part
+                && (!(1..=MAX_VERTICES).contains(&part.positions.count)
+                    || !(3..=MAX_INDICES).contains(&part.indices.count)
+                    || !part.indices.count.is_multiple_of(3)
+                    || (part.shader_masks.count != 0
+                        && part.shader_masks.count != part.positions.count))
+            {
                 return Err(invalid("geometry counts exceed the supported bounds"));
             }
             for (array, dtype, components, width) in [
@@ -179,7 +222,9 @@ fn validate_layout(metadata: &Metadata, payload: &[u8], expected_count: u64) -> 
         }
     }
     if total_parts == 0 || total_parts != expected_count || cursor != payload.len() as u64 {
-        return Err(invalid("submesh count or trailing payload length does not match"));
+        return Err(invalid(
+            "submesh count or trailing payload length does not match",
+        ));
     }
     Ok(())
 }
@@ -202,20 +247,29 @@ fn fingerprint(metadata: &Metadata, payload: &[u8]) -> Result<String, SessionErr
 }
 
 pub(super) fn decode(bytes: &[u8], expected_count: u64) -> Result<MeshDocument, SessionError> {
-    if bytes.len() < HEADER_BYTES || bytes.len() as u64 > MAX_PAYLOAD_BYTES
-        || &bytes[..8] != MAGIC
+    if bytes.len() < HEADER_BYTES || bytes.len() as u64 > MAX_PAYLOAD_BYTES || &bytes[..8] != MAGIC
     {
         return Err(invalid("magic or size is invalid"));
     }
     let version = u16::from_le_bytes([bytes[8], bytes[9]]);
     let flags = u16::from_le_bytes([bytes[10], bytes[11]]);
     let metadata_length = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as usize;
-    if version != 1 || flags != 0 || metadata_length == 0 || metadata_length as u64 > MAX_MANIFEST_BYTES {
+    if version != 1
+        || flags != 0
+        || metadata_length == 0
+        || metadata_length as u64 > MAX_MANIFEST_BYTES
+    {
         return Err(invalid("version, flags, or metadata length is invalid"));
     }
-    let end = HEADER_BYTES.checked_add(metadata_length).ok_or_else(|| invalid("metadata range overflows"))?;
-    let metadata_bytes = bytes.get(HEADER_BYTES..end).ok_or_else(|| invalid("metadata is truncated"))?;
-    let payload = bytes.get(end..).ok_or_else(|| invalid("payload is truncated"))?;
+    let end = HEADER_BYTES
+        .checked_add(metadata_length)
+        .ok_or_else(|| invalid("metadata range overflows"))?;
+    let metadata_bytes = bytes
+        .get(HEADER_BYTES..end)
+        .ok_or_else(|| invalid("metadata is truncated"))?;
+    let payload = bytes
+        .get(end..)
+        .ok_or_else(|| invalid("payload is truncated"))?;
     let metadata: Metadata = serde_json::from_slice(metadata_bytes)?;
     validate_layout(&metadata, payload, expected_count)?;
     if fingerprint(&metadata, payload)? != metadata.structural_fingerprint {
@@ -236,12 +290,18 @@ pub(super) fn decode(bytes: &[u8], expected_count: u64) -> Result<MeshDocument, 
                 indices: part.indices.indices(payload)?,
                 source_vertex_indices: part.source_vertex_indices.sources(payload)?,
                 shader_masks: part.shader_masks.floats(payload)?,
-                source_range: SourceRange { offset: part.source_range.offset, length: part.source_range.length },
+                source_range: SourceRange {
+                    offset: part.source_range.offset,
+                    length: part.source_range.length,
+                },
                 vertex_stride: part.vertex_stride,
                 layout: part.layout,
             });
         }
-        lods.push(MeshLod { level: lod.level, submeshes });
+        lods.push(MeshLod {
+            level: lod.level,
+            submeshes,
+        });
     }
     let document = MeshDocument {
         format: metadata.format,
@@ -265,20 +325,30 @@ pub(super) fn encode_test_document(document: &MeshDocument) -> Vec<u8> {
     for lod in metadata["lods"].as_array_mut().unwrap() {
         for part in lod["submeshes"].as_array_mut().unwrap() {
             for (name, dtype, components) in [
-                ("positions", "f64_le", 3), ("normals", "f64_le", 3),
-                ("uvs", "f64_le", 2), ("indices", "u32_le", 1),
-                ("source_vertex_indices", "i32_le", 1), ("shader_masks", "f64_le", 3),
+                ("positions", "f64_le", 3),
+                ("normals", "f64_le", 3),
+                ("uvs", "f64_le", 2),
+                ("indices", "u32_le", 1),
+                ("source_vertex_indices", "i32_le", 1),
+                ("shader_masks", "f64_le", 3),
             ] {
                 let rows = part[name].as_array().unwrap();
                 let count = rows.len();
                 let offset = payload.len();
                 for row in rows {
                     match dtype {
-                        "f64_le" => for component in row.as_array().unwrap() {
-                            payload.extend_from_slice(&component.as_f64().unwrap().to_le_bytes());
-                        },
-                        "u32_le" => payload.extend_from_slice(&(row.as_u64().unwrap() as u32).to_le_bytes()),
-                        "i32_le" => payload.extend_from_slice(&(row.as_i64().unwrap() as i32).to_le_bytes()),
+                        "f64_le" => {
+                            for component in row.as_array().unwrap() {
+                                payload
+                                    .extend_from_slice(&component.as_f64().unwrap().to_le_bytes());
+                            }
+                        }
+                        "u32_le" => {
+                            payload.extend_from_slice(&(row.as_u64().unwrap() as u32).to_le_bytes())
+                        }
+                        "i32_le" => {
+                            payload.extend_from_slice(&(row.as_i64().unwrap() as i32).to_le_bytes())
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -318,19 +388,32 @@ mod tests {
         part.uvs.truncate(2);
         part.source_vertex_indices = vec![-1, 7, i32::MAX, i32::MIN];
         part.shader_masks = vec![[0.2, 0.5, 0.8]; 3];
-        part.source_range = SourceRange { offset: 0x1_0000_0001, length: 48 };
+        part.source_range = SourceRange {
+            offset: 0x1_0000_0001,
+            length: 48,
+        };
         document
     }
 
     fn split(bytes: &[u8]) -> (Value, &[u8]) {
         let length = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
-        (serde_json::from_slice(&bytes[16..16 + length]).unwrap(), &bytes[16 + length..])
+        (
+            serde_json::from_slice(&bytes[16..16 + length]).unwrap(),
+            &bytes[16 + length..],
+        )
     }
 
     #[test]
     fn binary_mesh_document_preserves_empty_authoring_part_slots() {
         let original = serde_json::to_value(document()).unwrap();
-        let channels = ["positions", "normals", "uvs", "indices", "source_vertex_indices", "shader_masks"];
+        let channels = [
+            "positions",
+            "normals",
+            "uvs",
+            "indices",
+            "source_vertex_indices",
+            "shader_masks",
+        ];
         for part_index in 0..2 {
             let mut value = original.clone();
             let part = value["lods"][0]["submeshes"][0].clone();
@@ -347,7 +430,10 @@ mod tests {
                 let mut invalid = value.clone();
                 invalid["lods"][0]["submeshes"][part_index][channel] = part[channel].clone();
                 let document: MeshDocument = serde_json::from_value(invalid).unwrap();
-                assert!(decode(&encode_test_document(&document), 2).is_err(), "{channel}");
+                assert!(
+                    decode(&encode_test_document(&document), 2).is_err(),
+                    "{channel}"
+                );
             }
             value["parser"] = json!("game_parser");
             let document: MeshDocument = serde_json::from_value(value).unwrap();
@@ -361,9 +447,14 @@ mod tests {
         let bytes = encode_test_document(&expected);
         let actual = decode(&bytes, 1).unwrap();
         assert_eq!(actual.structural_fingerprint.len(), 64);
-        expected.structural_fingerprint.clone_from(&actual.structural_fingerprint);
+        expected
+            .structural_fingerprint
+            .clone_from(&actual.structural_fingerprint);
         assert_eq!(actual, expected);
-        assert_eq!(actual.lods[0].submeshes[0].positions[0][0].to_bits(), (-0.0_f32).to_bits());
+        assert_eq!(
+            actual.lods[0].submeshes[0].positions[0][0].to_bits(),
+            (-0.0_f32).to_bits()
+        );
         assert_eq!(actual.lods[0].submeshes[0].positions[0][1].to_bits(), 1);
     }
 
@@ -383,12 +474,19 @@ mod tests {
         assert!(decode(&trailing, 1).is_err());
         let (metadata, payload) = split(&bytes);
         for (field, value) in [
-            ("offset", json!(1)), ("byte_length", json!(1)), ("dtype", json!("f32_le")),
-            ("components", json!(2)), ("count", json!(u64::MAX)), ("unknown", json!(true)),
+            ("offset", json!(1)),
+            ("byte_length", json!(1)),
+            ("dtype", json!("f32_le")),
+            ("components", json!(2)),
+            ("count", json!(u64::MAX)),
+            ("unknown", json!(true)),
         ] {
             let mut changed = metadata.clone();
             changed["lods"][0]["submeshes"][0]["normals"][field] = value;
-            assert!(decode(&frame_test_metadata(&changed, payload), 1).is_err(), "{field}");
+            assert!(
+                decode(&frame_test_metadata(&changed, payload), 1).is_err(),
+                "{field}"
+            );
         }
         let mut changed = metadata;
         changed["schema"] = json!("cdmw_mesh_document_binary_v2");
@@ -426,19 +524,39 @@ mod tests {
             binary_hex: String,
             expected_document: MeshDocument,
         }
-        let fixture: Fixture = serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/mesh-document-binary-v1.json"))).unwrap();
+        let fixture: Fixture = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/mesh-document-binary-v1.json"
+        )))
+        .unwrap();
         assert!(fixture.binary_hex.len().is_multiple_of(2));
-        let bytes: Vec<_> = fixture.binary_hex.as_bytes().chunks_exact(2)
-            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap()).collect();
+        let bytes: Vec<_> = fixture
+            .binary_hex
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect();
         let expected = fixture.expected_document;
-        let count = expected.lods.iter().map(|lod| lod.submeshes.len() as u64).sum();
+        let count = expected
+            .lods
+            .iter()
+            .map(|lod| lod.submeshes.len() as u64)
+            .sum();
         let actual = decode(&bytes, count).unwrap();
         assert_eq!(actual, expected);
         fn check_bits<const N: usize>(name: &str, actual: &[[f32; N]], expected: &[[f32; N]]) {
             assert_eq!(actual.len(), expected.len());
-            for (index, (actual, expected)) in actual.iter().flatten().zip(expected.iter().flatten()).enumerate() {
-                assert_eq!(actual.to_bits(), expected.to_bits(), "{name} component {index}");
+            for (index, (actual, expected)) in actual
+                .iter()
+                .flatten()
+                .zip(expected.iter().flatten())
+                .enumerate()
+            {
+                assert_eq!(
+                    actual.to_bits(),
+                    expected.to_bits(),
+                    "{name} component {index}"
+                );
             }
         }
         for (actual, expected) in actual.lods.iter().zip(&expected.lods) {
@@ -458,7 +576,9 @@ mod tests {
         for count in [99_999_u32, 300_000_u32] {
             let mut source = super::super::tests::document();
             let part = &mut source.lods[0].submeshes[0];
-            part.positions = (0..count).map(|index| [index as f32 * 0.01, (index % 257) as f32 * 0.03125, 0.2]).collect();
+            part.positions = (0..count)
+                .map(|index| [index as f32 * 0.01, (index % 257) as f32 * 0.03125, 0.2])
+                .collect();
             part.normals = vec![[0.0, 0.0, 1.0]; count as usize];
             part.uvs = vec![[0.25, 0.75]; count as usize];
             part.indices = (0..count).collect();
@@ -473,8 +593,13 @@ mod tests {
             let from_binary = decode(&binary, 1).unwrap();
             let binary_time = started.elapsed();
             assert_eq!(from_binary.lods, from_json.lods);
-            println!("binary_mesh_document_decode vertices={count} json_bytes={} binary_bytes={} json_decode_validate_ms={:.3} binary_decode_validate_ms={:.3}",
-                json.len(), binary.len(), json_time.as_secs_f64() * 1_000.0, binary_time.as_secs_f64() * 1_000.0);
+            println!(
+                "binary_mesh_document_decode vertices={count} json_bytes={} binary_bytes={} json_decode_validate_ms={:.3} binary_decode_validate_ms={:.3}",
+                json.len(),
+                binary.len(),
+                json_time.as_secs_f64() * 1_000.0,
+                binary_time.as_secs_f64() * 1_000.0
+            );
         }
     }
 }

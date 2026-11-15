@@ -180,6 +180,19 @@ def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
     return metadata
 
 def _snapshot_metadata_value(value: object) -> object:
+    # Most snapshot metadata is per-vertex numeric data. Checking dataclasses
+    # and typing.Mapping for every scalar made opening a set walk millions of
+    # expensive type predicates. Keep identical copying/sanitization semantics
+    # while handling the built-in containers and scalars directly.
+    kind = type(value)
+    if value is None or kind in (str, int, bool):
+        return value
+    if kind is float:
+        return value if math.isfinite(value) else None
+    if kind in (list, tuple, set):
+        return [_snapshot_metadata_value(item) for item in value]
+    if kind is dict:
+        return {str(key): _snapshot_metadata_value(item) for key, item in value.items()}
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return {
             field.name: _snapshot_metadata_value(getattr(value, field.name))

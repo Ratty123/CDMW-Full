@@ -29,6 +29,60 @@ class AssetAuthoringOpenImageIOTests(unittest.TestCase):
         self.assertEqual([], report["metadata_argv"])
         json.dumps(report)
 
+    def test_without_any_openimageio_every_operation_names_the_formats_that_need_one(self) -> None:
+        # The package no longer carries OpenImageIO (P16 decision 23): no bundled
+        # copy, nothing on PATH, no Python module, no setting.
+        from cdmw.services import asset_authoring_service, bundled_helper_availability
+        from cdmw.services.asset_authoring_service import OPENIMAGEIO_SOURCE_FALLBACKS
+        from cdmw.services.bundled_helper_availability import bundled_helper_resolution_snapshot
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            bundled_helper_availability.BUNDLED_HELPER_FINDERS, {"openimageio": lambda: None}
+        ), mock.patch.object(asset_authoring_service.shutil, "which", return_value=None), mock.patch.object(
+            asset_authoring_service, "_module_executable_path", return_value=None
+        ), mock.patch.object(
+            asset_authoring_service.importlib.util, "find_spec", return_value=None
+        ), mock.patch.dict("os.environ", {"CDMW_OIIO_BIN": ""}):
+            root = Path(temp_dir)
+            sources = {suffix: root / f"source{suffix}" for suffix in (".exr", ".ptex", ".psd", ".tga", ".png")}
+            for path in sources.values():
+                path.write_bytes(b"source")
+            service = AssetAuthoringService()
+            helper = service.discovery_report()["helpers"]["openimageio"]
+            commands = (
+                service.openimageio_metadata_command(sources[".exr"]),
+                service.openimageio_convert_command(sources[".psd"], root / "out.png"),
+                service.openimageio_diff_command(sources[".tga"], sources[".png"]),
+            )
+            reports = {suffix: service.openimageio_source_report(path) for suffix, path in sources.items()}
+            snapshot_keys = {entry["key"] for entry in bundled_helper_resolution_snapshot()}
+
+        self.assertEqual(("unavailable", False), (helper["status"], helper["bundled"]))
+        self.assertNotIn("openimageio", snapshot_keys)
+        for command in commands:
+            self.assertEqual(("helper_unavailable", False, []), (command["status"], command["can_run"], command["argv"]))
+            for named in (".exr", ".ptx/.ptex", "layered .psd", "CDMW_OIIO_BIN"):
+                self.assertIn(named, command["message"])
+        self.assertEqual("helper_unavailable", reports[".exr"]["status"])
+        self.assertIn("needs your own OpenImageIO", reports[".exr"]["without_openimageio"])
+        self.assertIn("needs your own OpenImageIO", reports[".ptex"]["without_openimageio"])
+        self.assertIn("flattened", reports[".psd"]["without_openimageio"])
+        self.assertIn("Pillow", reports[".tga"]["without_openimageio"])
+        self.assertEqual("", reports[".png"]["without_openimageio"])
+        self.assertTrue(reports[".png"]["existing_workflow_unaffected"])
+        self.assertEqual({".exr", ".ptx", ".ptex", ".psd", ".tga", ".tif", ".tiff"}, set(OPENIMAGEIO_SOURCE_FALLBACKS))
+
+    def test_a_copy_inside_the_build_still_counts_as_bundled_until_it_leaves_the_spec(self) -> None:
+        from cdmw.services import bundled_helper_availability
+        from cdmw.services.bundled_helper_availability import bundled_helper_resolution_snapshot
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            shipped = Path(temp_dir) / "oiiotool.exe"
+            shipped.write_text("", encoding="utf-8")
+            with mock.patch.dict(bundled_helper_availability.BUNDLED_HELPER_FINDERS, {"openimageio": lambda: shipped}):
+                snapshot = {entry["key"]: entry for entry in bundled_helper_resolution_snapshot()}
+        self.assertEqual(("available", "bundled_lookup"), (snapshot["openimageio"]["status"], snapshot["openimageio"]["source"]))
+
     def test_openimageio_convert_and_diff_commands_use_configured_oiiotool(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

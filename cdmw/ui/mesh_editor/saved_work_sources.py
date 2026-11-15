@@ -49,6 +49,18 @@ class SavedWorkSourceResolver(QObject):
         # Catalogue entry ids of the last v2 lookup, for scoping Archive Browser.
         self.entry_ids: dict[str, int] = {}
 
+    def configured_game_root(self) -> str:
+        """The game folder Archive Browser is set to, or "" when none is set."""
+
+        edit = getattr(self._archive, "archive_package_root_edit", None)
+        text = getattr(edit, "text", None)
+        if callable(text):
+            try:
+                return str(text() or "").strip()
+            except RuntimeError:  # the browser's widgets are gone
+                return ""
+        return str(getattr(self._archive, "archive_package_root", "") or "").strip()
+
     def _remote(self):
         bridge = getattr(self._archive, "archive_remote_bridge", None)
         return bridge if bridge is not None and bool(getattr(bridge, "displays_v2", False)) else None

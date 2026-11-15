@@ -1,8 +1,9 @@
 #![forbid(unsafe_code)]
+use crate::preview_effect_lightning::LightningView;
+
 #[cfg(test)]
 use crate::preview_effects::{effect_emitter_billboards, particle_kinematics};
 use crate::preview_effects::{effect_emitter_particles, push_effect_line};
-use crate::preview_effect_lightning::LightningView;
 
 use crate::camera::{OrbitCamera, StandardView};
 use crate::cdmw_material_preview_factors;
@@ -16,7 +17,8 @@ use anyhow::{Context, Result};
 use cdmw_formats::{MeshDocument, SourceRange, Submesh};
 use cdmw_mesh::{DrawSnapshot, Provenance, Selection, WorkingMesh};
 use cdmw_render_wgpu::{
-    EffectLineVertex, LightingPreset, MaterialPreviewFactors, ViewMode, WindowRenderer,
+    EffectLineVertex, LightingDepthSettings, LightingPreset, MaterialPreviewFactors, ViewMode,
+    WindowRenderer,
 };
 use crossbeam_channel::{Receiver, Sender, bounded};
 use egui::{Pos2, Rect, Vec2 as EguiVec2};
@@ -24,7 +26,7 @@ use glam::{Mat4, Vec2, Vec3};
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
@@ -37,7 +39,6 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 const CONTROL_QUEUE_BOUND: usize = 256;
 const OUTBOUND_QUEUE_BOUND: usize = 128;
-const MAX_CONTROL_LINE_BYTES: usize = 256 * 1024;
 
 pub(crate) const CAPABILITIES: &[&str] = &[
     "embedded_child_window_v1",
@@ -67,6 +68,13 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "textured_effect_particles_v1",
     "ui_theme_state_v1",
     "ui_localization_v1",
+    "dialog_prewarm_hold_v1",
+    "edit_in_place_v1",
+    "package_capture_v1",
+    "own_viewport_edit_v1",
+    "viewport_open_v1",
+    "page_open_v1",
+    "multi_edit_v1",
 ];
 
 pub(crate) fn control_contract() -> Value {
@@ -88,8 +96,10 @@ pub(crate) fn control_contract() -> Value {
         ),
         ("activate_request", "both", "activated"),
         ("deactivate_request", "both", "deactivated"),
+        ("prewarm_hold_request", "both", "prewarm_held"),
         ("reembed_request", "both", "reembedded"),
         ("capture_request", "both", "capture_result"),
+        ("package_capture_request", "both", "package_capture_result"),
         ("ui_localization_state", "both", "ui_localization_state_ack"),
         ("ui_theme_state", "both", "ui_theme_state_ack"),
         ("tool_state", "static_replacement", "tool_state_ack"),
@@ -157,78 +167,83 @@ struct PreviewBridge {
     outbound: Sender<Value>,
     session_id: String,
     process_generation: u64,
+    /// Set for another viewport of the engine (P4 V5): every line it writes
+    /// names it, since sessions follow the packages and are not unique.
+    viewport_id: Option<String>,
 }
 
 impl PreviewBridge {
-    fn new(session_id: String, process_generation: u64, proxy: EventLoopProxy<()>) -> Self {
+    /// The engine's one stdin reader feeds this bridge (P4 V3); the returned
+    /// route is where it puts the Preview's lines.
+    fn new(session_id: String, process_generation: u64) -> (Self, PreviewRoute) {
         let (incoming_tx, incoming) = bounded(CONTROL_QUEUE_BOUND);
         let (outbound, outbound_rx) = bounded(OUTBOUND_QUEUE_BOUND);
-        thread::Builder::new()
-            .name("cdmw-rust-preview-input".to_owned())
-            .spawn(move || {
-                let input = std::io::stdin();
-                let mut reader = BufReader::new(input.lock());
-                loop {
-                    let mut line = String::new();
-                    match reader.read_line(&mut line) {
-                        Ok(0) => break,
-                        Ok(_) if line.len() > MAX_CONTROL_LINE_BYTES => {
-                            let _ = incoming_tx.try_send(Incoming::Error(
-                                "Preview protocol line exceeded its safety limit".to_owned(),
-                            ));
-                            break;
-                        }
-                        Ok(_) => match serde_json::from_str::<Value>(line.trim()) {
-                            Ok(value) => {
-                                if incoming_tx.try_send(Incoming::Message(value)).is_err() {
-                                    let _ = incoming_tx.try_send(Incoming::Error(
-                                        "Preview protocol queue is full".to_owned(),
-                                    ));
-                                }
-                                let _ = proxy.send_event(());
-                            }
-                            Err(error) => {
-                                let _ = incoming_tx.try_send(Incoming::Error(format!(
-                                    "Preview received invalid JSON: {error}"
-                                )));
-                                let _ = proxy.send_event(());
-                            }
-                        },
-                        Err(error) => {
-                            let _ = incoming_tx.try_send(Incoming::Error(format!(
-                                "Preview input failed: {error}"
-                            )));
-                            break;
-                        }
-                    }
-                }
-                let _ = incoming_tx.send(Incoming::Closed);
-                let _ = proxy.send_event(());
-            })
-            .expect("Preview input thread");
+        let route = PreviewRoute(incoming_tx);
         thread::Builder::new()
             .name("cdmw-rust-preview-output".to_owned())
             .spawn(move || {
+                // Lock per line: the edit state's writer shares this stream (V3).
                 let output = std::io::stdout();
-                let mut writer = BufWriter::new(output.lock());
                 while let Ok(value) = outbound_rx.recv() {
-                    if serde_json::to_writer(&mut writer, &value).is_err()
-                        || writer.write_all(b"\n").is_err()
-                        || writer.flush().is_err()
-                    {
+                    let Ok(mut line) = serde_json::to_vec(&value) else {
+                        break;
+                    };
+                    line.push(b'\n');
+                    let mut writer = output.lock();
+                    if writer.write_all(&line).is_err() || writer.flush().is_err() {
                         break;
                     }
                 }
             })
             .expect("Preview output thread");
-        Self {
-            incoming,
-            outbound,
-            session_id,
-            process_generation: process_generation.max(1),
+        (
+            Self {
+                incoming,
+                outbound,
+                session_id,
+                process_generation: process_generation.max(1),
+                viewport_id: None,
+            },
+            route,
+        )
+    }
+}
+
+/// Where the engine's one stdin reader puts the Preview's lines (P4 V3).
+#[derive(Clone, Debug)]
+pub struct PreviewRoute(Sender<Incoming>);
+
+impl PreviewRoute {
+    pub fn message(&self, value: Value) {
+        if self.0.try_send(Incoming::Message(value)).is_err() {
+            let _ = self
+                .0
+                .try_send(Incoming::Error("Preview protocol queue is full".to_owned()));
         }
     }
 
+    pub fn error(&self, message: String) {
+        let _ = self.0.try_send(Incoming::Error(message));
+    }
+
+    pub fn closed(&self) {
+        let _ = self.0.send(Incoming::Closed);
+    }
+
+    /// A route and a count of the messages that reached it, for routing tests.
+    #[cfg(test)]
+    pub(crate) fn for_test() -> (Self, impl Fn() -> usize) {
+        let (sender, receiver) = bounded(8);
+        (Self(sender), move || {
+            receiver
+                .try_iter()
+                .filter(|item| matches!(item, Incoming::Message(_)))
+                .count()
+        })
+    }
+}
+
+impl PreviewBridge {
     fn send(&self, mut value: Value) {
         if let Some(object) = value.as_object_mut() {
             object
@@ -240,6 +255,9 @@ impl PreviewBridge {
             object
                 .entry("process_generation".to_owned())
                 .or_insert_with(|| json!(self.process_generation));
+            if let Some(viewport_id) = &self.viewport_id {
+                object.insert("viewport_id".to_owned(), json!(viewport_id));
+            }
         }
         let _ = self.outbound.try_send(value);
     }
@@ -285,11 +303,17 @@ struct PreviewState {
 impl PreviewState {
     fn needs_animated_frame(&self, visible: bool, material_animation: bool) -> bool {
         let display = &self.presentation["display"];
-        let particles = display["effect_particles_visible"].as_bool().unwrap_or(true)
-            && self.scene["effects_overlay"]["emitters"].as_array()
+        let particles = display["effect_particles_visible"]
+            .as_bool()
+            .unwrap_or(true)
+            && self.scene["effects_overlay"]["emitters"]
+                .as_array()
                 .is_some_and(|emitters| !emitters.is_empty());
-        visible && (particles || material_animation)
-            && !display["effect_particles_paused"].as_bool().unwrap_or(false)
+        visible
+            && (particles || material_animation)
+            && !display["effect_particles_paused"]
+                .as_bool()
+                .unwrap_or(false)
     }
 }
 
@@ -396,6 +420,60 @@ fn preview_render_failure(
     }
 }
 
+/// The one device of an engine process, for its life (section 8.8 cause 2). The
+/// first renderer makes it, from Browse's window when Browse draws first, and every
+/// later renderer of the process (Browse after an idle release, other viewports,
+/// pages, edits in windows of their own, captures) draws on it. Dropping a window,
+/// a scene or a renderer never drops it.
+#[derive(Clone, Default)]
+pub(crate) struct EngineDevice(Arc<std::sync::Mutex<Option<cdmw_render_wgpu::SharedGpu>>>);
+
+impl EngineDevice {
+    /// The process's device, unless it has faulted: a faulted device is handed to
+    /// no new window, page or capture (section 8.9, review of b585ee0c).
+    pub(crate) fn get(&self) -> Option<cdmw_render_wgpu::SharedGpu> {
+        self.0.lock().ok()?.clone().filter(|gpu| !gpu.faulted())
+    }
+
+    /// The first device made becomes the process's; a later one replaces it only
+    /// when it has faulted, so windows opened after a fault share the new one.
+    pub(crate) fn adopt(&self, gpu: cdmw_render_wgpu::SharedGpu) {
+        if let Ok(mut slot) = self.0.lock()
+            && slot
+                .as_ref()
+                .is_none_or(cdmw_render_wgpu::SharedGpu::faulted)
+        {
+            *slot = Some(gpu);
+        }
+    }
+}
+
+/// A renderer for `window` on the engine's device, or the renderer that makes it.
+/// A device that cannot present to the window, or that has faulted, gives the
+/// window a device of its own, as before; rebuilding the one device after a fault
+/// comes later (section 8.8 cause 2, point 4).
+pub(crate) fn engine_renderer(
+    device: &EngineDevice,
+    window: Arc<Window>,
+) -> std::result::Result<WindowRenderer, cdmw_render_wgpu::RenderError> {
+    if let Some(gpu) = device.get() {
+        match WindowRenderer::new_on(&gpu, window.clone()) {
+            Ok(renderer) => return Ok(renderer),
+            Err(error) => tracing::warn!("window falls back to a device of its own: {error}"),
+        }
+    }
+    let renderer = pollster::block_on(WindowRenderer::new(window))?;
+    device.adopt(renderer.shared_gpu());
+    Ok(renderer)
+}
+
+/// How long the capture pool may sit without a job before it is dropped.
+const CAPTURE_POOL_IDLE: Duration = Duration::from_secs(30);
+
+fn capture_pool_due(idle: bool, since: Option<Instant>, now: Instant) -> bool {
+    idle && since.is_some_and(|since| now >= since + CAPTURE_POOL_IDLE)
+}
+
 #[derive(Default)]
 struct PreviewRendererIdle {
     release_at: Option<Instant>,
@@ -419,11 +497,27 @@ impl PreviewRendererIdle {
     }
 }
 
+#[derive(Default)]
+struct PreviewTextureUploads {
+    base: usize,
+    effect: usize,
+    layer: usize,
+    layer_texture: usize,
+    pending: bool,
+    started: Option<Instant>,
+    bytes: usize,
+    maximum_slice_bytes: usize,
+    maximum_slice_ms: f64,
+}
+
 pub struct PreviewApplication {
     window: Option<Arc<Window>>,
     parent_hwnd: u64,
     renderer: Option<WindowRenderer>,
     renderer_idle: PreviewRendererIdle,
+    /// The process's one device (section 8.8 cause 2): the engine's, shared by
+    /// every window, page, edit and capture; an idle release never drops it.
+    device: EngineDevice,
     bridge: PreviewBridge,
     package: LoadedCdmwSessionPackage,
     document: MeshDocument,
@@ -432,6 +526,9 @@ pub struct PreviewApplication {
     snapshot: DrawSnapshot,
     snapshot_scene_roles: Option<Vec<u32>>,
     textures: Vec<CdmwTextureResource>,
+    layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
+    texture_uploads: PreviewTextureUploads,
+    deferred_capture: Option<(u64, Value)>,
     effect_textures: Vec<CdmwEffectTextureResource>,
     effect_texture_indices: HashMap<String, usize>,
     effect_surfaces: crate::preview_effect_spawn::EffectSurfaces,
@@ -467,10 +564,55 @@ pub struct PreviewApplication {
     newest_package_generation: u64,
     newest_package_request_id: u64,
     package_waiting_for_interaction: bool,
+    /// The edit state holds the window's renderer (P4 V3).
+    lent: bool,
+    /// Icon captures draw textured whatever view mode is chosen (P4 V3).
+    icon_capture: bool,
+    /// Off-screen captures of other packages on this device (P4 V5).
+    package_captures: Option<crate::package_capture::PackageCaptures>,
+    /// Since when the capture pool has had nothing to do; it is dropped after a while.
+    captures_idle_since: Option<Instant>,
+    /// The scene revision when Browse's renderer was lent: its kept scene is put
+    /// back only if no package load changed it meanwhile (section 8.7 C1).
+    lent_scene_revision: Option<u64>,
+    /// Browse's own scene, kept after a Finish until the finished package replaces
+    /// the edit's geometry; a failed load puts it back (section 8.9, C1).
+    finished_kept: Option<cdmw_render_wgpu::KeptScene>,
+    /// The request that loads the finished package: only its failure puts
+    /// Browse's scene back. Any other package request drops the kept scene.
+    finished_kept_request: Option<u64>,
+    /// Another viewport of the engine process (P4 V5): closing it closes its
+    /// window, not the process.
+    secondary: bool,
+    /// The edit revision this preview shows instead of its package's mesh, while
+    /// it follows an edit of the same file (P4 V5); cleared by a package load.
+    followed_revision: Option<crate::engine::FollowedRevision>,
+}
+
+/// The mode drawn: an icon capture is always textured, so a view mode chosen
+/// for looking at a model (shared by every viewport) never reaches an icon.
+fn drawn_view_mode(chosen: ViewMode, icon_capture: bool) -> ViewMode {
+    if icon_capture {
+        ViewMode::TexturedSolid
+    } else {
+        chosen
+    }
+}
+
+/// What the Preview lends the edit state when Browse edits in place (P4 V3).
+pub(crate) struct LentView {
+    pub window: Arc<Window>,
+    pub renderer: WindowRenderer,
+    pub camera: OrbitCamera,
 }
 
 impl PreviewApplication {
-    pub fn open(manifest_path: &Path, parent_hwnd: u64, proxy: EventLoopProxy<()>) -> Result<Self> {
+    /// Open for the engine (P4 V3): its one stdin reader feeds the returned route.
+    pub fn open_routed(
+        manifest_path: &Path,
+        parent_hwnd: u64,
+        proxy: EventLoopProxy<()>,
+    ) -> Result<(Self, PreviewRoute)> {
         let mut package = LoadedCdmwSessionPackage::load_preview(manifest_path)
             .context("failed to load the initial Preview package")?;
         let document = package.document().clone();
@@ -479,6 +621,7 @@ impl PreviewApplication {
         let snapshot = mesh.draw_snapshot();
         let geometry = PreviewGeometry::from_mesh(&mesh);
         let textures = package.take_textures();
+        let layers = package.take_layers();
         let effect_textures = package.take_effect_textures();
         let presentations = package.take_material_presentations();
         let scene = package
@@ -491,10 +634,9 @@ impl PreviewApplication {
             .map_err(anyhow::Error::msg)?;
         let effect_meshes = crate::preview_effect_mesh::EffectMeshes::read(&scene, &|| false)
             .map_err(anyhow::Error::msg)?;
-        let bridge = PreviewBridge::new(
+        let (bridge, route) = PreviewBridge::new(
             package.manifest().session_id.clone(),
             package.manifest().process_generation,
-            proxy.clone(),
         );
         let loader = PreviewLoader::new(proxy.clone())?;
         let (capture_tx, capture_rx) = bounded(2);
@@ -505,6 +647,7 @@ impl PreviewApplication {
             parent_hwnd,
             renderer: None,
             renderer_idle: PreviewRendererIdle::default(),
+            device: EngineDevice::default(),
             bridge,
             package,
             document,
@@ -513,6 +656,9 @@ impl PreviewApplication {
             snapshot,
             snapshot_scene_roles: None,
             textures,
+            layers,
+            texture_uploads: PreviewTextureUploads::default(),
+            deferred_capture: None,
             effect_textures,
             effect_texture_indices: HashMap::new(),
             effect_surfaces,
@@ -551,10 +697,19 @@ impl PreviewApplication {
             newest_package_generation: 0,
             newest_package_request_id: 0,
             package_waiting_for_interaction: false,
+            lent: false,
+            package_captures: None,
+            captures_idle_since: None,
+            lent_scene_revision: None,
+            finished_kept: None,
+            finished_kept_request: None,
+            secondary: false,
+            followed_revision: None,
+            icon_capture: false,
         };
         application.refresh_visible_snapshot();
         application.apply_canonical_view(false);
-        Ok(application)
+        Ok((application, route))
     }
 
     fn viewport_rect(&self) -> Rect {
@@ -603,11 +758,362 @@ impl PreviewApplication {
         }
     }
 
+    /// What an editor needs to show this resident model before its session
+    /// exists (P4 V4): the package's root and manifest, the source LOD, the
+    /// document and copies of the textures and layers already on the GPU.
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn view_parts(
+        &self,
+    ) -> (
+        PathBuf,
+        crate::cdmw_session::SessionManifest,
+        usize,
+        MeshDocument,
+        Vec<CdmwTextureResource>,
+        Vec<cdmw_render_wgpu::MaterialLayerSet>,
+    ) {
+        (
+            self.package.root().to_path_buf(),
+            self.package.manifest().clone(),
+            self.package.source_lod_index(),
+            self.document.clone(),
+            self.textures.clone(),
+            self.layers.clone(),
+        )
+    }
+
+    /// Why this view cannot be edited in place, if it cannot (P4 V3): the
+    /// comparison layouts place the model with matrices of their own.
+    pub(crate) fn edit_in_place_blocker(&self) -> Option<&'static str> {
+        if self.window.is_none() {
+            return Some("The Preview window does not exist yet.");
+        }
+        if self.renderer.is_none() {
+            return Some("The Preview renderer is not ready.");
+        }
+        if self.snapshot_scene_roles.is_some()
+            || self
+                .state
+                .presentation
+                .get("comparison_mode")
+                .and_then(Value::as_str)
+                == Some("side_by_side")
+        {
+            return Some("Leave the comparison view before editing the mesh here.");
+        }
+        None
+    }
+
+    /// Hand the window, the renderer (with every texture it holds) and the view
+    /// to the edit state. Nothing is dropped; `return_view` takes them back.
+    /// A renderer for this preview's window: on the engine's device for another
+    /// viewport (P4 V5), else on a device of its own.
+    fn make_renderer(
+        &self,
+        window: Arc<Window>,
+    ) -> std::result::Result<WindowRenderer, cdmw_render_wgpu::RenderError> {
+        engine_renderer(&self.device, window)
+    }
+
+    /// Make this preview another viewport of the engine process, drawn on `gpu`;
+    /// its lines name `viewport_id`.
+    pub(crate) fn make_secondary(&mut self, viewport_id: String) {
+        self.secondary = true;
+        self.bridge.viewport_id = Some(viewport_id);
+    }
+
+    /// Drop the capture pool once it has had nothing to do for a while (8.8 cause 2).
+    fn drop_idle_capture_pool(&mut self, now: Instant) {
+        let idle = self
+            .package_captures
+            .as_ref()
+            .is_some_and(|pool| pool.idle());
+        if self.package_captures.is_none() || !idle {
+            self.captures_idle_since = None;
+            return;
+        }
+        if capture_pool_due(idle, self.captures_idle_since, now) {
+            self.package_captures = None;
+            self.captures_idle_since = None;
+        } else {
+            self.captures_idle_since.get_or_insert(now);
+        }
+    }
+
+    pub(crate) fn viewport_id(&self) -> Option<&str> {
+        self.bridge.viewport_id.as_deref()
+    }
+
+    pub(crate) fn window_id(&self) -> Option<WindowId> {
+        self.window.as_ref().map(|window| window.id())
+    }
+
+    /// Whether this preview can follow an edit of `source_path` read-only (P4 V5).
+    /// Not while lent: then it is the edit's own view. It follows the whole mesh
+    /// when it shows that file alone with as many parts; otherwise, for an edit of
+    /// one file, the parts its package names as that file's (P5).
+    pub(crate) fn can_follow(&self, source_path: &str, parts: usize, one_file: bool) -> bool {
+        !self.lent
+            && self.renderer.is_some()
+            && (self.follows_whole(source_path, parts)
+                || (one_file && !self.follow_map(source_path).is_empty()))
+    }
+
+    fn own_part_count(&self) -> usize {
+        self.document
+            .lods
+            .get(self.package.source_lod_index())
+            .map_or(0, |lod| lod.submeshes.len())
+    }
+
+    fn follows_whole(&self, source_path: &str, parts: usize) -> bool {
+        crate::engine::same_source(
+            self.package
+                .manifest()
+                .source
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            source_path,
+        ) && self.own_part_count() == parts
+    }
+
+    /// (index in `source_path`, index here) for each part this package shows of that file.
+    pub(crate) fn follow_map(&self, source_path: &str) -> Vec<(u32, usize)> {
+        follow_map(&self.package.manifest().batches, source_path)
+    }
+
+    /// This preview's own document with the edited file's parts drawn as the edit has
+    /// them: a part the edit removed is left empty, and one it added is shown after
+    /// the package's own. Materials, camera and the other files' parts stay as they are.
+    fn followed_mesh(
+        &self,
+        edit: &WorkingMesh,
+        source_path: &str,
+    ) -> std::result::Result<WorkingMesh, String> {
+        let lod = self.package.source_lod_index();
+        let document = followed_document(&self.document, lod, &self.follow_map(source_path), edit)?;
+        WorkingMesh::from_document_lod(&document, lod).map_err(|error| error.to_string())
+    }
+
+    /// Show the edit's mesh, read-only, unless this revision is already shown.
+    pub(crate) fn follow(
+        &mut self,
+        revision: crate::engine::FollowedRevision,
+        mesh: &WorkingMesh,
+        source_path: &str,
+        one_file: bool,
+    ) {
+        if self.followed_revision == Some(revision) {
+            return;
+        }
+        let parts = mesh.submesh_indices().len();
+        let followed = if self.follows_whole(source_path, parts) || !one_file {
+            mesh.clone()
+        } else {
+            match self.followed_mesh(mesh, source_path) {
+                Ok(followed) => followed,
+                Err(error) => {
+                    tracing::warn!("preview could not follow the edit's parts: {error}");
+                    return;
+                }
+            }
+        };
+        if self.followed_revision.is_none() {
+            self.bridge.send(json!({"event": "edit_followed"}));
+        }
+        self.followed_revision = Some(revision);
+        self.mesh = followed;
+        self.mesh.selection = Selection::default();
+        self.geometry = PreviewGeometry::from_mesh(&self.mesh);
+        self.scene_revision = self.scene_revision.saturating_add(1);
+        self.refresh_visible_snapshot();
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// The followed edit left without a Finish: show this preview's own mesh
+    /// again (section 8.7 B8). After a Finish the finished package replaces it.
+    pub(crate) fn stop_following(&mut self, source_path: &str) {
+        if !crate::engine::restores_on_leave(
+            self.followed_revision.is_some(),
+            self.package
+                .manifest()
+                .source
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            source_path,
+            false,
+        ) {
+            return;
+        }
+        self.followed_revision = None;
+        if let Err(error) = self.rebuild_working_mesh() {
+            tracing::warn!("preview could not show its own mesh again: {error}");
+            return;
+        }
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// A viewport asked to close (or failed to open): the engine drops it.
+    pub(crate) fn wants_close(&self) -> bool {
+        self.exit_requested
+    }
+
+    /// Exit the process, unless this is another viewport of the engine (which
+    /// only closes; the engine drops it).
+    fn exit_loop(&self, event_loop: &ActiveEventLoop) {
+        if !self.secondary {
+            event_loop.exit();
+        }
+    }
+
+    pub(crate) fn resume(&mut self, event_loop: &ActiveEventLoop) {
+        ApplicationHandler::resumed(self, event_loop);
+    }
+
+    pub(crate) fn route_window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        ApplicationHandler::window_event(self, event_loop, window_id, event);
+    }
+
+    pub(crate) fn wait(&mut self, event_loop: &ActiveEventLoop) {
+        ApplicationHandler::about_to_wait(self, event_loop);
+    }
+
+    /// Draw on the engine process's one device (section 8.8 cause 2).
+    pub(crate) fn use_engine_device(&mut self, device: EngineDevice) {
+        self.device = device;
+    }
+
+    /// This process's device, for another window or an off-screen capture (P4 V5).
+    pub(crate) fn shared_gpu(&self) -> Option<cdmw_render_wgpu::SharedGpu> {
+        self.device
+            .get()
+            .or_else(|| self.renderer.as_ref().map(WindowRenderer::shared_gpu))
+    }
+
+    pub(crate) fn lend_view(&mut self) -> Result<LentView, String> {
+        if let Some(reason) = self.edit_in_place_blocker() {
+            return Err(reason.to_owned());
+        }
+        let window = self.window.clone().expect("checked above");
+        let renderer = self.renderer.take().expect("checked above");
+        self.lent = true;
+        self.lent_scene_revision = Some(self.scene_revision);
+        self.next_frame = None;
+        self.texture_uploads.pending = false;
+        self.renderer_idle.resume();
+        self.fail_deferred_capture("The viewport is editing the mesh.");
+        Ok(LentView {
+            window,
+            renderer,
+            camera: self.camera.clone(),
+        })
+    }
+
+    /// Take the view back after the edit. The resident scene is uploaded again;
+    /// its textures are still in the renderer's cache, so none is uploaded twice.
+    /// `camera` keeps the angle the user ended the edit with.
+    /// `kept`: Browse's scene as it was set aside when the edit drew its own; it
+    /// comes back without an upload when Browse's package did not change meanwhile
+    /// (section 8.7 C1). `finished`: the edit was finished; its scene stays drawn
+    /// until the finished package replaces it, whatever its parts (8.8 R10).
+    pub(crate) fn return_view(
+        &mut self,
+        renderer: Option<WindowRenderer>,
+        camera: Option<OrbitCamera>,
+        kept: Option<cdmw_render_wgpu::KeptScene>,
+        finished: bool,
+    ) {
+        self.lent = false;
+        if let Some(camera) = camera {
+            self.camera.keep_orbit_of(&camera);
+        }
+        let Some(mut renderer) = renderer else {
+            // The edit lost the device: recover as after any GPU fault.
+            self.recover_gpu("The renderer was lost while editing.".to_owned());
+            return;
+        };
+        if let Err(error) = renderer.clear_editor_overlays() {
+            self.renderer = Some(renderer);
+            self.recover_gpu(error.to_string());
+            return;
+        }
+        if finished {
+            // The edit's geometry stays drawn until the finished package arrives;
+            // Browse's own scene waits beside it in case that load fails.
+            self.finished_kept =
+                kept.filter(|_| self.lent_scene_revision == Some(self.scene_revision));
+            self.finished_kept_request = None;
+            self.lent_scene_revision = None;
+            self.renderer = Some(renderer);
+            self.render_failures = 0;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            return;
+        }
+        let unchanged = self.lent_scene_revision == Some(self.scene_revision);
+        let rebuilt = match kept {
+            Some(kept) if unchanged => {
+                self.renderer = Some(renderer);
+                self.restore_kept_scene(kept)
+            }
+            _ => {
+                self.renderer = Some(renderer);
+                self.configure_renderer()
+                    .and_then(|()| self.apply_material_parameters())
+            }
+        };
+        self.lent_scene_revision = None;
+        if let Err(error) = rebuilt {
+            self.recover_gpu(error);
+            return;
+        }
+        self.render_failures = 0;
+        self.apply_presentation(false);
+        self.apply_overlays();
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// Draw Browse's own scene again from what was set aside, with its transform and
+    /// its material parameters: one changed during the edit is not left stale (C1).
+    fn restore_kept_scene(&mut self, kept: cdmw_render_wgpu::KeptScene) -> Result<(), String> {
+        let transform = if self.snapshot_scene_roles.is_some() {
+            role_model_matrix(&self.state.scene, "editable")
+        } else {
+            Mat4::IDENTITY
+        };
+        let Some(renderer) = self.renderer.as_mut() else {
+            return Err("The renderer was lost while editing.".to_owned());
+        };
+        renderer.restore_scene(kept);
+        renderer
+            .set_scene_transform(transform)
+            .map_err(|error| error.to_string())?;
+        self.apply_material_parameters()
+    }
+
     fn restore_renderer(&mut self) -> Result<(), String> {
+        if self.lent {
+            return Ok(()); // the edit state owns the renderer until it returns it
+        }
         self.gpu_recovery.cancel_pending();
         let window = self.window.clone().ok_or("Preview window is unavailable")?;
         self.renderer = Some(
-            pollster::block_on(WindowRenderer::new(window)).map_err(|error| error.to_string())?,
+            self.make_renderer(window)
+                .map_err(|error| error.to_string())?,
         );
         if let Err(error) = self
             .configure_renderer()
@@ -635,6 +1141,8 @@ impl PreviewApplication {
         self.renderer = None;
         self.next_frame = None;
         self.render_failures = 6;
+        self.texture_uploads.pending = false;
+        self.fail_deferred_capture(&reason);
         self.bridge
             .send(json!({"event":"renderer_failed","error":reason}));
     }
@@ -643,6 +1151,8 @@ impl PreviewApplication {
         // CPU geometry, materials, camera and placement remain authoritative.
         // Drop the failed device before attempting any new GPU allocation.
         self.renderer = None;
+        self.texture_uploads.pending = false;
+        self.fail_deferred_capture(&reason);
         self.next_frame = None;
         self.render_failures = 6;
         if !self.gpu_recovery.schedule(Instant::now()) {
@@ -654,25 +1164,22 @@ impl PreviewApplication {
         let Some(renderer) = &mut self.renderer else {
             return Ok(());
         };
-        let (effect_texture_indices, effect_mesh_indices) = renderer
+        let effect_mesh_indices = renderer
             .replace_preview_scene(|renderer| {
+                renderer.begin_texture_uploads();
                 renderer.reset_texture();
                 renderer.reset_effect_textures();
-                let effect_mesh_indices = self.effect_meshes.0.iter().map(|asset|
-                    asset.as_ref().map(|asset| renderer.add_effect_mesh(asset)).transpose()
-                ).collect::<Result<Vec<_>, _>>()?;
-                let mut effect_texture_indices = HashMap::new();
-                for texture in &self.effect_textures {
-                    let index = renderer.add_effect_dds_texture(&texture.bytes)?;
-                    effect_texture_indices.insert(texture.archive_path.clone(), index);
-                }
-                for texture in &self.textures {
-                    renderer.add_dds_texture(
-                        &texture.bytes,
-                        texture.role,
-                        &texture.material_indices_by_lod,
-                    )?;
-                }
+                let effect_mesh_indices = self
+                    .effect_meshes
+                    .0
+                    .iter()
+                    .map(|asset| {
+                        asset
+                            .as_ref()
+                            .map(|asset| renderer.add_effect_mesh(asset))
+                            .transpose()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 for presentation in &self.presentations {
                     let ownership =
                         presentation_ownership(presentation, self.package.document().lods.len());
@@ -690,12 +1197,114 @@ impl PreviewApplication {
                     renderer.set_snapshot(&self.snapshot)?;
                     renderer.set_scene_transform(Mat4::IDENTITY)?;
                 }
-                Ok((effect_texture_indices, effect_mesh_indices))
+                Ok(effect_mesh_indices)
             })
             .map_err(|error| error.to_string())?;
-        self.effect_texture_indices = effect_texture_indices;
+        self.effect_texture_indices.clear();
         self.effect_mesh_indices = effect_mesh_indices;
+        self.texture_uploads = PreviewTextureUploads {
+            pending: true,
+            started: Some(Instant::now()),
+            ..Default::default()
+        };
+        self.next_frame = Some(Instant::now() + Duration::from_millis(16));
         Ok(())
+    }
+
+    fn advance_texture_uploads(&mut self) -> Result<(), String> {
+        let Some(renderer) = &mut self.renderer else {
+            return Ok(());
+        };
+        let progress = &mut self.texture_uploads;
+        if !progress.pending {
+            return Ok(());
+        }
+        let started = Instant::now();
+        let mut budget = 8 * 1024 * 1024;
+        let result = (|| -> Result<(), cdmw_render_wgpu::RenderError> {
+            while budget > 0 && started.elapsed() < Duration::from_millis(2) {
+                if let Some(texture) = self.textures.get(progress.base) {
+                    let (complete, used) = renderer.stage_verified_dds_texture(
+                        &texture.bytes,
+                        texture.role,
+                        &texture.metadata.source_sha256,
+                        budget,
+                    )?;
+                    budget -= used;
+                    if !complete {
+                        break;
+                    }
+                    renderer.add_verified_dds_texture(
+                        &texture.bytes,
+                        texture.role,
+                        &texture.material_indices_by_lod,
+                        &texture.metadata.source_sha256,
+                    )?;
+                    progress.base += 1;
+                } else if let Some(layers) = self.layers.get(progress.layer) {
+                    if progress.layer_texture < layers.textures.len() {
+                        if let Some(texture) = &layers.textures[progress.layer_texture] {
+                            let (complete, used) = renderer.stage_verified_dds_texture(
+                                &texture.bytes,
+                                texture.role,
+                                &texture.source_sha256,
+                                budget,
+                            )?;
+                            budget -= used;
+                            if !complete {
+                                break;
+                            }
+                        }
+                        progress.layer_texture += 1;
+                    } else {
+                        renderer.add_material_layers(layers)?;
+                        progress.layer += 1;
+                        progress.layer_texture = 0;
+                    }
+                } else if let Some(texture) = self.effect_textures.get(progress.effect) {
+                    let hash = &texture._metadata.source_sha256;
+                    let (complete, used) = renderer.stage_verified_dds_texture(
+                        &texture.bytes,
+                        cdmw_texture::TextureRole::BaseColor,
+                        hash,
+                        budget,
+                    )?;
+                    budget -= used;
+                    if !complete {
+                        break;
+                    }
+                    let index = renderer.add_verified_effect_dds_texture(&texture.bytes, hash)?;
+                    self.effect_texture_indices
+                        .insert(texture.archive_path.clone(), index);
+                    progress.effect += 1;
+                } else {
+                    renderer.finish_texture_uploads();
+                    progress.pending = false;
+                    break;
+                }
+            }
+            renderer.set_material_lod(self.package.source_lod_index())?;
+            Ok(())
+        })();
+        let used = 8 * 1024 * 1024 - budget;
+        progress.bytes += used;
+        progress.maximum_slice_bytes = progress.maximum_slice_bytes.max(used);
+        progress.maximum_slice_ms = progress
+            .maximum_slice_ms
+            .max(started.elapsed().as_secs_f64() * 1000.0);
+        if result.is_ok() && !progress.pending {
+            self.bridge.send(json!({"event":"texture_upload_report",
+                "generation":self.newest_package_generation,
+                "texture_uploads":renderer.texture_upload_count(),
+                "uploaded_bytes":progress.bytes,
+                "maximum_slice_bytes":progress.maximum_slice_bytes,
+                "maximum_slice_ms":progress.maximum_slice_ms,
+                "elapsed_ms":progress.started.map(|start|start.elapsed().as_secs_f64()*1000.0),
+            }));
+        }
+        // The last completed binding also needs one final redraw.
+        self.next_frame = Some(Instant::now() + Duration::from_millis(16));
+        result.map_err(|error| error.to_string())
     }
 
     fn start_package_load(
@@ -714,6 +1323,16 @@ impl PreviewApplication {
         self.newest_package_generation = generation;
         self.newest_package_request_id = request_id;
         self.package_waiting_for_interaction = false;
+        if self.finished_kept.is_some() {
+            if self.finished_kept_request.is_none() {
+                // The first load after a Finish is the finished package's.
+                self.finished_kept_request = Some(request_id);
+            } else {
+                // Browse moved on: a later failure is not the finished package's.
+                self.finished_kept = None;
+                self.finished_kept_request = None;
+            }
+        }
         self.loader.request(LoadRequest {
             request_id,
             generation,
@@ -763,12 +1382,15 @@ impl PreviewApplication {
                 let old_document = std::mem::replace(&mut self.document, loaded.document);
                 let old_mesh = std::mem::replace(&mut self.mesh, loaded.mesh);
                 let old_geometry = std::mem::replace(&mut self.geometry, loaded.geometry);
-                let old_effect_surfaces = std::mem::replace(&mut self.effect_surfaces, loaded.effect_surfaces);
-                let old_effect_meshes = std::mem::replace(&mut self.effect_meshes, loaded.effect_meshes);
+                let old_effect_surfaces =
+                    std::mem::replace(&mut self.effect_surfaces, loaded.effect_surfaces);
+                let old_effect_meshes =
+                    std::mem::replace(&mut self.effect_meshes, loaded.effect_meshes);
                 let old_snapshot = std::mem::replace(&mut self.snapshot, loaded.snapshot);
                 let old_roles = std::mem::replace(&mut self.snapshot_scene_roles, loaded.roles);
                 let old_textures =
                     std::mem::replace(&mut self.textures, loaded.package.take_textures());
+                let old_layers = std::mem::replace(&mut self.layers, loaded.package.take_layers());
                 let old_effects = std::mem::replace(
                     &mut self.effect_textures,
                     loaded.package.take_effect_textures(),
@@ -788,6 +1410,8 @@ impl PreviewApplication {
                         .unwrap_or(Value::Null),
                 );
                 let old_package = std::mem::replace(&mut self.package, loaded.package);
+                // A new package shows its own mesh until an edit of it is followed again.
+                self.followed_revision = None;
                 let retained_placement =
                     retain_live_placement(&old_scene, &mut self.state.scene, request.reset_view);
                 let old_revision = self.scene_revision;
@@ -810,6 +1434,7 @@ impl PreviewApplication {
                     self.snapshot = old_snapshot;
                     self.snapshot_scene_roles = old_roles;
                     self.textures = old_textures;
+                    self.layers = old_layers;
                     self.effect_textures = old_effects;
                     self.presentations = old_presentations;
                     self.state.scene = old_scene;
@@ -832,6 +1457,8 @@ impl PreviewApplication {
             })();
             match applied {
                 Ok(()) => {
+                    self.finished_kept = None;
+                    self.finished_kept_request = None;
                     self.bridge.send(
                         json!({"event":"package_load_applied","request_id":request.request_id,
                         "generation":request.generation,"package_path":request.path,
@@ -839,16 +1466,108 @@ impl PreviewApplication {
                     );
                     changed = true;
                 }
-                Err(error) => self.bridge.send(
-                    json!({"event":"package_load_failed","request_id":request.request_id,
-                    "generation":request.generation,"package_path":request.path,"error":error}),
-                ),
+                Err(error) => {
+                    // After a Finish the view still draws the edit's geometry under the
+                    // old file's name: put Browse's own scene back, and say so (C1).
+                    let kept = if self.finished_kept_request == Some(request.request_id) {
+                        self.finished_kept_request = None;
+                        self.finished_kept.take()
+                    } else {
+                        None
+                    };
+                    let restored = match kept {
+                        Some(kept) => match self.restore_kept_scene(kept) {
+                            Ok(()) => {
+                                self.apply_presentation(false);
+                                self.apply_overlays();
+                                changed = true;
+                                true
+                            }
+                            Err(restore_error) => {
+                                self.recover_gpu(restore_error);
+                                false
+                            }
+                        },
+                        None => false,
+                    };
+                    self.bridge.send(
+                        json!({"event":"package_load_failed","request_id":request.request_id,
+                        "generation":request.generation,"package_path":request.path,"error":error,
+                        "restored_previous_scene":restored}),
+                    );
+                }
             }
         }
         changed
     }
 
+    /// `package_capture_request {request_id, manifest, output, report, size}`:
+    /// render another package off screen on this device (P4 V5).
+    fn start_package_capture(&mut self, value: &Value) {
+        let refuse = |bridge: &PreviewBridge, message: String| {
+            bridge.send(json!({
+                "event": "package_capture_result",
+                "request_id": value.get("request_id").cloned().unwrap_or(Value::Null),
+                "status": "error",
+                "message": message,
+            }));
+        };
+        let job = match crate::package_capture::parse_package_capture(value) {
+            Ok(job) => job,
+            Err(message) => return refuse(&self.bridge, message),
+        };
+        if self.package_captures.is_none() {
+            let Some(gpu) = self.shared_gpu() else {
+                return refuse(&self.bridge, "the renderer is not ready".to_owned());
+            };
+            let outbound = self.bridge.outbound.clone();
+            let session_id = self.bridge.session_id.clone();
+            let generation = self.bridge.process_generation;
+            let viewport_id = self.bridge.viewport_id.clone();
+            let send = move |mut line: Value| {
+                if let Some(object) = line.as_object_mut() {
+                    object.insert("protocol".to_owned(), json!(PREVIEW_PROTOCOL));
+                    object.insert("session_id".to_owned(), json!(session_id));
+                    object.insert("process_generation".to_owned(), json!(generation));
+                    if let Some(viewport_id) = &viewport_id {
+                        object.insert("viewport_id".to_owned(), json!(viewport_id));
+                    }
+                }
+                let _ = outbound.try_send(line);
+            };
+            match crate::package_capture::PackageCaptures::start(gpu, send) {
+                Ok(captures) => self.package_captures = Some(captures),
+                Err(message) => return refuse(&self.bridge, message),
+            }
+        }
+        if let Some(captures) = &self.package_captures
+            && let Err(message) = captures.submit(job)
+        {
+            refuse(&self.bridge, message);
+        }
+    }
+
     fn start_capture(&mut self, value: &Value) {
+        // A texture-delayed capture retains the requested icon background even
+        // if its host restores ordinary display options while it is waiting.
+        let mut capture_request = value.clone();
+        if let Some(fields) = capture_request.as_object_mut() {
+            fields.entry("transparent_background").or_insert_with(|| {
+                json!(
+                    self.state.presentation["display"]["icon_capture_mode"]
+                        .as_bool()
+                        .unwrap_or(false)
+                )
+            });
+        }
+        let value = &capture_request;
+        if self.texture_uploads.pending
+            && !self.capture_in_flight
+            && self.deferred_capture.is_none()
+        {
+            self.deferred_capture = Some((self.scene_revision, value.clone()));
+            return;
+        }
         let request_id = value.get("request_id").and_then(Value::as_u64).unwrap_or(0);
         let Some(output_path) = value
             .get("output_path")
@@ -879,7 +1598,7 @@ impl PreviewApplication {
         let yaw_degrees = value.get("yaw_degrees").and_then(Value::as_f64);
         let pitch_degrees = value.get("pitch_degrees").and_then(Value::as_f64);
         let result = (|| -> Result<_> {
-            if self.capture_in_flight {
+            if self.capture_in_flight || self.deferred_capture.is_some() {
                 anyhow::bail!("A preview capture is already in progress");
             }
             let saved_camera = self.camera.clone();
@@ -919,18 +1638,23 @@ impl PreviewApplication {
                     renderer.set_view_mode(if isolated.is_some() {
                         ViewMode::TexturedSolid
                     } else {
-                        self.view_mode
+                        drawn_view_mode(self.view_mode, self.icon_capture)
                     });
                     renderer.set_camera_with_basis(matrix, right, up);
                     renderer
-                        .capture_frame(width, height, isolated)
+                        .capture_frame_with_background(
+                            width,
+                            height,
+                            isolated,
+                            value["transparent_background"].as_bool().unwrap_or(false),
+                        )
                         .map_err(|e| anyhow::anyhow!(e.to_string()))
                 });
             self.camera = saved_camera;
             self.refresh_scene_overlays(time);
             let matrix = self.camera.view_projection(self.viewport_rect());
             if let Some(renderer) = &mut self.renderer {
-                renderer.set_view_mode(self.view_mode);
+                renderer.set_view_mode(drawn_view_mode(self.view_mode, self.icon_capture));
                 renderer.set_camera_with_basis(matrix, self.camera.right(), self.camera.up());
             }
             capture
@@ -969,7 +1693,28 @@ impl PreviewApplication {
         }
     }
 
+    fn fail_deferred_capture(&mut self, reason: &str) {
+        if let Some((_, value)) = self.deferred_capture.take() {
+            self.bridge.send(
+                json!({"event":"capture_result", "request_id":value.get("request_id"),
+                "status":"error", "message":reason}),
+            );
+        }
+    }
+
     fn poll_captures(&mut self) {
+        if !self.texture_uploads.pending
+            && let Some((revision, value)) = self.deferred_capture.take()
+        {
+            if revision == self.scene_revision {
+                self.start_capture(&value);
+            } else {
+                self.bridge.send(
+                    json!({"event":"capture_result", "request_id":value.get("request_id"),
+                    "status":"error", "message":"preview changed while textures were preparing"}),
+                );
+            }
+        }
         while let Ok(result) = self.capture_rx.try_recv() {
             self.capture_in_flight = false;
             match result.result {
@@ -1131,6 +1876,15 @@ impl PreviewApplication {
                     window.set_visible(false);
                 }
                 self.bridge.send(json!({"event": "deactivated"}));
+                if self.texture_uploads.pending {
+                    self.next_frame = Some(Instant::now() + Duration::from_millis(16));
+                }
+            }
+            "prewarm_hold_request" if !self.visible && self.renderer.is_some() => {
+                // One application-owned hidden spare retains its device until
+                // adoption or shutdown. Ordinary deactivation restores expiry.
+                self.renderer_idle.resume();
+                self.bridge.send(json!({"event":"prewarm_held"}));
             }
             "reembed_request" => {
                 self.parent_hwnd = value
@@ -1141,6 +1895,7 @@ impl PreviewApplication {
                     .send(json!({"event": "reembedded", "parent_hwnd": self.parent_hwnd}));
             }
             "capture_request" => self.start_capture(&value),
+            "package_capture_request" => self.start_package_capture(&value),
             "close_request" | "cancel" => self.exit_requested = true,
             "ui_localization_state" => self.bridge.send(json!({
                 "event": "ui_localization_state_ack",
@@ -1249,6 +2004,16 @@ impl PreviewApplication {
                 "xray" => ViewMode::XRay,
                 _ => self.view_mode,
             };
+            // With textures on, the shared view mode decides (P4 V3); "Load textures"
+            // off keeps its untextured mode.
+            if mode == "textured"
+                && let Some((shared, _islands)) = display
+                    .get("view_mode")
+                    .and_then(Value::as_str)
+                    .and_then(crate::view_modes::from_shared_id)
+            {
+                self.view_mode = shared;
+            }
         }
         let quality = display.get("quality").unwrap_or(&Value::Null);
         let background = display
@@ -1271,15 +2036,59 @@ impl PreviewApplication {
             .and_then(Value::as_str)
             .and_then(parse_color)
             .unwrap_or([1.0, 0.22, 0.28, 1.0]);
+        // The studio floor and its grid start on; icon captures never show it.
+        let icon_capture = display
+            .get("icon_capture_mode")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.icon_capture = icon_capture;
+        let ground = !icon_capture
+            && display
+                .get("ground_visible")
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+        let ground_grid = display
+            .get("ground_grid_visible")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
         if let Some(renderer) = &mut self.renderer {
             if let Some(background) = background {
                 renderer.set_clear_colour(background);
             }
+            renderer.set_ground(ground, ground_grid);
+            // Black is CDMW's unset wire colour. On the dark background of the
+            // wire and diagnostic modes (now offered here too, P4 V3) it would not
+            // show, so those modes use the editor's own light wire.
+            let wire = if wire == [0.0, 0.0, 0.0, 1.0]
+                && cdmw_render_wgpu::view_mode_darkens_background(self.view_mode)
+            {
+                [0.72, 0.82, 1.0, 1.0]
+            } else {
+                wire
+            };
             renderer.set_overlay_colours(wire, vertex);
+            renderer.set_lighting_depth_settings(LightingDepthSettings {
+                shadows: quality
+                    .get("preview_shadows")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
+                ambient_occlusion: quality
+                    .get("preview_ambient_occlusion")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
+            });
             renderer.set_lighting_preset(
-                match display.get("lighting_preset").and_then(Value::as_str) {
+                match display
+                    .get("lighting_preset")
+                    .and_then(Value::as_str)
+                    .or_else(|| {
+                        quality
+                            .get("preview_lighting_preset")
+                            .and_then(Value::as_str)
+                    }) {
                     Some("showcase") => LightingPreset::Showcase,
                     Some("dark") => LightingPreset::Dark,
+                    Some("studio_fixed") => LightingPreset::StudioFixed,
                     _ => LightingPreset::NeutralStudio,
                 },
             );
@@ -1777,10 +2586,15 @@ impl PreviewApplication {
                             vertical_fov: self.camera.vertical_field_of_view(),
                             height: self.viewport_rect().height(),
                         },
-                        self.effect_surfaces.select(emitter_index,
+                        self.effect_surfaces.select(
+                            emitter_index,
                             emitter["spawn_volume_type"].as_u64().unwrap_or(0),
-                            control("effect_surface_target", 0)),
-                        self.effect_mesh_indices.get(emitter_index).copied().flatten(),
+                            control("effect_surface_target", 0),
+                        ),
+                        self.effect_mesh_indices
+                            .get(emitter_index)
+                            .copied()
+                            .flatten(),
                     );
                     let faces_per_particle = if kind == "mesh" {
                         emitter
@@ -1795,8 +2609,10 @@ impl PreviewApplication {
                     let remaining = 32_768usize.saturating_sub(effect_particles.len());
                     let allowed = remaining / faces_per_particle * faces_per_particle;
                     let mesh_allowed = cdmw_render_wgpu::MAX_EFFECT_MESH_TRIANGLES
-                        .saturating_sub(effect_mesh_triangles) / faces_per_particle;
-                    let mesh_allowed = mesh_allowed.min(32_768usize.saturating_sub(effect_mesh_particles.len()));
+                        .saturating_sub(effect_mesh_triangles)
+                        / faces_per_particle;
+                    let mesh_allowed =
+                        mesh_allowed.min(32_768usize.saturating_sub(effect_mesh_particles.len()));
                     for instance in emission.meshes.into_iter().take(mesh_allowed) {
                         effect_mesh_particles.push(instance);
                         effect_mesh_triangles += faces_per_particle;
@@ -1821,8 +2637,12 @@ impl PreviewApplication {
         }
 
         let effect_mesh_view = cdmw_render_wgpu::EffectMeshView {
-            eye_height: [self.camera.eye().x, self.camera.eye().y, self.camera.eye().z,
-                self.viewport_rect().height().max(1.)],
+            eye_height: [
+                self.camera.eye().x,
+                self.camera.eye().y,
+                self.camera.eye().z,
+                self.viewport_rect().height().max(1.),
+            ],
             fov_padding: [self.camera.vertical_field_of_view(), 0., 0., 0.],
         };
         if let Some(renderer) = &mut self.renderer {
@@ -2618,7 +3438,7 @@ impl ApplicationHandler for PreviewApplication {
         // Retain the hidden window on GPU failure. The paused helper can deliver
         // renderer_failed and wait for Close/Retry without another resumed init.
         self.window = Some(window.clone());
-        let renderer = match pollster::block_on(WindowRenderer::new(window.clone())) {
+        let renderer = match self.make_renderer(window.clone()) {
             Ok(renderer) => renderer,
             Err(error) => {
                 self.renderer_failed(error.to_string());
@@ -2848,7 +3668,7 @@ impl ApplicationHandler for PreviewApplication {
                 let camera = self.camera.view_projection(self.viewport_rect());
                 if let Some(renderer) = &mut self.renderer {
                     renderer.set_material_time(effect_time);
-                    renderer.set_view_mode(self.view_mode);
+                    renderer.set_view_mode(drawn_view_mode(self.view_mode, self.icon_capture));
                     renderer.set_camera_with_basis(camera, self.camera.right(), self.camera.up());
                     renderer.set_mesh_viewport(None);
                     match renderer.render() {
@@ -2878,24 +3698,49 @@ impl ApplicationHandler for PreviewApplication {
                         }
                     }
                 }
-                if self.render_failures == 0 && self.state.needs_animated_frame(
-                    self.visible, self.renderer.as_ref().is_some_and(WindowRenderer::has_material_animation)) {
+                if self.render_failures == 0
+                    && self.state.needs_animated_frame(
+                        self.visible,
+                        self.renderer
+                            .as_ref()
+                            .is_some_and(WindowRenderer::has_material_animation),
+                    )
+                {
                     self.next_frame = Some(Instant::now() + Duration::from_millis(16));
+                }
+                if self.render_failures == 0
+                    && let Err(error) = self.advance_texture_uploads()
+                {
+                    self.recover_gpu(error);
                 }
             }
             _ => {}
         }
         if self.exit_requested {
-            event_loop.exit();
+            self.exit_loop(event_loop);
         }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let changed = self.poll_bridge() | self.poll_package_loads();
         self.poll_captures();
-        if self.renderer_idle.take_due(Instant::now()) {
-            self.renderer = None;
+        if self.lent {
+            // The edit state draws and sets the wait; only messages and loads run here.
+            if self.exit_requested {
+                self.exit_loop(event_loop);
+            }
+            return;
         }
+        let now = Instant::now();
+        if self.renderer_idle.take_due(now) {
+            // The surface and the scene go; the device stays for every other
+            // window, and keeps only what its retained list allows (8.8 cause 2).
+            self.renderer = None;
+            if let Some(gpu) = self.device.get() {
+                gpu.trim_retained();
+            }
+        }
+        self.drop_idle_capture_pool(now);
         if self.gpu_recovery.take_due(Instant::now()) && self.visible {
             match self.restore_renderer() {
                 Ok(()) => {
@@ -2917,17 +3762,24 @@ impl ApplicationHandler for PreviewApplication {
                 && let Some(window) = &self.window
             {
                 window.request_redraw();
+            } else if let Err(error) = self.advance_texture_uploads() {
+                self.recover_gpu(error);
             }
         }
+        self.poll_captures();
         event_loop.set_control_flow(
             self.next_frame
                 .into_iter()
                 .chain(self.gpu_recovery.deadline())
                 .chain(self.renderer_idle.release_at)
+                .chain(
+                    self.captures_idle_since
+                        .map(|since| since + CAPTURE_POOL_IDLE),
+                )
                 .min()
                 .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
         );
-        if self.exit_requested {
+        if self.exit_requested && !self.secondary {
             // winit 0.30 on Windows prepares AboutToWait before entering its
             // OS wait. Make this final wait nonblocking when closing hidden.
             event_loop.set_control_flow(ControlFlow::Poll);
@@ -2974,37 +3826,56 @@ fn apply_preview_material_parameters(
             height_scale: optional_f32(group, "height_scale"),
             base_tint_strength: optional_f32(group, "base_tint_strength"),
             texture_tint: color3(group.get("texture_tint")),
-            glow_surface_color: match group.get("glow_surface_color").filter(|value| !value.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[f32; 3]>(value.clone())
-                    .map_err(|_| "Glow surface color requires three numbers".to_owned())?),
+            glow_surface_color: match group
+                .get("glow_surface_color")
+                .filter(|value| !value.is_null())
+            {
+                Some(value) => Some(
+                    serde_json::from_value::<[f32; 3]>(value.clone())
+                        .map_err(|_| "Glow surface color requires three numbers".to_owned())?,
+                ),
                 None => None,
             },
             emissive_color: color3(group.get("emissive_color")),
             emissive_intensity: optional_f32(group, "emissive_intensity"),
             emission_reveal: match group.get("emission_reveal").filter(|v| !v.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[f32; 4]>(value.clone())
-                    .map_err(|_| "RGB glow reveal requires four numbers".to_owned())?),
+                Some(value) => Some(
+                    serde_json::from_value::<[f32; 4]>(value.clone())
+                        .map_err(|_| "RGB glow reveal requires four numbers".to_owned())?,
+                ),
                 None => None,
             },
             shader_controls: match group.get("shader_controls") {
                 Some(Value::Null) => Some([0.0; 32]),
-                Some(value) => Some(serde_json::from_value::<[f32; 32]>(value.clone())
-                    .map_err(|_| "Shader controls require 32 numbers".to_owned())?),
+                Some(value) => Some(
+                    serde_json::from_value::<[f32; 32]>(value.clone())
+                        .map_err(|_| "Shader controls require 32 numbers".to_owned())?,
+                ),
                 None => None,
             },
             emission_animation: match group.get("emission_animation").filter(|v| !v.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[f32; 4]>(value.clone())
-                    .map_err(|_| "Emission animation requires four numbers".to_owned())?),
+                Some(value) => Some(
+                    serde_json::from_value::<[f32; 4]>(value.clone())
+                        .map_err(|_| "Emission animation requires four numbers".to_owned())?,
+                ),
                 None => None,
             },
             translucency: match group.get("translucency").filter(|value| !value.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[f32; 2]>(value.clone())
-                    .map_err(|_| "Translucency requires thickness and extinction numbers".to_owned())?),
+                Some(value) => Some(serde_json::from_value::<[f32; 2]>(value.clone()).map_err(
+                    |_| "Translucency requires thickness and extinction numbers".to_owned(),
+                )?),
                 None => None,
             },
-            translucency_surface: match group.get("translucency_surface").filter(|value| !value.is_null()) {
-                Some(value) => Some(serde_json::from_value::<[Option<f32>; 2]>(value.clone())
-                    .map_err(|_| "Translucent surface requires roughness and metallic numbers or null".to_owned())?),
+            translucency_surface: match group
+                .get("translucency_surface")
+                .filter(|value| !value.is_null())
+            {
+                Some(value) => Some(
+                    serde_json::from_value::<[Option<f32>; 2]>(value.clone()).map_err(|_| {
+                        "Translucent surface requires roughness and metallic numbers or null"
+                            .to_owned()
+                    })?,
+                ),
                 None => None,
             },
             ..MaterialPreviewFactors::default()
@@ -3774,6 +4645,7 @@ fn grid_plane_axes(grid: &Value) -> (Vec3, Vec3) {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3803,6 +4675,26 @@ mod tests {
         idle.pause(now + Duration::from_secs(30));
         assert!(!idle.take_due(now + Duration::from_secs(44)));
         assert!(idle.take_due(now + Duration::from_secs(45)));
+    }
+
+    #[test]
+    fn the_capture_pool_goes_once_it_has_been_idle_a_while() {
+        let now = Instant::now();
+        assert!(
+            !capture_pool_due(true, None, now),
+            "the idle time starts now"
+        );
+        assert!(!capture_pool_due(
+            true,
+            Some(now),
+            now + Duration::from_secs(29)
+        ));
+        assert!(capture_pool_due(true, Some(now), now + CAPTURE_POOL_IDLE));
+        assert!(!capture_pool_due(
+            false,
+            Some(now),
+            now + CAPTURE_POOL_IDLE * 2
+        ));
     }
 
     #[test]
@@ -3870,49 +4762,96 @@ mod tests {
     #[test]
     #[ignore = "requires a D3D12 adapter; no window or game files"]
     fn glow_surface_offscreen_replaces_cyan_with_red_without_emission() {
-        use cdmw_render_wgpu::{HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput,
-            HeadlessMaterialFactors, HeadlessMaterialTexture, run_headless_material_capture};
+        use cdmw_render_wgpu::{
+            HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput, HeadlessMaterialFactors,
+            HeadlessMaterialTexture, run_headless_material_capture,
+        };
         let root = tempfile::tempdir().unwrap();
         let snapshot = cdmw_mesh::DrawSnapshot {
             shader_masks: Vec::new(),
-            mesh_identity: 1, draw_revision: 1, topology_generation: 1,
+            mesh_identity: 1,
+            draw_revision: 1,
+            topology_generation: 1,
             positions: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]],
             normals: vec![[0.0, 0.0, -1.0]; 3],
-            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]], indices: vec![0, 2, 1],
-            triangle_materials: vec![0], selected_vertices: vec![], fingerprint: "glow-colour-fixture".into(),
+            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]],
+            indices: vec![0, 2, 1],
+            triangle_materials: vec![0],
+            selected_vertices: vec![],
+            fingerprint: "glow-colour-fixture".into(),
         };
         let owners = [vec![0]];
         // One constant cyan BC1 block, as a real sampled source texture.
         let mut dds = vec![0_u8; 136];
         dds[..4].copy_from_slice(b"DDS ");
-        for (offset, value) in [(4, 124_u32), (8, 0x81007), (12, 4), (16, 4),
-            (20, 8), (28, 1), (76, 32), (80, 4), (108, 0x1000)] {
+        for (offset, value) in [
+            (4, 124_u32),
+            (8, 0x81007),
+            (12, 4),
+            (16, 4),
+            (20, 8),
+            (28, 1),
+            (76, 32),
+            (80, 4),
+            (108, 0x1000),
+        ] {
             dds[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
         }
         dds[84..88].copy_from_slice(b"DXT1");
         dds[128..130].copy_from_slice(&0x07f9_u16.to_le_bytes());
-        let textures = [HeadlessMaterialTexture { bytes: &dds,
-            role: cdmw_texture::TextureRole::BaseColor, material_indices_by_lod: &owners }];
+        let textures = [HeadlessMaterialTexture {
+            bytes: &dds,
+            role: cdmw_texture::TextureRole::BaseColor,
+            material_indices_by_lod: &owners,
+        }];
         for (label, colour) in [("authored", None), ("red", Some([1.0, 0.0, 0.0]))] {
             let textured = root.path().join(format!("{label}-lit.bmp"));
             let base = root.path().join(format!("{label}-base.bmp"));
             let parts = root.path().join(format!("{label}-parts.bmp"));
-            let factors = [HeadlessMaterialFactors { material_indices_by_lod: &owners,
-                factors: MaterialPreviewFactors { glow_surface_color: colour,
-                    emissive_intensity: Some(0.0), roughness: Some(0.9), metalness: Some(0.0),
-                    ..MaterialPreviewFactors::default() } }];
-            let report = pollster::block_on(run_headless_material_capture(&snapshot, &textures, &factors,
-                HeadlessMaterialCaptureOptions { width: 64, height: 64, ..Default::default() },
-                HeadlessMaterialCaptureOutput { textured_bmp: &textured, base_color_bmp: &base,
-                    part_id_bmp: &parts, normal_map: None, material_response: None, layer_mask: None })).unwrap();
+            let factors = [HeadlessMaterialFactors {
+                material_indices_by_lod: &owners,
+                factors: MaterialPreviewFactors {
+                    glow_surface_color: colour,
+                    emissive_intensity: Some(0.0),
+                    roughness: Some(0.9),
+                    metalness: Some(0.0),
+                    ..MaterialPreviewFactors::default()
+                },
+            }];
+            let report = pollster::block_on(run_headless_material_capture(
+                &snapshot,
+                &textures,
+                &factors,
+                HeadlessMaterialCaptureOptions {
+                    width: 64,
+                    height: 64,
+                    ..Default::default()
+                },
+                HeadlessMaterialCaptureOutput {
+                    textured_bmp: &textured,
+                    base_color_bmp: &base,
+                    part_id_bmp: &parts,
+                    normal_map: None,
+                    material_response: None,
+                    layer_mask: None,
+                },
+            ))
+            .unwrap();
             assert!(report.owner_coverage[0].pixel_count > 100);
             let bytes = std::fs::read(base).unwrap();
-            let offset = u32::from_le_bytes(bytes[10..14].try_into().unwrap()) as usize + (32 * 64 + 32) * 4;
+            let offset =
+                u32::from_le_bytes(bytes[10..14].try_into().unwrap()) as usize + (32 * 64 + 32) * 4;
             let bgra = &bytes[offset..offset + 4];
             if colour.is_some() {
-                assert!(bgra[2] > 240 && bgra[0] < 5 && bgra[1] < 5, "red surface: {bgra:?}");
+                assert!(
+                    bgra[2] > 240 && bgra[0] < 5 && bgra[1] < 5,
+                    "red surface: {bgra:?}"
+                );
             } else {
-                assert!(bgra[1] > 240 && bgra[0] > 150 && bgra[2] < 5, "authored cyan: {bgra:?}");
+                assert!(
+                    bgra[1] > 240 && bgra[0] > 150 && bgra[2] < 5,
+                    "authored cyan: {bgra:?}"
+                );
             }
         }
     }
@@ -3920,27 +4859,42 @@ mod tests {
     #[test]
     fn glow_surface_updates_validate_and_restore_authored_colours() {
         let ownership = vec![vec![0_u32]];
-        let authored = vec![(MaterialPreviewFactors {
-            texture_tint: Some([0.0, 1.0, 0.8]),
-            emissive_color: Some([0.0, 1.0, 0.0]),
-            ..MaterialPreviewFactors::default()
-        }, ownership.clone())];
-        let overrides = vec![(MaterialPreviewFactors {
-            glow_surface_color: Some([1.0, 0.0, 0.0]),
-            emissive_color: Some([1.0, 0.0, 0.0]),
-            ..MaterialPreviewFactors::default()
-        }, ownership)];
+        let authored = vec![(
+            MaterialPreviewFactors {
+                texture_tint: Some([0.0, 1.0, 0.8]),
+                emissive_color: Some([0.0, 1.0, 0.0]),
+                ..MaterialPreviewFactors::default()
+            },
+            ownership.clone(),
+        )];
+        let overrides = vec![(
+            MaterialPreviewFactors {
+                glow_surface_color: Some([1.0, 0.0, 0.0]),
+                emissive_color: Some([1.0, 0.0, 0.0]),
+                ..MaterialPreviewFactors::default()
+            },
+            ownership,
+        )];
         let changed = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, 0).unwrap();
         assert_eq!(changed[0].0.glow_surface_color, Some([1.0, 0.0, 0.0]));
         assert_eq!(changed[0].0.texture_tint, Some([0.0, 1.0, 0.8]));
         let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
         assert_eq!(restored[0].0.glow_surface_color, None);
         assert_eq!(restored[0].0.emissive_color, Some([0.0, 1.0, 0.0]));
-        for (value, valid) in [(json!([1, 0, 0]), true), (Value::Null, true),
-            (json!([2, 0, 0]), false), (json!([-1, 0, 0]), false),
-            (json!([0, 1]), false), (json!([true, 0, 0]), false)] {
-            let parameters = json!({"groups": [{"source_submesh_indices": [0], "glow_surface_color": value}]});
-            assert_eq!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(), valid);
+        for (value, valid) in [
+            (json!([1, 0, 0]), true),
+            (Value::Null, true),
+            (json!([2, 0, 0]), false),
+            (json!([-1, 0, 0]), false),
+            (json!([0, 1]), false),
+            (json!([true, 0, 0]), false),
+        ] {
+            let parameters =
+                json!({"groups": [{"source_submesh_indices": [0], "glow_surface_color": value}]});
+            assert_eq!(
+                apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(),
+                valid
+            );
         }
     }
 
@@ -3965,22 +4919,40 @@ mod tests {
             let mut group = json!({"source_submesh_indices": [0]});
             group[field] = value;
             let parameters = json!({"groups": [group]});
-            assert_eq!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(), valid,
-                "{parameters}");
+            assert_eq!(
+                apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(),
+                valid,
+                "{parameters}"
+            );
         }
         let ownership = vec![vec![0_u32]];
-        let authored = vec![(MaterialPreviewFactors {
-            emission_animation: Some([0.5, 0.25, 2.0, 0.1]),
-            emission_reveal: Some([0.5, 0.1, 1.0, 0.7]),
-            roughness: Some(0.7), ..Default::default()
-        }, ownership.clone())];
-        let static_mono = vec![(MaterialPreviewFactors {
-            emission_animation: Some([0.0; 4]),
-            emission_reveal: Some([0.0, 1.0, 0.0, -1.0]), ..Default::default()
-        }, ownership)];
-        let stopped = cdmw_render_wgpu::preview_material_factors(&authored, &static_mono, 0).unwrap();
-        assert_eq!(stopped[0].0.emission_animation, static_mono[0].0.emission_animation);
-        assert_eq!(stopped[0].0.emission_reveal, static_mono[0].0.emission_reveal);
+        let authored = vec![(
+            MaterialPreviewFactors {
+                emission_animation: Some([0.5, 0.25, 2.0, 0.1]),
+                emission_reveal: Some([0.5, 0.1, 1.0, 0.7]),
+                roughness: Some(0.7),
+                ..Default::default()
+            },
+            ownership.clone(),
+        )];
+        let static_mono = vec![(
+            MaterialPreviewFactors {
+                emission_animation: Some([0.0; 4]),
+                emission_reveal: Some([0.0, 1.0, 0.0, -1.0]),
+                ..Default::default()
+            },
+            ownership,
+        )];
+        let stopped =
+            cdmw_render_wgpu::preview_material_factors(&authored, &static_mono, 0).unwrap();
+        assert_eq!(
+            stopped[0].0.emission_animation,
+            static_mono[0].0.emission_animation
+        );
+        assert_eq!(
+            stopped[0].0.emission_reveal,
+            static_mono[0].0.emission_reveal
+        );
         assert_eq!(stopped[0].0.roughness, Some(0.7));
         let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
         assert_eq!(restored, authored);
@@ -3994,35 +4966,62 @@ mod tests {
     #[test]
     fn translucency_updates_validate_ranges_and_restore_authored_materials() {
         let ownership = vec![vec![0_u32]];
-        let authored = vec![(MaterialPreviewFactors {
-            roughness: Some(0.7), alpha_blend: Some(false),
-            ..MaterialPreviewFactors::default()
-        }, ownership.clone())];
-        let overrides = vec![(MaterialPreviewFactors {
-            translucency: Some([0.1, 0.3]),
-            translucency_surface: Some([Some(0.9), Some(0.0)]),
-            ..MaterialPreviewFactors::default()
-        }, ownership)];
+        let authored = vec![(
+            MaterialPreviewFactors {
+                roughness: Some(0.7),
+                alpha_blend: Some(false),
+                ..MaterialPreviewFactors::default()
+            },
+            ownership.clone(),
+        )];
+        let overrides = vec![(
+            MaterialPreviewFactors {
+                translucency: Some([0.1, 0.3]),
+                translucency_surface: Some([Some(0.9), Some(0.0)]),
+                ..MaterialPreviewFactors::default()
+            },
+            ownership,
+        )];
         let changed = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, 0).unwrap();
         assert_eq!(changed[0].0.translucency, Some([0.1, 0.3]));
-        assert_eq!(changed[0].0.translucency_surface, Some([Some(0.9), Some(0.0)]));
+        assert_eq!(
+            changed[0].0.translucency_surface,
+            Some([Some(0.9), Some(0.0)])
+        );
         assert_eq!(changed[0].0.roughness, Some(0.7));
         let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
         assert_eq!(restored[0].0.translucency, None);
         assert_eq!(restored[0].0.translucency_surface, None);
         assert_eq!(restored[0].0.alpha_blend, Some(false));
         for value in [json!([0.1, 0.3]), Value::Null] {
-            let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
+            let parameters =
+                json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
             assert!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok());
         }
-        for value in [json!([-0.1, 0.3]), json!([0.1, 2.0]), json!([0.1]), json!("bad")] {
-            let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
+        for value in [
+            json!([-0.1, 0.3]),
+            json!([0.1, 2.0]),
+            json!([0.1]),
+            json!("bad"),
+        ] {
+            let parameters =
+                json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
             assert!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_err());
         }
-        for (value, valid) in [(json!([0.9, 0.0]), true), (json!([null, 0.0]), true),
-            (Value::Null, true), (json!([0.1, 2.0]), false), (json!([true, 0]), false), (json!([0.1]), false)] {
-            let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency_surface": value}]});
-            assert_eq!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(), valid);
+        for (value, valid) in [
+            (json!([0.9, 0.0]), true),
+            (json!([null, 0.0]), true),
+            (Value::Null, true),
+            (json!([0.1, 2.0]), false),
+            (json!([true, 0]), false),
+            (json!([0.1]), false),
+        ] {
+            let parameters =
+                json!({"groups": [{"source_submesh_indices": [0], "translucency_surface": value}]});
+            assert_eq!(
+                apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(),
+                valid
+            );
         }
     }
 
@@ -4289,5 +5288,347 @@ mod tests {
             )
             .is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod view_mode_tests {
+    use super::*;
+
+    #[test]
+    fn an_icon_capture_is_textured_whatever_mode_is_chosen() {
+        for chosen in [
+            ViewMode::Wireframe,
+            ViewMode::NormalMap,
+            ViewMode::XRay,
+            ViewMode::Solid,
+        ] {
+            assert_eq!(drawn_view_mode(chosen, true), ViewMode::TexturedSolid);
+            assert_eq!(drawn_view_mode(chosen, false), chosen);
+        }
+    }
+
+    /// Section 8.9 (C1): after a Finish Browse's view keeps the edit's geometry until
+    /// the finished package arrives; when that load fails, Browse's own scene comes
+    /// back instead of the edit's geometry staying under the old file's name.
+    #[test]
+    #[ignore = "explicit hidden-window D3D12: Browse's scene back after a failed finished load"]
+    fn a_failed_load_after_finish_puts_browse_s_scene_back() {
+        use winit::event_loop::EventLoop;
+        use winit::platform::windows::EventLoopBuilderExtWindows;
+
+        let event_loop = EventLoop::builder()
+            .with_any_thread(true)
+            .build()
+            .expect("event loop");
+        let mut probe = FinishedLoadProbe {
+            proxy: event_loop.create_proxy(),
+            result: None,
+            another_request: false,
+        };
+        event_loop.run_app(&mut probe).expect("probe event loop");
+        probe
+            .result
+            .expect("probe ran")
+            .expect("Browse's scene came back");
+    }
+
+    /// Review of 6678ddffd: only the finished package's own failure puts Browse's
+    /// scene back; another package request started meanwhile drops it.
+    #[test]
+    #[ignore = "explicit hidden-window D3D12: another package request drops the kept scene"]
+    fn another_package_request_drops_the_kept_scene() {
+        use winit::event_loop::EventLoop;
+        use winit::platform::windows::EventLoopBuilderExtWindows;
+
+        let event_loop = EventLoop::builder()
+            .with_any_thread(true)
+            .build()
+            .expect("event loop");
+        let mut probe = FinishedLoadProbe {
+            proxy: event_loop.create_proxy(),
+            result: None,
+            another_request: true,
+        };
+        event_loop.run_app(&mut probe).expect("probe event loop");
+        probe
+            .result
+            .expect("probe ran")
+            .expect("the kept scene was dropped");
+    }
+
+    struct FinishedLoadProbe {
+        proxy: EventLoopProxy<()>,
+        result: Option<anyhow::Result<()>>,
+        /// Start another package request after the finished one (review of 6678ddffd).
+        another_request: bool,
+    }
+
+    impl ApplicationHandler for FinishedLoadProbe {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            self.result = Some((|| -> anyhow::Result<()> {
+                let root = tempfile::tempdir()?;
+                let manifest =
+                    crate::cdmw_session::tests::write_preview_core_package_fixture(root.path());
+                // Browse's page: a hidden window the preview embeds its own under.
+                let parent = event_loop.create_window(
+                    Window::default_attributes()
+                        .with_visible(false)
+                        .with_inner_size(winit::dpi::PhysicalSize::new(96, 96)),
+                )?;
+                let parent_hwnd = cdmw_win32_embed::window_hwnd(&parent)?;
+                let (mut preview, _route) =
+                    PreviewApplication::open_routed(&manifest, parent_hwnd, self.proxy.clone())?;
+                ApplicationHandler::resumed(&mut preview, event_loop);
+                let frame = |preview: &mut PreviewApplication| -> anyhow::Result<Vec<u8>> {
+                    let camera = preview.camera.view_projection(preview.viewport_rect());
+                    let (right, up) = (preview.camera.right(), preview.camera.up());
+                    let renderer = preview.renderer.as_mut().context("no renderer")?;
+                    renderer.set_camera_with_basis(camera, right, up);
+                    Ok(renderer.capture_frame(96, 96, None)?.read_rgba()?)
+                };
+                // Browse as it draws once it has applied its presentation.
+                preview
+                    .apply_material_parameters()
+                    .map_err(anyhow::Error::msg)?;
+                preview.apply_presentation(false);
+                preview.apply_overlays();
+                let browse = frame(&mut preview)?;
+                // The edit borrows the view and draws its own scene meanwhile.
+                let lent = preview.lend_view().map_err(anyhow::Error::msg)?;
+                let mut renderer = lent.renderer;
+                let kept = renderer.set_scene_aside();
+                preview.return_view(Some(renderer), Some(lent.camera), Some(kept), true);
+                anyhow::ensure!(
+                    frame(&mut preview)? != browse,
+                    "the edit's geometry was not kept after Finish"
+                );
+                // The finished package does not load.
+                let generation = preview.newest_package_generation + 1;
+                preview.start_package_load(
+                    7,
+                    generation,
+                    root.path().join("missing").join("manifest.json"),
+                    false,
+                );
+                anyhow::ensure!(
+                    preview.finished_kept_request == Some(7),
+                    "the finished request was not remembered"
+                );
+                if self.another_request {
+                    // Browse opens something else before that load ends: its failure
+                    // is not the finished package's, and Browse's old scene is let go.
+                    preview.start_package_load(
+                        8,
+                        generation + 1,
+                        root.path().join("other").join("manifest.json"),
+                        false,
+                    );
+                    anyhow::ensure!(
+                        preview.finished_kept.is_none() && preview.finished_kept_request.is_none(),
+                        "another package request kept Browse's old scene"
+                    );
+                    return Ok(());
+                }
+                let deadline = Instant::now() + std::time::Duration::from_secs(30);
+                while preview.finished_kept.is_some() && Instant::now() < deadline {
+                    preview.poll_package_loads();
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                anyhow::ensure!(
+                    preview.finished_kept.is_none(),
+                    "the failed load never arrived"
+                );
+                let back = frame(&mut preview)?;
+                let differing = browse.iter().zip(&back).filter(|(a, b)| a != b).count();
+                anyhow::ensure!(
+                    back == browse,
+                    "Browse's own scene did not come back: {differing} of {} bytes differ",
+                    browse.len()
+                );
+                Ok(())
+            })());
+            event_loop.exit();
+        }
+
+        fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
+    }
+}
+
+/// (index in `source_path`, index in the package) for each package part from that
+/// file, as its batch's `editor_identity` names them.
+pub(crate) fn follow_map(batches: &[Value], source_path: &str) -> Vec<(u32, usize)> {
+    batches
+        .iter()
+        .enumerate()
+        .filter_map(|(position, batch)| {
+            let identity = batch.get("editor_identity")?;
+            let path = identity.get("source_model_path")?.as_str()?;
+            if !crate::engine::same_source(path, source_path) {
+                return None;
+            }
+            let local = identity.get("source_local_submesh_index")?.as_u64()?;
+            let index = identity
+                .get("source_submesh_index")
+                .and_then(Value::as_u64)
+                .unwrap_or(position as u64);
+            Some((u32::try_from(local).ok()?, usize::try_from(index).ok()?))
+        })
+        .collect()
+}
+
+/// `document` with the parts `map` names drawn as `edit` has them (P5).
+pub(crate) fn followed_document(
+    document: &MeshDocument,
+    lod: usize,
+    map: &[(u32, usize)],
+    edit: &WorkingMesh,
+) -> std::result::Result<MeshDocument, String> {
+    let mut document = document.clone();
+    let parts = &mut document
+        .lods
+        .get_mut(lod)
+        .ok_or("the preview has no such LOD")?
+        .submeshes;
+    let edited = edit.submesh_indices();
+    let template = map
+        .first()
+        .and_then(|(_, index)| parts.get(*index).cloned());
+    for (local, index) in map {
+        let Some(part) = parts.get_mut(*index) else {
+            continue;
+        };
+        let shown = if edited.contains(local) {
+            HashSet::from([*local])
+        } else {
+            HashSet::new()
+        };
+        fill_followed_part(part, &edit.draw_snapshot_for_submeshes(&shown));
+    }
+    let shown: HashSet<u32> = map.iter().map(|(local, _)| *local).collect();
+    let mut added: Vec<u32> = edited.difference(&shown).copied().collect();
+    added.sort_unstable();
+    if let Some(template) = template {
+        for local in added {
+            let mut part = template.clone();
+            part.name = format!("{}_{local}", template.name);
+            fill_followed_part(
+                &mut part,
+                &edit.draw_snapshot_for_submeshes(&HashSet::from([local])),
+            );
+            parts.push(part);
+        }
+    }
+    Ok(document)
+}
+
+/// A part of the preview's document, drawn as the edit's snapshot of it.
+fn fill_followed_part(part: &mut Submesh, snapshot: &cdmw_mesh::DrawSnapshot) {
+    part.positions.clone_from(&snapshot.positions);
+    part.normals.clone_from(&snapshot.normals);
+    part.uvs.clone_from(&snapshot.uvs);
+    part.shader_masks.clone_from(&snapshot.shader_masks);
+    part.indices.clone_from(&snapshot.indices);
+    part.source_vertex_indices = vec![-1; snapshot.positions.len()];
+}
+
+#[cfg(test)]
+mod follow_tests {
+    //! P5: a preview that shows the edited file with others follows that file's parts.
+    use super::*;
+    use cdmw_formats::{MeshFormat, MeshLod};
+
+    fn part(name: &str, x: f32) -> Submesh {
+        Submesh {
+            name: name.to_owned(),
+            material: format!("{name}_material"),
+            positions: vec![[x, 0.0, 0.0], [x + 1.0, 0.0, 0.0], [x, 1.0, 0.0]],
+            normals: vec![[0.0, 0.0, 1.0]; 3],
+            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+            indices: vec![0, 1, 2],
+            shader_masks: Vec::new(),
+            source_vertex_indices: vec![0, 1, 2],
+            source_range: SourceRange {
+                offset: 0,
+                length: 0,
+            },
+            vertex_stride: 0,
+            layout: "test".to_owned(),
+        }
+    }
+
+    fn document(parts: Vec<Submesh>) -> MeshDocument {
+        MeshDocument {
+            format: MeshFormat::Pac,
+            source_sha256: String::new(),
+            parser: "test".to_owned(),
+            lod_count_reported: 1,
+            lods: vec![MeshLod {
+                level: 0,
+                submeshes: parts,
+            }],
+            warnings: Vec::new(),
+            structural_fingerprint: String::new(),
+        }
+    }
+
+    fn batch(index: u64, path: &str, local: u64) -> Value {
+        json!({"index": index, "editor_identity": {
+            "source_model_path": path, "source_submesh_index": index, "source_local_submesh_index": local}})
+    }
+
+    #[test]
+    fn a_package_s_parts_map_to_the_edited_file_by_identity() {
+        let batches = vec![
+            batch(0, "character/sword.pac", 0),
+            batch(1, "Character\\Sword.PAC", 1),
+            batch(2, "character/sword_in.pac", 0),
+            json!({"index": 3}),
+        ];
+        assert_eq!(
+            follow_map(&batches, "character/sword.pac"),
+            vec![(0, 0), (1, 1)]
+        );
+        assert_eq!(follow_map(&batches, "character/sword_in.pac"), vec![(0, 2)]);
+        assert!(follow_map(&batches, "character/other.pac").is_empty());
+    }
+
+    #[test]
+    fn only_the_edited_file_s_parts_change_and_added_parts_are_shown() {
+        // The preview: the sheath (its own file) at index 0, the sword's two parts after it.
+        let preview = document(vec![
+            part("sheath", 10.0),
+            part("blade", 0.0),
+            part("hilt", 2.0),
+        ]);
+        let map = vec![(0, 1), (1, 2)];
+        // The edit of the sword: its blade moved, its hilt deleted, a new part added.
+        let mut edit_parts = vec![part("blade", 5.0), part("hilt", 2.0), part("guard", 7.0)];
+        edit_parts[1].indices.clear();
+        let edit = WorkingMesh::from_document_lod(&document(edit_parts), 0).expect("edit mesh");
+        let followed = followed_document(&preview, 0, &map, &edit).expect("followed");
+        let parts = &followed.lods[0].submeshes;
+        assert_eq!(
+            parts.len(),
+            4,
+            "the added part is shown after the package's own"
+        );
+        assert_eq!(
+            parts[0], preview.lods[0].submeshes[0],
+            "another file's part is left as it is"
+        );
+        assert!(
+            parts[1].positions.iter().any(|p| (p[0] - 5.0).abs() < 1e-6),
+            "the moved part follows"
+        );
+        assert_eq!(
+            parts[1].material, "blade_material",
+            "the preview keeps its own materials"
+        );
+        assert!(
+            parts[3].positions.iter().any(|p| (p[0] - 7.0).abs() < 1e-6),
+            "the added part is drawn"
+        );
+        WorkingMesh::from_document_lod(&followed, 0).expect("the followed document builds");
     }
 }

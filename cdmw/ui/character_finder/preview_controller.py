@@ -260,12 +260,13 @@ class _CharacterPreviewLane(QObject):
         thread.started.connect(worker.run)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(self._thread_finished)
+        # Bind the thread instead of asking sender(): QObject.sender() takes
+        # Qt's connection lock while holding the GIL, which deadlocked against
+        # a worker thread holding that lock and waiting for the GIL.
+        thread.finished.connect(lambda current=thread: self._thread_finished(current))
         thread.start(QThread.LowPriority if self._background else QThread.InheritPriority)
 
-    @Slot()
-    def _thread_finished(self):
-        thread = self.sender()
+    def _thread_finished(self, thread=None):
         if thread is not self._thread:
             return
         self._retire_thread(thread)
@@ -407,9 +408,11 @@ class CharacterFinderPreviewController(QObject):
             lane._details = self._details
             lane.detail_ready.connect(self._remember_detail)
             lane.package_ready.connect(self._package_ready)
-            lane.thumbnail_ready.connect(self._thumbnail_ready)
-            lane.failed.connect(self._failed)
-            lane.progress.connect(self._lane_progress)
+            # Each lane is bound explicitly; see _thread_finished on sender().
+            lane.thumbnail_ready.connect(lambda key, result, lane=lane: self._thumbnail_ready(key, result, lane))
+            lane.failed.connect(lambda key, message, lane=lane: self._failed(key, message, lane))
+            lane.progress.connect(lambda key, stage, completed, total, lane=lane:
+                                  self._lane_progress(key, stage, completed, total, lane))
             lane.idle.connect(self._lane_idle)
 
     @property
@@ -665,19 +668,19 @@ class CharacterFinderPreviewController(QObject):
         if not self._closed and key == self._selected_key:
             self.package_ready.emit(key, result)
 
-    def _lane_progress(self, key, stage, completed, total):
-        if not self._closed and self._assigned.get(self.sender()) == key:
+    def _lane_progress(self, key, stage, completed, total, lane=None):
+        if not self._closed and self._assigned.get(lane) == key:
             self.progress.emit(key, stage, completed, total)
 
-    def _thumbnail_ready(self, key, result):
-        self._assigned.pop(self.sender(), None)
+    def _thumbnail_ready(self, key, result, lane=None):
+        self._assigned.pop(lane, None)
         if not self._closed:
             self._remember_thumbnail(key, result)
             self.thumbnail_ready.emit(key, result)
             self._schedule_timer.start(0)
 
-    def _failed(self, key, message):
-        self._assigned.pop(self.sender(), None)
+    def _failed(self, key, message, lane=None):
+        self._assigned.pop(lane, None)
         if not self._closed:
             self.failed.emit(key, message)
             self._schedule_timer.start(0)

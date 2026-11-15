@@ -245,26 +245,60 @@ fn typing_keeps_focus_when_async_status_changes_the_field_layout() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
     let mut root = control("root", "column", "", json!({}));
-    root.children.push(control("query", "text", "Find", json!({"text":""})));
+    root.children
+        .push(control("query", "text", "Find", json!({"text":""})));
     let mut state = state(root);
     apply_theme(&context, &state.theme);
     let size = egui::vec2(960.0, 720.0);
     for _ in 0..3 {
         frame(&context, &mut view, &state, size, vec![]);
     }
-    let rect = view.rects.iter().find(|rect| rect.id == "query").unwrap().rect;
-    click(&context, &mut view, &state, egui::pos2(rect[0] + 20.0, rect[1] + rect[3] / 2.0));
-    frame(&context, &mut view, &state, size, vec![egui::Event::Text("b".into())]);
-    let input = view.inputs.iter().find(|input| input.action == "text").unwrap().clone();
+    let rect = view
+        .rects
+        .iter()
+        .find(|rect| rect.id == "query")
+        .unwrap()
+        .rect;
+    click(
+        &context,
+        &mut view,
+        &state,
+        egui::pos2(rect[0] + 20.0, rect[1] + rect[3] / 2.0),
+    );
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![egui::Event::Text("b".into())],
+    );
+    let input = view
+        .inputs
+        .iter()
+        .find(|input| input.action == "text")
+        .unwrap()
+        .clone();
     view.acknowledge(&input);
     state.root.children[0].revision += 1;
     state.root.children[0].props["text"] = json!("b");
-    state.root.children.insert(0, control("status", "label", "Searching…", json!({})));
+    state
+        .root
+        .children
+        .insert(0, control("status", "label", "Searching…", json!({})));
     frame(&context, &mut view, &state, size, vec![]);
-    frame(&context, &mut view, &state, size, vec![egui::Event::Text("lade".into())]);
-    assert!(view.inputs.iter().any(|input| input.control == "query"
-        && input.action == "text" && input.value == json!("blade")),
-        "An asynchronous status update must not interrupt typing");
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![egui::Event::Text("lade".into())],
+    );
+    assert!(
+        view.inputs.iter().any(|input| input.control == "query"
+            && input.action == "text"
+            && input.value == json!("blade")),
+        "An asynchronous status update must not interrupt typing"
+    );
 }
 
 #[test]
@@ -541,38 +575,72 @@ fn checkable_table_names_select_rename_and_keep_visibility_independent() {
     for (editable, enabled) in [(true, true), (false, true), (true, false)] {
         let context = egui::Context::default();
         let mut view = PresentationView::default();
-        let state = state(control("layers", "table", "", json!({
-            "columns":[{"index":0,"width":240}],"total":2,"offset":0,
-            "rows":[{"path":[0],"cells":[{"text":"First","check":2,
-                     "editable":editable,"enabled":enabled,"selectable":true,"selected":true}]},
-                    {"path":[1],"cells":[{"text":"Second","check":2,
-                     "editable":editable,"enabled":enabled,"selectable":true,"selected":false}]}]
-        })));
+        let state = state(control(
+            "layers",
+            "table",
+            "",
+            json!({
+                "columns":[{"index":0,"width":240}],"total":2,"offset":0,
+                "rows":[{"path":[0],"cells":[{"text":"First","check":2,
+                         "editable":editable,"enabled":enabled,"selectable":true,"selected":true}]},
+                        {"path":[1],"cells":[{"text":"Second","check":2,
+                         "editable":editable,"enabled":enabled,"selectable":true,"selected":false}]}]
+            }),
+        ));
         apply_theme(&context, &state.theme);
         let size = egui::vec2(960.0, 720.0);
-        for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-        let output = context.run_ui(egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-            ..Default::default()
-        }, |ui| view.draw(ui, &state));
-        let text = output.shapes.iter().find_map(|shape| match &shape.shape {
-            egui::epaint::Shape::Text(text) if text.galley.job.text == "Second" => Some(text),
-            _ => None,
-        }).expect("the layer name remains visible beside its checkbox");
+        for _ in 0..3 {
+            frame(&context, &mut view, &state, size, vec![]);
+        }
+        let output = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                ..Default::default()
+            },
+            |ui| view.draw(ui, &state),
+        );
+        let text = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::epaint::Shape::Text(text) if text.galley.job.text == "Second" => Some(text),
+                _ => None,
+            })
+            .expect("the layer name remains visible beside its checkbox");
         let y = text.pos.y + text.galley.size().y / 2.0;
-        click(&context, &mut view, &state, egui::pos2(text.pos.x + 80.0, y));
+        click(
+            &context,
+            &mut view,
+            &state,
+            egui::pos2(text.pos.x + 80.0, y),
+        );
         if enabled {
-            assert!(view.inputs.iter().any(|input| input.action == "select" && input.value["path"] == json!([1])));
+            assert!(
+                view.inputs
+                    .iter()
+                    .any(|input| input.action == "select" && input.value["path"] == json!([1]))
+            );
             assert!(!view.inputs.iter().any(|input| input.action == "check_cell"));
         } else {
             assert!(view.inputs.is_empty());
         }
         if editable {
-            frame(&context, &mut view, &state, size, vec![egui::Event::Text(" renamed".into())]);
+            frame(
+                &context,
+                &mut view,
+                &state,
+                size,
+                vec![egui::Event::Text(" renamed".into())],
+            );
             if enabled {
-                assert!(view.inputs.iter().any(|input| input.action == "cell"
-                    && input.value["path"] == json!([1])
-                    && input.value["text"].as_str().unwrap_or("").contains("renamed")));
+                assert!(view.inputs.iter().any(|input| {
+                    input.action == "cell"
+                        && input.value["path"] == json!([1])
+                        && input.value["text"]
+                            .as_str()
+                            .unwrap_or("")
+                            .contains("renamed")
+                }));
             } else {
                 assert!(view.inputs.is_empty());
             }
@@ -580,7 +648,8 @@ fn checkable_table_names_select_rename_and_keep_visibility_independent() {
         click(&context, &mut view, &state, egui::pos2(16.0, y));
         if enabled {
             assert!(view.inputs.iter().any(|input| input.action == "check_cell"
-                && input.value["path"] == json!([1]) && input.value["check"] == 0));
+                && input.value["path"] == json!([1])
+                && input.value["check"] == 0));
             assert!(!view.inputs.iter().any(|input| input.action == "select"));
         } else {
             assert!(view.inputs.is_empty());
@@ -595,8 +664,15 @@ fn template_selection_can_transfer_focus_to_search_without_deadlocking() {
     let state = template_results_state(900, 0, false);
     apply_theme(&context, &state.theme);
     let size = egui::vec2(960.0, 720.0);
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-    let rect = view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect;
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
+    let rect = view
+        .rects
+        .iter()
+        .find(|rect| rect.id == "matches")
+        .unwrap()
+        .rect;
     let row = egui::pos2(rect[0] + 100.0, rect[1] + 40.0);
     click(&context, &mut view, &state, row);
     assert!(view.inputs.iter().any(|input| input.action == "select"));
@@ -606,12 +682,31 @@ fn template_selection_can_transfer_focus_to_search_without_deadlocking() {
 
     // Pressing Find transfers focus before the table is drawn. Reading input
     // inside the table's memory transaction used to deadlock this frame.
-    let rect = view.rects.iter().find(|rect| rect.id == "find").unwrap().rect;
-    click(&context, &mut view, &state, egui::pos2(rect[0] + 50.0, rect[1] + rect[3] / 2.0));
+    let rect = view
+        .rects
+        .iter()
+        .find(|rect| rect.id == "find")
+        .unwrap()
+        .rect;
+    click(
+        &context,
+        &mut view,
+        &state,
+        egui::pos2(rect[0] + 50.0, rect[1] + rect[3] / 2.0),
+    );
     assert!(!context.memory(|memory| memory.has_focus(focus)));
-    frame(&context, &mut view, &state, size, vec![egui::Event::Text("Dragon".into())]);
-    assert!(view.inputs.iter().any(|input| input.control == "find"
-        && input.action == "text" && input.value == "Dragon"));
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![egui::Event::Text("Dragon".into())],
+    );
+    assert!(
+        view.inputs.iter().any(|input| input.control == "find"
+            && input.action == "text"
+            && input.value == "Dragon")
+    );
     click(&context, &mut view, &state, row);
     assert!(view.inputs.iter().any(|input| input.action == "select"));
 }
@@ -620,13 +715,28 @@ fn template_selection_can_transfer_focus_to_search_without_deadlocking() {
 fn persistent_model_split_uses_user_sizes_instead_of_native_default() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
-    let mut split = control("model", "split", "", json!({"horizontal": true,
-        "sizes": [1000, 280], "indices": [0, 1], "user_sized": true}));
+    let mut split = control(
+        "model",
+        "split",
+        "",
+        json!({"horizontal": true,
+        "sizes": [1000, 280], "indices": [0, 1], "user_sized": true}),
+    );
     split.name = "new_item_model_workspace_splitter".into();
-    split.children = vec![control("preview", "viewport", "", json!({})),
-                          control("inspector", "label", "Inspector", json!({}))];
+    split.children = vec![
+        control("preview", "viewport", "", json!({})),
+        control("inspector", "label", "Inspector", json!({})),
+    ];
     let state = state(split);
-    for _ in 0..3 { frame(&context, &mut view, &state, egui::vec2(1440.0, 960.0), vec![]); }
+    for _ in 0..3 {
+        frame(
+            &context,
+            &mut view,
+            &state,
+            egui::vec2(1440.0, 960.0),
+            vec![],
+        );
+    }
     assert_eq!(view.split_sizes["model"].1, vec![1000.0, 280.0]);
 }
 
@@ -635,24 +745,48 @@ fn persistent_dialog_drag_restores_in_a_fresh_presentation() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
     let mut state = state(control("root", "label", "Workspace", json!({})));
-    let mut dialog = control("dialog", "dialog", "Preview options", json!({"saved_rect": [90, 70, 460, 260]}));
+    let mut dialog = control(
+        "dialog",
+        "dialog",
+        "Preview options",
+        json!({"saved_rect": [90, 70, 460, 260]}),
+    );
     dialog.children = vec![control("body", "viewport", "", json!({}))];
     state.dialogs.push(dialog);
     let size = egui::vec2(1280.0, 960.0);
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
     let before = view.dialog_rects["dialog"];
     assert!((before.left() - 90.0).abs() <= 1.0);
     let start = before.left_top() + egui::vec2(170.0, 12.0);
     let end = start + egui::vec2(80.0, 55.0);
     let button = |pos, pressed| egui::Event::PointerButton {
-        pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE,
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
     };
-    frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(start)]);
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![egui::Event::PointerMoved(start)],
+    );
     frame(&context, &mut view, &state, size, vec![button(start, true)]);
     let mut saved = None;
-    for events in [vec![egui::Event::PointerMoved(end)], vec![button(end, false)], vec![]] {
+    for events in [
+        vec![egui::Event::PointerMoved(end)],
+        vec![button(end, false)],
+        vec![],
+    ] {
         frame(&context, &mut view, &state, size, events);
-        if let Some(input) = view.inputs.iter().find(|input| input.action == "resize_dialog") {
+        if let Some(input) = view
+            .inputs
+            .iter()
+            .find(|input| input.action == "resize_dialog")
+        {
             saved = Some(input.value.clone());
         }
     }
@@ -661,45 +795,73 @@ fn persistent_dialog_drag_restores_in_a_fresh_presentation() {
     state.dialogs[0].props["saved_rect"] = saved.clone();
     let reopened = egui::Context::default();
     let mut view = PresentationView::default();
-    for _ in 0..3 { frame(&reopened, &mut view, &state, size, vec![]); }
+    for _ in 0..3 {
+        frame(&reopened, &mut view, &state, size, vec![]);
+    }
     let after = view.dialog_rects["dialog"];
     assert!((after.left() - saved[0].as_f64().unwrap() as f32).abs() <= 1.0);
     assert!((after.top() - saved[1].as_f64().unwrap() as f32).abs() <= 1.0);
-    assert!((after.width() - before.width()).abs() <= 2.0, "before={before:?}, after={after:?}, saved={saved}");
-    assert!((after.height() - before.height()).abs() <= 2.0, "before={before:?}, after={after:?}, saved={saved}");
+    assert!(
+        (after.width() - before.width()).abs() <= 2.0,
+        "before={before:?}, after={after:?}, saved={saved}"
+    );
+    assert!(
+        (after.height() - before.height()).abs() <= 2.0,
+        "before={before:?}, after={after:?}, saved={saved}"
+    );
 }
 
 #[test]
 fn reopened_effect_library_recovers_zero_size_without_resetting_dragged_panes() {
-    let mut split = control("effects-split", "split", "", json!({
-        "horizontal":true,"sizes":[0,900],"indices":[0,1]}));
-    split.children = vec![control("library", "viewport", "", json!({})),
-                          control("effect-view", "viewport", "", json!({}))];
+    let mut split = control(
+        "effects-split",
+        "split",
+        "",
+        json!({
+        "horizontal":true,"sizes":[0,900],"indices":[0,1]}),
+    );
+    split.children = vec![
+        control("library", "viewport", "", json!({})),
+        control("effect-view", "viewport", "", json!({})),
+    ];
     let mut state = state(split);
     let context = egui::Context::default();
     let mut view = PresentationView::default();
     apply_theme(&context, &state.theme);
     let size = egui::vec2(1440.0, 900.0);
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
     assert!(view.portals[0].rect[2] > 300.0, "{:?}", view.portals);
-    view.split_sizes.insert("effects-split".into(), (1, vec![350.0, 1000.0]));
+    view.split_sizes
+        .insert("effects-split".into(), (1, vec![350.0, 1000.0]));
     let library = state.root.children.remove(0);
     state.root.props["indices"] = json!([1]);
-    state.root.props["sizes"] = json!([0,900]);
+    state.root.props["sizes"] = json!([0, 900]);
     frame(&context, &mut view, &state, size, vec![]);
     state.root.children.insert(0, library);
-    state.root.props["indices"] = json!([0,1]);
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    state.root.props["indices"] = json!([0, 1]);
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
     let width = view.portals[0].rect[2];
-    assert!(width > 300.0 && width < 450.0, "dragged ratio was lost: {width}");
+    assert!(
+        width > 300.0 && width < 450.0,
+        "dragged ratio was lost: {width}"
+    );
 }
 
 #[test]
 fn checked_and_empty_cells_keep_editors_aligned_with_their_column() {
-    let mut table = control("emitters", "table", "", json!({"headers":true,"total":2,
+    let mut table = control(
+        "emitters",
+        "table",
+        "",
+        json!({"headers":true,"total":2,
         "columns":[{"index":0,"text":"Use","width":60},
                    {"index":1,"text":"Property","width":200},
-                   {"index":2,"text":"Value","width":180}]}));
+                   {"index":2,"text":"Value","width":180}]}),
+    );
     table.props["rows"] = json!((0..2).map(|row| json!({"path":[row],"cells":[
         if row == 0 {json!({"text":"","check":0,"enabled":true})} else {json!({"text":"","enabled":false})},
         {"text":"Spawn maximum","enabled":true},
@@ -709,129 +871,303 @@ fn checked_and_empty_cells_keep_editors_aligned_with_their_column() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
     apply_theme(&context, &state.theme);
-    for _ in 0..3 { frame(&context, &mut view, &state, egui::vec2(960.0,720.0), vec![]); }
+    for _ in 0..3 {
+        frame(
+            &context,
+            &mut view,
+            &state,
+            egui::vec2(960.0, 720.0),
+            vec![],
+        );
+    }
     let first = view.rects.iter().find(|item| item.id == "value-0").unwrap();
     let second = view.rects.iter().find(|item| item.id == "value-1").unwrap();
-    assert!((first.rect[0] - second.rect[0]).abs() < 1.0, "{first:?} {second:?}");
+    assert!(
+        (first.rect[0] - second.rect[0]).abs() < 1.0,
+        "{first:?} {second:?}"
+    );
 }
 
 #[test]
 fn column_drag_keeps_the_full_distance_on_release_and_after_row_updates() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
-    let mut state = state(control("table", "table", "", json!({
-        "headers": true, "sortable": true, "columns": [
-            {"index":0,"width":100,"text":"Internal name","resizable":true},
-            {"index":1,"width":100,"text":"Name","resizable":true}],
-        "total":1,"rows":[{"path":[0],"cells":[
-            {"control":control("first-column", "progress", "", json!({"value":50}))}, {"text":"Name"}]}]
-    })));
+    let mut state = state(control(
+        "table",
+        "table",
+        "",
+        json!({
+            "headers": true, "sortable": true, "columns": [
+                {"index":0,"width":100,"text":"Internal name","resizable":true},
+                {"index":1,"width":100,"text":"Name","resizable":true}],
+            "total":1,"rows":[{"path":[0],"cells":[
+                {"control":control("first-column", "progress", "", json!({"value":50}))}, {"text":"Name"}]}]
+        }),
+    ));
     apply_theme(&context, &state.theme);
     let size = egui::vec2(960.0, 720.0);
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-    let column = view.rects.iter().find(|item| item.id == "first-column").unwrap();
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
+    let column = view
+        .rects
+        .iter()
+        .find(|item| item.id == "first-column")
+        .unwrap();
     let initial_width = column.rect[2];
     let edge = column.rect[0] + initial_width;
-    for (x, pressed) in [(edge, Some(true)), (edge + 40.0, None), (edge + 80.0, None), (edge + 80.0, Some(false))] {
+    for (x, pressed) in [
+        (edge, Some(true)),
+        (edge + 40.0, None),
+        (edge + 80.0, None),
+        (edge + 80.0, Some(false)),
+    ] {
         let point = egui::pos2(x, 13.0);
         let mut events = vec![egui::Event::PointerMoved(point)];
         if let Some(pressed) = pressed {
-            events.push(egui::Event::PointerButton {pos:point,button:egui::PointerButton::Primary,
-                pressed,modifiers:egui::Modifiers::NONE});
+            events.push(egui::Event::PointerButton {
+                pos: point,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            });
         }
         frame(&context, &mut view, &state, size, events);
     }
-    let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("header drag");
+    let resize = view
+        .inputs
+        .iter()
+        .find(|input| input.action == "resize_column")
+        .expect("header drag");
     assert_eq!(resize.value["column"], 0);
     assert_eq!(resize.value["width"], (initial_width + 80.0).round() as u64);
     state.root.revision += 1;
     state.root.props["columns"][0]["width"] = resize.value["width"].clone();
     frame(&context, &mut view, &state, size, vec![]);
-    assert_eq!(view.column_widths[&("table".into(), 0)], initial_width + 80.0);
+    assert_eq!(
+        view.column_widths[&("table".into(), 0)],
+        initial_width + 80.0
+    );
 
     // Windows can deliver the final move and release before the next paint.
     let start = egui::pos2(edge + 80.0, 13.0);
     let end = egui::pos2(edge + 140.0, 13.0);
-    frame(&context, &mut view, &state, size, vec![
-        egui::Event::PointerMoved(start), egui::Event::PointerButton {
-            pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE}]);
-    frame(&context, &mut view, &state, size, vec![
-        egui::Event::PointerMoved(end), egui::Event::PointerButton {
-            pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
-    let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("coalesced header drag");
-    assert_eq!(resize.value["width"], (initial_width + 140.0).round() as u64);
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![
+            egui::Event::PointerMoved(start),
+            egui::Event::PointerButton {
+                pos: start,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ],
+    );
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![
+            egui::Event::PointerMoved(end),
+            egui::Event::PointerButton {
+                pos: end,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ],
+    );
+    let resize = view
+        .inputs
+        .iter()
+        .find(|input| input.action == "resize_column")
+        .expect("coalesced header drag");
+    assert_eq!(
+        resize.value["width"],
+        (initial_width + 140.0).round() as u64
+    );
 
     frame(&context, &mut view, &state, size, vec![]);
     let start = egui::pos2(edge + 140.0, 13.0);
     let end = egui::pos2(edge + 60.0, 13.0);
-    frame(&context, &mut view, &state, size, vec![
-        egui::Event::PointerMoved(start), egui::Event::PointerButton {
-            pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE},
-        egui::Event::PointerMoved(end)]);
-    frame(&context, &mut view, &state, size, vec![egui::Event::PointerButton {
-            pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
-    let resize = view.inputs.iter().find(|input| input.action == "resize_column").expect("press and first move in one frame");
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![
+            egui::Event::PointerMoved(start),
+            egui::Event::PointerButton {
+                pos: start,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+            egui::Event::PointerMoved(end),
+        ],
+    );
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![egui::Event::PointerButton {
+            pos: end,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        }],
+    );
+    let resize = view
+        .inputs
+        .iter()
+        .find(|input| input.action == "resize_column")
+        .expect("press and first move in one frame");
     assert_eq!(resize.value["width"], (initial_width + 60.0).round() as u64);
 
     frame(&context, &mut view, &state, size, vec![]);
     let start = egui::pos2(edge + 60.0, 13.0);
     let end = egui::pos2(edge + 100.0, 13.0);
-    frame(&context, &mut view, &state, size, vec![
-        egui::Event::PointerMoved(start), egui::Event::PointerButton {
-            pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE},
-        egui::Event::PointerMoved(end), egui::Event::PointerButton {
-            pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![
+            egui::Event::PointerMoved(start),
+            egui::Event::PointerButton {
+                pos: start,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+            egui::Event::PointerMoved(end),
+            egui::Event::PointerButton {
+                pos: end,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ],
+    );
     assert_eq!(view.inputs.len(), 1);
     assert_eq!(view.inputs[0].action, "resize_column");
-    assert_eq!(view.inputs[0].value["width"], (initial_width + 100.0).round() as u64);
+    assert_eq!(
+        view.inputs[0].value["width"],
+        (initial_width + 100.0).round() as u64
+    );
 
     state.root.enabled = false;
     frame(&context, &mut view, &state, size, vec![]);
     let start = egui::pos2(edge + 100.0, 13.0);
     let end = egui::pos2(edge + 20.0, 13.0);
-    frame(&context, &mut view, &state, size, vec![
-        egui::Event::PointerMoved(start), egui::Event::PointerButton {
-            pos:start,button:egui::PointerButton::Primary,pressed:true,modifiers:egui::Modifiers::NONE},
-        egui::Event::PointerMoved(end), egui::Event::PointerButton {
-            pos:end,button:egui::PointerButton::Primary,pressed:false,modifiers:egui::Modifiers::NONE}]);
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![
+            egui::Event::PointerMoved(start),
+            egui::Event::PointerButton {
+                pos: start,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+            egui::Event::PointerMoved(end),
+            egui::Event::PointerButton {
+                pos: end,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ],
+    );
     assert!(view.inputs.is_empty());
-    assert_eq!(view.column_widths[&("table".into(), 0)], initial_width + 100.0);
+    assert_eq!(
+        view.column_widths[&("table".into(), 0)],
+        initial_width + 100.0
+    );
 }
 
 #[test]
 fn table_headers_and_rows_align_left_and_stretch_columns_leave_room_for_editors() {
     for font in [14.0, 22.0] {
         for width in [520.0, 1100.0] {
-            for (heading, value) in [("Money item", "Money_Copper"), ("Inherent bonus", "BuffLevel_HPRegen")] {
+            for (heading, value) in [
+                ("Money item", "Money_Copper"),
+                ("Inherent bonus", "BuffLevel_HPRegen"),
+            ] {
                 let context = egui::Context::default();
                 let mut view = PresentationView::default();
-                let mut state = state(control("table", "table", "", json!({
-                    "headers":true,"row_headers":true,"total":2,"grow_y":true,
-                    "columns":[{"index":0,"text":heading,"width":2400,"stretch":true},
-                               {"index":1,"text":"Parameter level","width":100}],
-                    "rows":[{"path":[0],"label":"1","cells":[{"text":value},
-                             {"text":"98765","editable":true,"enabled":true}]},
-                            {"path":[1],"label":"2","cells":[{"text":"Another item"},
-                             {"control":control("last-editor","number","",json!({"value":99}))}]}]
-                })));
+                let mut state = state(control(
+                    "table",
+                    "table",
+                    "",
+                    json!({
+                        "headers":true,"row_headers":true,"total":2,"grow_y":true,
+                        "columns":[{"index":0,"text":heading,"width":2400,"stretch":true},
+                                   {"index":1,"text":"Parameter level","width":100}],
+                        "rows":[{"path":[0],"label":"1","cells":[{"text":value},
+                                 {"text":"98765","editable":true,"enabled":true}]},
+                                {"path":[1],"label":"2","cells":[{"text":"Another item"},
+                                 {"control":control("last-editor","number","",json!({"value":99}))}]}]
+                    }),
+                ));
                 state.theme["font_pixels"] = json!(font);
                 apply_theme(&context, &state.theme);
                 let size = egui::vec2(width, 600.0);
-                for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-                let output = context.run_ui(egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-                    ..Default::default()
-                }, |ui| view.draw(ui, &state));
-                let texts: Vec<_> = output.shapes.iter().filter_map(|shape| match &shape.shape {
-                    egui::epaint::Shape::Text(text) => Some(text), _ => None,
-                }).collect();
-                let heading_text = texts.iter().find(|text| text.galley.job.text == heading).expect("full heading");
-                let value_text = texts.iter().find(|text| text.galley.job.text == value).expect("full name");
-                assert!((value_text.pos.x - heading_text.pos.x).abs() <= 1.0, "header={} row={} width={width} font={font}", heading_text.pos.x, value_text.pos.x);
-                assert!(value_text.pos.x < 60.0, "row must start at the left of its column");
-                let field = texts.iter().find(|text| text.galley.job.text == "98765").expect("editable price");
+                for _ in 0..3 {
+                    frame(&context, &mut view, &state, size, vec![]);
+                }
+                let output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                        ..Default::default()
+                    },
+                    |ui| view.draw(ui, &state),
+                );
+                let texts: Vec<_> = output
+                    .shapes
+                    .iter()
+                    .filter_map(|shape| match &shape.shape {
+                        egui::epaint::Shape::Text(text) => Some(text),
+                        _ => None,
+                    })
+                    .collect();
+                let heading_text = texts
+                    .iter()
+                    .find(|text| text.galley.job.text == heading)
+                    .expect("full heading");
+                let value_text = texts
+                    .iter()
+                    .find(|text| text.galley.job.text == value)
+                    .expect("full name");
+                assert!(
+                    (value_text.pos.x - heading_text.pos.x).abs() <= 1.0,
+                    "header={} row={} width={width} font={font}",
+                    heading_text.pos.x,
+                    value_text.pos.x
+                );
+                assert!(
+                    value_text.pos.x < 60.0,
+                    "row must start at the left of its column"
+                );
+                let field = texts
+                    .iter()
+                    .find(|text| text.galley.job.text == "98765")
+                    .expect("editable price");
                 assert!(field.pos.x + field.galley.size().x < width);
-                let editor = view.rects.iter().find(|item| item.id == "last-editor").unwrap();
+                let editor = view
+                    .rects
+                    .iter()
+                    .find(|item| item.id == "last-editor")
+                    .unwrap();
                 assert!(editor.rect[0] + editor.rect[2] <= width, "{editor:?}");
             }
         }
@@ -843,30 +1179,58 @@ fn content_columns_keep_effect_headings_and_values_readable() {
     for (width, font) in [(560.0, 14.0), (820.0, 22.0)] {
         let context = egui::Context::default();
         let mut view = PresentationView::default();
-        let mut state = state(control("effects", "table", "", json!({
-            "headers":true,"sortable":true,"sort_column":0,"total":1,
-            "columns":[{"index":0,"text":"Category","width":1000,"size_to_contents":true},
-                       {"index":1,"text":"Effect","width":2400,"stretch":true},
-                       {"index":2,"text":"Type","width":1000,"size_to_contents":true},
-                       {"index":3,"text":"Size","width":1000,"size_to_contents":true}],
-            "rows":[{"path":[0],"cells":[{"text":"Lightning"},{"text":"Cast 1 · Lightning"},
-                    {"text":"Unknown"},{"text":"31×41.5×3"}]}]
-        })));
+        let mut state = state(control(
+            "effects",
+            "table",
+            "",
+            json!({
+                "headers":true,"sortable":true,"sort_column":0,"total":1,
+                "columns":[{"index":0,"text":"Category","width":1000,"size_to_contents":true},
+                           {"index":1,"text":"Effect","width":2400,"stretch":true},
+                           {"index":2,"text":"Type","width":1000,"size_to_contents":true},
+                           {"index":3,"text":"Size","width":1000,"size_to_contents":true}],
+                "rows":[{"path":[0],"cells":[{"text":"Lightning"},{"text":"Cast 1 · Lightning"},
+                        {"text":"Unknown"},{"text":"31×41.5×3"}]}]
+            }),
+        ));
         state.theme["font_pixels"] = json!(font);
         apply_theme(&context, &state.theme);
         let size = egui::vec2(width, 600.0);
-        for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-        let output = context.run_ui(egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-            ..Default::default()
-        }, |ui| view.draw(ui, &state));
-        for expected in ["Category ▴", "Lightning", "Effect", "Cast 1 · Lightning", "Type", "Unknown", "Size", "31×41.5×3"] {
-            let (clip, text) = output.shapes.iter().find_map(|shape| match &shape.shape {
-                egui::epaint::Shape::Text(text) if text.galley.job.text == expected => Some((shape.clip_rect, text)),
-                _ => None,
-            }).unwrap_or_else(|| panic!("missing {expected}"));
+        for _ in 0..3 {
+            frame(&context, &mut view, &state, size, vec![]);
+        }
+        let output = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                ..Default::default()
+            },
+            |ui| view.draw(ui, &state),
+        );
+        for expected in [
+            "Category ▴",
+            "Lightning",
+            "Effect",
+            "Cast 1 · Lightning",
+            "Type",
+            "Unknown",
+            "Size",
+            "31×41.5×3",
+        ] {
+            let (clip, text) = output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::epaint::Shape::Text(text) if text.galley.job.text == expected => {
+                        Some((shape.clip_rect, text))
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("missing {expected}"));
             assert!(!text.galley.elided, "{expected} is truncated at {width}px");
-            assert!(text.pos.x + text.galley.size().x <= clip.right() + 1.0, "{expected} is clipped");
+            assert!(
+                text.pos.x + text.galley.size().x <= clip.right() + 1.0,
+                "{expected} is clipped"
+            );
         }
     }
 }
@@ -876,32 +1240,59 @@ fn independent_item_columns_keep_ids_and_status_readable() {
     for (width, font) in [(560.0, 14.0), (820.0, 22.0), (1024.0, 28.0)] {
         let context = egui::Context::default();
         let mut view = PresentationView::default();
-        let mut table = control("packages", "table", "", json!({
-            "headers":true,"sortable":true,"sort_column":0,"total":1,
-            "columns":[{"index":0,"text":"Item","width":240,"resizable":true},
-                       {"index":1,"text":"Game ID","width":50,"resizable":true},
-                       {"index":2,"text":"Status","width":600,"resizable":true}],
-            "rows":[{"path":[0],"cells":[{"text":"Starfall Bastion Plate"},
-                    {"text":"1990001"},{"text":"Removed / reserved"}]}]
-        }));
+        let mut table = control(
+            "packages",
+            "table",
+            "",
+            json!({
+                "headers":true,"sortable":true,"sort_column":0,"total":1,
+                "columns":[{"index":0,"text":"Item","width":240,"resizable":true},
+                           {"index":1,"text":"Game ID","width":50,"resizable":true},
+                           {"index":2,"text":"Status","width":600,"resizable":true}],
+                "rows":[{"path":[0],"cells":[{"text":"Starfall Bastion Plate"},
+                        {"text":"1990001"},{"text":"Removed / reserved"}]}]
+            }),
+        );
         table.name = "independent_item_packages".into();
         let mut state = state(table);
         state.theme["font_pixels"] = json!(font);
         apply_theme(&context, &state.theme);
         let size = egui::vec2(width, 600.0);
-        for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-        let output = context.run_ui(egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-            ..Default::default()
-        }, |ui| view.draw(ui, &state));
-        for expected in ["Item ▴", "Game ID", "Status", "1990001", "Removed / reserved"] {
-            let (clip, text) = output.shapes.iter().find_map(|shape| match &shape.shape {
-                egui::epaint::Shape::Text(text) if text.galley.job.text == expected => Some((shape.clip_rect, text)),
-                _ => None,
-            }).unwrap_or_else(|| panic!("missing {expected}"));
-            assert!(!text.galley.elided, "{expected} is truncated at {width}/{font}");
-            assert!(text.pos.x + text.galley.size().x <= clip.right() + 1.0,
-                    "{expected} is clipped at {width}/{font}");
+        for _ in 0..3 {
+            frame(&context, &mut view, &state, size, vec![]);
+        }
+        let output = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                ..Default::default()
+            },
+            |ui| view.draw(ui, &state),
+        );
+        for expected in [
+            "Item ▴",
+            "Game ID",
+            "Status",
+            "1990001",
+            "Removed / reserved",
+        ] {
+            let (clip, text) = output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::epaint::Shape::Text(text) if text.galley.job.text == expected => {
+                        Some((shape.clip_rect, text))
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("missing {expected}"));
+            assert!(
+                !text.galley.elided,
+                "{expected} is truncated at {width}/{font}"
+            );
+            assert!(
+                text.pos.x + text.galley.size().x <= clip.right() + 1.0,
+                "{expected} is clipped at {width}/{font}"
+            );
         }
         assert!(view.errors.is_empty());
     }
@@ -913,48 +1304,126 @@ fn compact_choice_popup_fits_category_names_and_preserves_selection() {
         for width in [320.0, 960.0] {
             let context = egui::Context::default();
             let mut root = control("filters", "row", "", json!({}));
-            let options: Vec<_> = ["All", "Explosion", "Projectile", "Distortion", "Environment",
-                "Fire", "Smoke", "Dust", "Water", "Blood", "Debris", "Beam", "Decal",
-                "Portal", "Dark", "Wildlife", "Impact", "Other"].iter().enumerate()
-                .map(|(index, label)| json!({"index":index,"text":label})).collect();
-            root.children = vec![control("category", "choice", "", json!({"text":"All", "selected":0,"options":options})),
-                control("search", "text", "", json!({"grow_x":true}))];
+            let options: Vec<_> = [
+                "All",
+                "Explosion",
+                "Projectile",
+                "Distortion",
+                "Environment",
+                "Fire",
+                "Smoke",
+                "Dust",
+                "Water",
+                "Blood",
+                "Debris",
+                "Beam",
+                "Decal",
+                "Portal",
+                "Dark",
+                "Wildlife",
+                "Impact",
+                "Other",
+            ]
+            .iter()
+            .enumerate()
+            .map(|(index, label)| json!({"index":index,"text":label}))
+            .collect();
+            root.children = vec![
+                control(
+                    "category",
+                    "choice",
+                    "",
+                    json!({"text":"All", "selected":0,"options":options}),
+                ),
+                control("search", "text", "", json!({"grow_x":true})),
+            ];
             let mut state = state(root);
             state.theme["font_pixels"] = json!(font);
             apply_theme(&context, &state.theme);
             let mut view = PresentationView::default();
             let size = egui::vec2(width, 720.0);
-            for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
-            let field = view.rects.iter().find(|rect| rect.id == "category").unwrap().rect;
+            for _ in 0..4 {
+                frame(&context, &mut view, &state, size, vec![]);
+            }
+            let field = view
+                .rects
+                .iter()
+                .find(|rect| rect.id == "category")
+                .unwrap()
+                .rect;
             let point = egui::pos2(field[0] + 20.0, field[1] + field[3] / 2.0);
             for pressed in [true, false] {
-                frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(point),
-                    egui::Event::PointerButton { pos:point, button:egui::PointerButton::Primary,
-                        pressed, modifiers:egui::Modifiers::NONE }]);
+                frame(
+                    &context,
+                    &mut view,
+                    &state,
+                    size,
+                    vec![
+                        egui::Event::PointerMoved(point),
+                        egui::Event::PointerButton {
+                            pos: point,
+                            button: egui::PointerButton::Primary,
+                            pressed,
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ],
+                );
             }
-            for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
-            let output = context.run_ui(egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-                ..Default::default()
-            }, |ui| view.draw(ui, &state));
+            for _ in 0..4 {
+                frame(&context, &mut view, &state, size, vec![]);
+            }
+            let output = context.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                    ..Default::default()
+                },
+                |ui| view.draw(ui, &state),
+            );
             let mut select = None;
             for expected in ["Explosion", "Projectile", "Distortion", "Environment"] {
-                let (clip, text) = output.shapes.iter().find_map(|shape| match &shape.shape {
-                    egui::epaint::Shape::Text(text) if text.galley.job.text == expected => Some((shape.clip_rect, text)),
-                    _ => None,
-                }).unwrap_or_else(|| panic!("missing {expected}"));
-                assert!(!text.galley.elided, "{expected} is truncated at width={width}, font={font}");
-                assert!(text.pos.x + text.galley.size().x <= clip.right() + 1.0,
-                    "{expected} is clipped at width={width}, font={font}");
-                if expected == "Explosion" { select = Some(text.pos + text.galley.size() / 2.0); }
+                let (clip, text) = output
+                    .shapes
+                    .iter()
+                    .find_map(|shape| match &shape.shape {
+                        egui::epaint::Shape::Text(text) if text.galley.job.text == expected => {
+                            Some((shape.clip_rect, text))
+                        }
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| panic!("missing {expected}"));
+                assert!(
+                    !text.galley.elided,
+                    "{expected} is truncated at width={width}, font={font}"
+                );
+                assert!(
+                    text.pos.x + text.galley.size().x <= clip.right() + 1.0,
+                    "{expected} is clipped at width={width}, font={font}"
+                );
+                if expected == "Explosion" {
+                    select = Some(text.pos + text.galley.size() / 2.0);
+                }
             }
             let point = select.unwrap();
             for pressed in [true, false] {
-                frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(point),
-                    egui::Event::PointerButton { pos:point, button:egui::PointerButton::Primary,
-                        pressed, modifiers:egui::Modifiers::NONE }]);
+                frame(
+                    &context,
+                    &mut view,
+                    &state,
+                    size,
+                    vec![
+                        egui::Event::PointerMoved(point),
+                        egui::Event::PointerButton {
+                            pos: point,
+                            button: egui::PointerButton::Primary,
+                            pressed,
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ],
+                );
             }
-            assert!(view.inputs.iter().any(|input| input.control == "category" && input.action == "choose" && input.value == 1));
+            assert!(view.inputs.iter().any(|input| input.control == "category"
+                && input.action == "choose"
+                && input.value == 1));
         }
     }
 }
@@ -963,95 +1432,203 @@ fn compact_choice_popup_fits_category_names_and_preserves_selection() {
 fn editable_choice_uses_one_row_and_preserves_typing_and_selection() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
-    let state = state(control("part", "choice", "", json!({"editable":true,"text":"Blade",
-        "selected":0,"options":[{"index":0,"text":"Blade"},{"index":1,"text":"Handle"}]})));
+    let state = state(control(
+        "part",
+        "choice",
+        "",
+        json!({"editable":true,"text":"Blade",
+        "selected":0,"options":[{"index":0,"text":"Blade"},{"index":1,"text":"Handle"}]}),
+    ));
     apply_theme(&context, &state.theme);
     let size = egui::vec2(960.0, 720.0);
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
     assert_eq!(view.rects.len(), 2);
     let field = view.rects[0].rect;
     let arrow = view.rects[1].rect;
     assert!((field[1] - arrow[1]).abs() < 2.0);
     assert!(field[0] + field[2] <= arrow[0]);
-    click(&context, &mut view, &state, egui::pos2(field[0] + 20.0, field[1] + 10.0));
-    frame(&context, &mut view, &state, size, vec![egui::Event::Text("Custom".into())]);
+    click(
+        &context,
+        &mut view,
+        &state,
+        egui::pos2(field[0] + 20.0, field[1] + 10.0),
+    );
+    frame(
+        &context,
+        &mut view,
+        &state,
+        size,
+        vec![egui::Event::Text("Custom".into())],
+    );
     assert!(view.inputs.iter().any(|input| input.action == "text" && input.value.as_str().unwrap().contains("Custom")));
-    click(&context, &mut view, &state, egui::pos2(arrow[0] + 10.0, arrow[1] + 10.0));
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-    let popup = context.memory(|memory| memory.areas().visible_layer_ids().into_iter()
-        .filter(|layer| layer.order == egui::Order::Foreground)
-        .find_map(|layer| memory.area_rect(layer.id))).unwrap();
-    assert!(popup.width() >= field[2], "editable choices must span their field: {popup:?}");
-    click(&context, &mut view, &state, popup.min + egui::vec2(24.0, 40.0));
-    assert!(view.inputs.iter().any(|input| input.action == "choose" && input.value == 1));
+    click(
+        &context,
+        &mut view,
+        &state,
+        egui::pos2(arrow[0] + 10.0, arrow[1] + 10.0),
+    );
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
+    let popup = context
+        .memory(|memory| {
+            memory
+                .areas()
+                .visible_layer_ids()
+                .into_iter()
+                .filter(|layer| layer.order == egui::Order::Foreground)
+                .find_map(|layer| memory.area_rect(layer.id))
+        })
+        .unwrap();
+    assert!(
+        popup.width() >= field[2],
+        "editable choices must span their field: {popup:?}"
+    );
+    click(
+        &context,
+        &mut view,
+        &state,
+        popup.min + egui::vec2(24.0, 40.0),
+    );
+    assert!(
+        view.inputs
+            .iter()
+            .any(|input| input.action == "choose" && input.value == 1)
+    );
 }
 
 #[test]
 fn open_choice_menus_stop_growing_after_hover_rests() {
     // The menu used to size itself from its own width last frame, so each rest
     // on an item (hover state and tooltip) left it a little wider, without end.
-    let options: Vec<_> = ["ub", "lb", "ub_acc", "sho_under"].iter().enumerate()
-        .map(|(index, stem)| json!({"index":index,
-            "text":format!("cd_phw_00_ub_00_0151_u · cd_phw_00_{stem}_00_0151.pac · template")}))
+    let options: Vec<_> = ["ub", "lb", "ub_acc", "sho_under"]
+        .iter()
+        .enumerate()
+        .map(|(index, stem)| {
+            json!({"index":index,
+            "text":format!("cd_phw_00_ub_00_0151_u · cd_phw_00_{stem}_00_0151.pac · template")})
+        })
         .collect();
     for editable in [false, true] {
         let context = egui::Context::default();
         let mut view = PresentationView::default();
         let mut root = control("preview", "row", "", json!({}));
-        root.children = vec![control("search", "text", "", json!({"grow_x":true})),
-            control("variant", "choice", "", json!({"editable":editable,
-                "text":"cd_phw_00_ub_00_0151_u","selected":0,"options":options}))];
+        root.children = vec![
+            control("search", "text", "", json!({"grow_x":true})),
+            control(
+                "variant",
+                "choice",
+                "",
+                json!({"editable":editable,
+                "text":"cd_phw_00_ub_00_0151_u","selected":0,"options":options}),
+            ),
+        ];
         let state = state(root);
         apply_theme(&context, &state.theme);
         let size = egui::vec2(960.0, 720.0);
         let mut time = 100.0;
-        let mut step = |context: &egui::Context, view: &mut PresentationView, events: Vec<egui::Event>| {
-            time += 0.1;
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-                time: Some(time), events, ..Default::default()
+        let mut step =
+            |context: &egui::Context, view: &mut PresentationView, events: Vec<egui::Event>| {
+                time += 0.1;
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                    time: Some(time),
+                    events,
+                    ..Default::default()
+                };
+                let mut output = context.run_ui(input, |ui| view.draw(ui, &state));
+                output.textures_delta.clear();
             };
-            let mut output = context.run_ui(input, |ui| view.draw(ui, &state));
-            output.textures_delta.clear();
-        };
-        for _ in 0..3 { step(&context, &mut view, vec![]); }
+        for _ in 0..3 {
+            step(&context, &mut view, vec![]);
+        }
         let opener = view.rects.last().unwrap().rect;
         let at = egui::pos2(opener[0] + 10.0, opener[1] + 10.0);
         for pressed in [true, false] {
-            step(&context, &mut view, vec![egui::Event::PointerMoved(at), egui::Event::PointerButton {
-                pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE }]);
+            step(
+                &context,
+                &mut view,
+                vec![
+                    egui::Event::PointerMoved(at),
+                    egui::Event::PointerButton {
+                        pos: at,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+            );
         }
-        let popup = |context: &egui::Context| context.memory(|memory| memory.areas().visible_layer_ids()
-            .into_iter().filter(|layer| layer.order == egui::Order::Foreground)
-            .find_map(|layer| memory.area_rect(layer.id))).unwrap();
-        for _ in 0..3 { step(&context, &mut view, vec![]); }
+        let popup = |context: &egui::Context| {
+            context
+                .memory(|memory| {
+                    memory
+                        .areas()
+                        .visible_layer_ids()
+                        .into_iter()
+                        .filter(|layer| layer.order == egui::Order::Foreground)
+                        .find_map(|layer| memory.area_rect(layer.id))
+                })
+                .unwrap()
+        };
+        for _ in 0..3 {
+            step(&context, &mut view, vec![]);
+        }
         let mut widths = Vec::new();
         for round in 0..6 {
             // Rest on an item long enough for its tooltip, then leave the menu.
-            let item = popup(&context).center_top() + egui::vec2(0.0, 14.0 + 22.0 * (round % 3) as f32);
+            let item =
+                popup(&context).center_top() + egui::vec2(0.0, 14.0 + 22.0 * (round % 3) as f32);
             step(&context, &mut view, vec![egui::Event::PointerMoved(item)]);
-            for _ in 0..15 { step(&context, &mut view, vec![]); }
-            step(&context, &mut view, vec![egui::Event::PointerMoved(egui::pos2(5.0, size.y - 5.0))]);
-            for _ in 0..3 { step(&context, &mut view, vec![]); }
+            for _ in 0..15 {
+                step(&context, &mut view, vec![]);
+            }
+            step(
+                &context,
+                &mut view,
+                vec![egui::Event::PointerMoved(egui::pos2(5.0, size.y - 5.0))],
+            );
+            for _ in 0..3 {
+                step(&context, &mut view, vec![]);
+            }
             widths.push(popup(&context).width());
         }
         // The first rest may settle the menu once; after that it must hold its width.
-        assert!(widths[1..].iter().all(|width| (width - widths[1]).abs() < 0.5),
-            "editable={editable}: the open menu kept growing: {widths:?}");
+        assert!(
+            widths[1..]
+                .iter()
+                .all(|width| (width - widths[1]).abs() < 0.5),
+            "editable={editable}: the open menu kept growing: {widths:?}"
+        );
     }
 }
 
 #[test]
 fn empty_lists_and_nested_action_rows_do_not_reserve_dead_space() {
     let context = egui::Context::default();
-    let mut list = control("empty", "table", "", json!({"total":0,"columns":[{"index":0,"width":100}],"rows":[]}));
+    let mut list = control(
+        "empty",
+        "table",
+        "",
+        json!({"total":0,"columns":[{"index":0,"width":100}],"rows":[]}),
+    );
     list.stretch = 1;
     let mut root = control("inspector", "scroll", "", json!({}));
     root.children = vec![list, control("add", "button", "Add", json!({}))];
     let state = state(root);
     apply_theme(&context, &state.theme);
     let mut view = PresentationView::default();
-    for _ in 0..3 { frame(&context, &mut view, &state, egui::vec2(320.0, 600.0), vec![]); }
+    for _ in 0..3 {
+        frame(
+            &context,
+            &mut view,
+            &state,
+            egui::vec2(320.0, 600.0),
+            vec![],
+        );
+    }
     let button = view.rects.iter().find(|rect| rect.id == "add").unwrap();
     assert!(button.rect[1] < 40.0, "empty list gap: {:?}", button.rect);
 }
@@ -1060,20 +1637,40 @@ fn empty_lists_and_nested_action_rows_do_not_reserve_dead_space() {
 fn short_tables_fit_their_actual_font_height_without_clipping_the_last_row() {
     for font in [14.0, 20.0, 22.0] {
         let context = egui::Context::default();
-        let mut table = control("list", "table", "", json!({"total":3,"headers":true,
-            "columns":[{"index":0,"text":"A long heading that should stay on one line","width":100}]}));
-        table.props["rows"] = json!((0..3).map(|index| json!({"path":[index],
-            "cells":[{"text":format!("Part {index}"),"enabled":true}]})).collect::<Vec<_>>());
+        let mut table = control(
+            "list",
+            "table",
+            "",
+            json!({"total":3,"headers":true,
+            "columns":[{"index":0,"text":"A long heading that should stay on one line","width":100}]}),
+        );
+        table.props["rows"] = json!(
+            (0..3)
+                .map(|index| json!({"path":[index],
+            "cells":[{"text":format!("Part {index}"),"enabled":true}]}))
+                .collect::<Vec<_>>()
+        );
         let mut root = control("inspector", "scroll", "", json!({}));
         root.children = vec![table, control("add", "button", "Add", json!({}))];
         let mut state = state(root);
         state.theme["font_pixels"] = json!(font);
         apply_theme(&context, &state.theme);
         let mut view = PresentationView::default();
-        for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(320.0, 600.0), vec![]); }
+        for _ in 0..4 {
+            frame(
+                &context,
+                &mut view,
+                &state,
+                egui::vec2(320.0, 600.0),
+                vec![],
+            );
+        }
         let table = view.rects.iter().find(|rect| rect.id == "list").unwrap();
         let button = view.rects.iter().find(|rect| rect.id == "add").unwrap();
-        assert!(table.rect[3] + 1.0 >= 4.0 * button.rect[3] + 3.0 * 4.0, "font {font}: {table:?}, {button:?}");
+        assert!(
+            table.rect[3] + 1.0 >= 4.0 * button.rect[3] + 3.0 * 4.0,
+            "font {font}: {table:?}, {button:?}"
+        );
         assert!(table.rect[1] + table.rect[3] <= button.rect[1]);
     }
 }
@@ -1081,33 +1678,63 @@ fn short_tables_fit_their_actual_font_height_without_clipping_the_last_row() {
 #[test]
 fn emitter_properties_expand_inside_the_inspector_and_keep_actions_visible() {
     for font in [14, 22] {
-        let mut parameters = control("parameters", "table", "", json!({"total":30,"headers":true,
+        let mut parameters = control(
+            "parameters",
+            "table",
+            "",
+            json!({"total":30,"headers":true,
             "columns":[{"index":0,"text":"Use","width":50,"size_to_contents":true},
                        {"index":1,"text":"Property","width":200},
-                       {"index":2,"text":"Value","width":140,"stretch":true}]}));
+                       {"index":2,"text":"Value","width":140,"stretch":true}]}),
+        );
         parameters.stretch = 1;
         parameters.props["rows"] = json!((0..30).map(|index| json!({"path":[index],"cells":[
             {"text":"","check":0,"enabled":true}, {"text":format!("Emitter property {index}")},
             {"control":control(&format!("value-{index}"), "number", "", json!({"value":1}))}
         ]})).collect::<Vec<_>>());
         let mut contents = control("emitter-page", "column", "", json!({}));
-        contents.children = vec![control("emitter", "choice", "", json!({"text":"White Dome Glow"})),
-            control("enabled", "check", "Enabled", json!({})), parameters];
+        contents.children = vec![
+            control("emitter", "choice", "", json!({"text":"White Dome Glow"})),
+            control("enabled", "check", "Enabled", json!({})),
+            parameters,
+        ];
         for id in ["Colour curve", "Size curve", "Opacity curve"] {
             let mut curve = control(id, "row", "", json!({}));
-            curve.children = vec![control(&format!("{id}-enabled"), "check", id, json!({})),
-                control(&format!("{id}-value"), "number", "", json!({"value":1}))];
+            curve.children = vec![
+                control(&format!("{id}-enabled"), "check", id, json!({})),
+                control(&format!("{id}-value"), "number", "", json!({"value":1})),
+            ];
             contents.children.push(curve);
         }
-        contents.children.extend([control("texture", "text", "", json!({"placeholder":"Sprite DDS archive path"})),
-            control("status", "label", "", json!({"text":"Editing this emitter's exported data."})),
-            control("reset", "button", "Reset emitter", json!({}))]);
+        contents.children.extend([
+            control(
+                "texture",
+                "text",
+                "",
+                json!({"placeholder":"Sprite DDS archive path"}),
+            ),
+            control(
+                "status",
+                "label",
+                "",
+                json!({"text":"Editing this emitter's exported data."}),
+            ),
+            control("reset", "button", "Reset emitter", json!({})),
+        ]);
         let mut scroll = control("inspector", "scroll", "", json!({}));
         scroll.children.push(contents);
-        let mut tabs = control("tabs", "tabs", "", json!({"selected":0,"tabs":[{"text":"Emitters"}]}));
+        let mut tabs = control(
+            "tabs",
+            "tabs",
+            "",
+            json!({"selected":0,"tabs":[{"text":"Emitters"}]}),
+        );
         tabs.children.push(scroll);
         let mut root = control("root", "column", "", json!({}));
-        root.children = vec![tabs, control("apply", "button", "Apply placement", json!({}))];
+        root.children = vec![
+            tabs,
+            control("apply", "button", "Apply placement", json!({})),
+        ];
         let mut state = state(root);
         state.theme["font_pixels"] = json!(font);
         let context = egui::Context::default();
@@ -1115,7 +1742,15 @@ fn emitter_properties_expand_inside_the_inspector_and_keep_actions_visible() {
         let mut view = PresentationView::default();
         let mut previous_height = None;
         for height in [720.0, 1080.0] {
-            for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(560.0,height), vec![]); }
+            for _ in 0..4 {
+                frame(
+                    &context,
+                    &mut view,
+                    &state,
+                    egui::vec2(560.0, height),
+                    vec![],
+                );
+            }
             let rect = |id| view.rects.iter().find(|rect| rect.id == id).unwrap().rect;
             let table = rect("parameters");
             let curve = rect("Colour curve-enabled");
@@ -1124,9 +1759,16 @@ fn emitter_properties_expand_inside_the_inspector_and_keep_actions_visible() {
             assert!(table[1] + table[3] <= curve[1] + 1.0);
             assert!(reset[1] + reset[3] <= apply[1]);
             assert!(apply[1] + apply[3] <= height);
-            assert!(apply[1] - reset[1] - reset[3] < 32.0, "Unused inspector height: font={font}, height={height}, reset={reset:?}, apply={apply:?}");
+            assert!(
+                apply[1] - reset[1] - reset[3] < 32.0,
+                "Unused inspector height: font={font}, height={height}, reset={reset:?}, apply={apply:?}"
+            );
             if let Some(previous) = previous_height {
-                assert!(table[3] >= previous + 300.0, "Emitter properties must use the taller pane: {previous} -> {}", table[3]);
+                assert!(
+                    table[3] >= previous + 300.0,
+                    "Emitter properties must use the taller pane: {previous} -> {}",
+                    table[3]
+                );
             }
             previous_height = Some(table[3]);
         }
@@ -1135,37 +1777,80 @@ fn emitter_properties_expand_inside_the_inspector_and_keep_actions_visible() {
 
 #[test]
 fn output_columns_keep_long_review_and_activity_inside_the_workspace() {
-    let mut summary = control("summary", "text", "", json!({
-        "multiline":true,"readonly":true,"text":"Warning and file details\n".repeat(500)}));
+    let mut summary = control(
+        "summary",
+        "text",
+        "",
+        json!({
+        "multiline":true,"readonly":true,"text":"Warning and file details\n".repeat(500)}),
+    );
     summary.stretch = 1;
-    let mut tabs = control("review-tabs", "tabs", "", json!({"selected":1,
-        "tabs":[{"text":"File changes","enabled":true},{"text":"Details and warnings","enabled":true}]}));
+    let mut tabs = control(
+        "review-tabs",
+        "tabs",
+        "",
+        json!({"selected":1,
+        "tabs":[{"text":"File changes","enabled":true},{"text":"Details and warnings","enabled":true}]}),
+    );
     tabs.children.push(summary);
     let mut review = control("review", "column", "", json!({}));
-    review.children = vec![control("build", "button", "Build plan", json!({})), tabs,
-        control("checklist", "button", "After installing, check in game", json!({}))];
+    review.children = vec![
+        control("build", "button", "Build plan", json!({})),
+        tabs,
+        control(
+            "checklist",
+            "button",
+            "After installing, check in game",
+            json!({}),
+        ),
+    ];
     let mut review_scroll = control("review-scroll", "scroll", "", json!({}));
     review_scroll.children.push(review);
-    let mut log = control("log", "text", "", json!({"multiline":true,"readonly":true,
-        "follow_tail":true,"text":"Activity event\n".repeat(500)}));
+    let mut log = control(
+        "log",
+        "text",
+        "",
+        json!({"multiline":true,"readonly":true,
+        "follow_tail":true,"text":"Activity event\n".repeat(500)}),
+    );
     log.stretch = 1;
     let mut activity = control("activity", "group", "Activity log", json!({}));
     activity.children.push(log);
     let mut destination = control("destination", "group", "Destination", json!({}));
-    destination.children = vec![control("folder", "text", "", json!({"text":"C:/Mods"})),
-        control("export", "button", "Write mod folder", json!({}))];
-    let mut split = control("output", "split", "", json!({"horizontal":true,"sizes":[460,460,320]}));
+    destination.children = vec![
+        control("folder", "text", "", json!({"text":"C:/Mods"})),
+        control("export", "button", "Write mod folder", json!({})),
+    ];
+    let mut split = control(
+        "output",
+        "split",
+        "",
+        json!({"horizontal":true,"sizes":[460,460,320]}),
+    );
     split.children = vec![review_scroll, activity, destination];
     let mut root = control("root", "column", "", json!({}));
     root.children = vec![split, control("back", "button", "Back", json!({}))];
     let state = state(root);
     for font in [14, 22, 28] {
-        for (width, height) in [(1280.0,720.0), (1920.0,1080.0), (2560.0,1440.0),
-            (3440.0,1440.0), (3840.0,2160.0)] {
+        for (width, height) in [
+            (1280.0, 720.0),
+            (1920.0, 1080.0),
+            (2560.0, 1440.0),
+            (3440.0, 1440.0),
+            (3840.0, 2160.0),
+        ] {
             let context = egui::Context::default();
             apply_theme(&context, &json!({"font_pixels":font}));
             let mut view = PresentationView::default();
-            for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(width,height), vec![]); }
+            for _ in 0..4 {
+                frame(
+                    &context,
+                    &mut view,
+                    &state,
+                    egui::vec2(width, height),
+                    vec![],
+                );
+            }
             let rect = |id| view.rects.iter().find(|rect| rect.id == id).unwrap().rect;
             let summary = rect("summary");
             let log = rect("log");
@@ -1174,10 +1859,12 @@ fn output_columns_keep_long_review_and_activity_inside_the_workspace() {
             assert!(log[0] + log[2] < folder[0], "{log:?}, {folder:?}");
             for id in ["summary", "log", "checklist", "export", "back"] {
                 let item = view.rects.iter().find(|rect| rect.id == id).unwrap();
-                assert!(item.rect[1] >= item.clip[1] - 1.0
-                    && item.rect[1] + item.rect[3] <= item.clip[1] + item.clip[3] + 1.0
-                    && item.rect[1] + item.rect[3] <= height,
-                    "font={font}, size={width}x{height}, {item:?}");
+                assert!(
+                    item.rect[1] >= item.clip[1] - 1.0
+                        && item.rect[1] + item.rect[3] <= item.clip[1] + item.clip[3] + 1.0
+                        && item.rect[1] + item.rect[3] <= height,
+                    "font={font}, size={width}x{height}, {item:?}"
+                );
             }
             assert!(summary[3] > height * 0.6 && log[3] > height * 0.6);
         }
@@ -1189,57 +1876,112 @@ fn activity_scroll_follows_new_events_and_allows_reading_history_between_events(
     let context = egui::Context::default();
     let mut view = PresentationView::default();
     let text = "Earlier activity\n".repeat(500) + "Latest event";
-    let mut log = control("log", "text", "", json!({"multiline":true,"readonly":true,
-        "follow_tail":true,"text":text,"total":text.len()}));
+    let mut log = control(
+        "log",
+        "text",
+        "",
+        json!({"multiline":true,"readonly":true,
+        "follow_tail":true,"text":text,"total":text.len()}),
+    );
     let mut tick = 0;
     let mut draw = |view: &mut PresentationView, node: &Node, events: Vec<egui::Event>| {
         tick += 1;
         let mut scroll_id = egui::Id::NULL;
         let mut rect = egui::Rect::NOTHING;
-        let mut output = context.run_ui(egui::RawInput {
-            screen_rect:Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(480.0,320.0))),
-            time:Some(tick as f64), events, ..Default::default()
-        }, |ui| {
-            scroll_id = ui.make_persistent_id(egui::IdSalt::new("text-scroll"));
-            rect = view.text(ui, node).rect;
-            assert!(ui.min_rect().bottom() <= 320.0, "Text must not grow the page");
-        });
+        let mut output = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(480.0, 320.0),
+                )),
+                time: Some(tick as f64),
+                events,
+                ..Default::default()
+            },
+            |ui| {
+                scroll_id = ui.make_persistent_id(egui::IdSalt::new("text-scroll"));
+                rect = view.text(ui, node).rect;
+                assert!(
+                    ui.min_rect().bottom() <= 320.0,
+                    "Text must not grow the page"
+                );
+            },
+        );
         output.textures_delta.clear();
         (scroll_id, rect, output)
     };
-    for _ in 0..4 { draw(&mut view, &log, vec![]); }
+    for _ in 0..4 {
+        draw(&mut view, &log, vec![]);
+    }
     let (scroll_id, rect, output) = draw(&mut view, &log, vec![]);
-    let tail_offset = egui::scroll_area::State::load(&context, scroll_id).unwrap().offset.y;
+    let tail_offset = egui::scroll_area::State::load(&context, scroll_id)
+        .unwrap()
+        .offset
+        .y;
     assert!(tail_offset > 1000.0);
     let latest_is_visible = |output: &egui::FullOutput, marker: &str, rect: egui::Rect| {
         output.shapes.iter().any(|shape| match &shape.shape {
             egui::epaint::Shape::Text(text) if text.galley.job.text.ends_with(marker) => {
                 let bottom = text.pos.y + text.galley.rect.bottom();
                 bottom > rect.top() && bottom <= rect.bottom() + 1.0
-            },
+            }
             _ => false,
         })
     };
     assert!(latest_is_visible(&output, "Latest event", rect));
-    draw(&mut view, &log, vec![egui::Event::PointerMoved(rect.center()), egui::Event::MouseWheel {
-        unit:egui::MouseWheelUnit::Point, delta:egui::vec2(0.0,500.0), modifiers:egui::Modifiers::NONE,
-        phase:egui::TouchPhase::Move,
-    }]);
-    for _ in 0..3 { draw(&mut view, &log, vec![]); }
-    assert!(egui::scroll_area::State::load(&context, scroll_id).unwrap().offset.y < tail_offset);
+    draw(
+        &mut view,
+        &log,
+        vec![
+            egui::Event::PointerMoved(rect.center()),
+            egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(0.0, 500.0),
+                modifiers: egui::Modifiers::NONE,
+                phase: egui::TouchPhase::Move,
+            },
+        ],
+    );
+    for _ in 0..3 {
+        draw(&mut view, &log, vec![]);
+    }
+    assert!(
+        egui::scroll_area::State::load(&context, scroll_id)
+            .unwrap()
+            .offset
+            .y
+            < tail_offset
+    );
     log.props["text"] = json!(text + "\nNew event after reading history");
     log.props["total"] = json!(log.text("text").len());
     log.revision += 1;
-    for _ in 0..4 { draw(&mut view, &log, vec![]); }
+    for _ in 0..4 {
+        draw(&mut view, &log, vec![]);
+    }
     let (_, rect, output) = draw(&mut view, &log, vec![]);
-    assert!(latest_is_visible(&output, "New event after reading history", rect),
+    assert!(
+        latest_is_visible(&output, "New event after reading history", rect),
         "tail={tail_offset}, scroll={:?}, rect={rect:?}, text={:?}",
-        egui::scroll_area::State::load(&context, scroll_id).unwrap().offset,
-        output.shapes.iter().filter_map(|shape| match &shape.shape {
-            egui::epaint::Shape::Text(text) => Some((text.pos, text.galley.rect, text.galley.job.text.len())),
-            _ => None,
-        }).collect::<Vec<_>>());
-    assert!(egui::scroll_area::State::load(&context, scroll_id).unwrap().offset.y > tail_offset);
+        egui::scroll_area::State::load(&context, scroll_id)
+            .unwrap()
+            .offset,
+        output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::epaint::Shape::Text(text) =>
+                    Some((text.pos, text.galley.rect, text.galley.job.text.len())),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        egui::scroll_area::State::load(&context, scroll_id)
+            .unwrap()
+            .offset
+            .y
+            > tail_offset
+    );
 }
 
 #[test]
@@ -1247,22 +1989,45 @@ fn stats_and_price_tables_fill_their_panes_even_with_few_rows() {
     for rows in [2, 16] {
         for font in [14, 22] {
             let context = egui::Context::default();
-            let mut panes = control("stats-split", "split", "", json!({"horizontal":true,"sizes":[900,350]}));
-            for (id, title, count) in [("ladder", "Enhancement ladder", rows), ("prices", "Shop price and stack size", 2)] {
-                let mut table = control(id, "table", "", json!({"total":count,"headers":true,
-                    "columns":[{"index":0,"text":"Value","width":200}]}));
+            let mut panes = control(
+                "stats-split",
+                "split",
+                "",
+                json!({"horizontal":true,"sizes":[900,350]}),
+            );
+            for (id, title, count) in [
+                ("ladder", "Enhancement ladder", rows),
+                ("prices", "Shop price and stack size", 2),
+            ] {
+                let mut table = control(
+                    id,
+                    "table",
+                    "",
+                    json!({"total":count,"headers":true,
+                    "columns":[{"index":0,"text":"Value","width":200}]}),
+                );
                 table.stretch = 1;
-                table.props["rows"] = json!((0..count).map(|index| json!({"path":[index],
-                    "cells":[{"text":format!("{}", index + 100),"editable":true,"enabled":true}]})).collect::<Vec<_>>());
+                table.props["rows"] = json!(
+                    (0..count)
+                        .map(|index| json!({"path":[index],
+                    "cells":[{"text":format!("{}", index + 100),"editable":true,"enabled":true}]}))
+                        .collect::<Vec<_>>()
+                );
                 let mut contents = control("", "column", "", json!({}));
-                contents.children = vec![table, control(&format!("{id}-action"), "button", "Restore", json!({}))];
+                contents.children = vec![
+                    table,
+                    control(&format!("{id}-action"), "button", "Restore", json!({})),
+                ];
                 let mut group = control(&format!("{id}-group"), "group", title, json!({}));
                 group.children.push(contents);
                 panes.children.push(group);
             }
             let mut page = control("page", "scroll", "", json!({}));
             page.slot = "body".into();
-            page.children = vec![control("summary", "label", "", json!({"text":"Template stats"})), panes];
+            page.children = vec![
+                control("summary", "label", "", json!({"text":"Template stats"})),
+                panes,
+            ];
             let mut next = control("continue", "button", "Continue", json!({}));
             next.slot = "next".into();
             let mut root = control("workspace", "workspace", "", json!({}));
@@ -1272,16 +2037,37 @@ fn stats_and_price_tables_fill_their_panes_even_with_few_rows() {
             apply_theme(&context, &state.theme);
             let mut view = PresentationView::default();
             for size in [egui::vec2(1280.0, 720.0), egui::vec2(1920.0, 1080.0)] {
-                for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
-                let footer = view.rects.iter().find(|rect| rect.id == "continue").unwrap().rect;
+                for _ in 0..4 {
+                    frame(&context, &mut view, &state, size, vec![]);
+                }
+                let footer = view
+                    .rects
+                    .iter()
+                    .find(|rect| rect.id == "continue")
+                    .unwrap()
+                    .rect;
                 for id in ["ladder", "prices"] {
                     let table = view.rects.iter().find(|rect| rect.id == id).unwrap();
-                    let action = view.rects.iter().find(|rect| rect.id == format!("{id}-action")).unwrap().rect;
-                    assert!(table.rect[3] > size.y * 0.65, "rows {rows}, font {font}: {table:?}");
+                    let action = view
+                        .rects
+                        .iter()
+                        .find(|rect| rect.id == format!("{id}-action"))
+                        .unwrap()
+                        .rect;
+                    assert!(
+                        table.rect[3] > size.y * 0.65,
+                        "rows {rows}, font {font}: {table:?}"
+                    );
                     assert!(table.clip[3] >= table.rect[3]);
                     assert!(table.rect[1] + table.rect[3] <= action[1] + 1.0);
-                    assert!(action[1] + action[3] <= footer[1], "actions must remain above navigation");
-                    assert!(footer[1] - action[1] - action[3] < 32.0, "unused pane height: {action:?}");
+                    assert!(
+                        action[1] + action[3] <= footer[1],
+                        "actions must remain above navigation"
+                    );
+                    assert!(
+                        footer[1] - action[1] - action[3] < 32.0,
+                        "unused pane height: {action:?}"
+                    );
                 }
                 assert!(view.errors.is_empty());
             }
@@ -1291,17 +2077,43 @@ fn stats_and_price_tables_fill_their_panes_even_with_few_rows() {
 
 fn template_results_state(total: u64, offset: u64, preview: bool) -> State {
     let end = (offset + 128).min(total);
-    let mut table = control("matches", "table", "", json!({"total":total,"offset":offset,"end":end,
-        "model":[1,1],"headers":true,"columns":[{"index":0,"text":"Item name","width":400}]}));
+    let mut table = control(
+        "matches",
+        "table",
+        "",
+        json!({"total":total,"offset":offset,"end":end,
+        "model":[1,1],"headers":true,"columns":[{"index":0,"text":"Item name","width":400}]}),
+    );
     table.stretch = 1;
-    table.props["rows"] = json!((offset..end).map(|index| json!({"path":[index],
-        "cells":[{"text":format!("Template {index}"),"enabled":true}]})).collect::<Vec<_>>());
+    table.props["rows"] = json!(
+        (offset..end)
+            .map(|index| json!({"path":[index],
+        "cells":[{"text":format!("Template {index}"),"enabled":true}]}))
+            .collect::<Vec<_>>()
+    );
     let mut selection = control("selection", "column", "", json!({}));
-    selection.children = vec![control("find", "text", "", json!({"text":""})),
-        control("summary", "label", "", json!({"text":"Current item tables"})), table];
-    let mut split = control("template-split", "split", "", json!({"horizontal":true,"sizes":[800,400]}));
+    selection.children = vec![
+        control("find", "text", "", json!({"text":""})),
+        control(
+            "summary",
+            "label",
+            "",
+            json!({"text":"Current item tables"}),
+        ),
+        table,
+    ];
+    let mut split = control(
+        "template-split",
+        "split",
+        "",
+        json!({"horizontal":true,"sizes":[800,400]}),
+    );
     split.children.push(selection);
-    if preview { split.children.push(control("preview", "viewport", "", json!({}))); }
+    if preview {
+        split
+            .children
+            .push(control("preview", "viewport", "", json!({})));
+    }
     let mut page = control("page", "scroll", "", json!({}));
     page.slot = "body".into();
     page.children.push(split);
@@ -1322,16 +2134,44 @@ fn template_results_fill_the_page_and_keep_their_height_on_the_last_page() {
             apply_theme(&context, &state.theme);
             let mut view = PresentationView::default();
             let size = egui::vec2(1440.0, 1000.0);
-            for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
-            let before = view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect;
-            let footer = view.rects.iter().find(|rect| rect.id == "continue").unwrap().rect;
-            assert!(before[3] > 800.0, "Template list must fill the browser, not an eight-row slot: {before:?}");
-            assert!(footer[1] - before[1] - before[3] < 55.0, "Unused space before the footer: {before:?}, {footer:?}");
+            for _ in 0..4 {
+                frame(&context, &mut view, &state, size, vec![]);
+            }
+            let before = view
+                .rects
+                .iter()
+                .find(|rect| rect.id == "matches")
+                .unwrap()
+                .rect;
+            let footer = view
+                .rects
+                .iter()
+                .find(|rect| rect.id == "continue")
+                .unwrap()
+                .rect;
+            assert!(
+                before[3] > 800.0,
+                "Template list must fill the browser, not an eight-row slot: {before:?}"
+            );
+            assert!(
+                footer[1] - before[1] - before[3] < 55.0,
+                "Unused space before the footer: {before:?}, {footer:?}"
+            );
             let mut last = template_results_state(900, 896, preview);
             last.theme = state.theme.clone();
-            for _ in 0..4 { frame(&context, &mut view, &last, size, vec![]); }
-            let after = view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect;
-            assert_eq!(before, after, "The final four rows must not collapse the browser");
+            for _ in 0..4 {
+                frame(&context, &mut view, &last, size, vec![]);
+            }
+            let after = view
+                .rects
+                .iter()
+                .find(|rect| rect.id == "matches")
+                .unwrap()
+                .rect;
+            assert_eq!(
+                before, after,
+                "The final four rows must not collapse the browser"
+            );
         }
     }
 }
@@ -1343,35 +2183,86 @@ fn template_scrolling_requests_more_only_once_at_the_end_of_loaded_results() {
     apply_theme(&context, &state.theme);
     let mut view = PresentationView::default();
     let size = egui::vec2(1440.0, 1000.0);
-    for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
+    for _ in 0..4 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
     let mut requests = Vec::new();
     let scroll_to_end = |view: &mut PresentationView, state: &State, requests: &mut Vec<Value>| {
         for _ in 0..24 {
-            frame(&context, view, state, size, vec![egui::Event::PointerMoved(egui::pos2(300.0,200.0)),
-                egui::Event::MouseWheel { unit:egui::MouseWheelUnit::Point, delta:egui::vec2(0.0,-400.0), phase:egui::TouchPhase::Move, modifiers:egui::Modifiers::NONE }]);
-            requests.extend(view.inputs.iter().filter(|input| input.action == "range" && input.value["end"] == true).map(|input| input.value.clone()));
+            frame(
+                &context,
+                view,
+                state,
+                size,
+                vec![
+                    egui::Event::PointerMoved(egui::pos2(300.0, 200.0)),
+                    egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::vec2(0.0, -400.0),
+                        phase: egui::TouchPhase::Move,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+            );
+            requests.extend(
+                view.inputs
+                    .iter()
+                    .filter(|input| input.action == "range" && input.value["end"] == true)
+                    .map(|input| input.value.clone()),
+            );
         }
     };
     scroll_to_end(&mut view, &state, &mut requests);
-    assert!(requests.is_empty(), "Scrolling the first 128 of 900 rows must not fetch more Qt rows: {requests:?}");
+    assert!(
+        requests.is_empty(),
+        "Scrolling the first 128 of 900 rows must not fetch more Qt rows: {requests:?}"
+    );
 
     state = template_results_state(900, 768, false);
     scroll_to_end(&mut view, &state, &mut requests);
-    assert!(requests.is_empty(), "The loaded results still have another page");
+    assert!(
+        requests.is_empty(),
+        "The loaded results still have another page"
+    );
 
     state = template_results_state(896, 768, false);
     scroll_to_end(&mut view, &state, &mut requests);
-    assert_eq!(requests.len(), 1, "The last loaded page must request more once, not on every frame");
-    let rectangle = view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect;
+    assert_eq!(
+        requests.len(),
+        1,
+        "The last loaded page must request more once, not on every frame"
+    );
+    let rectangle = view
+        .rects
+        .iter()
+        .find(|rect| rect.id == "matches")
+        .unwrap()
+        .rect;
     for _ in 0..30 {
         state.generation += 1;
         frame(&context, &mut view, &state, size, vec![]);
-        assert!(!view.inputs.iter().any(|input| input.action == "range" && input.value["end"] == true));
-        assert_eq!(view.rects.iter().find(|rect| rect.id == "matches").unwrap().rect, rectangle);
+        assert!(
+            !view
+                .inputs
+                .iter()
+                .any(|input| input.action == "range" && input.value["end"] == true)
+        );
+        assert_eq!(
+            view.rects
+                .iter()
+                .find(|rect| rect.id == "matches")
+                .unwrap()
+                .rect,
+            rectangle
+        );
     }
     state = template_results_state(900, 896, false);
     scroll_to_end(&mut view, &state, &mut requests);
-    assert_eq!(requests.len(), 2, "A short final page must still be able to fetch more rows");
+    assert_eq!(
+        requests.len(),
+        2,
+        "A short final page must still be able to fetch more rows"
+    );
     assert_eq!(requests[1]["offset"], 896);
 }
 
@@ -1379,44 +2270,98 @@ fn template_scrolling_requests_more_only_once_at_the_end_of_loaded_results() {
 fn narrow_split_keeps_the_stacked_inspector_reachable_by_scrolling() {
     let context = egui::Context::default();
     let mut viewport = control("view", "column", "", json!({}));
-    viewport.children = vec![control("tools", "button", "Frame", json!({})),
-        control("preview", "viewport", "", json!({}))];
+    viewport.children = vec![
+        control("tools", "button", "Frame", json!({})),
+        control("preview", "viewport", "", json!({})),
+    ];
     let mut inspector = control("inspector", "scroll", "", json!({}));
     inspector.children = vec![control("apply", "button", "Apply placement", json!({}))];
-    let mut split = control("split", "split", "", json!({"horizontal":true,"sizes":[650,380]}));
+    let mut split = control(
+        "split",
+        "split",
+        "",
+        json!({"horizontal":true,"sizes":[650,380]}),
+    );
     split.children = vec![viewport, inspector];
     let state = state(split);
     apply_theme(&context, &state.theme);
     let mut view = PresentationView::default();
     let size = egui::vec2(640.0, 400.0);
-    for _ in 0..4 { frame(&context, &mut view, &state, size, vec![]); }
+    for _ in 0..4 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
     for _ in 0..8 {
-        frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(egui::pos2(620.0, 200.0)),
-            egui::Event::MouseWheel {unit:egui::MouseWheelUnit::Point,delta:egui::vec2(0.0,-160.0),phase:egui::TouchPhase::Move,modifiers:egui::Modifiers::NONE}]);
+        frame(
+            &context,
+            &mut view,
+            &state,
+            size,
+            vec![
+                egui::Event::PointerMoved(egui::pos2(620.0, 200.0)),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, -160.0),
+                    phase: egui::TouchPhase::Move,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+        );
     }
     let button = view.rects.iter().find(|rect| rect.id == "apply").unwrap();
-    assert!(button.rect[1] >= button.clip[1] && button.rect[1] + button.rect[3] <= button.clip[1] + button.clip[3], "{button:?}");
+    assert!(
+        button.rect[1] >= button.clip[1]
+            && button.rect[1] + button.rect[3] <= button.clip[1] + button.clip[3],
+        "{button:?}"
+    );
 }
 
 #[test]
 fn compact_input_dialog_keeps_buttons_below_the_field_at_each_font_size() {
     for font in [11.0, 14.0, 22.0] {
         let context = egui::Context::default();
-        let mut state = state(control("background", "label", "", json!({"text":"Workspace"})));
+        let mut state = state(control(
+            "background",
+            "label",
+            "",
+            json!({"text":"Workspace"}),
+        ));
         state.theme["font_pixels"] = json!(font);
         let mut actions = control("actions", "row", "", json!({"dialog_actions":true}));
-        actions.children = vec![control("ok", "button", "OK", json!({"default":true})), control("cancel", "button", "Cancel", json!({}))];
+        actions.children = vec![
+            control("ok", "button", "OK", json!({"default":true})),
+            control("cancel", "button", "Cancel", json!({})),
+        ];
         let mut dialog = control("save", "dialog", "Save effect", json!({}));
-        dialog.children = vec![control("label", "label", "", json!({"text":"Name:"})),
-            control("name", "text", "", json!({"text":"Owned fixture effect"})), actions];
+        dialog.children = vec![
+            control("label", "label", "", json!({"text":"Name:"})),
+            control("name", "text", "", json!({"text":"Owned fixture effect"})),
+            actions,
+        ];
         state.dialogs.push(dialog);
         apply_theme(&context, &state.theme);
         let mut view = PresentationView::default();
-        for _ in 0..5 { frame(&context, &mut view, &state, egui::vec2(640.0, 480.0), vec![]); }
-        let field = view.rects.iter().find(|rect| rect.id == "name").unwrap().rect;
+        for _ in 0..5 {
+            frame(
+                &context,
+                &mut view,
+                &state,
+                egui::vec2(640.0, 480.0),
+                vec![],
+            );
+        }
+        let field = view
+            .rects
+            .iter()
+            .find(|rect| rect.id == "name")
+            .unwrap()
+            .rect;
         for id in ["ok", "cancel"] {
             let action = view.rects.iter().find(|rect| rect.id == id).unwrap();
-            assert!(action.rect[1] >= field[1] + field[3], "{font}: {:?}, {field:?}", action.rect);
+            assert!(
+                action.rect[1] >= field[1] + field[3],
+                "{font}: {:?}, {field:?}",
+                action.rect
+            );
             assert!(action.rect[1] + action.rect[3] <= action.clip[1] + action.clip[3] + 1.0);
         }
     }
@@ -1424,8 +2369,10 @@ fn compact_input_dialog_keeps_buttons_below_the_field_at_each_font_size() {
 
 #[test]
 fn overlay_install_message_dialogs_fit_body_and_footer() {
-    let paths = (0..14).map(|index| format!("- gamedata/binarystaticinfo__/bin/item{index}.staticinfobody"))
-        .collect::<Vec<_>>().join("\n");
+    let paths = (0..14)
+        .map(|index| format!("- gamedata/binarystaticinfo__/bin/item{index}.staticinfobody"))
+        .collect::<Vec<_>>()
+        .join("\n");
     let confirmation = format!(
         "Install Owned_Overlay_Item (item 1990129) as an archive directory of its own?\n\n\
          45 file(s) go into the new directory:\n{paths}\n- ... 31 more\n\n\
@@ -1445,20 +2392,35 @@ fn overlay_install_message_dialogs_fit_body_and_footer() {
         (completion, vec![("ok", "OK")]),
     ] {
         for font in [11.0, 14.0, 22.0] {
-            for size in [egui::vec2(1280.0, 720.0), egui::vec2(1920.0, 1080.0),
-                egui::vec2(2560.0, 1440.0), egui::vec2(3440.0, 1440.0), egui::vec2(3840.0, 2160.0)] {
+            for size in [
+                egui::vec2(1280.0, 720.0),
+                egui::vec2(1920.0, 1080.0),
+                egui::vec2(2560.0, 1440.0),
+                egui::vec2(3440.0, 1440.0),
+                egui::vec2(3840.0, 2160.0),
+            ] {
                 let context = egui::Context::default();
                 let mut state = state(control("background", "column", "", json!({})));
                 state.theme["font_pixels"] = json!(font);
                 // Match the real QMessageBox projection: an icon, an empty spacer
                 // column, wrapped text, and a button box extracted into the footer.
-                let mut icon = control("icon", "label", "", json!({"text":"", "image":"message-icon"}));
+                let mut icon = control(
+                    "icon",
+                    "label",
+                    "",
+                    json!({"text":"", "image":"message-icon"}),
+                );
                 icon.cell = Some([0, 0, 2, 1]);
-                let mut text = control("message", "label", "", json!({"text":message, "wrap":true}));
+                let mut text =
+                    control("message", "label", "", json!({"text":message, "wrap":true}));
                 text.cell = Some([0, 2, 1, 1]);
                 let mut row = control("button-row", "row", "", json!({}));
-                row.children = buttons.iter().map(|(id, label)|
-                    control(id, "button", label, json!({"default": *id != "yes"}))).collect();
+                row.children = buttons
+                    .iter()
+                    .map(|(id, label)| {
+                        control(id, "button", label, json!({"default": *id != "yes"}))
+                    })
+                    .collect();
                 let mut actions = control("actions", "column", "", json!({"dialog_actions":true}));
                 actions.cell = Some([2, 0, 1, 3]);
                 actions.children.push(row);
@@ -1469,23 +2431,39 @@ fn overlay_install_message_dialogs_fit_body_and_footer() {
                 state.dialogs.push(dialog);
                 apply_theme(&context, &state.theme);
                 let mut view = PresentationView::default();
-                view.textures.insert("message-icon".into(), context.load_texture("message-icon",
-                    egui::ColorImage::filled([32, 32], Color32::BLUE), egui::TextureOptions::LINEAR));
-                for _ in 0..5 { frame(&context, &mut view, &state, size, vec![]); }
+                view.textures.insert(
+                    "message-icon".into(),
+                    context.load_texture(
+                        "message-icon",
+                        egui::ColorImage::filled([32, 32], Color32::BLUE),
+                        egui::TextureOptions::LINEAR,
+                    ),
+                );
+                for _ in 0..5 {
+                    frame(&context, &mut view, &state, size, vec![]);
+                }
                 assert!(view.errors.is_empty(), "{:?}", view.errors);
                 let text = view.rects.iter().find(|rect| rect.id == "message").unwrap();
                 let visible_bottom = (text.rect[1] + text.rect[3]).min(text.clip[1] + text.clip[3]);
-                let dialog_rect = context.memory(|memory|
-                    memory.area_rect(egui::Id::new(("overlay", "dialog")))).unwrap();
+                let dialog_rect = context
+                    .memory(|memory| memory.area_rect(egui::Id::new(("overlay", "dialog"))))
+                    .unwrap();
                 for (id, _) in &buttons {
                     let button = view.rects.iter().find(|rect| &rect.id == id).unwrap();
                     let gap = button.rect[1] - visible_bottom;
-                    assert!((0.0..=font * 2.0 + 16.0).contains(&gap),
-                        "{font}px at {size:?}: {gap}px gap above {id}");
-                    assert!(button.rect[1] + button.rect[3] <= button.clip[1] + button.clip[3] + 1.0,
-                        "{font}px at {size:?}: clipped {button:?}");
+                    assert!(
+                        (0.0..=font * 2.0 + 16.0).contains(&gap),
+                        "{font}px at {size:?}: {gap}px gap above {id}"
+                    );
+                    assert!(
+                        button.rect[1] + button.rect[3] <= button.clip[1] + button.clip[3] + 1.0,
+                        "{font}px at {size:?}: clipped {button:?}"
+                    );
                     let bottom_gap = dialog_rect.bottom() - button.rect[1] - button.rect[3];
-                    assert!(bottom_gap <= 20.0, "{font}px at {size:?}: {bottom_gap}px below {id}");
+                    assert!(
+                        bottom_gap <= 20.0,
+                        "{font}px at {size:?}: {bottom_gap}px below {id}"
+                    );
                 }
             }
         }
@@ -1497,19 +2475,37 @@ fn context_menu_is_compact_and_outside_click_closes_only_the_menu() {
     let context = egui::Context::default();
     let mut state = state(control("background", "button", "Continue", json!({})));
     let mut menu = control("menu", "menu", "", json!({}));
-    menu.children = vec![control("copy", "action", "Copy Filename", json!({})),
-        control("open", "action", "Open In Archive Browser", json!({}))];
+    menu.children = vec![
+        control("copy", "action", "Copy Filename", json!({})),
+        control("open", "action", "Open In Archive Browser", json!({})),
+    ];
     state.dialogs.push(menu);
     apply_theme(&context, &state.theme);
     let mut view = PresentationView::default();
-    for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(960.0, 720.0),
-        vec![egui::Event::PointerMoved(egui::pos2(450.0, 300.0))]); }
+    for _ in 0..4 {
+        frame(
+            &context,
+            &mut view,
+            &state,
+            egui::vec2(960.0, 720.0),
+            vec![egui::Event::PointerMoved(egui::pos2(450.0, 300.0))],
+        );
+    }
     let action = view.rects.iter().find(|rect| rect.id == "copy").unwrap();
     assert!(action.rect[2] < 300.0);
     assert!(action.rect[0] >= 440.0 && action.rect[1] >= 290.0);
     click(&context, &mut view, &state, egui::pos2(10.0, 10.0));
-    assert!(view.inputs.iter().any(|input| input.control == "menu" && input.action == "close_dialog"));
-    assert!(!view.inputs.iter().any(|input| input.control == "background"));
+    assert!(
+        view.inputs
+            .iter()
+            .any(|input| input.control == "menu" && input.action == "close_dialog")
+    );
+    assert!(
+        !view
+            .inputs
+            .iter()
+            .any(|input| input.control == "background")
+    );
 }
 
 #[test]
@@ -1517,20 +2513,36 @@ fn context_menu_items_show_their_whole_label() {
     let context = egui::Context::default();
     let mut state = state(control("background", "button", "Continue", json!({})));
     let mut menu = control("menu", "menu", "", json!({}));
-    menu.children = vec![control("details", "action", "Details…", json!({})),
+    menu.children = vec![
+        control("details", "action", "Details…", json!({})),
         control("remove", "action", "Remove selected", json!({})),
-        control("send", "action", "Send to DMM…", json!({}))];
+        control("send", "action", "Send to DMM…", json!({})),
+    ];
     state.dialogs.push(menu);
     apply_theme(&context, &state.theme);
     let mut view = PresentationView::default();
-    for _ in 0..4 { frame(&context, &mut view, &state, egui::vec2(960.0, 720.0),
-        vec![egui::Event::PointerMoved(egui::pos2(450.0, 300.0))]); }
+    for _ in 0..4 {
+        frame(
+            &context,
+            &mut view,
+            &state,
+            egui::vec2(960.0, 720.0),
+            vec![egui::Event::PointerMoved(egui::pos2(450.0, 300.0))],
+        );
+    }
     for (id, label) in [("remove", "Remove selected"), ("send", "Send to DMM…")] {
         let rect = view.rects.iter().find(|rect| rect.id == id).unwrap().rect;
         let font = context.global_style().text_styles[&egui::TextStyle::Button].clone();
-        let text = context.fonts_mut(|fonts| fonts.layout_no_wrap(label.to_owned(), font, egui::Color32::WHITE)).size().x;
+        let text = context
+            .fonts_mut(|fonts| fonts.layout_no_wrap(label.to_owned(), font, egui::Color32::WHITE))
+            .size()
+            .x;
         let padding = context.global_style().spacing.button_padding.x * 2.0;
-        assert!(rect[2] >= text + padding, "{id}: {} wide for {text} of text", rect[2]);
+        assert!(
+            rect[2] >= text + padding,
+            "{id}: {} wide for {text} of text",
+            rect[2]
+        );
     }
 }
 
@@ -1544,45 +2556,81 @@ fn render_owned_ui_popups_and_scrolled_panels() {
         for entry in std::fs::read_dir(root).unwrap() {
             let path = entry.unwrap().path();
             if path.is_dir() {
-                if path.file_name().unwrap() != "interactions" { documents(&path, found); }
+                if path.file_name().unwrap() != "interactions" {
+                    documents(&path, found);
+                }
             } else if path.extension().is_some_and(|ext| ext == "json")
-                && !path.to_string_lossy().ends_with(".layout.json") {
+                && !path.to_string_lossy().ends_with(".layout.json")
+            {
                 found.push(path);
             }
         }
     }
     fn nodes(node: &Node, found: &mut Vec<Node>) {
         found.push(node.clone());
-        for child in node.children.iter().chain(node.embedded_nodes().iter()) { nodes(child, found); }
+        for child in node.children.iter().chain(node.embedded_nodes().iter()) {
+            nodes(child, found);
+        }
     }
-    fn draw(context: &egui::Context, view: &mut PresentationView, state: &State, size: Vec2,
-        tick: &mut f64, textures: &mut egui::TexturesDelta, events: Vec<egui::Event>) -> egui::FullOutput {
+    fn draw(
+        context: &egui::Context,
+        view: &mut PresentationView,
+        state: &State,
+        size: Vec2,
+        tick: &mut f64,
+        textures: &mut egui::TexturesDelta,
+        events: Vec<egui::Event>,
+    ) -> egui::FullOutput {
         *tick += 0.25;
-        let mut output = context.run_ui(egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-            time: Some(*tick), events, ..Default::default()
-        }, |ui| view.draw(ui, state));
+        let mut output = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                time: Some(*tick),
+                events,
+                ..Default::default()
+            },
+            |ui| view.draw(ui, state),
+        );
         textures.append(std::mem::take(&mut output.textures_delta));
         output
     }
-    fn capture(path: &Path, context: &egui::Context, output: egui::FullOutput,
-        size: Vec2, textures: &egui::TexturesDelta) {
+    fn capture(
+        path: &Path,
+        context: &egui::Context,
+        output: egui::FullOutput,
+        size: Vec2,
+        textures: &egui::TexturesDelta,
+    ) {
         let jobs = context.tessellate(output.shapes, output.pixels_per_point);
-        pollster::block_on(super::super::capture::write_png(path, [size.x as u32, size.y as u32],
-            output.pixels_per_point, &jobs, textures)).unwrap();
+        pollster::block_on(super::super::capture::write_png(
+            path,
+            [size.x as u32, size.y as u32],
+            output.pixels_per_point,
+            &jobs,
+            textures,
+        ))
+        .unwrap();
     }
-    let root = PathBuf::from(std::env::var("CDMW_UI_AUDIT_ROOT").expect("owned document directory"));
+    let root =
+        PathBuf::from(std::env::var("CDMW_UI_AUDIT_ROOT").expect("owned document directory"));
     let mut paths = Vec::new();
     documents(&root, &mut paths);
     paths.sort();
     let mut seen = std::collections::HashSet::new();
     let mut evidence = Vec::new();
     for path in paths {
-        let Ok(state) = serde_json::from_slice::<State>(&std::fs::read(&path).unwrap()) else { continue; };
+        let Ok(state) = serde_json::from_slice::<State>(&std::fs::read(&path).unwrap()) else {
+            continue;
+        };
         let layout_path = path.with_extension("layout.json");
-        let Ok(layout) = std::fs::read(&layout_path) else { continue; };
+        let Ok(layout) = std::fs::read(&layout_path) else {
+            continue;
+        };
         let layout: Value = serde_json::from_slice(&layout).unwrap();
-        let size = egui::vec2(layout["size"][0].as_f64().unwrap() as f32, layout["size"][1].as_f64().unwrap() as f32);
+        let size = egui::vec2(
+            layout["size"][0].as_f64().unwrap() as f32,
+            layout["size"][1].as_f64().unwrap() as f32,
+        );
         let output_dir = path.parent().unwrap().join("interactions");
         std::fs::create_dir_all(&output_dir).unwrap();
         let stem = path.file_stem().unwrap().to_str().unwrap();
@@ -1592,61 +2640,203 @@ fn render_owned_ui_popups_and_scrolled_panels() {
         super::super::load_images(&context, &mut view, &state).unwrap();
         let mut tick = 0.0;
         let mut textures = egui::TexturesDelta::default();
-        for _ in 0..4 { draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]); }
+        for _ in 0..4 {
+            draw(
+                &context,
+                &mut view,
+                &state,
+                size,
+                &mut tick,
+                &mut textures,
+                vec![],
+            );
+        }
         let mut controls = Vec::new();
         nodes(state.dialogs.last().unwrap_or(&state.root), &mut controls);
         // Inspect both panes after each scroll; this reaches controls below the
         // initial fold without assuming a fixed inspector height or font size.
         for scroll in 0..12 {
-            for node in controls.iter().filter(|node| node.kind == "choice" || node.flag("instant_menu")) {
-                let key = format!("{size:?}:{:?}:{}:{}:{}:{}", state.theme, node.kind, node.name, node.label, node.props);
-                if seen.contains(&key) { continue; }
-                let rect = view.rects.iter().rev().find(|rect| rect.id == node.id && rect.enabled
-                    && rect.rect[0] >= rect.clip[0] && rect.rect[1] >= rect.clip[1]
-                    && rect.rect[0] + rect.rect[2] <= rect.clip[0] + rect.clip[2] + 1.0
-                    && rect.rect[1] + rect.rect[3] <= rect.clip[1] + rect.clip[3] + 1.0);
-                let Some(rect) = rect else { continue; };
-                seen.insert(key);
-                let point = egui::pos2(rect.rect[0] + rect.rect[2] / 2.0, rect.rect[1] + rect.rect[3] / 2.0);
-                for pressed in [true, false] {
-                    draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![
-                        egui::Event::PointerMoved(point), egui::Event::PointerButton {
-                            pos:point,button:egui::PointerButton::Primary,pressed,modifiers:egui::Modifiers::NONE}]);
+            for node in controls
+                .iter()
+                .filter(|node| node.kind == "choice" || node.flag("instant_menu"))
+            {
+                let key = format!(
+                    "{size:?}:{:?}:{}:{}:{}:{}",
+                    state.theme, node.kind, node.name, node.label, node.props
+                );
+                if seen.contains(&key) {
+                    continue;
                 }
-                for _ in 0..3 { draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]); }
-                let output = draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]);
-                let areas = context.memory(|memory| memory.areas().visible_layer_ids().into_iter()
-                    .filter(|layer| layer.order == egui::Order::Foreground)
-                    .filter_map(|layer| memory.area_rect(layer.id)).collect::<Vec<_>>());
-                assert!(!areas.is_empty(), "popup did not open: {path:?} {}", node.id);
+                let rect = view.rects.iter().rev().find(|rect| {
+                    rect.id == node.id
+                        && rect.enabled
+                        && rect.rect[0] >= rect.clip[0]
+                        && rect.rect[1] >= rect.clip[1]
+                        && rect.rect[0] + rect.rect[2] <= rect.clip[0] + rect.clip[2] + 1.0
+                        && rect.rect[1] + rect.rect[3] <= rect.clip[1] + rect.clip[3] + 1.0
+                });
+                let Some(rect) = rect else {
+                    continue;
+                };
+                seen.insert(key);
+                let point = egui::pos2(
+                    rect.rect[0] + rect.rect[2] / 2.0,
+                    rect.rect[1] + rect.rect[3] / 2.0,
+                );
+                for pressed in [true, false] {
+                    draw(
+                        &context,
+                        &mut view,
+                        &state,
+                        size,
+                        &mut tick,
+                        &mut textures,
+                        vec![
+                            egui::Event::PointerMoved(point),
+                            egui::Event::PointerButton {
+                                pos: point,
+                                button: egui::PointerButton::Primary,
+                                pressed,
+                                modifiers: egui::Modifiers::NONE,
+                            },
+                        ],
+                    );
+                }
+                for _ in 0..3 {
+                    draw(
+                        &context,
+                        &mut view,
+                        &state,
+                        size,
+                        &mut tick,
+                        &mut textures,
+                        vec![],
+                    );
+                }
+                let output = draw(
+                    &context,
+                    &mut view,
+                    &state,
+                    size,
+                    &mut tick,
+                    &mut textures,
+                    vec![],
+                );
+                let areas = context.memory(|memory| {
+                    memory
+                        .areas()
+                        .visible_layer_ids()
+                        .into_iter()
+                        .filter(|layer| layer.order == egui::Order::Foreground)
+                        .filter_map(|layer| memory.area_rect(layer.id))
+                        .collect::<Vec<_>>()
+                });
+                assert!(
+                    !areas.is_empty(),
+                    "popup did not open: {path:?} {}",
+                    node.id
+                );
                 for area in &areas {
-                    assert!(area.min.x >= -1.0 && area.min.y >= -1.0 && area.max.x <= size.x + 1.0 && area.max.y <= size.y + 1.0,
-                        "popup outside window: {path:?} {} {area:?}", node.id);
+                    assert!(
+                        area.min.x >= -1.0
+                            && area.min.y >= -1.0
+                            && area.max.x <= size.x + 1.0
+                            && area.max.y <= size.y + 1.0,
+                        "popup outside window: {path:?} {} {area:?}",
+                        node.id
+                    );
                 }
                 let file = output_dir.join(format!("{stem}-{}-popup.png", node.id));
                 capture(&file, &context, output, size, &textures);
                 evidence.push(json!({"document":path,"control":node.id,"name":node.name,"label":node.label,"capture":file}));
-                draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![egui::Event::Key {
-                    key:egui::Key::Escape,physical_key:None,pressed:true,repeat:false,modifiers:egui::Modifiers::NONE}]);
-                for _ in 0..2 { draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]); }
+                draw(
+                    &context,
+                    &mut view,
+                    &state,
+                    size,
+                    &mut tick,
+                    &mut textures,
+                    vec![egui::Event::Key {
+                        key: egui::Key::Escape,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::NONE,
+                    }],
+                );
+                for _ in 0..2 {
+                    draw(
+                        &context,
+                        &mut view,
+                        &state,
+                        size,
+                        &mut tick,
+                        &mut textures,
+                        vec![],
+                    );
+                }
             }
-            if !state.dialogs.is_empty() { break; }
+            if !state.dialogs.is_empty() {
+                break;
+            }
             for x in [0.25, 0.9] {
-                draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![
-                    egui::Event::PointerMoved(egui::pos2(size.x * x, size.y * 0.65)),
-                    egui::Event::MouseWheel {unit:egui::MouseWheelUnit::Point,delta:egui::vec2(0.0,-320.0),phase:egui::TouchPhase::Move,modifiers:egui::Modifiers::NONE}]);
-                for _ in 0..3 { draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]); }
+                draw(
+                    &context,
+                    &mut view,
+                    &state,
+                    size,
+                    &mut tick,
+                    &mut textures,
+                    vec![
+                        egui::Event::PointerMoved(egui::pos2(size.x * x, size.y * 0.65)),
+                        egui::Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: egui::vec2(0.0, -320.0),
+                            phase: egui::TouchPhase::Move,
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ],
+                );
+                for _ in 0..3 {
+                    draw(
+                        &context,
+                        &mut view,
+                        &state,
+                        size,
+                        &mut tick,
+                        &mut textures,
+                        vec![],
+                    );
+                }
             }
             if scroll == 11 {
-                let output = draw(&context, &mut view, &state, size, &mut tick, &mut textures, vec![]);
-                capture(&output_dir.join(format!("{stem}-scrolled.png")), &context, output, size, &textures);
+                let output = draw(
+                    &context,
+                    &mut view,
+                    &state,
+                    size,
+                    &mut tick,
+                    &mut textures,
+                    vec![],
+                );
+                capture(
+                    &output_dir.join(format!("{stem}-scrolled.png")),
+                    &context,
+                    output,
+                    size,
+                    &textures,
+                );
             }
         }
         textures.clear();
         println!("Audited {}", path.display());
     }
     assert!(!evidence.is_empty());
-    std::fs::write(root.join("popup-evidence.json"), serde_json::to_vec_pretty(&evidence).unwrap()).unwrap();
+    std::fs::write(
+        root.join("popup-evidence.json"),
+        serde_json::to_vec_pretty(&evidence).unwrap(),
+    )
+    .unwrap();
     println!("Captured {} popup states", evidence.len());
 }
 
@@ -1655,9 +2845,17 @@ fn compact_material_checklist_has_no_horizontal_overflow() {
     for font in [14.0, 22.0] {
         for width in [300.0, 300.5, 560.0, 560.5] {
             let context = egui::Context::default();
-            let mut view = PresentationView { compact_depth: 1, ..PresentationView::default() };
-            let mut table = control("glow-parts", "table", "", json!({"total":12,
-                "columns":[{"index":0,"width":160}], "rows":[]}));
+            let mut view = PresentationView {
+                compact_depth: 1,
+                ..PresentationView::default()
+            };
+            let mut table = control(
+                "glow-parts",
+                "table",
+                "",
+                json!({"total":12,
+                "columns":[{"index":0,"width":160}], "rows":[]}),
+            );
             table.props["rows"] = json!((0..12).map(|index| json!({"path":[index],
                 "cells":[{"text":(["lambert1","Gem_outside","Gem_inside","Very_Long_Material_Name_With_Multiple_Surface_And_Shader_Identifiers"][index % 4]),
                     "enabled":true,"check":if index == 0 {0} else {2}}]})).collect::<Vec<_>>());
@@ -1665,40 +2863,65 @@ fn compact_material_checklist_has_no_horizontal_overflow() {
             let size = egui::vec2(width, 480.0);
             let mut scroll_id = egui::Id::NULL;
             for tick in 0..8 {
-                let mut output = context.run_ui(egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-                    time: Some(tick as f64), ..Default::default()
-                }, |ui| {
-                    scroll_id = ui.make_persistent_id(egui::IdSalt::new("table-columns"));
-                    view.table(ui, &table);
-                });
+                let mut output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                        time: Some(tick as f64),
+                        ..Default::default()
+                    },
+                    |ui| {
+                        scroll_id = ui.make_persistent_id(egui::IdSalt::new("table-columns"));
+                        view.table(ui, &table);
+                    },
+                );
                 output.textures_delta.clear();
             }
             let mut scroll = egui::scroll_area::State::load(&context, scroll_id).unwrap();
             scroll.offset.x = 1000.0;
             scroll.store(&context, scroll_id);
-            let mut output = context.run_ui(egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-                time: Some(9.0), ..Default::default()
-            }, |ui| view.table(ui, &table));
+            let mut output = context.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                    time: Some(9.0),
+                    ..Default::default()
+                },
+                |ui| view.table(ui, &table),
+            );
             output.textures_delta.clear();
             let scroll = egui::scroll_area::State::load(&context, scroll_id).unwrap();
-            assert_eq!(scroll.offset.x, 0.0, "Material names must fit without horizontal scrolling: width={width}, font={font}");
+            assert_eq!(
+                scroll.offset.x, 0.0,
+                "Material names must fit without horizontal scrolling: width={width}, font={font}"
+            );
         }
     }
 }
 
 #[test]
 fn inspector_expansion_does_not_resize_the_viewport_and_short_lists_are_compact() {
-    let mut table = control("parts", "table", "", json!({"total":3,
-        "columns":[{"index":0,"width":120}], "rows":[]}));
-    table.props["rows"] = json!((0..3).map(|index| json!({"path":[index],
-        "cells":[{"text":format!("Part {index}"),"enabled":true,"check":0}]})).collect::<Vec<_>>());
+    let mut table = control(
+        "parts",
+        "table",
+        "",
+        json!({"total":3,
+        "columns":[{"index":0,"width":120}], "rows":[]}),
+    );
+    table.props["rows"] = json!(
+        (0..3)
+            .map(|index| json!({"path":[index],
+        "cells":[{"text":format!("Part {index}"),"enabled":true,"check":0}]}))
+            .collect::<Vec<_>>()
+    );
     let mut group = control("appearance", "group", "Appearance", json!({}));
     group.children = vec![table, control("quick", "button", "Quick turn", json!({}))];
     let mut inspector = control("inspector", "scroll", "", json!({}));
     inspector.children.push(group);
-    let mut split = control("split", "split", "", json!({"horizontal":true,"sizes":[640,320]}));
+    let mut split = control(
+        "split",
+        "split",
+        "",
+        json!({"horizontal":true,"sizes":[640,320]}),
+    );
     split.name = "new_item_model_workspace_splitter".into();
     split.children = vec![control("preview", "viewport", "", json!({})), inspector];
     split.slot = "body".into();
@@ -1709,48 +2932,94 @@ fn inspector_expansion_does_not_resize_the_viewport_and_short_lists_are_compact(
     apply_theme(&context, &state.theme);
     let mut view = PresentationView::default();
     let size = egui::vec2(960.0, 720.0);
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
     let before = view.portals[0].rect;
     assert!(before[3] > 640.0, "{before:?}");
-    let list = view.rects.iter().find(|control| control.id == "parts").unwrap();
-    assert!(list.rect[3] < 100.0, "Three parts must not reserve an empty panel: {list:?}");
+    let list = view
+        .rects
+        .iter()
+        .find(|control| control.id == "parts")
+        .unwrap();
+    assert!(
+        list.rect[3] < 100.0,
+        "Three parts must not reserve an empty panel: {list:?}"
+    );
     let split = &mut state.root.children[0];
     split.revision += 1;
-    split.props["sizes"] = json!([580,380]); // hidden Qt layout changed its size hint
+    split.props["sizes"] = json!([580, 380]); // hidden Qt layout changed its size hint
     split.props["horizontal"] = json!(false);
     for index in 0..30 {
-        split.children[1].children[0].children.push(control(&format!("turn-{index}"), "button", "Turn", json!({})));
+        split.children[1].children[0].children.push(control(
+            &format!("turn-{index}"),
+            "button",
+            "Turn",
+            json!({}),
+        ));
     }
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
     assert_eq!(view.portals[0].rect, before);
 }
 
 #[test]
 fn combo_popup_masks_the_native_portal_and_survives_a_state_refresh() {
     let mut root = control("root", "column", "", json!({}));
-    root.children = vec![control("shader", "choice", "", json!({"text":"Blade","selected":0,
+    root.children = vec![
+        control(
+            "shader",
+            "choice",
+            "",
+            json!({"text":"Blade","selected":0,
         "options":[{"index":0,"text":"Blade","enabled":true},
-                   {"index":1,"text":"Handle","enabled":true}]})),
-        control("preview", "viewport", "", json!({}))];
+                   {"index":1,"text":"Handle","enabled":true}]}),
+        ),
+        control("preview", "viewport", "", json!({})),
+    ];
     let mut state = state(root);
     let context = egui::Context::default();
     apply_theme(&context, &state.theme);
     let mut view = PresentationView::default();
     let size = egui::vec2(960.0, 720.0);
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-    let field = view.rects.iter().find(|item| item.id == "shader").unwrap().rect;
-    click(&context, &mut view, &state, egui::pos2(field[0]+20.0, field[1]+field[3]/2.0));
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
+    let field = view
+        .rects
+        .iter()
+        .find(|item| item.id == "shader")
+        .unwrap()
+        .rect;
+    click(
+        &context,
+        &mut view,
+        &state,
+        egui::pos2(field[0] + 20.0, field[1] + field[3] / 2.0),
+    );
     state.root.children[0].revision += 1;
     frame(&context, &mut view, &state, size, vec![]);
     let portal = &view.portals[0];
-    let popup = portal.occlusions.first().expect("Combo must occlude the native viewport");
-    assert!(popup[1]+popup[3] > portal.rect[1]);
+    let popup = portal
+        .occlusions
+        .first()
+        .expect("Combo must occlude the native viewport");
+    assert!(popup[1] + popup[3] > portal.rect[1]);
     let style = context.style_of(egui::Theme::Dark);
-    let y = popup[1] + egui::Frame::popup(&style).total_margin().top
-        + style.spacing.interact_size.y * 1.5 + style.spacing.item_spacing.y;
-    let point = egui::pos2(popup[0]+20.0, y);
+    let y = popup[1]
+        + egui::Frame::popup(&style).total_margin().top
+        + style.spacing.interact_size.y * 1.5
+        + style.spacing.item_spacing.y;
+    let point = egui::pos2(popup[0] + 20.0, y);
     click(&context, &mut view, &state, point);
-    assert!(view.inputs.iter().any(|input| input.control == "shader" && input.action == "choose" && input.value == 1), "{:?}", view.inputs);
+    assert!(
+        view.inputs
+            .iter()
+            .any(|input| input.control == "shader" && input.action == "choose" && input.value == 1),
+        "{:?}",
+        view.inputs
+    );
 }
 
 #[test]
@@ -1759,18 +3028,31 @@ fn compact_action_buttons_stay_together_at_different_font_and_window_sizes() {
         for width in [320.0, 960.0] {
             let context = egui::Context::default();
             let mut root = control("actions", "row", "", json!({}));
-            root.children = vec![control("fit", "button", "Fit", json!({"grow_x":true})),
-                control("reset", "button", "Reset", json!({"grow_x":true}))];
+            root.children = vec![
+                control("fit", "button", "Fit", json!({"grow_x":true})),
+                control("reset", "button", "Reset", json!({"grow_x":true})),
+            ];
             let mut state = state(root);
             state.theme["font_pixels"] = json!(font);
             apply_theme(&context, &state.theme);
             let mut view = PresentationView::default();
-            for _ in 0..3 { frame(&context, &mut view, &state, egui::vec2(width, 720.0), vec![]); }
+            for _ in 0..3 {
+                frame(
+                    &context,
+                    &mut view,
+                    &state,
+                    egui::vec2(width, 720.0),
+                    vec![],
+                );
+            }
             let a = &view.rects[0].rect;
             let b = &view.rects[1].rect;
             assert!(a[2] < 100.0 && b[2] < 120.0, "{a:?} {b:?}");
             let gap = b[0] - a[0] - a[2];
-            assert!((0.0..=8.0).contains(&gap), "Related actions must stay together: {gap}");
+            assert!(
+                (0.0..=8.0).contains(&gap),
+                "Related actions must stay together: {gap}"
+            );
             assert_eq!(a[1], b[1]);
         }
     }
@@ -1781,7 +3063,12 @@ fn choice_and_section_help_appears_on_hover_including_disabled_controls() {
     for kind in ["choice", "group"] {
         for enabled in [true, false] {
             let context = egui::Context::default();
-            let mut help = control("help", kind, "Shader experiments", json!({"text":"Keep source"}));
+            let mut help = control(
+                "help",
+                kind,
+                "Shader experiments",
+                json!({"text":"Keep source"}),
+            );
             help.tooltip = "These are the source material requirements.".into();
             help.enabled = enabled;
             let mut root = control("root", "column", "", json!({}));
@@ -1793,12 +3080,30 @@ fn choice_and_section_help_appears_on_hover_including_disabled_controls() {
             style.interaction.show_tooltips_only_when_still = false;
             context.set_style_of(egui::Theme::Dark, style);
             let mut view = PresentationView::default();
-            let size = egui::vec2(960.0,720.0);
-            for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
-            let rect = view.rects.iter().find(|item| item.id == "help").unwrap().rect;
-            let point = egui::pos2(rect[0]+10.0, rect[1]+rect[3]/2.0);
-            for _ in 0..4 { frame(&context, &mut view, &state, size, vec![egui::Event::PointerMoved(point)]); }
-            assert!(!view.portals[0].occlusions.is_empty(), "Missing help: {kind} enabled={enabled}");
+            let size = egui::vec2(960.0, 720.0);
+            for _ in 0..3 {
+                frame(&context, &mut view, &state, size, vec![]);
+            }
+            let rect = view
+                .rects
+                .iter()
+                .find(|item| item.id == "help")
+                .unwrap()
+                .rect;
+            let point = egui::pos2(rect[0] + 10.0, rect[1] + rect[3] / 2.0);
+            for _ in 0..4 {
+                frame(
+                    &context,
+                    &mut view,
+                    &state,
+                    size,
+                    vec![egui::Event::PointerMoved(point)],
+                );
+            }
+            assert!(
+                !view.portals[0].occlusions.is_empty(),
+                "Missing help: {kind} enabled={enabled}"
+            );
             assert!(view.inputs.is_empty());
         }
     }
@@ -1808,18 +3113,48 @@ fn choice_and_section_help_appears_on_hover_including_disabled_controls() {
 fn numeric_text_filters_invalid_keys_and_accepts_a_leading_zero_folder_number() {
     let context = egui::Context::default();
     let mut view = PresentationView::default();
-    let mut state = state(control("folder", "text", "", json!({"text":"","placeholder":"Auto","maximum":4,"digits_only":true})));
+    let mut state = state(control(
+        "folder",
+        "text",
+        "",
+        json!({"text":"","placeholder":"Auto","maximum":4,"digits_only":true}),
+    ));
     apply_theme(&context, &state.theme);
     let size = egui::vec2(960.0, 720.0);
-    for _ in 0..3 { frame(&context, &mut view, &state, size, vec![]); }
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, size, vec![]);
+    }
     let rect = view.rects[0].rect;
-    click(&context, &mut view, &state, egui::pos2(rect[0]+12.0,rect[1]+rect[3]/2.0));
-    for (key, expected) in [("a",""),("0","0"),("0","00"),("x","00"),("3","003"),("6","0036")] {
-        frame(&context, &mut view, &state, size, vec![egui::Event::Text(key.into())]);
+    click(
+        &context,
+        &mut view,
+        &state,
+        egui::pos2(rect[0] + 12.0, rect[1] + rect[3] / 2.0),
+    );
+    for (key, expected) in [
+        ("a", ""),
+        ("0", "0"),
+        ("0", "00"),
+        ("x", "00"),
+        ("3", "003"),
+        ("6", "0036"),
+    ] {
+        frame(
+            &context,
+            &mut view,
+            &state,
+            size,
+            vec![egui::Event::Text(key.into())],
+        );
         if key == "a" || key == "x" {
             assert!(!view.inputs.iter().any(|input| input.action == "text"));
         } else {
-            let input = view.inputs.iter().find(|input| input.action == "text").unwrap().clone();
+            let input = view
+                .inputs
+                .iter()
+                .find(|input| input.action == "text")
+                .unwrap()
+                .clone();
             assert_eq!(input.value, json!(expected));
             view.acknowledge(&input);
         }
@@ -1962,14 +3297,27 @@ fn crop_dialog_shows_its_actions_at_large_font_size() {
 
 #[test]
 fn label_contents_margins_inset_the_text_from_its_pane_edge() {
-    let mut split = control("split", "split", "", json!({"horizontal":true,"sizes":[650,380]}));
+    let mut split = control(
+        "split",
+        "split",
+        "",
+        json!({"horizontal":true,"sizes":[650,380]}),
+    );
     let mut panel = control("panel", "column", "", json!({}));
     panel.children = vec![
         control("view", "viewport", "", json!({})),
-        control("status", "label", "", json!({"text":"Preparing the placement preview","wrap":true,
-            "margins":[6,3,6,3]})),
+        control(
+            "status",
+            "label",
+            "",
+            json!({"text":"Preparing the placement preview","wrap":true,
+            "margins":[6,3,6,3]}),
+        ),
     ];
-    split.children = vec![panel, control("inspector", "label", "", json!({"text":"Inspector"}))];
+    split.children = vec![
+        panel,
+        control("inspector", "label", "", json!({"text":"Inspector"})),
+    ];
     let state = state(split);
     let context = egui::Context::default();
     context.set_pixels_per_point(1.5);
@@ -1977,19 +3325,42 @@ fn label_contents_margins_inset_the_text_from_its_pane_edge() {
     apply_theme(&context, &state.theme);
     let mut shapes = Vec::new();
     for _ in 0..3 {
-        let mut output = context.run_ui(egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 800.0))),
-            ..Default::default()
-        }, |ui| view.draw(ui, &state));
+        let mut output = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 800.0),
+                )),
+                ..Default::default()
+            },
+            |ui| view.draw(ui, &state),
+        );
         output.textures_delta.clear();
         shapes = output.shapes;
     }
     let portal = view.portals[0].rect;
-    let (clip, text) = shapes.iter().find_map(|shape| match &shape.shape {
-        egui::epaint::Shape::Text(text) if text.galley.job.text.starts_with("Preparing") => Some((shape.clip_rect, text)),
-        _ => None,
-    }).unwrap();
-    assert!((text.pos.x - (portal[0] + 6.0)).abs() < 0.5, "text {:?}, viewport {portal:?}", text.pos);
-    assert!(text.pos.x - clip.min.x >= 5.5, "text {:?} clip {clip:?}", text.pos);
-    assert!(text.pos.y >= portal[1] + portal[3] + 2.5, "the top margin is kept: {:?}", text.pos);
+    let (clip, text) = shapes
+        .iter()
+        .find_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) if text.galley.job.text.starts_with("Preparing") => {
+                Some((shape.clip_rect, text))
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert!(
+        (text.pos.x - (portal[0] + 6.0)).abs() < 0.5,
+        "text {:?}, viewport {portal:?}",
+        text.pos
+    );
+    assert!(
+        text.pos.x - clip.min.x >= 5.5,
+        "text {:?} clip {clip:?}",
+        text.pos
+    );
+    assert!(
+        text.pos.y >= portal[1] + portal[3] + 2.5,
+        "the top margin is kept: {:?}",
+        text.pos
+    );
 }

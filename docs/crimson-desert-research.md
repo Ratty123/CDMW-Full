@@ -244,8 +244,8 @@ with partial material coverage. Its linked lamp remains geometry-only: the
 referenced `cd_bg_trimborder_metal_06_n_emc.dds` and `_emi.dds` are absent from the
 installed archive catalogue. Missing source textures are not decryption failures.
 
-Direct archive patching refuses compact/extended PAMT indexes, and archive overlay
-workflows remain disabled. A subsequent 30 October source migration qualified
+Direct archive patching refused compact/extended PAMT indexes (the route was removed
+from CDMW on 2026-11-12), and archive overlay workflows remain disabled. A subsequent 30 October source migration qualified
 Create New Item's compact table readers and loose/package writers against game
 `1.0.0.3446`: all 8,616 base/DLC ItemInfo records decode, with 8,374 effective items
 after overrides. Empty DLC headers use one-, two- or four-byte zero counts. Shops,

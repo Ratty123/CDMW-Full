@@ -182,6 +182,12 @@ class ShellToolTabsMixin:
                 workspace.notify_tool_widget_ready(tool_key)
 
     def _create_mesh_editor_tab(self) -> QWidget:
+        # P15: one Mesh Editor per open document, under a tab strip.
+        from cdmw.ui.mesh_editor.documents import MeshDocumentsView
+
+        return MeshDocumentsView(self._build_mesh_editor_document)
+
+    def _build_mesh_editor_document(self) -> QWidget:
         from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
         from cdmw.ui.mesh_editor.tab import MeshEditorTab
 
@@ -237,6 +243,8 @@ class ShellToolTabsMixin:
                 lambda event, fields, sink=runtime_recorder: sink(event, **dict(fields or {}))
             )
         tab.open_archive_session_requested.connect(self._launch_archive_mesh_editor_for_entry)
+        from cdmw.ui.mesh_editor.item_set_preparation import switch_item_piece
+        tab.switch_item_piece_requested.connect(lambda index: switch_item_piece(self, index))
         tab.archive_result_ready.connect(self.archive.add_mesh_editor_result)
         tab.saved_work_requested.connect(self._open_mesh_editor_saved_work)
         tab.open_archive_target_requested.connect(self._mesh_editor_show_archive_target_requested)

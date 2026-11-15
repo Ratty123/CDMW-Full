@@ -100,10 +100,17 @@ def hidden_subprocess_kwargs() -> Dict[str, object]:
     return kwargs
 
 
-def hidden_process_group_kwargs() -> Dict[str, object]:
-    """Return hidden-window flags plus an independently stoppable process group."""
+def hidden_process_group_kwargs(*, detached: bool = False) -> Dict[str, object]:
+    """Return hidden-window flags plus an independently stoppable process group.
+
+    ``detached`` starts the helper with no console at all (no conhost.exe per
+    helper), for resident helpers that talk only through pipes and start no
+    console programs of their own.
+    """
 
     kwargs = hidden_subprocess_kwargs()
+    if detached and os.name == "nt":
+        kwargs["creationflags"] = int(getattr(subprocess, "DETACHED_PROCESS", 0x00000008))
     if os.name == "nt":
         kwargs["creationflags"] = int(kwargs.get("creationflags", 0)) | int(
             getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)

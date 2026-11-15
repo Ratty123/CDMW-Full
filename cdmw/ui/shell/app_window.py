@@ -56,6 +56,22 @@ from cdmw.ui.app_icon import load_app_icon
 from cdmw.constants import APP_TITLE, APP_VERSION
 
 
+def _start_ai_connections(window: object, settings: object) -> object | None:
+    """Start AI connections with the window, or None when they cannot start.
+
+    An error here leaves the app without AI connections, never without its window
+    (the packaged start-up smoke ends before this point).
+    """
+
+    try:
+        from cdmw.ui.ai_connections.controller import install_ai_connections
+
+        return install_ai_connections(window, settings)
+    except Exception:
+        logging.getLogger(__name__).exception("AI connections could not start; the app runs without them.")
+        return None
+
+
 def _shutdown_qt(window: object, app: object) -> bool:
     from PySide6.QtCore import QCoreApplication, QEvent
     from PySide6.QtWidgets import QApplication
@@ -394,6 +410,11 @@ def run_gui() -> int:
         _default_threading_excepthook,
         _default_unraisablehook,
     )
+    from cdmw.services.crash_draft_recovery import read_heartbeat as _read_previous_heartbeat
+
+    # Read before the check and before this session overwrites it: the drafts
+    # saved while that session ran are offered after start-up (P4 V4).
+    _previous_heartbeat = _read_previous_heartbeat(heartbeat_path)
     _previous_session_unclean = _check_previous_unclean_exit()
     _prune_crash_reports(crash_reports_dir, limit=20)
     _reset_runtime_event_logs(
@@ -443,6 +464,7 @@ def run_gui() -> int:
                 write_heartbeat=_write_heartbeat,
             )
             self._initialize_window_runtime_state()
+            self._previous_heartbeat = _previous_heartbeat if _previous_session_unclean else None
             self._runtime_event_tail = _runtime_event_recorder.tail
             self.archive._initialize_archive_runtime_state()
             self._initialize_tool_window_state()
@@ -506,6 +528,11 @@ def run_gui() -> int:
 
         apply_windows_app_user_model_id()
         app = QApplication(sys.argv)
+        # Before any window, the splash included: an automated run keeps every
+        # window off screen and off the user's main monitor. None otherwise.
+        from cdmw.automation.bridge import start_automation_if_requested
+
+        automation = start_automation_if_requested()
         # Off unless CDMW_SESSION_RECORDER is set; installs nothing otherwise.
         # Held on globals() for the same reason the filters below are: an event
         # filter the interpreter collects stops filtering.
@@ -541,8 +568,17 @@ def run_gui() -> int:
             normal_exit = _shutdown_qt(window, app)
             exit_code = 0 if normal_exit else 1
             return exit_code
+        if automation is not None:
+            automation.attach(window)
+        # AI connections (P13 stage C): a setting already on starts with the app,
+        # and Full access ends unless it was kept.
+        ai_connections = _start_ai_connections(window, application_startup.settings)
         queue_startup_archive_autoload(window, startup_splash, _write_heartbeat)
         exit_code = run_shell_event_loop(app, _write_crash_report)
+        if ai_connections is not None:
+            ai_connections.stop()
+        if automation is not None:
+            automation.stop()
         teardown_ok = _shutdown_qt(window, app)
         normal_exit = exit_code == 0 and teardown_ok
         if not teardown_ok:

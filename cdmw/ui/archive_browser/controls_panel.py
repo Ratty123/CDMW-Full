@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.constants import ARCHIVE_EXTENSION_FILTER
 from cdmw.ui.widgets import CollapsibleSection, FlatSectionPanel, LogHighlighter
+from cdmw.ui.layout_metrics import small_font_points
 
 
 def _configure_archive_extension_filter_line_edit(combo: QComboBox, callback: Callable[[], None]) -> None:
@@ -45,7 +46,7 @@ class ArchiveControlsPanelMixin:
         self.archive_controls_group = archive_controls_group
         archive_controls_font = QFont(archive_controls_group.font())
         if archive_controls_font.pointSize() > 0:
-            archive_controls_font.setPointSize(max(8, archive_controls_font.pointSize() - 1))
+            archive_controls_font.setPointSize(int(small_font_points(archive_controls_font.pointSize())))
         archive_controls_group.setFont(archive_controls_font)
         archive_controls_min, _archive_controls_pref, archive_controls_max = self.shell._archive_controls_sidebar_bounds()
         self.archive_controls_min_width = archive_controls_min
@@ -352,6 +353,7 @@ class ArchiveControlsPanelMixin:
         archive_paths_layout.setVerticalSpacing(6)
         self.archive_package_root_edit = QLineEdit()
         self.archive_package_root_edit.textChanged.connect(self._archive_package_root_changed)
+        self.archive_package_root_edit.editingFinished.connect(self._protect_archive_package_root)
         self.archive_extract_root_edit = QLineEdit()
         self.archive_package_root_edit.setPlaceholderText("Crimson Desert folder or package root containing game files")
         self.archive_extract_root_edit.setPlaceholderText("Folder where extracted archive files should be written")

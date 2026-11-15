@@ -13,7 +13,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QProcess, QSettings, QThread
+from PySide6.QtCore import QCoreApplication, QEvent, QProcess, QSettings, QThread
 from PySide6.QtWidgets import QApplication
 
 from cdmw.models import ArchiveEntry
@@ -88,6 +88,8 @@ def _dispose(tab: MeshEditorTab) -> None:
     tab.deleteLater()
     if application is not None:
         application.processEvents()
+        # Delete it now, so a fault lands in the test that caused it (B1).
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 def _provenanced_resolution(root: Path, *, payload: bytes = b"rust-helper") -> RustMeshExecutableResolution:
@@ -213,6 +215,54 @@ def test_helper_missing_a_document_capability_is_rejected(tmp_path: Path, capabi
     }
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     assert "binary mesh document" in validate_rust_mesh_editor_package(resolution)
+
+
+def test_helper_hash_cache_reuses_bytes_and_rechecks_changed_executables(tmp_path, monkeypatch):
+    resolution = _provenanced_resolution(tmp_path / "helper")
+    executable = Path(resolution.resolved_path)
+    original_open = Path.open
+    reads = []
+
+    def tracked_open(path, *args, **kwargs):
+        if path == executable:
+            reads.append(path)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", tracked_open)
+    assert validate_rust_mesh_editor_package(resolution) == ""
+    assert validate_rust_mesh_editor_package(resolution) == ""
+    assert len(reads) == 1
+    stat = executable.stat()
+    with original_open(executable, "wb") as stream:
+        stream.write(b"x" * stat.st_size)
+    os.utime(executable, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    assert "hash does not match" in validate_rust_mesh_editor_package(resolution)
+    assert len(reads) == 2
+
+
+@pytest.mark.parametrize("damage", ["missing", "changed"])
+def test_declared_shader_compiler_is_verified_before_launch(tmp_path, damage):
+    resolution = _provenanced_resolution(tmp_path / "helper")
+    executable = Path(resolution.resolved_path)
+    hashes = {}
+    for name in ("dxcompiler.dll", "dxil.dll"):
+        data = name.encode()
+        executable.with_name(name).write_bytes(data)
+        hashes[name] = hashlib.sha256(data).hexdigest()
+    manifest_path = executable.with_name(RUST_MESH_PROVENANCE_FILE)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["shader_compiler_files"] = hashes
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert validate_rust_mesh_editor_package(resolution) == ""
+    signature = rust_mesh_editor_file_signature(resolution)
+    compiler = executable.with_name("dxcompiler.dll")
+    if damage == "missing":
+        compiler.unlink()
+    else:
+        compiler.write_bytes(b"changed compiler")
+    assert rust_mesh_editor_file_signature(resolution) != signature
+    reason = validate_rust_mesh_editor_package(resolution)
+    assert "shader compiler" in reason and "dxcompiler.dll" in reason
 
 
 def test_rust_preflight_recomputes_open_state_after_busy_or_unavailable(tmp_path: Path) -> None:
@@ -527,13 +577,29 @@ def test_material_capture_failure_replaces_loading_overlay_with_retry(tmp_path: 
     host.show_loading("Preparing an isolated Mesh Editor session...")
     with (
         patch("cdmw.ui.mesh_editor.tab_rust_editor.resolve_rust_mesh_editor", return_value=resolution),
-        patch.object(tab, "_prime_rust_preview_material_context", side_effect=ValueError("bad materials")),
+        # The prime's inputs are gathered on the UI thread; the prime runs on the worker (P4 V1).
+        patch.object(tab, "_rust_preview_material_prime_call", side_effect=ValueError("bad materials")),
     ):
         tab._start_rust_editor_requested(object())
     assert "bad materials" in host._status_label.text()
     assert not host._retry_button.isHidden()
     assert tab.standalone_rust_prepare_thread is None
     _dispose(tab)
+
+
+def test_a_material_prime_that_fails_on_the_worker_is_reported_before_any_session(tmp_path: Path) -> None:
+    controller = SimpleNamespace(mesh_service=object(), active_session_id="session-1")
+    created = []
+    worker = MeshRustSessionPrepareWorker(
+        9, controller, tmp_path / "session", process_generation=1,
+        before_prepare=lambda: (_ for _ in ()).throw(ValueError("bad materials")))
+    errors = []
+    worker.error.connect(lambda request_id, message: errors.append((request_id, message)))
+    with patch("cdmw.workers.mesh_rust_editor_workers.RustMeshAuthoringSession.create",
+               side_effect=lambda *a, **k: created.append(a)):
+        worker.run()
+    assert errors == [(9, "Mesh Editor could not bind the resolved preview textures: bad materials")]
+    assert created == []
 
 
 def test_archive_load_retry_retains_target_and_draft_and_close_clears_retry(tmp_path: Path) -> None:
@@ -745,7 +811,8 @@ def test_prepare_worker_discards_result_when_authoritative_session_changes(
             authoritative_session_id="mesh-session",
             process_generation=4,
             root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-            cancel=lambda: cancelled.append(True),
+            # A stale open is closed, not discarded: its recovery point stays (8.9).
+            close=lambda *, discard=False: cancelled.append(not discard),
         )
 
     with patch(
@@ -834,7 +901,8 @@ def test_prepare_worker_discards_shadow_when_controller_service_changes(
             authoritative_session_id="mesh-session",
             process_generation=6,
             root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-            cancel=lambda: cancelled.append(True),
+            # A stale open is closed, not discarded: its recovery point stays (8.9).
+            close=lambda *, discard=False: cancelled.append(not discard),
         )
 
     with patch(
@@ -1019,7 +1087,7 @@ def test_late_prepared_sessions_queue_behind_disposer_without_clearing_live_refs
             root=root,
             root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
             closed=False,
-            cancel=lambda: None,
+            close=lambda *, discard=False: None,
         )
 
     late_one = disposable_session("session-late-one")
@@ -2002,7 +2070,7 @@ def test_dispose_worker_removes_owned_root_and_reports_completion(
     session = SimpleNamespace(
         closed=False,
         root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-        cancel=lambda: None,
+        close=lambda *, discard=False: None,
     )
     worker = MeshRustSessionDisposeWorker(session, session_root, owned_root)
     completed: list[str] = []
@@ -2037,7 +2105,7 @@ def test_stopped_dispose_worker_still_removes_exact_owned_session_root(
     session = SimpleNamespace(
         closed=False,
         root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-        cancel=failing_cancel,
+        close=lambda *, discard=False: failing_cancel(),
     )
     worker = MeshRustSessionDisposeWorker(session, session_root, owned_root)
     completed: list[str] = []
@@ -2076,7 +2144,7 @@ def test_dispose_worker_stopped_during_cancel_still_removes_owned_root(
     session = SimpleNamespace(
         closed=False,
         root_identity=(int(root_stat.st_dev), int(root_stat.st_ino)),
-        cancel=blocking_cancel,
+        close=lambda *, discard=False: blocking_cancel(),
     )
     worker = MeshRustSessionDisposeWorker(session, session_root, owned_root)
     completed: list[str] = []
@@ -2122,7 +2190,7 @@ def test_stopped_dispose_worker_cannot_remove_mismatched_session_root(
     session = SimpleNamespace(
         closed=True,
         root_identity=(int(expected_stat.st_dev), int(expected_stat.st_ino)),
-        cancel=lambda: None,
+        close=lambda *, discard=False: None,
     )
     worker = MeshRustSessionDisposeWorker(
         session,
@@ -2160,7 +2228,7 @@ def test_dispose_worker_reports_identity_mismatch_and_finishes(
     session = SimpleNamespace(
         closed=True,
         root_identity=(int(expected_stat.st_dev), int(expected_stat.st_ino)),
-        cancel=lambda: None,
+        close=lambda *, discard=False: None,
     )
     worker = MeshRustSessionDisposeWorker(session, mismatched_root, owned_root)
     completed: list[str] = []

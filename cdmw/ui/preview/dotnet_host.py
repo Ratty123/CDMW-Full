@@ -37,6 +37,7 @@ from cdmw.ui.preview.dotnet_session import RustPreviewSessionController
 from cdmw.ui.preview.dotnet_host_prewarm import DotNetPreviewPrewarmTask as _DotNetPreviewPrewarmTask
 from cdmw.ui.preview.dotnet_host_lifecycle import DotNetPreviewHostLifecycleMixin
 from cdmw.ui.preview.dotnet_host_render_tuning import render_tuning_payloads
+from cdmw.ui.preview.preview_settings_hub import normalize_preview_settings, preview_settings_hub
 from cdmw.ui.preview.dotnet_host_protocol import DotNetPreviewHostProtocolMixin
 from cdmw.ui.preview.dotnet_host_theme import DotNetPreviewHostThemeMixin
 from cdmw.ui.preview.dotnet_host_placement import (
@@ -84,7 +85,12 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         ui_localizer: object | None = None,
         direct_authoring: bool = False,
         theme_key: str = "",
+        resident_engine: bool = False,
     ) -> None:
+        """``resident_engine``: this host's process lives as long as the app
+        (Browse Archives'); other previews and the Mesh Editor tab's editor become
+        windows of it (P4 V5). Every other host asks it for a window first."""
+
         super().__init__(parent)
         ensure_native_host_clipping(self)
         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
@@ -166,6 +172,21 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self._camera_hint.setContentsMargins(6, 3, 6, 3)
         layout.addWidget(self._camera_hint)
         self._update_camera_hint({})
+        # Shown only while this viewport holds a value the user set here
+        # instead of the shared Preview settings.
+        self._local_settings_row = QFrame(self)
+        self._local_settings_row.setObjectName("RustPreviewLocalSettings")
+        local_layout = QHBoxLayout(self._local_settings_row)
+        local_layout.setContentsMargins(6, 0, 6, 3)
+        self._local_settings_label = QLabel("Local preview settings", self._local_settings_row)
+        self._local_settings_label.setObjectName("RustPreviewLocalSettingsLabel")
+        local_layout.addWidget(self._local_settings_label, 1)
+        self._use_global_settings_button = QPushButton("Use global settings", self._local_settings_row)
+        self._use_global_settings_button.setObjectName("RustPreviewUseGlobalSettings")
+        local_layout.addWidget(self._use_global_settings_button)
+        layout.addWidget(self._local_settings_row)
+        self._local_settings_row.setVisible(False)
+        self._local_preview_settings: dict[str, object] = {}
         self._status_panel = QFrame(self)
         self._status_panel.setObjectName("DotNetPreviewStatusPanel")
         # These overlays must cover the renderer without native sibling promotion.
@@ -211,17 +232,28 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         # The helper's own window, once it reports it. Held so a resize can move
         # it in the same frame as this widget; see _sync_embedded_child_geometry.
         self._embedded_child_hwnd = 0
+        if controller is None and not resident_engine:
+            # Another preview: a window of Browse's process when it can open one (P4 V5).
+            from cdmw.ui.preview.engine_viewport import engine_viewport_factory
+            process_factory = engine_viewport_factory()
+        else:
+            process_factory = None
         self.controller = controller or RustPreviewSessionController(
             host_hwnd=self._host_hwnd,
             profile=self._profile,
             configured_executable=configured_executable,
             terminate_on_close=terminate_on_close,
+            process_factory=process_factory,
             direct_authoring=direct_authoring,
             parent=self,
         )
         self.controller.set_ui_localizer(
             ui_localizer or self._find_ui_localizer(parent)
         )
+        # Its process may take Character Finder's thumbnails (P4 V5).
+        from cdmw.services.engine_capture import engine_capture_router
+        # Browse's host lives as long as the app and may hold other windows.
+        engine_capture_router().register(self.controller, resident=resident_engine)
         self._terminate_on_close = bool(terminate_on_close)
         self.controller.state_changed.connect(self._handle_controller_state)
         self.controller.protocol_event.connect(self._handle_protocol_event)
@@ -236,6 +268,70 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self.controller.set_visible(False)
         self._viewport.installEventFilter(self)
         self.set_theme(theme_key)
+        self._use_global_settings_button.clicked.connect(self.use_global_preview_settings)
+        hub = preview_settings_hub()
+        if hub is not None:
+            hub.changed.connect(self._apply_shared_preview_settings)
+        self._apply_shared_preview_settings()
+
+    def effective_preview_settings(self) -> dict[str, object]:
+        """The shared Preview settings, with this viewport's explicit local values on top."""
+
+        hub = preview_settings_hub()
+        values = hub.values() if hub is not None else {}
+        values.update(self._local_preview_settings)
+        return values
+
+    def set_local_preview_setting(self, **values: object) -> bool:
+        """Hold a value the user chose in this viewport only (shown as local)."""
+
+        self._local_preview_settings.update(normalize_preview_settings(values))
+        return self._apply_shared_preview_settings()
+
+    def clear_local_preview_setting(self, *names: str) -> bool:
+        for name in names:
+            self._local_preview_settings.pop(name, None)
+        return self._apply_shared_preview_settings()
+
+    def use_global_preview_settings(self) -> bool:
+        self._local_preview_settings.clear()
+        return self._apply_shared_preview_settings()
+
+    @property
+    def has_local_preview_settings(self) -> bool:
+        return bool(self._local_preview_settings)
+
+    def _shared_quality(self, quality: Mapping[str, object]) -> dict[str, object]:
+        values = self.effective_preview_settings()
+        merged = dict(quality)
+        if "lighting_preset" in values:
+            merged["preview_lighting_preset"] = values["lighting_preset"]
+        if "shadows" in values:
+            merged["preview_shadows"] = values["shadows"]
+        if "ambient_occlusion" in values:
+            merged["preview_ambient_occlusion"] = values["ambient_occlusion"]
+        return merged
+
+    def _apply_shared_preview_settings(self, _values: object = None) -> bool:
+        if not qt_object_is_valid(self):
+            return False
+        values = self.effective_preview_settings()
+        self._local_settings_row.setVisible(bool(self._local_preview_settings))
+        display = dict(self._presentation_state.get("display", {}))
+        patch: dict[str, object] = {}
+        for name, key in (("lighting_preset", "lighting_preset"), ("ground", "ground_visible"),
+                          ("ground_grid", "ground_grid_visible"), ("view_mode", "view_mode"),
+                          ("background_color", "viewport_background_color")):
+            if name in values:
+                display[key] = values[name]
+                patch[key] = values[name]
+        if isinstance(display.get("quality"), Mapping):
+            display["quality"] = self._shared_quality(display["quality"])
+            patch["quality"] = display["quality"]
+        self._presentation_state["display"] = display
+        if not patch:
+            return False
+        return self._remember_presentation_state({"display": patch})
 
     @staticmethod
     def _find_ui_localizer(parent: QWidget | None) -> object | None:
@@ -520,15 +616,12 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         return self._remember_presentation_state({"display": {"mode": normalized}})
 
     def set_lighting_preset(self, preset: object) -> bool:
+        """Choose lighting for this viewport only; shown as a local setting."""
+
         normalized = str(preset or "neutral_studio").strip().lower()
-        if normalized not in {"neutral_studio", "showcase", "dark"}:
+        if normalized not in {"neutral_studio", "showcase", "dark", "studio_fixed"}:
             normalized = "neutral_studio"
-        display = dict(self._presentation_state.get("display", {}))
-        display["lighting_preset"] = normalized
-        self._presentation_state["display"] = display
-        return self._remember_presentation_state(
-            {"display": {"lighting_preset": normalized}}
-        )
+        return self.set_local_preview_setting(lighting_preset=normalized)
 
     def remember_side_by_side_split_ratio(self, ratio: Optional[float] = None) -> float:
         if ratio is not None:
@@ -547,6 +640,8 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             settings,
             self._overlay_state.get("cloth", {}),
         )
+        # The shared Preview settings win over each caller's own copy.
+        quality = self._shared_quality(quality)
         display = dict(self._presentation_state.get("display", {}))
         display["quality"] = quality
         self._presentation_state["display"] = display
@@ -690,13 +785,14 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
     def set_icon_capture_mode(self, enabled: bool) -> bool:
         self._icon_capture_mode = bool(enabled)
         display = dict(self._presentation_state.get("display", {}))
+        display["icon_capture_mode"] = bool(enabled)
         display["grid_visible"] = False if enabled else display.get("grid_visible", False)
         display["gizmo_visible"] = False if enabled else display.get("gizmo_visible", False)
         self._presentation_state["display"] = display
         shared_patch = (
-            {"display": {"grid_visible": False, "gizmo_visible": False}}
+            {"display": {"grid_visible": False, "gizmo_visible": False, "icon_capture_mode": True}}
             if enabled
-            else None
+            else {"display": {"icon_capture_mode": False}}
         )
         return self._remember_presentation_state(shared_patch)
 

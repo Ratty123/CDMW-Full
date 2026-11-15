@@ -410,3 +410,272 @@ fn read_only_sessions_keep_view_keys_and_refuse_edit_tools() -> TestResult {
     assert!(ui.application.camera.revision() > before);
     Ok(())
 }
+
+#[test]
+fn the_command_palette_chord_goes_to_cdmw_even_while_typing() -> TestResult {
+    let mut ui = integrated_triangle()?;
+    let root = tempfile::tempdir()?;
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "palette", 1, 0);
+    let messages = bridge.capture_messages_for_test();
+    ui.application.cdmw_bridge = Some(bridge);
+    let ctrl_shift = egui::Modifiers {
+        shift: true,
+        ..CTRL
+    };
+    ui.application.shortcut_editor.open = true;
+    ui.frame(Vec::new());
+    ui.application
+        .egui_context
+        .memory_mut(|memory| memory.request_focus(egui::Id::new("cdmw-shortcut-search")));
+    ui.frame(Vec::new());
+    press(&mut ui, egui::Key::P, ctrl_shift);
+    let sent = std::iter::from_fn(|| {
+        messages
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .ok()
+    })
+    .find(|message| message["event"] == "app_shortcut")
+    .expect("app_shortcut sent to CDMW");
+    assert_eq!(sent["command"], "command_palette");
+    assert_eq!(sent["protocol"], cdmw_session::PROTOCOL);
+    Ok(())
+}
+
+/// Review of ddc81f5d: a palette key on the numpad never reached CDMW, since the
+/// palette check was given no numpad presses.
+#[test]
+fn a_numpad_palette_key_goes_to_cdmw() -> TestResult {
+    let mut ui = integrated_triangle()?;
+    let root = tempfile::tempdir()?;
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "palette-numpad", 1, 0);
+    let messages = bridge.capture_messages_for_test();
+    ui.application.cdmw_bridge = Some(bridge);
+    // Ctrl+Shift+P stays in the set: other tests in this process use it. The set
+    // is global and tests run in parallel, so the numpad key is one no other test
+    // presses (Ctrl+Num7 turns the view in numpad_keys_turn_the_view...).
+    crate::shortcuts::apply_app_command_chords(&serde_json::json!({
+        "app_commands": {"command_palette": ["Ctrl+Shift+P", "Ctrl+Alt+Num9"]}
+    }));
+    ui.frame(Vec::new());
+    press_numpad(&mut ui, 9, egui::Modifiers::CTRL | egui::Modifiers::ALT);
+    let sent = std::iter::from_fn(|| {
+        messages
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .ok()
+    })
+    .find(|message| message["event"] == "app_shortcut");
+    crate::shortcuts::apply_app_command_chords(&serde_json::json!({
+        "app_commands": {"command_palette": ["Ctrl+Shift+P"]}
+    }));
+    let sent = sent.expect("the numpad palette key reached CDMW");
+    assert_eq!(sent["command"], "command_palette");
+    Ok(())
+}
+
+#[test]
+fn cdmw_mirrors_the_editor_s_commands_and_can_run_one() -> TestResult {
+    let mut ui = integrated_triangle()?;
+    let root = tempfile::tempdir()?;
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "commands", 1, 0);
+    let messages = bridge.capture_messages_for_test();
+    ui.application.cdmw_bridge = Some(bridge);
+    ui.frame(Vec::new());
+    let state = std::iter::from_fn(|| {
+        messages
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .ok()
+    })
+    .find(|message| message["event"] == "commands_state")
+    .expect("commands_state sent to CDMW");
+    let commands = state["commands"].as_array().expect("command list");
+    let grab = commands
+        .iter()
+        .find(|command| command["id"] == "tool.move")
+        .expect("tool.move listed");
+    assert_eq!(grab["keys"], json!(["G"]));
+    assert_eq!(grab["label"], "Move");
+    assert_eq!(commands.len(), crate::shortcuts::SHORTCUTS.len());
+    // An unchanged state is not sent again.
+    ui.frame(Vec::new());
+    assert!(
+        messages
+            .recv_timeout(std::time::Duration::from_millis(200))
+            .map_or(true, |message| message["event"] != "commands_state")
+    );
+    // The palette's request runs the command as its key press does.
+    ui.application
+        .pending_host_commands
+        .push("tool.move".to_owned());
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Move));
+    Ok(())
+}
+
+#[test]
+fn run_command_must_name_an_editor_command() {
+    let root = tempfile::tempdir().expect("temporary directory");
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "commands", 1, 0);
+    let message = |command: &str| {
+        json!({"event": "run_command", "protocol": cdmw_session::PROTOCOL, "session_id": "commands",
+               "process_generation": 1, "command": command})
+    };
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message("tool.move")),
+        HostEvent::RunCommand(command) if command == "tool.move"
+    ));
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message("delete.everything")),
+        HostEvent::Fatal(_)
+    ));
+}
+
+#[test]
+fn finish_and_late_morph_data_come_from_the_host() {
+    // P4 V3: the Finish, Discard, Keep editing prompt finishes as the button does,
+    // and an editor that opened before its morph query gets the data afterwards.
+    let root = tempfile::tempdir().expect("temporary directory");
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "late", 1, 0);
+    let identity = |event: &str| {
+        json!({"event": event, "protocol": cdmw_session::PROTOCOL, "session_id": "late",
+               "process_generation": 1})
+    };
+    let mut finish = identity("run_command");
+    finish["command"] = json!("session.finish");
+    assert!(matches!(
+        bridge.decode_host_event_for_test(finish),
+        HostEvent::RunCommand(command) if command == "session.finish"
+    ));
+    let mut morph = identity("morph_state");
+    morph["payload"] = json!({"available": true, "profile_id": "body"});
+    assert!(matches!(
+        bridge.decode_host_event_for_test(morph),
+        HostEvent::MorphState(state) if state["profile_id"] == "body"
+    ));
+    let mut empty = identity("morph_state");
+    empty["payload"] = json!("not an object");
+    assert!(matches!(
+        bridge.decode_host_event_for_test(empty),
+        HostEvent::Fatal(_)
+    ));
+}
+
+#[test]
+fn a_tool_group_cdmw_is_preparing_says_why_and_does_nothing() {
+    // P4 V4: tools unlock as their back end becomes ready; nothing is queued.
+    let root = tempfile::tempdir().expect("temporary directory");
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "groups", 1, 0);
+    let message = json!({"event": "tool_groups", "protocol": cdmw_session::PROTOCOL, "session_id": "groups",
+        "process_generation": 1, "groups": {"transform": {"ready": false, "reason": "Preparing the edit session."}}});
+    let event = bridge.decode_host_event_for_test(message);
+    assert!(matches!(event, HostEvent::ToolGroups(_)));
+    let mut application = LabApplication::new(None, None);
+    application.cdmw_state["authoring_enabled"] = json!(true);
+    application.handle_cdmw_host_event(event);
+    assert_eq!(
+        application
+            .rail_page_refusal(CdmwRailPage::Rotate)
+            .as_deref(),
+        Some("Preparing the edit session.")
+    );
+    assert_eq!(application.rail_page_refusal(CdmwRailPage::Select), None);
+    let ready = json!({"event": "tool_groups", "protocol": cdmw_session::PROTOCOL, "session_id": "groups",
+        "process_generation": 1, "groups": {}});
+    let event = bridge.decode_host_event_for_test(ready);
+    application.handle_cdmw_host_event(event);
+    assert_eq!(application.rail_page_refusal(CdmwRailPage::Rotate), None);
+}
+
+#[test]
+fn a_failed_draft_autosave_is_shown_until_a_save_succeeds() {
+    // 2026-11-13: the draft saves after each change, off the change's own reply.
+    let root = tempfile::tempdir().expect("temporary directory");
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "saves", 1, 0);
+    let failed = json!({"event": "save_status", "protocol": cdmw_session::PROTOCOL, "session_id": "saves",
+        "process_generation": 1, "error": "OSError: [WinError 206] The filename or extension is too long"});
+    let event = bridge.decode_host_event_for_test(failed);
+    assert!(matches!(&event, HostEvent::SaveStatus(error) if error.contains("too long")));
+    let mut application = LabApplication::new(None, None);
+    application.handle_cdmw_host_event(event);
+    assert!(
+        application.cdmw_state["geometry_layers"]["autosave_error"]
+            .as_str()
+            .unwrap_or("")
+            .contains("too long")
+    );
+    let saved = json!({"event": "save_status", "protocol": cdmw_session::PROTOCOL, "session_id": "saves",
+        "process_generation": 1, "error": ""});
+    let event = bridge.decode_host_event_for_test(saved);
+    application.handle_cdmw_host_event(event);
+    assert_eq!(
+        application.cdmw_state["geometry_layers"]["autosave_error"],
+        json!("")
+    );
+}
+
+#[test]
+fn a_view_only_editor_waits_for_its_session_and_then_opens_it() {
+    // P4 V4: the editor shows Browse's model first; open_session is the one line it acts on.
+    let root = tempfile::tempdir().expect("temporary directory");
+    let (input, route) = cdmw_session::PendingSessionInput::routed();
+    let template = CdmwBridge::for_test(root.path().to_path_buf(), "view", 1, 0);
+    let mut bridge = CdmwBridge::view_only(
+        root.path().to_path_buf(),
+        template.manifest().clone(),
+        0,
+        Vec::new(),
+        Vec::new(),
+        input,
+    );
+    assert!(bridge.is_view_only());
+    let theme = json!({"event": "theme_update", "protocol": cdmw_session::PROTOCOL});
+    assert!(matches!(
+        bridge.decode_host_event_for_test(theme),
+        HostEvent::Ignored
+    ));
+    let open = json!({"event": "open_session", "protocol": cdmw_session::PROTOCOL,
+                      "manifest": "session/manifest.json", "keep_view": true});
+    let event = bridge.decode_host_event_for_test(open.clone());
+    assert!(matches!(&event, HostEvent::OpenSession(path, _) if path.ends_with("manifest.json")));
+    let mut application = LabApplication::new(None, None);
+    application.cdmw_bridge = Some(bridge);
+    application.cdmw_hidden_parts.insert(2);
+    application.handle_cdmw_host_event(event);
+    // The editor is a pending helper again, its open_session queued, camera and parts kept.
+    assert!(application.cdmw_bridge.is_none());
+    let pending = application.cdmw_pending.as_ref().expect("pending again");
+    assert_eq!(
+        pending.poll().expect("one request"),
+        Some(cdmw_session::PendingRequest::Open(
+            std::path::PathBuf::from("session/manifest.json")
+        ))
+    );
+    assert!(application.kept_camera.is_some());
+    assert_eq!(
+        application
+            .kept_hidden_parts
+            .as_ref()
+            .map(|parts| parts.contains(&2)),
+        Some(true)
+    );
+    drop(route);
+}
+
+/// CDMW's Shortcuts page lists the editor's commands from this file when no
+/// editor runs. Set CDMW_WRITE_MESH_COMMANDS=1 to rewrite it after changing the keymap.
+#[test]
+fn the_committed_command_list_matches_the_editor_s_keymap() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../cdmw/resources/mesh_editor_commands.json");
+    let expected = crate::cdmw_ui::keyboard::mesh_editor_commands_resource();
+    let text = serde_json::to_string_pretty(&expected).expect("json") + "\n";
+    if std::env::var("CDMW_WRITE_MESH_COMMANDS").as_deref() == Ok("1") {
+        std::fs::write(&path, &text).expect("write the command list");
+    }
+    let committed: Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).expect("read the command list"))
+            .expect("valid json");
+    assert_eq!(
+        committed, expected,
+        "cdmw/resources/mesh_editor_commands.json is stale; rerun with CDMW_WRITE_MESH_COMMANDS=1"
+    );
+}

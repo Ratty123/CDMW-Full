@@ -8,6 +8,14 @@ Export retains native DDS, PNG, project, recolor, and upscale outputs; its Repla
 matches shortcut opens Replace. Recolor previews use the editor canvas's zoom and
 original/split views without changing the document or its undo history.
 
+Replace's selected-file preview uses the shared GPU DDS viewer. RGB and individual
+R/G/B/A channels, mip selection, optional two-channel normal Z reconstruction, wheel
+zoom, drag pan, Fit and 100% operate on the original compressed texture. Single
+channels bypass sRGB conversion; signed samples map -1 to black and +1 to white.
+Unsupported formats or an unavailable helper use the existing PNG decoder, with
+GPU-only controls disabled. PNG and flattened edited documents use the image viewer.
+The Edit canvas, layers, Undo, processing and exported textures are unchanged.
+
 Remove closes the active asset in the job; it does not delete the source file. Upscale
 automatically widens the sidebar when opened or expanded and adjusts it on window resize
 while retaining space for the preview. The sidebar follows the expanded controls' width

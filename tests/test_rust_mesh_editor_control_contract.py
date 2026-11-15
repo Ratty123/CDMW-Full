@@ -197,6 +197,9 @@ def test_packaging_validator_rejects_hash_and_rust_contract_mismatches(tmp_path:
     rust_contract_path = tmp_path / "cdmw_mesh_lab.control-contract.json"
     manifest_path = tmp_path / "cdmw_mesh_lab.manifest.json"
     executable.write_bytes(b"rust-helper")
+    compiler_files = {name: tmp_path / name for name in ("dxcompiler.dll", "dxil.dll")}
+    for path in compiler_files.values():
+        path.write_bytes(path.name.encode("ascii"))
     baseline_row = {
         "key": "top.finish",
         "surface": "top_session_bar",
@@ -288,6 +291,10 @@ def test_packaging_validator_rejects_hash_and_rust_contract_mismatches(tmp_path:
                     "cargo_version": "cargo synthetic",
                     "rustc_version": "rustc synthetic",
                     "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+                    "shader_compiler_files": {
+                        name: hashlib.sha256(path.read_bytes()).hexdigest()
+                        for name, path in compiler_files.items()
+                    },
                     "control_contract_sha256": hashlib.sha256(
                         rust_contract_path.read_bytes()
                     ).hexdigest(),
@@ -298,6 +305,23 @@ def test_packaging_validator_rejects_hash_and_rust_contract_mismatches(tmp_path:
 
     write_manifest()
     validate(tmp_path, required_release=True)
+
+    for name, path in compiler_files.items():
+        path.write_bytes(b"tampered")
+        with pytest.raises(SystemExit, match=name):
+            validate(tmp_path, required_release=True)
+        path.unlink()
+        with pytest.raises(SystemExit, match=name):
+            validate(tmp_path, required_release=True)
+        path.write_bytes(name.encode("ascii"))
+
+    for invalid_compilers in (None, [], {}, {"dxcompiler.dll": None, "dxil.dll": None}):
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["shader_compiler_files"] = invalid_compilers
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with pytest.raises(SystemExit, match="shader compiler provenance"):
+            validate(tmp_path, required_release=True)
+    write_manifest()
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     required_capabilities = list(manifest["capabilities"])

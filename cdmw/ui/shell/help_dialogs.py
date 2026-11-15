@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from cdmw.ui.layout_metrics import title_font_points
 
 
 class AboutDialog(QDialog):
@@ -97,7 +98,7 @@ class AboutDialog(QDialog):
         title_label.setObjectName("DocumentationTitle")
         title_font = QFont(self.font())
         title_font.setBold(True)
-        title_font.setPointSize(max(title_font.pointSize() + 3, 13))
+        title_font.setPointSize(int(title_font_points(title_font.pointSize(), 3)))
         title_label.setFont(title_font)
         header_text.addWidget(title_label)
         subtitle_label = QLabel(

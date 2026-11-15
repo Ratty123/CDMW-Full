@@ -5518,6 +5518,11 @@ class RustMeshAuthoringTests(unittest.TestCase):
             with (
                 patch.object(Path, "stat", underreported_source_stat),
                 patch.object(Path, "open", tracked_open),
+                # The byte copy path: a session on another volume cannot link.
+                patch(
+                    "cdmw.services.mesh_rust_authoring.os.link",
+                    side_effect=OSError("cross-device link"),
+                ),
                 patch(
                     "cdmw.services.mesh_rust_authoring._SESSION_MAX_TOTAL_BYTES",
                     limit,
@@ -5533,6 +5538,62 @@ class RustMeshAuthoringTests(unittest.TestCase):
 
             self.assertGreater(maximum_written, 0)
             self.assertLessEqual(maximum_written, limit)
+            self.assertEqual([], list(session_root.iterdir()))
+
+    def test_declared_texture_paths_admit_a_named_native_cache_only_for_declared_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "job" / "package"
+            package.mkdir(parents=True)
+            cache = root / "item-set-native-cache" / "dds"
+            cache.mkdir(parents=True)
+            declared = cache / "declared_base.dds"
+            declared.write_bytes(b"DDS " + b"d" * 64)
+            undeclared = cache / "other.dds"
+            undeclared.write_bytes(b"DDS " + b"o" * 64)
+            (package / "manifest.json").write_text(json.dumps({"batches": [
+                {"dds_textures": {"base": {"source_path": str(declared)}}},
+            ]}), encoding="utf-8")
+            read = rust_authoring_module._rust_material_package_declared_texture_paths
+
+            # A temporary job package does not reveal where its DDS cache is.
+            self.assertEqual(frozenset(), read(package))
+            admitted = read(package, extra_texture_roots=(cache,))
+            self.assertEqual(frozenset({os.path.normcase(str(declared.resolve()))}), admitted)
+
+    def test_texture_copy_links_a_same_volume_source_and_still_hashes_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_root = Path(temporary)
+            session_root = temporary_root / "session"
+            session_root.mkdir()
+            root_identity = rust_authoring_module._session_root_identity(session_root)
+            source = temporary_root / "cached.dds"
+            payload = b"DDS " + b"L" * (3 * 1024 * 1024 + 17)
+            source.write_bytes(payload)
+            stat = source.stat()
+            identity = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+
+            row = rust_authoring_module._atomic_copy_texture_payload(
+                session_root, source, 3, expected_root_identity=root_identity,
+                expected_source_identity=identity,
+            )
+
+            destination = session_root / str(row["path"])
+            self.assertEqual(hashlib.sha256(payload).hexdigest().upper(), row["sha256"])
+            self.assertEqual(len(payload), row["byte_length"])
+            self.assertTrue(os.path.samefile(source, destination))
+            self.assertEqual([destination], list(session_root.iterdir()))
+            # Removing the session leaves the cache file intact.
+            destination.unlink()
+            self.assertEqual(payload, source.read_bytes())
+
+            # A source that changed since it was resolved is still refused.
+            source.write_bytes(payload + b"!")
+            with self.assertRaisesRegex(RustMeshProtocolError, "changed"):
+                rust_authoring_module._atomic_copy_texture_payload(
+                    session_root, source, 4, expected_root_identity=root_identity,
+                    expected_source_identity=identity,
+                )
             self.assertEqual([], list(session_root.iterdir()))
 
     def test_failed_geometry_preparation_removes_its_owned_session_root(self) -> None:
@@ -8268,3 +8329,14 @@ class RustMeshAuthoringTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_companion_reference_payload_names_are_owned_binary_names(tmp_path):
+    # A Mesh Editor session with prefab companions failed to open with
+    # "Mesh payload name does not match its owned encoding".
+    from cdmw.services import mesh_rust_authoring as authoring
+
+    assert authoring._REFERENCE_FILE_RE.fullmatch("companion-01.bin")
+    assert authoring._REFERENCE_FILE_RE.fullmatch("reference-32.bin")
+    assert not authoring._REFERENCE_FILE_RE.fullmatch("companion-00.bin")
+    assert not authoring._REFERENCE_FILE_RE.fullmatch("companion-01.json")

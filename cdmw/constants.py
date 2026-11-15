@@ -2,17 +2,14 @@ from __future__ import annotations
 
 import re
 
-# Archive-group overlays are incompatible with the October 2026 DLC layout.
-# Keep their implementation for future repair, without a user-facing opt-in.
-ARCHIVE_OVERLAYS_ENABLED = False
 # Mod Management handles CDMW packages only; DMM handles ordinary mods. The
-# mod folder tools (convert, combine, update, health) stay implemented but hidden.
+# mod folder tools (convert, combine, update) stay implemented but hidden.
+# CDMW's own installs into the game (archive overlays and the virtual loader)
+# are removed; Browse Archives' Remove What an Older CDMW Installed... takes
+# out what earlier versions put there.
 MOD_FOLDER_TOOLS_ENABLED = False
-# DMM loads CDMW's items: Mods sends packages to DMM as one mod. CDMW's own loading
-# (Apply changes, Launch game and the runtime in bin64) stays implemented but hidden.
-VIRTUAL_LOADING_ENABLED = False
 # New packages are written as .cdmw. Packages from before the rename keep .cditem
-# and stay readable. CDMW's own copies under the game's .cdmw folder keep .cditem.
+# and stay readable. The copies an older CDMW kept under the game's .cdmw folder keep .cditem.
 PACKAGE_EXTENSION = ".cdmw"
 LEGACY_PACKAGE_EXTENSION = ".cditem"
 PACKAGE_EXTENSIONS = (PACKAGE_EXTENSION, LEGACY_PACKAGE_EXTENSION)
@@ -208,8 +205,12 @@ MODEL_PREVIEW_GRID_COLOR = "#2f3740"
 DEFAULT_UI_FONT_FAMILY = "Segoe UI"
 DEFAULT_UI_FONT_SIZE = 10
 DEFAULT_UI_DATA_FONT_SIZE = 10
-UI_FONT_SIZE_MIN = 8
-UI_FONT_SIZE_MAX = 15
+# One font range for the UI, data and log fonts on every surface (P11 step 2).
+# The floor of 6 is the recommendation Fredric left open (decision 16).
+UI_FONT_SIZE_MIN = 6
+UI_FONT_SIZE_MAX = 16
+#: The text viewer's own zoom may go further than the UI fonts.
+TEXT_PREVIEW_FONT_SIZE_MAX = 22
 DEFAULT_UI_DENSITY = "compact"
 DEFAULT_UI_LOG_FONT_FAMILY = "Consolas"
 DEFAULT_UI_LOG_FONT_SIZE = 8

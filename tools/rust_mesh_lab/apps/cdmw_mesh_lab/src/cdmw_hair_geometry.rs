@@ -162,29 +162,57 @@ pub(super) fn prepare(
         // before deleting whole locks, whose vertex maps are updated below.
         for (&part_id, removed) in faces {
             check()?;
-            let part = document.lods[0].submeshes.get(part_id as usize).ok_or("Missing hair material part")?;
-            let kept = part.indices.chunks_exact(3)
+            let part = document.lods[0]
+                .submeshes
+                .get(part_id as usize)
+                .ok_or("Missing hair material part")?;
+            let kept = part
+                .indices
+                .chunks_exact(3)
                 .filter(|f| !removed.contains(&[f[0], f[1], f[2]]))
-                .flatten().copied().collect();
+                .flatten()
+                .copied()
+                .collect();
             compact_part_indices(&mut state, &mut document, part_id, kept);
         }
         let mut removed = ids.clone();
-        removed.extend(state.locks.iter().filter(|l| l.vertices.is_empty() && l.kind != LockKind::Generated).map(|l| l.id));
+        removed.extend(
+            state
+                .locks
+                .iter()
+                .filter(|l| l.vertices.is_empty() && l.kind != LockKind::Generated)
+                .map(|l| l.id),
+        );
         delete_locks(&mut state, &mut document, &removed)?;
     }
     if let Preparation::Cut(ref cuts, symmetry) = operation {
-        let mut targets: BTreeMap<_, _> = cuts.iter().map(|&(id, segment, t)| (id, (segment, t))).collect();
+        let mut targets: BTreeMap<_, _> = cuts
+            .iter()
+            .map(|&(id, segment, t)| (id, (segment, t)))
+            .collect();
         if symmetry {
             // Resolve pairs against the original lengths and cut each lock once,
             // even when both sides of a symmetry pair are inside the brush.
             for &(id, segment, t) in cuts {
-                let lock = state.locks.iter().find(|l| l.id == id).ok_or("Point at a hair lock to cut")?;
+                let lock = state
+                    .locks
+                    .iter()
+                    .find(|l| l.id == id)
+                    .ok_or("Point at a hair lock to cut")?;
                 if let (Some(gi), Some(pair)) = (lock.guide, lock.mirrored)
-                    && let Some(other) = state.locks.iter().find(|l| l.id == pair).and_then(|l| l.guide) {
-                        let fraction = (segment as f32 + t) / (state.guides[gi as usize].points.len() - 1) as f32;
-                        let along = fraction * (state.guides[other as usize].points.len() - 1) as f32;
-                        targets.entry(pair).or_insert((along.floor() as u32, along.fract()));
-                    }
+                    && let Some(other) = state
+                        .locks
+                        .iter()
+                        .find(|l| l.id == pair)
+                        .and_then(|l| l.guide)
+                {
+                    let fraction =
+                        (segment as f32 + t) / (state.guides[gi as usize].points.len() - 1) as f32;
+                    let along = fraction * (state.guides[other as usize].points.len() - 1) as f32;
+                    targets
+                        .entry(pair)
+                        .or_insert((along.floor() as u32, along.fract()));
+                }
             }
         }
         for (id, (segment, t)) in targets {
@@ -210,9 +238,14 @@ pub(super) fn prepare(
     let rebuild = !matches!(
         operation,
         Preparation::Deform | Preparation::Metadata | Preparation::Analyze | Preparation::Bind(_)
-    ) || (matches!(operation, Preparation::Deform) && state.bindings.iter().any(|binding|
-        !binding.smooth && state.groups.iter().any(|group|
-            group.part == binding.part && group.mode == GroupMode::Generated)));
+    ) || (matches!(operation, Preparation::Deform)
+        && state.bindings.iter().any(|binding| {
+            !binding.smooth
+                && state
+                    .groups
+                    .iter()
+                    .any(|group| group.part == binding.part && group.mode == GroupMode::Generated)
+        }));
     if rebuild {
         let generated: BTreeSet<_> = state
             .groups
@@ -296,7 +329,12 @@ fn compact_part(
     compact_part_indices(state, document, part_id, kept);
 }
 
-fn compact_part_indices(state: &mut HairState, document: &mut MeshDocument, part_id: u32, kept: Vec<u32>) {
+fn compact_part_indices(
+    state: &mut HairState,
+    document: &mut MeshDocument,
+    part_id: u32,
+    kept: Vec<u32>,
+) {
     let part = &mut document.lods[0].submeshes[part_id as usize];
     let used: BTreeSet<_> = kept.iter().copied().collect();
     let mut map = HashMap::new();
@@ -307,7 +345,10 @@ fn compact_part_indices(state: &mut HairState, document: &mut MeshDocument, part
     part.normals = used.iter().map(|i| part.normals[*i as usize]).collect();
     part.uvs = used.iter().map(|i| part.uvs[*i as usize]).collect();
     if !part.shader_masks.is_empty() {
-        part.shader_masks = used.iter().map(|i| part.shader_masks[*i as usize]).collect();
+        part.shader_masks = used
+            .iter()
+            .map(|i| part.shader_masks[*i as usize])
+            .collect();
     }
     part.source_vertex_indices = used
         .iter()
@@ -383,7 +424,9 @@ fn cut_lock(
     let tip = if state.bindings.iter().any(|b| b.guide == gi && b.smooth) {
         locks::curve_point(&guide.points, segment, t)
     } else {
-        Vec3::from(guide.points[segment]).lerp(Vec3::from(guide.points[segment + 1]), t).to_array()
+        Vec3::from(guide.points[segment])
+            .lerp(Vec3::from(guide.points[segment + 1]), t)
+            .to_array()
     };
     let remove: BTreeSet<_> = state
         .bindings

@@ -677,7 +677,8 @@ class IndependentCompatibilityReport:
     def text(self):
         lines = ['Compatible shared files can be composed.' if self.compatible else 'Review the conflicts or unsupported data before merging.']
         if self.virtual_profile:
-            lines.extend(('', 'This scan includes the saved virtual profile. Use Apply changes in Mods to update its shared files.'))
+            lines.extend(('', 'This scan includes the virtual profile an older CDMW saved in this game folder. '
+                              'Use Browse Archives > Remove What an Older CDMW Installed... to take it out.'))
         for row in self.findings:
             names = ', '.join(row.mods)
             lines.append('')
@@ -888,7 +889,8 @@ def scan_independent_conflicts(root, *, folders=(), stop_event=None, on_log=None
     profile = load_profile(root, registry=registry)
     virtual = bool(profile and (profile['items'] or profile['mods']))
     if virtual and _export:
-        raise OverlayConflict('Use Apply changes in Mods to update the virtual profile. Archive export cannot include its shared files.')
+        raise OverlayConflict('An older CDMW saved a virtual profile in this game folder, and archive export cannot '
+                              'include its shared files. Use Browse Archives > Remove What an Older CDMW Installed... to take it out, then try again.')
     from cdmw.core.mod_compatibility import semantic_export_path
     if not virtual and any(semantic_export_path(folder) is not None for folder in folders):
         try:

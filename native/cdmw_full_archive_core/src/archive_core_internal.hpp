@@ -23,6 +23,8 @@
 #include <utility>
 #include <vector>
 
+#include "../../common/long_path.hpp"
+
 namespace cdmw::full_archive {
 
 namespace fs = std::filesystem;
@@ -126,14 +128,14 @@ inline void append_u64(std::vector<std::uint8_t>& out, std::uint64_t value) {
 
 inline std::vector<std::uint8_t> read_binary(const fs::path& path, std::uint64_t maximum_bytes) {
     std::error_code error;
-    const auto size = fs::file_size(path, error);
+    const auto size = fs::file_size(cdmw::long_path(path), error);
     if (error) {
         throw std::runtime_error("could not determine file size for " + path.string());
     }
     if (size > maximum_bytes || size > static_cast<std::uint64_t>(std::numeric_limits<size_t>::max())) {
         throw std::runtime_error("file exceeds the read-only resource limit: " + path.string());
     }
-    std::ifstream stream(path, std::ios::binary);
+    std::ifstream stream(cdmw::long_path(path), std::ios::binary);
     if (!stream) {
         throw std::runtime_error("could not open " + path.string());
     }

@@ -4,7 +4,6 @@ from functools import wraps
 import hashlib
 import os
 from pathlib import Path
-import tempfile
 import threading
 
 from cdmw.domain.virtual_loader import VirtualLoaderError
@@ -13,8 +12,12 @@ _local = threading.local()
 
 
 def lock_path(root):
+    # The virtual loader checks this lock inside the game, whose temp folder is
+    # the system's when the game is not started by CDMW, so it stays there.
+    from cdmw.app.app_folder import system_temp_dir
+
     key = hashlib.sha256(str(Path(root).resolve()).casefold().encode('utf-8')).hexdigest()
-    return Path(tempfile.gettempdir()) / ('cdmw-installation-' + key + '.lock')
+    return system_temp_dir() / ('cdmw-installation-' + key + '.lock')
 
 
 @contextmanager
@@ -42,7 +45,8 @@ def installation_lane(root, *, recovery=False):
     _local.held = held
     try:
         if not recovery and (root / '.cdmw/virtual-loader/transaction.json').exists():
-            raise VirtualLoaderError('Recover the interrupted virtual profile transaction before changing this installation.')
+            raise VirtualLoaderError('An older CDMW left an unfinished virtual-loader change in this game folder. '
+                                     'Use Browse Archives > Remove What an Older CDMW Installed... to take it out.')
         yield
     finally:
         del held[key]

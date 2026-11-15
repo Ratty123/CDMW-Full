@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication
 from cdmw.ui.mesh_editor.process_io import DOTNET_PROTOCOL_BUFFER_LIMIT
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
 from cdmw.ui.mesh_editor.tab_dotnet_payloads import MeshEditorDotNetPayloadMixin
+from tests.owned_settings import owned_settings
 
 
 
@@ -59,7 +60,7 @@ def test_edit_mesh_screen_selection_never_promotes_a_viewport_hit_to_a_part() ->
 
 
 def _tab_for_stdout(name: str) -> MeshEditorTab:
-    tab = MeshEditorTab(settings=QSettings("CDMWTests", name))
+    tab = MeshEditorTab(settings=owned_settings(name))
     tab.standalone_dotnet_protocol_stdout = ""
     return tab
 

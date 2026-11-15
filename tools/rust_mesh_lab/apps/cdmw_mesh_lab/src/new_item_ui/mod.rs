@@ -6,7 +6,9 @@ mod model;
 mod view;
 
 use anyhow::{Context, Result, bail};
-use model::{Input, MAX_MESSAGE_BYTES, PROTOCOL, State};
+pub(crate) use model::MAX_MESSAGE_BYTES;
+pub(crate) use model::PROTOCOL;
+use model::{Input, State};
 use serde_json::{Value, json};
 use std::collections::VecDeque;
 use std::io::{BufRead, Read, Write};
@@ -25,7 +27,8 @@ pub fn control_contract() -> Value {
 }
 
 fn sync_host_scale(context: &egui::Context, theme: &Value, window_scale: f32) {
-    let Some(host_scale) = theme["pixels_per_point"].as_f64()
+    let Some(host_scale) = theme["pixels_per_point"]
+        .as_f64()
         .filter(|scale| scale.is_finite() && *scale > 0.0 && *scale <= 8.0)
     else {
         return;
@@ -41,8 +44,13 @@ fn sync_host_scale(context: &egui::Context, theme: &Value, window_scale: f32) {
 }
 
 fn enqueue_input(requests: &mut VecDeque<Input>, input: Input) {
-    if matches!(input.action, "text" | "number" | "cell" | "range" | "resize_dialog") {
-        requests.retain(|queued| queued.edit_key() != input.edit_key() || queued.action != input.action);
+    if matches!(
+        input.action,
+        "text" | "number" | "cell" | "range" | "resize_dialog"
+    ) {
+        requests.retain(|queued| {
+            queued.edit_key() != input.edit_key() || queued.action != input.action
+        });
     }
     if requests.len() < 128 {
         requests.push_back(input);
@@ -55,10 +63,16 @@ fn rebase_pending_inputs(requests: &mut VecDeque<Input>, previous: &Input, state
         // Geometry acknowledgements change the dialog's presentation revision.
         // Preserve the final drag sample and an immediately following close.
         if pending.control == previous.control
-            && (matches!(pending.action, "text" | "number" | "cell" | "finish_edit" | "submit" | "resize_dialog")
-                || previous.action == "resize_dialog" && pending.action == "close_dialog")
-            && let Some(revision) = state.root.find_revision(&pending.control)
-                .or_else(|| state.dialogs.iter().find_map(|dialog| dialog.find_revision(&pending.control)))
+            && (matches!(
+                pending.action,
+                "text" | "number" | "cell" | "finish_edit" | "submit" | "resize_dialog"
+            ) || previous.action == "resize_dialog" && pending.action == "close_dialog")
+            && let Some(revision) = state.root.find_revision(&pending.control).or_else(|| {
+                state
+                    .dialogs
+                    .iter()
+                    .find_map(|dialog| dialog.find_revision(&pending.control))
+            })
         {
             pending.revision = revision;
         }
@@ -152,6 +166,9 @@ pub fn try_run() -> Result<bool> {
     let mut app = Application {
         session,
         parent,
+        page_id: None,
+        shared_gpu: None,
+        closed: false,
         receiver,
         context: egui::Context::default(),
         window: None,
@@ -166,6 +183,7 @@ pub fn try_run() -> Result<bool> {
         last_layout: String::new(),
         error: None,
         next_repaint: None,
+        numpad_presses: Vec::new(),
     };
     event_loop.run_app(&mut app)?;
     if let Some(error) = app.error {
@@ -188,7 +206,7 @@ fn read_bounded(path: &Path) -> Result<Vec<u8>> {
     Ok(data)
 }
 
-fn emit(message: &Value) -> Result<()> {
+fn emit_line(message: &Value) -> Result<()> {
     let mut output = std::io::stdout().lock();
     serde_json::to_writer(&mut output, message)?;
     output.write_all(b"\n")?;
@@ -204,6 +222,7 @@ fn headless_report(
 ) -> Result<()> {
     let context = egui::Context::default();
     apply_theme(&context, &state.theme);
+    crate::shortcuts::apply_app_command_chords(&state.theme);
     let mut view = PresentationView::default();
     load_images(&context, &mut view, state)?;
     let mut textures = egui::TexturesDelta::default();
@@ -315,9 +334,14 @@ fn load_images(context: &egui::Context, view: &mut PresentationView, state: &Sta
     Ok(())
 }
 
-struct Application {
+pub(crate) struct Application {
     session: String,
     parent: u64,
+    /// Set when the page is a window of the engine process (P4 V5): every line
+    /// it writes names it, and closing closes the window, not the process.
+    page_id: Option<String>,
+    shared_gpu: Option<cdmw_render_wgpu::SharedGpu>,
+    closed: bool,
     receiver: mpsc::Receiver<Result<Value, String>>,
     context: egui::Context,
     window: Option<Arc<Window>>,
@@ -332,9 +356,109 @@ struct Application {
     last_layout: String,
     error: Option<String>,
     next_repaint: Option<Instant>,
+    /// Numpad presses since the last frame, so a palette key on the numpad is
+    /// told from its top-row twin (review of 59fd00c5e).
+    numpad_presses: Vec<(egui::Key, crate::shortcuts::NumpadKey)>,
 }
 
+/// Open a page as a window of the engine process (P4 V5): its input comes from
+/// the returned sender, its lines name `page_id`, and it draws on `gpu`.
+pub(crate) fn open_in_engine(
+    manifest_path: &Path,
+    parent: u64,
+    page_id: String,
+    gpu: cdmw_render_wgpu::SharedGpu,
+) -> Result<(Application, mpsc::SyncSender<Result<Value, String>>)> {
+    let manifest: Value = serde_json::from_slice(&read_bounded(manifest_path)?)?;
+    let session = manifest["session"]
+        .as_str()
+        .context("Missing New Item UI session")?
+        .to_owned();
+    if manifest["protocol"] != PROTOCOL || session.len() > 64 || parent == 0 {
+        bail!("Invalid New Item UI manifest");
+    }
+    let (sender, receiver) = mpsc::sync_channel(ENGINE_PAGE_QUEUE);
+    let app = Application {
+        session,
+        parent,
+        page_id: Some(page_id),
+        shared_gpu: Some(gpu),
+        closed: false,
+        receiver,
+        context: egui::Context::default(),
+        window: None,
+        input: None,
+        renderer: None,
+        state: None,
+        view: PresentationView::default(),
+        textures: egui::TexturesDelta::default(),
+        requests: VecDeque::new(),
+        next_request: 0,
+        in_flight: None,
+        last_layout: String::new(),
+        error: None,
+        next_repaint: None,
+        numpad_presses: Vec::new(),
+    };
+    Ok((app, sender))
+}
+
+/// Lines queued for a page in the engine; its host sends a state about ten
+/// times a second and waits for each acknowledgement.
+const ENGINE_PAGE_QUEUE: usize = 64;
+
 impl Application {
+    pub(crate) fn page_id(&self) -> Option<&str> {
+        self.page_id.as_deref()
+    }
+
+    pub(crate) fn window_id(&self) -> Option<WindowId> {
+        self.window.as_ref().map(|window| window.id())
+    }
+
+    pub(crate) fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    /// `page_close` from CDMW: the engine drops this page.
+    pub(crate) fn close_in_engine(&mut self) {
+        self.closed = true;
+    }
+
+    /// One whole line to CDMW, naming this page when the engine hosts it.
+    fn emit(&self, message: &Value) -> Result<()> {
+        match &self.page_id {
+            Some(page_id) => {
+                let mut message = message.clone();
+                if let Some(object) = message.as_object_mut() {
+                    object.insert("page_id".to_owned(), json!(page_id));
+                }
+                emit_line(&message)
+            }
+            None => emit_line(message),
+        }
+    }
+
+    /// End the page: the process for a page of its own, only the window in the engine.
+    fn exit(&mut self, event_loop: &ActiveEventLoop) {
+        if self.page_id.is_some() {
+            self.closed = true;
+        } else {
+            event_loop.exit();
+        }
+    }
+
+    fn make_renderer(&self, window: Arc<Window>) -> Result<cdmw_render_wgpu::WindowRenderer> {
+        if let Some(gpu) = &self.shared_gpu
+            && let Ok(renderer) = cdmw_render_wgpu::WindowRenderer::new_on(gpu, window.clone())
+        {
+            return Ok(renderer);
+        }
+        Ok(pollster::block_on(cdmw_render_wgpu::WindowRenderer::new(
+            window,
+        ))?)
+    }
+
     fn poll(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
         while let Ok(message) = self.receiver.try_recv() {
             let message = message.map_err(|error| anyhow::anyhow!(error))?;
@@ -353,14 +477,16 @@ impl Application {
                         continue;
                     }
                     if let Some((request, previous)) = &self.in_flight
-                        && state.last_request >= *request {
-                            self.view.acknowledge(previous);
-                            rebase_pending_inputs(&mut self.requests, previous, &state);
-                            self.in_flight = None;
-                        }
+                        && state.last_request >= *request
+                    {
+                        self.view.acknowledge(previous);
+                        rebase_pending_inputs(&mut self.requests, previous, &state);
+                        self.in_flight = None;
+                    }
                     apply_theme(&self.context, &state.theme);
+                    crate::shortcuts::apply_app_command_chords(&state.theme);
                     load_images(&self.context, &mut self.view, &state)?;
-                    emit(
+                    self.emit(
                         &json!({"protocol":PROTOCOL,"type":"state_received","session":self.session,"generation":state.generation}),
                     )?;
                     self.state = Some(state);
@@ -371,7 +497,7 @@ impl Application {
                     self.requests.clear();
                 }
                 Some("shutdown") => {
-                    event_loop.exit();
+                    self.exit(event_loop);
                 }
                 Some("focus") => {
                     if let Some(window) = &self.window {
@@ -408,7 +534,7 @@ impl Application {
                     continue;
                 }
                 self.next_request += 1;
-                emit(
+                self.emit(
                     &json!({"protocol":PROTOCOL,"type":"input","session":self.session,
                     "request":self.next_request,"control":input.control,"revision":input.revision,
                     "action":input.action,"value":input.value}),
@@ -440,7 +566,17 @@ impl Application {
         input
             .events
             .retain(|event| !matches!(event, egui::Event::WindowFocused(_)));
+        let mut palette = false;
+        let mut numpad = Some(std::mem::take(&mut self.numpad_presses));
         let output = self.context.run_ui(input, |ui| {
+            // The command palette's chord belongs to CDMW, wherever the focus is (P12).
+            // CDMW's keymap decides the chords (P12 E5), as for the Mesh Editor.
+            palette |= !crate::cdmw_ui::keyboard::take_shortcut_presses(
+                ui.ctx(),
+                numpad.take().unwrap_or_default(),
+                |chord| chord.app_command().is_some(),
+            )
+            .is_empty();
             if let Some(state) = &self.state {
                 self.view.draw(ui, state);
             } else {
@@ -468,6 +604,12 @@ impl Application {
                 renderer.render_egui(&jobs, textures, output.pixels_per_point)
             })?;
         }
+        if palette {
+            self.emit(
+                &json!({"protocol":PROTOCOL,"type":"app_shortcut","session":self.session,
+                "command":"command_palette"}),
+            )?;
+        }
         for input in self.view.inputs.drain(..) {
             enqueue_input(&mut self.requests, input);
         }
@@ -477,7 +619,7 @@ impl Application {
                 "generation":state.generation,"pixels_per_point":output.pixels_per_point,"portals":portals});
             let encoded = layout.to_string();
             if encoded != self.last_layout {
-                emit(&layout)?;
+                self.emit(&layout)?;
                 self.last_layout = encoded;
             }
         }
@@ -487,11 +629,11 @@ impl Application {
 
     fn failed(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
         let message = error.to_string();
-        let _ = emit(
+        let _ = self.emit(
             &json!({"protocol":PROTOCOL,"type":"failed","session":self.session,"message":message}),
         );
         self.error = Some(message);
-        event_loop.exit();
+        self.exit(event_loop);
     }
 }
 
@@ -509,9 +651,7 @@ impl ApplicationHandler for Application {
                 self.parent,
             )?;
             let window = Arc::new(event_loop.create_window(attributes)?);
-            self.renderer = Some(pollster::block_on(cdmw_render_wgpu::WindowRenderer::new(
-                window.clone(),
-            ))?);
+            self.renderer = Some(self.make_renderer(window.clone())?);
             self.input = Some(egui_winit::State::new(
                 self.context.clone(),
                 egui::ViewportId::ROOT,
@@ -520,7 +660,7 @@ impl ApplicationHandler for Application {
                 window.theme(),
                 None,
             ));
-            emit(
+            self.emit(
                 &json!({"protocol":PROTOCOL,"type":"ready","session":self.session,
                     "capabilities":["host_focus_v1"],
                 "child_hwnd":cdmw_win32_embed::window_hwnd(&window)?,"embedded_parent_hwnd":self.parent}),
@@ -548,10 +688,13 @@ impl ApplicationHandler for Application {
                 state: winit::event::ElementState::Pressed,
                 ..
             }
-        )
-            && let Some(window) = &self.window {
-                let _ = cdmw_win32_embed::focus_child_window(window);
-            }
+        ) && let Some(window) = &self.window
+        {
+            let _ = cdmw_win32_embed::focus_child_window(window);
+        }
+        if let Some(press) = crate::cdmw_ui::keyboard::numpad_press(&event) {
+            self.numpad_presses.push(press);
+        }
         if let (Some(input), Some(window)) = (&mut self.input, &self.window) {
             if let Some(state) = &self.state {
                 sync_host_scale(&self.context, &state.theme, window.scale_factor() as f32);
@@ -559,7 +702,7 @@ impl ApplicationHandler for Application {
             repaint = input.on_window_event(window, &event).repaint;
         }
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => self.exit(event_loop),
             WindowEvent::Resized(size) => {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize(size);
@@ -567,7 +710,11 @@ impl ApplicationHandler for Application {
             }
             WindowEvent::RedrawRequested => {
                 repaint = false;
-                if self.window.as_ref().is_some_and(|window| window.is_visible() == Some(false)) {
+                if self
+                    .window
+                    .as_ref()
+                    .is_some_and(|window| window.is_visible() == Some(false))
+                {
                     self.next_repaint = None;
                 } else if let Err(error) = self.redraw(event_loop) {
                     self.failed(event_loop, error);
@@ -575,14 +722,17 @@ impl ApplicationHandler for Application {
             }
             _ => {}
         }
-        if repaint
-            && let Some(window) = &self.window {
-                window.request_redraw();
-            }
+        if repaint && let Some(window) = &self.window {
+            window.request_redraw();
+        }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.as_ref().is_some_and(|window| window.is_visible() == Some(false)) {
+        if self
+            .window
+            .as_ref()
+            .is_some_and(|window| window.is_visible() == Some(false))
+        {
             self.next_repaint = None;
         }
         if self
@@ -613,30 +763,68 @@ mod layout_input_tests {
             let mut state: State = serde_json::from_value(json!({"protocol": PROTOCOL,
                 "session": "enter", "generation": 2,
                 "root": {"id": "root", "kind": "column", "children": [
-                    {"id": "other", "kind": "text", "revision": 99}]}})).unwrap();
+                    {"id": "other", "kind": "text", "revision": 99}]}}))
+            .unwrap();
             if in_dialog {
                 state.dialogs.push(serde_json::from_value(field).unwrap());
             } else {
-                state.root.children.push(serde_json::from_value(field).unwrap());
+                state
+                    .root
+                    .children
+                    .push(serde_json::from_value(field).unwrap());
             }
-            let previous = Input { control: "sprite".into(), revision: 7,
-                action: "text", value: json!("texture/new.dds") };
+            let previous = Input {
+                control: "sprite".into(),
+                revision: 7,
+                action: "text",
+                value: json!("texture/new.dds"),
+            };
             let mut requests = VecDeque::new();
-            enqueue_input(&mut requests, Input { control: "sprite".into(), revision: 7,
-                action: "submit", value: Value::Null });
-            enqueue_input(&mut requests, Input { control: "sprite".into(), revision: 7,
-                action: "finish_edit", value: Value::Null });
-            enqueue_input(&mut requests, Input { control: "other".into(), revision: 7,
-                action: "submit", value: Value::Null });
+            enqueue_input(
+                &mut requests,
+                Input {
+                    control: "sprite".into(),
+                    revision: 7,
+                    action: "submit",
+                    value: Value::Null,
+                },
+            );
+            enqueue_input(
+                &mut requests,
+                Input {
+                    control: "sprite".into(),
+                    revision: 7,
+                    action: "finish_edit",
+                    value: Value::Null,
+                },
+            );
+            enqueue_input(
+                &mut requests,
+                Input {
+                    control: "other".into(),
+                    revision: 7,
+                    action: "submit",
+                    value: Value::Null,
+                },
+            );
             rebase_pending_inputs(&mut requests, &previous, &state);
-            assert_eq!(requests[0].revision, 8, "Enter must commit the acknowledged text");
+            assert_eq!(
+                requests[0].revision, 8,
+                "Enter must commit the acknowledged text"
+            );
             assert_eq!(requests[1].revision, 8);
-            assert_eq!(requests[2].revision, 7, "Other controls keep stale-input protection");
+            assert_eq!(
+                requests[2].revision, 7,
+                "Other controls keep stale-input protection"
+            );
 
             state.root.children.clear();
             state.dialogs.clear();
             rebase_pending_inputs(&mut requests, &previous, &state);
-            assert_eq!(requests[0].revision, 8, "Removed controls cannot gain a revision");
+            assert_eq!(
+                requests[0].revision, 8,
+                "Removed controls cannot gain a revision"
+            );
         }
     }
 
@@ -649,13 +837,22 @@ mod layout_input_tests {
                 "session": "monitor-scale", "generation": 1,
                 "root": {"id": "recovery", "kind": "button", "label": "Archive recovery",
                          "enabled": true, "revision": 1},
-                "theme": {"font_pixels": font}})).unwrap();
+                "theme": {"font_pixels": font}}))
+            .unwrap();
             apply_theme(&context, &state.theme);
+            crate::shortcuts::apply_app_command_chords(&state.theme);
             // Both stale child DPI and an eventual native DPI notification are
             // covered while the same context moves back and forth.
-            for (window_scale, host_scale) in [(1.5, 1.5), (1.5, 1.0), (1.5, 2.0),
-                                              (2.0, 2.0), (2.0, 1.25), (2.0, 3.0),
-                                              (1.0, 1.0), (1.0, 1.5)] {
+            for (window_scale, host_scale) in [
+                (1.5, 1.5),
+                (1.5, 1.0),
+                (1.5, 2.0),
+                (2.0, 2.0),
+                (2.0, 1.25),
+                (2.0, 3.0),
+                (1.0, 1.0),
+                (1.0, 1.5),
+            ] {
                 state.theme["pixels_per_point"] = json!(host_scale);
                 let physical_size = egui::vec2(1280.0, 720.0) * host_scale;
                 let mut pointer_pixels = egui::Pos2::ZERO;
@@ -667,18 +864,28 @@ mod layout_input_tests {
                     let input_scale = window_scale * context.zoom_factor();
                     assert!((input_scale - host_scale).abs() < 0.0001);
                     let mut input = egui::RawInput {
-                        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO,
-                            physical_size / input_scale)),
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            physical_size / input_scale,
+                        )),
                         ..Default::default()
                     };
-                    input.viewports.entry(egui::ViewportId::ROOT).or_default()
+                    input
+                        .viewports
+                        .entry(egui::ViewportId::ROOT)
+                        .or_default()
                         .native_pixels_per_point = Some(window_scale);
                     if let Some(pressed) = pressed {
                         let point = pointer_pixels / input_scale;
-                        input.events = vec![egui::Event::PointerMoved(point),
-                            egui::Event::PointerButton { pos: point,
-                                button: egui::PointerButton::Primary, pressed,
-                                modifiers: egui::Modifiers::NONE }];
+                        input.events = vec![
+                            egui::Event::PointerMoved(point),
+                            egui::Event::PointerButton {
+                                pos: point,
+                                button: egui::PointerButton::Primary,
+                                pressed,
+                                modifiers: egui::Modifiers::NONE,
+                            },
+                        ];
                     }
                     let mut output = context.run_ui(input, |ui| {
                         assert_eq!(ui.style().text_styles[&egui::TextStyle::Body].size, font);
@@ -686,11 +893,18 @@ mod layout_input_tests {
                     });
                     output.textures_delta.clear();
                     assert!((output.pixels_per_point - host_scale).abs() < 0.0001);
-                    assert_eq!(context.input(|input| input.content_rect().size()),
-                               egui::vec2(1280.0, 720.0));
-                    let rect = view.rects.iter().find(|rect| rect.id == "recovery").unwrap().rect;
-                    pointer_pixels = egui::pos2(rect[0] + rect[2] / 2.0,
-                                               rect[1] + rect[3] / 2.0) * host_scale;
+                    assert_eq!(
+                        context.input(|input| input.content_rect().size()),
+                        egui::vec2(1280.0, 720.0)
+                    );
+                    let rect = view
+                        .rects
+                        .iter()
+                        .find(|rect| rect.id == "recovery")
+                        .unwrap()
+                        .rect;
+                    pointer_pixels =
+                        egui::pos2(rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0) * host_scale;
                 }
                 assert_eq!(view.inputs.len(), 1);
                 assert_eq!(view.inputs[0].control, "recovery");
@@ -702,17 +916,30 @@ mod layout_input_tests {
     #[test]
     fn persistent_dialog_drag_keeps_the_final_sample_across_delayed_acknowledgements() {
         let mut requests = VecDeque::new();
-        let input = |action, value| Input { control: "dialog".into(), revision: 7, action, value };
+        let input = |action, value| Input {
+            control: "dialog".into(),
+            revision: 7,
+            action,
+            value,
+        };
         for x in 0..300 {
-            enqueue_input(&mut requests, input("resize_dialog", json!([x, 60, 740, 500])));
+            enqueue_input(
+                &mut requests,
+                input("resize_dialog", json!([x, 60, 740, 500])),
+            );
         }
         enqueue_input(&mut requests, input("close_dialog", Value::Null));
         assert_eq!(requests.len(), 2);
         let state: State = serde_json::from_value(json!({"protocol": PROTOCOL,
             "session": "layout", "generation": 2,
             "root": {"id": "root", "kind": "column"},
-            "dialogs": [{"id": "dialog", "kind": "dialog", "revision": 8}]})).unwrap();
-        rebase_pending_inputs(&mut requests, &input("resize_dialog", json!([0, 60, 740, 500])), &state);
+            "dialogs": [{"id": "dialog", "kind": "dialog", "revision": 8}]}))
+        .unwrap();
+        rebase_pending_inputs(
+            &mut requests,
+            &input("resize_dialog", json!([0, 60, 740, 500])),
+            &state,
+        );
         let final_drag = requests.pop_front().unwrap();
         assert_eq!(final_drag.value, json!([299, 60, 740, 500]));
         assert_eq!(final_drag.revision, 8);

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-contract", "mesh-native", "mesh-unit", "rust-mesh-lab-unit", "rust-mesh-lab-gpu", "rust-mesh-lab-stress", "full")]
+    [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-contract", "mesh-native", "mesh-unit", "rust-mesh-lab-unit", "rust-mesh-lab-gpu", "rust-mesh-lab-stress", "journeys", "full")]
     [string]$Area = "smoke",
     [string]$GameRoot = "",
     [string]$PytestBaseTemp = ""
@@ -11,6 +11,15 @@ $VenvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 $Python = if (Test-Path -LiteralPath $VenvPython) { $VenvPython } else { "python" }
 
 $TestsByArea = @{
+    # End-to-end journeys, the P1 parity cases and the P0 budgets through the
+    # automation bridge. They read the installed game and take tens of minutes,
+    # so they run only when asked, like smoke. CDMW_JOURNEY_BASE_PROFILE names
+    # the profile whose settings file points at the game.
+    journeys = @(
+        "tests/journeys/test_journeys.py",
+        "tests/journeys/test_parity.py",
+        "tests/journeys/test_budgets.py"
+    )
     smoke = @(
         "tests/test_qt_test_cleanup.py",
         "tests/test_runtime_dependency_smoke.py",
@@ -274,6 +283,9 @@ if ($NeedsMeshCore) {
 $AreaMarkerArgs = @()
 if ($Area -eq "responsiveness") {
     $AreaMarkerArgs = @("-m", "not visual and not real_game")
+}
+if ($Area -eq "journeys") {
+    $AreaMarkerArgs = @("-m", "real_game", "-rs")
 }
 if ($Area -in @("smoke", "mesh-unit", "full")) {
     # PySide6 on Python 3.14 can terminate a very long-lived pytest interpreter

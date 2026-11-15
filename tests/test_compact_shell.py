@@ -597,7 +597,11 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     app.processEvents()
     assert workspace.drawer.isVisible()
     workspace.append_activity("Ready", tool_key="archive_browser")
-    QTest.qWait(60)
+    # The drawer renders on a 40 ms timer; after other test files the event loop can run it
+    # later than a fixed wait, so wait for the text with a deadline instead.
+    deadline = time.monotonic() + 3.0
+    while "Ready" not in workspace.drawer.activity_view.toPlainText() and time.monotonic() < deadline:
+        QTest.qWait(20)
     assert workspace.activity_history.events[-1].message == "Ready"
     assert "Ready" in workspace.drawer.activity_view.toPlainText()
     QTest.mouseClick(workspace.drawer.copy_button, Qt.LeftButton)
@@ -817,18 +821,13 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         assert window._tool_key_for_widget(window.translation_studio_tab) == "translation_studio"
         assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
 
-        window._activate_tool_key("mod_management")
-        assert window.mod_management_tab.widget_if_created() is None
-        assert not window.compact_workspace.rail.tool_buttons["mod_management"].isEnabled()
-        assert window._tool_key_for_widget(window._current_navigation_widget()) == "archive_browser"
-
-        window._activate_tool_key('mod_package_retrofit')
+        # Mod Management is enabled again since 225b8c4c (.cditem packages). Opening it, and the
+        # retired repackage route landing on it, are tests/test_mod_management_navigation.py's.
+        assert window.compact_workspace.rail.tool_buttons["mod_management"].isEnabled()
+        assert window.mod_management_tab.widget_if_created() is None  # nothing built before it is opened
         assert window.mod_package_retrofit_tab is window.mod_management_tab
         assert 'mod_package_retrofit' not in window._tool_widgets_by_key
-        window.settings.setValue('ui/active_tool_key', 'mod_package_retrofit')
-        window._restore_saved_navigation()
-        assert window._current_navigation_widget() is window.archive_browser_tab
-        assert window.mod_management_tab.widget_if_created() is None
+        assert window._tool_key_for_widget(window._current_navigation_widget()) == "archive_browser"
 
         window._activate_tool_key("format_explorer")
         deadline = time.monotonic() + 4.0

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Dict, Optional, Tuple
 
-import cv2
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.models import TextureEditorAdjustmentLayer, TextureEditorDocument, TextureEditorLayer
 
 
@@ -23,11 +23,11 @@ def _resize_array(
     if source.shape[1] == target_width and source.shape[0] == target_height:
         return np.ascontiguousarray(source.copy())
     if nearest:
-        interpolation = cv2.INTER_NEAREST
+        interpolation = "nearest"
     else:
         shrinking = target_width < source.shape[1] or target_height < source.shape[0]
-        interpolation = cv2.INTER_AREA if shrinking else cv2.INTER_LINEAR
-    resized = cv2.resize(source, (target_width, target_height), interpolation=interpolation)
+        interpolation = "area" if shrinking else "linear"
+    resized = image_ops.resize(source, target_width, target_height, interpolation)
     return np.ascontiguousarray(resized, dtype=np.uint8)
 
 def _channel_edit_flags(document: TextureEditorDocument) -> Tuple[bool, bool, bool, bool]:
@@ -210,14 +210,14 @@ def _apply_adjustment_to_rgba(
     rgb = source[..., :3]
     alpha = source[..., 3:4]
     if adj_type == "hue_saturation":
-        hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV).astype(np.float32)
+        hsv = image_ops.rgb_to_hsv(rgb).astype(np.float32)
         hue_shift = float(params.get("hue", 0.0))
         sat_shift = float(params.get("saturation", 0.0))
         light_shift = float(params.get("lightness", 0.0))
         hsv[..., 0] = np.mod(hsv[..., 0] + (hue_shift / 2.0), 180.0)
         hsv[..., 1] = np.clip(hsv[..., 1] * (1.0 + (sat_shift / 100.0)), 0.0, 255.0)
         hsv[..., 2] = np.clip(hsv[..., 2] * (1.0 + (light_shift / 100.0)), 0.0, 255.0)
-        adjusted_rgb = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+        adjusted_rgb = image_ops.hsv_to_rgb(hsv.astype(np.uint8))
     elif adj_type == "brightness_contrast":
         brightness = max(-1.0, min(1.0, float(params.get("brightness", 0.0)) / 100.0))
         contrast = max(-1.0, min(1.0, float(params.get("contrast", 0.0)) / 100.0))
@@ -248,13 +248,13 @@ def _apply_adjustment_to_rgba(
         vibrance = max(-100.0, min(100.0, float(params.get("vibrance", 0.0)))) / 100.0
         saturation = max(-100.0, min(100.0, float(params.get("saturation", 0.0)))) / 100.0
         lightness = max(-100.0, min(100.0, float(params.get("lightness", 0.0)))) / 100.0
-        hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV).astype(np.float32)
+        hsv = image_ops.rgb_to_hsv(rgb).astype(np.float32)
         sat_norm = hsv[..., 1] / 255.0
         vib_weight = np.where(vibrance >= 0.0, 1.0 - sat_norm, sat_norm)
         hsv[..., 1] = np.clip(hsv[..., 1] * (1.0 + (vibrance * vib_weight)), 0.0, 255.0)
         hsv[..., 1] = np.clip(hsv[..., 1] * (1.0 + saturation), 0.0, 255.0)
         hsv[..., 2] = np.clip(hsv[..., 2] * (1.0 + lightness), 0.0, 255.0)
-        adjusted_rgb = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+        adjusted_rgb = image_ops.hsv_to_rgb(hsv.astype(np.uint8))
     elif adj_type == "selective_color":
         target_range = str(params.get("target_range", "neutrals") or "neutrals")
         red_cyan = max(-100.0, min(100.0, float(params.get("red_cyan", 0.0))))
@@ -272,7 +272,7 @@ def _apply_adjustment_to_rgba(
             float(params.get("midtones", 0.0)),
             float(params.get("highlights", 0.0)),
         )
-        adjusted_rgb = cv2.LUT(rgb, lut)
+        adjusted_rgb = image_ops.apply_lut(rgb, lut)
     else:
         black = max(0.0, min(254.0, float(params.get("black", 0.0))))
         white = max(1.0, min(255.0, float(params.get("white", 255.0))))

@@ -21,6 +21,24 @@ restarts, but sends only the changed fields to a running renderer. Display
 changes therefore preserve the user's live camera and do not request a geometry
 refresh. Shared Mesh Editor hosts continue to use their tab's presentation owner.
 
+Preview Settings > Quality / Lighting exposes a **Lighting preset** selector,
+**Shadows** and **Ambient occlusion**. **Studio (fixed lights)** is the fourth preset;
+Neutral studio remains the default. Explicit session lighting (such as the New Item
+dark preview) overrides the saved preference.
+Both default on, persist with preview preferences, and send live display-quality updates
+without rebuilding model packages. Mesh Editor has independent session switches in
+Viewport, alongside its session lighting selector. These effects apply only to Textured and Game Outdoor modes. Icon mode
+requests a transparent capture background while keeping self-shadows.
+
+`preview/dotnet_host_prewarm.py` also owns one hidden spare Rust helper for the
+next dialog. Archive/builder prewarming prepares its immutable placeholder on
+the existing worker pool. Adoption requires an unused, ready process, matching
+executable identity and current valid provenance; the child window is reparented
+before ownership transfers. The dialog then owns shutdown. A spare never takes
+over a real edit session, and late preparation results cannot restart it after
+application shutdown. Only the waiting spare requests a retained GPU device;
+ordinary hidden previews retain their existing idle release policy.
+
 Preview and direct Mesh Editor protocol readers retain bytes until a complete
 line arrives, preserving UTF-8 across pipe reads. Complete message bursts are
 drained before enforcing the unfinished-buffer limit; individual lines remain

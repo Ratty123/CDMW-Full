@@ -19,7 +19,7 @@ from cdmw.ui.archive_browser.preview_state import (
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.models import ArchiveEntry, ArchivePreviewResult
 from cdmw.services.mesh_rust_preview_cache import (
-    validate_rust_preview_cache_package as validate_dotnet_preview_package,
+    validate_resident_rust_preview_package as validate_dotnet_preview_package,
 )
 from cdmw.workers.archive_preview_workers import _merge_timing_maps
 
@@ -34,6 +34,15 @@ class ArchivePreviewResultMixin:
         request_id: Optional[int] = None,
     ) -> float:
         if request_id is not None and request_id != self.archive_preview_request_id:
+            return 0.0
+        if getattr(self, "editing_in_place", False) is True and not str(
+            getattr(result, "dotnet_preview_package_path", "") or ""
+        ).strip():
+            # The edit holds Browse's view (section 8.7 F1): a texture, text or media
+            # file selected meanwhile is offered by the edit banner, not shown over it,
+            # and shown when the edit ends (8.8 R9).
+            self._edit_held_preview = (result, bool(use_loose), request_id)
+            self._edit_in_place_selection_changed()
             return 0.0
         selected_entry = self._current_archive_entry()
         self.archive_preview_showing_loose = use_loose and bool(result.loose_file_path)
@@ -103,6 +112,18 @@ class ArchivePreviewResultMixin:
         if (not self.archive_preview_showing_loose and preferred_view == "info"
                 and str(getattr(result, "quality_tier", "") or "").strip().lower() == "quick"
                 and self._archive_isolated_renderer_process_running()):
+            return 0.0
+
+        texture_path = str(getattr(result, "preview_texture_path", "") or "")
+        if preferred_view == "image" and texture_path and not self.archive_preview_showing_loose:
+            self._deactivate_archive_model_renderers_for_non_model_preview()
+            self.archive_texture_preview.load_path(texture_path)
+            self.archive_preview_stack.setCurrentWidget(self.archive_texture_preview)
+            self.archive_media_preview.clear_media("No media preview available.")
+            self.archive_preview_tabs.setCurrentIndex(0)
+            self._update_archive_model_action_controls(None)
+            self._set_archive_preview_image_controls_enabled(True)
+            self._apply_archive_preview_zoom()
             return 0.0
 
         if preferred_view == "image" and (preview_image is not None or preview_image_path):
@@ -300,6 +321,15 @@ class ArchivePreviewResultMixin:
         self._set_archive_preview_image_controls_enabled(False)
         return 0.0
 
+    def _show_preview_held_for_edit(self) -> None:
+        """Show the newest selection held while an edit had Browse's view (8.8 R9)."""
+
+        held = self.__dict__.pop("_edit_held_preview", None)
+        if held is None or getattr(self, "editing_in_place", False) is True:
+            return
+        result, use_loose, request_id = held
+        self._show_archive_preview_result(result, use_loose=use_loose, request_id=request_id)
+
     def _apply_archive_preview_health(self, result: ArchivePreviewResult, selected_entry: object) -> None:
         references = result.model_texture_references if not self.archive_preview_showing_loose else ()
         health_text = self._archive_preview_health_text(result, selected_entry, references)
@@ -446,7 +476,10 @@ class ArchivePreviewResultMixin:
             else:
                 entry = self._current_archive_entry()
                 if entry is not None:
-                    self._render_archive_preview(entry)
+                    bridge = getattr(self, "archive_remote_bridge", None)
+                    keep_set = getattr(bridge, "keep_item_set_preview", None)
+                    if not callable(keep_set) or not keep_set(entry):
+                        self._render_archive_preview(entry)
                 else:
                     self._show_archive_folder_preview(current)
             self._schedule_archive_selection_state_update()

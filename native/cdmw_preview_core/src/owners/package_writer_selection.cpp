@@ -56,6 +56,27 @@ static void select_package_batch_bindings(PackageWriteState& state, PackageBatch
     batch.detail = job_allows_texture_role(job, "detail")
         ? best_binding_for_role(state.bindings, mesh, "detail", &batch.detail_score, &state.package.rejected_texture_examples)
         : nullptr;
+    if (batch.base != nullptr && batch.base->material_wrapper_index >= 0) {
+        for (const TextureBinding& binding : state.bindings) {
+            if (binding.source_path.empty() || binding.source_authority != "exact_sidecar"
+                || binding.sidecar_path != batch.base->sidecar_path
+                || binding.owner_wrapper_item_id != batch.base->owner_wrapper_item_id
+                || binding.material_wrapper_index != batch.base->material_wrapper_index) continue;
+            // Explicit wrapper slots outrank a similarly named iris, mask or
+            // detail map. The wrapper was already resolved against this mesh.
+            const std::string parameter = normalized_key(binding.parameter_name);
+            if (parameter == "basecolortexture" && job_allows_texture_role(job, "base")) {
+                batch.base = &binding;
+                batch.base_score = material_match_score(binding, mesh, "base");
+            } else if (parameter == "normaltexture" && job_allows_texture_role(job, "normal")) {
+                batch.normal = &binding;
+                batch.normal_score = material_match_score(binding, mesh, "normal");
+            } else if (parameter == "materialtexture" && job_allows_texture_role(job, "material")) {
+                batch.material = &binding;
+                batch.material_score = material_match_score(binding, mesh, "material");
+            }
+        }
+    }
     batch.emissive = job_allows_texture_role(job, "emissive")
         ? best_binding_for_role(state.bindings, mesh, "emissive", &batch.emissive_score, &state.package.rejected_texture_examples)
         : nullptr;

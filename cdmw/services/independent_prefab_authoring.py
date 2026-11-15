@@ -112,7 +112,7 @@ def prepare_prefab_package(root, target_path, replacement, *, edited_from=None, 
         f'Replacement SHA-256: {row["replacement"]}',
         'The edited prefab decodes as completely as the game copy, and every file it newly points at exists '
         'in this game or is added by the package.',
-        'Add this package on the Mods page (or Apply changes again if it is already there). '
+        'Add this package on the Mods page and send it to DMM (again, if it is already there). '
         'Game behavior requires separate testing.',
     ), update)
     review.validate(stop_event)

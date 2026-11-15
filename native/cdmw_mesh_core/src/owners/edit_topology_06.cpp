@@ -435,11 +435,15 @@ void mesh_edit_compose_result_topology_provenance(
 ) {
     for (std::size_t position = 0; position < results.size() && position < result_items.size(); ++position) {
         SubmeshMeshEditResult& result = results[position];
-        if (!result.topology_changed || result.append_submesh) {
+        if (!result.topology_changed) {
             continue;
         }
         const MeshSessionSubmesh* session = mesh_session_submesh_for_item(*result_items[position]);
         if (session == nullptr) {
+            continue;
+        }
+        const bool item_set = session->extra_attrs.get("_cdmw_mesh_asset_id") != nullptr;
+        if (result.append_submesh && !item_set) {
             continue;
         }
         // Timed here, where the work actually happens. The commit pass only
@@ -452,7 +456,8 @@ void mesh_edit_compose_result_topology_provenance(
         result.topology_provenance_prepared = true;
         result.topology_original_vertex_count = session->topology_original_vertex_count;
         result.topology_original_face_count = session->topology_original_face_count;
-        if (!mesh_editor_is_rebuildable_topology_action(result.action)) {
+        if (!mesh_editor_is_rebuildable_topology_action(result.action)
+            && !(item_set && mesh_editor_is_item_set_partition(result.action))) {
             result.topology_rebuild_valid = false;
             result.topology_blocker = MESH_TOPOLOGY_BLOCKER_OPERATION_NOT_REBUILDABLE;
             record_elapsed();

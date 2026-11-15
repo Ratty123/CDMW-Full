@@ -1430,8 +1430,8 @@ The sidebar groups **Mod folder** and **Independent item package
 output action. Its
 settings scroll independently while the plan status and output actions stay visible.
 
-The experimental output writes a separate `.cdmw` file for the virtual profile
-under **Mod Management > Mods**. Physical overlay installation is disabled.
+The experimental output writes a separate `.cdmw` file that **Mod Management > Mods**
+sends to DMM. CDMW never installs into the game (decision 39).
 Choose **Build plan**, then **Write item package (.cdmw)**. **Update an existing
 item package** keeps the selected package's identity; writing a new package creates
 a separate item. CDMW assigns destination identities and
@@ -1467,21 +1467,6 @@ but neither imports nor constructs Create New Item's authoring workspace. Shared
 operations remain serialized; startup data preloading waits for an active
 operation to finish before it begins.
 
-### Installed overlay previews
-
-Installed overlays pairs its selectable inventory with an item preview on the right.
-Overlays containing multiple items expose an item selector. Folder, file-count and build
-details appear on hover to leave room for readable names. Preview work re-reads the
-installed overlay's index and metadata on the preview worker and can load current
-mounted sources without a Studio snapshot. An earlier snapshot or a preview cached
-before refresh/reopening cannot substitute the old template, geometry or materials.
-
-Changing selection cancels obsolete preview work; closing retains the worker and any
-reparented Rust viewport until shutdown finishes. Overlays without mounted item models
-show an empty state. Remove selected uses the selected inventory row and keeps its
-existing review, confirmation, backup and rollback flow; unmounted history points to
-Check game updates or Start fresh instead.
-
 ### Output layout and logs
 
 Output has three adjustable columns: **File changes / Details and warnings**,
@@ -1494,37 +1479,6 @@ Output and Current Tool Log use independent text layouts, keeping the final line
 fully visible at different pane sizes and after reopening. Older activity remains
 available through scrolling and paging; **Copy** includes every retained message.
 Progress and output actions stay visible beside the review.
-An overlay installation failure also opens a warning and keeps the reason visible
-on Output after the worker stops; the plan remains available for review or retry.
-
-### Stale overlay recovery
-
-The confirmed install automatically handles a stale previous set whose folder is no
-longer mounted: it prepares one retry using a fresh inventory and an unused folder,
-preserving the old overlay files and journals. The archived inventory and new install
-share one verified backup and rollback; a failed retry restores the previous inventory
-and metadata. The install confirmation explains this recovery, and the success report
-names the archived history. Mounted overlays, another mounted CDMW group, an explicitly
-chosen occupied folder, and unrelated failures remain blocked.
-
-The installer does not loop retries or overwrite the old folder. If the saved texture
-registry or overlay files changed, **Installed overlays > Check game updates...**
-compares the recorded set with the current game before recovery. Refreshing the archive
-list or rebuilding a plan does not repair that state. Saved overlays whose folder is
-absent from the game's mount list show **Not mounted**, even though their files and
-installation dates remain in history.
-
-For an unmounted set you no longer want to use, **Start fresh...** reviews all its
-labels and the exact game folder, then requires confirmation. It verifies a backup of
-`.cdmw/overlays.json` and archives that inventory under `.cdmw/retired-overlays/`. The
-old overlay folder and journals remain on disk; current game archives, the mount list
-and the texture registry are unchanged. Rebuild the item plan and use **Auto** to
-install into a fresh inventory and an unused folder. Mounted overlays still use normal
-removal.
-
-Starting fresh refuses changed inputs, a running game, missing recovery data, or another
-mounted CDMW group. A failed retirement restores its inventory backup; comparison and
-preparing the confirmation are read-only.
 
 ## Perks and Effects workspace
 

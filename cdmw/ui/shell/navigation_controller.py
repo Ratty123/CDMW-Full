@@ -276,6 +276,18 @@ class NavigationControllerMixin:
         widget = self._tool_widgets_by_key.get("mod_management" if key == "mod_package_retrofit" else key)
         if widget is not None and not widget.isEnabled():
             return
+        if key == "mesh_editor" and self._move_browse_edit_to_mesh_workspace():
+            return
+        if key != "mesh_editor":
+            # Browse's page stops being the Mesh workspace (P15 step 5a); Browse's own
+            # key gives it back as a place to browse, the edit still in its view.
+            archive = getattr(self, "archive", None)
+            leave = getattr(archive, "leave_mesh_workspace_view", None)
+            if callable(leave):
+                leave()
+            browse = getattr(archive, "show_edit_for_browsing", None)
+            if key == "archive_browser" and getattr(self, "classic_navigation", None) is None and callable(browse):
+                browse()
         if key == 'mod_package_retrofit':
             widget = self._tool_widgets_by_key.get('mod_management')
             if widget is not None:
@@ -294,6 +306,57 @@ class NavigationControllerMixin:
         widget = self._tool_widgets_by_key.get(key)
         if widget is not None:
             self._activate_tool_widget(widget)
+
+    def _move_browse_edit_to_mesh_workspace(self) -> bool:
+        """Switching to the Mesh Editor while an edit is in Browse's view (P15 step 5a).
+
+        Browse's page stays on screen as the Mesh workspace: the same window, in its
+        edit layout, with the Mesh Editor's document tabs above it. Nothing moves,
+        reloads or uploads, and the rail shows the Mesh Editor. The legacy shell
+        keeps a page per tool, so there the edit moves to the tab as before
+        (Promote to tab, P15 step 1). True when the Mesh workspace is shown.
+        """
+
+        if getattr(self, "_moving_edit_to_mesh_workspace", False):
+            return False
+        archive = getattr(self, "archive", None)
+        if not getattr(archive, "editing_in_place", False):
+            return False
+        self._moving_edit_to_mesh_workspace = True
+        try:
+            if getattr(self, "classic_navigation", None) is not None:
+                promote = getattr(archive, "_promote_edit_to_tab", None)
+                if not callable(promote):
+                    return False
+                promote()
+                return True
+            show = getattr(archive, "show_edit_as_mesh_workspace", None)
+            if not callable(show) or not show(self._show_mesh_document_from_browse):
+                return False
+            if self._current_navigation_widget() is not self.archive_browser_tab:
+                self._activate_tool_widget(self.archive_browser_tab)
+            from cdmw.ui.shell.compact.workspace import sync_compact_workspace_selection
+
+            sync_compact_workspace_selection(self, "mesh_editor")
+            recorder = getattr(self, "_record_runtime_event", None)
+            if callable(recorder):
+                recorder("mesh_workspace_in_browse", shown=True)
+        finally:
+            self._moving_edit_to_mesh_workspace = False
+        return True
+
+    def _show_mesh_document_from_browse(self, index: int) -> None:
+        """A document tab chosen above Browse's edit: the Mesh Editor page shows it,
+        unless it is the edit Browse already shows."""
+
+        archive = getattr(self, "archive", None)
+        view = archive._mesh_documents_view() if archive is not None else None
+        documents = tuple(getattr(view, "documents", ()) or ())
+        if not 0 <= index < len(documents) or documents[index] is archive._browse_edit_document():
+            return
+        archive.leave_mesh_workspace_view()
+        self._activate_tool_widget(self.mesh_editor_tab)
+        view.set_active(index)
 
     def _activate_tool_widget(self, widget: QWidget) -> None:
         if not widget.isEnabled():
@@ -395,9 +458,19 @@ class NavigationControllerMixin:
             and current_key in self._detachable_tool_order
             and current_widget is current_navigation_widget
         )
-        self.detach_current_tab_action.setEnabled(current_is_docked_tool)
-        self.attach_current_tool_action.setEnabled(bool(current_key and current_key in self._detached_tool_windows))
-        self.attach_all_tools_action.setEnabled(bool(self._detached_tool_windows))
+        self._window_menu_state = (
+            current_is_docked_tool,
+            bool(current_key and current_key in self._detached_tool_windows),
+            bool(self._detached_tool_windows),
+        )
+        registry = getattr(self, "command_registry", None)
+        if registry is not None:
+            from cdmw.ui.shell.shell_commands import SHELL
+            registry.refresh(SHELL)  # the Window menu's entries are views of shell commands
+        else:  # before the commands are installed
+            for action, enabled in zip((self.detach_current_tab_action, self.attach_current_tool_action,
+                                        self.attach_all_tools_action), self._window_menu_state):
+                action.setEnabled(enabled)
 
 
 __all__ = ["NavigationControllerMixin"]

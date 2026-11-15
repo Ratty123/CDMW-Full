@@ -319,7 +319,8 @@ mod work {
                 } else {
                     working_bytes(&job.material, resources, &cache)?
                 };
-                if !ready.is_empty() && bytes.saturating_add(estimate) > MAX_RESIZED_MATERIAL_BYTES {
+                if !ready.is_empty() && bytes.saturating_add(estimate) > MAX_RESIZED_MATERIAL_BYTES
+                {
                     break;
                 }
                 bytes = bytes.saturating_add(estimate);
@@ -353,10 +354,13 @@ mod work {
                         let handle = std::thread::Builder::new()
                             .name("cdmw-material".into())
                             .spawn_scoped(scope, move || {
-                                let result =
-                                    prepare(&job.material, presentations, resources, cache, &|| {
-                                        stop.load(Ordering::Relaxed)
-                                    });
+                                let result = prepare(
+                                    &job.material,
+                                    presentations,
+                                    resources,
+                                    cache,
+                                    &|| stop.load(Ordering::Relaxed),
+                                );
                                 if result.is_err() {
                                     stop.store(true, Ordering::Relaxed);
                                 }
@@ -777,7 +781,6 @@ mod work {
     }
 }
 
-
 const MAX_DECODED_SOURCE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_SOURCE_DECODER_WORKERS: usize = 4;
 const MAX_RESIZED_MATERIAL_BYTES: u64 = 512 * 1024 * 1024;
@@ -790,6 +793,8 @@ pub(crate) struct PreviewCoreMaterialCompositionMetrics {
     pub decoded_source_bytes: u64,
     pub decoded_rgba8_bytes: u64,
     pub decoded_source_sha256: Vec<String>,
+    pub validated_source_sha256: Vec<String>,
+    pub gpu_layer_material_count: u64,
 }
 
 impl PreviewCoreMaterialCompositionMetrics {
@@ -999,6 +1004,32 @@ impl ImageCache {
             })
     }
 
+    fn transformed(
+        &mut self,
+        reference: &FileReference,
+        width: u32,
+        height: u32,
+        layer: &PreviewCoreMaterialLayer,
+    ) -> Result<ImagePixels, SessionError> {
+        let affine = layer.sampling_transform();
+        if affine == [1.0, 0.0, 0.0, 1.0, 0.0, 0.0] {
+            return self.resized(reference, width, height);
+        }
+        let bytes = u64::from(width) * u64::from(height) * 4;
+        if self.resized_bytes.saturating_add(bytes) > MAX_RESIZED_MATERIAL_BYTES {
+            return Err(SessionError::InvalidPayload(
+                "Transformed material sources exceed the 512 MiB limit".into(),
+            ));
+        }
+        let pixels = sample_affine_repeat(self.image(reference)?, width, height, affine)?;
+        // This buffer is transient for one layer; retained cache bytes are unchanged.
+        Ok(ImagePixels(Arc::new(DecodedRgba8 {
+            width,
+            height,
+            pixels,
+        })))
+    }
+
     fn resized(
         &mut self,
         reference: &FileReference,
@@ -1046,6 +1077,64 @@ impl ImageCache {
     }
 }
 
+fn sample_affine_repeat(
+    image: &DecodedRgba8,
+    width: u32,
+    height: u32,
+    a: [f32; 6],
+) -> Result<Vec<u8>, SessionError> {
+    let mut result = vec![0; checked_pixel_count(width, height)?.saturating_mul(4)];
+    for y in 0..height {
+        for x in 0..width {
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+            let sx = (a[0] * u + a[2] * v + a[4]).rem_euclid(1.0) * image.width as f32 - 0.5;
+            let sy = (a[1] * u + a[3] * v + a[5]).rem_euclid(1.0) * image.height as f32 - 0.5;
+            let ix = sx.floor() as i64;
+            let iy = sy.floor() as i64;
+            let tx = sx - sx.floor();
+            let ty = sy - sy.floor();
+            let at = |dx: i64, dy: i64, c: usize| {
+                let x = (ix + dx).rem_euclid(i64::from(image.width)) as usize;
+                let y = (iy + dy).rem_euclid(i64::from(image.height)) as usize;
+                f32::from(image.pixels[(y * image.width as usize + x) * 4 + c])
+            };
+            for c in 0..4 {
+                result[((y * width + x) * 4) as usize + c] = mix(
+                    mix(at(0, 0, c), at(1, 0, c), tx),
+                    mix(at(0, 1, c), at(1, 1, c), tx),
+                    ty,
+                )
+                .round()
+                .clamp(0.0, 255.0)
+                    as u8;
+            }
+        }
+    }
+    Ok(result)
+}
+
+#[test]
+fn affine_resampling_wraps_offsets_and_rotation() {
+    let image = DecodedRgba8 {
+        width: 2,
+        height: 1,
+        pixels: vec![255, 0, 0, 255, 0, 0, 255, 255],
+    };
+    assert_eq!(
+        sample_affine_repeat(&image, 1, 1, [0.0, 0.0, 0.0, 0.0, 0.25, 0.5]).unwrap(),
+        [255, 0, 0, 255]
+    );
+    assert_eq!(
+        sample_affine_repeat(&image, 1, 1, [0.0, 1.0, -1.0, 0.0, 0.25, -0.5]).unwrap(),
+        [0, 0, 255, 255]
+    );
+    assert_eq!(
+        sample_affine_repeat(&image, 1, 1, [0.0, 0.0, 0.0, 0.0, -0.25, 0.5]).unwrap(),
+        [0, 0, 255, 255]
+    );
+}
+
 #[cfg(test)]
 pub(crate) fn compose_preview_core_material_resources<F>(
     graph: &PreviewCoreMaterialGraph,
@@ -1079,7 +1168,12 @@ where
     F: FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
 {
     work::compose(
-        graph, presentations, document, resources, &mut read_reference, cancelled,
+        graph,
+        presentations,
+        document,
+        resources,
+        &mut read_reference,
+        cancelled,
     )
 }
 
@@ -1090,17 +1184,27 @@ fn apply_authored_channel(
     role: TextureRole,
     channel: usize,
 ) -> Result<(), SessionError> {
-    let sources: Vec<_> = resources.iter().filter(|resource| {
-        resource.role == role && resource.material_indices_by_lod
-            .get(material.lod_index as usize)
-            .is_some_and(|owners| owners.contains(&material.material_index))
-    }).collect();
+    let sources: Vec<_> = resources
+        .iter()
+        .filter(|resource| {
+            resource.role == role
+                && resource
+                    .material_indices_by_lod
+                    .get(material.lod_index as usize)
+                    .is_some_and(|owners| owners.contains(&material.material_index))
+        })
+        .collect();
     if sources.len() != 1 {
-        return Err(SessionError::InvalidPayload("Painted material channel requires one owned source texture".to_owned()));
+        return Err(SessionError::InvalidPayload(
+            "Painted material channel requires one owned source texture".to_owned(),
+        ));
     }
     let authored = decode_dds_rgba8(&sources[0].bytes, role)
         .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
-    let (width, height) = (composed.width.max(authored.width), composed.height.max(authored.height));
+    let (width, height) = (
+        composed.width.max(authored.width),
+        composed.height.max(authored.height),
+    );
     checked_pixel_count(width, height)?;
     let mut pixels = resize_rgba8(composed, width, height)?;
     let authored = resize_rgba8(&authored, width, height)?;
@@ -1118,14 +1222,24 @@ fn map_needs_composition(
     resources: &[CdmwTextureResource],
     map: LayerMap,
 ) -> bool {
-    if !material.layers.iter().any(|layer| map.reference(layer).is_some()) {
+    if !material
+        .layers
+        .iter()
+        .any(|layer| map.reference(layer).is_some())
+    {
         return false;
     }
     match map {
         LayerMap::Diffuse => {
-            material.layers.iter().skip(1)
+            material
+                .layers
+                .iter()
+                .skip(1)
                 .any(|layer| layer.layer_role == "color_seed" || layer.diffuse.is_some())
-                || !material.layers.first().and_then(|layer| layer.diffuse.as_ref())
+                || !material
+                    .layers
+                    .first()
+                    .and_then(|layer| layer.diffuse.as_ref())
                     .is_some_and(|reference| {
                         resource_matches(resources, TextureRole::BaseColor, material, reference)
                     })
@@ -1136,7 +1250,11 @@ fn map_needs_composition(
                 LayerMap::Normal => TextureRole::Normal,
                 _ => TextureRole::Height,
             };
-            material.layers.iter().skip(1).any(|layer| map.reference(layer).is_some())
+            material
+                .layers
+                .iter()
+                .skip(1)
+                .any(|layer| map.reference(layer).is_some())
                 || !resource_owns(resources, role, material.lod_index, material.material_index)
         }
     }
@@ -1150,6 +1268,11 @@ fn compose_base_color(
     if !map_needs_composition(material, resources, LayerMap::Diffuse) {
         // Preserve authored compression, full resolution and mip filtering.
         return Ok(None);
+    }
+    if is_gpu_layer_shaped(material) {
+        // The same RGB-layer rule as material_layers.wgsl, so a material looks
+        // the same whether the GPU path or this fallback composes it.
+        return compose_rgb_layer_base_color(material, cache);
     }
     let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
         return Ok(None);
@@ -1198,7 +1321,7 @@ fn compose_base_color(
         let Some(reference) = layer.diffuse.as_ref() else {
             continue;
         };
-        let overlay = cache.resized(reference, width, height)?;
+        let overlay = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1226,7 +1349,14 @@ fn compose_base_color(
                 unit(overlay[offset + 1]),
                 unit(overlay[offset + 2]),
             ];
-            let output = if layer.layer_role == "detail" && tint_active {
+            let output = if layer.layer_role == "overlay"
+                && layer.shader_family.eq_ignore_ascii_case("SkinnedMeshEye")
+                && matches!(
+                    layer.source_parameter.as_str(),
+                    "_irisDiffuseTexture" | "_pupilTexture"
+                ) {
+                std::array::from_fn(|k| mix_srgb_in_linear(base[k], source[k], coverage))
+            } else if layer.layer_role == "detail" && tint_active {
                 let luma =
                     (0.299 * source[0] + 0.587 * source[1] + 0.114 * source[2]).clamp(0.0, 1.0);
                 let modulation = 0.82 + 0.36 * luma;
@@ -1268,6 +1398,210 @@ fn compose_base_color(
             target[offset + 1] = unit_byte(output[1]);
             target[offset + 2] = unit_byte(output[2]);
         }
+    }
+    Ok(Some(DecodedRgba8 {
+        width,
+        height,
+        pixels: target,
+    }))
+}
+
+/// True when the material has the RGB-layer shape the GPU layer path draws
+/// (source detail layers selected by one blend mask; never eyes or grime).
+pub(crate) fn is_gpu_layer_shaped(material: &PreviewCoreMaterial) -> bool {
+    !material
+        .layers
+        .first()
+        .is_some_and(|base| base.shader_family.eq_ignore_ascii_case("SkinnedMeshEye"))
+        && crate::preview_gpu_layers::eligible(material)
+}
+
+fn srgb_to_linear(value: f32) -> f32 {
+    if value <= 0.04045 {
+        value / 12.92
+    } else {
+        ((value + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn linear_to_srgb(value: f32) -> f32 {
+    let value = value.clamp(0.0, 1.0);
+    if value <= 0.003_130_8 {
+        value * 12.92
+    } else {
+        1.055 * value.powf(1.0 / 2.4) - 0.055
+    }
+}
+
+/// Alpha-weighted mean linear luminance, the quantity the GPU path takes from
+/// the map's <=64 px mip. Here it comes from the full decoded map.
+fn mean_linear_luminance(image: &DecodedRgba8) -> f32 {
+    let mut luminance = 0.0_f64;
+    let mut alpha = 0.0_f64;
+    for pixel in image.pixels.chunks_exact(4) {
+        let weight = f64::from(pixel[3]) / 255.0;
+        luminance += f64::from(
+            0.2126 * srgb_to_linear(unit(pixel[0]))
+                + 0.7152 * srgb_to_linear(unit(pixel[1]))
+                + 0.0722 * srgb_to_linear(unit(pixel[2])),
+        ) * weight;
+        alpha += weight;
+    }
+    if alpha > 0.0 {
+        (luminance / alpha) as f32
+    } else {
+        1.0
+    }
+}
+
+/// `layer_dye` in material_layers.wgsl, on linear colour.
+fn rgb_layer_dye(color: [f32; 3], dye: [f32; 4], mean: f32, opacity: f32) -> [f32; 3] {
+    let luminance = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2];
+    let amount = (dye[3] * opacity).clamp(0.0, 1.0);
+    std::array::from_fn(|k| {
+        mix(
+            color[k],
+            (dye[k] * luminance / mean.max(0.0001)).clamp(0.0, 1.0),
+            amount,
+        )
+    })
+}
+
+struct RgbLayerChannel {
+    pixels: Option<ImagePixels>,
+    dye: [f32; 4],
+    opacity: f32,
+    mean: f32,
+    flags: u32,
+    seed: [f32; 4],
+}
+
+fn linear_pixel(pixels: &[u8], offset: usize) -> [f32; 3] {
+    std::array::from_fn(|c| srgb_to_linear(unit(pixels[offset + c])))
+}
+
+/// CPU form of the GPU RGB-layer colour (`evaluate_material_layers`, modes 1
+/// and 2). A missing base map is white beneath the layers, as on the GPU.
+fn compose_rgb_layer_base_color(
+    material: &PreviewCoreMaterial,
+    cache: &mut ImageCache,
+) -> Result<Option<DecodedRgba8>, SessionError> {
+    let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
+        return Ok(None);
+    };
+    let pixel_count = checked_pixel_count(width, height)?;
+    let overlay = material
+        .layers
+        .iter()
+        .skip(1)
+        .any(|layer| layer.mask_parameter != "_colorBlendingMaskTexture");
+    let base_layer = &material.layers[0];
+    let base_mean = match base_layer.diffuse.as_ref() {
+        Some(reference) => mean_linear_luminance(cache.image(reference)?),
+        None => 1.0,
+    };
+    let base = base_layer
+        .diffuse
+        .as_ref()
+        .map(|reference| cache.resized(reference, width, height))
+        .transpose()?;
+    let mut mask = None;
+    let mut channels: [RgbLayerChannel; 3] = std::array::from_fn(|_| RgbLayerChannel {
+        pixels: None,
+        dye: [0.0; 4],
+        opacity: 0.0,
+        mean: 1.0,
+        flags: 15,
+        seed: [0.0; 4],
+    });
+    for layer in material.layers.iter().skip(1) {
+        let k = channel_index(&layer.mask_channel).min(2);
+        if mask.is_none()
+            && let Some(reference) = layer.mask.as_ref()
+        {
+            mask = Some(cache.resized(reference, width, height)?);
+        }
+        let dye = [
+            srgb_to_linear(layer.tint[0]),
+            srgb_to_linear(layer.tint[1]),
+            srgb_to_linear(layer.tint[2]),
+            layer.tint[3],
+        ];
+        if layer.layer_role == "color_seed" {
+            channels[k].seed = [dye[0], dye[1], dye[2], dye[3] * layer.weight];
+            continue;
+        }
+        let Some(reference) = layer.diffuse.as_ref() else {
+            continue;
+        };
+        channels[k].mean = mean_linear_luminance(cache.image(reference)?);
+        channels[k].pixels = Some(cache.transformed(reference, width, height, layer)?);
+        channels[k].dye = dye;
+        channels[k].opacity = layer.blend_opacity.unwrap_or(layer.weight);
+        channels[k].flags = layer.blend_flags.unwrap_or(15);
+    }
+    let tint = material.base_color;
+    let mut target = Vec::with_capacity(pixel_count.saturating_mul(4));
+    for pixel in 0..pixel_count {
+        let offset = pixel * 4;
+        let (base_rgb, alpha) = match base.as_deref() {
+            Some(pixels) => (linear_pixel(pixels, offset), pixels[offset + 3]),
+            None => ([1.0_f32; 3], 255),
+        };
+        let mut weights: [f32; 3] = match mask.as_deref() {
+            Some(pixels) => std::array::from_fn(|k| unit(pixels[offset + k])),
+            None => [1.0, 0.0, 0.0],
+        };
+        let color = if overlay {
+            let mut color: [f32; 3] = std::array::from_fn(|k| base_rgb[k] * tint[k]);
+            for (k, channel) in channels.iter().enumerate() {
+                let Some(pixels) = channel.pixels.as_deref() else {
+                    continue;
+                };
+                let weight = (weights[k] * channel.opacity).clamp(0.0, 1.0);
+                if channel.flags & 1 != 0 {
+                    let dyed =
+                        rgb_layer_dye(linear_pixel(pixels, offset), channel.dye, channel.mean, 1.0);
+                    color = std::array::from_fn(|c| mix(color[c], dyed[c] * tint[c], weight));
+                } else {
+                    let dyed = rgb_layer_dye(color, channel.dye, base_mean, 1.0);
+                    color = std::array::from_fn(|c| mix(color[c], dyed[c], weight));
+                }
+            }
+            color
+        } else {
+            let sum = weights[0] + weights[1] + weights[2];
+            weights = if sum < 0.00001 {
+                [1.0, 0.0, 0.0]
+            } else {
+                weights.map(|value| value / sum)
+            };
+            let mut color = [0.0_f32; 3];
+            for (k, channel) in channels.iter().enumerate() {
+                let c = if let Some(pixels) = channel.pixels.as_deref() {
+                    rgb_layer_dye(
+                        linear_pixel(pixels, offset),
+                        channel.dye,
+                        channel.mean,
+                        channel.opacity,
+                    )
+                } else if channel.seed[3] > 0.0 {
+                    rgb_layer_dye(base_rgb, channel.seed, base_mean, 1.0)
+                } else {
+                    base_rgb
+                };
+                for (sum, value) in color.iter_mut().zip(c) {
+                    *sum += value * weights[k];
+                }
+            }
+            std::array::from_fn(|k| color[k] * tint[k])
+        };
+        target.extend_from_slice(&[
+            unit_byte(linear_to_srgb(color[0])),
+            unit_byte(linear_to_srgb(color[1])),
+            unit_byte(linear_to_srgb(color[2])),
+            alpha,
+        ]);
     }
     Ok(Some(DecodedRgba8 {
         width,
@@ -1448,7 +1782,7 @@ fn compose_material_response(
         let Some(reference) = layer.material.as_ref() else {
             continue;
         };
-        let source = cache.resized(reference, width, height)?;
+        let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1588,7 +1922,7 @@ fn compose_normal(
         let Some(reference) = layer.normal.as_ref() else {
             continue;
         };
-        let source = cache.resized(reference, width, height)?;
+        let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1653,7 +1987,7 @@ fn compose_height(
         let Some(reference) = layer.height.as_ref() else {
             continue;
         };
-        let source = cache.resized(reference, width, height)?;
+        let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1831,6 +2165,22 @@ fn unit_byte(value: f32) -> u8 {
 
 fn mix(left: f32, right: f32, amount: f32) -> f32 {
     left * (1.0 - amount) + right * amount
+}
+
+fn mix_srgb_in_linear(left: f32, right: f32, amount: f32) -> f32 {
+    let linear = |v: f32| {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let value = mix(linear(left), linear(right), amount);
+    if value <= 0.0031308 {
+        value * 12.92
+    } else {
+        1.055 * value.powf(1.0 / 2.4) - 0.055
+    }
 }
 
 fn resource_matches(
@@ -2094,6 +2444,9 @@ mod tests {
             specular_hint: 0.0,
             height_scale_hint: 0.0,
             tint: [1.0; 4],
+            uv_transform: None,
+            blend_flags: None,
+            blend_opacity: None,
             diffuse_declared: false,
             diffuse_archive_path: String::new(),
             diffuse: None,
@@ -2220,14 +2573,16 @@ mod tests {
             assert_eq!(actual.height, expected.height);
             assert_eq!(actual.pixels, expected.pixels);
         }
-        assert!(ImageCache::preload(&graph, &required, |reference| {
-            if reference.sha256 == *files.keys().nth(4).unwrap() {
-                Err(SessionError::InvalidPayload("cancelled source read".into()))
-            } else {
-                Ok(files[&reference.sha256].clone())
-            }
-        })
-        .is_err());
+        assert!(
+            ImageCache::preload(&graph, &required, |reference| {
+                if reference.sha256 == *files.keys().nth(4).unwrap() {
+                    Err(SessionError::InvalidPayload("cancelled source read".into()))
+                } else {
+                    Ok(files[&reference.sha256].clone())
+                }
+            })
+            .is_err()
+        );
         assert!(
             matches!(ImageCache::preload(&graph, &required, |reference| {
             let mut bytes = files[&reference.sha256].clone();
@@ -2451,18 +2806,31 @@ mod tests {
 
     #[test]
     fn authored_channels_survive_full_graph_composition_without_changing_other_owners() {
-        let source = encode_rgba8_mipmapped_dds(2, 2, &[32, 90, 170, 220].repeat(4), TextureRole::Material).unwrap();
+        let source =
+            encode_rgba8_mipmapped_dds(2, 2, &[32, 90, 170, 220].repeat(4), TextureRole::Material)
+                .unwrap();
         let original = reference(0, &source);
         let mut base = layer("base", "r");
         base.diffuse = Some(original.clone());
         base.material = Some(original);
         let mut graph = PreviewCoreMaterialGraph {
-            schema_version: 1, graph_version: 4, semantics_version: 10,
-            quality: "full".to_owned(), resources_included: true, source_edge_count: 2,
-            unique_resource_count: 1, copied_resource_count: 0, unique_resource_bytes: source.len() as u64,
+            schema_version: 1,
+            graph_version: 4,
+            semantics_version: 10,
+            quality: "full".to_owned(),
+            resources_included: true,
+            source_edge_count: 2,
+            unique_resource_count: 1,
+            copied_resource_count: 0,
+            unique_resource_bytes: source.len() as u64,
             materials: vec![PreviewCoreMaterial {
-                lod_index: 0, material_index: 0, material_slot_index: 0,
-                material_name: "test".to_owned(), base_color: [1.0; 3], layers: vec![base], authoring_channels: 0,
+                lod_index: 0,
+                material_index: 0,
+                material_slot_index: 0,
+                material_name: "test".to_owned(),
+                base_color: [1.0; 3],
+                layers: vec![base],
+                authoring_channels: 0,
             }],
         };
         let painted_pixels = [201, 1, 2, 17, 3, 1, 2, 239].repeat(4);
@@ -2470,31 +2838,76 @@ mod tests {
         for role in [TextureRole::BaseColor, TextureRole::Material] {
             let bytes = encode_rgba8_mipmapped_dds(4, 2, &painted_pixels, role).unwrap();
             inputs.push(CdmwTextureResource {
-                label: "owned paint".to_owned(), role, metadata: inspect_dds(&bytes, role).unwrap(),
-                bytes, material_indices_by_lod: vec![vec![0, 1]],
+                label: "owned paint".to_owned(),
+                role,
+                metadata: inspect_dds(&bytes, role).unwrap(),
+                bytes,
+                material_indices_by_lod: vec![vec![0, 1]],
             });
         }
         let mut baseline = inputs.clone();
-        compose_preview_core_material_resources(&graph, &[], &document(), &mut baseline, |_| Ok(source.clone())).unwrap();
+        compose_preview_core_material_resources(&graph, &[], &document(), &mut baseline, |_| {
+            Ok(source.clone())
+        })
+        .unwrap();
         graph.materials[0].authoring_channels = 3;
         let mut painted = inputs.clone();
-        compose_preview_core_material_resources(&graph, &[], &document(), &mut painted, |_| Ok(source.clone())).unwrap();
+        compose_preview_core_material_resources(&graph, &[], &document(), &mut painted, |_| {
+            Ok(source.clone())
+        })
+        .unwrap();
         for (role, channel) in [(TextureRole::BaseColor, 3), (TextureRole::Material, 0)] {
             let owned = |resources: &[CdmwTextureResource]| {
-                let resource = resources.iter().find(|row| row.role == role && row.material_indices_by_lod[0].contains(&0)).unwrap();
+                let resource = resources
+                    .iter()
+                    .find(|row| row.role == role && row.material_indices_by_lod[0].contains(&0))
+                    .unwrap();
                 decode_dds_rgba8(&resource.bytes, role).unwrap()
             };
             let actual = owned(&painted);
             assert_eq!((actual.width, actual.height), (4, 2));
             let expected = resize_rgba8(&owned(&baseline), 4, 2).unwrap();
-            for ((pixel, composed), authored) in actual.pixels.chunks_exact(4).zip(expected.chunks_exact(4)).zip(painted_pixels.chunks_exact(4)) {
-                for lane in 0..4 { assert_eq!(pixel[lane], if lane == channel { authored[lane] } else { composed[lane] }); }
+            for ((pixel, composed), authored) in actual
+                .pixels
+                .chunks_exact(4)
+                .zip(expected.chunks_exact(4))
+                .zip(painted_pixels.chunks_exact(4))
+            {
+                for lane in 0..4 {
+                    assert_eq!(
+                        pixel[lane],
+                        if lane == channel {
+                            authored[lane]
+                        } else {
+                            composed[lane]
+                        }
+                    );
+                }
             }
-            let untouched = painted.iter().find(|row| row.role == role && row.material_indices_by_lod[0] == vec![1]).unwrap();
-            assert_eq!(untouched.bytes, inputs.iter().find(|row| row.role == role).unwrap().bytes);
+            let untouched = painted
+                .iter()
+                .find(|row| row.role == role && row.material_indices_by_lod[0] == vec![1])
+                .unwrap();
+            assert_eq!(
+                untouched.bytes,
+                inputs.iter().find(|row| row.role == role).unwrap().bytes
+            );
         }
-        let mut image = DecodedRgba8 { width: 1, height: 1, pixels: vec![255; 4] };
-        assert!(apply_authored_channel(&mut image, &[], &graph.materials[0], TextureRole::Material, 0).is_err());
+        let mut image = DecodedRgba8 {
+            width: 1,
+            height: 1,
+            pixels: vec![255; 4],
+        };
+        assert!(
+            apply_authored_channel(
+                &mut image,
+                &[],
+                &graph.materials[0],
+                TextureRole::Material,
+                0
+            )
+            .is_err()
+        );
     }
 
     #[test]

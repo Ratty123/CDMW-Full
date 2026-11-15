@@ -21,6 +21,28 @@ restarting the renderer or resetting its camera. Character appearance overrides
 are read-only presentation clones and are acknowledged in the package report;
 they never rewrite the selected PAC or its linked PABC/PAMT sources.
 
+Heads include the facial PACs explicitly declared by their same-stem prefab.
+Their eyes and teeth use the selected head's authored skeleton variation;
+short bone palettes require exact skeleton hash matches and equally sized
+conflicting palettes are refused. Other prefab components remain opt-in.
+SkinnedMeshEye composes the declared sclera, iris and pupil maps in alpha order.
+Declared texture slots outrank inferred siblings, including channels that share
+a normal map but use different colour and response maps. Same-wrapper
+`_materialTexture` owns surface response ahead of blend selectors. Source textures
+receive a neutral colour multiplier; missing colour keeps the grey placeholder.
+Support maps may cross wrapper order only for an exactly shared material family.
+BlendHeight
+uses the Standard detail-layer contract; this does not claim true displacement
+or game rendering parity.
+
+Conservation retains every declared parameter, including an unavailable RGB
+emission map superseded by a resolved, exact same-wrapper emissive-intensity map.
+Such a row remains unresolved and is explicitly marked
+`transported_inactive_rgb_emission`; `inactive_unavailable_texture_count` reports
+this subset of `unresolved_texture_count`. Only these inactive missing sources
+may coexist with `conserved: true`. Missing active inputs and foreign-owner
+substitutions still fail conservation. No replacement DDS is generated.
+
 ## Windows paths and ownership
 
 Windows file access uses absolute extended-length Unicode paths, including UNC
@@ -80,7 +102,7 @@ leave the serialized index and material/texture resolution contract unchanged.
 For layered Crimson materials, `_colorBlendingMaskTexture` remains a colour-layer
 selector rather than a PBR map. Preview packages publish three `color_seed` rows from
 the PAC's `_tintColorR/G/B` values; the resident compiler reconstructs those masked
-regions before grime/detail overlays, preserves the source fabric's local luminance, and
+regions before detail overlays, preserves the source fabric's local luminance, and
 suppresses the older global-tint approximation. When several logical items share one
 physical PAC, the ordered item prefab supplies `_modelPropertyIndex` per model and the
 native material reader scopes each `.pac_xml` to that exact `ModelProperty` block; the
@@ -94,10 +116,28 @@ Exact ordered PAC wrappers keep their own parameter tables when several parts
 reuse a detail-mask DDS or material name. Shared texture resources do not merge
 different wrappers' dyes and layers into each part's material graph.
 
+Native packages declare material graph version 5 and preserve each component's
+raw Byte4 dye transforms in the conservation parameter table. The Python
+transport joins by component scope, wrapper owner and wrapper index and emits a
+six-float `uv_transform` for RGB detail and grime layers. Missing transforms use
+identity; authored zero scales remain authored values. The Rust loader accepts
+legacy graph-v4 packages without the field and rejects non-finite, oversized or
+inconsistently versioned transforms.
+
+The renderer samples eligible graph-v5 layers directly from owned compressed
+DDS mips. The three detail-channel bound, exact wrapper ownership, channel flags, authored
+opacity and UV affine are validated before GPU admission. Unsupported graphs
+retain CPU composition. Grime is conserved but omitted from normal previews.
+Unchanged source materials can also use this graph in authoring packages;
+Preview Core remains read-only and never becomes the edit authority.
+
 Exact PAC detail and grime colour layers keep their authored channel opacity instead
 of the conservative accent cap or texture-resolution attenuation. Property blending
 does not reduce colour opacity. `self-test-materials` runs the focused ownership and
 material contracts, including layered garments, without the archive/path self-tests.
+An exact `_colorBlendingMaskTexture` also selects detail regions when it names a
+constant mask such as `Temp_r`; inferred channel labels must not displace that
+parameter with a generic `_detailMaskTexture`.
 
 ## Implementation owners
 

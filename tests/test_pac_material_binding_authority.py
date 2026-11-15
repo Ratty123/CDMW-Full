@@ -1094,7 +1094,10 @@ def test_sword_0014_blade_keeps_gold_layer_graph_without_using_texturelayer_as_a
     assert parameters["_dyeingDetailLayerColorMaskR"]["disposition"] == "baked"
 
 
-def test_sword_0014_tint_and_scratch_layers_do_not_become_selector_base_dyes() -> None:
+def test_sword_0014_tint_and_scratch_layers_do_not_become_selector_base_dyes(monkeypatch) -> None:
+    # Grime is off by default on every preview path; this pins how grime
+    # layers combine when the shared switch turns them back on.
+    monkeypatch.setenv("CDMW_PREVIEW_DRAW_GRIME", "1")
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
 

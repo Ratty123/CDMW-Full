@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import os
 import re
 from pathlib import PurePosixPath
 from typing import Optional, Sequence, Tuple
@@ -976,6 +977,10 @@ def _looks_like_visible_base(input_item: PreviewMaterialTextureInput) -> bool:
     return not _looks_like_technical_base(input_item)
 
 
+def _preview_grime_enabled() -> bool:
+    return os.environ.get("CDMW_PREVIEW_DRAW_GRIME", "") == "1"
+
+
 def _select_visible_layer_inputs(
     inputs: Sequence[PreviewMaterialTextureInput],
     *,
@@ -992,6 +997,10 @@ def _select_visible_layer_inputs(
         # Emissive and intensity maps are additive shader inputs. Treating one
         # as albedo turns its scalar mask into the full surface color.
         if _visible_layer_role(item) == "emissive":
+            continue
+        # Grime is off by default on every preview path (the Rust routes read
+        # the same switch), so a synthesised albedo matches Browse Archives.
+        if _visible_layer_role(item) == "grime" and not _preview_grime_enabled():
             continue
         current_key = (
             str(getattr(item, "preview_texture_path", "") or "").strip().lower(),

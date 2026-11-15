@@ -1,183 +1,33 @@
-"""Archive mesh direct patch and preview helpers."""
+"""Archive mesh import preview and review helpers.
+
+CDMW never writes into the game's archives; a replacement is always built as a mod.
+"""
 
 from __future__ import annotations
 
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Optional
 
 from PySide6.QtGui import QImageReader
-from PySide6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtWidgets import QMessageBox
 
-from cdmw.services.archive_mutation_service import ArchivePatchRequest
-from cdmw.domain.archives.mesh_contracts import (
-    MeshImportPreviewResult,
-    MeshImportSupplementalFileSpec,
-)
+from cdmw.domain.archives.mesh_contracts import MeshImportPreviewResult
 from cdmw.services.preview_workflow_service import FinalPackagePreviewResult
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ImportIssueStatus
 from cdmw.services.preview_rendering_service import prepare_model_preview
 
 
 class ArchiveMeshDirectPatchMixin:
-    """Direct archive mesh patch confirmation and preview helpers."""
-    def _mesh_direct_patch_spec_is_generated(
-        self,
-        spec: MeshImportSupplementalFileSpec,
-        ) -> bool:
-        kind = str(getattr(spec, "kind", "") or "").strip().casefold()
-        return kind in {"sidecar_generated", "texture_generated", "item_icon_generated"}
-
-    def _mesh_direct_patch_spec_payload(
-        self,
-        spec: MeshImportSupplementalFileSpec,
-        ) -> Tuple[Optional[bytes], str]:
-        payload_data = bytes(getattr(spec, "payload_data", b"") or b"")
-        if payload_data:
-            return payload_data, ""
-        source_path = getattr(spec, "source_path", None)
-        if not isinstance(source_path, Path):
-            return None, "no payload data or source file"
-        try:
-            resolved_source = source_path.expanduser().resolve()
-        except Exception:
-            resolved_source = source_path
-        if not resolved_source.is_file():
-            return None, f"source file is not readable: {resolved_source}"
-        try:
-            return resolved_source.read_bytes(), ""
-        except Exception as exc:
-            return None, f"could not read {resolved_source}: {exc}"
-
-    def _build_mesh_direct_patch_requests(
-        self,
-        primary_entry: ArchiveEntry,
-        preview_result: MeshImportPreviewResult,
-        *,
-        paired_entry: Optional[ArchiveEntry] = None,
-        supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
-        include_geometry: bool = True,
-        ) -> Tuple[List[ArchivePatchRequest], List[str]]:
-        request_by_normalized_path: Dict[str, ArchivePatchRequest] = {}
-        warnings: List[str] = []
-
-        def _add_request(entry: ArchiveEntry, payload_data: bytes, label: str) -> None:
-            if not payload_data:
-                warnings.append(f"Skipping {label}: empty payload.")
-                return
-            target_key = str(entry.path or "").replace("\\", "/").strip().casefold()
-            if not target_key:
-                warnings.append(f"Skipping {label}: target path is empty.")
-                return
-            request_by_normalized_path[target_key] = ArchivePatchRequest(
-                entry=entry,
-                payload_data=payload_data,
-            )
-
-        # An operation that writes no geometry does not write the mesh entry at
-        # all. Patching a rebuilt payload that happens to match would leave the
-        # guarantee resting on the writer reproducing the original byte for
-        # byte; not writing it is the guarantee.
-        if include_geometry:
-            _add_request(primary_entry, preview_result.rebuilt_data, primary_entry.path)
-            if paired_entry is not None and preview_result.paired_lod_data is not None:
-                _add_request(paired_entry, preview_result.paired_lod_data, paired_entry.path)
-
-        for spec in supplemental_specs:
-            if not isinstance(spec, MeshImportSupplementalFileSpec):
-                continue
-            if not self._mesh_direct_patch_spec_is_generated(spec):
-                continue
-            target_entry = getattr(spec, "target_entry", None)
-            target_path = str(getattr(spec, "target_path", "") or "").strip()
-            if not isinstance(target_entry, ArchiveEntry):
-                warnings.append(
-                    "Skipping generated supplemental patch target without an existing archive entry: "
-                    f"{target_path or getattr(spec, 'source_path', '')}"
-                )
-                continue
-            payload_data, reason = self._mesh_direct_patch_spec_payload(spec)
-            if payload_data is None:
-                warnings.append(
-                    f"Skipping generated supplemental patch target {target_entry.path}: {reason}"
-                )
-                continue
-            _add_request(target_entry, payload_data, target_entry.path)
-
-        return list(request_by_normalized_path.values()), warnings
-
-    def _mesh_direct_patch_target_paths(
-        self,
-        primary_entry: ArchiveEntry,
-        preview_result: MeshImportPreviewResult,
-        *,
-        paired_entry: Optional[ArchiveEntry] = None,
-        supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
-        ) -> Tuple[str, ...]:
-        paths: List[str] = []
-
-        def _add_path(raw_path: object) -> None:
-            path = str(raw_path or "").replace("\\", "/").strip()
-            if path and path.casefold() not in {existing.casefold() for existing in paths}:
-                paths.append(path)
-
-        _add_path(primary_entry.path)
-        if paired_entry is not None and preview_result.paired_lod_data is not None:
-            _add_path(paired_entry.path)
-        for spec in supplemental_specs:
-            if not isinstance(spec, MeshImportSupplementalFileSpec):
-                continue
-            if not self._mesh_direct_patch_spec_is_generated(spec):
-                continue
-            target_entry = getattr(spec, "target_entry", None)
-            if isinstance(target_entry, ArchiveEntry):
-                _add_path(target_entry.path)
-        return tuple(paths)
-
-    def _confirm_mesh_direct_archive_patch(
-        self,
-        target_paths: Sequence[str],
-        *,
-        parent: Optional[QWidget] = None,
-        ) -> bool:
-        compact_paths = [str(path or "").strip() for path in target_paths if str(path or "").strip()]
-        shown_targets = "\n".join(f"- {path}" for path in compact_paths[:8])
-        if len(compact_paths) > 8:
-            shown_targets += f"\n- ... {len(compact_paths) - 8:,} more target(s)"
-        prompt_parent = parent if parent is not None else self
-        prompt = QMessageBox(prompt_parent)
-        prompt.setIcon(QMessageBox.Warning)
-        prompt.setWindowTitle("Patch Game Files")
-        prompt.setText("Patch game archive files directly?")
-        prompt.setInformativeText(
-            "This modifies the installed game archive package files. Close the game and any mod manager before continuing.\n\n"
-            "A backup of the touched PAPGT/PAMT/PAZ files will be created first and can be restored from Archive Patch Backups.\n\n"
-            f"Targets:\n{shown_targets or '- none'}"
-        )
-        backup_root = self.shell.app_context.services.require_archive_mutations().backup_root
-        prompt.setDetailedText(
-            "Archive entries that will be patched:\n"
-            + "\n".join(compact_paths)
-            + f"\n\nBackup root:\n{backup_root}"
-        )
-        prompt.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        prompt.setDefaultButton(QMessageBox.No)
-        yes_button = prompt.button(QMessageBox.Yes)
-        if yes_button is not None:
-            yes_button.setText("Patch Game Files")
-        no_button = prompt.button(QMessageBox.No)
-        if no_button is not None:
-            no_button.setText("Cancel")
-        return prompt.exec() == QMessageBox.Yes
+    """Mesh import preview and review helpers."""
 
     def _show_archive_import_preview(
         self,
         entry: ArchiveEntry,
         import_result: MeshImportPreviewResult,
         *,
-        patched: bool,
-        backup_dir: Optional[Path] = None,
+        patched: bool = False,
         loose_package_root: Optional[Path] = None,
         final_preview: Optional[FinalPackagePreviewResult] = None,
         ) -> None:
@@ -195,11 +45,7 @@ class ArchiveMeshDirectPatchMixin:
                 detail_lines.append("Final output warnings:")
                 detail_lines.extend(f"- {warning}" for warning in final_preview.warnings[:12])
             if final_preview.preflight_errors:
-                detail_lines.append(
-                    "Final output preflight warnings:"
-                    if patched
-                    else "Final output preflight blockers:"
-                )
+                detail_lines.append("Final output preflight blockers:")
                 detail_lines.extend(f"- {blocker}" for blocker in final_preview.preflight_errors[:12])
             if final_preview.missing_texture_paths:
                 detail_lines.append("Missing final texture path examples:")
@@ -216,23 +62,12 @@ class ArchiveMeshDirectPatchMixin:
                 extra_diff_count = max(0, len(tuple(getattr(issue, "diffs", ()) or ())) - 3)
                 if extra_diff_count > 0:
                     detail_lines.append(f"  * ... {extra_diff_count:,} more difference(s)")
-        if patched and backup_dir is not None:
-            detail_lines.append(f"Backup: {backup_dir}")
-        if not patched and loose_package_root is not None:
+        # ``patched`` stays for its callers; nothing is patched into the game any more.
+        if loose_package_root is not None:
             detail_lines.append(f"Loose export: {loose_package_root}")
         warning_badge = ""
         warning_text = ""
-        if patched:
-            warning_badge = "Patched archive"
-            warning_text = "This rebuilt mesh has been patched directly into the scanned game archives."
-            if backup_dir is not None:
-                warning_text += f"\n\nBackup: {backup_dir}"
-            if isinstance(final_preview, FinalPackagePreviewResult) and final_preview.preflight_errors:
-                first_warning = str(final_preview.preflight_errors[0] or "").strip()
-                if len(first_warning) > 320:
-                    first_warning = first_warning[:317].rstrip() + "..."
-                warning_text += f"\n\nMaterial preflight warning: {first_warning}"
-        elif loose_package_root is not None:
+        if loose_package_root is not None:
             warning_badge = "Loose export"
             if isinstance(final_preview, FinalPackagePreviewResult):
                 warning_text = (
@@ -246,7 +81,7 @@ class ArchiveMeshDirectPatchMixin:
                     warning_text += f"\n\nFinal output warning: {first_warning}"
             else:
                 warning_text = f"This rebuilt mesh has been written to the mod-ready package at {loose_package_root}."
-        elif not patched:
+        else:
             warning_badge = "Import preview"
             warning_text = "This rebuilt mesh preview has not been written back to the game archives yet."
         runtime_target_warning = next(
@@ -288,7 +123,7 @@ class ArchiveMeshDirectPatchMixin:
         entry: ArchiveEntry,
         import_result: MeshImportPreviewResult,
         *,
-        destination: str,
+        destination: str = "loose",
         source_obj_path: Path,
         ) -> bool:
         issues = tuple(import_result.import_issues or ())
@@ -341,9 +176,7 @@ class ArchiveMeshDirectPatchMixin:
         prompt.setDefaultButton(QMessageBox.No)
         yes_button = prompt.button(QMessageBox.Yes)
         if yes_button is not None:
-            yes_button.setText(
-                "Patch Anyway" if destination == "patch" else "Export Anyway"
-            )
+            yes_button.setText("Export Anyway")
         no_button = prompt.button(QMessageBox.No)
         if no_button is not None:
             no_button.setText("Cancel")

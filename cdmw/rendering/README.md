@@ -1,5 +1,10 @@
 # Rendering
 
+Head previews include declared facial components and apply the head's authored
+shape to their presentation geometry. Eye iris/pupil maps compose in linear
+colour on the GPU, with an equivalent bounded CPU fallback. These are preview
+changes; source PAC data and export authority remain unchanged.
+
 Owns native preview packaging, Rust host integration, material combiner rules,
 preview payloads, texture source resolution, capture helpers, and rendering
 fidelity checks.
@@ -21,7 +26,33 @@ than a second renderer. Historical `d3d11_*`, `dotnet_*`, and
 
 ## Material preparation
 
-Texture preparation composes independent materials on up to four CPU workers.
+PAC detail-layer sampling rules live in `cdmw.domain.material_layer_uv`. The
+Python compositor preserves its existing pixel arithmetic, while graph-v5
+packages carry the corresponding six-float affine to Rust. Transforms are scoped
+to the exact component and material wrapper; old graph-v4 packages retain
+identity sampling when the optional field is absent.
+
+Full preview packages bind up to three RGB detail channels sharing a mask,
+plus colour seeds, directly on the GPU. Authored DDS mips stay compressed; dye uses linear
+luminance measured from a mip no larger than 64 pixels. The shader applies the
+affine, blends normals and reads layer occlusion, roughness and metal directly.
+Colour seeds can supply channels without a detail layer. Technical detail masks
+use sequential overlays with authored channel flags and opacity, preserving base
+colour when only normals are enabled. An absent dye has zero strength; an
+explicit white dye remains white. Older packages lacking these sequential controls
+keep their CPU route until regenerated. Unsupported graphs or
+adapters retain CPU composition, including repeat-wrapped affine sampling.
+Grime remains in the conserved graph but is hidden on both preview routes;
+`CDMW_PREVIEW_DRAW_GRIME=1` restores it for internal comparisons.
+
+Verified, unchanged source materials in Mesh Editor and Create New Item's
+ParsedMesh preview carry the same graph and owned DDS resources as Browse.
+Geometry edits retain eligible bindings; imported or changed materials retain
+the authoring compositor, painted-channel rules and existing export semantics.
+View-only editor references keep their baked materials. Source identity, part
+ownership and texture budgets are checked before a graph enters the package.
+
+Fallback texture preparation composes independent materials on up to four CPU workers.
 The Rust compositor decodes independent source DDS files on up to four workers,
 after the owning reader validates their bytes and admits their decoded sizes
 within the existing 512 MiB source-image limit. Workers finish before composition
@@ -40,7 +71,9 @@ preserves LOD/part ownership, and encodes in source order against one shared
 128 MiB fast-preview budget. Cancellation wakes budget waiters and joins the
 owned workers before temporary files can be removed. The current scene is
 replaced only through the existing completed-package handoff. These changes
-affect 3D material preparation; 2D DDS image previews retain their PNG cache.
+affect 3D material preparation. Browse Archives and the Textures replacement
+preview use the dedicated GPU DDS viewer; unsupported textures and unavailable
+helpers retain the PNG cache. The Texture Editor canvas is unchanged.
 
 Building a preview or Mesh Editor package copies independent geometry batches and
 unique texture files on at most four workers per stage, including the first load

@@ -178,7 +178,8 @@ static const char* repeated_bc7_failure() {
 bool texture_codec_self_test(std::string& failed_component) {
     if (win32_file_path(L"C:\\cache\\.\\maps\\..\\base.dds") != L"\\\\?\\C:\\cache\\base.dds" ||
         win32_file_path(L"\\\\server\\share\\base.dds") != L"\\\\?\\UNC\\server\\share\\base.dds" ||
-        win32_file_path(L"\\\\?\\C:\\cache\\base.dds") != L"\\\\?\\C:\\cache\\base.dds") {
+        win32_file_path(L"\\\\?\\C:\\cache\\base.dds") != L"\\\\?\\C:\\cache\\base.dds" ||
+        win32_file_path(L"//?/C:/cache/base.dds") != L"\\\\?\\C:\\cache\\base.dds") {
         failed_component = "win32_file_paths";
         return false;
     }

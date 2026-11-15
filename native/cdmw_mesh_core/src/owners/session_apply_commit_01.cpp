@@ -158,6 +158,15 @@ void mesh_editor_append_apply_submeshes(
             result.material_metadata_changed = true;
         }
         mesh_editor_reset_appended_source_descriptor(result.extra_attrs);
+        const auto asset = result.extra_attrs.object_value.find("_cdmw_mesh_asset_id");
+        if (asset != result.extra_attrs.object_value.end()
+            && asset->second.type == JsonValue::Type::String) {
+            // A split/paste inherits its immutable origin, but is a distinct
+            // live part. Store this in native history along with the geometry.
+            result.extra_attrs.object_value["_cdmw_mesh_asset_part_id"] = mesh_editor_json_string(
+                asset->second.string_value + ":" + state.editor_session_id + ":"
+                + std::to_string(session.edit_revision + 1) + ":" + std::to_string(appended_index));
+        }
         native_session[appended_index] = mesh_editor_submesh_from_result(result);
     }
 }

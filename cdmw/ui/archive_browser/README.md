@@ -1,5 +1,20 @@
 # Archive Browser
 
+DDS image previews use the shared GPU texture viewer, uploading compressed mip
+payloads directly without a PNG conversion. Choose RGB, R, G, B or A, a mip level,
+or **Reconstruct normal Z** for two-channel normal maps. Single channels retain raw
+values without sRGB conversion; signed formats map -1 to black and +1 to white.
+The existing zoom, Fit and 100% buttons work with the viewer; drag to pan. An
+unavailable helper or unsupported texture falls back to the existing PNG preview,
+with GPU-only channel/mip controls disabled. Loading and fallback run outside the
+Qt thread; hiding, closing or replacing the preview cancels its owned process.
+
+Model previews expose **Shadows** and **Ambient occlusion**, initially on in
+Textured and Game Outdoor, plus **Studio (fixed lights)** beside the unchanged
+default lighting. Supported native material layers retain their tiled detail,
+dyes and metal; unsupported graphs use bounded composition. Grime is conserved
+but omitted from normal previews. Preview results do not establish game shading.
+
 ## Skinned decal sequence copies
 
 Right-click a `.paseq` and choose **Edit Skinned Decal...**. The editor changes
@@ -277,6 +292,37 @@ categories, search and category filters, the result page, selected item, scroll
 positions and pane widths. Closing while the initial results are loading keeps
 the saved browsing position. Older two-pane layouts gain the category pane
 without adding a new layout setting.
+
+### Worn-set preview
+
+Item Finder's **Show Exact Links**, **Show Related Set** and double-click resolve every
+scoped PAC before selecting a preview primary, independent of the current page.
+The upper-body file wins; otherwise the largest model wins. `dropitem` paths are
+excluded unless the scope contains just that model. Related Set retains its wider
+file scope. The details pane lists up to 32 model filenames and prefab stems.
+
+The primary and up to 32 other worn models share a bounded dependency request.
+Dependencies are gathered for each source before preparation; incomplete,
+cross-session or oversized results are refused. Explicit pieces take precedence
+over optional prefab suggestions in Preview Core. Geometry and material-sidecar
+lookup share the 32-component limit, with existing preview resource budgets.
+
+**Set components** groups the resident parts by source file. Per-file and per-part
+checkboxes, **Show all** and **Isolate** change helper visibility without rebuilding
+the package. The **Parts** menu uses the same state; visibility survives texture
+promotion by source path and local part identity. Selecting another scoped file
+highlights its parts while keeping the set on screen. File actions retain the
+selected row's own identity and prepared bytes. **Preview only this file** leaves
+set mode and reloads that file alone. Clearing/changing the scope restores any
+previous manual component selection. Cancellation, workspace destruction and
+shutdown reject late set-discovery replies.
+
+**Open set in Mesh Editor**, in Set components or the file menu, captures every
+worn file's own dependencies and opens one editable set. The editor groups parts
+by source file, with independent View and Include controls. Its exact output keeps
+each changed piece in its original PAC; topology edits and paste cannot cross file
+owners. Files that exceed the editor's session limits remain named, reduced-detail
+references. **Open in Mesh Editor** retains the selected-file editing workflow.
 
 ## Scanner failures and recovery
 
@@ -828,8 +874,13 @@ of these values are unverified.
 ## Read-only boundary and exports
 
 Browsing, preview, scan, extraction, and package preparation are read-only.
-Actions that can write route through service-owned confirmation and
-`ArchiveMutationService`; this UI package never patches PAMT/PAZ directly.
+Nothing in this package writes into the game's archives: mesh, audio and texture
+replacements are written as mods. The one game write left is **Restore Backup...**
+([actions](patch_actions.py)), which puts back the files an older CDMW version
+patched, from the backup it made then, through `ArchiveMutationService.restore_backup`
+after a confirmation. The direct "Patch Game Files" route was removed (2026-11-12);
+`tests/test_no_game_archive_writes.py` fails if a route that writes into the game
+comes back.
 
 **Actions > Extract Selected / Extract Filtered** exports original files of any
 type, including mixed extensions. Both commands also appear in a file's right-click

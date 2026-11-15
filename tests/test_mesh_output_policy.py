@@ -7,6 +7,7 @@ import os
 import threading
 
 import pytest
+from tests.owned_settings import owned_settings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -470,7 +471,7 @@ def test_exact_validator_remains_authoritative_after_explicit_free_edit_switch(
 def _settings(name: str):
     from PySide6.QtCore import QSettings
 
-    settings = QSettings("CDMWTests", name)
+    settings = owned_settings(name)
     settings.clear()
     return settings
 

@@ -38,12 +38,36 @@ _PAYLOAD_LIST = "payloads.json"
 
 
 def _history_root() -> Path:
+    """Where records are filed: the CDMW folder's workspace (`cdmw.app.app_folder`)."""
+
+    from cdmw.app.app_folder import workspace_folder
+
+    return workspace_folder() / "mod_export_history"
+
+
+def _legacy_history_root() -> Path:
+    """Where CDMW filed records before they moved into the CDMW folder.
+
+    Read so earlier exports keep their history; never written, moved or deleted.
+    """
+
     local = os.environ.get("LOCALAPPDATA", "").strip()
     return (Path(local) if local else Path.home() / ".local" / "share") / APP_NAME / "mod_export_history"
 
 
+def _history_roots() -> tuple[Path, ...]:
+    """The folders records are read from, the current one first."""
+
+    current, legacy = _history_root(), _legacy_history_root()
+    return (current,) if legacy == current else (current, legacy)
+
+
+def _existing(key: str) -> Path | None:
+    return next((root / key for root in _history_roots() if (root / key).is_dir()), None)
+
+
 def _package_history_directory(root: Path, *, stop_event=None, legacy: bool = False) -> Path | None:
-    return _records_directory(_package_records(root, stop_event=stop_event, legacy=legacy))
+    return _filed_records_directory(_package_records(root, stop_event=stop_event, legacy=legacy))
 
 
 def _package_records(root: Path, *, stop_event=None, legacy: bool = False) -> list[tuple[str, str]]:
@@ -66,11 +90,22 @@ def _package_records(root: Path, *, stop_event=None, legacy: bool = False) -> li
     return records
 
 
+def _records_key(records) -> str:
+    return hashlib.sha256(json.dumps(sorted(records), separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
 def _records_directory(records) -> Path | None:
+    """Where these payloads' records are filed now (the current folder)."""
+
     if not records:
         return None
-    key = hashlib.sha256(json.dumps(sorted(records), separators=(",", ":")).encode("utf-8")).hexdigest()
-    return _history_root() / key
+    return _history_root() / _records_key(records)
+
+
+def _filed_records_directory(records) -> Path | None:
+    """The folder holding these payloads' records, current or earlier, if any."""
+
+    return _existing(_records_key(records)) if records else None
 
 
 def archive_history_directory(path: Path, *, stop_event=None) -> Path | None:
@@ -104,8 +139,8 @@ def archive_history_directory(path: Path, *, stop_event=None) -> Path | None:
                                 hasher.update(chunk)
                         hashes[name] = hasher.hexdigest()
                     records.append((relative, hashes[name]))
-                directory = _records_directory(records)
-                if directory is not None and directory.is_dir():
+                directory = _filed_records_directory(records)
+                if directory is not None:
                     return directory
     return None
 
@@ -115,7 +150,7 @@ def mod_metadata_path(root: Path, name: str, *, stop_event=None) -> Path:
     if name not in _AUTHORING_FILES:
         raise ValueError(f"Not a CDMW history file: {name}")
     inline = Path(root) / name
-    if inline.exists() or inline.is_symlink() or not _history_root().is_dir():
+    if inline.exists() or inline.is_symlink() or not any(folder.is_dir() for folder in _history_roots()):
         return inline
     for legacy in (False, True):
         directory = _package_history_directory(root, stop_event=stop_event, legacy=legacy)
@@ -136,7 +171,8 @@ def _covering_history_directory(root: Path, name: str, *, stop_event=None) -> Pa
     if not current:
         return None
     best: tuple[int, float, Path] | None = None
-    for directory in _history_root().iterdir():
+    folders = [folder for folder in _history_roots() if folder.is_dir()]
+    for directory in (entry for folder in folders for entry in folder.iterdir()):
         raise_if_cancelled(stop_event, "Mod history lookup cancelled.")
         listing = directory / _PAYLOAD_LIST
         if directory.name.startswith(".") or not (directory / name).is_file() or not listing.is_file():
@@ -177,13 +213,16 @@ def file_mod_history(root: Path, records, *, stop_event=None) -> Path | None:
     if destination is None:
         return None
     destination = destination.resolve()
-    if _history_root().resolve().is_relative_to(root) or root.is_relative_to(_history_root().resolve()):
-        raise ValueError("The mod export must be outside CDMW's local history folder.")
+    for folder in _history_roots():
+        if folder.resolve().is_relative_to(root) or root.is_relative_to(folder.resolve()):
+            raise ValueError("The mod export must be outside CDMW's local history folder.")
+    # Records filed earlier for these bytes, in the earlier folder too, are kept.
+    filed = _filed_records_directory(payloads)
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".history-", dir=destination.parent)).resolve()
     try:
-        if destination.is_dir():
-            for kept in destination.iterdir():
+        if filed is not None and filed.is_dir():
+            for kept in filed.iterdir():
                 if kept.is_file() and kept.name in _AUTHORING_FILES and kept.name not in records:
                     shutil.copyfile(kept, staging / kept.name)
         for name, source in records.items():

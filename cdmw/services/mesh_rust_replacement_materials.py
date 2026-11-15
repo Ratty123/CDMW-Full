@@ -175,6 +175,7 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
                     # Keep its unchanged surface/layer policy, but read the
                     # replacement shader's glow from its new parameter vector.
                     overrides = copy.deepcopy(getattr(part, "preview_native_material_overrides", {}) or {})
+                    overrides.pop("preview_core_material_source", None)
                     for key in tuple(overrides):
                         if key.startswith(("emissive_", "emission_")) or key in {"glow_surface_color", "material_shader_family"}:
                             overrides.pop(key)
@@ -226,6 +227,46 @@ def retain_replacement_material_textures(authoring, original, prepared, textures
     return [*result, *kept]
 
 
+def _bake_edited_native_layers(authoring, mesh, payload, owners, stop_event):
+    """Material controls consume the same composed maps as before GPU layers."""
+    from cdmw.services.mesh_rust_authoring import (
+        _mesh_lods, _mesh_texture_payloads, _mesh_material_presentations, _RustMaterialSynthesisState,
+    )
+
+    graph = payload.get("preview_core_material_graph")
+    if not graph:
+        return
+    owners = owners.intersection((row["lod_index"], row["material_index"]) for row in graph["materials"])
+    if not owners:
+        return
+    local = copy.copy(mesh)
+    ordered = sorted(owners)
+    levels = _mesh_lods(mesh)
+    local.submeshes = [copy.copy(levels[lod][index]) for lod, index in ordered]
+    local.lod_levels = [local.submeshes]
+    for part in local.submeshes:
+        part.preview_native_material_overrides = dict(part.preview_native_material_overrides)
+        part.preview_native_material_overrides.pop("preview_core_material_source", None)
+    synthesis = _RustMaterialSynthesisState()
+    added = _mesh_texture_payloads(authoring.root, local, expected_root_identity=authoring.root_identity,
+                                   stop_event=stop_event, synthesis_state=synthesis)
+    if synthesis.diagnostics:
+        raise ValueError("Edited source material preview could not be compiled: " + str(synthesis.diagnostics[0]))
+    presentations = {(row["lod_index"], row["material_index"]): row for row in payload["material_presentations"]}
+    for row in _mesh_material_presentations(local, generated_overrides=synthesis.presentation_overrides):
+        lod, index = ordered[row["material_index"]]
+        if (lod, index) in presentations:
+            presentations[(lod, index)].update(row, lod_index=lod, material_index=index)
+    for row in payload["textures"]:
+        row["material_indices_by_lod"] = [[index for index in indices if (lod, index) not in owners]
+                                          for lod, indices in enumerate(row["material_indices_by_lod"])]
+    for row in added:
+        targets = [ordered[index] for index in row["material_indices_by_lod"][0]]
+        row["material_indices_by_lod"] = [[index for level, index in targets if level == lod] for lod in range(len(levels))]
+    payload["textures"] = [row for row in payload["textures"] if any(row["material_indices_by_lod"])] + added
+    graph["materials"] = [row for row in graph["materials"] if (row["lod_index"], row["material_index"]) not in owners]
+
+
 def stage_replacement_materials(authoring, mesh, state, stop_event=None):
     from cdmw.services.mesh_rust_authoring import (
         _atomic_write_payload, _mesh_texture_payloads, _mesh_lods,
@@ -245,6 +286,9 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
         bindings = material_binding_names(state)
         names = {material_binding_name(mesh.submeshes[index], bindings): value
                  for index, value in rules.items()}
+        _bake_edited_native_layers(authoring, mesh, payload,
+            {(lod, index) for lod, level in enumerate(_mesh_lods(mesh)) for index, part in enumerate(level)
+             if (rules.get(index) if lod == 0 else names.get(material_binding_name(part, bindings))) is not None}, stop_event)
         for lod_index, level in enumerate(_mesh_lods(mesh)):
             for index, part in enumerate(level):
                 value = rules.get(index) if lod_index == 0 else names.get(material_binding_name(part, bindings))
@@ -296,7 +340,11 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
         authoring.archive_refit_material_cache[key] = {
             "key": key, "textures": [*textures, *added],
             "material_presentations": presentations, "reason": "",
+            "material_contract": copy.deepcopy(retained.get("material_contract", {})),
+            "preview_core_material_graph": copy.deepcopy(retained.get("preview_core_material_graph")),
         }
+        if graph := authoring.archive_refit_material_cache[key]["preview_core_material_graph"]:
+            graph["materials"] = [row for row in graph["materials"] if row["lod_index"] != 0 or row["material_index"] not in selected]
     for cache_key in ("base", key):
         if cache_key in authoring.archive_refit_material_references:
             continue

@@ -466,6 +466,13 @@ static std::string prefab_component_path_key(std::string path) {
     return lower_copy(path);
 }
 
+static bool head_prefab_components_are_required(const EntryJob& job) {
+    // A head PAC contains the skin and tear shell. Its declared eyes/teeth are
+    // part of the assembled head, rather than optional equipment attachments.
+    return job.extension == ".pac"
+        && prefab_component_path_key(job.path).find("/head/head/") != std::string::npos;
+}
+
 static bool prefab_component_enabled_for_job(
     const ArchiveEntryRef& component,
     const EntryJob& job
@@ -477,6 +484,24 @@ static bool prefab_component_enabled_for_job(
         [&](const std::string& enabled_path) {
             return prefab_component_path_key(enabled_path) == component_key;
         });
+}
+
+// A model's own companions (a weapon's sheath) follow the components its prefab
+// lists and take no slot of theirs: the limit is for the prefab's guess (P5).
+static std::vector<ArchiveEntryRef> with_companions_after(
+    std::vector<ArchiveEntryRef> components,
+    const std::vector<ArchiveEntryRef>& companions
+) {
+    std::set<std::string> seen;
+    for (const ArchiveEntryRef& component : components) {
+        seen.insert(lower_copy(path_utf8(component.pamt_path) + "|" + component.path));
+    }
+    for (const ArchiveEntryRef& companion : companions) {
+        if (seen.insert(lower_copy(path_utf8(companion.pamt_path) + "|" + companion.path)).second) {
+            components.push_back(companion);
+        }
+    }
+    return components;
 }
 
 static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
@@ -508,7 +533,28 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
     }
 
     std::set<std::string> seen_components;
+    std::vector<ArchiveEntryRef> companions;
+    // A weapon's sheath is a model of its own beside it (`<stem>_in.pac`), and the
+    // item prefab the stem guess finds does not always list it: the sword
+    // `cd_phm_02_sword_0015.pac` lost its scabbard row that way (P5). List the
+    // companion as an optional component, after the prefab's own; it loads only
+    // when it is enabled.
+    {
+        std::string folder = job.path;
+        std::replace(folder.begin(), folder.end(), '\\', '/');
+        const size_t slash = folder.find_last_of('/');
+        folder = slash == std::string::npos ? std::string() : folder.substr(0, slash + 1);
+        for (const char* suffix : {"_in"}) {
+            const std::string companion = folder + model_stem + suffix + ".pac";
+            std::optional<ArchiveEntryRef> resolved = resolve_archive_path_across_package(job, index, companion);
+            if (!resolved.has_value() || prefab_component_path_key(resolved->path) != prefab_component_path_key(companion)) {
+                continue;
+            }
+            companions.push_back(*resolved);
+        }
+    }
     for (const ArchiveEntryRef& prefab : prefab_candidates) {
+        if (components.size() >= max_components) break;
         std::vector<char> prefab_bytes;
         try {
             prefab_bytes = read_archive_ref_decoded_bytes(prefab);
@@ -530,10 +576,10 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
             const std::string key = lower_copy(path_utf8(resolved.pamt_path) + "|" + resolved.path);
             if (!seen_components.insert(key).second) continue;
             components.push_back(resolved);
-            if (components.size() >= max_components) return components;
+            if (components.size() >= max_components) break;
         }
     }
-    return components;
+    return with_companions_after(std::move(components), companions);
 }
 
 // The prefab search above guesses item prefab names from the model stem
@@ -542,17 +588,19 @@ static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
 // companions were found: textured New Item previews dropped every model but
 // the primary. A caller that names its enabled components has already read
 // the item's own prefab, so those exact paths are authoritative as well.
+static constexpr size_t kMaxEnabledPrefabComponents = 32;
+
 static std::vector<ArchiveEntryRef> enabled_prefab_component_refs_for_job(
     const EntryJob& job,
     const PamtIndex& index,
-    size_t max_components = 8
+    size_t max_components = kMaxEnabledPrefabComponents
 ) {
-    std::vector<ArchiveEntryRef> components = prefab_model_component_refs_for_job(job, index, max_components);
-    if (job.extension != ".pac" || job.enabled_prefab_component_paths.empty()) return components;
+    const std::vector<ArchiveEntryRef> discovered = prefab_model_component_refs_for_job(job, index, max_components);
+    if (job.extension != ".pac" || job.enabled_prefab_component_paths.empty()) return discovered;
+    // Explicitly enabled pieces take priority over optional prefab suggestions.
+    // The primary is already loaded and must not consume a component slot.
+    std::vector<ArchiveEntryRef> components;
     std::set<std::string> seen_paths;
-    for (const ArchiveEntryRef& component : components) {
-        seen_paths.insert(prefab_component_path_key(component.path));
-    }
     const std::string primary_key = prefab_component_path_key(job.path);
     for (const std::string& enabled_path : job.enabled_prefab_component_paths) {
         if (components.size() >= max_components) break;
@@ -564,6 +612,12 @@ static std::vector<ArchiveEntryRef> enabled_prefab_component_refs_for_job(
         if (resolved->extension != ".pac" && resolved->extension != ".pam" && resolved->extension != ".pamlod") continue;
         seen_paths.insert(key);
         components.push_back(*resolved);
+    }
+    for (const ArchiveEntryRef& component : discovered) {
+        if (components.size() >= max_components) break;
+        const std::string key = prefab_component_path_key(component.path);
+        if (key == primary_key || !seen_paths.insert(key).second) continue;
+        components.push_back(component);
     }
     return components;
 }
@@ -591,6 +645,7 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     const std::string model_stem = stem_from_path(job.path);
     const std::string model_stem_lower = lower_copy(model_stem);
     const std::string model_dir = dirname_from_path(job.path);
+    const bool head_components = head_prefab_components_are_required(job);
     std::vector<std::string> basenames;
     if (job.extension == ".pac") {
         basenames = {model_stem + ".pac_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".meshinfo"};
@@ -599,7 +654,7 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     } else if (job.extension == ".pamlod") {
         basenames = {model_stem + ".pamlod_xml", model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".meshinfo"};
     }
-    if (!job.enabled_prefab_component_paths.empty()) {
+    if (head_components || !job.enabled_prefab_component_paths.empty()) {
         basenames.push_back(model_stem + ".prefab");
         basenames.push_back(model_stem + ".prefabdata_xml");
     }
@@ -612,10 +667,10 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
             }
         }
     }
-    if (job.extension == ".pac" && !job.enabled_prefab_component_paths.empty()) {
-        for (const ArchiveEntryRef& component : enabled_prefab_component_refs_for_job(job, index, 12)) {
+    if (job.extension == ".pac" && (head_components || !job.enabled_prefab_component_paths.empty())) {
+        for (const ArchiveEntryRef& component : enabled_prefab_component_refs_for_job(job, index)) {
             if (lower_copy(component.path) == lower_copy(job.path)) continue;
-            if (!prefab_component_enabled_for_job(component, job)) continue;
+            if (!head_components && !prefab_component_enabled_for_job(component, job)) continue;
             const std::string component_stem = stem_from_path(component.path);
             const std::string component_dir = dirname_from_path(component.path);
             for (const std::string& base : {

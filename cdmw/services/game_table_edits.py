@@ -350,6 +350,9 @@ def write_table_edit_mod(
         raise TableEditError("There are no table edits to write.")
     folder, replaced = mod_destination(parent, title)
     requests = [ArchivePatchRequest(entry, bytes(data)) for entry, data in composed.values()]
+    from cdmw.core.protected_roots import check_writable
+
+    check_writable(folder)  # decision 46
     folder.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".cdmw-tables-", dir=_staging_parent(folder)) as staging:
         stage = Path(staging) / folder.name

@@ -9,7 +9,9 @@ pub(super) fn island_colour(part: u32, first_face: u32) -> [f32; 4] {
 }
 
 pub(super) fn identity_colour_snapshot(
-    mesh: &WorkingMesh, visible: Option<&HashSet<u32>>, snapshot: &DrawSnapshot,
+    mesh: &WorkingMesh,
+    visible: Option<&HashSet<u32>>,
+    snapshot: &DrawSnapshot,
     island_faces: Option<&Value>,
 ) -> Vec<[f32; 4]> {
     let Some(islands) = island_faces else {
@@ -18,18 +20,28 @@ pub(super) fn identity_colour_snapshot(
     let elements = visible.map(|parts| mesh.element_handles_for_submeshes(parts));
     let mut colours = vec![[0.0; 4]; snapshot.positions.len()];
     let mut palette = HashMap::new();
-    for ((_, face), triangle) in mesh.faces().filter(|(handle, _)|
-        elements.as_ref().is_none_or(|elements| elements.faces.contains(handle)))
+    for ((_, face), triangle) in mesh
+        .faces()
+        .filter(|(handle, _)| {
+            elements
+                .as_ref()
+                .is_none_or(|elements| elements.faces.contains(handle))
+        })
         .zip(snapshot.indices.chunks_exact(3))
     {
         let root = match face.provenance {
-            Provenance::Source { submesh, element } if submesh == face.submesh =>
-                islands[submesh as usize][element as usize].as_u64().and_then(|root| u32::try_from(root).ok()),
+            Provenance::Source { submesh, element } if submesh == face.submesh => islands
+                [submesh as usize][element as usize]
+                .as_u64()
+                .and_then(|root| u32::try_from(root).ok()),
             _ => None,
         };
         // Unmapped local geometry has no authoritative island name yet.
-        let colour = root.map_or([0.55, 0.55, 0.55, 0.88], |root|
-            *palette.entry((face.submesh, root)).or_insert_with(|| island_colour(face.submesh, root)));
+        let colour = root.map_or([0.55, 0.55, 0.55, 0.88], |root| {
+            *palette
+                .entry((face.submesh, root))
+                .or_insert_with(|| island_colour(face.submesh, root))
+        });
         for index in triangle {
             colours[*index as usize] = colour;
         }
@@ -46,9 +58,14 @@ pub(super) struct HiddenIsland {
 
 impl LabApplication {
     pub(crate) fn cdmw_island_name_atoms<'a>(
-        &self, part: u32, faces: &[u32], label: impl egui::IntoAtoms<'a>,
+        &self,
+        part: u32,
+        faces: &[u32],
+        label: impl egui::IntoAtoms<'a>,
     ) -> egui::Atoms<'a> {
-        let colour = faces.first().filter(|_| self.cdmw_island_colours_active())
+        let colour = faces
+            .first()
+            .filter(|_| self.cdmw_island_colours_active())
             .map(|root| island_colour(part, *root));
         crate::cdmw_ui::cdmw_colour_name_atoms(label, colour)
     }
@@ -58,7 +75,10 @@ impl LabApplication {
     }
 
     pub(crate) fn cdmw_render_display_mode(&self) -> ViewMode {
-        if self.view_mode == ViewMode::PartId && self.cdmw_island_colours && !self.cdmw_island_colours_active() {
+        if self.view_mode == ViewMode::PartId
+            && self.cdmw_island_colours
+            && !self.cdmw_island_colours_active()
+        {
             self.cdmw_part_colours_previous_mode
         } else {
             self.view_mode
@@ -90,22 +110,35 @@ impl LabApplication {
     }
 
     pub(super) fn selected_refit_islands(&self, bound: &[u32]) -> Vec<(u32, Vec<u32>)> {
-        let selected: HashSet<_> = self.mesh.as_ref().into_iter().flat_map(|mesh|
-            mesh.selection.faces.iter().filter_map(|handle| match mesh.face(*handle)?.provenance {
-                Provenance::Source { submesh, element } => Some((submesh, element)),
-                _ => None,
-            })).collect();
-        self.cdmw_state["mesh_islands"]["fit_parts"].as_array().into_iter().flatten()
+        let selected: HashSet<_> = self
+            .mesh
+            .as_ref()
+            .into_iter()
+            .flat_map(|mesh| {
+                mesh.selection.faces.iter().filter_map(|handle| {
+                    match mesh.face(*handle)?.provenance {
+                        Provenance::Source { submesh, element } => Some((submesh, element)),
+                        _ => None,
+                    }
+                })
+            })
+            .collect();
+        self.cdmw_state["mesh_islands"]["fit_parts"]
+            .as_array()
+            .into_iter()
+            .flatten()
             .filter_map(|part| Some((part["index"].as_u64()? as u32, part["islands"].as_array()?)))
             .filter(|(part, _)| bound.contains(part))
             .flat_map(|(part, islands)| {
                 let selected = &selected;
                 islands.iter().filter_map(move |island| {
-                let faces = island_faces(island);
-                (!faces.is_empty() && faces.iter().all(|face| selected.contains(&(part, *face))))
+                    let faces = island_faces(island);
+                    (!faces.is_empty()
+                        && faces.iter().all(|face| selected.contains(&(part, *face))))
                     .then_some((part, faces))
                 })
-            }).collect()
+            })
+            .collect()
     }
 
     fn island_topology(&self, part: u32) -> Option<u64> {
@@ -195,7 +228,10 @@ impl LabApplication {
     }
 
     pub(super) fn select_islands(&mut self, islands: Vec<(u32, Vec<u32>)>) {
-        let handles = islands.iter().flat_map(|(part, faces)| self.island_handles(*part, faces)).collect::<HashSet<_>>();
+        let handles = islands
+            .iter()
+            .flat_map(|(part, faces)| self.island_handles(*part, faces))
+            .collect::<HashSet<_>>();
         let visible = self.cdmw_visible_submeshes();
         if let Some(mesh) = &mut self.mesh {
             let allowed = visible
@@ -253,8 +289,13 @@ impl LabApplication {
 
     pub(super) fn draw_cdmw_islands(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         use crate::cdmw_ui::{cdmw_list_cell, cdmw_list_columns, cdmw_list_header};
-        let parts = self.cdmw_state["mesh_islands"]["parts"].as_array().cloned().unwrap_or_default();
-        let editing = self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit");
+        let parts = self.cdmw_state["mesh_islands"]["parts"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let editing = self.cdmw_state["replacement"]["comparison"]
+            .as_str()
+            .is_none_or(|mode| mode == "edit");
         ui.add_enabled_ui(!self.cdmw_busy() && editing, |ui| {
             if ui.add_enabled(!self.cdmw_hidden_islands.is_empty(), Button::new(crate::localization::tr("Show all islands"))).clicked() {
                 actions.push(UiAction::ShowAllIslands);

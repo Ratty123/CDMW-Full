@@ -595,10 +595,19 @@ mod tests {
 
     #[test]
     fn centered_gizmo_tracks_visible_editable_geometry_and_keeps_the_authored_pivot() {
-        let geometry = PreviewGeometry { parts: vec![
-            PartGeometry::new(0, vec![[Vec3::new(-2., 8., 0.), Vec3::new(2., 8., 0.), Vec3::new(0., 10., 0.)]]),
-            PartGeometry::new(1, vec![[Vec3::ZERO, Vec3::X * 100., Vec3::Y * 100.]]),
-        ] };
+        let geometry = PreviewGeometry {
+            parts: vec![
+                PartGeometry::new(
+                    0,
+                    vec![[
+                        Vec3::new(-2., 8., 0.),
+                        Vec3::new(2., 8., 0.),
+                        Vec3::new(0., 10., 0.),
+                    ]],
+                ),
+                PartGeometry::new(1, vec![[Vec3::ZERO, Vec3::X * 100., Vec3::Y * 100.]]),
+            ],
+        };
         let mut scene = serde_json::json!({
             "placement_pivot": [0, 0, 0],
             "framing": {"extent": 2},
@@ -607,20 +616,41 @@ mod tests {
                 "reference": {"submesh_indices": [1]}
             }
         });
-        let mut presentation = serde_json::json!({"comparison_mode": "overlay", "display": {"gizmo_centered": true}});
-        let anchor = |scene: &Value, presentation: &Value| SceneView { scene, presentation, geometry: &geometry }.gizmo_anchor();
+        let mut presentation =
+            serde_json::json!({"comparison_mode": "overlay", "display": {"gizmo_centered": true}});
+        let anchor = |scene: &Value, presentation: &Value| {
+            SceneView {
+                scene,
+                presentation,
+                geometry: &geometry,
+            }
+            .gizmo_anchor()
+        };
         assert_eq!(anchor(&scene, &presentation), Some(Vec3::new(0., 9., 0.)));
-        scene["roles"]["editable"]["model_matrix"] = serde_json::json!(Mat4::from_translation(Vec3::new(3., 2., 1.)).to_cols_array());
+        scene["roles"]["editable"]["model_matrix"] =
+            serde_json::json!(Mat4::from_translation(Vec3::new(3., 2., 1.)).to_cols_array());
         assert_eq!(anchor(&scene, &presentation), Some(Vec3::new(3., 11., 1.)));
         presentation["comparison_mode"] = serde_json::json!("side_by_side");
-        assert!(anchor(&scene, &presentation).unwrap().abs_diff_eq(Vec3::new(5.6, 11., 1.), 1e-5));
+        assert!(
+            anchor(&scene, &presentation)
+                .unwrap()
+                .abs_diff_eq(Vec3::new(5.6, 11., 1.), 1e-5)
+        );
         presentation["comparison_mode"] = serde_json::json!("original_only");
-        assert_eq!(anchor(&scene, &presentation), None, "a hidden model has no transform handles");
+        assert_eq!(
+            anchor(&scene, &presentation),
+            None,
+            "a hidden model has no transform handles"
+        );
         presentation["comparison_mode"] = serde_json::json!("overlay");
         presentation["visibility"] = serde_json::json!({"hidden_submesh_indices": [0]});
         assert_eq!(anchor(&scene, &presentation), None);
         presentation["display"]["gizmo_centered"] = serde_json::json!(false);
-        assert_eq!(anchor(&scene, &presentation), Some(Vec3::ZERO), "effect anchors retain their authored position");
+        assert_eq!(
+            anchor(&scene, &presentation),
+            Some(Vec3::ZERO),
+            "effect anchors retain their authored position"
+        );
         assert_eq!(scene["placement_pivot"], serde_json::json!([0, 0, 0]));
     }
 

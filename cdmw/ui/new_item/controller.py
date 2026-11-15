@@ -55,7 +55,7 @@ from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
 from cdmw.workers.new_item_template_search import TemplateSearchLane
 from cdmw.workers.new_item_template_selection import TemplateSelectionLane
 from cdmw.workers.new_item_lookup import NewItemLookupLane
-from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
+from cdmw.workers.new_item_workers import export_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
 class NewItemStudioController(
@@ -81,8 +81,6 @@ class NewItemStudioController(
     plan_failed = Signal(str, object)
     plan_invalidated = Signal()
     export_finished = Signal(object)
-    install_finished = Signal(object)
-    install_failed = Signal(str)
     model_changed = Signal(object)
     #: a model file was read for the studio (a ModelImportSource), or discarded (None)
     model_import_changed = Signal(object)
@@ -133,7 +131,6 @@ class NewItemStudioController(
         #: A mod folder to plan on top of, so a second item joins the first one's tables
         #: instead of replacing them. None plans against the archives.
         self.mod_base_folder: Optional[Path] = None
-        self.include_mounted_items = False
         #: The game's own character for the placement viewport, read once per player rig.
         #: A cached None means that rig was absent and the placement service uses a stand-in.
         self._character_references: Dict[str, object] = {}
@@ -171,7 +168,10 @@ class NewItemStudioController(
         #: (import, transform) whose placement is applied once its weights are sampled there
         self._apply_after_skinning = None
         self.busy_changed.connect(self._run_pending_model_apply)
-        self.preview_lighting_preset = "neutral_studio"
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+        hub = preview_settings_hub()
+        self.preview_lighting_preset = str((hub.values() if hub is not None else {}).get(
+            "lighting_preset", "neutral_studio"))
         #: the template's decoded preview (textures resolved), kept for the current template so
         #: a re-fit or an import does not decode it again (the worker fills it)
         self._template_models: Dict[tuple, object] = {}
@@ -253,11 +253,16 @@ class NewItemStudioController(
         """Share a renderer-only lighting choice across this Studio session."""
 
         normalized = str(preset or "neutral_studio").strip().lower()
-        if normalized not in {"neutral_studio", "showcase"}:
+        if normalized not in {"neutral_studio", "showcase", "dark", "studio_fixed"}:
             normalized = "neutral_studio"
         if normalized == self.preview_lighting_preset:
             return
         self.preview_lighting_preset = normalized
+        # Stored with every other viewport's lighting, not only for this session.
+        from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+        hub = preview_settings_hub()
+        if hub is not None:
+            hub.update(lighting_preset=normalized)
         self.preview_lighting_changed.emit(normalized)
 
     def _cleanup_model_source(self, source: Optional[ModelImportSource]) -> None:
@@ -270,7 +275,8 @@ class NewItemStudioController(
             return []
         return search_template_options(self.snapshot.template_search_catalogue(), text, limit=limit)
 
-    def request_template_search(self, text: str, *, group_key=None, sort_column=-1, descending=False, debounce=True) -> None:
+    def request_template_search(self, text: str, *, group_key=None, sort_column=-1, descending=False, debounce=True,
+                                wearer_kinds=None) -> None:
         if self._shutdown_requested:
             return
         if self.snapshot is None:
@@ -280,7 +286,7 @@ class NewItemStudioController(
         self._template_search_lane.request(
             self.snapshot.template_search_catalogue(), text,
             group_key=group_key, sort_column=sort_column, descending=descending,
-            debounce_ms=150 if debounce else 0,
+            debounce_ms=150 if debounce else 0, wearer_kinds=wearer_kinds,
         )
 
     def _publish_template_search(self, catalogue, options) -> None:

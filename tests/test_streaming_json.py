@@ -4,6 +4,24 @@ import hashlib
 
 import pytest
 
+
+def test_batched_mesh_rows_keep_canonical_json_and_mixed_array_semantics():
+    rows = [(index, index / 7, bool(index % 2), None) for index in range(400)]
+    rows[129] = {"z": "a\u00e9", "a": [1, 2]}
+    stream = io.StringIO()
+    streaming.write_json(stream, rows)
+    assert stream.getvalue() == json.dumps(rows, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def test_batched_mesh_rows_reject_nonfinite_and_cycles():
+    rows = [[1.0, 2.0, 3.0] for _ in range(256)]
+    rows[200][0] = float("nan")
+    with pytest.raises(ValueError):
+        streaming.write_json(io.StringIO(), rows)
+    rows[200] = rows
+    with pytest.raises(ValueError, match="Circular"):
+        streaming.write_json(io.StringIO(), rows)
+
 from cdmw.core import streaming_json as streaming
 
 

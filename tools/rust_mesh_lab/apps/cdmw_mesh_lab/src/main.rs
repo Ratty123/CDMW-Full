@@ -1,4 +1,11 @@
 #![forbid(unsafe_code)]
+// CDMW starts this helper through pipes. As a console program each instance
+// also got its own hidden conhost.exe; release builds are windows-subsystem
+// programs instead. Debug and test builds keep their console for development.
+#![cfg_attr(
+    all(windows, not(test), not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 #![recursion_limit = "256"]
 
 mod camera;
@@ -6,20 +13,23 @@ mod cdmw_bend;
 mod cdmw_cloth;
 mod cdmw_cloth_paint;
 mod cdmw_collision_volumes;
-mod cdmw_handoff;
 mod cdmw_hair;
+mod cdmw_handoff;
 mod cdmw_history;
 mod cdmw_jiggle;
 mod cdmw_preview;
+mod cdmw_references;
 mod cdmw_rig;
 mod cdmw_session;
 use cdmw_ui::layout as cdmw_layout;
-mod cdmw_ui;
-mod cdmw_islands;
 mod cdmw_emission;
+mod cdmw_islands;
 mod cdmw_shader_controls;
+mod cdmw_ui;
 mod cdmw_vertex_inspector;
 mod control_contract;
+mod engine;
+mod engine_trace;
 #[cfg(test)]
 mod gpu_recovery_tests;
 #[cfg(test)]
@@ -31,16 +41,21 @@ mod headless_ui_tests;
 mod loader;
 mod localization;
 mod new_item_ui;
+mod package_capture;
 mod preview_core_material;
-mod preview_effects;
 mod preview_effect_lightning;
-mod preview_effect_spawn;
 mod preview_effect_mesh;
+mod preview_effect_spawn;
+mod preview_effects;
 mod preview_geometry;
+mod preview_gpu_layers;
 #[cfg(all(test, target_os = "windows"))]
 mod preview_gpu_tests;
 mod preview_loader;
 mod shortcuts;
+mod texture_view;
+mod tool_groups;
+mod view_modes;
 mod viewport;
 
 use anyhow::{Context, Result, bail};
@@ -63,7 +78,7 @@ use cdmw_render_wgpu::{
 };
 use cdmw_session::{
     CdmwBridge, CdmwMaterialUpdate, CdmwTextureResource, HostEvent, LoadedCdmwSessionPackage,
-    PreviewCoreMaterialGraph, SessionMaterialPresentation,
+    PendingRequest, PendingSessionInput, PreviewCoreMaterialGraph, SessionMaterialPresentation,
 };
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
@@ -100,7 +115,7 @@ fn main() -> Result<()> {
         .with_writer(std::io::stderr)
         .try_init()
         .ok();
-    if new_item_ui::try_run()? {
+    if texture_view::try_run()? || new_item_ui::try_run()? {
         return Ok(());
     }
     let options = parse_startup_options()?;
@@ -134,6 +149,7 @@ fn main() -> Result<()> {
                 options.capture_camera(),
                 options.capture_material_index,
                 options.capture_size.unwrap_or(1_024),
+                None,
             )?;
         }
         return Ok(());
@@ -144,11 +160,14 @@ fn main() -> Result<()> {
             .context("--cdmw-preview-session requires --embedded-parent-hwnd <decimal>")?;
         let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
         event_loop.set_control_flow(ControlFlow::Wait);
-        let mut application = cdmw_preview::PreviewApplication::open(
+        // One process, two modes (P4 V3): Browse's helper can enter edit in place.
+        let (preview, route) = cdmw_preview::PreviewApplication::open_routed(
             &manifest_path,
             parent_hwnd,
             event_loop.create_proxy(),
         )?;
+        let mut application =
+            engine::EngineApplication::new(preview, route, parent_hwnd, event_loop.create_proxy());
         event_loop
             .run_app(&mut application)
             .context("Preview event loop failed")?;
@@ -156,7 +175,14 @@ fn main() -> Result<()> {
     }
     let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
     event_loop.set_control_flow(ControlFlow::Wait);
-    let mut application = if let Some(manifest_path) = options.cdmw_session {
+    let mut application = if options.cdmw_session_pending {
+        // Window, device and pipelines first; the session arrives as `open_session`.
+        let proxy = event_loop.create_proxy();
+        let input = PendingSessionInput::start(Some(Box::new(move || {
+            let _ = proxy.send_event(());
+        })));
+        LabApplication::new_pending(input, options.embedded_parent_hwnd)
+    } else if let Some(manifest_path) = options.cdmw_session {
         let (bridge, document) = CdmwBridge::open(&manifest_path)
             .with_context(|| format!("failed to open CDMW session {}", manifest_path.display()))?;
         LabApplication::new_cdmw(bridge, document, options.embedded_parent_hwnd)?
@@ -174,6 +200,7 @@ struct StartupOptions {
     mesh_path: Option<PathBuf>,
     archive_root: Option<PathBuf>,
     cdmw_session: Option<PathBuf>,
+    cdmw_session_pending: bool,
     cdmw_preview_session: Option<PathBuf>,
     capture_cdmw_session: Option<PathBuf>,
     capture_cdmw_preview_session: Option<PathBuf>,
@@ -208,6 +235,7 @@ fn parse_startup_options_from(
             "--cdmw-session" => {
                 options.cdmw_session = Some(required_path(&mut arguments, "--cdmw-session")?);
             }
+            "--cdmw-session-pending" => options.cdmw_session_pending = true,
             "--cdmw-preview-session" => {
                 options.cdmw_preview_session =
                     Some(required_path(&mut arguments, "--cdmw-preview-session")?);
@@ -307,9 +335,10 @@ fn parse_startup_options_from(
         bail!("--capture-report-json requires --capture-output");
     }
     if let Some(size) = options.capture_size
-        && (options.capture_output.is_none() || !(64..=2_048).contains(&size)) {
-            bail!("--capture-size requires --capture-output and a size within 64..2048");
-        }
+        && (options.capture_output.is_none() || !(64..=2_048).contains(&size))
+    {
+        bail!("--capture-size requires --capture-output and a size within 64..2048");
+    }
     if options.capture_audit_full_model_only && options.capture_audit_output.is_none() {
         bail!("--capture-audit-full-model-only requires --capture-audit-output");
     }
@@ -345,11 +374,29 @@ fn parse_startup_options_from(
     {
         bail!("--cdmw-preview-session cannot be combined with standalone or contract options");
     }
+    if options.cdmw_session_pending
+        && (options.cdmw_session.is_some()
+            || options.cdmw_preview_session.is_some()
+            || options.mesh_path.is_some()
+            || options.archive_root.is_some()
+            || options.control_contract_json.is_some()
+            || capture_requested)
+    {
+        bail!(
+            "--cdmw-session-pending cannot be combined with a session, standalone, capture or contract option"
+        );
+    }
+    if options.cdmw_session_pending && options.embedded_parent_hwnd.is_none() {
+        bail!("--cdmw-session-pending requires --embedded-parent-hwnd");
+    }
     if options.embedded_parent_hwnd.is_some()
         && options.cdmw_session.is_none()
+        && !options.cdmw_session_pending
         && options.cdmw_preview_session.is_none()
     {
-        bail!("--embedded-parent-hwnd requires --cdmw-session or --cdmw-preview-session");
+        bail!(
+            "--embedded-parent-hwnd requires --cdmw-session, --cdmw-session-pending or --cdmw-preview-session"
+        );
     }
     if options.cdmw_preview_session.is_some() && options.embedded_parent_hwnd.is_none() {
         bail!("--cdmw-preview-session requires --embedded-parent-hwnd");
@@ -690,7 +737,10 @@ fn frame_stats_json(stats: &HeadlessFrameStats) -> Value {
     })
 }
 
-fn capture_cdmw_session(
+/// `gpu` is a renderer's device in this process (P4 V5's package captures);
+/// without it the capture creates a device of its own, as a capture process does.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn capture_cdmw_session(
     manifest_path: &Path,
     output_path: &Path,
     report_path: Option<&Path>,
@@ -698,6 +748,7 @@ fn capture_cdmw_session(
     camera: Option<HeadlessMaterialCaptureCamera>,
     isolated_material_index: Option<u32>,
     size: u32,
+    gpu: Option<&cdmw_render_wgpu::SharedGpu>,
 ) -> Result<()> {
     let requested_paths = cdmw_capture_paths(output_path, report_path)?;
     let loaded = if preview_package {
@@ -716,7 +767,7 @@ fn capture_cdmw_session(
     let temporary_paths = &publication.temporary_paths;
     let source_lod_index = package.source_lod_index();
     let lod_count = package.document().lods.len();
-    let snapshot = WorkingMesh::from_document_lod(package.document(), source_lod_index)
+    let mut snapshot = WorkingMesh::from_document_lod(package.document(), source_lod_index)
         .with_context(|| format!("capture could not create LOD{source_lod_index}"))?
         .draw_snapshot();
     let session_id = package.manifest().session_id.clone();
@@ -728,9 +779,10 @@ fn capture_cdmw_session(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned();
-    let textures = package.take_textures();
+    let mut textures = package.take_textures();
+    let layers = package.take_layers();
     let presentations = package.take_material_presentations();
-    let owned_factors = presentations
+    let mut owned_factors = presentations
         .iter()
         .map(|presentation| {
             (
@@ -739,6 +791,34 @@ fn capture_cdmw_session(
             )
         })
         .collect::<Vec<_>>();
+    let references = package.take_reference_pieces();
+    let mut reference_offset = cdmw_references::material_offset(Some(package.document()));
+    cdmw_references::append_to_snapshot(&mut snapshot, &references, reference_offset);
+    for piece in references {
+        for mut texture in piece.textures {
+            let ownership = texture
+                .material_indices_by_lod
+                .first()
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|index| index + reference_offset)
+                .collect::<Vec<_>>();
+            texture.material_indices_by_lod = vec![ownership; lod_count];
+            textures.push(texture);
+        }
+        for presentation in piece
+            .material_presentations
+            .iter()
+            .filter(|row| row.lod_index == 0)
+        {
+            owned_factors.push((
+                cdmw_material_preview_factors(presentation),
+                vec![vec![presentation.material_index + reference_offset]; lod_count],
+            ));
+        }
+        reference_offset += piece.part_count;
+    }
     let texture_uploads = textures
         .iter()
         .map(|texture| HeadlessMaterialTexture {
@@ -754,27 +834,40 @@ fn capture_cdmw_session(
             material_indices_by_lod: ownership,
         })
         .collect::<Vec<_>>();
-    let report = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture(
-        &snapshot,
-        &texture_uploads,
-        &factor_uploads,
-        HeadlessMaterialCaptureOptions {
-            width: size,
-            height: size,
-            lod_index: source_lod_index,
-            camera,
-            isolated_material_index,
-        },
-        HeadlessMaterialCaptureOutput {
-            textured_bmp: &temporary_paths.textured,
-            base_color_bmp: &temporary_paths.base_color,
-            part_id_bmp: &temporary_paths.part_id,
-            normal_map: None,
-            material_response: None,
-            layer_mask: None,
-        },
-    ))
-    .context("CDMW material capture failed")?;
+    let verified_hashes = textures
+        .iter()
+        .map(|texture| texture.metadata.source_sha256.as_str())
+        .collect::<Vec<_>>();
+    let report = pollster::block_on(
+        cdmw_render_wgpu::run_headless_verified_layered_material_capture_batch_on(
+            gpu,
+            &snapshot,
+            &texture_uploads,
+            &factor_uploads,
+            &layers,
+            &[HeadlessMaterialCaptureRequest {
+                options: HeadlessMaterialCaptureOptions {
+                    width: size,
+                    height: size,
+                    lod_index: source_lod_index,
+                    camera,
+                    isolated_material_index,
+                },
+                output: HeadlessMaterialCaptureOutput {
+                    textured_bmp: &temporary_paths.textured,
+                    base_color_bmp: &temporary_paths.base_color,
+                    part_id_bmp: &temporary_paths.part_id,
+                    normal_map: None,
+                    material_response: None,
+                    layer_mask: None,
+                },
+            }],
+            &verified_hashes,
+        ),
+    )
+    .context("CDMW material capture failed")?
+    .pop()
+    .context("CDMW material capture returned no frame")?;
     let owners = report
         .owner_coverage
         .iter()
@@ -933,7 +1026,8 @@ fn capture_cdmw_audit_session(
     }
     let base_camera = material_audit_base_camera(&snapshot);
     let textures = package.take_textures();
-    let mut runtime_dds_metrics = material_audit_runtime_dds_metrics(&textures)?;
+    let layers = package.take_layers();
+    let mut runtime_dds_metrics = material_audit_runtime_dds_metrics(&textures, &layers)?;
     let expected_physical_upload_count = runtime_dds_metrics
         .get("resource_count")
         .and_then(Value::as_u64)
@@ -1037,12 +1131,20 @@ fn capture_cdmw_audit_session(
         .collect::<Vec<_>>();
     let renderer_start_offset_ms = audit_started.elapsed().as_secs_f64() * 1_000.0;
     let renderer_started = Instant::now();
-    let reports = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture_batch(
-        &snapshot,
-        &texture_uploads,
-        &factor_uploads,
-        &requests,
-    ))
+    let verified_hashes = textures
+        .iter()
+        .map(|texture| texture.metadata.source_sha256.as_str())
+        .collect::<Vec<_>>();
+    let reports = pollster::block_on(
+        cdmw_render_wgpu::run_headless_verified_layered_material_capture_batch(
+            &snapshot,
+            &texture_uploads,
+            &factor_uploads,
+            &layers,
+            &requests,
+            &verified_hashes,
+        ),
+    )
     .context("CDMW material audit capture failed")?;
     let physical_uploads_conserved = reports
         .iter()
@@ -1191,6 +1293,8 @@ fn material_audit_source_dds_metrics(
             == measured.decoded_source_sha256.len();
     let full_decode_complete = graph.quality != "full"
         || measured.source_dds_decode_count == measured.unique_source_dds_count;
+    let full_validation_complete = graph.quality != "full"
+        || measured.validated_source_sha256.len() as u64 == graph.unique_resource_count;
     json!({
         "available": true,
         "quality": graph.quality,
@@ -1200,7 +1304,7 @@ fn material_audit_source_dds_metrics(
         "unique_source_dds_bytes": graph.unique_resource_bytes,
         "reused_logical_reference_count": graph.source_edge_count.saturating_sub(graph.unique_resource_count),
         "decode_cache_key": "sha256",
-        "measurement": "actual_rust_source_dds_decode_events_v1",
+        "measurement": "actual_rust_source_dds_preparation_v2",
         "observed_source_reference_count": measured.source_reference_count,
         "observed_unique_source_dds_count": measured.unique_source_dds_count,
         "observed_source_dds_decode_count": measured.source_dds_decode_count,
@@ -1209,10 +1313,16 @@ fn material_audit_source_dds_metrics(
         "decoded_source_sha256": measured.decoded_source_sha256,
         "each_source_binary_decoded_at_most_once": each_source_binary_decoded_at_most_once,
         "full_source_decode_complete": full_decode_complete,
+        "full_source_validation_complete": full_validation_complete,
+        "validated_source_dds_count": measured.validated_source_sha256.len(),
+        "gpu_layer_material_count": measured.gpu_layer_material_count,
     })
 }
 
-fn material_audit_runtime_dds_metrics(resources: &[CdmwTextureResource]) -> Result<Value> {
+fn material_audit_runtime_dds_metrics(
+    resources: &[CdmwTextureResource],
+    layers: &[cdmw_render_wgpu::MaterialLayerSet],
+) -> Result<Value> {
     let mut logical_keys = BTreeMap::<(String, String), usize>::new();
     let mut binaries = BTreeMap::<String, (usize, usize)>::new();
     let mut logical_resource_bytes = 0_u64;
@@ -1231,6 +1341,23 @@ fn material_audit_runtime_dds_metrics(resources: &[CdmwTextureResource]) -> Resu
         logical_resource_bytes = logical_resource_bytes
             .checked_add(u64::try_from(resource.bytes.len())?)
             .context("runtime DDS byte count overflow")?;
+    }
+    let mut logical_resource_count = resources.len();
+    for texture in layers
+        .iter()
+        .flat_map(|layer| layer.textures.iter().flatten())
+    {
+        let metadata = cdmw_texture::inspect_dds(&texture.bytes, texture.role)?;
+        let sha = texture.source_sha256.to_ascii_lowercase();
+        *logical_keys
+            .entry((sha.clone(), format!("{:?}", texture.role)))
+            .or_default() += 1;
+        binaries.entry(sha).or_insert((
+            texture.bytes.len(),
+            texture.bytes.len() - metadata.payload_offset,
+        ));
+        logical_resource_bytes += texture.bytes.len() as u64;
+        logical_resource_count += 1;
     }
     let logical_duplicate_binding_count = logical_keys
         .values()
@@ -1251,13 +1378,13 @@ fn material_audit_runtime_dds_metrics(resources: &[CdmwTextureResource]) -> Resu
             })?;
     Ok(json!({
         "resource_count": binaries.len(),
-        "logical_resource_count": resources.len(),
+        "logical_resource_count": logical_resource_count,
         "logical_binding_key_count": logical_keys.len(),
         "logical_duplicate_binding_count": logical_duplicate_binding_count,
         "unique_upload_key_count": binaries.len(),
         "duplicate_upload_key_count": 0,
         "unique_binary_count": binaries.len(),
-        "reused_logical_resource_count": resources.len().saturating_sub(binaries.len()),
+        "reused_logical_resource_count": logical_resource_count.saturating_sub(binaries.len()),
         "logical_resource_bytes": logical_resource_bytes,
         "uploaded_resource_bytes": unique_binary_bytes,
         "reported_gpu_resident_bytes": reported_gpu_resident_bytes,
@@ -1473,7 +1600,10 @@ enum UiAction {
     InsetFaces,
     Undo,
     Redo,
-    CdmwHistoryCursor { cursor: usize, revision: u64 },
+    CdmwHistoryCursor {
+        cursor: usize,
+        revision: u64,
+    },
     ExportObj,
     ChooseCdmwImportPackage,
     ChooseCdmwExport(&'static str),
@@ -1496,6 +1626,7 @@ enum UiAction {
         role: &'static str,
     },
     FinishCdmw,
+    SwitchItemPiece(usize),
     OrbitMode,
     OrbitYaw(f32),
     Nudge(Vec3),
@@ -1566,25 +1697,47 @@ impl UiAction {
 
     fn allowed_during_morph_comparison(&self) -> bool {
         match self {
-            Self::SelectAllVertices | Self::SelectAllEdges | Self::SelectAllFaces
-            | Self::SelectLinked(_) | Self::GrowSelection(_) | Self::ShrinkSelection(_)
-            | Self::InvertSelection(_) | Self::ClearSelection | Self::SelectRigInfluence
-            | Self::FrameAll | Self::FrameSelected | Self::FrameRigBone | Self::FrameRigInfluence
-            | Self::StandardView(_) | Self::OrbitMode | Self::OrbitYaw(_)
-            | Self::Undo | Self::Redo | Self::CdmwHistoryCursor { .. }
-            | Self::SetPartSelection(_) | Self::SelectIsland { .. } | Self::SelectIslands(_)
-            | Self::SetIslandVisibility { .. } | Self::IsolateIsland { .. }
-            | Self::ShowAllIslands | Self::SetPartVisibility { .. } => true,
-            Self::CdmwCommand { command, .. } => matches!(*command,
-                "select" | "morph_set_corrections_enabled" | "morph_cancel_correction"
-                    | "morph_cancel_baseline" | "replacement_cancel"),
+            Self::SelectAllVertices
+            | Self::SelectAllEdges
+            | Self::SelectAllFaces
+            | Self::SelectLinked(_)
+            | Self::GrowSelection(_)
+            | Self::ShrinkSelection(_)
+            | Self::InvertSelection(_)
+            | Self::ClearSelection
+            | Self::SelectRigInfluence
+            | Self::FrameAll
+            | Self::FrameSelected
+            | Self::FrameRigBone
+            | Self::FrameRigInfluence
+            | Self::StandardView(_)
+            | Self::OrbitMode
+            | Self::OrbitYaw(_)
+            | Self::Undo
+            | Self::Redo
+            | Self::CdmwHistoryCursor { .. }
+            | Self::SetPartSelection(_)
+            | Self::SelectIsland { .. }
+            | Self::SelectIslands(_)
+            | Self::SetIslandVisibility { .. }
+            | Self::IsolateIsland { .. }
+            | Self::ShowAllIslands
+            | Self::SetPartVisibility { .. } => true,
+            Self::CdmwCommand { command, .. } => matches!(
+                *command,
+                "select"
+                    | "morph_set_corrections_enabled"
+                    | "morph_cancel_correction"
+                    | "morph_cancel_baseline"
+                    | "replacement_cancel"
+            ),
             _ => false,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CdmwRailPage {
+pub(crate) enum CdmwRailPage {
     Select,
     Move,
     Rotate,
@@ -1736,7 +1889,9 @@ fn cdmw_request_origin(command: &str, arguments: &Value) -> Option<CdmwRequestOr
             .get("definition_id")
             .and_then(Value::as_str)
             .filter(|definition_id| !definition_id.trim().is_empty())
-            .map(|definition_id| CdmwRequestOrigin::MorphValue(format!("definition:{definition_id}")));
+            .map(|definition_id| {
+                CdmwRequestOrigin::MorphValue(format!("definition:{definition_id}"))
+            });
     }
     if command == "morph_set_macro" {
         return arguments
@@ -1782,7 +1937,9 @@ fn stage_cdmw_morph_value(
     }
     // Unchanged focus loss must not occupy the host request slot ahead of
     // the control the user just clicked.
-    drafts.get(definition_id).copied()
+    drafts
+        .get(definition_id)
+        .copied()
         .filter(|_| interaction_finished || (changed && !interaction_active))
 }
 
@@ -1871,6 +2028,42 @@ fn remap_texture_ownership(
                 .collect();
             texture.material_indices_by_lod = remapped;
             texture
+        })
+        .collect()
+}
+
+fn remap_layer_ownership(
+    layers: &[cdmw_render_wgpu::MaterialLayerSet],
+    previous: &MeshDocument,
+    next: &MeshDocument,
+) -> Vec<cdmw_render_wgpu::MaterialLayerSet> {
+    layers
+        .iter()
+        .filter_map(|layer| {
+            let before = previous.lods.get(layer.lod_index)?;
+            let part = before.submeshes.get(layer.material_index as usize)?;
+            if before
+                .submeshes
+                .iter()
+                .filter(|other| same_source_part(part, other))
+                .count()
+                != 1
+            {
+                return None;
+            }
+            let after = next.lods.get(layer.lod_index)?;
+            let mut matches = after
+                .submeshes
+                .iter()
+                .enumerate()
+                .filter(|(_, other)| same_source_part(part, other));
+            let (index, _) = matches.next()?;
+            if matches.next().is_some() {
+                return None;
+            }
+            let mut result = layer.clone();
+            result.material_index = index as u32;
+            Some(result)
         })
         .collect()
 }
@@ -2061,6 +2254,13 @@ fn loaded_cdmw_material_factor(
     }
 }
 
+/// A camera's orbit, for the engine's edit report (P4 V3).
+fn camera_report(camera: &OrbitCamera) -> Value {
+    let (yaw, pitch, target, distance) = camera.orbit_state();
+    json!({"yaw": yaw, "pitch": pitch, "target_x": target.x, "target_y": target.y,
+           "target_z": target.z, "distance": distance})
+}
+
 fn add_cdmw_material_presentations(
     renderer: &mut WindowRenderer,
     presentations: &[SessionMaterialPresentation],
@@ -2117,6 +2317,8 @@ struct LabApplication {
     material_parameter_entries: Vec<MaterialParameterInspectorEntry>,
     material_factor_entries: Vec<MaterialFactorInspectorEntry>,
     cdmw_texture_resources: Vec<LoadedTexture>,
+    cdmw_material_layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
+    cdmw_reference_pieces: Vec<cdmw_session::LoadedReferencePiece>,
     cdmw_hidden_parts: HashSet<u32>,
     cdmw_hidden_islands: Vec<cdmw_islands::HiddenIsland>,
     cdmw_material_presentations: Vec<SessionMaterialPresentation>,
@@ -2147,6 +2349,13 @@ struct LabApplication {
     view_mode: ViewMode,
     show_normals: bool,
     show_bounds: bool,
+    lighting_depth: cdmw_render_wgpu::LightingDepthSettings,
+    ground_visible: bool,
+    ground_grid: bool,
+    /// The shared Preview settings as last agreed with the host; a local
+    /// change is published once and becomes the new agreed value.
+    shared_preview_settings: Option<serde_json::Value>,
+    lighting_preset: cdmw_render_wgpu::LightingPreset,
     show_bones: bool,
     deformation_heatmap_enabled: bool,
     deformation_heatmap_applied: bool,
@@ -2201,7 +2410,41 @@ struct LabApplication {
     primary_press_modifiers: egui::Modifiers,
     /// Numpad presses this frame, under the egui key each one produced.
     shortcut_numpad_presses: Vec<(egui::Key, shortcuts::NumpadKey)>,
+    /// Editor commands CDMW asked for (its palette), run at the next frame.
+    pending_host_commands: Vec<String>,
+    /// A Finish asked for while an edit was in flight: sent once it is done.
+    cdmw_finish_waiting: bool,
+    /// What the editor last told CDMW about its commands, to send only changes.
+    published_commands_state: String,
     cdmw_bridge: Option<CdmwBridge>,
+    /// Set while a pre-started helper waits for its session (`--cdmw-session-pending`).
+    cdmw_pending: Option<PendingSessionInput>,
+    /// An edit inside Browse's own process (P4 V3): the window and renderer are
+    /// lent by its Preview, and ending the edit gives them back instead of exiting.
+    engine_hosted: bool,
+    engine_leave_requested: bool,
+    /// The Preview's camera, taken over once the session is installed (`keep_view`).
+    kept_camera: Option<OrbitCamera>,
+    /// Tool groups CDMW is still preparing (P4 V4); empty when all are ready.
+    cdmw_tool_groups: tool_groups::ToolGroupState,
+    /// Parts hidden while the editor showed Browse's model, kept for the session.
+    kept_hidden_parts: Option<HashSet<u32>>,
+    /// Parts selected while the editor showed Browse's model, kept for the session.
+    kept_selected_parts: Option<HashSet<u32>>,
+    /// When other viewports last saw this edit's mesh (P4 V5's read-only follower).
+    followers_seen_at: Option<Instant>,
+    /// Browse Archives is shown around this edit: the view only, clicks orbit
+    /// (P15 step 5a); the orbit mode from before, to give back.
+    cdmw_browsing: Option<bool>,
+    /// Browse's scene, set aside when this edit first drew its own on Browse's
+    /// renderer; it goes back with the view (section 8.7 C1).
+    kept_preview_scene: Option<cdmw_render_wgpu::KeptScene>,
+    /// The last scene upload left a texture out (a memory or upload failure).
+    cdmw_texture_upload_failed: bool,
+    /// The lent renderer's scene was set aside (once per edit).
+    preview_scene_set_aside: bool,
+    /// The revision followers were last given (section 8.8 R13: wake for the next).
+    followers_seen_revision: Option<crate::engine::FollowedRevision>,
     cdmw_state: Value,
     vertex_inspector: cdmw_vertex_inspector::VertexInspector,
     hair: HairEditor,
@@ -2320,6 +2563,8 @@ impl LabApplication {
             material_parameter_entries: Vec::new(),
             material_factor_entries: Vec::new(),
             cdmw_texture_resources: Vec::new(),
+            cdmw_material_layers: Vec::new(),
+            cdmw_reference_pieces: Vec::new(),
             cdmw_hidden_parts: HashSet::new(),
             cdmw_hidden_islands: Vec::new(),
             cdmw_material_presentations: Vec::new(),
@@ -2352,6 +2597,11 @@ impl LabApplication {
             view_mode: ViewMode::TexturedSolid,
             show_normals: false,
             show_bounds: false,
+            lighting_depth: Default::default(),
+            ground_visible: true,
+            ground_grid: true,
+            shared_preview_settings: None,
+            lighting_preset: cdmw_render_wgpu::LightingPreset::NeutralStudio,
             show_bones: false,
             deformation_heatmap_enabled: true,
             deformation_heatmap_applied: true,
@@ -2402,7 +2652,11 @@ impl LabApplication {
             raw_modifiers: egui::Modifiers::NONE,
             primary_press_modifiers: egui::Modifiers::NONE,
             shortcut_numpad_presses: Vec::new(),
+            pending_host_commands: Vec::new(),
+            cdmw_finish_waiting: false,
+            published_commands_state: String::new(),
             cdmw_bridge: None,
+            cdmw_pending: None,
             cdmw_state: Value::Null,
             vertex_inspector: cdmw_vertex_inspector::VertexInspector::default(),
             hair: HairEditor::default(),
@@ -2459,6 +2713,18 @@ impl LabApplication {
             cdmw_uv_pixel_height: 1024,
             cdmw_weight_step: 0.1,
             cdmw_exit_requested: false,
+            engine_hosted: false,
+            engine_leave_requested: false,
+            kept_camera: None,
+            cdmw_tool_groups: tool_groups::ToolGroupState::default(),
+            kept_hidden_parts: None,
+            kept_selected_parts: None,
+            followers_seen_at: None,
+            cdmw_browsing: None,
+            kept_preview_scene: None,
+            cdmw_texture_upload_failed: false,
+            preview_scene_set_aside: false,
+            followers_seen_revision: None,
             cdmw_finish_accepted: false,
             #[cfg(test)]
             cdmw_transaction_attempts: 0,
@@ -2468,10 +2734,438 @@ impl LabApplication {
     }
 
     fn new_cdmw(
-        mut bridge: CdmwBridge,
+        bridge: CdmwBridge,
         document: MeshDocument,
         embedded_parent_hwnd: Option<u64>,
     ) -> Result<Self> {
+        let mut application = Self::new(None, None);
+        application.embedded_parent_hwnd = embedded_parent_hwnd;
+        application.install_cdmw(bridge, document)?;
+        Ok(application)
+    }
+
+    /// A helper that has its window, device and pipelines before it has a session.
+    fn new_pending(input: PendingSessionInput, embedded_parent_hwnd: Option<u64>) -> Self {
+        let mut application = Self::new(None, None);
+        application.embedded_parent_hwnd = embedded_parent_hwnd;
+        application.cdmw_pending = Some(input);
+        application.status = "Waiting for a CDMW session".to_owned();
+        application
+    }
+
+    /// An edit in Browse's own process (P4 V3): the Preview lends its window and
+    /// renderer; the session arrives as `open_session` on the routed input.
+    fn new_engine_edit(
+        input: PendingSessionInput,
+        embedded_parent_hwnd: u64,
+        window: Arc<Window>,
+        renderer: WindowRenderer,
+        camera: Option<OrbitCamera>,
+    ) -> Self {
+        let mut application = Self::new_pending(input, Some(embedded_parent_hwnd));
+        application.engine_hosted = true;
+        application.kept_camera = camera;
+        application.egui_state = Some(egui_winit::State::new(
+            application.egui_context.clone(),
+            egui::ViewportId::ROOT,
+            window.as_ref(),
+            Some(window.scale_factor() as f32),
+            window.theme(),
+            None,
+        ));
+        application.renderer = Some(renderer);
+        application.window = Some(window);
+        application
+    }
+
+    /// Show Browse's resident model in the editor before its session exists (P4 V4).
+    /// Authoring is off and every tool group says it is preparing; parts can be
+    /// shown, hidden and inspected. `open_session` then installs the session over it.
+    fn install_view(&mut self, bridge: CdmwBridge, document: MeshDocument) -> Result<()> {
+        let renderer = self.renderer.take();
+        let installed = self.install_cdmw(bridge, document);
+        self.renderer = renderer;
+        installed?;
+        if let Some(camera) = self.kept_camera.take() {
+            self.camera.keep_orbit_of(&camera);
+            // Applied again after the session's own framing.
+            self.kept_camera = Some(camera);
+        }
+        if let Some(mut renderer) = self.renderer.take() {
+            let configured = self.configure_renderer(&mut renderer);
+            self.renderer = Some(renderer);
+            configured.map_err(anyhow::Error::msg)?;
+        }
+        let reason = "The edit session is being prepared.";
+        let groups = tool_groups::TOOL_GROUPS
+            .iter()
+            .map(|group| {
+                (
+                    (*group).to_owned(),
+                    json!({"ready": false, "reason": reason}),
+                )
+            })
+            .collect::<serde_json::Map<_, _>>();
+        self.cdmw_tool_groups = tool_groups::ToolGroupState::from_host(&json!({"groups": groups}));
+        // Clicks in the view orbit until the session arrives; parts are picked in
+        // the Parts list (whole parts only), which carries over to the session.
+        self.cdmw_rail_page = None;
+        self.cdmw_orbit_mode = true;
+        self.status = reason.to_owned();
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+        Ok(())
+    }
+
+    #[must_use]
+    fn showing_view(&self) -> bool {
+        self.cdmw_bridge
+            .as_ref()
+            .is_some_and(CdmwBridge::is_view_only)
+    }
+
+    /// The session arrived for an editor showing Browse's model: become a pending
+    /// helper again and open it as one does, keeping the camera and hidden parts.
+    fn open_session_over_view(&mut self, line: Value) {
+        let Some(bridge) = self.cdmw_bridge.take() else {
+            return;
+        };
+        let Some(input) = bridge.into_pending_input() else {
+            return;
+        };
+        self.kept_camera = Some(self.camera.clone());
+        self.kept_hidden_parts = Some(self.cdmw_hidden_parts.clone());
+        // Only whole parts can be selected before the session (P4 V4); they carry over.
+        self.kept_selected_parts = self
+            .mesh
+            .as_ref()
+            .map(|mesh| mesh.selection.submeshes.clone())
+            .filter(|parts| !parts.is_empty());
+        self.cdmw_tool_groups = tool_groups::ToolGroupState::default();
+        input.requeue(line);
+        self.cdmw_pending = Some(input);
+    }
+
+    /// Parts hidden or selected while the editor showed Browse's model carry over
+    /// to the session when its part list matches (P4 V4).
+    fn apply_kept_view_parts(&mut self) {
+        let parts = self.document.as_ref().map_or(0, |document| {
+            document
+                .lods
+                .get(self.active_lod_index)
+                .map_or(0, |lod| lod.submeshes.len())
+        });
+        let fits = |kept: &HashSet<u32>| kept.iter().all(|part| (*part as usize) < parts);
+        if let Some(hidden) = self.kept_hidden_parts.take()
+            && fits(&hidden)
+        {
+            self.cdmw_hidden_parts = hidden;
+        }
+        if let Some(selected) = self.kept_selected_parts.take()
+            && fits(&selected)
+            && let Some(mesh) = self.mesh.as_mut()
+        {
+            let _ = mesh.set_selection(cdmw_mesh::Selection {
+                submeshes: selected,
+                ..cdmw_mesh::Selection::default()
+            });
+        }
+    }
+
+    /// An editor that shows Browse's model first (P4 V4): the window and renderer
+    /// are lent by the Preview and the session comes later as `open_session`.
+    fn new_view_edit(
+        embedded_parent_hwnd: u64,
+        window: Arc<Window>,
+        renderer: WindowRenderer,
+        camera: Option<OrbitCamera>,
+    ) -> Self {
+        let mut application = Self::new(None, None);
+        application.embedded_parent_hwnd = Some(embedded_parent_hwnd);
+        application.engine_hosted = true;
+        application.kept_camera = camera;
+        application.egui_state = Some(egui_winit::State::new(
+            application.egui_context.clone(),
+            egui::ViewportId::ROOT,
+            window.as_ref(),
+            Some(window.scale_factor() as f32),
+            window.theme(),
+            None,
+        ));
+        application.renderer = Some(renderer);
+        application.window = Some(window);
+        application
+    }
+
+    /// Move this edit into a window of its own (P4 V5, Promote to tab). Its scene
+    /// is uploaded into `renderer` (whose textures are found on the shared device),
+    /// and the renderer it borrowed is returned with the camera, for the Preview.
+    fn move_to_window(
+        &mut self,
+        window: Arc<Window>,
+        mut renderer: WindowRenderer,
+        parent_hwnd: u64,
+    ) -> Result<
+        (
+            Option<WindowRenderer>,
+            OrbitCamera,
+            Option<cdmw_render_wgpu::KeptScene>,
+        ),
+        String,
+    > {
+        self.preview_scene_set_aside = true; // this renderer is the edit's own
+        self.configure_renderer(&mut renderer)?;
+        let lent = self.renderer.replace(renderer);
+        self.egui_state = Some(egui_winit::State::new(
+            self.egui_context.clone(),
+            egui::ViewportId::ROOT,
+            window.as_ref(),
+            Some(window.scale_factor() as f32),
+            window.theme(),
+            None,
+        ));
+        self.embedded_parent_hwnd = Some(parent_hwnd);
+        window.request_redraw();
+        self.window = Some(window);
+        Ok((lent, self.camera.clone(), self.kept_preview_scene.take()))
+    }
+
+    /// The edited file and its mesh for viewports that follow it read-only
+    /// (P4 V5): at most every quarter of a second, so a stroke shows in steps.
+    pub(crate) fn mesh_for_followers(
+        &mut self,
+        now: Instant,
+    ) -> Option<(String, crate::engine::FollowedRevision, &WorkingMesh)> {
+        if self
+            .followers_seen_at
+            .is_some_and(|at| now < at + std::time::Duration::from_millis(250))
+        {
+            return None;
+        }
+        let (_, revision, _) = self.engine_followed_mesh()?;
+        self.followers_seen_at = Some(now);
+        self.followers_seen_revision = Some(revision);
+        self.engine_followed_mesh()
+    }
+
+    /// When followers should next be given this edit's mesh: the end of the
+    /// follow interval, once the mesh has changed since they last had it. Without
+    /// it a last change waited for the next event (section 8.8 R13).
+    pub(crate) fn followers_wake_at(&self) -> Option<Instant> {
+        let (_, revision, _) = self.engine_followed_mesh()?;
+        if self.followers_seen_revision == Some(revision) {
+            return None;
+        }
+        Some(self.followers_seen_at.map_or_else(Instant::now, |at| {
+            at + std::time::Duration::from_millis(250)
+        }))
+    }
+
+    /// The mesh followers show now, without the follow interval (for leaving).
+    pub(crate) fn engine_followed_mesh(
+        &self,
+    ) -> Option<(String, crate::engine::FollowedRevision, &WorkingMesh)> {
+        // An edit in neutral or replacement coordinates would be drawn out of place
+        // in a preview of the file (section 8.1, item 5): it is not followed.
+        let manifest = self.cdmw_bridge.as_ref()?.manifest();
+        if manifest.source.get("coordinates").and_then(Value::as_str) == Some("neutral") {
+            return None;
+        }
+        let path = self.engine_source_path()?;
+        let mesh = self.mesh.as_ref()?;
+        let revision = crate::engine::FollowedRevision {
+            mesh: mesh.identity(),
+            geometry: mesh.geometry_revision,
+            topology: mesh.topology_generation,
+        };
+        Some((path, revision, mesh))
+    }
+
+    /// Hand the renderer and the camera back to the Preview when the edit ends.
+    fn give_back_view(
+        &mut self,
+    ) -> (
+        Option<WindowRenderer>,
+        OrbitCamera,
+        Option<cdmw_render_wgpu::KeptScene>,
+    ) {
+        self.egui_state = None;
+        self.window = None;
+        (
+            self.renderer.take(),
+            self.camera.clone(),
+            self.kept_preview_scene.take(),
+        )
+    }
+
+    /// End this edit: an engine-hosted edit gives the view back; a helper of its own exits.
+    fn leave_or_exit(&mut self, event_loop: &ActiveEventLoop) {
+        if self.engine_hosted {
+            self.engine_leave_requested = true;
+        } else {
+            event_loop.exit();
+        }
+    }
+
+    #[must_use]
+    /// The window this edit draws in (Browse's lent one or its own).
+    fn engine_window_id(&self) -> Option<winit::window::WindowId> {
+        self.window.as_ref().map(|window| window.id())
+    }
+
+    /// Browse is shown around this edit, or the editor again (P15 step 5a).
+    pub(crate) fn set_cdmw_browsing(&mut self, browsing: bool) {
+        match (browsing, self.cdmw_browsing) {
+            (true, None) => {
+                self.cancel_active_gesture("Browse Archives is shown");
+                self.cdmw_browsing = Some(self.cdmw_orbit_mode);
+                self.cdmw_orbit_mode = true;
+            }
+            (false, Some(orbit_before)) => {
+                self.cdmw_browsing = None;
+                self.cdmw_orbit_mode = orbit_before;
+            }
+            _ => {}
+        }
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    pub(crate) fn cdmw_browsing(&self) -> bool {
+        self.cdmw_browsing.is_some()
+    }
+
+    fn engine_leave_requested(&self) -> bool {
+        self.engine_leave_requested
+    }
+
+    /// Whether CDMW accepted this edit's Finish (its followers then wait for the
+    /// finished package instead of going back to their own mesh).
+    fn engine_finished(&self) -> bool {
+        self.cdmw_finish_accepted
+    }
+
+    /// The archive file this edit edits, as followers match it.
+    /// Whether this edit's parts are one file's, in that file's order, so a preview
+    /// that shows the file with others can follow them part by part (P5). A set's
+    /// parts come from several files and follow only a preview of the same set.
+    pub(crate) fn engine_edit_is_one_file(&self) -> bool {
+        self.cdmw_bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.manifest().item_set_files.len() <= 1)
+    }
+
+    fn engine_source_path(&self) -> Option<String> {
+        Some(
+            self.cdmw_bridge
+                .as_ref()?
+                .manifest()
+                .source
+                .get("path")?
+                .as_str()?
+                .to_owned(),
+        )
+    }
+
+    fn engine_camera_report(&self) -> Value {
+        camera_report(&self.camera)
+    }
+
+    /// After an engine-hosted edit installed its session: the renderer's upload
+    /// count and what its texture cache keeps.
+    fn engine_installed_uploads(
+        &self,
+    ) -> Option<(u64, cdmw_render_wgpu::texture_cache::RetainedTextureReport)> {
+        if self.cdmw_pending.is_some() || self.cdmw_bridge.is_none() || self.showing_view() {
+            return None;
+        }
+        self.renderer.as_ref().map(|renderer| {
+            (
+                renderer.texture_upload_count(),
+                renderer.retained_texture_report(),
+            )
+        })
+    }
+
+    /// Answer the pending helper's one request: open the session into the window and
+    /// renderer that already exist, then say hello and ready as a fresh launch does.
+    fn poll_pending_session(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(input) = self.cdmw_pending.as_ref() else {
+            return;
+        };
+        let Some(window) = self.window.clone() else {
+            return; // the request waits in the queue until the window exists
+        };
+        let request = match input.poll() {
+            Ok(None) => return,
+            Ok(Some(request)) => request,
+            Err(error) => {
+                error!("pending Mesh Editor helper refused: {error}");
+                self.leave_or_exit(event_loop);
+                return;
+            }
+        };
+        let (Some(input), PendingRequest::Open(manifest_path)) =
+            (self.cdmw_pending.take(), request)
+        else {
+            self.leave_or_exit(event_loop);
+            return;
+        };
+        let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
+        let parent_hwnd = self.embedded_parent_hwnd.unwrap_or(0);
+        let opened = CdmwBridge::open_pending(&manifest_path, input)
+            .map_err(|error| {
+                format!(
+                    "failed to open CDMW session {}: {error}",
+                    manifest_path.display()
+                )
+            })
+            .and_then(|(bridge, document)| {
+                // Install without a renderer, then configure the existing one once.
+                let renderer = self.renderer.take();
+                let installed = self
+                    .install_cdmw(bridge, document)
+                    .map_err(|error| error.to_string());
+                self.renderer = renderer;
+                installed
+            });
+        if let Err(error) = opened {
+            error!("{error}");
+            let _ = cdmw_session::announce_pending_ready(child_hwnd, parent_hwnd, Some(&error));
+            self.leave_or_exit(event_loop);
+            return;
+        }
+        if self.viewport_rect.is_some()
+            && let Some(camera) = self.kept_camera.take()
+        {
+            // Browse's view, kept: same angle, target and distance (P4 V3).
+            self.camera.keep_orbit_of(&camera);
+        }
+        self.apply_kept_view_parts();
+        if let Some(mut renderer) = self.renderer.take() {
+            match self.configure_renderer(&mut renderer) {
+                Ok(()) => self.renderer = Some(renderer),
+                Err(error) => self.renderer_failed(error),
+            }
+        }
+        let announced = self.cdmw_bridge.as_ref().map(|bridge| {
+            bridge
+                .announce_hello(child_hwnd, parent_hwnd)
+                .and_then(|()| bridge.announce_ready())
+        });
+        if let Some(Err(error)) = announced {
+            error!("CDMW handshake failed: {error}");
+            self.leave_or_exit(event_loop);
+            return;
+        }
+        window.set_title("CDMW — Mesh Editor");
+        self.status.push_str(" · waiting for CDMW");
+        window.request_redraw();
+    }
+
+    fn install_cdmw(&mut self, mut bridge: CdmwBridge, document: MeshDocument) -> Result<()> {
         let source_lod_index = bridge.source_lod_index();
         let source_path = bridge
             .manifest()
@@ -2480,8 +3174,10 @@ impl LabApplication {
             .and_then(Value::as_str)
             .filter(|value| !value.trim().is_empty())
             .map_or_else(|| PathBuf::from("cdmw-shadow.pac"), PathBuf::from);
-        let mesh = WorkingMesh::from_document_lod(&document, source_lod_index)
-            .with_context(|| format!("CDMW authoring document could not create LOD{source_lod_index}"))?;
+        let mesh =
+            WorkingMesh::from_document_lod(&document, source_lod_index).with_context(|| {
+                format!("CDMW authoring document could not create LOD{source_lod_index}")
+            })?;
         let initial_state = bridge.manifest().state.clone();
         let authoritative_base_revision = bridge.manifest().base_revision;
         let output_policy = bridge
@@ -2510,20 +3206,28 @@ impl LabApplication {
             .iter()
             .map(|presentation| loaded_cdmw_material_factor(presentation, document.lods.len()))
             .collect::<Vec<_>>();
-        let mut application = Self::new(None, None);
-        application.embedded_parent_hwnd = embedded_parent_hwnd;
-        application.install_loaded_mesh_with_materials(LoadedMesh {
-            path: source_path,
-            document,
-            mesh,
-            other_lod_meshes: Vec::new(),
-            textures: cdmw_texture_resources.clone(),
-            material_parameters: Vec::new(),
-            material_factors: cdmw_material_factors,
-            skeleton: None,
-        }, false, source_lod_index);
+        let application = self;
+        application.cdmw_material_layers = bridge.take_layers();
+        application.cdmw_reference_pieces = bridge.take_reference_pieces();
+        application.install_loaded_mesh_with_materials(
+            LoadedMesh {
+                path: source_path,
+                document,
+                mesh,
+                other_lod_meshes: Vec::new(),
+                textures: cdmw_texture_resources.clone(),
+                material_parameters: Vec::new(),
+                material_factors: cdmw_material_factors,
+                skeleton: None,
+            },
+            false,
+            source_lod_index,
+        );
         if let Some(mesh) = &application.mesh {
             application.camera.frame_integrated_startup(mesh);
+        }
+        if !application.cdmw_reference_pieces.is_empty() {
+            application.frame_item_set();
         }
         let hair = bridge.hair_from_state(&initial_state)?;
         application.cdmw_state = initial_state;
@@ -2544,7 +3248,7 @@ impl LabApplication {
         );
         application.apply_cdmw_selection_state(true);
         application.restore_cdmw_hidden_parts();
-        Ok(application)
+        Ok(())
     }
 
     /// Start with the View ticks this mesh had when it was last finished.
@@ -2688,14 +3392,19 @@ impl LabApplication {
     }
 
     fn cdmw_morph_comparison_active(&self) -> bool {
-        self.cdmw_state.get("morph_refit").and_then(|state| state.get("corrections_enabled"))
-            .and_then(Value::as_bool) == Some(false)
+        self.cdmw_state
+            .get("morph_refit")
+            .and_then(|state| state.get("corrections_enabled"))
+            .and_then(Value::as_bool)
+            == Some(false)
     }
 
     fn submit_cdmw_local_edit(&mut self, edit: CdmwLocalEdit) {
         match edit {
             CdmwLocalEdit::Geometry(label) => self.submit_cdmw_transaction(&label, None),
-            CdmwLocalEdit::VertexGeometry(label, handles) => self.submit_cdmw_transaction(&label, Some(&handles)),
+            CdmwLocalEdit::VertexGeometry(label, handles) => {
+                self.submit_cdmw_transaction(&label, Some(&handles))
+            }
             CdmwLocalEdit::Selection(label) => {
                 let Some(mesh) = &self.mesh else {
                     return;
@@ -2778,7 +3487,11 @@ impl LabApplication {
     fn cdmw_command_arguments(&self, command: &str, arguments: Value) -> Result<Value, String> {
         if !matches!(
             command,
-            "rig_adjust_weight" | "rig_normalize_weights" | "rig_transfer_weights" | "cloth_paint_set" | "cloth_pin_set"
+            "rig_adjust_weight"
+                | "rig_normalize_weights"
+                | "rig_transfer_weights"
+                | "cloth_paint_set"
+                | "cloth_pin_set"
         ) {
             return Ok(arguments);
         }
@@ -2835,13 +3548,36 @@ impl LabApplication {
         }
     }
 
+    /// Send the Finish that waited for an edit, once nothing is in flight. True
+    /// when it was sent.
+    fn send_waiting_cdmw_finish(&mut self) -> bool {
+        if !self.cdmw_finish_waiting || self.cdmw_busy() || self.hair.preparing() {
+            return false;
+        }
+        self.submit_cdmw_finish();
+        true
+    }
+
     fn submit_cdmw_finish(&mut self) {
         if self.cdmw_busy() || self.hair.preparing() {
-            self.hair.pending_finish = self.hair.active();
-            self.status =
-                "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation".to_owned();
+            if self.hair.active() {
+                self.hair.pending_finish = true;
+            } else {
+                // The Finish waits for the edit in flight and is sent after it, from
+                // the editor or from CDMW's end-edit prompt alike; dropping it left
+                // CDMW waiting for a Finish that never came (journey 3).
+                self.cdmw_finish_waiting = true;
+            }
+            self.status = if self.hair.active() {
+                "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation"
+            } else {
+                // Nothing to cancel here: the Finish runs once the edit is done.
+                "Finish Edit Mesh will run as soon as the current edit is done"
+            }
+            .to_owned();
             return;
         }
+        self.cdmw_finish_waiting = false;
         let mut hidden_parts: Vec<u32> = self.cdmw_hidden_parts.iter().copied().collect();
         hidden_parts.sort_unstable();
         let Some(bridge) = &mut self.cdmw_bridge else {
@@ -2881,6 +3617,36 @@ impl LabApplication {
                 self.status =
                     "CDMW connected · edits remain isolated until Finish Edit Mesh".to_owned();
             }
+            HostEvent::ToolGroups(groups) => {
+                self.cdmw_tool_groups = tool_groups::ToolGroupState::from_host(&groups);
+                if let Some(page) = self.cdmw_rail_page
+                    && self.cdmw_tool_groups.refusal(page).is_some()
+                {
+                    // A tool that is no longer ready closes; nothing runs on it.
+                    self.cdmw_rail_page = None;
+                    self.cancel_active_gesture("The tool is being prepared");
+                    self.cdmw_orbit_mode = true;
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            HostEvent::SaveStatus(error) => {
+                // The draft saves after each change, off the change's own reply.
+                self.cdmw_state["geometry_layers"]["autosave_error"] = json!(error);
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            HostEvent::Ignored => {}
+            HostEvent::OpenSession(_manifest, line) => self.open_session_over_view(line),
+            HostEvent::MorphState(morph) => {
+                // Only the morph part changes; selection and edits stay as they are.
+                self.cdmw_state["morph_refit"] = morph;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
             HostEvent::StateSnapshot(state) => {
                 if self.cdmw_busy() {
                     self.handle_cdmw_host_event(HostEvent::Fatal(
@@ -2891,7 +3657,11 @@ impl LabApplication {
                 self.apply_cdmw_state(state);
             }
             HostEvent::Theme(theme) => {
+                if let Some(settings) = theme.get("preview_settings") {
+                    self.apply_shared_preview_settings(settings);
+                }
                 self.apply_cdmw_theme_payload(&theme);
+                crate::shortcuts::apply_app_command_chords(&theme);
                 if let Some(shortcuts) = theme.get("shortcuts") {
                     self.apply_shortcut_overrides(Some(shortcuts));
                 }
@@ -2906,8 +3676,15 @@ impl LabApplication {
                     let _ = cdmw_win32_embed::focus_child_window(window);
                 }
             }
+            HostEvent::BrowsePresentation(browsing) => {
+                self.set_cdmw_browsing(browsing);
+            }
             HostEvent::HairPreset(preset) => {
                 self.hair.requested_preset = Some(preset);
+            }
+            HostEvent::RunCommand(command) => {
+                // Run at the next frame, where the key press would have run it.
+                self.pending_host_commands.push(command);
             }
             HostEvent::VertexInspection {
                 request_id,
@@ -2982,7 +3759,8 @@ impl LabApplication {
         let feedback = cdmw_result_feedback(&payload);
         let (revision, state, document) = prepared.into_parts();
         let retain_refit_feedback = matches!(origin.as_ref(), Some(CdmwRequestOrigin::Selection))
-            && document.is_none() && self.cdmw_refit_feedback_is_current();
+            && document.is_none()
+            && self.cdmw_refit_feedback_is_current();
         if ok && payload.get("hair_ack").is_some() {
             if let Err(error) =
                 self.accept_hair_ack(payload["hair_ack"].as_u64().unwrap_or(u64::MAX))
@@ -3035,7 +3813,10 @@ impl LabApplication {
         }
         if !ok {
             self.status = format!("{label} rejected: {}", error.trim());
-            if matches!(label.as_str(), "Delete part" | "Delete selection" | "Delete Selection") {
+            if matches!(
+                label.as_str(),
+                "Delete part" | "Delete selection" | "Delete Selection"
+            ) {
                 self.show_cdmw_delete_guidance(&self.status.clone());
             }
             self.remember_cdmw_page_feedback(origin.as_ref());
@@ -3089,7 +3870,12 @@ impl LabApplication {
             Some(CdmwRequestOrigin::Uv) => {
                 self.cdmw_uv_feedback = Some(self.status.clone());
             }
-            Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::WeaponPlacement | CdmwRequestOrigin::MorphValue(_)) | None => {}
+            Some(
+                CdmwRequestOrigin::Selection
+                | CdmwRequestOrigin::WeaponPlacement
+                | CdmwRequestOrigin::MorphValue(_),
+            )
+            | None => {}
         }
     }
 
@@ -3134,9 +3920,12 @@ impl LabApplication {
     ) -> Result<()> {
         let collision_update = document.is_none()
             && state.get("selection") == self.cdmw_state.get("selection")
-            && (state["jiggle"]["collision_inputs"] != self.cdmw_state["jiggle"]["collision_inputs"]
-                || state["jiggle"]["weapon_placement"] != self.cdmw_state["jiggle"]["weapon_placement"]
-                || state["jiggle"]["decoded"]["file"] != self.cdmw_state["jiggle"]["decoded"]["file"]);
+            && (state["jiggle"]["collision_inputs"]
+                != self.cdmw_state["jiggle"]["collision_inputs"]
+                || state["jiggle"]["weapon_placement"]
+                    != self.cdmw_state["jiggle"]["weapon_placement"]
+                || state["jiggle"]["decoded"]["file"]
+                    != self.cdmw_state["jiggle"]["decoded"]["file"]);
         let placement_response = document.is_none()
             && state.get("selection") == self.cdmw_state.get("selection")
             && self.accept_weapon_placement_state(&state);
@@ -3144,7 +3933,9 @@ impl LabApplication {
             // Keep the live cloth frame and clock after persisting a reference drag.
         } else if collision_update && state["jiggle"]["collision_inputs"]["weapon"].is_string() {
             self.cancel_pending_jiggle();
-        } else if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() {
+        } else if self.cdmw_jiggle.preview.scene.is_some()
+            || self.cdmw_jiggle.preview.pending.is_some()
+        {
             self.publish_mesh_snapshot();
         }
         let hair = self
@@ -3188,7 +3979,11 @@ impl LabApplication {
             })
             .transpose()?
             .flatten();
-        let document = document.or_else(|| materials.as_ref().and_then(|_| self.document.as_deref().cloned()));
+        let document = document.or_else(|| {
+            materials
+                .as_ref()
+                .and_then(|_| self.document.as_deref().cloned())
+        });
         let previous_visibility = self.cdmw_visible_submeshes();
         let previous_state = std::mem::replace(&mut self.cdmw_state, state);
         let result = if let Some(document) = document {
@@ -3201,8 +3996,9 @@ impl LabApplication {
             self.apply_cdmw_selection_state(
                 previous_visibility != self.cdmw_visible_submeshes()
                     || previous_state.get("selection") != self.cdmw_state.get("selection")
-                    || (self.cdmw_island_colours && previous_state["mesh_islands"]["color_faces"]
-                        != self.cdmw_state["mesh_islands"]["color_faces"]),
+                    || (self.cdmw_island_colours
+                        && previous_state["mesh_islands"]["color_faces"]
+                            != self.cdmw_state["mesh_islands"]["color_faces"]),
             );
             Ok(())
         };
@@ -3237,33 +4033,40 @@ impl LabApplication {
         let replacement_hidden_parts = (self.cdmw_state["replacement"]["active"].as_bool()
             == Some(true))
         .then(|| self.cdmw_hidden_parts.clone());
-        let (textures, material_presentations, material_revision) = if let Some(update) = materials
-        {
-            (
-                update
-                    .textures
-                    .into_iter()
-                    .map(loaded_cdmw_texture)
-                    .collect(),
-                update.material_presentations,
-                Some((update.key, update.reason)),
-            )
-        } else {
-            (
-                self.document.as_ref().map_or_else(
-                    || self.cdmw_texture_resources.clone(),
-                    |previous_document| {
-                        remap_texture_ownership(
-                            &self.cdmw_texture_resources,
-                            previous_document,
-                            &document,
-                        )
-                    },
-                ),
-                self.cdmw_material_presentations.clone(),
-                None,
-            )
-        };
+        let (textures, material_presentations, layers, material_revision) =
+            if let Some(update) = materials {
+                (
+                    update
+                        .textures
+                        .into_iter()
+                        .map(loaded_cdmw_texture)
+                        .collect(),
+                    update.material_presentations,
+                    update.layers,
+                    Some((update.key, update.reason)),
+                )
+            } else {
+                (
+                    self.document.as_ref().map_or_else(
+                        || self.cdmw_texture_resources.clone(),
+                        |previous_document| {
+                            remap_texture_ownership(
+                                &self.cdmw_texture_resources,
+                                previous_document,
+                                &document,
+                            )
+                        },
+                    ),
+                    self.cdmw_material_presentations.clone(),
+                    self.document.as_ref().map_or_else(
+                        || self.cdmw_material_layers.clone(),
+                        |previous| {
+                            remap_layer_ownership(&self.cdmw_material_layers, previous, &document)
+                        },
+                    ),
+                    None,
+                )
+            };
         // These resources come from this session's immutable texture payloads;
         // remapping only changes their owners. Preserve GPU resources when the
         // ownership and LOD shape are unchanged and the previous upload succeeded.
@@ -3290,20 +4093,32 @@ impl LabApplication {
                             next.material_indices_by_lod == previous.material_indices_by_lod
                         })
             });
-        let same_parts = self.document.as_ref().and_then(|previous| {
-            previous.lods.get(active_lod_index).zip(document.lods.get(active_lod_index))
-        }).is_some_and(|(previous, next)| {
-            previous.submeshes.len() == next.submeshes.len()
-                && previous.submeshes.iter().zip(&next.submeshes)
-                    .all(|(previous, next)| same_source_part(previous, next))
-        });
+        let same_parts = self
+            .document
+            .as_ref()
+            .and_then(|previous| {
+                previous
+                    .lods
+                    .get(active_lod_index)
+                    .zip(document.lods.get(active_lod_index))
+            })
+            .is_some_and(|(previous, next)| {
+                previous.submeshes.len() == next.submeshes.len()
+                    && previous
+                        .submeshes
+                        .iter()
+                        .zip(&next.submeshes)
+                        .all(|(previous, next)| same_source_part(previous, next))
+            });
         let reused_graph = if same_parts && let Some(mesh) = &mut self.mesh {
             mesh.refresh_from_document_lod(&document, active_lod_index)?
         } else {
             false
         };
         let mesh = if reused_graph {
-            self.mesh.take().context("resident CDMW graph disappeared")?
+            self.mesh
+                .take()
+                .context("resident CDMW graph disappeared")?
         } else {
             WorkingMesh::from_document_lod(&document, active_lod_index)
                 .with_context(|| format!("invalid CDMW LOD{active_lod_index} state"))?
@@ -3327,6 +4142,7 @@ impl LabApplication {
             active_lod_index,
         );
         self.cdmw_texture_resources = textures;
+        self.cdmw_material_layers = layers;
         self.cdmw_material_presentations = material_presentations;
         if let Some((key, reason)) = material_revision {
             self.cdmw_material_key = key;
@@ -3334,12 +4150,20 @@ impl LabApplication {
         }
         if let Some(renderer) = &mut self.renderer {
             if !reuse_materials {
+                for layer in &self.cdmw_material_layers {
+                    renderer.add_material_layers(layer)?;
+                }
                 add_cdmw_material_presentations(
                     renderer,
                     &self.cdmw_material_presentations,
                     self.document
                         .as_ref()
                         .map_or(0, |document| document.lods.len()),
+                )?;
+                cdmw_references::upload_materials(
+                    renderer,
+                    &self.cdmw_reference_pieces,
+                    self.document.as_deref(),
                 )?;
             }
             renderer
@@ -3454,7 +4278,11 @@ impl LabApplication {
         let mut changed = false;
         for event in events {
             match event {
-                LoadEvent::Lod { generation, lod_index, result } => {
+                LoadEvent::Lod {
+                    generation,
+                    lod_index,
+                    result,
+                } => {
                     changed |= self.accept_prepared_lod(generation, lod_index, *result);
                 }
                 LoadEvent::Jiggle { generation, result } => {
@@ -3542,7 +4370,11 @@ impl LabApplication {
         }
         if changed && let Some(window) = &self.window {
             let _locale = crate::localization::enter(&self.egui_context);
-            window.set_title(&format!("{} — {}", crate::localization::tr("CDMW Mesh Editor"), crate::localization::tr(&self.status)));
+            window.set_title(&format!(
+                "{} — {}",
+                crate::localization::tr("CDMW Mesh Editor"),
+                crate::localization::tr(&self.status)
+            ));
         }
         changed
     }
@@ -3551,7 +4383,12 @@ impl LabApplication {
         self.install_loaded_mesh_with_materials(loaded, false, 0);
     }
 
-    fn install_loaded_mesh_with_materials(&mut self, loaded: LoadedMesh, reuse_materials: bool, initial_lod_index: usize) {
+    fn install_loaded_mesh_with_materials(
+        &mut self,
+        loaded: LoadedMesh,
+        reuse_materials: bool,
+        initial_lod_index: usize,
+    ) {
         self.cancel_pending_lod();
         self.lod_document_generation = self.lod_document_generation.saturating_add(1);
         let LoadedMesh {
@@ -3849,21 +4686,30 @@ impl LabApplication {
                 Err(error) => gpu_errors.push(error.to_string()),
             }
             let snapshot = mesh.draw_snapshot();
-            let part_colours = identity_colours_active
-                .then(|| cdmw_islands::identity_colour_snapshot(&mesh, None, &snapshot,
-                    self.cdmw_island_colours.then_some(&self.cdmw_state["mesh_islands"]["color_faces"])));
-            let deformation_reference = if part_colours.is_none() { deformation_reference_for_snapshot(
-                self.deformation_heatmap_enabled,
-                self.deformation_reference.as_mut(),
-                None,
-                &snapshot,
-            ) } else { None };
+            let part_colours = identity_colours_active.then(|| {
+                cdmw_islands::identity_colour_snapshot(
+                    &mesh,
+                    None,
+                    &snapshot,
+                    self.cdmw_island_colours
+                        .then_some(&self.cdmw_state["mesh_islands"]["color_faces"]),
+                )
+            });
+            let deformation_reference = if part_colours.is_none() {
+                deformation_reference_for_snapshot(
+                    self.deformation_heatmap_enabled,
+                    self.deformation_reference.as_mut(),
+                    None,
+                    &snapshot,
+                )
+            } else {
+                None
+            };
             if let Err(error) = if let Some(colours) = &part_colours {
                 renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
             } else {
                 renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
-            }
-            {
+            } {
                 gpu_errors.push(format!("mesh upload failed: {error}"));
             }
             if let Err(error) = renderer.set_skeleton_lines(&skeleton_lines) {
@@ -3917,7 +4763,9 @@ impl LabApplication {
         // starts with the selected LOD and builds other graphs only on demand.
         for (offset, mesh) in other_lod_meshes.into_iter().enumerate() {
             let lod_index = offset + 1;
-            if lod_index != initial_lod_index && let Some(slot) = self.lod_sessions.get_mut(lod_index) {
+            if lod_index != initial_lod_index
+                && let Some(slot) = self.lod_sessions.get_mut(lod_index)
+            {
                 *slot = Some(LodSession {
                     mesh,
                     history: History::new(per_lod_history_budget),
@@ -3961,7 +4809,10 @@ impl LabApplication {
             .show(root_ui, |ui| {
                 ui.heading(crate::localization::tr("Archive / Assets"));
                 ui.horizontal(|ui| {
-                    if ui.button(crate::localization::tr("Open Archive Root…")).clicked() {
+                    if ui
+                        .button(crate::localization::tr("Open Archive Root…"))
+                        .clicked()
+                    {
                         actions.push(UiAction::OpenArchive);
                     }
                     if ui.button(crate::localization::tr("Open Mesh…")).clicked() {
@@ -3970,8 +4821,9 @@ impl LabApplication {
                 });
                 ui.add_space(6.0);
                 let search = ui.add(
-                    egui::TextEdit::singleline(&mut self.archive_query)
-                        .hint_text(crate::localization::tr("Search virtual path, name, extension")),
+                    egui::TextEdit::singleline(&mut self.archive_query).hint_text(
+                        crate::localization::tr("Search virtual path, name, extension"),
+                    ),
                 );
                 if ui.button(crate::localization::tr("Search")).clicked()
                     || (search.lost_focus()
@@ -4014,7 +4866,9 @@ impl LabApplication {
                         },
                     );
                 } else {
-                    ui.label(RichText::new(crate::localization::tr("No archive root opened")).italics());
+                    ui.label(
+                        RichText::new(crate::localization::tr("No archive root opened")).italics(),
+                    );
                 }
             });
         egui::Panel::right("inspector")
@@ -4207,9 +5061,19 @@ impl LabApplication {
                             ui.selectable_value(&mut self.view_mode, mode, crate::localization::tr(mode.label()));
                         }
                     });
+                egui::ComboBox::from_id_salt("lighting_preset")
+                    .width(ui.available_width())
+                    .selected_text(crate::localization::tr(self.lighting_preset.label()))
+                    .show_ui(ui, |ui| {
+                        for preset in cdmw_render_wgpu::LightingPreset::ALL {
+                            ui.selectable_value(&mut self.lighting_preset, preset, crate::localization::tr(preset.label()));
+                        }
+                    });
                 ui.horizontal_wrapped(|ui| {
                     ui.checkbox(&mut self.show_normals, crate::localization::tr("Normals"));
                     ui.checkbox(&mut self.show_bounds, crate::localization::tr("Bounds"));
+                    ui.checkbox(&mut self.lighting_depth.shadows, crate::localization::tr("Shadows"));
+                    ui.checkbox(&mut self.lighting_depth.ambient_occlusion, crate::localization::tr("Ambient occlusion"));
                     let bones_available = self
                         .skeleton_entry
                         .as_ref()
@@ -4597,12 +5461,20 @@ impl LabApplication {
     fn handle_actions(&mut self, actions: Vec<UiAction>) {
         let _language = crate::localization::enter(&self.egui_context);
         if actions.iter().any(|action| match action {
-            UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode => false,
-            UiAction::CdmwCommand { command, arguments, .. }
-                if cdmw_request_origin(command, arguments) == Some(CdmwRequestOrigin::WeaponPlacement) => false,
+            UiAction::FrameAll
+            | UiAction::StandardView(_)
+            | UiAction::OrbitYaw(_)
+            | UiAction::OrbitMode => false,
+            UiAction::CdmwCommand {
+                command, arguments, ..
+            } if cdmw_request_origin(command, arguments)
+                == Some(CdmwRequestOrigin::WeaponPlacement) =>
+            {
+                false
+            }
             _ => true,
-        })
-            && self.cdmw_jiggle.preview.scene.is_some() {
+        }) && self.cdmw_jiggle.preview.scene.is_some()
+        {
             self.publish_mesh_snapshot();
         }
         let mut publish_mesh = false;
@@ -4721,6 +5593,9 @@ impl LabApplication {
                         self.projection = None;
                         self.status = "Camera framed the complete mesh".to_owned();
                     }
+                    if !self.cdmw_reference_pieces.is_empty() {
+                        self.frame_item_set();
+                    }
                 }
                 UiAction::FrameSelected => {
                     if let Some(mesh) = &self.mesh {
@@ -4819,10 +5694,17 @@ impl LabApplication {
                 UiAction::ExtrudeFaces => {
                     let distance = self.extrude_distance;
                     if self.cdmw_mode() {
+                        // CDMW takes Extrude's `offset` along the chosen axis, as the
+                        // Topology panel sends it; it refuses a `distance` (8.9).
+                        let offset = match self.cdmw_extrude_axis.as_str() {
+                            "x" => [distance, 0.0, 0.0],
+                            "y" => [0.0, distance, 0.0],
+                            _ => [0.0, 0.0, distance],
+                        };
                         self.submit_cdmw_topology(
                             "extrude",
                             "Extrude faces",
-                            json!({"distance": distance}),
+                            json!({"offset": offset}),
                         );
                     } else {
                         self.run_topology("Extrude faces", |mesh, faces| {
@@ -4846,7 +5728,9 @@ impl LabApplication {
                         });
                     }
                 }
-                UiAction::CdmwHistoryCursor { cursor, revision } => self.start_cdmw_history(cursor, revision),
+                UiAction::CdmwHistoryCursor { cursor, revision } => {
+                    self.start_cdmw_history(cursor, revision)
+                }
                 UiAction::Undo => {
                     if self.cdmw_mode() {
                         if !self.defer_hair_history(false) {
@@ -4886,9 +5770,13 @@ impl LabApplication {
                 UiAction::ChooseCdmwFreeEdit => self.choose_cdmw_free_edit(),
                 UiAction::ChooseCdmwMorphPreset { save } => self.choose_cdmw_morph_preset(save),
                 UiAction::ChooseCdmwRefitRecipe { save } => self.choose_cdmw_refit_recipe(save),
-                UiAction::ChooseCdmwRefitShape { parts, islands } => self.choose_cdmw_refit_shape(parts, islands),
+                UiAction::ChooseCdmwRefitShape { parts, islands } => {
+                    self.choose_cdmw_refit_shape(parts, islands)
+                }
                 UiAction::ChooseCdmwRefitMesh { role } => self.choose_cdmw_refit_mesh(role),
-                UiAction::ChooseClothCollisionInput { role } => self.choose_cloth_collision_input(role),
+                UiAction::ChooseClothCollisionInput { role } => {
+                    self.choose_cloth_collision_input(role)
+                }
                 UiAction::FinishCdmw => self.submit_cdmw_finish(),
                 UiAction::OrbitMode => {
                     self.cdmw_orbit_mode = true;
@@ -5008,6 +5896,13 @@ impl LabApplication {
                         Err(error) => self.status = format!("Axis scale failed: {error}"),
                     }
                 }
+                UiAction::SwitchItemPiece(index) => {
+                    if let Some(bridge) = &self.cdmw_bridge
+                        && let Err(error) = bridge.switch_item_piece(index)
+                    {
+                        self.status = error.to_string();
+                    }
+                }
                 UiAction::CdmwCommand {
                     command,
                     arguments,
@@ -5026,7 +5921,11 @@ impl LabApplication {
                 UiAction::Hair(action) => self.run_hair_action(action),
                 UiAction::SelectIsland { part, faces } => self.select_island(part, faces),
                 UiAction::SelectIslands(islands) => self.select_islands(islands),
-                UiAction::SetIslandVisibility { part, faces, visible } => {
+                UiAction::SetIslandVisibility {
+                    part,
+                    faces,
+                    visible,
+                } => {
                     self.set_island_visibility(part, faces, visible);
                 }
                 UiAction::IsolateIsland { part, faces } => self.isolate_island(part, faces),
@@ -5092,7 +5991,10 @@ impl LabApplication {
 
     fn choose_mesh(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter(crate::localization::tr("Crimson Desert mesh"), &["pac", "pam", "pamlod"])
+            .add_filter(
+                crate::localization::tr("Crimson Desert mesh"),
+                &["pac", "pam", "pamlod"],
+            )
             .pick_file()
         {
             match self.loader.load_mesh(path) {
@@ -5166,7 +6068,8 @@ impl LabApplication {
                         document_generation: self.lod_document_generation,
                         lod_index: target_index,
                     });
-                    self.status = format!("Preparing LOD {target_index}; the current mesh remains available");
+                    self.status =
+                        format!("Preparing LOD {target_index}; the current mesh remains available");
                 }
                 Err(message) => self.status = format!("LOD preparation failed: {message}"),
             }
@@ -5252,9 +6155,15 @@ impl LabApplication {
         }
     }
 
-    fn accept_prepared_lod(&mut self, generation: u64, lod_index: usize, result: Result<WorkingMesh, String>) -> bool {
+    fn accept_prepared_lod(
+        &mut self,
+        generation: u64,
+        lod_index: usize,
+        result: Result<WorkingMesh, String>,
+    ) -> bool {
         if !self.pending_lod.is_some_and(|pending| {
-            pending.generation == generation && generation == self.current_generation
+            pending.generation == generation
+                && generation == self.current_generation
                 && pending.document_generation == self.lod_document_generation
                 && pending.lod_index == lod_index
         }) {
@@ -5264,8 +6173,13 @@ impl LabApplication {
         match result {
             Ok(mesh) => {
                 let per_lod_history_budget = HISTORY_BUDGET_BYTES / self.lod_sessions.len().max(1);
-                let Some(slot) = self.lod_sessions.get_mut(lod_index) else { return false; };
-                *slot = Some(LodSession { mesh, history: History::new(per_lod_history_budget) });
+                let Some(slot) = self.lod_sessions.get_mut(lod_index) else {
+                    return false;
+                };
+                *slot = Some(LodSession {
+                    mesh,
+                    history: History::new(per_lod_history_budget),
+                });
                 self.switch_lod(lod_index);
             }
             Err(message) => self.status = format!("LOD preparation failed: {message}"),
@@ -5369,12 +6283,15 @@ impl LabApplication {
     }
 
     fn choose_cdmw_export(&mut self, format: &'static str) {
-        let Some(path) = self.cdmw_file_dialog()
+        let Some(path) = self
+            .cdmw_file_dialog()
             .set_title(crate::localization::tr("Export mesh"))
             .add_filter(format.to_uppercase(), &[format])
             .set_file_name(format!("mesh.{format}"))
             .save_file()
-        else { return; };
+        else {
+            return;
+        };
         self.handle_actions(vec![UiAction::CdmwCommand {
             command: "export_mesh",
             arguments: json!({"path": path, "format": format}),
@@ -5410,14 +6327,18 @@ impl LabApplication {
         }
         let path = if save {
             dialog
-                .set_title(crate::localization::tr("Export Morph preset with slider definitions"))
+                .set_title(crate::localization::tr(
+                    "Export Morph preset with slider definitions",
+                ))
                 .set_file_name(format!(
                     "{}.json",
                     cdmw_ui::stable_ui_id("preset", &self.cdmw_morph_preset_name)
                 ))
                 .save_file()
         } else {
-            dialog.set_title(crate::localization::tr("Load Morph preset")).pick_file()
+            dialog
+                .set_title(crate::localization::tr("Load Morph preset"))
+                .pick_file()
         };
         if let Some(path) = path {
             self.handle_actions(vec![UiAction::CdmwCommand {
@@ -5449,7 +6370,9 @@ impl LabApplication {
                 .save_file()
         } else {
             dialog
-                .set_title(crate::localization::tr("Load fitting setup for the loaded meshes"))
+                .set_title(crate::localization::tr(
+                    "Load fitting setup for the loaded meshes",
+                ))
                 .pick_file()
         };
         if let Some(path) = path {
@@ -5462,13 +6385,18 @@ impl LabApplication {
     }
 
     fn choose_cdmw_refit_shape(&mut self, parts: Vec<u32>, islands: Vec<(u32, Vec<u32>)>) {
-        if let Some(path) = self.cdmw_file_dialog()
-            .set_title(crate::localization::tr("Restore fitting shape from an unbaked PAC"))
+        if let Some(path) = self
+            .cdmw_file_dialog()
+            .set_title(crate::localization::tr(
+                "Restore fitting shape from an unbaked PAC",
+            ))
             .add_filter(crate::localization::tr("PAC model"), &["pac"])
             .pick_file()
         {
-            let islands: Vec<_> = islands.into_iter().map(|(part, faces)|
-                json!({"submesh_index": part, "face_indices": faces})).collect();
+            let islands: Vec<_> = islands
+                .into_iter()
+                .map(|(part, faces)| json!({"submesh_index": part, "face_indices": faces}))
+                .collect();
             self.handle_actions(vec![UiAction::CdmwCommand {
                 command: "refit_restore_shape_preview",
                 arguments: json!({"path": path.to_string_lossy(), "submesh_indices": parts, "islands": islands}),
@@ -5499,7 +6427,7 @@ impl LabApplication {
     }
 
     fn choose_cdmw_free_edit(&mut self) {
-        if self.cdmw_has_archive_refit() {
+        if self.cdmw_has_archive_refit() || self.cdmw_has_item_set() {
             self.status =
                 "Archive Refit keeps original game files. Open a separate mesh for Free Edit."
                     .to_owned();
@@ -5507,7 +6435,9 @@ impl LabApplication {
         }
         if let Some(parent) = self
             .cdmw_file_dialog()
-            .set_title(crate::localization::tr("Choose the parent for a new Free Edit package"))
+            .set_title(crate::localization::tr(
+                "Choose the parent for a new Free Edit package",
+            ))
             .pick_folder()
         {
             self.handle_actions(vec![UiAction::CdmwCommand {
@@ -5610,6 +6540,15 @@ impl LabApplication {
         self.projection = None;
         if first_viewport && let Some(mesh) = &self.mesh {
             self.camera.frame_all_in_viewport(mesh, rectangle);
+        }
+        if first_viewport && !self.cdmw_reference_pieces.is_empty() {
+            self.frame_item_set();
+        }
+        if self.mesh.is_some()
+            && let Some(camera) = self.kept_camera.take()
+        {
+            // An edit in Browse's viewport keeps Browse's view over the first framing (P4 V3).
+            self.camera.keep_orbit_of(&camera);
         }
     }
 
@@ -5765,7 +6704,9 @@ impl LabApplication {
         let edit_gesture_before = self.edit_gesture.is_some();
         let pointer_events = self.pointer_events.drain().collect::<Vec<_>>();
         for event in pointer_events {
-            if self.handle_weapon_pointer(&event, rectangle) { continue; }
+            if self.handle_weapon_pointer(&event, rectangle) {
+                continue;
+            }
             if self.handle_jiggle_pointer(&event, rectangle) {
                 continue;
             }
@@ -5835,7 +6776,8 @@ impl LabApplication {
             if wheel.abs() > f32::EPSILON {
                 self.cancel_active_gesture("Camera zoom took pointer ownership");
                 if let Some(point) = response.hover_pos() {
-                    self.camera.zoom_at(wheel, Vec2::new(point.x, point.y), rectangle);
+                    self.camera
+                        .zoom_at(wheel, Vec2::new(point.x, point.y), rectangle);
                 }
                 self.projection = None;
                 self.status = "Camera zoom".to_owned();
@@ -6124,9 +7066,18 @@ impl LabApplication {
                 .ok_or(cdmw_interaction::InteractionError::InvalidTransition)?;
             match gesture.tool {
                 ViewportTool::Bend => {
-                    let delta = self.camera.screen_delta_to_world(point - gesture.start_pointer, rectangle);
-                    self.operator.bend(mesh, gesture.gesture_id,
-                        gesture.bend.as_ref().ok_or(cdmw_interaction::InteractionError::InvalidTransition)?, delta)
+                    let delta = self
+                        .camera
+                        .screen_delta_to_world(point - gesture.start_pointer, rectangle);
+                    self.operator.bend(
+                        mesh,
+                        gesture.gesture_id,
+                        gesture
+                            .bend
+                            .as_ref()
+                            .ok_or(cdmw_interaction::InteractionError::InvalidTransition)?,
+                        delta,
+                    )
                 }
                 ViewportTool::Move => {
                     let delta = if gesture.axis == GizmoAxis::Free {
@@ -6376,13 +7327,18 @@ impl LabApplication {
             };
         }
         if let Some(gesture) = self.edit_gesture.take() {
-            let changed = self.mesh.as_ref().ok_or(cdmw_interaction::InteractionError::InvalidTransition)
+            let changed = self
+                .mesh
+                .as_ref()
+                .ok_or(cdmw_interaction::InteractionError::InvalidTransition)
                 .and_then(|mesh| self.operator.changed_vertices(mesh, gesture.gesture_id));
             let changed = match changed {
                 Ok(changed) => changed,
                 Err(error) => {
                     self.edit_gesture = Some(gesture);
-                    self.cancel_active_gesture(format!("Could not capture edit; rolled back: {error}"));
+                    self.cancel_active_gesture(format!(
+                        "Could not capture edit; rolled back: {error}"
+                    ));
                     return;
                 }
             };
@@ -6401,11 +7357,13 @@ impl LabApplication {
             self.status = match result {
                 Ok(()) => {
                     if gesture.tool == ViewportTool::Bend
-                        && let (Some(anchor), Some(mesh)) = (&mut self.bend_anchor, &self.mesh) {
+                        && let (Some(anchor), Some(mesh)) = (&mut self.bend_anchor, &self.mesh)
+                    {
                         anchor.accept_geometry(mesh);
                     }
                     cdmw_transaction = Some(CdmwLocalEdit::VertexGeometry(
-                        gesture.tool.label().to_owned(), changed,
+                        gesture.tool.label().to_owned(),
+                        changed,
                     ));
                     format!("{} committed as one undo entry", gesture.tool.label())
                 }
@@ -6659,7 +7617,13 @@ impl LabApplication {
         self.paint_transform_gizmo(ui, rectangle, self.viewport_tool, pivot);
     }
 
-    fn paint_transform_gizmo(&self, ui: &egui::Ui, rectangle: egui::Rect, tool: ViewportTool, pivot: Vec3) {
+    fn paint_transform_gizmo(
+        &self,
+        ui: &egui::Ui,
+        rectangle: egui::Rect,
+        tool: ViewportTool,
+        pivot: Vec3,
+    ) {
         let painter = ui.painter();
         if tool == ViewportTool::Rotate {
             for (axis, color) in axis_colors() {
@@ -6744,19 +7708,48 @@ impl LabApplication {
     }
 
     fn create_renderer(&mut self, window: Arc<Window>) -> Result<WindowRenderer, String> {
-        let renderer =
+        let mut renderer =
             pollster::block_on(WindowRenderer::new(window)).map_err(|error| error.to_string())?;
+        self.configure_renderer(&mut renderer)?;
+        Ok(renderer)
+    }
+
+    /// Upload this session's textures, materials and scene into a renderer. A
+    /// pre-started helper runs this when its session arrives.
+    fn configure_renderer(&mut self, renderer: &mut WindowRenderer) -> Result<(), String> {
+        if self.engine_hosted && !self.preview_scene_set_aside {
+            // The first scene this edit draws on Browse's renderer: Browse's own goes
+            // aside, so returning shows it without uploading it again (8.7 C1).
+            self.preview_scene_set_aside = true;
+            self.kept_preview_scene = Some(renderer.set_scene_aside());
+        }
+        let configured = self.configure_renderer_scene(renderer);
+        if self.texture_upload_failed_with_kept_scene() {
+            // Under memory pressure the kept scene goes first; it can be loaded again.
+            self.kept_preview_scene = None;
+            return self.configure_renderer_scene(renderer);
+        }
+        configured
+    }
+
+    fn texture_upload_failed_with_kept_scene(&self) -> bool {
+        self.kept_preview_scene.is_some() && self.cdmw_texture_upload_failed
+    }
+
+    fn configure_renderer_scene(&mut self, renderer: &mut WindowRenderer) -> Result<(), String> {
         let adapter = renderer.adapter_report();
         let quality = renderer.quality_report();
         self.status = format!(
             "D3D12 adapter: {} ({}) · {}x AA · {}x texture filtering",
             adapter.name, adapter.driver_info, quality.sample_count, quality.anisotropy_clamp,
         );
-        let mut renderer = renderer;
         let mut texture_upload_count = 0_usize;
         let mut bound_material_count = 0_usize;
         let mut texture_warning = None;
-        if !self.cdmw_texture_resources.is_empty() || !self.cdmw_material_presentations.is_empty() {
+        if !self.cdmw_texture_resources.is_empty()
+            || !self.cdmw_material_presentations.is_empty()
+            || !self.cdmw_material_layers.is_empty()
+        {
             renderer.reset_texture();
             for texture in &self.cdmw_texture_resources {
                 match renderer.add_dds_texture(
@@ -6771,13 +7764,18 @@ impl LabApplication {
                 }
             }
             if let Err(error) = add_cdmw_material_presentations(
-                &mut renderer,
+                renderer,
                 &self.cdmw_material_presentations,
                 self.document
                     .as_ref()
                     .map_or(0, |document| document.lods.len()),
             ) {
                 texture_warning.get_or_insert_with(|| error.to_string());
+            }
+            for layer in &self.cdmw_material_layers {
+                if let Err(error) = renderer.add_material_layers(layer) {
+                    texture_warning.get_or_insert_with(|| error.to_string());
+                }
             }
             match renderer.set_material_lod(self.active_lod_index) {
                 Ok(count) => bound_material_count = count,
@@ -6786,6 +7784,7 @@ impl LabApplication {
                 }
             }
         }
+        self.cdmw_texture_upload_failed = texture_warning.is_some();
         if self.cdmw_mode() {
             self.record_cdmw_texture_uploads(
                 self.cdmw_texture_resources.len(),
@@ -6795,29 +7794,50 @@ impl LabApplication {
             );
         }
         self.refresh_jiggle_regions();
+        if let Err(error) = cdmw_references::upload_materials(
+            renderer,
+            &self.cdmw_reference_pieces,
+            self.document.as_deref(),
+        ) {
+            self.status = format!("Reference materials failed: {error}");
+        }
         if let Some(mesh) = &self.mesh {
             let visible_submeshes = self.cdmw_visible_submeshes();
             let snapshot = visible_submeshes.as_ref().map_or_else(
                 || mesh.draw_snapshot(),
                 |visible| mesh.draw_snapshot_for_submeshes(visible),
             );
-            let part_colours = self.cdmw_identity_colours_active().then(||
-                cdmw_islands::identity_colour_snapshot(mesh, visible_submeshes.as_ref(), &snapshot,
-                    self.cdmw_island_colours.then_some(&self.cdmw_state["mesh_islands"]["color_faces"])));
-            let deformation_reference = if part_colours.is_none() { deformation_reference_for_snapshot(
-                self.deformation_heatmap_enabled,
-                self.deformation_reference.as_mut(),
-                visible_submeshes.as_ref(),
-                &snapshot,
-            ) } else { None };
-            if let Err(error) = if let Some(colours) = &self.cdmw_jiggle.region_colours {
-                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
-            } else if let Some(colours) = &part_colours {
-                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
+            let part_colours = self.cdmw_identity_colours_active().then(|| {
+                cdmw_islands::identity_colour_snapshot(
+                    mesh,
+                    visible_submeshes.as_ref(),
+                    &snapshot,
+                    self.cdmw_island_colours
+                        .then_some(&self.cdmw_state["mesh_islands"]["color_faces"]),
+                )
+            });
+            let deformation_reference = if part_colours.is_none() {
+                deformation_reference_for_snapshot(
+                    self.deformation_heatmap_enabled,
+                    self.deformation_reference.as_mut(),
+                    visible_submeshes.as_ref(),
+                    &snapshot,
+                )
             } else {
-                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
-            }
-            {
+                None
+            };
+            if let Err(error) = cdmw_references::upload_scene(
+                renderer,
+                &snapshot,
+                &self.cdmw_reference_pieces,
+                cdmw_references::material_offset(self.document.as_deref()),
+                self.cdmw_jiggle
+                    .region_colours
+                    .as_deref()
+                    .or(part_colours.as_deref()),
+                deformation_reference,
+                false,
+            ) {
                 self.status = format!("CDMW mesh upload failed: {error}");
             }
         }
@@ -6837,8 +7857,7 @@ impl LabApplication {
                     " · texture warning: {warning}"
                 ))
         );
-        renderer.check_health().map_err(|error| error.to_string())?;
-        Ok(renderer)
+        renderer.check_health().map_err(|error| error.to_string())
     }
 
     fn renderer_failed(&mut self, reason: String) {
@@ -6886,6 +7905,19 @@ impl LabApplication {
         }
         self.render_jiggle();
         let paint_jobs = context.tessellate(full_output.shapes, full_output.pixels_per_point);
+        self.camera.include_clip_positions(
+            self.cdmw_reference_pieces
+                .iter()
+                .filter(|piece| piece.visible)
+                .flat_map(|piece| {
+                    piece
+                        .snapshot
+                        .positions
+                        .iter()
+                        .copied()
+                        .map(Vec3::from_array)
+                }),
+        );
         let camera_matrix = self
             .viewport_rect
             .map(|rectangle| self.camera.view_projection(rectangle));
@@ -6900,13 +7932,18 @@ impl LabApplication {
         let background = self.viewport_background_colour;
         let wire_colour = renderer_colour(self.overlay_wire_colour);
         let point_colour = renderer_colour(self.overlay_vertex_colour);
+        let redraw_interval = self.redraw_interval();
         let render_error = if let Some(renderer) = &mut self.renderer {
             renderer.set_material_time(context.input(|input| input.time) as f32);
             self.material_redraw_deadline = (renderer.has_material_animation()
-                && window.is_visible() != Some(false) && window.is_minimized() != Some(true))
-                .then(|| Instant::now() + std::time::Duration::from_millis(16));
+                && window.is_visible() != Some(false)
+                && window.is_minimized() != Some(true))
+            .then(|| Instant::now() + redraw_interval);
             renderer.set_view_mode(view_mode);
             renderer.set_overlays(show_normals, show_bounds);
+            renderer.set_lighting_depth_settings(self.lighting_depth);
+            renderer.set_lighting_preset(self.lighting_preset);
+            renderer.set_ground(self.ground_visible, self.ground_grid);
             renderer.set_overlay_colours(wire_colour, point_colour);
             renderer.set_bone_overlay(show_bones);
             renderer.set_clear_colour([
@@ -6934,6 +7971,7 @@ impl LabApplication {
         } else {
             None
         };
+        self.publish_shared_preview_settings_if_changed();
         if let Some(error) = render_error {
             self.material_redraw_deadline = None;
             error!("frame failed: {error}");
@@ -6944,14 +7982,60 @@ impl LabApplication {
                 }
             }
         }
-        if full_output
+        let repaint_delay = full_output
             .viewport_output
             .get(&egui::ViewportId::ROOT)
-            .is_some_and(|output| output.repaint_delay.is_zero())
+            .map(|output| output.repaint_delay);
+        if let Some(at) =
+            repaint_delay.and_then(|delay| egui_repaint_deadline(delay, Instant::now()))
         {
-            window.request_redraw();
+            // A timed repaint (request_repaint_after: the Vertex Inspector's debounce,
+            // tooltip delays, the text cursor's blink) wakes the loop when it is due;
+            // only immediate ones were kept once frames stopped following each other.
+            self.material_redraw_deadline = Some(
+                self.material_redraw_deadline
+                    .map_or(at, |deadline| deadline.min(at)),
+            );
+        }
+        if repaint_delay.is_some_and(|delay| delay.is_zero()) {
+            if self.showing_view() {
+                // Nothing is edited while the session prepares (P4 V4): a slower
+                // frame rate leaves the CPU to the preparation.
+                let next = Instant::now() + self.redraw_interval();
+                self.material_redraw_deadline = Some(
+                    self.material_redraw_deadline
+                        .map_or(next, |deadline| deadline.min(next)),
+                );
+            } else {
+                window.request_redraw();
+            }
         }
     }
+
+    /// Frame interval for animated materials and egui's own repaints.
+    fn redraw_interval(&self) -> std::time::Duration {
+        if self.showing_view() {
+            std::time::Duration::from_millis(100)
+        } else {
+            std::time::Duration::from_millis(16)
+        }
+    }
+}
+
+/// When egui's timed repaint is due: None for an immediate one (drawn at once)
+/// and for "no repaint" (`Duration::MAX`, or anything that does not fit).
+fn egui_repaint_deadline(delay: std::time::Duration, now: Instant) -> Option<Instant> {
+    if delay.is_zero() || delay == std::time::Duration::MAX {
+        return None;
+    }
+    now.checked_add(delay)
+}
+
+/// Whether egui's answer to a window event asks for a frame. egui-winit answers
+/// "repaint" for the redraw itself; requesting another from it drew every frame
+/// back to back, unthrottled under Mailbox presentation (section 8.7 B4).
+fn egui_event_wants_redraw(repaint: bool, event: &WindowEvent) -> bool {
+    repaint && !matches!(event, WindowEvent::RedrawRequested)
 }
 
 fn path_is_within(path: &std::path::Path, root: &std::path::Path) -> bool {
@@ -7309,9 +8393,25 @@ impl ApplicationHandler for LabApplication {
                 return;
             }
         };
+        let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
+        if let Some(bridge) = &self.cdmw_bridge
+            && let Err(error) =
+                bridge.announce_hello(child_hwnd, self.embedded_parent_hwnd.unwrap_or(0))
+        {
+            error!("CDMW handshake failed: {error}");
+            event_loop.exit();
+            return;
+        }
         let renderer = match self.create_renderer(window.clone()) {
             Ok(renderer) => renderer,
             Err(error) => {
+                if self.cdmw_pending.is_some() {
+                    let _ = cdmw_session::announce_pending_ready(
+                        child_hwnd,
+                        self.embedded_parent_hwnd.unwrap_or(0),
+                        Some(&error),
+                    );
+                }
                 self.renderer_failed(error);
                 event_loop.exit();
                 return;
@@ -7326,19 +8426,28 @@ impl ApplicationHandler for LabApplication {
             None,
         );
         window.request_redraw();
-        let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
         self.renderer = Some(renderer);
         self.egui_state = Some(egui_state);
         self.window = Some(window);
         if let Some(bridge) = &self.cdmw_bridge {
-            if let Err(error) =
-                bridge.announce_ready(child_hwnd, self.embedded_parent_hwnd.unwrap_or(0))
-            {
+            if let Err(error) = bridge.announce_ready() {
                 self.status = format!("CDMW handshake failed: {error}");
                 self.cdmw_exit_requested = true;
             } else {
                 self.status.push_str(" · waiting for CDMW");
             }
+        } else if self.cdmw_pending.is_some() {
+            if let Err(error) = cdmw_session::announce_pending_ready(
+                child_hwnd,
+                self.embedded_parent_hwnd.unwrap_or(0),
+                None,
+            ) {
+                error!("pending Mesh Editor helper could not announce itself: {error}");
+                event_loop.exit();
+                return;
+            }
+            // A request that arrived while the window was being made is answered now.
+            self.poll_pending_session(event_loop);
         }
     }
 
@@ -7356,11 +8465,11 @@ impl ApplicationHandler for LabApplication {
         else {
             return;
         };
-        if self
+        let egui_repaint = self
             .egui_state
             .as_mut()
-            .is_some_and(|state| state.on_window_event(&window, &event).repaint)
-        {
+            .is_some_and(|state| state.on_window_event(&window, &event).repaint);
+        if egui_event_wants_redraw(egui_repaint, &event) {
             window.request_redraw();
         }
         if self.capture_viewport_pointer_event(&event, window.scale_factor()) {
@@ -7374,7 +8483,7 @@ impl ApplicationHandler for LabApplication {
                 {
                     let _ = bridge.cancel("Mesh Editor window closed");
                 }
-                event_loop.exit();
+                self.leave_or_exit(event_loop);
             }
             WindowEvent::Resized(size) => {
                 self.cancel_active_gesture("Resize cancelled the active gesture");
@@ -7396,16 +8505,16 @@ impl ApplicationHandler for LabApplication {
                 self.raw_orbit_captured = false;
                 self.raw_pan_captured = false;
             }
-            WindowEvent::RedrawRequested
-                if window.is_visible() != Some(false) => {
-                    self.redraw(event_loop);
-                }
+            WindowEvent::RedrawRequested if window.is_visible() != Some(false) => {
+                self.redraw(event_loop);
+            }
             _ => {}
         }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        let changed = self.poll_loader() | self.poll_cdmw();
+        self.poll_pending_session(event_loop);
+        let changed = self.poll_loader() | self.poll_cdmw() | self.send_waiting_cdmw_finish();
         if self.gpu_recovery.take_due(Instant::now())
             && let Some(window) = self.window.clone()
         {
@@ -7432,17 +8541,27 @@ impl ApplicationHandler for LabApplication {
                 Err(error) => self.renderer_failed(error),
             }
         }
-        if self.material_redraw_deadline.is_some_and(|deadline| deadline <= Instant::now()) {
+        if self
+            .material_redraw_deadline
+            .is_some_and(|deadline| deadline <= Instant::now())
+        {
             self.material_redraw_deadline = None;
-            if let Some(window) = &self.window { window.request_redraw(); }
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
         }
-        let deadline = self.gpu_recovery.deadline().into_iter().chain(self.material_redraw_deadline).min();
+        let deadline = self
+            .gpu_recovery
+            .deadline()
+            .into_iter()
+            .chain(self.material_redraw_deadline)
+            .min();
         event_loop.set_control_flow(deadline.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
         if changed && let Some(window) = &self.window {
             window.request_redraw();
         }
         if self.cdmw_exit_requested {
-            event_loop.exit();
+            self.leave_or_exit(event_loop);
         }
     }
 }
@@ -7480,6 +8599,33 @@ mod tests {
             warnings: Vec::new(),
             structural_fingerprint: String::new(),
         }
+    }
+
+    #[test]
+    fn a_timed_repaint_wakes_the_editor_when_it_is_due() {
+        let now = Instant::now();
+        let delay = std::time::Duration::from_millis(160);
+        assert_eq!(egui_repaint_deadline(delay, now), Some(now + delay));
+        assert_eq!(egui_repaint_deadline(std::time::Duration::ZERO, now), None);
+        assert_eq!(egui_repaint_deadline(std::time::Duration::MAX, now), None);
+    }
+
+    #[test]
+    fn a_drawn_frame_never_asks_for_the_next_one() {
+        assert!(!egui_event_wants_redraw(
+            true,
+            &WindowEvent::RedrawRequested
+        ));
+        assert!(egui_event_wants_redraw(
+            true,
+            &WindowEvent::CursorLeft {
+                device_id: winit::event::DeviceId::dummy()
+            }
+        ));
+        assert!(!egui_event_wants_redraw(
+            false,
+            &WindowEvent::CloseRequested
+        ));
     }
 
     #[test]
@@ -7521,6 +8667,27 @@ mod tests {
                 .map(str::to_owned),
         );
         assert!(standalone.is_err());
+    }
+
+    #[test]
+    fn a_pending_helper_needs_a_parent_and_takes_no_session_of_its_own() {
+        let parse = |arguments: &[&str]| {
+            parse_startup_options_from(arguments.iter().map(|value| (*value).to_owned()))
+        };
+        let pending = parse(&["--cdmw-session-pending", "--embedded-parent-hwnd", "4242"])
+            .unwrap_or_else(|error| panic!("pending options failed: {error}"));
+        assert!(pending.cdmw_session_pending && pending.cdmw_session.is_none());
+        assert_eq!(pending.embedded_parent_hwnd, Some(4242));
+        assert!(parse(&["--cdmw-session-pending"]).is_err());
+        for other in [
+            &["--cdmw-session", "session.json"][..],
+            &["--cdmw-preview-session", "preview.json"][..],
+            &["--mesh", "model.pac"][..],
+        ] {
+            let mut arguments = vec!["--cdmw-session-pending", "--embedded-parent-hwnd", "4242"];
+            arguments.extend_from_slice(other);
+            assert!(parse(&arguments).is_err(), "{other:?}");
+        }
     }
 
     #[test]
@@ -7750,6 +8917,44 @@ mod tests {
     }
 
     #[test]
+    fn parts_picked_while_viewing_carry_over_to_the_session() {
+        let root = tempfile::tempdir().unwrap_or_else(|error| panic!("tempdir failed: {error}"));
+        let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "kept-parts", 1, 0);
+        let mut application = LabApplication::new_cdmw(bridge, z_elongated_document(), None)
+            .unwrap_or_else(|error| panic!("integrated application failed: {error}"));
+
+        application.kept_hidden_parts = Some(HashSet::from([0]));
+        application.kept_selected_parts = Some(HashSet::from([0]));
+        application.apply_kept_view_parts();
+        assert_eq!(application.cdmw_hidden_parts, HashSet::from([0]));
+        let selected = &application
+            .mesh
+            .as_ref()
+            .map(|mesh| mesh.selection.submeshes.clone());
+        assert_eq!(selected.as_ref(), Some(&HashSet::from([0])));
+
+        // A part list that does not match the session's keeps nothing.
+        application.cdmw_hidden_parts.clear();
+        let _ = application
+            .mesh
+            .as_mut()
+            .map(|mesh| mesh.set_selection(cdmw_mesh::Selection::default()));
+        application.kept_hidden_parts = Some(HashSet::from([3]));
+        application.kept_selected_parts = Some(HashSet::from([3]));
+        application.apply_kept_view_parts();
+        assert!(application.cdmw_hidden_parts.is_empty());
+        assert!(
+            application
+                .mesh
+                .as_ref()
+                .is_some_and(|mesh| mesh.selection.submeshes.is_empty())
+        );
+        assert!(
+            application.kept_hidden_parts.is_none() && application.kept_selected_parts.is_none()
+        );
+    }
+
+    #[test]
     fn material_audit_angles_are_relative_to_the_integrated_broadside_camera() {
         let snapshot = WorkingMesh::from_document_lod(&z_elongated_document(), 0)
             .expect("elongated audit mesh")
@@ -7804,6 +9009,8 @@ mod tests {
                 decoded_source_bytes: 512,
                 decoded_rgba8_bytes: 768,
                 decoded_source_sha256: vec!["a".repeat(64), "b".repeat(64), "c".repeat(64)],
+                validated_source_sha256: vec!["a".repeat(64), "b".repeat(64), "c".repeat(64)],
+                gpu_layer_material_count: 0,
             },
         );
         assert_eq!(source["reused_logical_reference_count"], 6);
@@ -7823,7 +9030,7 @@ mod tests {
             resource(cdmw_texture::TextureRole::BaseColor),
             resource(cdmw_texture::TextureRole::LayerMask),
         ];
-        let metrics = material_audit_runtime_dds_metrics(&distinct_interpretations)
+        let metrics = material_audit_runtime_dds_metrics(&distinct_interpretations, &[])
             .expect("distinct role interpretations");
         assert_eq!(metrics["logical_resource_count"], 2);
         assert_eq!(metrics["resource_count"], 1);
@@ -7838,7 +9045,7 @@ mod tests {
             resource(cdmw_texture::TextureRole::BaseColor),
         ];
         let duplicate_metrics =
-            material_audit_runtime_dds_metrics(&duplicate).expect("shared physical upload");
+            material_audit_runtime_dds_metrics(&duplicate, &[]).expect("shared physical upload");
         assert_eq!(duplicate_metrics["resource_count"], 1);
         assert_eq!(duplicate_metrics["logical_duplicate_binding_count"], 1);
     }

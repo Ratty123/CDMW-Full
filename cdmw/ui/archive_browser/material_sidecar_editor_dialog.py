@@ -191,6 +191,9 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
 
         _configure_material_value_preview_host()
         preview_layout.addWidget(material_preview_host, stretch=1)
+        from cdmw.ui.preview.scene_panel_binding import attach_scene_panel
+
+        attach_scene_panel(material_preview_host)  # P5: the model's files and parts
         content_splitter.addWidget(editor_panel)
         content_splitter.addWidget(preview_panel)
         content_splitter.setStretchFactor(0, 3)

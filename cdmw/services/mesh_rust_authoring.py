@@ -12,6 +12,7 @@ import copy
 import ctypes
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -20,6 +21,7 @@ import stat
 import struct
 import tempfile
 import threading
+import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext
@@ -32,6 +34,10 @@ from types import MappingProxyType, SimpleNamespace
 from uuid import uuid4
 
 from cdmw.services.mesh_morph_file_data import ProfileFileData, write_profile_file
+from cdmw.services.mesh_rust_preview_files import (
+    remember_verified_preview_file,
+    verified_preview_file_digest,
+)
 from cdmw.services.mesh_service_history_files import _mesh_morph_profile_state_fingerprint
 from cdmw.core.archive import ensure_archive_preview_source
 from cdmw.core.common import (
@@ -125,6 +131,8 @@ _CANDIDATE_FILE_RE = re.compile(r"candidate-[0-9]+-[A-Za-z0-9_-]+\.json\Z")
 _STATE_FILE_RE = re.compile(r"state-[0-9]+-[0-9a-f]{10}\.(?:json|bin)\Z")
 _MATERIAL_STATE_FILE_RE = re.compile(r"material-state-(?:base|[0-9a-f]{32})\.json\Z")
 _TEXTURE_FILE_RE = re.compile(r"texture-[0-9]{4}-[0-9a-f]{12}\.dds\Z")
+_LOGGER = logging.getLogger(__name__)
+_REFERENCE_FILE_RE = re.compile(r"(?:reference-(?:0[1-9]|[12][0-9]|3[0-2])|companion-(?:0[1-9]|[12][0-9]|3[0-3]))\.bin\Z")
 _PREVIEW_GEOMETRY_FILE_RE = re.compile(
     r"preview-geometry-[0-9]{4}-[0-9a-f]{12}\.bin\Z"
 )
@@ -1752,6 +1760,41 @@ def _with_protocol_lock(method):
     return wrapped
 
 
+def _manifest_file_names(value: object) -> set[str]:
+    """Every session file a manifest names: the plain names under its ``path`` keys."""
+
+    names: set[str] = set()
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, Mapping):
+            for key, child in item.items():
+                if key == "path" and isinstance(child, str) and child and "/" not in child and "\\" not in child:
+                    names.add(child)
+                elif isinstance(child, (Mapping, list, tuple)):
+                    stack.append(child)
+        elif isinstance(item, (list, tuple)):
+            stack.extend(item)
+    return names
+
+
+def _prune_unlisted_session_files(root: Path) -> list[str]:
+    """Remove top-level session files the manifest does not name (P4 V3 crash recovery).
+
+    Folders (slider profiles, effect textures) are the helper's to check and stay.
+    Returns the removed names.
+    """
+
+    manifest_path = Path(root) / "manifest.json"
+    listed = {"manifest.json"} | _manifest_file_names(json.loads(manifest_path.read_text(encoding="utf-8")))
+    removed = []
+    for entry in Path(root).iterdir():
+        if entry.is_file() and not entry.is_symlink() and entry.name not in listed:
+            entry.unlink()
+            removed.append(entry.name)
+    return sorted(removed)
+
+
 def _cleanup_failed_session_root(
     root: Path,
     expected_identity: tuple[int, int],
@@ -1807,6 +1850,7 @@ def _validate_owned_session_tree(
             or _MATERIAL_STATE_FILE_RE.fullmatch(name) is not None
             or _CANDIDATE_FILE_RE.fullmatch(name) is not None
             or _TEXTURE_FILE_RE.fullmatch(name) is not None
+            or _REFERENCE_FILE_RE.fullmatch(name) is not None
             or _PREVIEW_GEOMETRY_FILE_RE.fullmatch(name) is not None
             or _PREVIEW_IDENTITY_FILE_RE.fullmatch(name) is not None
         ):
@@ -1928,7 +1972,8 @@ def _atomic_write_payload(
     expected_root_identity: tuple[int, int] | None = None,
 ) -> dict[str, object]:
     binary = isinstance(payload, PreparedMeshDocument)
-    valid_binary_name = name == "document.bin" or (_STATE_FILE_RE.fullmatch(name) is not None and name.endswith(".bin"))
+    valid_binary_name = (name == "document.bin" or _REFERENCE_FILE_RE.fullmatch(name) is not None
+                         or (_STATE_FILE_RE.fullmatch(name) is not None and name.endswith(".bin")))
     if Path(name).name != name or (not valid_binary_name if binary else not name.lower().endswith(".json")):
         raise ValueError("Mesh payload name does not match its owned encoding")
     if binary and data_type not in {"json", BINARY_MESH_DOCUMENT_TYPE}:
@@ -2544,6 +2589,7 @@ def _rust_material_package_declared_texture_paths(
     package_root: Path | None,
     *,
     stop_event: threading.Event | None = None,
+    extra_texture_roots: Sequence[Path] = (),
 ) -> frozenset[str]:
     """Snapshot exact readable DDS paths declared by one leased manifest.
 
@@ -2594,6 +2640,15 @@ def _rust_material_package_declared_texture_paths(
 
     package_root = package_root.resolve()
     external_roots = _rust_material_package_external_texture_roots(package_root)
+    for extra in extra_texture_roots:
+        # A caller-owned DDS cache the same native job wrote, such as an item
+        # set's; only files this manifest declares are admitted from it.
+        try:
+            extra_root = Path(extra).resolve(strict=True)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if extra_root.is_dir() and extra_root not in external_roots:
+            external_roots = (*external_roots, extra_root)
     paths: set[str] = set()
     descriptor_count = 0
 
@@ -2751,23 +2806,31 @@ def _rust_material_package_owned_texture_aliases(
             or stat_result.st_size > _TEXTURE_MAX_FILE_BYTES
         ):
             continue
-        digest = hashlib.sha256()
-        try:
-            with owned.open("rb") as stream:
-                if stream.read(4) != b"DDS ":
-                    continue
-                digest.update(b"DDS ")
-                while chunk := stream.read(1024 * 1024):
-                    if stop_event is not None and stop_event.is_set():
-                        raise RustMeshCancellationError(
-                            "Mesh texture preparation was cancelled"
-                        )
-                    digest.update(chunk)
-        except RustMeshCancellationError:
-            raise
-        except OSError:
-            continue
-        if digest.hexdigest().casefold() != fingerprint.casefold():
+        known_sha256 = verified_preview_file_digest(stat_result)
+        if known_sha256 is not None:
+            # Verified earlier in this process and unchanged since.
+            actual_sha256 = known_sha256
+        else:
+            digest = hashlib.sha256()
+            verified_at_ns = time.time_ns()
+            try:
+                with owned.open("rb") as stream:
+                    if stream.read(4) != b"DDS ":
+                        continue
+                    digest.update(b"DDS ")
+                    while chunk := stream.read(1024 * 1024):
+                        if stop_event is not None and stop_event.is_set():
+                            raise RustMeshCancellationError(
+                                "Mesh texture preparation was cancelled"
+                            )
+                        digest.update(chunk)
+            except RustMeshCancellationError:
+                raise
+            except OSError:
+                continue
+            actual_sha256 = digest.hexdigest().upper()
+            remember_verified_preview_file(stat_result, actual_sha256, verified_at_ns, path=owned)
+        if actual_sha256.casefold() != fingerprint.casefold():
             continue
         owned_text = str(owned)
         previous = aliases.get(source_key)
@@ -2875,6 +2938,7 @@ def _rebase_rust_preview_texture_paths(
     material_package_path: object,
     *,
     stop_event: threading.Event | None = None,
+    extra_texture_roots: Sequence[Path] = (),
 ) -> tuple[int, str]:
     require_package_root = bool(str(material_package_path or "").strip())
     package_root, unavailable_reason = _rust_material_package_root(
@@ -2883,6 +2947,7 @@ def _rebase_rust_preview_texture_paths(
     declared_texture_paths = _rust_material_package_declared_texture_paths(
         package_root,
         stop_event=stop_event,
+        extra_texture_roots=extra_texture_roots,
     )
     owned_texture_aliases = _rust_material_package_owned_texture_aliases(
         package_root,
@@ -4242,7 +4307,18 @@ def _atomic_copy_texture_payload(
     digest = hashlib.sha256()
     byte_length = 0
     try:
-        with source.open("rb") as input_stream, temporary.open("xb") as output_stream:
+        # A session on the cache's volume shares the immutable cache file
+        # instead of rewriting it; the link is hashed and identity-checked
+        # exactly like a copy.
+        try:
+            os.link(source, temporary)
+            linked = True
+        except OSError:
+            linked = False
+        input_path = temporary if linked else source
+        with input_path.open("rb") as input_stream, (
+            nullcontext() if linked else temporary.open("xb")
+        ) as output_stream:
             source_before = os.fstat(input_stream.fileno())
             if expected_source_identity is not None and expected_source_identity != (
                 source_before.st_dev, source_before.st_ino,
@@ -4251,7 +4327,21 @@ def _atomic_copy_texture_payload(
                 raise RustMeshProtocolError(
                     f"Mesh texture changed before it was packaged: {source.name}"
                 )
-            while True:
+            # A link is the same file: one this process already verified,
+            # unchanged since, needs neither a read nor a second hash.
+            known_sha256 = verified_preview_file_digest(source_before) if linked else None
+            verified_at_ns = time.time_ns()
+            if known_sha256 is not None:
+                byte_length = int(source_before.st_size)
+                if byte_length > _TEXTURE_MAX_FILE_BYTES:
+                    raise RustMeshProtocolError(
+                        f"Mesh texture payload exceeds 512 MiB: {source.name}"
+                    )
+                if aggregate_bytes_before + byte_length > _SESSION_MAX_TOTAL_BYTES:
+                    raise RustMeshProtocolError(
+                        "Mesh texture payload exceeds the 768 MiB aggregate limit"
+                    )
+            while known_sha256 is None:
                 _raise_if_texture_copy_cancelled(stop_event)
                 chunk = input_stream.read(1024 * 1024)
                 if not chunk:
@@ -4277,7 +4367,8 @@ def _atomic_copy_texture_payload(
                         "Mesh texture payload exceeds the 768 MiB aggregate limit"
                     )
                 digest.update(chunk)
-                output_stream.write(chunk)
+                if not linked:
+                    output_stream.write(chunk)
                 byte_length = next_byte_length
             source_after = os.fstat(input_stream.fileno())
         source_identity_before = (
@@ -4296,7 +4387,9 @@ def _atomic_copy_texture_payload(
             raise RustMeshProtocolError(
                 f"Mesh texture changed while it was being packaged: {source.name}"
             )
-        sha256 = digest.hexdigest().upper()
+        sha256 = known_sha256 or digest.hexdigest().upper()
+        if known_sha256 is None:
+            remember_verified_preview_file(source_before, sha256, verified_at_ns)
         name = f"texture-{file_index:04d}-{sha256[:12].lower()}.dds"
         destination = root / name
         _raise_if_texture_copy_cancelled(stop_event)
@@ -4316,8 +4409,9 @@ def _atomic_copy_texture_payload(
 
 
 def _submesh_has_material_synthesis_inputs(submesh: object) -> bool:
-    if (getattr(submesh, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source"):
-        # Its native graph is copied by the preview package writer. Resynthesizing
+    from cdmw.services.mesh_preview_material_source import unedited_preview_core_material_source
+    if unedited_preview_core_material_source(submesh):
+        # Its native graph is copied by the package writer. Resynthesizing
         # these textures repeats decoding and replaces authored layer semantics.
         return False
     # Scene importers already bind these images to renderer roles. Their input
@@ -5046,7 +5140,8 @@ def _material_synthesis_working_bytes(submesh: object) -> int:
         except (OSError, ValueError):
             return _RUST_SYNTHESIS_WORKING_BYTES
         source_bytes += width * height * 4
-        largest_output = max(largest_output, min(width, 2048) * min(height, 2048))
+        cap = _synthesis_max_dimension()
+        largest_output = max(largest_output, min(width, cap) * min(height, cap))
     # Include RGBA/float source copies, composition intermediates and encode scratch.
     return source_bytes * 4 + largest_output * 64
 
@@ -5302,7 +5397,7 @@ def _mesh_synthesized_texture_overrides_serial(
                 role=f"rust_lod_{lod_index}",
                 include_resources=True,
                 cancelled=cancellation_event.is_set,
-                support_map_max_dimension=2048,
+                support_map_max_dimension=_synthesis_max_dimension(),
                 requested_synthesis_channels_by_submesh=(
                     requested_channels_by_submesh or None
                 ),
@@ -6333,10 +6428,10 @@ def _append_rust_material_presentation(rows, source, fallback_index, submeshes, 
         from cdmw.domain.mesh.translucency import authored_translucency
         factor_parameters = {**factor_parameters, "translucency": authored_translucency(submeshes[material_index])}
     if factor_parameters.get("shader_controls") is None:
-        from cdmw.services.shader_controls_preview import authored_blended_factors, authored_static_glass_factors
+        from cdmw.services.shader_controls_preview import authored_blended_factors, authored_static_glass_factors, authored_eye_cover_factors
         part = submeshes[material_index]
         factor_parameters = {**factor_parameters,
-                             "shader_controls": authored_static_glass_factors(part) or authored_blended_factors(part)}
+                             "shader_controls": authored_static_glass_factors(part) or authored_blended_factors(part) or authored_eye_cover_factors(part)}
     if factor_parameters.get("emission_animation") is None:
         from cdmw.domain.mesh.emission import authored_glow_animation
         factor_parameters = {**factor_parameters, "emission_animation": authored_glow_animation(submeshes[material_index])}
@@ -6650,6 +6745,10 @@ def _rust_skin_weight_capability(
     session: object, *, cache: RustMeshStateCache | None = None,
 ) -> _RustSkinWeightCapability:
     """Return the exact writer capability from source layout and current rows."""
+    from cdmw.services.mesh_asset_context import is_item_set
+    if is_item_set(getattr(session, "archive_refit_context", None)):
+        from cdmw.services.mesh_item_set_weights import item_set_weight_capability
+        return item_set_weight_capability(session)
 
     if str(getattr(session, "mesh_format", "") or "").strip().lower() != "pac":
         return _RustSkinWeightCapability(False, "Skin-weight editing is currently proven only for PAC LOD 0.")
@@ -7521,6 +7620,9 @@ def _prepare_shadow_mesh_materials(
             )
             or texture_unavailable_reason
         )
+    if preview_material_binding_count > 0:
+        from cdmw.services.mesh_preview_material_source import bind_authoring_preview_core_materials
+        bind_authoring_preview_core_materials(shadow_mesh, getattr(preview_context, "material_package_path", ""))
     return preview_material_binding_count, texture_unavailable_reason
 
 
@@ -7633,6 +7735,29 @@ class RustMeshAuthoringSession:
     mesh_island_cache: dict = field(default_factory=dict, repr=False)
     mesh_island_focus: tuple[int, ...] = ()
     viewport_hidden_parts: tuple[int, ...] = ()
+    item_set_contexts: tuple = ()
+    bounded_item_set_references: dict = field(default_factory=dict, repr=False)
+    #: Which set files open read-only and why, said before the editor shows (P5).
+    item_set_budget_notice: str = ""
+    prepared_item_set_materials: object | None = field(default=None, repr=False)
+    # The first morph query runs beside manifest writing; state_payload takes it.
+    morph_state_prefetch: tuple[threading.Thread, dict[str, object]] | None = field(default=None, repr=False)
+    #: Milliseconds per stage of the open, for the runtime record (P4 V3).
+    open_stage_ms: dict[str, float] = field(default_factory=dict, repr=False)
+    #: P4 V3: the editor opens before the morph query, which holds the native
+    #: service for about two seconds; ``query_deferred_morph_state`` sends it later.
+    defer_morph_state: bool = field(default=False, repr=False)
+    deferred_morph_ready: bool = field(default=False, repr=False)
+    #: P14: when the unfinished edits this editor continued from were saved (0.0: none).
+    recovered_edits_at: float = 0.0
+    #: The shadow session's revision when the editor opened (-1: not known yet).
+    shadow_base_revision: int = -1
+    #: Why unfinished edits that exist were not restored ("" when none were lost).
+    recovery_problem: str = ""
+    #: The user chose Discard for this session: its close ends the recovery point.
+    discard_requested: bool = False
+    #: The draft folder the recovery point is kept in, fixed at open (section 8.7 A11).
+    recovery_project_root: Path | None = None
     # Copied from the opened session: where Finish Edit Mesh sends the edit back to.
     handoff_target: str = ""
     state_cache: RustMeshStateCache = field(default_factory=RustMeshStateCache, repr=False)
@@ -7659,7 +7784,10 @@ class RustMeshAuthoringSession:
         theme: Mapping[str, object] | None = None,
         stop_event: threading.Event | None = None,
         hair_start_mode: str = "",
+        item_set_contexts: tuple = (),
+        edit_item_set: bool = False,
         progress: Callable[[str], None] | None = None,
+        defer_morph_state: bool = False,
     ) -> "RustMeshAuthoringSession":
         def report(message: str) -> None:
             if stop_event is not None and stop_event.is_set():
@@ -7674,6 +7802,15 @@ class RustMeshAuthoringSession:
         session_root = Path(root).resolve()
         session_root.mkdir(parents=True, exist_ok=False)
         root_identity = _session_root_identity(session_root)
+        # Where the preparation's time goes, recorded with the launch (P4 V4).
+        stage_marks: dict[str, float] = {}
+        stage_clock = [time.perf_counter()]
+
+        def mark(name: str) -> None:
+            now = time.perf_counter()
+            stage_marks[f"{name}_ms"] = round((now - stage_clock[0]) * 1000.0, 1)
+            stage_clock[0] = now
+
         try:
             report("Preparing mesh geometry...")
             authoritative_service = getattr(authoritative_controller, "mesh_service", None)
@@ -7695,19 +7832,54 @@ class RustMeshAuthoringSession:
                 authoritative_view, shadow_mesh, geometry_layer_seed, rigging_seed,
                 base_morph_session_revision, authoritative_morph_state,
             ) = _capture_shadow_session_seed(authoritative_service, authoritative_session)
+            mark("seed_capture")
         except Exception:
             _cleanup_failed_session_root(session_root, root_identity)
             raise
         try:
             report("Preparing mesh materials...")
+            bounded_item_set_references, prepared_item_set_materials = {}, None
+            item_set_budget_notice = ""
             shadow_mesh.active_lod_index = authoritative_view.lod_index
-            if geometry_layer_seed.get("archive_refit_context") is None:
+            replacement_state = authoritative_session.replacement_state
+            # P4 V4: on the plain path the materials are bound after the shadow
+            # session opens, so its immutable base is copied from the bare mesh
+            # (about 0.06 s) instead of with the bound Preview Core material data
+            # (1.4 s through the native snapshot's JSON). Sets, archive refits and
+            # neutral or replacement coordinates keep the original order.
+            materials_after_open = (
+                geometry_layer_seed.get("archive_refit_context") is None
+                and not edit_item_set
+                and authoritative_session.neutral_appearance is None
+                and (replacement_state is None or replacement_state.neutral_appearance is None)
+            )
+            preview_material_binding_count = 0
+            if materials_after_open:
+                pass
+            elif geometry_layer_seed.get("archive_refit_context") is None:
                 preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
                     shadow_mesh, preview_context, texture_unavailable_reason, stop_event,
                 )
             else:
                 preview_material_binding_count = count_dotnet_own_material_bindings(shadow_mesh)
             neutral_appearance = authoritative_session.neutral_appearance
+            mark("shadow_materials")
+            (
+                authoritative_morph_root,
+                morph_profile_base_fingerprint,
+            ) = _copy_shadow_morph_profiles(authoritative_service.settings, session_root)
+            if edit_item_set and geometry_layer_seed.get("archive_refit_context") is None:
+                from cdmw.services.mesh_item_set_editing import prepare_editable_item_set
+                (shadow_mesh, set_context, item_set_contexts, bounded_item_set_references, prepared_item_set_materials,
+                 item_set_budget_notice) = prepare_editable_item_set(
+                    authoritative_service, authoritative_session_id, shadow_mesh,
+                    tuple(item_set_contexts), stop_event, report, session_root, root_identity)
+                geometry_layer_seed["archive_refit_context"] = set_context
+                geometry_layer_seed["layers"] = [{"layer_id": "base", "name": "Base mesh", "base": True,
+                    "visible": True, "submesh_indices": tuple(range(len(shadow_mesh.submeshes)))}]
+                geometry_layer_seed["active_layer_id"] = "base"
+                geometry_layer_seed["copy_counter"] = 0
+                neutral_appearance = None
             replacement_state = authoritative_session.replacement_state
             if replacement_state is not None and replacement_state.neutral_appearance is not None:
                 neutral_appearance = replacement_state.neutral_appearance
@@ -7720,6 +7892,14 @@ class RustMeshAuthoringSession:
             refit_context = geometry_layer_seed.get("archive_refit_context")
             if refit_context is not None:
                 from cdmw.services.mesh_archive_refit import transform_archive_refit_mesh
+                from cdmw.services.mesh_asset_context import is_item_set
+                if is_item_set(refit_context):
+                    neutral_appearance = None
+                    if item_set_contexts:
+                        editable = {asset.entry.identity for asset in refit_context.assets}
+                        references = tuple(context for context in item_set_contexts[1:]
+                                           if context.selected_entry.identity not in editable)
+                        item_set_contexts = (item_set_contexts[0], *references) if references else ()
                 if not refit_context.neutral_coordinates:
                     shadow_mesh = transform_archive_refit_mesh(shadow_mesh, refit_context, to_neutral=True)
                     geometry_layer_seed["archive_refit_context"] = replace(refit_context, neutral_coordinates=True)
@@ -7730,26 +7910,42 @@ class RustMeshAuthoringSession:
                     "Mesh session preparation was cancelled"
                 )
             _detach_shadow_layer_project(shadow_mesh, session_root)
-            (
-                authoritative_morph_root,
-                morph_profile_base_fingerprint,
-            ) = _copy_shadow_morph_profiles(
-                authoritative_service.settings,
-                session_root,
-            )
+            mark("morph_profiles_and_set")
+            if edit_item_set:
+                from cdmw.services.mesh_item_set_editing import LAST_ITEM_SET_PREPARATION_MS
+
+                stage_marks.update({f"set_{key}": value for key, value in LAST_ITEM_SET_PREPARATION_MS.items()})
             session_id = f"rust-mesh:{uuid4()}"
             shadow_service = MeshService(
                 settings=_ShadowSettings(session_root / "settings.ini"),
                 max_history=authoritative_service.max_history,
                 max_history_bytes=authoritative_service.max_history_bytes,
             )
-            shadow_view = shadow_service.open_edit_session(
-                shadow_mesh,
-                session_id=f"{session_id}:shadow",
-                mode=authoritative_view.mode,
-                load_layer_project=False,
-                adopt_owned_mesh=True,
+            # The base copy the open makes skips the bound Preview Core material
+            # sources (presentation data, and most of the copy's JSON); the working
+            # parts get them back at once (P4 V4).
+            from cdmw.services.mesh_preview_material_source import (
+                restore_preview_core_sources, set_aside_preview_core_sources,
             )
+
+            set_aside = set_aside_preview_core_sources(shadow_mesh)
+            try:
+                shadow_view = shadow_service.open_edit_session(
+                    shadow_mesh,
+                    session_id=f"{session_id}:shadow",
+                    mode=authoritative_view.mode,
+                    load_layer_project=False,
+                    adopt_owned_mesh=True,
+                )
+            finally:
+                restore_preview_core_sources(set_aside)
+            mark("shadow_open")
+            if materials_after_open:
+                adopted = shadow_service._session(shadow_view.session_id).working_mesh
+                preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
+                    adopted, preview_context, texture_unavailable_reason, stop_event,
+                )
+                mark("shadow_materials_after_open")
             if neutral_appearance is not None:
                 shadow_session = shadow_service._session(shadow_view.session_id)
                 shadow_session.base_mesh_is_original_parse = False
@@ -7772,6 +7968,7 @@ class RustMeshAuthoringSession:
                 shadow_service, shadow_view, geometry_layer_seed, rigging_seed,
                 authoritative_morph_state, authoritative_view,
             )
+            mark("shadow_seeds")
             instance = cls(
                 authoritative_service=authoritative_service,
                 authoritative_session_id=authoritative_session_id,
@@ -7807,12 +8004,26 @@ class RustMeshAuthoringSession:
                 morph_profile_base_fingerprint=morph_profile_base_fingerprint,
                 acknowledged_morph_profile_fingerprint=morph_profile_base_fingerprint,
                 viewport_hidden_parts=tuple(authoritative_session.viewport_hidden_parts),
+                item_set_contexts=tuple(item_set_contexts),
+                bounded_item_set_references=bounded_item_set_references,
+                item_set_budget_notice=item_set_budget_notice,
+                prepared_item_set_materials=prepared_item_set_materials,
                 handoff_target=str(getattr(authoritative_session, "handoff_target", "") or ""),
             )
             if authoritative_morph_root is not None:
                 (authoritative_morph_root.parent / "mesh_presets").mkdir(parents=True, exist_ok=True)
+            instance.recovered_edits_at = instance._attach_editor_recovery(authoritative_session)
+            try:
+                instance.shadow_base_revision = int(
+                    instance.shadow_service.session_view(instance.shadow_session_id).revision)
+            except Exception:
+                instance.shadow_base_revision = -1
             report("Preparing Mesh Editor files...")
+            instance.defer_morph_state = bool(defer_morph_state)
+            instance.open_stage_ms.update(stage_marks)
             instance._write_initial_manifest(stop_event=stop_event, progress=report)
+            mark("files")
+            instance.open_stage_ms.update(stage_marks)
             report("Checking the prepared Mesh Editor session...")
             _validate_owned_session_tree(session_root, root_identity)
             return instance
@@ -7831,6 +8042,52 @@ class RustMeshAuthoringSession:
             raise
         finally:
             _dispose_shadow_morph_seed(authoritative_service, authoritative_morph_state)
+
+    def _attach_editor_recovery(self, authoritative_session: object) -> float:
+        """Keep the shadow's unfinished state beside the draft, and pick one up (P14)."""
+
+        project_path = getattr(authoritative_session, "mesh_layer_project_path", None)
+        source_hash = str(getattr(authoritative_session, "mesh_asset_source_hash", "") or "")
+        if project_path is None or len(source_hash) != 64:
+            return 0.0
+        plan = getattr(authoritative_session, "mesh_draft_plan", None)
+        draft = (plan, bytes(getattr(authoritative_session, "original_data", b"") or b"")) if plan is not None else None
+        self.recovery_project_root = Path(project_path).parent
+        try:
+            restored = self.shadow_service.attach_editor_recovery(
+                self.shadow_session_id, Path(project_path), source_hash,
+                base_generation=str(getattr(authoritative_session, "mesh_layer_loaded_generation", "") or ""),
+                draft=draft,
+            )
+            shadow = self.shadow_service._session(self.shadow_session_id)
+            self.recovery_problem = str(getattr(shadow, "history_recovery_problem", "") or "")
+            return restored
+        except Exception as exc:
+            # Recovery is a safety net; the editor opens without it, and says so.
+            self.recovery_problem = f"Unfinished Mesh Editor edits could not be restored ({type(exc).__name__}: {exc})."
+            return 0.0
+
+    def _end_editor_recovery(self, *, after_draft_save: bool = False) -> None:
+        """The edits were finished or discarded: their recovery point goes.
+
+        ``after_draft_save`` (Finish): the shadow stops writing it now, and the
+        draft's next save, which holds the finished edits, removes it.
+        """
+
+        from cdmw.services import mesh_history_journal as journal
+
+        try:
+            self.shadow_service.detach_editor_recovery(self.shadow_session_id, clear=False)
+            if after_draft_save:
+                self.authoritative_service.clear_editor_recovery_after_next_save(self.authoritative_session_id)
+                return
+        except Exception:
+            pass
+        # Discard: the folder fixed at open, whatever closed first (section 8.7 A11).
+        project_root = self.recovery_project_root
+        if project_root is not None:
+            with journal.project_lock(project_root):
+                journal.clear_editor_recovery(project_root)
 
     def _require_open(self) -> None:
         if self.closed:
@@ -8045,6 +8302,10 @@ class RustMeshAuthoringSession:
         action: str,
         params: Mapping[str, object],
     ) -> None:
+        from cdmw.services.mesh_asset_context import is_item_set
+        if (is_item_set(self.shadow_service._session(self.shadow_session_id).archive_refit_context)
+                and action in {"separate", "split", "merge", "duplicate", "delete"}):
+            return  # The service checks file ownership; the exact writer checks lineage.
         view = self.shadow_service.session_view(self.shadow_session_id)
         capability_key = (
             "uv_auto_unwrap"
@@ -8204,6 +8465,10 @@ class RustMeshAuthoringSession:
             allowed=allowed,
             command=command,
         )
+        from cdmw.services.mesh_asset_context import is_item_set
+        if is_item_set(self.shadow_service._session(self.shadow_session_id).archive_refit_context):
+            from cdmw.services.mesh_item_set_weights import edit_item_set_weights
+            return edit_item_set_weights(self, command, args, selection)
         delta = (
             _finite_command_float(args.get("delta"), "rig weight delta")
             if command == "rig_adjust_weight"
@@ -8405,10 +8670,129 @@ class RustMeshAuthoringSession:
         stop_event: threading.Event | None = None,
         progress: Callable[[str], None] | None = None,
     ) -> None:
+        try:
+            self._write_initial_manifest_files(stop_event=stop_event, progress=progress)
+        finally:
+            # Never leave a query running against a session whose open failed.
+            prefetch = self.morph_state_prefetch
+            self.morph_state_prefetch = None
+            if prefetch is not None:
+                started = time.perf_counter()
+                prefetch[0].join()
+                self.open_stage_ms["morph_join_ms"] = round((time.perf_counter() - started) * 1000.0, 1)
+
+    def _start_morph_state_prefetch(self) -> None:
+        """Ask the helper for the morph state while the files are written.
+
+        The query waits on the resident C++ session; the manifest writer only
+        reads the shadow mesh and writes into the session folder, so they
+        overlap instead of queueing.
+        """
+
+        service = self.shadow_service
+        session_id = self.shadow_session_id
+        result: dict[str, object] = {}
+
+        stages = self.open_stage_ms
+
+        def query() -> None:
+            started = time.perf_counter()
+            try:
+                result["state"] = service.cached_morph_state_from_runtime(session_id)
+            except BaseException as exc:  # handed to state_payload
+                result["error"] = exc
+            stages["morph_query_ms"] = round((time.perf_counter() - started) * 1000.0, 1)
+
+        thread = threading.Thread(target=query, name="cdmw-morph-state-prefetch", daemon=True)
+        thread.start()
+        self.morph_state_prefetch = (thread, result)
+
+    def rewrite_for_relaunch(self, process_generation: int) -> None:
+        """Write the session files again at the shadow's current revision (P4 V3).
+
+        After the editor's renderer exited unexpectedly the shadow session is kept;
+        a new helper with ``process_generation`` opens these files and continues
+        from the last accepted step. Runs on a worker, with no request in flight.
+        """
+
+        self._require_open()
+        self.process_generation = int(process_generation)
+        self._write_initial_manifest()
+        # The helper opens a session folder holding only what its manifest lists.
+        # The first write's files the new manifest no longer names (textures named
+        # for the first open, the dead helper's transaction files) would make it
+        # refuse the session, so they go.
+        _prune_unlisted_session_files(self.root)
+
+    def query_deferred_morph_state(self, done: Callable[[dict[str, object]], None]) -> bool:
+        """Ask the morph state of a deferred open in the background (P4 V3).
+
+        ``done`` gets the morph payload (or the reason it is unavailable) on the
+        query's thread. False when nothing is deferred or a query already runs.
+        """
+
+        if not self.defer_morph_state or self.deferred_morph_ready or self.morph_state_prefetch is not None:
+            return False
+        service, session_id, stages = self.shadow_service, self.shadow_session_id, self.open_stage_ms
+        result: dict[str, object] = {}
+
+        def query() -> None:
+            started = time.perf_counter()
+            try:
+                state: object = service.cached_morph_state_from_runtime(session_id)
+            except (KeyError, RuntimeError, TypeError, ValueError) as exc:
+                state = {"available": False, "reason": str(exc)}
+            except BaseException as exc:  # the session closed under the query
+                state = {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
+            stages["morph_query_ms"] = round((time.perf_counter() - started) * 1000.0, 1)
+            payload = _json_safe(state)
+            if len(_canonical_json_bytes(payload)) > _MORPH_STATE_MAX_BYTES:
+                payload = {"available": False, "reason": "Mesh Morph state exceeds the 16 MiB inline protocol limit"}
+            result["state"] = payload
+            self.deferred_morph_ready = True
+            done(payload if isinstance(payload, dict) else {"available": False})
+
+        thread = threading.Thread(target=query, name="cdmw-morph-state-deferred", daemon=True)
+        self.morph_state_prefetch = (thread, result)
+        thread.start()
+        return True
+
+    def _shadow_coordinates(self) -> str:
+        """"neutral" when the edit's mesh is held in a refit's or replacement's neutral space."""
+
+        try:
+            shadow = self.shadow_service._session(self.shadow_session_id)
+        except (AttributeError, KeyError):
+            return "source"
+        context = getattr(shadow, "archive_refit_context", None)
+        replacement = getattr(shadow, "replacement_state", None)
+        neutral = (self.neutral_appearance is not None
+                   or bool(getattr(context, "neutral_coordinates", False))
+                   or bool(getattr(replacement, "neutral_coordinates", False)))
+        return "neutral" if neutral else "source"
+
+    def _write_initial_manifest_files(
+        self,
+        *,
+        stop_event: threading.Event | None,
+        progress: Callable[[str], None] | None,
+    ) -> None:
         # create() has not published this session yet. Its worker exclusively
         # owns the shadow until the complete package is returned, so serializers
         # can read that isolated document without another native clone/export.
         mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
+        files_clock = [time.perf_counter()]
+
+        def files_mark(name: str) -> None:
+            now = time.perf_counter()
+            self.open_stage_ms[f"files_{name}_ms"] = round((now - files_clock[0]) * 1000.0, 1)
+            files_clock[0] = now
+
+        # Started after the writer holds its mesh: the query keeps the
+        # session's export lock while it waits on the helper. A deferred open
+        # asks once the editor shows (query_deferred_morph_state).
+        if not self.defer_morph_state:
+            self._start_morph_state_prefetch()
         document = _atomic_write_payload(
             self.root,
             "document.bin",
@@ -8421,6 +8805,7 @@ class RustMeshAuthoringSession:
             self.max_state_document_bytes,
             int(document["byte_length"]),
         )
+        files_mark("document")
         channels = _atomic_write_payload(
             self.root,
             "channels.json",
@@ -8433,6 +8818,7 @@ class RustMeshAuthoringSession:
             ),
             expected_root_identity=self.root_identity,
         )
+        files_mark("channels")
         material_synthesis = _RustMaterialSynthesisState()
         material_mesh = nullcontext(mesh)
         replacement = self.shadow_service._session(self.shadow_session_id).replacement_state
@@ -8444,20 +8830,39 @@ class RustMeshAuthoringSession:
                 mesh, replacement.dependencies, required=False, stop_event=stop_event)
         if progress is not None:
             progress("Preparing material textures for Mesh Editor...")
+        stage_started = time.perf_counter()
         with material_mesh as prepared_material_mesh:
-            textures = _mesh_texture_payloads(
-                self.root,
-                prepared_material_mesh,
-                expected_root_identity=self.root_identity,
-                stop_event=stop_event,
-                synthesis_state=material_synthesis,
-                material_package_path=(self.material_package_path if self.shadow_service._session(self.shadow_session_id).archive_refit_context is None else ""),
-            )
+            if self.prepared_item_set_materials is not None:
+                textures, material_presentations, material_synthesis = self.prepared_item_set_materials
+                self.prepared_item_set_materials = None
+            else:
+                textures = _mesh_texture_payloads(
+                    self.root,
+                    prepared_material_mesh,
+                    expected_root_identity=self.root_identity,
+                    stop_event=stop_event,
+                    synthesis_state=material_synthesis,
+                    material_package_path=(self.material_package_path if self.shadow_service._session(self.shadow_session_id).archive_refit_context is None else ""),
+                )
+                material_presentations = _mesh_material_presentations(
+                    prepared_material_mesh,
+                    generated_overrides=material_synthesis.presentation_overrides,
+                )
             if prepared_material_mesh is not mesh:
                 textures = retain_replacement_material_textures(self, mesh, prepared_material_mesh, textures, stop_event)
-            material_presentations = _mesh_material_presentations(
-                prepared_material_mesh,
-                generated_overrides=material_synthesis.presentation_overrides,
+            textures_done = time.perf_counter()
+            from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+            from cdmw.services.mesh_preview_material_source import preview_core_material_contract
+            material_graph = _composite_preview_core_material_graph(
+                self.root, prepared_material_mesh, textures, material_presentations, "full", self.root_identity,
+                lambda: stop_event is not None and stop_event.is_set(),
+            )
+            material_contract = preview_core_material_contract(prepared_material_mesh)
+            # Where an open's time goes (P4 V3), recorded with the launch.
+            self.open_stage_ms.update(
+                texture_payloads_ms=round((textures_done - stage_started) * 1000.0, 1),
+                material_graph_ms=round((time.perf_counter() - textures_done) * 1000.0, 1),
+                texture_count=len(textures),
             )
             self.material_synthesis_budget_parts = (
                 len(material_synthesis.budget_skipped),
@@ -8472,6 +8877,7 @@ class RustMeshAuthoringSession:
         material_key = getattr(self.shadow_service._session(self.shadow_session_id).archive_refit_context, "context_id", "base")
         self.archive_refit_material_cache[material_key] = {
             "key": material_key, "textures": textures, "material_presentations": material_presentations,
+            "preview_core_material_graph": material_graph, "material_contract": material_contract,
             "reason": self.texture_unavailable_reason,
         }
         material_warning = ""
@@ -8489,7 +8895,10 @@ class RustMeshAuthoringSession:
                 else "No readable DDS preview textures were supplied by CDMW."
             )
         self.archive_refit_material_cache[material_key]["reason"] = self.texture_unavailable_reason
+        waited = time.perf_counter()
+        files_mark("materials")
         view = self.shadow_service.session_view(self.shadow_session_id)
+        self.open_stage_ms["session_view_ms"] = round((time.perf_counter() - waited) * 1000.0, 1)
         manifest = {
             "schema": RUST_MESH_AUTHORING_PACKAGE,
             "protocol": RUST_MESH_EDITOR_PROTOCOL,
@@ -8503,6 +8912,8 @@ class RustMeshAuthoringSession:
             "channels": channels,
             "textures": textures,
             "material_presentations": material_presentations,
+            "preview_core_material_graph": material_graph,
+            "material_contract": material_contract,
             "texture_status": {
                 "available": bool(textures),
                 "resource_count": len(textures),
@@ -8535,6 +8946,9 @@ class RustMeshAuthoringSession:
                 "format": str(mesh.format or ""),
                 "sha256": _source_hash(mesh),
                 "lod_index": int(view.lod_index),
+                # A preview of the file must not draw an edit held in other coordinates
+                # (a refit's or a replacement's neutral space) as if it were its own (P5).
+                "coordinates": self._shadow_coordinates(),
             },
             "output_policy": {
                 "policy": view.output_policy,
@@ -8547,6 +8961,16 @@ class RustMeshAuthoringSession:
             "theme": _json_safe(self.theme),
             "state": self.state_payload(include_document=False),
         }
+        if self.item_set_contexts:
+            from cdmw.services.mesh_item_set_references import prepare_item_set_references
+            manifest["reference_pieces"] = prepare_item_set_references(
+                self, self.item_set_contexts, stop_event, progress)
+            manifest["item_set_files"] = [context.selected_entry.basename
+                                          for context in self.item_set_contexts]
+        companion = self._native_companion_reference_piece(
+            len(manifest.get("reference_pieces", ())) + 1, stop_event)
+        if companion is not None:
+            manifest.setdefault("reference_pieces", []).append(companion)
         if self.shadow_service._session(self.shadow_session_id).replacement_state is not None:
             # Reopened replacements already have material snapshots before the
             # helper starts. Declare their exact files for its initial allowlist.
@@ -8557,6 +8981,8 @@ class RustMeshAuthoringSession:
             active_materials = self.archive_refit_material_cache[material_key]
             manifest["textures"] = active_materials["textures"]
             manifest["material_presentations"] = active_materials["material_presentations"]
+            manifest["preview_core_material_graph"] = active_materials.get("preview_core_material_graph")
+            manifest["material_contract"] = active_materials.get("material_contract", {})
             self.texture_resource_count = len(active_materials["textures"])
             self.texture_unavailable_reason = active_materials["reason"]
             manifest["texture_status"].update(
@@ -8623,16 +9049,80 @@ class RustMeshAuthoringSession:
 
     @_with_protocol_lock
     @_with_pinned_session_root
+    def _native_companion_reference_piece(self, index, stop_event):
+        """Read-only prefab companions of a plain archive edit, as Browse shows them."""
+        if self.shadow_service._session(self.shadow_session_id).archive_refit_context is not None:
+            return None
+        from cdmw.services.mesh_preview_material_source import native_companion_reference_mesh
+        from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+        stop_event = stop_event or threading.Event()
+        try:
+            return self._build_native_companion_reference_piece(index, stop_event)
+        except RunCancelled:
+            raise
+        except Exception:
+            # Companions are read-only context; they must never stop the
+            # editable session from opening.
+            _LOGGER.warning("Mesh Editor companion parts were skipped", exc_info=True)
+            return None
+
+    def _build_native_companion_reference_piece(self, index, stop_event):
+        from cdmw.services.mesh_preview_material_source import native_companion_reference_mesh
+        from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+        source = self.authoritative_service._session(self.authoritative_session_id)
+        mesh = native_companion_reference_mesh(source.base_mesh, self.material_package_path,
+                                               cancelled=stop_event.is_set)
+        if mesh is None:
+            return None
+        document = _atomic_write_payload(
+            self.root, f"companion-{index:02d}.bin",
+            PreparedMeshDocument(encode_mesh_document(
+                _mesh_document_arrays(mesh), max_payload_bytes=RUST_MESH_MAX_PAYLOAD_BYTES)),
+            data_type=BINARY_MESH_DOCUMENT_TYPE,
+            element_count=sum(len(level) for level in _mesh_lods(mesh)),
+            expected_root_identity=self.root_identity,
+        )
+        synthesis = _RustMaterialSynthesisState()
+        # The native graph composes these parts; Python synthesis would only
+        # repeat that work for maps the helper then replaces.
+        textures = _mesh_texture_payloads(self.root, mesh, expected_root_identity=self.root_identity,
+                                          stop_event=stop_event, synthesis_state=synthesis,
+                                          enable_material_synthesis=False)
+        presentations = _mesh_material_presentations(mesh, generated_overrides=synthesis.presentation_overrides)
+        row = {"index": index, "name": "Companions of " + Path(str(source.base_mesh.path)).name,
+               "role": "companion", "document": document, "textures": textures,
+               "material_presentations": presentations}
+        graph = _composite_preview_core_material_graph(
+            self.root, mesh, textures, presentations, "full", self.root_identity, stop_event.is_set)
+        if graph is not None:
+            row["preview_core_material_graph"] = graph
+        return row
+
     def state_payload(self, *, include_document: bool = True) -> dict[str, object]:
         self._require_open()
         view = self.shadow_service.session_view(self.shadow_session_id)
         shadow_session = self.shadow_service._session(self.shadow_session_id)
+        waited = time.perf_counter()
         with shadow_session.export_lock:
+            self.open_stage_ms.setdefault("state_lock_wait_ms", round((time.perf_counter() - waited) * 1000.0, 1))
             weight_edit_capability = self._weight_edit_capability(shadow_session)
         try:
-            morph_state: object = self.shadow_service.cached_morph_state_from_runtime(
-                self.shadow_session_id
-            )
+            prefetch = self.morph_state_prefetch
+            if self.defer_morph_state and not self.deferred_morph_ready:
+                # Said once the query is done, in a morph_state message.
+                morph_state: object = deferred_morph_placeholder()
+            elif prefetch is not None:
+                self.morph_state_prefetch = None
+                waited = time.perf_counter()
+                prefetch[0].join()
+                self.open_stage_ms["morph_join_ms"] = round((time.perf_counter() - waited) * 1000.0, 1)
+                if "error" in prefetch[1]:
+                    raise prefetch[1]["error"]
+                morph_state = prefetch[1]["state"]
+            else:
+                morph_state = self.shadow_service.cached_morph_state_from_runtime(
+                    self.shadow_session_id
+                )
         except (KeyError, RuntimeError, TypeError, ValueError) as exc:
             morph_state = {"available": False, "reason": str(exc)}
         morph_payload = _json_safe(morph_state)
@@ -8769,9 +9259,14 @@ class RustMeshAuthoringSession:
                         bone["index"], bone["position"],
                     ))
             with shadow_session.export_lock:
-                state["rig_influence"] = cached_selected_bone_influence(
-                    shadow_session, selected_bone_index, weight_edit_capability.palette, self.state_cache,
-                )
+                from cdmw.services.mesh_asset_context import is_item_set
+                if is_item_set(shadow_session.archive_refit_context):
+                    from cdmw.services.mesh_item_set_weights import item_set_weight_display
+                    state["rig_influence"] = item_set_weight_display(shadow_session, state["skeleton"], selected_bone_index)
+                else:
+                    state["rig_influence"] = cached_selected_bone_influence(
+                        shadow_session, selected_bone_index, weight_edit_capability.palette, self.state_cache,
+                    )
         except (KeyError, RuntimeError, TypeError, ValueError) as exc:
             state["skeleton"] = {
                 "available": False,
@@ -8834,6 +9329,10 @@ class RustMeshAuthoringSession:
             ):
                 session.revision += 1
             self.state_cache.transition(session, before_revision=before_revision, change=mesh_change)
+            if (mesh_change != "none" and session.revision != int(before_revision)
+                    and session.history_recovery_target is not None):
+                # The unfinished state goes beside the draft on autosave's delay (P14).
+                self.shadow_service._schedule_mesh_layer_autosave(session)
             return int(session.revision)
 
     def _apply_candidate_geometry(self, candidate, raw_submeshes, operations, active_lod_index):
@@ -9458,7 +9957,12 @@ class RustMeshAuthoringSession:
             raise RustMeshValidationError(
                 "Finish or cancel neutral face editing before loading a different source mesh."
             )
-        if shadow_session.archive_refit_context is not None and command in {
+        from cdmw.services.mesh_asset_context import is_item_set
+        if is_item_set(shadow_session.archive_refit_context) and command in {"import_editable_package", "refit_load_mesh"}:
+            raise RustMeshValidationError("Open one piece separately before loading a Refit source"
+                                          if command == "refit_load_mesh" else
+                                          "Open one piece separately before importing a replacement")
+        if shadow_session.archive_refit_context is not None and not is_item_set(shadow_session.archive_refit_context) and command in {
             "topology", "layer_delete", "layer_paste", "import_editable_package", "refit_load_mesh",
         }:
             raise RustMeshValidationError("Archive Refit preserves each source Part and topology; finish this refit before changing topology")
@@ -9854,10 +10358,16 @@ class RustMeshAuthoringSession:
         if context is not None and context.neutral_coordinates:
             from cdmw.services.mesh_archive_refit import transform_archive_refit_mesh
             candidate = transform_archive_refit_mesh(mesh, context, to_neutral=False)
-            source_lods = [
-                [part for asset in context.assets for part in asset.source.mesh.submeshes],
-                *_mesh_lods(context.assets[0].source.mesh)[1:],
-            ]
+            from cdmw.services.mesh_asset_context import is_item_set, ORIGIN_ATTRIBUTE
+            if is_item_set(context):
+                sources = {asset.source_part_id(i): part for asset in context.assets
+                           for i, part in enumerate(asset.source.mesh.submeshes)}
+                source_lods = [[sources[getattr(part, ORIGIN_ATTRIBUTE)] for part in candidate.submeshes]]
+            else:
+                source_lods = [
+                    [part for asset in context.assets for part in asset.source.mesh.submeshes],
+                    *_mesh_lods(context.assets[0].source.mesh)[1:],
+                ]
         elif context is not None or self.neutral_appearance is None or self.neutral_source_mesh is None:
             return mesh
         else:
@@ -10083,6 +10593,33 @@ class RustMeshAuthoringSession:
                 f"Free Edit output folder must still be new; the selected destination now exists: {target}"
             )
         return target
+
+    def unfinished_steps(self) -> int:
+        """Editor steps since the editor opened that no Finish has taken (section 8.8).
+
+        Edits restored from a recovery point count as one step until a Finish.
+        """
+
+        with self._lifecycle_lock:
+            if self._finish_accepted or self.closed:
+                return 0
+        steps = 1 if self.recovered_edits_at > 0.0 else 0
+        if self.shadow_base_revision >= 0:
+            try:
+                current = int(self.shadow_service.session_view(self.shadow_session_id).revision)
+            except Exception:
+                return max(steps, 1)  # unreadable: count it, so nothing is closed unasked
+            steps += max(0, current - self.shadow_base_revision)
+        return steps
+
+    def holds_recovery_point(self) -> bool:
+        """Whether unfinished edits of this editor are kept on disk for a crash."""
+
+        root = self.recovery_project_root
+        try:
+            return bool(root is not None and (Path(root) / "editor_recovery.json").is_file())
+        except OSError:
+            return False
 
     def _complete_accepted_finish(
         self, cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication,
@@ -10441,6 +10978,13 @@ class RustMeshAuthoringSession:
                 ) from commit_error
             raise
         result = self._complete_accepted_finish(cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication, exact_output_validation, free_edit_output_validation)
+        # The draft holds these edits once its next save lands; until then the
+        # recovery point stays, so a crash in between loses nothing (8.7 A1).
+        self._end_editor_recovery(after_draft_save=True)
+        try:
+            self.authoritative_service.mark_history_clean(self.authoritative_session_id)
+        except Exception:
+            pass  # a clean mark is a hint for prompts, never a reason to fail Finish
         # Keep the typed host report with the revision actually committed. The
         # control payload may be staged on disk and describes a disposed shadow;
         # neither the Rust reply nor an old UI report is export authority.
@@ -10460,16 +11004,30 @@ class RustMeshAuthoringSession:
         self.authoritative_service._schedule_mesh_layer_autosave(session)
 
     def cancel(self) -> None:
+        """Discard: the user chose to drop the unfinished edits, recovery point too."""
+
+        self.close(discard=True)
+
+    def close(self, *, discard: bool = False) -> None:
+        """End the session. Only a Discard the user chose ends the recovery point; any
+        other close (a tab or CDMW closing, a superseded or failed open) keeps it, so
+        the unfinished edits come back next time (section 8.9, review of 8b14e1b4)."""
+
         if self.closed:
             return
         if not self.request_cancel():
             return
+        if discard or self.discard_requested:
+            self._end_editor_recovery()  # discarded (P14)
         with self._protocol_lock:
             if not self.closed:
                 self._dispose_shadow()
 
     def _dispose_shadow(self) -> str:
         warning = ""
+        prefetch, self.morph_state_prefetch = self.morph_state_prefetch, None
+        if prefetch is not None:
+            prefetch[0].join()  # never close the session under a running morph query
         try:
             self.shadow_service.close_edit_session(
                 self.shadow_session_id,
@@ -10482,6 +11040,26 @@ class RustMeshAuthoringSession:
             self.mesh_island_cache.clear()
             self.closed = True
         return warning
+
+
+def _synthesis_max_dimension() -> int:
+    """Largest side of a texture the editor synthesises (P4 V3).
+
+    It follows the shared preview texture quality, as every viewport's textures
+    do: a lower setting lowers it. 2048 stays the ceiling, since synthesis runs
+    while the editor opens and is budgeted for that size.
+    """
+
+    from cdmw.core import archive_model_texture_config
+
+    value = int(getattr(archive_model_texture_config, "MODEL_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION", 2048) or 2048)
+    return max(256, min(2048, value))
+
+
+def deferred_morph_placeholder() -> dict[str, object]:
+    """The morph state of an open whose morph query has not answered yet."""
+
+    return {"available": False, "preparing": True, "reason": "Morph data is still being prepared."}
 
 
 def _preserve_unchanged_rust_channel(

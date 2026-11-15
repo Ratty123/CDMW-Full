@@ -154,6 +154,14 @@ class MeshEditorController:
     def geometry_layer_state(self) -> dict[str, object]:
         return self.mesh_service.geometry_layer_state(self._session_id())
 
+    def closing_loses_work(self) -> bool:
+        """P14: a draft keeps its edits on close; only a mesh without one loses them."""
+
+        closing = getattr(self.mesh_service, "closing_loses_work", None)
+        if not callable(closing):
+            return True
+        return bool(closing(self._session_id()))
+
     def set_object_transform(
         self,
         *,
@@ -169,12 +177,6 @@ class MeshEditorController:
             scale=scale,
             label=label,
         )
-
-    def copy_selection(self, *, target: str) -> MeshEditResult:
-        return self.mesh_service.copy_selection(self._session_id(), target=target)
-
-    def paste_selection(self) -> MeshEditResult:
-        return self.mesh_service.paste_selection(self._session_id())
 
     def activate_geometry_layer(self, layer_id: str) -> dict[str, object]:
         return self.mesh_service.activate_geometry_layer(self._session_id(), layer_id)

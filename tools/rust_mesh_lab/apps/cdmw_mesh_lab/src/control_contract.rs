@@ -24,6 +24,8 @@ enum RuntimeRouteKind {
     LocalTool,
     LocalPage,
     LocalState,
+    /// One of the Preview settings every viewport shares (P4 V3).
+    SharedSetting,
     UiAction,
     ShadowCommand,
     ShadowTopology,
@@ -40,6 +42,7 @@ impl RuntimeRouteKind {
             Self::LocalTool => "local_tool",
             Self::LocalPage => "local_page",
             Self::LocalState => "local_state",
+            Self::SharedSetting => "shared_preview_setting",
             Self::UiAction => "ui_action",
             Self::ShadowCommand => "typed_shadow_command",
             Self::ShadowTopology => "typed_shadow_topology",
@@ -80,6 +83,10 @@ impl RuntimeRoute {
                 all_anchors_present(CDMW_UI_SOURCE, self.target)
                     && MAIN_SOURCE.contains("enum CdmwRailPage")
             }
+            RuntimeRouteKind::SharedSetting => {
+                CDMW_UI_SOURCE.contains(&format!("self.{}", self.target))
+                    && CDMW_UI_SOURCE.contains("fn current_shared_preview_settings")
+            }
             RuntimeRouteKind::LocalState => self.target.split('+').all(|target| {
                 CDMW_UI_SOURCE.contains(&format!("self.{target}"))
                     || CDMW_UI_SOURCE.contains(&format!("&mut self.{target}"))
@@ -107,13 +114,24 @@ impl RuntimeRoute {
                     && CDMW_UI_SOURCE.contains("draw_cdmw_viewport(root_ui)")
             }
             RuntimeRouteKind::ReadOnlyState => all_anchors_present(CDMW_UI_SOURCE, self.target),
-            RuntimeRouteKind::Unavailable => CDMW_UI_SOURCE.contains(&format!(
-                "add_enabled(false, Button::new(crate::localization::tr(\"{}\")))",
-                self.target
-            )),
+            RuntimeRouteKind::Unavailable => disabled_button_present(CDMW_UI_SOURCE, self.target),
             RuntimeRouteKind::Unregistered => false,
         }
     }
+}
+
+fn disabled_button_present(source: &str, label: &str) -> bool {
+    let button = format!("Button::new(crate::localization::tr({label:?}))");
+    source.match_indices(&button).any(|(offset, _)| {
+        let prefix = source[..offset].trim_end();
+        let Some(prefix) = prefix.strip_suffix(',') else {
+            return false;
+        };
+        let Some(prefix) = prefix.trim_end().strip_suffix("false") else {
+            return false;
+        };
+        prefix.trim_end().ends_with("add_enabled(")
+    })
 }
 
 fn all_anchors_present(source: &str, anchors: &str) -> bool {
@@ -498,7 +516,9 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "refit.skin_pull" => (Kind::LocalState, "cdmw_refit_skin_pull"),
         "refit.apply" => (Kind::ShadowCommand, "refit_configure"),
         "refit.apply_all" => (Kind::ShadowCommand, "refit_configure"),
-        "refit.island_apply" | "refit.island_inherit" => (Kind::ShadowCommand, "refit_island_configure"),
+        "refit.island_apply" | "refit.island_inherit" => {
+            (Kind::ShadowCommand, "refit_island_configure")
+        }
         "refit.fit_to_body" => (Kind::ShadowCommand, "refit_fit_to_body"),
         "refit.reference_body" => (Kind::LocalState, "cdmw_refit_use_reference_body"),
         "refit.body_weights" => (Kind::LocalState, "cdmw_refit_use_body_weights"),
@@ -506,7 +526,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "refit.restore_shape_cancel" => (Kind::ShadowCommand, "refit_restore_shape_cancel"),
         "morph.reset" => (Kind::ShadowCommand, "morph_reset"),
         "morph.bake" => (Kind::ShadowCommand, "morph_bake"),
-        "display.mode" => (Kind::LocalState, "view_mode"),
+        "display.mode" => (Kind::SharedSetting, "view_mode"),
         "display.overlay.wire_colour" => (Kind::LocalState, "overlay_wire_colour"),
         "display.overlay.vertex_colour" => (Kind::LocalState, "overlay_vertex_colour"),
         "display.overlay.selection_colour" => (Kind::LocalState, "overlay_selection_colour"),
@@ -519,7 +539,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         ),
         "display.overlay.wire_width" => (Kind::LocalState, "overlay_wire_width"),
         "display.overlay.vertex_size" => (Kind::LocalState, "overlay_vertex_size"),
-        "display.background_colour" => (Kind::LocalState, "viewport_background_colour"),
+        "display.background_colour" => (Kind::SharedSetting, "viewport_background_colour"),
         "display.grid_colour" => (Kind::LocalState, "viewport_grid_colour"),
         "display.colours.reset" => (
             Kind::LocalState,
@@ -819,6 +839,20 @@ replacement.preview|camera_display|"replacement_compare"|UiAction::CdmwCommand
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn disabled_control_binding_ignores_layout_but_requires_false_and_the_label() {
+        let inline =
+            "ui.add_enabled(false, Button::new(crate::localization::tr(\"Material Colour\")))";
+        let formatted = "ui.add_enabled(\n false,\n Button::new(crate::localization::tr(\"Material Colour\")),\n)";
+        assert!(disabled_button_present(inline, "Material Colour"));
+        assert!(disabled_button_present(formatted, "Material Colour"));
+        assert!(!disabled_button_present(
+            &formatted.replace("false", "true"),
+            "Material Colour"
+        ));
+        assert!(!disabled_button_present(formatted, "Other control"));
+    }
 
     #[test]
     fn rust_product_core_has_unique_rows_and_required_disabled_reasons() {

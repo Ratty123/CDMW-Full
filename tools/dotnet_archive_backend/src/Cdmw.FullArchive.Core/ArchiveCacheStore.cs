@@ -179,6 +179,7 @@ public sealed partial class ArchiveCacheStore
 
             var generationId = $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}"[..30];
             var generationsRoot = Path.Combine(RootDirectory(rootId), "g");
+            GameFolderPolicy.RejectLinks(RootDirectory(rootId), generationsRoot);
             Directory.CreateDirectory(generationsRoot);
             var stagingPath = Path.Combine(generationsRoot, $".{generationId}.staging");
             var generationPath = Path.Combine(generationsRoot, generationId);
@@ -464,7 +465,75 @@ public sealed partial class ArchiveCacheStore
             index.Dispose();
             throw new InvalidDataException("The archive generation entry count is inconsistent.");
         }
+        try
+        {
+            RequireSourcesInsideRoot(index, packageRoot);
+        }
+        catch
+        {
+            index.Dispose();
+            throw;
+        }
         return index;
+    }
+
+    // The PAMT and PAZ paths the index names are opened by every decode. A
+    // damaged or crafted index could name any file, or a path on another host,
+    // which Windows would send the user's credentials to. Each must lie under
+    // the package root the request named (its own UNC prefix too, so a game on
+    // a network share still works), with no link on the way from the root;
+    // the strings are checked before anything touches the paths. Otherwise
+    // the index is invalid and the open rebuilds it.
+    internal static void RequireSourcesInsideRoot(ArchiveIndex index, string packageRoot)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(
+            File.Exists(packageRoot) ? Path.GetDirectoryName(packageRoot) ?? packageRoot : packageRoot));
+        var prefix = root + Path.DirectorySeparatorChar;
+        var seen = new HashSet<ArchiveIndexStringRange>();
+        var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (long entryId = 0; entryId < index.EntryCount; entryId++)
+        {
+            foreach (var range in new[] { index.GetPamtPathRange(entryId), index.GetPazPathRange(entryId) })
+            {
+                if (!seen.Add(range))
+                {
+                    continue;
+                }
+                var text = index.ReadString(range);
+                if (text.Length == 0)
+                {
+                    continue;  // names nothing, so nothing is opened
+                }
+                string full;
+                try
+                {
+                    full = Path.IsPathFullyQualified(text) ? Path.GetFullPath(text) : string.Empty;
+                }
+                catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+                {
+                    full = string.Empty;
+                }
+                if (full.Length <= prefix.Length || !full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException($"The archive index names a source outside its package root: {text}");
+                }
+                // The file itself (a symbolic link to a share would otherwise pass),
+                // then each folder below the root; links only (GameFolderPolicy.IsLinkTag).
+                if (GameFolderPolicy.IsLink(full))
+                {
+                    throw new InvalidDataException($"The archive index names a source through a link: {text}");
+                }
+                for (var folder = Path.GetDirectoryName(full);
+                     folder is not null && folder.Length > root.Length && folders.Add(folder);
+                     folder = Path.GetDirectoryName(folder))
+                {
+                    if (Directory.Exists(folder) && GameFolderPolicy.IsLink(folder))
+                    {
+                        throw new InvalidDataException($"The archive index names a source through a link: {text}");
+                    }
+                }
+            }
+        }
     }
 
     private static async Task<ArchiveGenerationManifest> BuildManifestAsync(
@@ -504,14 +573,23 @@ public sealed partial class ArchiveCacheStore
 
     private void QuarantineCorruptGeneration(string rootId, string generationId, string reason)
     {
-        var source = GenerationDirectory(rootId, generationId);
-        if (!Directory.Exists(source) || IsActive(source))
+        // Only a generation folder of this cache is quarantined: an id that is
+        // not one, or a folder holding game files, stays where it is.
+        if (!TryGenerationDirectory(rootId, generationId, out var source)
+            || !Directory.Exists(source)
+            || IsActive(source)
+            || GameFolderPolicy.IsProtected(source))
         {
             return;
         }
         try
         {
             var quarantine = Path.Combine(RootDirectory(rootId), "quarantine");
+            // A planted link would carry the generation out of the cache.
+            if (IsExistingLink(quarantine))
+            {
+                return;
+            }
             Directory.CreateDirectory(quarantine);
             var destination = Path.Combine(quarantine, $"{generationId}-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}");
             Directory.Move(source, destination);
@@ -561,11 +639,74 @@ public sealed partial class ArchiveCacheStore
 
     private string RootDirectory(string rootId) => Path.Combine(CatalogueRoot, rootId);
 
-    private string GenerationDirectory(string rootId, string generationId)
+    // The only form OpenAsync writes: a UTC time to the millisecond (17 digits),
+    // '-', and the first 12 hex digits of a GUID. current.json is a file anyone
+    // who can write the cache can change, so a generation id naming anything
+    // else (an absolute path, "..", a separator) never reaches a path.
+    internal static bool IsGenerationId(string? value)
     {
-        var compact = Path.Combine(RootDirectory(rootId), "g", generationId);
-        var legacy = Path.Combine(RootDirectory(rootId), "generations", generationId);
-        return !Directory.Exists(compact) && Directory.Exists(legacy) ? legacy : compact;
+        if (value is not { Length: 30 } || value[17] != '-')
+        {
+            return false;
+        }
+        for (var i = 0; i < 30; i++)
+        {
+            var c = value[i];
+            var valid = i < 17
+                ? (c is >= '0' and <= '9')
+                : (i == 17 || (c is (>= '0' and <= '9') or (>= 'a' and <= 'f')));
+            if (!valid)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private string GenerationDirectory(string rootId, string generationId) =>
+        TryGenerationDirectory(rootId, generationId, out var path)
+            ? path
+            : throw new InvalidDataException("The archive cache pointer does not name a generation of this cache.");
+
+    // <catalogue>\<root id>\g\<generation id> (or the legacy "generations"),
+    // checked after resolution: the parent is that root's own generations
+    // folder and neither it nor the root directory is a link.
+    private bool TryGenerationDirectory(string rootId, string? generationId, out string path)
+    {
+        path = string.Empty;
+        if (!IsHash(rootId, 24) || !IsGenerationId(generationId))
+        {
+            return false;
+        }
+        var rootDirectory = Path.GetFullPath(RootDirectory(rootId));
+        var compactParent = Path.Combine(rootDirectory, "g");
+        var legacyParent = Path.Combine(rootDirectory, "generations");
+        var compact = Path.Combine(compactParent, generationId!);
+        var legacy = Path.Combine(legacyParent, generationId!);
+        var chosen = Path.GetFullPath(!Directory.Exists(compact) && Directory.Exists(legacy) ? legacy : compact);
+        var parent = Path.GetDirectoryName(chosen);
+        if (parent is null
+            || !(parent.Equals(compactParent, StringComparison.OrdinalIgnoreCase)
+                 || parent.Equals(legacyParent, StringComparison.OrdinalIgnoreCase))
+            || !Path.GetDirectoryName(parent)!.Equals(rootDirectory, StringComparison.OrdinalIgnoreCase)
+            || !rootDirectory.StartsWith(
+                CatalogueRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        if (IsExistingLink(rootDirectory) || IsExistingLink(parent) || IsExistingLink(chosen))
+        {
+            return false;
+        }
+        path = chosen;
+        return true;
+    }
+
+    private static bool IsExistingLink(string path)
+    {
+        var info = new DirectoryInfo(path);
+        return info.Exists && IsLink(info);
     }
 
     private static string CanonicalRoot(string packageRoot)

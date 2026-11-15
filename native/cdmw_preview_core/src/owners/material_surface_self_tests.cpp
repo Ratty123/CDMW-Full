@@ -119,6 +119,8 @@ static void run_base_layer_material_companion_contract_self_test() {
     direct_surface.parameter_name = "_materialTexture";
     direct_surface.layer_role = "material_response";
     direct_surface.layer_channel.clear();
+    direct_surface.packed_channels = "layer:material_response,g=roughness,b=metalness";
+    direct_surface.source_authority = "exact_sidecar";
     const std::vector<const TextureBinding*> direct_refs{
         &direct_base, &direct_surface, &owner_normal, &owner_height};
     const std::vector<MaterialLayer> direct = compile_material_layers(
@@ -448,6 +450,23 @@ static void run_exact_layer_owner_stack_contract_self_test() {
                         && layer.mask_parameter == bindings[2].parameter_name)),
             "exact layer companion escaped its sidecar, wrapper, role, or channel");
     }
+    bindings[1].source_path = "cd_common_default_mg.dds";
+    bindings[1].archive_path = "character/texture/cd_common_default_mg.dds";
+    bindings[1].texture_name = "cd_common_default_mg.dds";
+    bindings[2].source_path = "temp_r.dds";
+    bindings[2].archive_path = "character/texture/temp_r.dds";
+    bindings[2].texture_name = "temp_r.dds";
+    bindings[2].packed_channels.clear();
+    const auto constant_selector_layers = compile_material_layers(
+        refs, mesh, &bindings[0], nullptr, nullptr, &bindings[3], nullptr,
+        hints, "mesh_base_first");
+    require_material_contract(constant_selector_layers.size() == 7,
+        "constant exact colour selector lost its authored layers");
+    for (const auto& layer : constant_selector_layers) {
+        if (layer.layer_role != "detail") continue;
+        require_material_contract(layer.mask_source == "temp_r.dds",
+            "generic detail mask displaced an exact constant colour selector");
+    }
 }
 
 static void run_layered_garment_colour_contract_self_test() {
@@ -574,6 +593,89 @@ static void run_shared_hair_identity_contract_self_test() {
 }
 
 static void run_head_eye_cover_identity_contract_self_test() {
+    EntryJob colour_job;
+    std::vector<NativeSubmesh> colour_meshes(1);
+    std::vector<TextureBinding> colour_bindings(1);
+    colour_bindings[0].source_path = "authored.dds";
+    colour_bindings[0].role = "base";
+    colour_bindings[0].shader_family = "SkinnedMeshStandard";
+    PackageWriteState colour_state{colour_job, colour_meshes, colour_bindings};
+    PackageBatchState colour_batch;
+    colour_batch.mesh = &colour_meshes[0];
+    colour_batch.base = &colour_bindings[0];
+    colour_batch.bindings = {&colour_bindings[0]};
+    prepare_package_batch_material(colour_state, colour_batch);
+    require_material_contract(colour_batch.color == std::array<float, 3>{1.0f, 1.0f, 1.0f},
+        "geometry placeholder grey darkened an authored texture");
+    colour_batch.base = nullptr;
+    colour_batch.bindings.clear();
+    prepare_package_batch_material(colour_state, colour_batch);
+    require_material_contract(colour_batch.color == std::array<float, 3>{0.62f, 0.62f, 0.62f},
+        "missing source colour lost its neutral placeholder");
+    require_material_contract(shader_rule_for_family("SkinnedMeshBlendHeight") == "standard",
+        "authored BlendHeight detail layers were treated as an unknown shader");
+    MaterialParameterRecord declared_eye_base;
+    declared_eye_base.name = "_baseColorTexture";
+    declared_eye_base.texture_path = "eye_ball.dds";
+    std::vector<SidecarTextureRef> inferred;
+    std::set<std::string> inferred_seen;
+    add_support_base_sibling_ref(inferred, inferred_seen, "eye_sp.dds", "_materialTexture",
+        "Eye", "SkinnedMeshEye", "owner", 0, {declared_eye_base});
+    require_material_contract(inferred.empty(), "a specular sibling replaced the declared eye albedo");
+    add_support_base_sibling_ref(inferred, inferred_seen, "eye_sp.dds", "_materialTexture",
+        "Eye", "SkinnedMeshEye", "owner", 0, {});
+    require_material_contract(inferred.size() == 1, "missing-base fallback was lost");
+    std::vector<MaterialParameterRecord> declared_blue;
+    for (const char* parameter : {"_detailDiffuseMaskB", "_detailNormalMaskB", "_detailMaterialMaskB", "_detailHeightMaskB"}) {
+        MaterialParameterRecord value;
+        value.name = parameter;
+        value.texture_path = std::string(parameter) + ".dds";
+        declared_blue.push_back(value);
+    }
+    inferred.clear();
+    inferred_seen.clear();
+    add_layer_family_sibling_refs(inferred, inferred_seen, "shared_green_n.dds", "_detailNormalMaskB",
+        "Wing", "SkinnedMeshBlendHeight", "owner", 0, declared_blue);
+    require_material_contract(inferred.empty(),
+        "a shared normal invented duplicate colour or response maps for an authored channel");
+    declared_blue.pop_back();
+    add_layer_family_sibling_refs(inferred, inferred_seen, "shared_green_n.dds", "_detailNormalMaskB",
+        "Wing", "SkinnedMeshBlendHeight", "owner", 0, declared_blue);
+    require_material_contract(inferred.size() == 1 && inferred[0].parameter_name == "_detailHeightMaskB",
+        "missing layer companion completion no longer preserves declared slots");
+    TextureBinding eye_base;
+    eye_base.shader_family = "SkinnedMeshEye";
+    eye_base.source_authority = "exact_sidecar";
+    eye_base.sidecar_path = "character/modelproperty/eye.pac_xml";
+    eye_base.material_wrapper_index = 0;
+    eye_base.source_path = "sclera.dds";
+    eye_base.parameter_name = "_baseColorTexture";
+    TextureBinding iris = eye_base;
+    iris.source_path = "iris.dds";
+    iris.parameter_name = "_irisDiffuseTexture";
+    TextureBinding pupil = eye_base;
+    pupil.source_path = "pupil.dds";
+    pupil.parameter_name = "_pupilTexture";
+    TextureBinding unrelated_iris = iris;
+    unrelated_iris.material_wrapper_index = 1;
+    unrelated_iris.source_path = "wrong-eye.dds";
+    const auto eye_layers = compile_material_layers(
+        {&unrelated_iris, &pupil, &eye_base, &iris}, NativeSubmesh{}, &eye_base,
+        nullptr, nullptr, nullptr, nullptr, NativeMaterialHints{}, "mesh_base_first");
+    require_material_contract(eye_layers.size() == 3
+        && eye_layers[1].diffuse_source == "iris.dds"
+        && eye_layers[2].diffuse_source == "pupil.dds"
+        && eye_layers[1].mask_source == eye_layers[1].diffuse_source
+        && eye_layers[2].layer_channel == "a",
+        "eye colour lost its exact wrapper, alpha coverage or iris/pupil ordering");
+    EntryJob head_job;
+    head_job.extension = ".pac";
+    head_job.path = "character/model/1_pc/2_phw/head/head/head.pac";
+    require_material_contract(head_prefab_components_are_required(head_job),
+        "a head lost its declared eye and mouth components");
+    head_job.path = "character/model/1_pc/2_phw/armor/upper.pac";
+    require_material_contract(!head_prefab_components_are_required(head_job),
+        "optional equipment components became required head pieces");
     NativeSubmesh eye_cover;
     eye_cover.name = "CD_PHW_00_Head_00_0028_EyeCover";
     eye_cover.material = "cd_phw_00_head_00_0028_eyecover";
@@ -622,6 +724,13 @@ static void run_cached_material_owner_contract_self_test() {
     shared.role = "normal";
     shared.material_wrapper_order_authoritative = true;
     shared.material_wrapper_index = 0;
+    require_material_contract(!support_binding_rejected_before_scoring(shared, right, "normal", false, nullptr),
+        "an exactly shared material lost its support maps");
+    TextureBinding foreign_glow = shared;
+    foreign_glow.role = "emissive";
+    foreign_glow.material_name = "shared_cloth_02_emi";
+    require_material_contract(support_binding_rejected_before_scoring(foreign_glow, right, "emissive", false, nullptr),
+        "a similar material name leaked another wrapper's glow across the model");
     const std::vector<TextureBinding> bindings(9, shared);
     std::unordered_map<const TextureBinding*, int> owners;
     for (const TextureBinding& binding : bindings) {
@@ -695,7 +804,84 @@ static void run_shared_mask_wrapper_owner_contract_self_test() {
     }
 }
 
+static void run_item_set_components_self_test() {
+    EntryJob job;
+    job.path = "character/model/primary.pac";
+    job.extension = ".pac";
+    job.archive_dependency_entries_complete = true;
+    job.enabled_prefab_component_paths.push_back(job.path);
+    PamtIndex index;
+    for (int i = 0; i < 33; ++i) {
+        ArchiveEntryRef component;
+        component.path = "character/model/piece_" + std::to_string(i) + ".pac";
+        component.basename = basename_from_path(component.path);
+        component.extension = ".pac";
+        index.by_basename[component.basename].push_back(component);
+        job.enabled_prefab_component_paths.push_back(component.path);
+        job.enabled_prefab_component_paths.push_back(component.path);
+        ArchiveEntryRef sidecar;
+        sidecar.path = component.path + "_xml";
+        sidecar.basename = basename_from_path(sidecar.path);
+        sidecar.extension = ".pac_xml";
+        sidecar.comp_size = sidecar.orig_size = 1;
+        index.by_basename[sidecar.basename].push_back(sidecar);
+    }
+    const auto components = enabled_prefab_component_refs_for_job(job, index);
+    require_material_contract(components.size() == 32
+        && components.front().path == "character/model/piece_0.pac"
+        && components.back().path == "character/model/piece_31.pac",
+        "explicit set pieces were truncated, duplicated or displaced by the primary");
+    const auto sidecars = material_sidecar_candidates_for_job(job, index);
+    require_material_contract(std::any_of(sidecars.begin(), sidecars.end(), [](const ArchiveEntryRef& ref) {
+        return ref.path == "character/model/piece_31.pac_xml";
+    }), "the final supported set piece lost its material sidecar");
+    require_material_contract(std::none_of(sidecars.begin(), sidecars.end(), [](const ArchiveEntryRef& ref) {
+        return ref.path == "character/model/piece_32.pac_xml";
+    }), "set material lookup exceeded its component bound");
+}
+
+static void run_weapon_sheath_component_self_test() {
+    // P5: the sword's scabbard is listed even when no prefab names it, and only
+    // when it exists; it is optional, so nothing loads it unless it is enabled.
+    EntryJob job;
+    job.path = "character/model/1_pc/1_phm/weapon/cd_phm_02_sword_0015.pac";
+    job.extension = ".pac";
+    job.archive_dependency_entries_complete = true;
+    PamtIndex index;
+    const auto components_without = prefab_model_component_refs_for_job(job, index);
+    require_material_contract(components_without.empty(), "a missing sheath was listed");
+    ArchiveEntryRef sheath;
+    sheath.path = "character/model/1_pc/1_phm/weapon/cd_phm_02_sword_0015_in.pac";
+    sheath.basename = basename_from_path(sheath.path);
+    sheath.extension = ".pac";
+    index.by_basename[sheath.basename].push_back(sheath);
+    ArchiveEntryRef elsewhere = sheath;
+    elsewhere.path = "character/model/other/cd_phm_02_sword_0015_in.pac";
+    index.by_basename[sheath.basename].push_back(elsewhere);
+    const auto components = prefab_model_component_refs_for_job(job, index);
+    require_material_contract(components.size() == 1 && components.front().path == sheath.path,
+        "the sword's own scabbard beside it was not listed as its component");
+    require_material_contract(!prefab_component_enabled_for_job(components.front(), job),
+        "the scabbard loaded without being enabled");
+    // With the prefab's guess at its limit, the sheath still comes after its
+    // eight components, and one the prefab lists already is not listed twice.
+    std::vector<ArchiveEntryRef> listed;
+    for (int part = 0; part < 8; ++part) {
+        ArchiveEntryRef component;
+        component.path = "character/model/1_pc/1_phm/weapon/part_" + std::to_string(part) + ".pac";
+        listed.push_back(component);
+    }
+    const auto ordered = with_companions_after(listed, {sheath});
+    require_material_contract(ordered.size() == 9 && ordered.front().path == listed.front().path
+        && ordered.back().path == sheath.path, "the scabbard took a slot of the prefab's components");
+    listed.push_back(sheath);
+    require_material_contract(with_companions_after(listed, {sheath}).size() == 9,
+        "a scabbard the prefab lists was listed twice");
+}
+
 static void run_material_contract_self_test() {
+    run_item_set_components_self_test();
+    run_weapon_sheath_component_self_test();
     ArchiveEntryRef wanted_texture;
     wanted_texture.path = "leveldata/proxylod/stone.dds";
     ArchiveEntryRef other_texture;

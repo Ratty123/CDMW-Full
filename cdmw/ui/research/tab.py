@@ -278,6 +278,10 @@ from cdmw.ui.widgets import (
 )
 
 
+#: The page's empty state before the archives are scanned (P11 step 6).
+RESEARCH_NOT_SCANNED_TEXT = "Scan the game archives in Browse Archives, then research their textures, references and budgets here."
+
+
 class ResearchSnapshotCache(dict):
     """Archive snapshots by archive key. Clearing it, as a classification edit does, bumps its
     generation, so a refresh that started before the edit does not store its stale snapshot."""
@@ -449,6 +453,11 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         if hasattr(self, "_column_autofit_timer"):
             self._column_autofit_timer.start()
 
+    def showEvent(self, event: object) -> None:
+        # The older archive path pushes nothing here; it is read when the page is shown.
+        self._sync_research_empty_state()
+        super().showEvent(event)  # type: ignore[arg-type]
+
     def __init__(
         self,
         *,
@@ -559,9 +568,19 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         self._pending_research_full_archive_entry_count = 0
         self._pending_research_uses_full_archive_view = False
 
-        root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(10, 10, 10, 10)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(10, 10, 10, 10)
+        # P11 step 6: nothing here works before the archives are scanned, so until then the
+        # whole page gives its place to an empty state that opens Browse Archives.
+        from cdmw.ui.empty_states import ActionEmptyState, EmptyStateSwitch
+
+        research_area = QWidget()
+        root_layout = QVBoxLayout(research_area)
+        root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(8)
+        self.research_empty_state = ActionEmptyState(RESEARCH_NOT_SCANNED_TEXT, "", "shell.open.archive_browser")
+        self.research_switch = EmptyStateSwitch(research_area, self.research_empty_state)
+        outer_layout.addWidget(self.research_switch, 1)
 
         top_row = QHBoxLayout()
         top_row.setSpacing(6)
@@ -613,6 +632,7 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         self.main_splitter.setStretchFactor(0, 1)
         self.main_splitter.setStretchFactor(1, 1)
         self.main_splitter.setSizes(research_main_splitter_default_sizes(details_min))
+        self._sync_research_empty_state()
 
         self.refresh_button.clicked.connect(self.refresh_research_from_button)
         self.ui_constraint_refresh_button.clicked.connect(self.refresh_ui_constraints)

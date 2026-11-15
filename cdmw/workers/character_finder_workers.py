@@ -373,9 +373,6 @@ class CharacterFinderRenderWorker(QObject):
         return authored_component_descriptor(component, self.inputs.entries_by_id)
 
     def _capture(self, package, key: str) -> Path:
-        resolution = resolve_rust_mesh_editor()
-        if not resolution.resolved_path:
-            raise RuntimeError("The Rust preview helper is unavailable. Rebuild the helper or use a current CDMW build.")
         # The renderer requires captures outside its immutable session directory.
         # Only this job's temporary directory is removed after its process exits.
         capture_root = self.cache_root / "character_finder" / "captures"
@@ -384,51 +381,77 @@ class CharacterFinderRenderWorker(QObject):
             stage = Path(stage_text)
             capture = stage / "preview.bmp"
             report = stage / "report.json"
-            # Use the renderer's shared startup view, as the interactive host does.
-            # Near-zero yaw points at the back of character heads.
-            args = [str(resolution.resolved_path), "--capture-cdmw-preview-session", str(package.manifest_path),
-                    "--capture-output", str(capture), "--capture-report-json", str(report), "--capture-size", "256"]
-            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            if self._background:
-                flags |= getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
-            process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                creationflags=flags)
-            deadline = time.monotonic() + 45
-            try:
-                while True:
-                    self._check()
-                    if time.monotonic() > deadline:
-                        raise TimeoutError("Character thumbnail capture timed out.")
-                    try:
-                        stdout, stderr = process.communicate(timeout=0.1)
-                        break
-                    except subprocess.TimeoutExpired:
-                        pass
-                if process.returncode != 0:
-                    raise RuntimeError((stderr or stdout)[-2000:].decode("utf-8", "replace"))
-            finally:
-                if process.poll() is None:
-                    process.terminate()
-                    try:
-                        process.communicate(timeout=1.0)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.communicate(timeout=3.0)
-            self._check()
-            if report.is_file() and report.stat().st_size <= 48 * 1024:
-                self._capture_report = json.loads(report.read_text(encoding="utf-8"))
-            image = QImage(str(capture))
-            if image.isNull():
-                raise RuntimeError("The renderer did not publish a readable thumbnail.")
-            target = self.cache_root / "character_finder" / "thumbnails" / (key + ".png")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            temporary = target.with_name(target.name + f".{uuid4().hex}.tmp")
-            try:
-                if not image.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio,
-                                    Qt.TransformationMode.SmoothTransformation).save(str(temporary), "PNG"):
-                    raise RuntimeError("The thumbnail could not be saved.")
+            if not self._capture_in_engine(package, capture, report):
+                self._capture_in_own_process(package, capture, report)
+            return self._publish_thumbnail(capture, report, key)
+
+    def _capture_in_engine(self, package, capture: Path, report: Path) -> bool:
+        """Render in a running preview process when one offers it (P4 V5)."""
+
+        from cdmw.services.engine_capture import CaptureUnavailable, capture_in_engine
+
+        try:
+            capture_in_engine(package.manifest_path, capture, report, size=256, stop=self._stop.is_set)
+        except CaptureUnavailable:
+            return False
+        except (RuntimeError, TimeoutError):
+            # A failed capture there is tried once more in a process of its own.
+            capture.unlink(missing_ok=True)
+            return False
+        self._check()
+        return capture.is_file()
+
+    def _capture_in_own_process(self, package, capture: Path, report: Path) -> None:
+        resolution = resolve_rust_mesh_editor()
+        if not resolution.resolved_path:
+            raise RuntimeError("The Rust preview helper is unavailable. Rebuild the helper or use a current CDMW build.")
+        # Use the renderer's shared startup view, as the interactive host does.
+        # Near-zero yaw points at the back of character heads.
+        args = [str(resolution.resolved_path), "--capture-cdmw-preview-session", str(package.manifest_path),
+                "--capture-output", str(capture), "--capture-report-json", str(report), "--capture-size", "256"]
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        if self._background:
+            flags |= getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
+        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            creationflags=flags)
+        deadline = time.monotonic() + 45
+        try:
+            while True:
                 self._check()
-                os.replace(temporary, target)
-            finally:
-                temporary.unlink(missing_ok=True)
-            return target
+                if time.monotonic() > deadline:
+                    raise TimeoutError("Character thumbnail capture timed out.")
+                try:
+                    stdout, stderr = process.communicate(timeout=0.1)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+            if process.returncode != 0:
+                raise RuntimeError((stderr or stdout)[-2000:].decode("utf-8", "replace"))
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.communicate(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.communicate(timeout=3.0)
+
+    def _publish_thumbnail(self, capture: Path, report: Path, key: str) -> Path:
+        self._check()
+        if report.is_file() and report.stat().st_size <= 48 * 1024:
+            self._capture_report = json.loads(report.read_text(encoding="utf-8"))
+        image = QImage(str(capture))
+        if image.isNull():
+            raise RuntimeError("The renderer did not publish a readable thumbnail.")
+        target = self.cache_root / "character_finder" / "thumbnails" / (key + ".png")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(target.name + f".{uuid4().hex}.tmp")
+        try:
+            if not image.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation).save(str(temporary), "PNG"):
+                raise RuntimeError("The thumbnail could not be saved.")
+            self._check()
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return target

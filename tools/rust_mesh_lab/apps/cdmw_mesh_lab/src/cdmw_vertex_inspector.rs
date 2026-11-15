@@ -249,33 +249,45 @@ impl LabApplication {
         actions: &mut Vec<UiAction>,
     ) {
         if self.cdmw_state["vertex_parameters"]["capability"].as_str() != Some(CAPABILITY) {
-            ui.label(crate::localization::tr("Vertex Parameters is unavailable with this host/helper combination."));
+            ui.label(crate::localization::tr(
+                "Vertex Parameters is unavailable with this host/helper combination.",
+            ));
             return;
         }
         if !self.vertex_inspector.note.is_empty() {
             ui.label(crate::localization::tr(&self.vertex_inspector.note));
         }
-        if ui.button(crate::localization::tr("Refresh values")).clicked() {
+        if ui
+            .button(crate::localization::tr("Refresh values"))
+            .clicked()
+        {
             self.cancel_vertex_inspection();
             self.vertex_inspector.fetch = true;
             self.vertex_inspector.note.clear();
         }
         let data = self.vertex_inspector.data.clone();
         if data.is_null() {
-            ui.label(
-                crate::localization::tr(if self.vertex_inspector.pending.is_some() || self.vertex_inspector.fetch {
+            ui.label(crate::localization::tr(
+                if self.vertex_inspector.pending.is_some() || self.vertex_inspector.fetch {
                     "Inspecting the current selection…"
                 } else {
                     "No current inspection. Refresh values to retry."
-                }),
-            );
+                },
+            ));
             return;
         }
         let count = data["count"].as_u64().unwrap_or(0);
-        ui.label(crate::localization::tr(format!("{count} selected vertices · LOD {}", data["lod"])));
-        ui.small(crate::localization::tr(data["space"].as_str().unwrap_or("Model editing space")));
+        ui.label(crate::localization::tr(format!(
+            "{count} selected vertices · LOD {}",
+            data["lod"]
+        )));
+        ui.small(crate::localization::tr(
+            data["space"].as_str().unwrap_or("Model editing space"),
+        ));
         if count == 0 {
-            ui.label(crate::localization::tr("Select vertices, edges, faces or whole parts."));
+            ui.label(crate::localization::tr(
+                "Select vertices, edges, faces or whole parts.",
+            ));
             return;
         }
         let authoring = self.cdmw_state["authoring_enabled"].as_bool() == Some(true);
@@ -320,7 +332,11 @@ impl LabApplication {
                             ui.horizontal_wrapped(|ui| {
                                 ui.label(crate::localization::tr("Change"));
                                 ui.selectable_value(offset, false, crate::localization::tr("Set"));
-                                ui.selectable_value(offset, true, crate::localization::tr("Offset"));
+                                ui.selectable_value(
+                                    offset,
+                                    true,
+                                    crate::localization::tr("Offset"),
+                                );
                             })
                         });
                         is_offset = *offset;
@@ -336,7 +352,9 @@ impl LabApplication {
                             ui.small(crate::localization::tr("Axis"));
                             ui.small(crate::localization::tr("Current"));
                             ui.small(crate::localization::tr("New value"))
-                                .on_hover_text(crate::localization::tr("Edit the selection below. Blank fields stay unchanged."));
+                                .on_hover_text(crate::localization::tr(
+                                    "Edit the selection below. Blank fields stay unchanged.",
+                                ));
                             ui.end_row();
                             for (axis, field) in fields.iter_mut().enumerate() {
                                 let axis_label = if channel == "uv0" {
@@ -357,19 +375,30 @@ impl LabApplication {
                                         .truncate()
                                         .halign(egui::Align::Min),
                                 )
-                                .on_hover_text(crate::localization::tr(if mixed {
-                                    format!(
-                                        "{axis_label} range: {} to {}",
-                                        summary["min"][axis], summary["max"][axis]
-                                    )
-                                } else {
-                                    format!("{axis_label}: {}", summary["values"][axis])
-                                }));
+                                .on_hover_text(
+                                    crate::localization::tr(if mixed {
+                                        format!(
+                                            "{axis_label} range: {} to {}",
+                                            summary["min"][axis], summary["max"][axis]
+                                        )
+                                    } else {
+                                        format!("{axis_label}: {}", summary["values"][axis])
+                                    }),
+                                );
                                 ui.add_enabled_ui(can_edit, |ui| {
-                                    crate::cdmw_ui::numeric::text(ui, field,
-                                        if is_offset { Some(0.0) } else { summary["values"][axis].as_f64() },
+                                    crate::cdmw_ui::numeric::text(
+                                        ui,
+                                        field,
+                                        if is_offset {
+                                            Some(0.0)
+                                        } else {
+                                            summary["values"][axis].as_f64()
+                                        },
                                         ui.make_persistent_id(("vertex-input", channel, axis)),
-                                        input_width, -f64::MAX..=f64::MAX, "Unchanged");
+                                        input_width,
+                                        -f64::MAX..=f64::MAX,
+                                        "Unchanged",
+                                    );
                                 });
                                 ui.end_row();
                             }
@@ -464,7 +493,9 @@ impl LabApplication {
             if ui
                 .add_enabled(
                     ready && self.vertex_inspector.draft.dirty(),
-                    Button::new(crate::localization::tr(format!("Apply to {count} vertices"))),
+                    Button::new(crate::localization::tr(format!(
+                        "Apply to {count} vertices"
+                    ))),
                 )
                 .clicked()
             {
@@ -506,7 +537,9 @@ impl LabApplication {
                         })
                         .response
                         .on_hover_text(crate::localization::tr(row_label(selected)))
-                        .on_hover_text(crate::localization::tr("Viewing a row does not change the batch selection."));
+                        .on_hover_text(crate::localization::tr(
+                            "Viewing a row does not change the batch selection.",
+                        ));
                     let row = &rows[self.vertex_inspector.row];
                     ui.label(crate::localization::tr(format!(
                         "Source: {} · part {} · original index {}",
@@ -523,12 +556,15 @@ impl LabApplication {
                                 ("Normal", "normal"),
                                 ("Tangent (read-only)", "tangent"),
                             ] {
-                                ui.label(crate::localization::tr(format!("{name}: {}", shown(&row[key]))))
-                                    .on_hover_text(crate::localization::tr(row[key].to_string()));
+                                ui.label(crate::localization::tr(format!(
+                                    "{name}: {}",
+                                    shown(&row[key])
+                                )))
+                                .on_hover_text(crate::localization::tr(row[key].to_string()));
                             }
-                            ui.small(
-                                crate::localization::tr("Tangents: PAC save does not support authored tangent writeback."),
-                            );
+                            ui.small(crate::localization::tr(
+                                "Tangents: PAC save does not support authored tangent writeback.",
+                            ));
                             if let Some(influences) = row["weights"]["influences"].as_array() {
                                 for influence in influences {
                                     ui.label(crate::localization::tr(format!(
@@ -563,11 +599,11 @@ impl LabApplication {
                                     shown(&cloth["guide_weights"])
                                 )));
                             } else {
-                                ui.label(
-                                    crate::localization::tr(cloth["reason"]
+                                ui.label(crate::localization::tr(
+                                    cloth["reason"]
                                         .as_str()
-                                        .unwrap_or("Cloth mapping unavailable.")),
-                                );
+                                        .unwrap_or("Cloth mapping unavailable."),
+                                ));
                             }
                         });
                 }
@@ -575,14 +611,23 @@ impl LabApplication {
                     let pages = count.div_ceil(128);
                     let mut page = self.vertex_inspector.page;
                     if ui
-                        .add_enabled(page > 0, Button::new(crate::localization::tr("Previous vertices")))
+                        .add_enabled(
+                            page > 0,
+                            Button::new(crate::localization::tr("Previous vertices")),
+                        )
                         .clicked()
                     {
                         page -= 1;
                     }
-                    ui.label(crate::localization::tr(format!("Page {} / {pages}", page + 1)));
+                    ui.label(crate::localization::tr(format!(
+                        "Page {} / {pages}",
+                        page + 1
+                    )));
                     if ui
-                        .add_enabled(page + 1 < pages, Button::new(crate::localization::tr("Next vertices")))
+                        .add_enabled(
+                            page + 1 < pages,
+                            Button::new(crate::localization::tr("Next vertices")),
+                        )
                         .clicked()
                     {
                         page += 1;

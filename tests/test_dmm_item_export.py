@@ -19,7 +19,7 @@ from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.new_item.item_settings import ItemSettings, QuantityEdit
 from cdmw.services.dmm_item_export import build_field_json
 from cdmw.services.independent_item_compatibility import prepare_independent_mod_merge
-from cdmw.services.independent_item_install import prepare_install, load_registry, resolve_items
+from tests.support.item_install import prepare_install, load_registry, resolve_items
 from cdmw.services.independent_item_package import from_plan, package_bytes, read_package
 from cdmw.services.mod_merge_service import export_merged_mod
 from cdmw.services.new_item_mod_base import mod_folder_payloads

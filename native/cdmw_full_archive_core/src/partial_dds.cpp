@@ -220,9 +220,9 @@ PathcCollection load_pathc(const fs::path& path) {
 std::vector<std::uint8_t> cached_pathc_header(const fs::path& pamt_path, const std::string& virtual_path) {
     const auto pathc_path = pamt_path.parent_path().parent_path() / "meta" / "0.pathc";
     std::error_code error;
-    const auto size = fs::file_size(pathc_path, error);
+    const auto size = fs::file_size(cdmw::long_path(pathc_path), error);
     if (error) throw std::runtime_error("partial DDS metadata was not found: " + pathc_path.string());
-    const auto write_time = fs::last_write_time(pathc_path, error);
+    const auto write_time = fs::last_write_time(cdmw::long_path(pathc_path), error);
     if (error) throw std::runtime_error("could not inspect PATHC timestamp: " + pathc_path.string());
 
     struct CacheValue {

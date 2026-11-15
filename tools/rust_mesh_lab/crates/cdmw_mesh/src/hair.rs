@@ -337,8 +337,10 @@ impl HairState {
                 (2..=MAX_POINTS).contains(&guide.points.len()),
                 "guide point count must be 2 through 64",
             )?;
-            require(guide.pinned.is_empty() || guide.pinned.len() == guide.points.len(),
-                "hair physics paint does not match guide points")?;
+            require(
+                guide.pinned.is_empty() || guide.pinned.len() == guide.points.len(),
+                "hair physics paint does not match guide points",
+            )?;
             require(
                 guide.points.iter().flatten().all(|p| p.is_finite()),
                 "non-finite guide position",
@@ -561,11 +563,14 @@ fn guide_distances(points: &[[f32; 3]]) -> Vec<f32> {
 /// Symmetric neighborhoods preserve straight sections; both endpoints stay fixed.
 pub fn smooth_guide_points(points: &[[f32; 3]], radius: f32) -> Vec<[f32; 3]> {
     let mut result = points.to_vec();
-    if points.len() < 3 || !radius.is_finite() || radius <= 0.0 { return result; }
+    if points.len() < 3 || !radius.is_finite() || radius <= 0.0 {
+        return result;
+    }
     let distances = guide_distances(points);
     let total = *distances.last().unwrap();
     let sample = |i: usize, distance: f32| {
-        let t = ((distance - distances[i]) / (distances[i + 1] - distances[i]).max(1e-12)).clamp(0.0, 1.0);
+        let t = ((distance - distances[i]) / (distances[i + 1] - distances[i]).max(1e-12))
+            .clamp(0.0, 1.0);
         Vec3::from(points[i]).lerp(Vec3::from(points[i + 1]), t)
     };
     let kernel = [0.25_f32, 0.5, 0.75, 1.0].map(|t| (t, (-2.0 * t * t).exp()));
@@ -580,8 +585,12 @@ pub fn smooth_guide_points(points: &[[f32; 3]], radius: f32) -> Vec<[f32; 3]> {
         for (t, w) in kernel {
             let a = distances[i] - reach * t;
             let b = distances[i] + reach * t;
-            while left > 0 && distances[left] >= a { left -= 1; }
-            while right + 2 < points.len() && distances[right + 1] < b { right += 1; }
+            while left > 0 && distances[left] >= a {
+                left -= 1;
+            }
+            while right + 2 < points.len() && distances[right + 1] < b {
+                right += 1;
+            }
             sum += (sample(left, a) + sample(right, b)) * w;
             weight += 2.0 * w;
         }
@@ -615,13 +624,29 @@ pub fn groom(
         locks::extend_mirrored_guides(state, &mut selected);
     }
     let primary_left = state.guides[guides[0]].points[0][0] < 0.0;
-    let before: Vec<_> = selected.iter().map(|&i| (i, state.guides[i].clone())).collect();
+    let before: Vec<_> = selected
+        .iter()
+        .map(|&i| (i, state.guides[i].clone()))
+        .collect();
     let paired: BTreeSet<_> = if symmetry {
-        state.locks.iter().filter(|l| l.mirrored.is_some()).filter_map(|l| l.guide).collect()
-    } else { BTreeSet::new() };
+        state
+            .locks
+            .iter()
+            .filter(|l| l.mirrored.is_some())
+            .filter_map(|l| l.guide)
+            .collect()
+    } else {
+        BTreeSet::new()
+    };
     let tip_mean = if operation == Groom::Clump {
-        before.iter().map(|(_, g)| Vec3::from(*g.points.last().unwrap())).sum::<Vec3>() / before.len() as f32
-    } else { Vec3::ZERO };
+        before
+            .iter()
+            .map(|(_, g)| Vec3::from(*g.points.last().unwrap()))
+            .sum::<Vec3>()
+            / before.len() as f32
+    } else {
+        Vec3::ZERO
+    };
     for (index, original) in &before {
         let index = *index;
         let guide = &mut state.guides[index];
@@ -630,7 +655,9 @@ pub fn groom(
             let last = ((old.len() - 1) as f32 * (1.0 - strength * 0.8)).max(1.0);
             let segment = last.floor() as usize;
             guide.points.truncate(segment + 1);
-            if !guide.pinned.is_empty() { guide.pinned.truncate(segment + 1); }
+            if !guide.pinned.is_empty() {
+                guide.pinned.truncate(segment + 1);
+            }
             if last.fract() > 0.001 && segment + 1 < old.len() {
                 guide.points.push(
                     Vec3::from(old[segment])
@@ -638,7 +665,9 @@ pub fn groom(
                         .to_array(),
                 );
                 if !guide.pinned.is_empty() {
-                    guide.pinned.push(original.is_pinned(segment + usize::from(last.fract() >= 0.5)));
+                    guide
+                        .pinned
+                        .push(original.is_pinned(segment + usize::from(last.fract() >= 0.5)));
                 }
             }
             continue;
@@ -649,9 +678,16 @@ pub fn groom(
         let smooth = (operation == Groom::Smooth).then(|| smooth_guide_points(old, length * 0.1));
         let tip = Vec3::from(*old.last().unwrap());
         let extension = (tip - Vec3::from(old[old.len() - 2])).normalize_or_zero()
-            * Vec3::from(direction).length() * strength;
-        let (curl_side, curl_up, _) = segment_frame(root,
-            if tip.distance_squared(root) > 1e-12 { tip } else { Vec3::from(old[1]) });
+            * Vec3::from(direction).length()
+            * strength;
+        let (curl_side, curl_up, _) = segment_frame(
+            root,
+            if tip.distance_squared(root) > 1e-12 {
+                tip
+            } else {
+                Vec3::from(old[1])
+            },
+        );
         let sign = if paired.contains(&(index as u32)) && (root.x < 0.0) != primary_left {
             -1.0
         } else {
@@ -663,9 +699,7 @@ pub fn groom(
             let t = distances[i] / length;
             let next = match operation {
                 Groom::Comb => p + delta * strength * t,
-                Groom::Smooth => {
-                    p.lerp(Vec3::from(smooth.as_ref().unwrap()[i]), strength)
-                }
+                Groom::Smooth => p.lerp(Vec3::from(smooth.as_ref().unwrap()[i]), strength),
                 Groom::Cut => p,
                 Groom::Lengthen => {
                     let tail = ((t - 0.5) * 2.0).clamp(0.0, 1.0);
@@ -679,10 +713,7 @@ pub fn groom(
                         * 0.15
                         * t
                 }
-                Groom::Clump => p.lerp(
-                    root.lerp(tip_mean, t),
-                    strength * t * 0.6,
-                ),
+                Groom::Clump => p.lerp(root.lerp(tip_mean, t), strength * t * 0.6),
             };
             guide.points[i] = next.to_array();
         }
@@ -809,15 +840,30 @@ pub fn generate_cached(
     scalp_indices: &[u32],
     selected: Option<&[u64]>,
 ) -> Result<Vec<HairGeometry>> {
-    let included = |i: usize| selected.is_none_or(|ids| state.locks.iter()
-        .any(|l| l.guide == Some(i as u32) && ids.contains(&l.id)));
+    let included = |i: usize| {
+        selected.is_none_or(|ids| {
+            state
+                .locks
+                .iter()
+                .any(|l| l.guide == Some(i as u32) && ids.contains(&l.id))
+        })
+    };
     let mut count = 0;
     let mut spans = 0;
-    for group in state.groups.iter().filter(|g| g.mode == GroupMode::Generated) {
-        for (i, guide) in state.guides.iter().enumerate()
+    for group in state
+        .groups
+        .iter()
+        .filter(|g| g.mode == GroupMode::Generated)
+    {
+        for (i, guide) in state
+            .guides
+            .iter()
+            .enumerate()
             .filter(|(i, guide)| guide.group == group.id && included(*i))
         {
-            let edges = 2 * state.locks.iter()
+            let edges = 2 * state
+                .locks
+                .iter()
                 .find(|l| l.guide == Some(i as u32) && l.cards > 0)
                 .map_or(group.cards_per_guide, |l| l.cards) as usize;
             count += guide.points.len() * edges;
@@ -851,7 +897,10 @@ pub fn generate_cached(
             .enumerate()
             .filter(|(i, g)| g.group == group.id && included(*i))
         {
-            require(guide.points.len() >= 2, "a hair guide needs at least two points")?;
+            require(
+                guide.points.len() >= 2,
+                "a hair guide needs at least two points",
+            )?;
             let curve = locks::Curve::new(&guide.points);
             let row_count = (guide.points.len() - 1) * subdivisions + 1;
             let mut rows = Vec::with_capacity(row_count);
@@ -859,7 +908,11 @@ pub fn generate_cached(
             let mut previous = Vec3::from(guide.points[0]);
             for i in 0..row_count {
                 let segment = (i / subdivisions).min(guide.points.len() - 2);
-                let t = if i + 1 == row_count { 1.0 } else { (i % subdivisions) as f32 / subdivisions as f32 };
+                let t = if i + 1 == row_count {
+                    1.0
+                } else {
+                    (i % subdivisions) as f32 / subdivisions as f32
+                };
                 let (point, frame) = curve.sample(segment, t);
                 if i > 0 {
                     lengths.push(lengths.last().unwrap() + previous.distance(point));
@@ -873,8 +926,13 @@ pub fn generate_cached(
             let density = lock
                 .filter(|l| l.cards > 0)
                 .map_or(group.cards_per_guide, |l| l.cards);
-            let root_normal = scalp.nearest(&state.scalp.positions, scalp_indices,
-                Vec3::from(guide.points[0])).map_or(state.scalp.normal(&guide.root), |(_, n)| n);
+            let root_normal = scalp
+                .nearest(
+                    &state.scalp.positions,
+                    scalp_indices,
+                    Vec3::from(guide.points[0]),
+                )
+                .map_or(state.scalp.normal(&guide.root), |(_, n)| n);
             let (side, up, tangent) = rows[0].3;
             let flat = tangent.cross(root_normal).try_normalize().unwrap_or(side);
             let root_roll = flat.dot(up).atan2(flat.dot(side));
@@ -884,7 +942,8 @@ pub fn generate_cached(
                 }
                 let first = mesh.positions.len() as u32;
                 let roll = card as f32 * std::f32::consts::PI / density as f32;
-                let spread = ((card as f32 + 0.5) / density as f32 - 0.5) * group.width * width_scale;
+                let spread =
+                    ((card as f32 + 0.5) / density as f32 - 0.5) * group.width * width_scale;
                 for (i, &(segment, along, point, (side, up, tangent))) in rows.iter().enumerate() {
                     let blend = root_blend(lengths[i], group.width * width_scale);
                     let angle = root_roll + roll * blend;
@@ -893,7 +952,12 @@ pub fn generate_cached(
                     let t = lengths[i] / length;
                     for edge in [-1.0_f32, 1.0] {
                         let offset = across
-                            * (edge * group.width * width_scale * 0.5 * (0.08 + 0.92 * blend) * (1.0 - t * 0.94)
+                            * (edge
+                                * group.width
+                                * width_scale
+                                * 0.5
+                                * (0.08 + 0.92 * blend)
+                                * (1.0 - t * 0.94)
                                 + spread * t);
                         let vertex = mesh.positions.len() as u32;
                         let p = scalp.contact_with_reach(
@@ -960,7 +1024,10 @@ pub fn deform(
         let (center, (side, up, tangent)) = if binding.smooth {
             curves[binding.guide as usize].sample(binding.segment as usize, binding.t)
         } else {
-            (a.lerp(b, binding.t), frames[binding.guide as usize][binding.segment as usize])
+            (
+                a.lerp(b, binding.t),
+                frames[binding.guide as usize][binding.segment as usize],
+            )
         };
         let position = positions
             .get_mut(binding.vertex as usize)
@@ -1068,7 +1135,8 @@ impl PreviewPose {
         weight * weight * (3.0 - 2.0 * weight)
     }
     pub fn fitting_point(self, p: Vec3, height: f32) -> Vec3 {
-        self.body_point(p).lerp(self.head_point(p), self.fitting_weight(p, height))
+        self.body_point(p)
+            .lerp(self.head_point(p), self.fitting_weight(p, height))
     }
 }
 
@@ -1175,12 +1243,19 @@ impl Simulation {
         let surface = surface::SurfaceIndex::new(&state.scalp.positions, &scalp_indices);
         // New setups retain the full body for collision, independently of the
         // visible bust. Older drafts can still collide with their saved bust.
-        let has_full_body = state.references.iter().any(|r| r.identity.starts_with("collision:body:"));
+        let has_full_body = state
+            .references
+            .iter()
+            .any(|r| r.identity.starts_with("collision:body:"));
         let mut body_positions = vec![];
         let mut body_indices = vec![];
-        for mesh in state.references.iter().filter(|r| if has_full_body {
-            r.identity.starts_with("collision:body:")
-        } else { !r.identity.starts_with("head:") }) {
+        for mesh in state.references.iter().filter(|r| {
+            if has_full_body {
+                r.identity.starts_with("collision:body:")
+            } else {
+                !r.identity.starts_with("head:")
+            }
+        }) {
             let first = body_positions.len() as u32;
             body_positions.extend_from_slice(&mesh.positions);
             body_indices.extend(mesh.triangles.iter().flatten().map(|v| first + v));
@@ -1190,38 +1265,65 @@ impl Simulation {
         let mut margin_scales = Vec::new();
         let frames: Vec<_> = rest.iter().map(|g| locks::frames(g)).collect();
         let curves: Vec<_> = rest.iter().map(|g| locks::Curve::new(g)).collect();
-        let normals: Vec<Vec<_>> = rest.iter().map(|g| g.iter().map(|p|
-            surface.nearest(&state.scalp.positions, &scalp_indices, Vec3::from(*p))
-                .map_or(Vec3::Y, |(_, n)| n)).collect()).collect();
+        let normals: Vec<Vec<_>> = rest
+            .iter()
+            .map(|g| {
+                g.iter()
+                    .map(|p| {
+                        surface
+                            .nearest(&state.scalp.positions, &scalp_indices, Vec3::from(*p))
+                            .map_or(Vec3::Y, |(_, n)| n)
+                    })
+                    .collect()
+            })
+            .collect();
         for (i, guide) in state.guides.iter().enumerate() {
             let group = state.groups.iter().find(|g| g.id == guide.group).unwrap();
-            let width = group.width * state.locks.iter().find(|l| l.guide == Some(i as u32))
-                .map_or(1.0, |l| l.width_scale);
+            let width = group.width
+                * state
+                    .locks
+                    .iter()
+                    .find(|l| l.guide == Some(i as u32))
+                    .map_or(1.0, |l| l.width_scale);
             let mut distance = 0.0;
             let mut scales = vec![0.0];
             for pair in guide.points.windows(2) {
                 distance += Vec3::from(pair[0]).distance(Vec3::from(pair[1]));
-                scales.push(if group.mode == GroupMode::Generated { root_blend(distance, width) } else { 1.0 });
+                scales.push(if group.mode == GroupMode::Generated {
+                    root_blend(distance, width)
+                } else {
+                    1.0
+                });
             }
             margin_scales.push(scales);
         }
         for binding in &state.bindings {
             let gi = binding.guide as usize;
-            let group = state.groups.iter().find(|g| g.id == state.guides[gi].group).unwrap();
+            let group = state
+                .groups
+                .iter()
+                .find(|g| g.id == state.guides[gi].group)
+                .unwrap();
             if group.mode == GroupMode::Generated {
                 let row = binding.segment as usize + usize::from(binding.t >= 0.5);
                 let (side, up, tangent) = if binding.smooth {
                     curves[gi].sample(binding.segment as usize, binding.t).1
-                } else { frames[gi][binding.segment as usize] };
-                let offset = side * binding.offset[0] + up * binding.offset[1] + tangent * binding.offset[2];
+                } else {
+                    frames[gi][binding.segment as usize]
+                };
+                let offset =
+                    side * binding.offset[0] + up * binding.offset[1] + tangent * binding.offset[2];
                 // Flattened roots need only their inward extent. Blend toward
                 // the full radial extent as the follower bundle opens, so card
                 // rotation during motion cannot swing a wide row into the head.
-                let radius = (-offset.dot(normals[gi][row])).max(offset.length() * margin_scales[gi][row]);
+                let radius =
+                    (-offset.dot(normals[gi][row])).max(offset.length() * margin_scales[gi][row]);
                 widths[gi][row] = widths[gi][row].max(radius);
             } else {
                 let radius = Vec3::from(binding.offset).length();
-                for width in &mut widths[gi] { *width = width.max(radius); }
+                for width in &mut widths[gi] {
+                    *width = width.max(radius);
+                }
             }
         }
         Ok(Self {
@@ -1241,8 +1343,15 @@ impl Simulation {
             margin_scales,
             translation: Vec3::ZERO,
             velocities: rest.iter().map(|g| vec![Vec3::ZERO; g.len()]).collect(),
-            inverse_masses: state.guides.iter().map(|g| (0..g.points.len())
-                .map(|i| if g.is_pinned(i) { 0.0 } else { 1.0 }).collect()).collect(),
+            inverse_masses: state
+                .guides
+                .iter()
+                .map(|g| {
+                    (0..g.points.len())
+                        .map(|i| if g.is_pinned(i) { 0.0 } else { 1.0 })
+                        .collect()
+                })
+                .collect(),
             points: rest.clone(),
             rest,
             accumulator: 0.0,
@@ -1257,13 +1366,16 @@ impl Simulation {
 
     fn pose_body(&mut self, pose: PreviewPose, height: f32) {
         self.body_travel = 0.0;
-        if self.body_rest.is_empty() || self.body_pose == Some(pose) { return; }
+        if self.body_rest.is_empty() || self.body_pose == Some(pose) {
+            return;
+        }
         for (point, rest) in self.body_positions.iter_mut().zip(&self.body_rest) {
             let next = pose.fitting_point(Vec3::from(*rest), height);
             self.body_travel = self.body_travel.max(next.distance(Vec3::from(*point)));
             *point = next.to_array();
         }
-        self.body_surface.refit(&self.body_positions, &self.body_indices);
+        self.body_surface
+            .refit(&self.body_positions, &self.body_indices);
         self.body_pose = Some(pose);
     }
 
@@ -1336,7 +1448,9 @@ impl Simulation {
             let root =
                 self.pivot + self.translation + rotation * (Vec3::from(rest[0]) - self.pivot);
             points[0] = root.to_array();
-            if masses.iter().all(|mass| *mass == 0.0) { continue; }
+            if masses.iter().all(|mass| *mass == 0.0) {
+                continue;
+            }
             for iteration in 0..settings.iterations {
                 for i in 0..points.len() - 2 {
                     distance_constraint(
@@ -1364,12 +1478,18 @@ impl Simulation {
                 // capsule can extend outside that surface and inflate a fitted
                 // groom as soon as Play starts. Retain body capsules only.
                 for (i, point) in points.iter_mut().enumerate().skip(1) {
-                    if masses[i] == 0.0 { continue; }
+                    if masses[i] == 0.0 {
+                        continue;
+                    }
                     let mut world = Vec3::from(*point);
-                    for capsule in capsules.iter().filter(|c| !c.follows_head && self.body_positions.is_empty()) {
+                    for capsule in capsules
+                        .iter()
+                        .filter(|c| !c.follows_head && self.body_positions.is_empty())
+                    {
                         let a = Vec3::from(capsule.a);
                         let ab = Vec3::from(capsule.b) - a;
-                        let t = ((world - a).dot(ab) / ab.length_squared().max(1e-12)).clamp(0.0, 1.0);
+                        let t =
+                            ((world - a).dot(ab) / ab.length_squared().max(1e-12)).clamp(0.0, 1.0);
                         let center = a + ab * t;
                         let offset = world - center;
                         let radius = capsule.radius + settings.collision_margin;
@@ -1386,11 +1506,18 @@ impl Simulation {
                 if iteration + 1 != settings.iterations {
                     continue;
                 }
-                let radius_at = |i: usize| if i == 0 { 0.0 } else {
-                    settings.collision_margin * self.margin_scales[guide_index][i] + self.widths[guide_index][i]
+                let radius_at = |i: usize| {
+                    if i == 0 {
+                        0.0
+                    } else {
+                        settings.collision_margin * self.margin_scales[guide_index][i]
+                            + self.widths[guide_index][i]
+                    }
                 };
                 for i in 1..points.len() {
-                    if masses[i - 1] + masses[i] == 0.0 { continue; }
+                    if masses[i - 1] + masses[i] == 0.0 {
+                        continue;
+                    }
                     let radius = radius_at(i);
                     let local = |p: [f32; 3]| {
                         self.pivot
@@ -1405,7 +1532,8 @@ impl Simulation {
                         let t = sample as f32 / samples as f32;
                         let p = a.lerp(b, t);
                         let margin = radius_at(i - 1) * (1.0 - t) + radius * t;
-                        let travel = Vec3::from(previous[i - 1]).lerp(Vec3::from(previous[i]), t)
+                        let travel = Vec3::from(previous[i - 1])
+                            .lerp(Vec3::from(previous[i]), t)
                             .distance(Vec3::from(points[i - 1]).lerp(Vec3::from(points[i]), t));
                         let delta = self.surface.motion_contact(
                             &self.scalp_positions,
@@ -1436,10 +1564,19 @@ impl Simulation {
                     for sample in 1..samples {
                         let t = sample as f32 / samples as f32;
                         let p = a.lerp(b, t);
-                        let travel = p.distance(Vec3::from(previous[i - 1]).lerp(Vec3::from(previous[i]), t));
+                        let travel = p
+                            .distance(Vec3::from(previous[i - 1]).lerp(Vec3::from(previous[i]), t));
                         let margin = radius_at(i - 1) * (1.0 - t) + radius * t;
-                        let delta = self.body_surface.motion_contact(&self.body_positions, &self.body_indices, p, margin, travel + self.body_travel) - p;
-                        if delta.length_squared() > correction.length_squared() { correction = delta; }
+                        let delta = self.body_surface.motion_contact(
+                            &self.body_positions,
+                            &self.body_indices,
+                            p,
+                            margin,
+                            travel + self.body_travel,
+                        ) - p;
+                        if delta.length_squared() > correction.length_squared() {
+                            correction = delta;
+                        }
                     }
                     if correction.length_squared() > 0.0 {
                         let scale = 2.0 / (masses[i - 1] + masses[i]);
@@ -1454,20 +1591,30 @@ impl Simulation {
                 // every free point last so the next segment cannot push a
                 // previously resolved card row back into the scalp.
                 for i in 1..points.len() {
-                    if masses[i] == 0.0 { continue; }
+                    if masses[i] == 0.0 {
+                        continue;
+                    }
                     let p = self.pivot
                         + rotation.inverse()
                             * (Vec3::from(points[i]) - self.pivot - self.translation);
-                    let corrected =
-                        self.surface
-                            .motion_contact(&self.scalp_positions, &self.scalp_indices, p, radius_at(i),
-                                Vec3::from(points[i]).distance(Vec3::from(previous[i])) + head_travel);
+                    let corrected = self.surface.motion_contact(
+                        &self.scalp_positions,
+                        &self.scalp_indices,
+                        p,
+                        radius_at(i),
+                        Vec3::from(points[i]).distance(Vec3::from(previous[i])) + head_travel,
+                    );
                     let delta = rotation * (corrected - p);
                     points[i] = (Vec3::from(points[i]) + delta).to_array();
                     contact_correction[i] += delta;
                     let p = Vec3::from(points[i]);
-                    let corrected = self.body_surface.motion_contact(&self.body_positions, &self.body_indices,
-                        p, radius_at(i), p.distance(Vec3::from(previous[i])) + self.body_travel);
+                    let corrected = self.body_surface.motion_contact(
+                        &self.body_positions,
+                        &self.body_indices,
+                        p,
+                        radius_at(i),
+                        p.distance(Vec3::from(previous[i])) + self.body_travel,
+                    );
                     points[i] = corrected.to_array();
                     contact_correction[i] += corrected - p;
                 }
@@ -1484,14 +1631,19 @@ impl Simulation {
                     });
                     let (row, corrected) = if masses[i] == 0.0 {
                         (i - 1, Vec3::from(points[i]) - direction * 1e-5)
-                    } else { (i, a + direction * 1e-5) };
+                    } else {
+                        (i, a + direction * 1e-5)
+                    };
                     contact_correction[row] += corrected - Vec3::from(points[row]);
                     points[row] = corrected.to_array();
                 }
             }
             let damping = (-settings.damping * dt).exp();
             for i in 1..points.len() {
-                if masses[i] == 0.0 { velocity[i] = Vec3::ZERO; continue; }
+                if masses[i] == 0.0 {
+                    velocity[i] = Vec3::ZERO;
+                    continue;
+                }
                 velocity[i] =
                     (Vec3::from(points[i]) - Vec3::from(previous[i]) - contact_correction[i]) / dt
                         * damping;
@@ -1545,7 +1697,9 @@ fn distance_constraint(
         return;
     }
     let (wa, wb) = (masses[a], masses[b]);
-    if wa + wb == 0.0 { return; }
+    if wa + wb == 0.0 {
+        return;
+    }
     let dl = (-(distance - rest) - alpha * *lambda) / (wa + wb + alpha);
     *lambda += dl;
     points[a] = (pa - wa * dl * delta / distance).to_array();
@@ -1617,16 +1771,33 @@ mod tests {
     fn generated_hair_width_scales_follower_spread_as_well_as_card_width() {
         let mut s = planted();
         let root = s.scalp.point(&s.guides[0].root).unwrap();
-        s.guides[0].points = vec![root.to_array(), (root + Vec3::Y * 0.1).to_array(), (root + Vec3::Y * 0.2).to_array()];
-        s.locks.push(locks::HairLock { id: 1, part: 0, guide: Some(0), vertices: vec![],
-            kind: locks::LockKind::Generated, mirrored: None, width_scale: 1.0, cards: 6 });
+        s.guides[0].points = vec![
+            root.to_array(),
+            (root + Vec3::Y * 0.1).to_array(),
+            (root + Vec3::Y * 0.2).to_array(),
+        ];
+        s.locks.push(locks::HairLock {
+            id: 1,
+            part: 0,
+            guide: Some(0),
+            vertices: vec![],
+            kind: locks::LockKind::Generated,
+            mirrored: None,
+            width_scale: 1.0,
+            cards: 6,
+        });
         s.next_lock_id = 2;
         let wide = generate(&s, &AtomicBool::new(false)).unwrap();
         s.locks[0].width_scale = 0.25;
         let narrow = generate(&s, &AtomicBool::new(false)).unwrap();
         let tip = Vec3::from(*s.guides[0].points.last().unwrap());
-        let extent = |mesh: &HairGeometry| mesh.bindings.iter().filter(|b| b.segment == 1 && b.t == 1.0)
-            .map(|b| Vec3::from(mesh.positions[b.vertex as usize]).distance(tip)).fold(0.0_f32, f32::max);
+        let extent = |mesh: &HairGeometry| {
+            mesh.bindings
+                .iter()
+                .filter(|b| b.segment == 1 && b.t == 1.0)
+                .map(|b| Vec3::from(mesh.positions[b.vertex as usize]).distance(tip))
+                .fold(0.0_f32, f32::max)
+        };
         assert!(extent(&wide[0]) > 0.001);
         assert!((extent(&narrow[0]) / extent(&wide[0]) - 0.25).abs() < 0.001);
     }
@@ -1655,14 +1826,21 @@ mod tests {
         for operation in [Groom::Comb, Groom::Curl, Groom::Clump] {
             let mut a = planted();
             let root = Vec3::from(a.guides[0].points[0]);
-            a.guides[0].points = [0.0, 0.01, 0.08, 0.2].map(|d| (root + Vec3::Y * d).to_array()).to_vec();
+            a.guides[0].points = [0.0, 0.01, 0.08, 0.2]
+                .map(|d| (root + Vec3::Y * d).to_array())
+                .to_vec();
             let mut b = a.clone();
-            b.guides[0].points.insert(1, (root + Vec3::Y * 0.001).to_array());
+            b.guides[0]
+                .points
+                .insert(1, (root + Vec3::Y * 0.001).to_array());
             groom(&mut a, &[0], operation, 0.6, [0.04, 0.01, 0.0], false).unwrap();
             groom(&mut b, &[0], operation, 0.6, [0.04, 0.01, 0.0], false).unwrap();
             for (i, j) in [(0, 0), (1, 2), (2, 3), (3, 4)] {
-                assert!(Vec3::from(a.guides[0].points[i]).distance(Vec3::from(b.guides[0].points[j])) < 1e-6,
-                    "{operation:?} changed because the root had another sample");
+                assert!(
+                    Vec3::from(a.guides[0].points[i]).distance(Vec3::from(b.guides[0].points[j]))
+                        < 1e-6,
+                    "{operation:?} changed because the root had another sample"
+                );
             }
         }
     }
@@ -1671,15 +1849,36 @@ mod tests {
     fn hair_groom_smooth_preserves_tip_and_reduces_jagged_bends() {
         let mut state = planted();
         let root = Vec3::from(state.guides[0].points[0]);
-        state.guides[0].points = (0..64).map(|i| (root + Vec3::new(i as f32 * 0.002, 0.0,
-            if i == 0 || i == 63 { 0.0 } else { (i as f32 * 1.7).sin() * 0.003 })).to_array()).collect();
+        state.guides[0].points = (0..64)
+            .map(|i| {
+                (root
+                    + Vec3::new(
+                        i as f32 * 0.002,
+                        0.0,
+                        if i == 0 || i == 63 {
+                            0.0
+                        } else {
+                            (i as f32 * 1.7).sin() * 0.003
+                        },
+                    ))
+                .to_array()
+            })
+            .collect();
         let before = state.guides[0].points.clone();
-        let roughness = |points: &[[f32; 3]]| points.windows(3).map(|p|
-            (Vec3::from(p[0]) - Vec3::from(p[1]) * 2.0 + Vec3::from(p[2])).length()).sum::<f32>();
+        let roughness = |points: &[[f32; 3]]| {
+            points
+                .windows(3)
+                .map(|p| (Vec3::from(p[0]) - Vec3::from(p[1]) * 2.0 + Vec3::from(p[2])).length())
+                .sum::<f32>()
+        };
         groom(&mut state, &[0], Groom::Smooth, 1.0, [0.0; 3], false).unwrap();
         let after = &state.guides[0].points;
         assert_eq!(after[0], before[0]);
-        assert_eq!(after.last(), before.last(), "Smooth must not shorten the tip");
+        assert_eq!(
+            after.last(),
+            before.last(),
+            "Smooth must not shorten the tip"
+        );
         assert!(roughness(after) < roughness(&before) * 0.4);
     }
 
@@ -1687,25 +1886,46 @@ mod tests {
     fn hair_groom_lengthen_distributes_extension_without_a_stretched_tip_segment() {
         let mut state = planted();
         let before = state.guides[0].points.clone();
-        groom(&mut state, &[0], Groom::Lengthen, 1.0, [0.2, 0.0, 0.0], false).unwrap();
+        groom(
+            &mut state,
+            &[0],
+            Groom::Lengthen,
+            1.0,
+            [0.2, 0.0, 0.0],
+            false,
+        )
+        .unwrap();
         let after = &state.guides[0].points;
         assert_eq!(after[0], before[0]);
         assert_eq!(after.len(), before.len());
-        assert!(Vec3::from(*after.last().unwrap()).distance(Vec3::from(*before.last().unwrap())) > 0.19);
-        let lengths: Vec<_> = after.windows(2).map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1]))).collect();
+        assert!(
+            Vec3::from(*after.last().unwrap()).distance(Vec3::from(*before.last().unwrap())) > 0.19
+        );
+        let lengths: Vec<_> = after
+            .windows(2)
+            .map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1])))
+            .collect();
         let mean = lengths.iter().sum::<f32>() / lengths.len() as f32;
-        assert!(lengths.iter().all(|d| *d < mean * 3.0), "Lengthen left a stretched final segment: {lengths:?}");
+        assert!(
+            lengths.iter().all(|d| *d < mean * 3.0),
+            "Lengthen left a stretched final segment: {lengths:?}"
+        );
     }
 
     #[test]
     fn hair_groom_curl_follows_the_lock_direction_without_axial_kinks() {
         let mut state = planted();
         let root = Vec3::from(state.guides[0].points[0]);
-        state.guides[0].points = (0..64).map(|i| (root + Vec3::X * (i as f32 * 0.004)).to_array()).collect();
+        state.guides[0].points = (0..64)
+            .map(|i| (root + Vec3::X * (i as f32 * 0.004)).to_array())
+            .collect();
         let before = state.guides[0].points.clone();
         groom(&mut state, &[0], Groom::Curl, 1.0, [0.0; 3], false).unwrap();
         for (p, q) in state.guides[0].points.iter().zip(&before) {
-            assert!((p[0] - q[0]).abs() < 1e-6, "Curl pushed a horizontal lock backwards along itself");
+            assert!(
+                (p[0] - q[0]).abs() < 1e-6,
+                "Curl pushed a horizontal lock backwards along itself"
+            );
         }
         assert_ne!(state.guides[0].points, before);
     }
@@ -1743,7 +1963,8 @@ mod tests {
         for (i, row) in mesh.positions.chunks_exact(2).enumerate() {
             let binding = &mesh.bindings[i * 2];
             let segment = binding.segment as usize;
-            let distance = distances[segment] * (1.0 - binding.t) + distances[segment + 1] * binding.t;
+            let distance =
+                distances[segment] * (1.0 - binding.t) + distances[segment + 1] * binding.t;
             assert!((mesh.uvs[i * 2][1] - distance).abs() < 1e-5);
             let width = Vec3::from(row[0]).distance(Vec3::from(row[1]));
             let taper = 0.08 + 0.92 * root_blend(distance, s.groups[0].width);
@@ -1757,18 +1978,32 @@ mod tests {
         state.groups[0].cards_per_guide = 1;
         state.groups[0].width = 0.003;
         let root = Vec3::from(state.guides[0].points[0]);
-        state.guides[0].points = [[0.0, 0.0, 0.0], [0.0, 0.03, 0.0],
-            [0.02, 0.05, 0.0], [0.06, 0.05, 0.0]]
-            .map(|p| (root + Vec3::from(p)).to_array()).to_vec();
+        state.guides[0].points = [
+            [0.0, 0.0, 0.0],
+            [0.0, 0.03, 0.0],
+            [0.02, 0.05, 0.0],
+            [0.06, 0.05, 0.0],
+        ]
+        .map(|p| (root + Vec3::from(p)).to_array())
+        .to_vec();
         let before = state.clone();
         let mesh = generate(&state, &AtomicBool::new(false)).unwrap().remove(0);
         assert_eq!(mesh.positions.len(), 20);
         assert!(mesh.bindings.iter().all(|b| b.smooth));
         assert_eq!(state, before);
         assert_eq!(Simulation::new(&state).unwrap().points[0].len(), 4);
-        let angle = |points: &[Vec3]| points.windows(3).map(|p|
-            (p[1] - p[0]).normalize().dot((p[2] - p[1]).normalize()).clamp(-1.0, 1.0).acos())
-            .fold(0.0_f32, f32::max);
+        let angle = |points: &[Vec3]| {
+            points
+                .windows(3)
+                .map(|p| {
+                    (p[1] - p[0])
+                        .normalize()
+                        .dot((p[2] - p[1]).normalize())
+                        .clamp(-1.0, 1.0)
+                        .acos()
+                })
+                .fold(0.0_f32, f32::max)
+        };
         let mut moved = state.guides[0].points.clone();
         moved[1][2] -= 0.01;
         moved[2][2] += 0.015;
@@ -1776,22 +2011,45 @@ mod tests {
         for points in [state.guides[0].points.clone(), moved] {
             let mut positions = mesh.positions.clone();
             let mut normals = mesh.normals.clone();
-            deform(&mesh.bindings, std::slice::from_ref(&points), 0, &mut positions).unwrap();
-            locks::deform_normals(&mesh.bindings, std::slice::from_ref(&points), 0, &mut normals);
-            let centers: Vec<_> = positions.chunks_exact(2).map(|p|
-                (Vec3::from(p[0]) + Vec3::from(p[1])) * 0.5).collect();
+            deform(
+                &mesh.bindings,
+                std::slice::from_ref(&points),
+                0,
+                &mut positions,
+            )
+            .unwrap();
+            locks::deform_normals(
+                &mesh.bindings,
+                std::slice::from_ref(&points),
+                0,
+                &mut normals,
+            );
+            let centers: Vec<_> = positions
+                .chunks_exact(2)
+                .map(|p| (Vec3::from(p[0]) + Vec3::from(p[1])) * 0.5)
+                .collect();
             let guide: Vec<_> = points.iter().copied().map(Vec3::from).collect();
-            assert!(angle(&centers) < angle(&guide) * 0.7,
-                "card joins should round off guide corners: {} vs {}", angle(&centers), angle(&guide));
+            assert!(
+                angle(&centers) < angle(&guide) * 0.7,
+                "card joins should round off guide corners: {} vs {}",
+                angle(&centers),
+                angle(&guide)
+            );
             assert!(centers.last().unwrap().distance(*guide.last().unwrap()) < 1e-6);
-            assert!(normals.iter().all(|n| (Vec3::from(*n).length() - 1.0).abs() < 1e-5));
+            assert!(
+                normals
+                    .iter()
+                    .all(|n| (Vec3::from(*n).length() - 1.0).abs() < 1e-5)
+            );
             let curve = locks::Curve::new(&points);
             for i in 1..points.len() - 1 {
                 let (a, (x, y, z)) = curve.sample(i - 1, 1.0 - 1e-5);
                 let (b, (u, v, w)) = curve.sample(i, 1e-5);
                 assert!(a.distance(b) < 1e-5);
-                assert!(x.dot(u) > 0.9999 && y.dot(v) > 0.9999 && z.dot(w) > 0.9999,
-                    "a segment boundary must not introduce a shading seam");
+                assert!(
+                    x.dot(u) > 0.9999 && y.dot(v) > 0.9999 && z.dot(w) > 0.9999,
+                    "a segment boundary must not introduce a shading seam"
+                );
             }
         }
     }
@@ -1802,17 +2060,25 @@ mod tests {
         let curve = locks::Curve::new(&points);
         for i in 0..=100 {
             let (p, (x, y, z)) = curve.sample(0, i as f32 / 100.0);
-            assert!((0.0..=0.001).contains(&p.x) && p.y.abs() < 0.000001,
-                "a distant tip must not pull the root away from the scalp: {p:?}");
+            assert!(
+                (0.0..=0.001).contains(&p.x) && p.y.abs() < 0.000001,
+                "a distant tip must not pull the root away from the scalp: {p:?}"
+            );
             assert!(x.is_finite() && y.is_finite() && z.is_finite());
         }
         let mut state = planted();
         let root = Vec3::from(state.guides[0].points[0]);
-        state.guides[0].points = (0..64).map(|i| (root + Vec3::Y * (i as f32 * 0.002)).to_array()).collect();
+        state.guides[0].points = (0..64)
+            .map(|i| (root + Vec3::Y * (i as f32 * 0.002)).to_array())
+            .collect();
         state.guides = vec![state.guides[0].clone(); 100];
         state.groups[0].cards_per_guide = 32;
         let mesh = generate(&state, &AtomicBool::new(false)).unwrap().remove(0);
-        assert_eq!(mesh.positions.len(), 409_600, "existing dense styles must still be editable");
+        assert_eq!(
+            mesh.positions.len(),
+            409_600,
+            "existing dense styles must still be editable"
+        );
         assert!(mesh.positions.len() <= MAX_HAIR_VERTICES);
     }
 
@@ -1820,10 +2086,13 @@ mod tests {
     fn hair_root_cards_lie_flat_and_motion_does_not_lift_a_stem() {
         let mut s = planted();
         let root = Vec3::from(s.guides[0].points[0]);
-        s.guides[0].points = (0..64).map(|i| {
-            let distance = i as f32 * 0.002;
-            (root + Vec3::X * distance + Vec3::Y * 0.008 * root_blend(distance, 0.02)).to_array()
-        }).collect();
+        s.guides[0].points = (0..64)
+            .map(|i| {
+                let distance = i as f32 * 0.002;
+                (root + Vec3::X * distance + Vec3::Y * 0.008 * root_blend(distance, 0.02))
+                    .to_array()
+            })
+            .collect();
         let mesh = generate(&s, &AtomicBool::new(false)).unwrap().remove(0);
         for card in 0..6 {
             let row = card * 190 * 2;
@@ -1840,10 +2109,21 @@ mod tests {
         }
         s.bindings = mesh.bindings;
         let mut sim = Simulation::new(&s).unwrap();
-        let settings = MotionSettings { gravity: [0.0; 3], wind: [0.0; 3], ..Default::default() };
-        for _ in 0..120 { sim.advance(1.0 / 120.0, settings, &[], Quat::IDENTITY).unwrap(); }
+        let settings = MotionSettings {
+            gravity: [0.0; 3],
+            wind: [0.0; 3],
+            ..Default::default()
+        };
+        for _ in 0..120 {
+            sim.advance(1.0 / 120.0, settings, &[], Quat::IDENTITY)
+                .unwrap();
+        }
         assert_eq!(sim.points[0][0], s.guides[0].points[0]);
-        assert!(sim.points[0][1][1] - root.y < 0.0006, "motion lifted root: {:?}", sim.points[0][1]);
+        assert!(
+            sim.points[0][1][1] - root.y < 0.0006,
+            "motion lifted root: {:?}",
+            sim.points[0][1]
+        );
     }
 
     #[test]
@@ -1852,25 +2132,55 @@ mod tests {
         // An owned head narrower across the temples than from front to back.
         // Its bounding capsule protrudes well beyond the fitting surface.
         s.scalp.positions = vec![
-            [0.0, 0.15, 0.0], [0.08, 0.0, 0.0], [0.0, 0.0, 0.12],
-            [-0.08, 0.0, 0.0], [0.0, 0.0, -0.12], [0.0, -0.15, 0.0],
+            [0.0, 0.15, 0.0],
+            [0.08, 0.0, 0.0],
+            [0.0, 0.0, 0.12],
+            [-0.08, 0.0, 0.0],
+            [0.0, 0.0, -0.12],
+            [0.0, -0.15, 0.0],
         ];
         s.scalp.triangles = vec![
-            [0, 2, 1], [0, 3, 2], [0, 4, 3], [0, 1, 4],
-            [5, 1, 2], [5, 2, 3], [5, 3, 4], [5, 4, 1],
+            [0, 2, 1],
+            [0, 3, 2],
+            [0, 4, 3],
+            [0, 1, 4],
+            [5, 1, 2],
+            [5, 2, 3],
+            [5, 3, 4],
+            [5, 4, 1],
         ];
         s.groups[0].width = 0.004;
-        let root = Attachment { triangle: 0, barycentric: [0.65, 0.1, 0.25] };
+        let root = Attachment {
+            triangle: 0,
+            barycentric: [0.65, 0.1, 0.25],
+        };
         let normal = s.scalp.normal(&root);
         let start = s.scalp.point(&root).unwrap();
-        let end = s.scalp.point(&Attachment { triangle: 0, barycentric: [0.05, 0.25, 0.7] }).unwrap();
-        let points = (0..32).map(|i| {
-            let t = i as f32 / 31.0;
-            (start.lerp(end, t) + normal * 0.005 * root_blend(start.distance(end) * t, 0.004)).to_array()
-        }).collect();
-        s.guides.push(Guide { root, group: 0, points, pinned: vec![] });
+        let end = s
+            .scalp
+            .point(&Attachment {
+                triangle: 0,
+                barycentric: [0.05, 0.25, 0.7],
+            })
+            .unwrap();
+        let points = (0..32)
+            .map(|i| {
+                let t = i as f32 / 31.0;
+                (start.lerp(end, t) + normal * 0.005 * root_blend(start.distance(end) * t, 0.004))
+                    .to_array()
+            })
+            .collect();
+        s.guides.push(Guide {
+            root,
+            group: 0,
+            points,
+            pinned: vec![],
+        });
         s.collisions.push(Capsule {
-            a: [0.0, -0.03, 0.0], b: [0.0, 0.03, 0.0], radius: 0.12, follows_head: true,
+            a: [0.0, -0.03, 0.0],
+            b: [0.0, 0.03, 0.0],
+            radius: 0.12,
+            follows_head: true,
         });
         let mesh = generate(&s, &AtomicBool::new(false)).unwrap().remove(0);
         s.bindings = mesh.bindings;
@@ -1879,20 +2189,32 @@ mod tests {
         for frame in 0..120 {
             let settings = MotionSettings {
                 // First isolate the startup jump, then force actual contacts.
-                gravity: if frame < 60 { [0.0; 3] } else { (-normal * 9.81).to_array() },
+                gravity: if frame < 60 {
+                    [0.0; 3]
+                } else {
+                    (-normal * 9.81).to_array()
+                },
                 ..Default::default()
             };
-            sim.advance_test(1.0 / 60.0, settings, &s.collisions, 0, 0.3).unwrap();
+            sim.advance_test(1.0 / 60.0, settings, &s.collisions, 0, 0.3)
+                .unwrap();
             assert!(Vec3::from(sim.points[0][0]).distance(start) < 1e-7);
-            let displacement = sim.points[0].iter().zip(&s.guides[0].points)
+            let displacement = sim.points[0]
+                .iter()
+                .zip(&s.guides[0].points)
                 .map(|(a, b)| Vec3::from(*a).distance(Vec3::from(*b)))
                 .fold(0.0_f32, f32::max);
-            assert!(displacement < 0.004, "Play inflated close-fitting hair by {displacement} at frame {frame}");
+            assert!(
+                displacement < 0.004,
+                "Play inflated close-fitting hair by {displacement} at frame {frame}"
+            );
             let mut rendered = mesh.positions.clone();
             deform(&s.bindings, &sim.points, 0, &mut rendered).unwrap();
             for point in rendered {
-                assert!((Vec3::from(point) - start).dot(normal) >= -0.0003,
-                    "motion must still keep the cards outside the actual scalp");
+                assert!(
+                    (Vec3::from(point) - start).dot(normal) >= -0.0003,
+                    "motion must still keep the cards outside the actual scalp"
+                );
             }
         }
         assert_eq!(s, before, "preview must preserve the authored shape");
@@ -1938,13 +2260,26 @@ mod tests {
         let mut simulation = Simulation::new(&state).unwrap();
         let mut free_movement = 0.0_f32;
         for _ in 0..120 {
-            let pose = simulation.advance_test(1.0 / 60.0, MotionSettings {
-                bend_compliance: 0.005, ..Default::default()
-            }, &[], 3, 0.2).unwrap();
+            let pose = simulation
+                .advance_test(
+                    1.0 / 60.0,
+                    MotionSettings {
+                        bend_compliance: 0.005,
+                        ..Default::default()
+                    },
+                    &[],
+                    3,
+                    0.2,
+                )
+                .unwrap();
             for (i, point) in simulation.points[0].iter().enumerate() {
-                let distance = Vec3::from(*point).distance(pose.head_point(Vec3::from(state.guides[0].points[i])));
-                if state.guides[0].is_pinned(i) { assert!(distance < 1e-6); }
-                else { free_movement = free_movement.max(distance); }
+                let distance = Vec3::from(*point)
+                    .distance(pose.head_point(Vec3::from(state.guides[0].points[i])));
+                if state.guides[0].is_pinned(i) {
+                    assert!(distance < 1e-6);
+                } else {
+                    free_movement = free_movement.max(distance);
+                }
             }
         }
         assert!(free_movement > 0.001);
@@ -1956,28 +2291,60 @@ mod tests {
     #[test]
     fn hair_soft_motion_collides_with_full_body_and_uses_the_visible_neck_pose() {
         let mut state = planted();
-        state.scalp.positions = vec![[-0.02,1.0,-0.02],[0.0,1.0,0.02],[0.02,1.0,-0.02]];
-        let root = state.scalp.positions.iter().zip(state.guides[0].root.barycentric)
-            .map(|(point, weight)| Vec3::from(*point) * weight).sum::<Vec3>();
+        state.scalp.positions = vec![[-0.02, 1.0, -0.02], [0.0, 1.0, 0.02], [0.02, 1.0, -0.02]];
+        let root = state
+            .scalp
+            .positions
+            .iter()
+            .zip(state.guides[0].root.barycentric)
+            .map(|(point, weight)| Vec3::from(*point) * weight)
+            .sum::<Vec3>();
         for (i, point) in state.guides[0].points.iter_mut().enumerate() {
             *point = (root + Vec3::X * (i as f32 / 15.0 * 0.5)).to_array();
         }
         state.references.push(Scalp {
             identity: "collision:body:test".into(),
-            positions: vec![[0.05,0.3,-0.4],[0.7,0.3,-0.4],[0.7,0.85,-0.4],[0.05,0.85,-0.4],
-                [0.05,0.3,0.4],[0.7,0.3,0.4],[0.7,0.85,0.4],[0.05,0.85,0.4]],
-            triangles: vec![[0,2,1],[0,3,2],[4,5,6],[4,6,7],[3,7,6],[3,6,2],
-                [0,1,5],[0,5,4],[0,4,7],[0,7,3],[1,2,6],[1,6,5]],
+            positions: vec![
+                [0.05, 0.3, -0.4],
+                [0.7, 0.3, -0.4],
+                [0.7, 0.85, -0.4],
+                [0.05, 0.85, -0.4],
+                [0.05, 0.3, 0.4],
+                [0.7, 0.3, 0.4],
+                [0.7, 0.85, 0.4],
+                [0.05, 0.85, 0.4],
+            ],
+            triangles: vec![
+                [0, 2, 1],
+                [0, 3, 2],
+                [4, 5, 6],
+                [4, 6, 7],
+                [3, 7, 6],
+                [3, 6, 2],
+                [0, 1, 5],
+                [0, 5, 4],
+                [0, 4, 7],
+                [0, 7, 3],
+                [1, 2, 6],
+                [1, 6, 5],
+            ],
         });
         let mut motion = Simulation::new(&state).unwrap();
         let mut unprotected = state.clone();
         unprotected.references.clear();
         let mut falling = Simulation::new(&unprotected).unwrap();
-        let settings = MotionSettings { bend_compliance: 0.005, ..Default::default() };
+        let settings = MotionSettings {
+            bend_compliance: 0.005,
+            ..Default::default()
+        };
         let mut touches = false;
         for _ in 0..180 {
-            motion.advance_test(1.0/60.0, settings, &[], 0, 0.2).unwrap();
-            falling.advance_test(1.0/60.0, settings, &[], 0, 0.2).unwrap();
+            motion
+                .advance_test(1.0 / 60.0, settings, &[], 0, 0.2)
+                .unwrap();
+            falling
+                .advance_test(1.0 / 60.0, settings, &[], 0, 0.2)
+                .unwrap();
             for point in &motion.points[0] {
                 if point[0] > 0.06 && point[0] < 0.69 {
                     assert!(point[1] >= 0.849, "hair penetrated shoulder: {point:?}");
@@ -1987,10 +2354,16 @@ mod tests {
         }
         assert!(touches);
         assert!(falling.points[0].iter().any(|p| p[1] < 0.8));
-        motion.advance_test(1.0/60.0, settings, &[], 3, 0.2).unwrap();
+        motion
+            .advance_test(1.0 / 60.0, settings, &[], 3, 0.2)
+            .unwrap();
         let pose = motion.body_pose.unwrap();
         for (rest, point) in motion.body_rest.iter().zip(&motion.body_positions) {
-            assert!(pose.fitting_point(Vec3::from(*rest), 0.2).distance(Vec3::from(*point)) < 1e-6);
+            assert!(
+                pose.fitting_point(Vec3::from(*rest), 0.2)
+                    .distance(Vec3::from(*point))
+                    < 1e-6
+            );
         }
     }
 
@@ -2151,10 +2524,15 @@ mod tests {
             radius: 0.08,
             follows_head: false,
         };
-        let distance = |p: [f32; 3]| {
-            Vec3::from(p).distance(Vec3::new(0.0, p[1].clamp(1.1, 1.23), -0.2))
-        };
-        assert!(s.guides[0].points.iter().skip(1).any(|p| distance(*p) < capsule.radius));
+        let distance =
+            |p: [f32; 3]| Vec3::from(p).distance(Vec3::new(0.0, p[1].clamp(1.1, 1.23), -0.2));
+        assert!(
+            s.guides[0]
+                .points
+                .iter()
+                .skip(1)
+                .any(|p| distance(*p) < capsule.radius)
+        );
         sim.advance(
             1.0 / 60.0,
             MotionSettings::default(),

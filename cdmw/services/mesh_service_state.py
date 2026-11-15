@@ -98,6 +98,8 @@ class _MeshHistorySnapshot:
     restore_hair_state: bool = False
     hair_vertex_deltas: tuple[_MeshHairVertexDelta, ...] = ()
     requires_edit_operations: bool | None = None
+    # P14: the history journal depth of the state this entry restores.
+    journal_depth: int | None = None
 
 
 @dataclass(slots=True)
@@ -186,6 +188,10 @@ class MeshExportSnapshot:
     archive_refit_context: object | None = None
     replacement_state: MeshReplacementState | None = None
     hair_state: HairAuthoringState | None = None
+    # Per-source PAC sections, interpreted only after validated exact geometry.
+    asset_part_inclusion: tuple[bool, ...] = ()
+    #: The geometry layers' revision with ``mesh_revision`` (None: not captured).
+    geometry_layer_revision: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,6 +266,7 @@ class _MeshEditSession:
     geometry_layer_revision: int = 0
     morph_session_revision: int = 0
     native_clipboard_ready: bool = False
+    item_set_clipboard_assets: frozenset[str] = frozenset()
     mesh_layer_project_path: Path | None = None
     mesh_layer_workspace_manifest_path: Path | None = None
     mesh_layer_workspace_mode: str = ""
@@ -279,6 +286,38 @@ class _MeshEditSession:
     mesh_layer_autosave_saved_key: tuple[int, int] = (-1, -1)
     mesh_layer_autosave_error: str = ""
     mesh_layer_loaded_generation: str = ""
+    # P14: where this state sits in the draft's history journal, and what the
+    # steps since the last journal record were.
+    history_journal_depth: int = 0
+    history_journal_labels: list[str] = field(default_factory=list)
+    history_journal_parts: set[int] = field(default_factory=set)
+    history_journal_edited: bool = False
+    history_journal_error: str = ""
+    # P14: the next journal record is the state the user finished.
+    history_journal_clean_pending: bool = False
+    #: A mesh without a draft: the (revision, layer revision) Finish or Build last
+    #: recorded as clean; None while it is the state it opened with (8.7 D4, 8.8 R12).
+    history_clean_key: tuple[int, int] | None = None
+    #: The draft's journal could not be read fully when it opened: this session
+    #: neither rewrites nor prunes it, and adds no step to it (section 8.8 R8).
+    history_journal_readonly: str = ""
+    #: The generation the draft opened with when the journal names no step yet: it
+    #: is journalled with the first record, so that step can be undone (8.7 D3).
+    history_journal_base_generation: str = ""
+    # P15 repair A1: Finish ended an editor session; the next draft save removes
+    # its recovery point, once the draft holds the edits.
+    history_recovery_clear_on_save: bool = False
+    #: The recovery point that clean-up is for: a newer editor's is kept (8.8 R13).
+    history_recovery_clear_generation: str = ""
+    #: (generation, bytes) of the recovery point last measured for the cap (8.9).
+    history_recovery_size: tuple[str, int] | None = None
+    #: Why a recovery point that exists was not restored ("" when none, or restored).
+    history_recovery_problem: str = ""
+    # P14: a Mesh Editor shadow keeps its unfinished state beside the draft it
+    # edits: (project path, source SHA-256, the draft generation it started from).
+    history_recovery_target: tuple[Path, str, str] | None = None
+    history_recovery_draft: tuple[object, bytes] | None = field(default=None, repr=False)
+    history_journal_cache: tuple[object, object] | None = field(default=None, repr=False)
     skeleton: object | None = None
     skeleton_source: str = ""
     skeleton_resolution_reason: str = ""

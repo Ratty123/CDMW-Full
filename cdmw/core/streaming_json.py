@@ -16,6 +16,19 @@ from typing import TextIO
 
 
 JSON_IO_CHUNK = 64 * 1024
+_NUMERIC_ENCODER = json.JSONEncoder(ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+
+
+def _small_numeric_row(value) -> bool:
+    kind = type(value)
+    if kind is float or kind is bool or value is None:
+        return True
+    if kind is int:
+        return -(1 << 64) <= value < (1 << 64)
+    return (kind in (list, tuple) and len(value) <= 16
+            and all(type(item) in (float, bool) or item is None
+                    or (type(item) is int and -(1 << 64) <= item < (1 << 64))
+                    for item in value))
 
 
 class JsonArray(list):
@@ -84,6 +97,23 @@ def _json_chunks(value, active):
         try:
             mapping = isinstance(value, dict)
             yield "{" if mapping else "["
+            # Native mesh arrays contain millions of short numeric rows. Encode
+            # at most 128 such rows per C call, preserving small cancellation /
+            # thread-scheduling steps without a Python generator per scalar.
+            if type(value) in (list, tuple) and len(value) >= 32:
+                for start in range(0, len(value), 128):
+                    if start:
+                        yield ","
+                    rows = value[start:start + 128]
+                    if all(_small_numeric_row(row) for row in rows):
+                        yield _NUMERIC_ENCODER.encode(rows)[1:-1]
+                    else:
+                        for index, row in enumerate(rows):
+                            if index:
+                                yield ","
+                            yield from _json_chunks(row, active)
+                yield "]"
+                return
             first = True
             for item in sorted(value) if mapping else value:
                 if not first:

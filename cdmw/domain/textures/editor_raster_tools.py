@@ -5,9 +5,9 @@ from __future__ import annotations
 import math
 from typing import Dict, Optional, Tuple
 
-import cv2
 import numpy as np
 
+from cdmw.core import image_ops
 from cdmw.domain.textures.editor_brush import _blend_constant_color, _blend_patch
 from cdmw.domain.textures.editor_common import _parse_hex_rgb
 from cdmw.domain.textures.editor_composite import (
@@ -133,19 +133,7 @@ def apply_texture_editor_fill(
     seed = sample_rgb[point[1], point[0]].astype(np.int16)
 
     if contiguous:
-        flood_source = cv2.cvtColor(sample_rgb, cv2.COLOR_RGB2BGR).copy()
-        flood_mask = np.zeros((document.height + 2, document.width + 2), dtype=np.uint8)
-        lo = (tolerance, tolerance, tolerance)
-        hi = (tolerance, tolerance, tolerance)
-        cv2.floodFill(
-            flood_source,
-            flood_mask,
-            (int(point[0]), int(point[1])),
-            (0, 0, 0),
-            loDiff=lo,
-            upDiff=hi,
-            flags=4 | (255 << 8) | cv2.FLOODFILL_MASK_ONLY,
-        )
+        flood_mask = image_ops.flood_fill_mask_only(sample_rgb, (int(point[0]), int(point[1])), tolerance)
         fill_mask = flood_mask[1:-1, 1:-1].astype(np.float32) / 255.0
     else:
         difference = np.max(np.abs(sample_rgb.astype(np.int16) - seed[None, None, :]), axis=2)

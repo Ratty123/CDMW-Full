@@ -1,5 +1,5 @@
 constexpr int kNativePackageSchemaVersion = 8;
-constexpr int kNativeMaterialGraphVersion = 4;
+constexpr int kNativeMaterialGraphVersion = 5;
 constexpr int kNativeMaterialSemanticsVersion = 10;
 constexpr int kNativeDdsExtractionVersion = 2;
 

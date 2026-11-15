@@ -263,7 +263,8 @@ class PackagedBundledHelperReportingTests(unittest.TestCase):
 
         self.assertTrue(snapshot, "expected at least one bundled helper")
         keys = {entry["key"] for entry in snapshot}
-        self.assertIn("openimageio", keys)
+        # OpenImageIO is not part of the package (P20 tier 1, removal list item 8).
+        self.assertNotIn("openimageio", keys)
         self.assertIn("cdmw_mesh_core", keys)
         for removed in ("material_maker", "ufbx", "meshoptimizer"):
             self.assertNotIn(removed, keys)
