@@ -14,6 +14,7 @@ so the helper is moved rather than restarted.
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -197,7 +198,10 @@ def test_the_helper_window_is_remembered_from_both_events() -> None:
             def report_owner(_hwnd, owner_pid):
                 owner_pid._obj.value = os.getpid()
 
-            with patch("ctypes.windll.user32.GetWindowThreadProcessId", side_effect=report_owner):
+            # The host reads the owner through its own typed user32 loader, not the
+            # shared ctypes.windll, so that is what is replaced here.
+            typed = SimpleNamespace(GetWindowThreadProcessId=report_owner)
+            with patch("cdmw.ui.preview.dotnet_host_protocol._typed_user32", return_value=typed):
                 frame._handle_protocol_event({"event": event, "form_hwnd": 987654})
             assert frame._embedded_child_hwnd == 987654, (
                 f"{event} did not record the helper's window, so a resize has "
@@ -254,7 +258,7 @@ def test_shared_preview_child_moves_use_the_async_windows_flag() -> None:
         controller.process_id = 77
         frame._embedded_child_hwnd = 123
         api = _FakeUser32(owner_pid=77, parent_hwnd=frame._host_hwnd())
-        with patch("ctypes.windll.user32", api):
+        with patch("ctypes.windll.user32", api),                 patch("cdmw.ui.preview.dotnet_host_protocol._typed_user32", return_value=api):
             frame._sync_embedded_child_geometry()
         assert api.positions[-1][:2] == (800, 600)
     finally:
