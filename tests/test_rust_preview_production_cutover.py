@@ -1039,7 +1039,8 @@ def test_hidden_preview_retains_renderer_until_the_idle_release_is_due() -> None
     assert "self.renderer = None" not in hide
     assert "self.renderer_idle.pause(Instant::now())" in hide
     idle = source.split("fn about_to_wait(", 1)[1].split("#[cfg(test)]", 1)[0]
-    assert "self.renderer_idle.take_due(Instant::now())" in idle
+    # The release is due against this frame's clock (0e514bbe4 reads it once into `now`).
+    assert "let now = Instant::now();" in idle and "self.renderer_idle.take_due(now)" in idle
     assert ".chain(self.renderer_idle.release_at)" in idle
 
 
