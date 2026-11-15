@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Docs
+
+- Help and the Wiki have worked examples in every language. Mesh Editor gains **Blender round trip**, the Blender export settings that bring an edited game mesh back (Selected Objects, Attributes, Use Vertex Color > Active, Include All Bone Influences), plus examples for leaving a part out of an outfit and replacing a game mesh with your own model. Create New Item gains a first renamed-sword test, a weapon from Blender and armour or clothing from Blender. The FAQ answers why a returned mesh is refused, a mirror-like imported surface, wrong size or turn, FBX import and the vertex limit.
+
 ## [0.12.0-alpha.5] - 2026-11-14
 
 ### Added
