@@ -18,6 +18,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 - Mesh Editor's **Build Mod** with **Keep layers underneath** ticked no longer fails when the edited garment never cut the ticked layers, such as Lowerbody on the pants themselves. The mod is built without its own shrink rules, and a note names the layers the garment does cut. When Build Mod does fail, a message now says why instead of the progress bar closing with no mod.
 - When the archive backend stops unexpectedly, **Copy error report** now includes the worker's exit code and, for common Windows crash codes, what it means, such as a file removed by antivirus or a CPU instruction the worker cannot run.
+- **Texture Recolor** now changes material colours, such as `_tintColorR`, in character armour. Their long file paths gave every colour in the file the same name, so **Build Variants** finished without changing any of them. The rewritten `.pac_xml` also keeps its original encoding mark and line endings.
 - Placement & Animations no longer refuses to save a change of a weapon's own point that only one item type reads. The check counted every row naming the point on any item, so changing the tower shields' `Spine2_B_Shield_ChildSocket` was refused because the round shield row names the same point, although it reads another file. Points are now counted per socket file; a point that several rows read from the same file is still refused.
 
 ## [0.12.0-alpha.5] - 2026-11-14
