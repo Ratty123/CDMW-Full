@@ -133,3 +133,37 @@ def test_a_stored_source_plans_without_the_session_folder(tmp_path: Path) -> Non
                            original=original)
     plan = plan_live_texture_outputs([edit], {GAME_PATH: (_entry(),)})
     assert plan.refusals == () and plan.outputs[0].original == original
+
+
+def test_a_texture_only_build_writes_just_the_textures(tmp_path: Path, monkeypatch) -> None:
+    """No mesh change: nothing to validate, and the mesh is not written (step 8)."""
+
+    import json
+
+    import cdmw.services.mesh_live_texture_output as output
+    from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
+
+    plan = plan_live_texture_outputs([_edit(tmp_path)], {GAME_PATH: (_entry(),)})
+    real = output.encode_live_texture_outputs
+    monkeypatch.setattr(output, "encode_live_texture_outputs", lambda outputs, root, *, stop_event=None: real(
+        outputs, root, stop_event=stop_event,
+        encoder=lambda rgba, original, target, *, temp_root: Path(target).write_bytes(b"DDS edited")))
+    with pytest.raises(ValueError, match="needs edited textures"):
+        MeshDirectOutputWorker(1, None, "s", _entry("character/model/a.pac"), kind="loose_mod", textures_only=True)
+    worker = MeshDirectOutputWorker(1, None, "s", _entry("character/model/a.pac"), kind="loose_mod",
+                                    output_path=tmp_path / "mods" / "Edited", texture_outputs=plan.outputs,
+                                    texture_work_root=tmp_path / "work", textures_only=True)
+    done = []
+    worker.completed.connect(lambda _id, result: done.append(result))
+    worker.error.connect(lambda _id, message: done.append(message))
+    worker.run()
+    (result,) = done
+    assert not isinstance(result, str), result
+    files = sorted(p.relative_to(result.output_path).as_posix() for p in result.output_path.rglob("*") if p.is_file())
+    assert any(name.endswith("cd_phm_00_ub_00_0374_d.dds") for name in files), files
+    assert not any(name.endswith(".pac") for name in files), files
+    dds = next(p for p in result.output_path.rglob("*.dds"))
+    assert dds.read_bytes() == b"DDS edited"
+    session = next(result.output_path.rglob("mesh-editor-session.json"), None)
+    if session is not None:
+        assert json.loads(session.read_text(encoding="utf-8"))["contents"] == ["edited_textures"]

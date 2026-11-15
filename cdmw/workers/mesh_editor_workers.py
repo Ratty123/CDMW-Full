@@ -465,6 +465,7 @@ class MeshDirectOutputWorker(QObject):
         keep_layers: tuple[str, ...] = (),
         texture_outputs: tuple = (),
         texture_work_root: Path | str | None = None,
+        textures_only: bool = False,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -495,6 +496,10 @@ class MeshDirectOutputWorker(QObject):
         if self.texture_outputs and (self.kind not in {"loose_mod", "overlay_package"} or texture_work_root is None):
             raise ValueError("Edited textures are written only by Build Mod.")
         self.texture_work_root = Path(texture_work_root) if texture_work_root is not None else None
+        #: Only the edited textures: the mesh was not changed and is not written.
+        self.textures_only = bool(textures_only)
+        if self.textures_only and not self.texture_outputs:
+            raise ValueError("A texture-only mod needs edited textures.")
         if self.keep_layers and self.kind not in {"loose_mod", "overlay_package"}:
             raise ValueError("Layers underneath apply only to Build Mod outputs.")
         self.saved_work_root = (
@@ -513,6 +518,9 @@ class MeshDirectOutputWorker(QObject):
         try:
             if self.stop_event.is_set():
                 raise RunCancelled("Mesh output cancelled")
+            if self.textures_only:
+                self.completed.emit(self.request_id, self._write_textures_only())
+                return
             self.progress_changed.emit(self.request_id, 0, "Capturing the validated Mesh Editor revision...")
             _wait_for_texture_updates(self.texture_updates_waiter, self.stop_event)
             snapshot = self.service.capture_export_snapshot(
@@ -704,6 +712,33 @@ class MeshDirectOutputWorker(QObject):
             self.archive_material_sources = ()
             self.texture_outputs = ()
             self.finished.emit()
+
+    def _write_textures_only(self) -> MeshDirectOutputResult:
+        """Build Mod with only the edited textures (step 8); the mesh stays as the game has it."""
+
+        from cdmw.services.mesh_live_texture_output import encode_live_texture_outputs, live_texture_metadata
+
+        self.progress_changed.emit(self.request_id, 20, "Writing the edited textures...")
+        requests = encode_live_texture_outputs(self.texture_outputs, self.texture_work_root,
+                                               stop_event=self.stop_event)
+        _raise_export_cancelled(self.stop_event)
+        payload = {
+            "format": "cdmw_mesh_editor_output_v1",
+            "source_path": str(getattr(self.entry, "path", "") or ""),
+            "manager_profile": self.manager_profile,
+            "contents": ["edited_textures"],
+            "textures": live_texture_metadata(self.texture_outputs),
+        }
+        metadata = (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
+        self.progress_changed.emit(self.request_id, 80, "Writing the mod folder...")
+        if self.kind == "loose_mod":
+            result = self._write_loose_mod(tuple(requests), metadata, None)
+        elif self.kind == "overlay_package":
+            result = self._write_overlay_package(tuple(requests), metadata, None)
+        else:
+            raise ValueError(f"Unsupported Mesh Editor output kind: {self.kind}")
+        self.progress_changed.emit(self.request_id, 100, "Mesh-only output is ready.")
+        return result
 
     def _layer_visibility(self, requests: list, additions: list):
         """Append the experimental prefab and shrink-rule patches for the edited PAC."""

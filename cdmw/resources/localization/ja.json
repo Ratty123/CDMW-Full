@@ -496,6 +496,7 @@
     "A texture resource exceeds the package size limit.": "テクスチャリソースがパッケージのサイズ制限を超えています。",
     "A texture target must end in .dds.": "テクスチャの出力先は .dds で終わる必要があります。",
     "A texture that several parts share names the parts it changes. A layer the shader combines from a material is not shown on the model while you paint. Build Mod lists each edited texture and writes it at its own game path in the same mod, in the original's format, size and mips; a texture you left unchanged is not written. Texture edits have their own Undo in the Texture Editor window, are not yet kept in drafts, and have not been checked in game.": "複数のパーツで共有されているテクスチャには、変更されるパーツが表示されます。シェーダーがマテリアルから合成するレイヤーは、ペイント中はモデルに表示されません。「Modをビルド」は編集した各テクスチャを一覧にし、同じ Mod 内のそれぞれのゲームパスに、元と同じ形式、サイズ、ミップで書き出します。変更しなかったテクスチャは書き出されません。テクスチャの編集は「テクスチャ エディタ」ウィンドウ内に独自の「元に戻す」を持ち、まだ下書きには保存されず、ゲーム内では確認されていません。",
+    "A texture-only mod needs edited textures.": "テクスチャだけの Mod には、編集したテクスチャが必要です。",
     "A three-quarter view for depth checks.": "深度を確認するための4分の3ビューです。",
     "A topology command is already waiting for the selection gesture.": "トポロジコマンドは既に選択ジェスチャーを待機しています。",
     "A u32 count and that many u32 keys: base lists 999000, 998003, 0, 8, 10, 11; dlc_01 lists 1001, 1002, 1003, 1005, 1006, 998002. Archive Browser lists the keys (2026-11-01, game 1.0.0.3446).": "u32 の個数と、その数の u32 キー: base は 999000、998003、0、8、10、11、dlc_01 は 1001、1002、1003、1005、1006、998002 を列挙します。アーカイブ ブラウザーでキーを一覧表示します (2026-11-01、ゲーム 1.0.0.3446)。",

@@ -496,6 +496,7 @@
     "A texture resource exceeds the package size limit.": "텍스처 리소스가 패키지 크기 제한을 초과합니다.",
     "A texture target must end in .dds.": "텍스처 대상은 .dds로 끝나야 합니다.",
     "A texture that several parts share names the parts it changes. A layer the shader combines from a material is not shown on the model while you paint. Build Mod lists each edited texture and writes it at its own game path in the same mod, in the original's format, size and mips; a texture you left unchanged is not written. Texture edits have their own Undo in the Texture Editor window, are not yet kept in drafts, and have not been checked in game.": "여러 파트가 함께 쓰는 텍스처는 바뀌는 파트를 알려 줍니다. 셰이더가 머티리얼에서 합성하는 레이어는 칠하는 동안 모델에 표시되지 않습니다. 모드 빌드은(는) 편집한 각 텍스처를 나열하고 같은 모드 안의 원래 게임 경로에 원본과 같은 형식, 크기, 밉으로 기록합니다. 바꾸지 않은 텍스처는 기록하지 않습니다. 텍스처 편집은 텍스처 편집기 창에 별도의 실행 취소이(가) 있으며, 아직 초안에 저장되지 않고 게임에서 확인되지 않았습니다.",
+    "A texture-only mod needs edited textures.": "텍스처만 담은 모드에는 편집한 텍스처가 필요합니다.",
     "A three-quarter view for depth checks.": "깊이를 확인하는 3/4 보기입니다.",
     "A topology command is already waiting for the selection gesture.": "토폴로지 명령이 이미 선택 제스처를 기다리고 있습니다.",
     "A u32 count and that many u32 keys: base lists 999000, 998003, 0, 8, 10, 11; dlc_01 lists 1001, 1002, 1003, 1005, 1006, 998002. Archive Browser lists the keys (2026-11-01, game 1.0.0.3446).": "u32 개수와 그 수만큼의 u32 키: base는 999000, 998003, 0, 8, 10, 11, dlc_01은 1001, 1002, 1003, 1005, 1006, 998002를 나열합니다. 아카이브 브라우저가 키를 나열합니다(2026-11-01, 게임 1.0.0.3446).",

@@ -496,6 +496,7 @@
     "A texture resource exceeds the package size limit.": "纹理资源超出包大小限制。",
     "A texture target must end in .dds.": "纹理目标必须以 .dds 结尾。",
     "A texture that several parts share names the parts it changes. A layer the shader combines from a material is not shown on the model while you paint. Build Mod lists each edited texture and writes it at its own game path in the same mod, in the original's format, size and mips; a texture you left unchanged is not written. Texture edits have their own Undo in the Texture Editor window, are not yet kept in drafts, and have not been checked in game.": "被多个部件共用的纹理会列出它所更改的部件。着色器从材质合成的图层在绘制时不会显示在模型上。“构建模组”会列出每个编辑过的纹理，并按原纹理的格式、尺寸和 Mip 写入同一模组中它自己的游戏路径；未更改的纹理不会写入。纹理编辑在“纹理编辑器”窗口中有自己的“撤消”，目前还不会保存在草稿中，也尚未在游戏中验证。",
+    "A texture-only mod needs edited textures.": "仅含纹理的模组需要编辑过的纹理。",
     "A three-quarter view for depth checks.": "用于检查深度的四分之三视图。",
     "A topology command is already waiting for the selection gesture.": "拓扑命令已在等待选择手势。",
     "A u32 count and that many u32 keys: base lists 999000, 998003, 0, 8, 10, 11; dlc_01 lists 1001, 1002, 1003, 1005, 1006, 998002. Archive Browser lists the keys (2026-11-01, game 1.0.0.3446).": "一个 u32 计数，后跟同样数量的 u32 键：base 列出 999000、998003、0、8、10、11；dlc_01 列出 1001、1002、1003、1005、1006、998002。归档浏览器会列出这些键（2026-11-01，游戏 1.0.0.3446）。",

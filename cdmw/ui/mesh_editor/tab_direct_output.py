@@ -109,10 +109,18 @@ class MeshEditorDirectOutputMixin:
         entry = self._mesh_output_target()
         if entry is None:
             return
+        textures_only = False
         if not self._standalone_export_validation_ok():
-            self.status_message_requested.emit("Run validation successfully before building a mesh mod.", True)
-            _tab.QMessageBox.warning(self, "Build Mod", "Run validation successfully before building a mesh mod.")
-            return
+            # Edited textures alone still make a mod (step 8): with no mesh change
+            # there is nothing to validate, and the mesh is left as it is.
+            from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import unfinished_editor_steps
+
+            plan = self._live_texture_plan() if hasattr(self, "_live_texture_plan") else None
+            textures_only = bool(plan is not None and plan.outputs and not unfinished_editor_steps(self))
+            if not textures_only:
+                self.status_message_requested.emit("Run validation successfully before building a mesh mod.", True)
+                _tab.QMessageBox.warning(self, "Build Mod", "Run validation successfully before building a mesh mod.")
+                return
         controller = self.standalone_controller
         if self._mesh_direct_output_busy() or self._standalone_action_worker_active():
             self.status_message_requested.emit("Wait for the current Mesh Editor task to finish.", True)
@@ -182,7 +190,7 @@ class MeshEditorDirectOutputMixin:
             or current_target is None
             or current_target.identity != entry.identity
             or self.standalone_export_validation_revision != revision
-            or not self._standalone_export_validation_ok()
+            or not (textures_only or self._standalone_export_validation_ok())
         ):
             self.status_message_requested.emit("Validation result ignored because the mesh changed; run validation again.", True)
             return
@@ -206,6 +214,7 @@ class MeshEditorDirectOutputMixin:
             include_refit_body=include_body,
             keep_layers=keep_layers,
             texture_outputs=texture_plan.outputs if texture_plan is not None else (),
+            textures_only=textures_only,
         )
 
     def _mesh_mod_body_entries(self, controller, entry) -> tuple[tuple, object]:
@@ -253,6 +262,7 @@ class MeshEditorDirectOutputMixin:
         include_refit_body: bool = False,
         keep_layers: tuple[str, ...] = (),
         texture_outputs: tuple = (),
+        textures_only: bool = False,
     ) -> bool:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -270,6 +280,7 @@ class MeshEditorDirectOutputMixin:
             # The editor session's folder is gone after Finish; encode in workspace\temp.
             extra["texture_outputs"] = tuple(texture_outputs)
             extra["texture_work_root"] = workspace_temp_folder() / "mesh-texture-output"
+            extra["textures_only"] = bool(textures_only)
         if kind != "archive_result":
             from cdmw.services.mesh_archive_results import RESULT_NOTES
             dependencies = getattr(self, "archive_session_dependencies", None)

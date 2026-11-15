@@ -678,13 +678,16 @@ class AutomationBridge(QObject):
     def _texture_edit(self, args: dict) -> bool:
         """One edit in the Texture Editor window, as its controls make it: ``hue`` adds a
         Hue / Saturation adjustment and commits ``value``; ``undo`` and ``redo`` step the
-        window's history."""
+        window's history; ``close`` closes the window."""
 
         window = self._texture_editor_window()
         editor = getattr(window, "editor", None)
         if editor is None or getattr(editor, "document", None) is None:
             return False
         action = str(args.get("action", "hue"))
+        if action == "close":
+            window.close()  # as its title bar's close button: hides it, the edit stays
+            return not window.isVisible()
         if action == "undo":
             editor.undo()
             return True
