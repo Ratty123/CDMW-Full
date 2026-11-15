@@ -19,6 +19,7 @@ from cdmw.core.recolor_variants import (
     RecolorVariantTemplate,
     analyze_recolor_variant_package,
     build_recolor_variant_outputs,
+    default_recolor_output_profiles,
     default_recolor_variant_templates,
     export_recolor_variant_templates,
     import_recolor_variant_templates,
@@ -379,6 +380,51 @@ class RecolorVariantTests(unittest.TestCase):
             self.assertTrue(result.succeeded, result.errors)
             output_sidecar = result.output_roots[0] / "character" / "modelproperty" / "weapon.pac_xml"
             self.assertIn('Value="#aabbccff"', output_sidecar.read_text(encoding="utf-8"))
+
+    def test_material_colors_in_long_armor_sidecar_paths_keep_distinct_targets(self) -> None:
+        # Armour sidecar paths run past the 96-character id limit; ids must
+        # still tell every colour apart or the build changes none of them.
+        relative = "character/modelproperty/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_00_0374.pac_xml"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            mod_root = root / "LongMod"
+            sidecar = mod_root.joinpath(*relative.split("/"))
+            sidecar.parent.mkdir(parents=True)
+            source_text = """﻿<SkinnedMeshMaterialWrapper _subMeshName="Body">
+  <Material _materialName="SkinnedMeshStandard_Ver2">
+    <Vector Name="_parameters">
+      <MaterialParameterColor StringItemID="_tintColorR" _name="_tintColorR" _value="#857751ff" Index="11"/>
+      <MaterialParameterColor StringItemID="_tintColorG" _name="_tintColorG" _value="#705747ff" Index="12"/>
+      <MaterialParameterColor StringItemID="_scratchTintColorR" _name="_scratchTintColorR" _value="#ffffff00" Index="13"/>
+    </Vector>
+  </Material>
+</SkinnedMeshMaterialWrapper>
+""".replace("\n", "\r\n")
+            sidecar.write_bytes(source_text.encode("utf-8"))
+            analysis = analyze_recolor_variant_package(mod_root)
+            material_targets = [target for target in analysis.targets if target.target_kind == "material_color"]
+            self.assertEqual(3, len(material_targets))
+            self.assertEqual(3, len({target.target_id for target in material_targets}))
+            self.assertTrue(all(len(target.target_id) <= 96 for target in material_targets))
+
+            template = RecolorVariantTemplate(
+                template_id="tint",
+                name="Tint",
+                rules=(RecolorVariantRule(target_kind="material_color", parameter_name="_tintColorR", target_color="#7a1c1c"),),
+            )
+            result = build_recolor_variant_outputs(
+                analysis,
+                template,
+                root / "out",
+                default_recolor_output_profiles(),
+                overwrite_existing=True,
+            )
+
+            self.assertTrue(result.succeeded, result.errors)
+            self.assertEqual((f"{relative}:_tintColorR",), result.changed_material_paths)
+            output_bytes = result.output_roots[0].joinpath(*relative.split("/")).read_bytes()
+            expected = source_text.replace('_value="#857751ff"', '_value="#7A1C1Cff"').encode("utf-8")
+            self.assertEqual(expected.lower(), output_bytes.lower())
 
     def test_global_templates_import_export_json(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

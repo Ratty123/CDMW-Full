@@ -82,6 +82,52 @@ def test_imported_materials_use_retained_converter_and_preserve_unselected_bindi
     assert state.parts[0].material_choice == "imported"
 
 
+@pytest.fixture
+def target1_is_a_helper(monkeypatch):
+    """Treat fixture part target1 as a helmet's ``*_inside`` helper wrapper."""
+    import cdmw.modding.material_replacer as replacer
+    import cdmw.modding.material_source_driven as routing
+    helper = lambda name: str(name).casefold() == "target1"  # noqa: E731
+    monkeypatch.setattr(replacer, "is_static_replacement_helper_material_name", helper)
+    monkeypatch.setattr(routing, "is_static_replacement_helper_material_name", helper)
+
+
+def test_imported_material_mapped_only_to_a_helper_target_names_it(editor, tmp_path, target1_is_a_helper):
+    """A user mapped a helmet piece to ``_inside`` and Apply said only "no proven
+    target binding"; the mapping step and Apply now name the helper target."""
+    from cdmw.services.mesh_rust_replacement import imported_material_status
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot)
+    dependencies = capture_replacement_dependencies(target, context)
+    keys = tuple(part.part_id for part in initial_replacement_state(snapshot).parts)
+    pending = prepare_import(snapshot, model, target_part_ids=(keys[1],), entry=target, dependencies=dependencies)
+    assert imported_material_status(pending)["helper_targets"] == [keys[1]]
+    with pytest.raises(ValueError, match=r"^target1 is a helper material for the inside of the model .* "
+                                         r"or choose Keep Original Materials\.$"):
+        prepare_imported_materials(pending, (keys[1],), tmp_path)
+    plain = prepare_import(snapshot, model, target_part_ids=(keys[0],), entry=target, dependencies=dependencies)
+    assert imported_material_status(plain)["helper_targets"] == []
+
+
+def test_helper_target_sharing_a_routed_material_is_allowed(editor, tmp_path, target1_is_a_helper):
+    """The helper wrapper keeps the game's material; the shared imported material
+    still reaches the main part, so Apply goes ahead."""
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot)
+    model.write_text("mtllib import.mtl\nusemtl imported\nv 12 3 7\nv 16 3 7\nv 12 5 8\nvt 0 0\nvt 1 0\nvt 0 1\n"
+                     "o shell\nf 1/1 2/2 3/3\no lining\nf 1/1 3/3 2/2\n")
+    dependencies = capture_replacement_dependencies(target, context)
+    keys = tuple(part.part_id for part in initial_replacement_state(snapshot).parts)
+    pending = prepare_import(snapshot, model, target_part_ids=keys, entry=target, dependencies=dependencies)
+    assert len(pending.source.mesh.submeshes) == 2
+    files = prepare_imported_materials(pending, keys, tmp_path)
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    replaced, helper = text.split('_subMeshName="target1"')
+    assert "original0.dds" not in replaced and "original1.dds" in helper
+
+
 def test_imported_materials_are_built_with_the_weights_choice_apply_will_use(editor, tmp_path, monkeypatch):
     """A rig that cannot be kept has no default choice, so the materials pass must
     compose with the chosen one or Apply stops asking for a choice already made."""

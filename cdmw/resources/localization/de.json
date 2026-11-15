@@ -18278,6 +18278,7 @@
     "{value_0} influenced vertices are in hidden Parts": "Von {value_0} beeinflusste Scheitelpunkte befinden sich in verborgenen Teilen",
     "{value_0} influenced vertices · {value_1} {value_2}": "{value_0} beeinflusste Scheitelpunkte · {value_1} {value_2}",
     "{value_0} invalid rows | {value_1} unnormalized vertices": "{value_0} ungültige Zeilen | Nicht normalisierte Scheitelpunkte von {value_1}",
+    "{value_0} is a helper material for the inside of the model and cannot take imported textures. Map {value_1} to a main part, join it with one before exporting, or choose Keep Original Materials.": "{value_0} ist ein Hilfsmaterial für die Innenseite des Modells und kann keine importierten Texturen aufnehmen. Ordnen Sie {value_1} einem Hauptteil zu, verbinden Sie es vor dem Export mit einem solchen oder wählen Sie „Originalmaterialien behalten“.",
     "{value_0} is a marker that does not move with the body, so bones attached here stay behind when the character moves. For a cape choose Upper back; for hair choose Head.": "{value_0} ist eine Markierung, die sich nicht mit dem Körper bewegt; hier angehängte Knochen bleiben zurück, wenn sich der Charakter bewegt. Wählen Sie für einen Umhang Oberer Rücken, für Haare Kopf.",
     "{value_0} is already defined in this file": "{value_0} ist bereits in dieser Datei definiert",
     "{value_0} is already open in Texture Editor.": "{value_0} ist bereits im Textur-Editor geöffnet.",

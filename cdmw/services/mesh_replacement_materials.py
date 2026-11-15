@@ -108,6 +108,44 @@ def _target_material_names(pending, targets):
     return names
 
 
+def helper_material_targets(pending, targets=None):
+    """Target parts bound to a helper wrapper (``*_inside``, ``*_black``), by part id.
+
+    Imported textures are never routed to these wrappers; they shade a helmet's
+    inside and keep the game's own material.
+    """
+    from cdmw.modding.material_replacer import is_static_replacement_helper_material_name
+    from cdmw.modding.mesh_parser import parse_mesh
+    wanted = set(pending.target_part_ids if targets is None else targets)
+    original = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
+    bindings = material_binding_names(pending.state)
+    helpers = {}
+    for part in pending.state.parts:
+        if part.part_id not in wanted:
+            continue
+        source = original.submeshes[part.target_index]
+        name = material_binding_name(source, bindings)
+        if is_static_replacement_helper_material_name(name):
+            helpers[part.part_id] = source.name or name
+    return helpers
+
+
+def _check_helper_targets(pending, targets):
+    """Refuse an imported part whose only target is a helper wrapper, naming both."""
+    helpers = helper_material_targets(pending, targets)
+    if not helpers:
+        return
+    sources = pending.source.mesh.submeshes
+    routed = {str(part.material or part.name).casefold()
+              for part, target in zip(sources, targets) if target not in helpers}
+    for part, target in zip(sources, targets):
+        if target in helpers and str(part.material or part.name).casefold() not in routed:
+            raise ValueError(
+                f"{helpers[target]} is a helper material for the inside of the model and cannot take imported textures. "
+                f"Map {part.name or part.material} to a main part, join it with one before exporting, "
+                "or choose Keep Original Materials.")
+
+
 def _prune_unreferenced_generated_files(files):
     sidecars = "\n".join(_sidecar_text(file.data).casefold() for file in files.values() if Path(file.path).suffix.lower() in {".pac_xml", ".pami"})
     return tuple(file for key, file in sorted(files.items())
@@ -193,6 +231,7 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
         raise ValueError("Imported materials require one source material part per target part.")
     if not pending.state.dependencies:
         raise ValueError("Imported materials require the original material sidecar and texture dependencies.")
+    _check_helper_targets(pending, targets)
     names = _target_material_names(pending, targets)
     candidate, candidate_state = compose_import(pending, targets, material_choice="imported", companion_files=(),
                                                 skin_policy=skin_policy)

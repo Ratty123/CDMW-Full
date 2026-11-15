@@ -4,6 +4,7 @@ from cdmw.core.atomic_file import atomic_publish_paths
 
 import dataclasses
 import fnmatch
+import hashlib
 import json
 import re
 import shutil
@@ -583,10 +584,11 @@ def build_recolor_variant_outputs(
                 warnings.append(f"Skipped missing material sidecar payload: {sidecar_path}")
                 continue
             try:
-                text = sidecar_file.read_text(encoding="utf-8-sig", errors="replace")
+                # Decode bytes as-is so the BOM and line endings survive the rewrite.
+                text = sidecar_file.read_bytes().decode("utf-8", errors="replace")
                 updated_text, changed_names = _apply_material_color_rules(text, entries)
                 if changed_names:
-                    sidecar_file.write_text(updated_text, encoding="utf-8")
+                    sidecar_file.write_bytes(updated_text.encode("utf-8"))
                     changed_material_paths.extend(f"{sidecar_path}:{name}" for name in changed_names)
             except Exception as exc:
                 errors.append(f"{sidecar_path}: {exc}")
@@ -1195,7 +1197,13 @@ def _read_zip_member_bytes(archive: zipfile.ZipFile, member_path: str, normalize
 
 def _target_id(kind: str, path_value: str, label: str = "", occurrence: int | str = "") -> str:
     raw = "|".join(str(part or "") for part in (kind, path_value, label, occurrence))
-    return _safe_slug(raw)[:96]
+    slug = _safe_slug(raw)
+    if len(slug) <= 96:
+        return slug
+    # Long sidecar paths would otherwise cut off the parameter name and
+    # occurrence, giving every colour in the file the same id.
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"{slug[:79]}_{digest}"
 
 
 def _safe_slug(value: str) -> str:

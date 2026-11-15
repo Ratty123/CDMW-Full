@@ -126,8 +126,10 @@ def imported_material_status(pending):
                  for _role, texture in getattr(binding, "texture_slots", ()) or ())
     status = {"error": pending.material_error, "textures": len(files)}
     if not pending.material_error:
-        from cdmw.services.mesh_replacement_materials import imported_surface_defaults
+        from cdmw.services.mesh_replacement_materials import helper_material_targets, imported_surface_defaults
         status["surface"] = {**imported_surface_defaults(pending), "reason": imported_surface_support(pending)}
+        # The mapping step warns before Apply when a part goes to one of these.
+        status["helper_targets"] = sorted(helper_material_targets(pending))
     return status
 
 

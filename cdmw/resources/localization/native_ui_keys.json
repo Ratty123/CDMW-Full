@@ -2841,6 +2841,7 @@
   "{value_0} has weights without their imported rig identity.",
   "{value_0} influenced vertices are in hidden Parts",
   "{value_0} influenced vertices · {value_1} {value_2}",
+  "{value_0} is a helper material for the inside of the model and cannot take imported textures. Map {value_1} to a main part, join it with one before exporting, or choose Keep Original Materials.",
   "{value_0} made no change",
   "{value_0} made no change: {value_1}",
   "{value_0} masked Parts",
