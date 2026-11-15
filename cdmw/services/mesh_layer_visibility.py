@@ -88,11 +88,13 @@ def prepare_layer_visibility(
     *,
     stop_event=None,
     on_log: Callable[[str], None] | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> LayerVisibilityOutput:
     """Plan the prefab and descriptor patches for ``pac_path``.
 
     ``entries`` maps normalized archive paths to entries of the mounted game, and
-    ``read`` returns an entry's bytes. Refuses rather than guessing.
+    ``read`` returns an entry's bytes. ``on_progress(done, total)`` follows the prefab
+    scan. Refuses rather than guessing.
     """
     choice = BodyVisibilityChoice(keep_receivers=frozenset(keep_layers))
     choice.validate()
@@ -113,6 +115,8 @@ def prepare_layer_visibility(
     for index, path in enumerate(prefabs):
         if index % 256 == 0:
             raise_if_cancelled(stop_event, "Layer visibility lookup cancelled.")
+            if on_progress:
+                on_progress(index, len(prefabs))
         entry = entries[path]
         if int(getattr(entry, "orig_size", 0) or 0) > _MAX_PREFAB_BYTES:
             continue

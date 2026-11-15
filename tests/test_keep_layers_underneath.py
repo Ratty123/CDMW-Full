@@ -199,6 +199,17 @@ def test_mesh_output_refuses_without_layers_or_a_binding_prefab():
         prepare_layer_visibility(PAC, ("Underwear",), without, read)
 
 
+def test_mesh_output_reports_its_prefab_scan_progress():
+    # Build Mod's status line used to sit still for the whole scan, which looked hung.
+    entries, read = mesh_entries(mesh_files())
+    seen = []
+    prepare_layer_visibility(PAC, ("Underwear",), entries, read, on_progress=lambda done, total: seen.append((done, total)))
+    assert seen and seen[0] == (0, 3)
+    assert all(total == 3 and 0 <= done < total for done, total in seen)
+    # Without a callback the scan runs as before.
+    assert prepare_layer_visibility(PAC, ("Underwear",), entries, read).patches
+
+
 def test_mesh_output_names_layers_the_rule_never_cut_last():
     entries, read = mesh_entries(mesh_files())
     out = prepare_layer_visibility(PAC, ("Underwear", "Lowerbody"), entries, read)

@@ -5666,7 +5666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_visibility.py",
-          "line": 195,
+          "line": 199,
           "sink": "ValueError"
         }
       ]
@@ -13986,7 +13986,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 819,
+          "line": 829,
           "sink": "ValueError"
         }
       ]
@@ -14946,7 +14946,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 817,
+          "line": 827,
           "sink": "ValueError"
         }
       ]
@@ -31711,7 +31711,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_visibility.py",
-          "line": 100,
+          "line": 102,
           "sink": "ValueError"
         }
       ]
@@ -43256,7 +43256,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 887,
+          "line": 897,
           "sink": "ValueError"
         }
       ]
@@ -43316,7 +43316,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 913,
+          "line": 923,
           "sink": "RuntimeError"
         }
       ]
@@ -43366,7 +43366,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 940,
+          "line": 950,
           "sink": "RuntimeError"
         }
       ]
@@ -59051,7 +59051,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 807,
+          "line": 817,
           "sink": "ValueError"
         }
       ]
@@ -60911,7 +60911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_visibility.py",
-          "line": 109,
+          "line": 111,
           "sink": "on_log"
         }
       ]
@@ -81931,12 +81931,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_visibility.py",
-          "line": 115,
+          "line": 117,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_visibility.py",
-          "line": 198,
+          "line": 202,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -85791,7 +85791,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 805,
+          "line": 815,
           "sink": "ValueError"
         }
       ]
@@ -133211,7 +133211,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 838,
+          "line": 848,
           "sink": "ValueError"
         }
       ]
@@ -167541,7 +167541,7 @@
         },
         {
           "path": "cdmw/services/mesh_layer_visibility.py",
-          "line": 200,
+          "line": 204,
           "sink": "ValueError"
         }
       ]
@@ -168741,7 +168741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_visibility.py",
-          "line": 103,
+          "line": 105,
           "sink": "ValueError"
         }
       ]
@@ -188873,6 +188873,11 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 684,
           "sink": "tr"
+        },
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 703,
+          "sink": "emit"
         }
       ]
     },
@@ -216621,7 +216626,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 698,
+          "line": 708,
           "sink": "ValueError"
         }
       ]
@@ -217121,7 +217126,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_visibility.py",
-          "line": 128,
+          "line": 132,
           "sink": "ValueError"
         }
       ]
@@ -220761,7 +220766,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1008,
+          "line": 1018,
           "sink": "emit"
         },
         {

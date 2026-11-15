@@ -685,12 +685,22 @@ class MeshDirectOutputWorker(QObject):
 
         self.progress_changed.emit(self.request_id, 60, "Reading the game's prefabs and shrink rules...")
         entries = mounted_entries(archive_entry_game_root(self.entry), wanted_for_layers, stop_event=self.stop_event)
+        status = ["Reading the game's prefabs and shrink rules..."]
+
+        def log(message):
+            status[0] = message
+            self.progress_changed.emit(self.request_id, 70, message)
+
         layers = prepare_layer_visibility(
             self.entry.path, self.keep_layers, entries,
             lambda item: read_archive_entry_data(item, self.stop_event)[0],
             stop_event=self.stop_event,
-            on_log=lambda message: self.progress_changed.emit(self.request_id, 70, message),
+            on_log=log,
+            # The scan's own message, moving from 70 to 80 %: it no longer sits still.
+            on_progress=lambda done, total: self.progress_changed.emit(self.request_id, 70 + 10 * done // max(1, total), status[0]),
         )
+        # Writing the mod reports nothing of its own; say so instead of leaving the scan's message up.
+        self.progress_changed.emit(self.request_id, 80, "Writing the mod folder...")
         normalize = lambda path: str(path).replace("\\", "/").casefold()
         taken = {normalize(request.entry.path) for request in requests} | {normalize(item.path) for item in additions}
         for entry, data in layers.patches:
