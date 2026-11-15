@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import shiboken6
 import pytest
-from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtCore import QEventLoop, QProcess, QTimer
 from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.archives.catalogue_operations import (
@@ -22,6 +22,7 @@ from cdmw.ui.shell.archive_backend_client import (
     ARCHIVE_BACKEND_STDERR_LIMIT,
     ArchiveBackendClient,
     ArchiveBackendClientState,
+    describe_worker_exit,
 )
 
 
@@ -237,6 +238,19 @@ def test_reply_burst_yields_to_ui_and_keeps_terminal_reply_on_exit(tmp_path, exi
         _shutdown(client)
 
 
+def test_worker_exit_description_names_windows_crash_codes() -> None:
+    # QProcess reports NTSTATUS codes as negative signed ints on Windows.
+    text = describe_worker_exit(-1073741795, QProcess.ExitStatus.CrashExit)
+    assert text.startswith("Archive worker exit: code 0xC000001D (3221225501), status CrashExit")
+    assert "illegal instruction" in text
+    assert describe_worker_exit(0xC0000135, "CrashExit").endswith(
+        "a DLL was not found; antivirus may have removed a worker file"
+    )
+    assert describe_worker_exit(1, QProcess.ExitStatus.NormalExit) == (
+        "Archive worker exit: code 0x00000001 (1), status NormalExit"
+    )
+
+
 def test_qprocess_client_reports_crashes_without_replaying_operations(tmp_path: Path) -> None:
     client = _client(tmp_path)
     crashes: list[str] = []
@@ -255,6 +269,8 @@ def test_qprocess_client_reports_crashes_without_replaying_operations(tmp_path: 
     assert next(error for target, error in failures if target == request_id).code == "worker_crashed"
     assert not results
     assert len(crashes) == 1
+    assert "Archive worker exit: code 0x00000049 (73)" in crashes[0]
+    assert "Archive worker exit: code 0x00000049 (73)" in client.diagnostics_tail
     operations = (tmp_path / "stub-operations.log").read_text(encoding="utf-8").splitlines()
     assert operations.count("cache_health") == 1
 
