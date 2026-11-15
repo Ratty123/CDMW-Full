@@ -18971,7 +18971,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 382,
+          "line": 389,
           "sink": "rust-presentation"
         },
         {
@@ -27686,7 +27686,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 287,
+          "line": 294,
           "sink": "rust-presentation"
         }
       ]
@@ -30756,7 +30756,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 333,
+          "line": 340,
           "sink": "rust-presentation"
         }
       ]
@@ -31351,7 +31351,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 214,
+          "line": 221,
           "sink": "rust-presentation"
         }
       ]
@@ -37271,7 +37271,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 440,
+          "line": 447,
           "sink": "rust-presentation"
         },
         {
@@ -39911,7 +39911,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 143,
+          "line": 150,
           "sink": "rust-presentation"
         }
       ]
@@ -45196,7 +45196,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 247,
+          "line": 254,
           "sink": "rust-presentation"
         }
       ]
@@ -45456,7 +45456,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 252,
+          "line": 259,
           "sink": "rust-presentation"
         }
       ]
@@ -51171,7 +51171,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 466,
+          "line": 473,
           "sink": "rust-presentation"
         },
         {
@@ -62086,7 +62086,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 263,
+          "line": 287,
           "sink": "python-return:shader_controls_ui_state"
         }
       ]
@@ -65976,7 +65976,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 419,
+          "line": 426,
           "sink": "rust-presentation"
         }
       ]
@@ -70896,7 +70896,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 393,
+          "line": 400,
           "sink": "rust-presentation"
         }
       ]
@@ -78716,7 +78716,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 372,
+          "line": 396,
           "sink": "ValueError"
         }
       ]
@@ -78806,7 +78806,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 283,
+          "line": 307,
           "sink": "ValueError"
         }
       ]
@@ -78816,7 +78816,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 308,
+          "line": 332,
           "sink": "ValueError"
         }
       ]
@@ -81511,12 +81511,12 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 170,
+          "line": 177,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 172,
+          "line": 179,
           "sink": "rust-presentation"
         }
       ]
@@ -83716,7 +83716,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 400,
+          "line": 407,
           "sink": "rust-presentation"
         }
       ]
@@ -83781,7 +83781,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 413,
+          "line": 420,
           "sink": "rust-presentation"
         }
       ]
@@ -88641,7 +88641,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 124,
+          "line": 131,
           "sink": "rust-presentation"
         }
       ]
@@ -105781,7 +105781,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 358,
+          "line": 365,
           "sink": "rust-presentation"
         }
       ]
@@ -105791,7 +105791,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 314,
+          "line": 321,
           "sink": "rust-presentation"
         }
       ]
@@ -106361,7 +106361,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 221,
+          "line": 228,
           "sink": "rust-presentation"
         }
       ]
@@ -106786,7 +106786,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 196,
+          "line": 203,
           "sink": "rust-presentation"
         }
       ]
@@ -110951,12 +110951,12 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 289,
+          "line": 296,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 337,
+          "line": 344,
           "sink": "rust-presentation"
         },
         {
@@ -111356,12 +111356,12 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 312,
+          "line": 319,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 359,
+          "line": 366,
           "sink": "rust-presentation"
         }
       ]
@@ -115081,7 +115081,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 133,
+          "line": 140,
           "sink": "rust-presentation"
         }
       ]
@@ -115091,7 +115091,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 131,
+          "line": 138,
           "sink": "rust-presentation"
         }
       ]
@@ -115346,12 +115346,12 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 125,
+          "line": 136,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 205,
+          "line": 216,
           "sink": "ValueError"
         }
       ]
@@ -118386,7 +118386,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 404,
+          "line": 411,
           "sink": "rust-presentation"
         }
       ]
@@ -121851,7 +121851,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 228,
+          "line": 235,
           "sink": "rust-presentation"
         },
         {
@@ -133451,7 +133451,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 353,
+          "line": 360,
           "sink": "rust-presentation"
         }
       ]
@@ -133811,7 +133811,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 375,
+          "line": 382,
           "sink": "rust-presentation"
         }
       ]
@@ -135526,7 +135526,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 332,
+          "line": 339,
           "sink": "rust-presentation"
         }
       ]
@@ -135546,7 +135546,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 357,
+          "line": 364,
           "sink": "rust-presentation"
         }
       ]
@@ -139681,17 +139681,17 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 374,
+          "line": 381,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 377,
+          "line": 384,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 469,
+          "line": 476,
           "sink": "rust-presentation"
         },
         {
@@ -139726,7 +139726,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 345,
+          "line": 352,
           "sink": "rust-presentation"
         }
       ]
@@ -140566,7 +140566,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 290,
+          "line": 297,
           "sink": "rust-presentation"
         }
       ]
@@ -141476,7 +141476,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 194,
+          "line": 201,
           "sink": "rust-presentation"
         }
       ]
@@ -144281,7 +144281,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 229,
+          "line": 236,
           "sink": "rust-presentation"
         }
       ]
@@ -144326,7 +144326,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 242,
+          "line": 249,
           "sink": "rust-presentation"
         }
       ]
@@ -145031,7 +145031,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 231,
+          "line": 238,
           "sink": "rust-presentation"
         }
       ]
@@ -150256,7 +150256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 306,
+          "line": 330,
           "sink": "ValueError"
         }
       ]
@@ -154271,7 +154271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 420,
+          "line": 444,
           "sink": "ValueError"
         }
       ]
@@ -156021,7 +156021,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 434,
+          "line": 441,
           "sink": "rust-presentation"
         }
       ]
@@ -156776,7 +156776,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 436,
+          "line": 443,
           "sink": "rust-presentation"
         }
       ]
@@ -158166,12 +158166,12 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 417,
+          "line": 424,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 417,
+          "line": 424,
           "sink": "rust-presentation"
         }
       ]
@@ -160271,7 +160271,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 137,
+          "line": 144,
           "sink": "rust-presentation"
         }
       ]
@@ -160476,7 +160476,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 365,
+          "line": 372,
           "sink": "rust-presentation"
         }
       ]
@@ -167436,7 +167436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 350,
+          "line": 374,
           "sink": "ValueError"
         }
       ]
@@ -169386,7 +169386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 335,
+          "line": 359,
           "sink": "ValueError"
         }
       ]
@@ -169396,7 +169396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 337,
+          "line": 361,
           "sink": "ValueError"
         }
       ]
@@ -169406,7 +169406,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 347,
+          "line": 371,
           "sink": "ValueError"
         }
       ]
@@ -170591,7 +170591,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 423,
+          "line": 430,
           "sink": "rust-presentation"
         }
       ]
@@ -170801,7 +170801,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 395,
+          "line": 402,
           "sink": "rust-presentation"
         }
       ]
@@ -170876,12 +170876,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 359,
+          "line": 383,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 361,
+          "line": 385,
           "sink": "ValueError"
         }
       ]
@@ -173136,7 +173136,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 139,
+          "line": 146,
           "sink": "rust-presentation"
         }
       ]
@@ -173756,7 +173756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 416,
+          "line": 440,
           "sink": "ValueError"
         }
       ]
@@ -176672,6 +176672,16 @@
       ]
     },
     {
+      "key": "This net veil also uses detail layers: its lace sits in the detail textures, tiled by the Mask R transform. The preview draws only the net and the height map, so the lace pattern and its density are not shown correctly. Judge them in game.",
+      "origins": [
+        {
+          "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
+          "line": 125,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
       "key": "This object's kind was worked out from its position in the file, not read from it. The fields below may belong to something else.",
       "origins": [
         {
@@ -176801,7 +176811,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 268,
+          "line": 275,
           "sink": "rust-presentation"
         }
       ]
@@ -185336,7 +185346,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 173,
+          "line": 180,
           "sink": "rust-presentation"
         }
       ]
@@ -185436,7 +185446,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 338,
+          "line": 345,
           "sink": "rust-presentation"
         }
       ]
@@ -189242,7 +189252,7 @@
       ]
     },
     {
-      "key": "Wedding veil A",
+      "key": "Wedding veil before the patch: _01 part",
       "origins": [
         {
           "path": "cdmw/domain/mesh/shader_controls.py",
@@ -189252,7 +189262,27 @@
       ]
     },
     {
-      "key": "Wedding veil B",
+      "key": "Wedding veil before the patch: cloth",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Wedding veil: _01 part",
+      "origins": [
+        {
+          "path": "cdmw/domain/mesh/shader_controls.py",
+          "line": 1,
+          "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Wedding veil: cloth",
       "origins": [
         {
           "path": "cdmw/domain/mesh/shader_controls.py",
@@ -222326,7 +222356,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
-          "line": 152,
+          "line": 159,
           "sink": "rust-presentation"
         }
       ]
@@ -223616,7 +223646,7 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 57,
+          "line": 68,
           "sink": "ValueError"
         }
       ]
@@ -223676,7 +223706,7 @@
       "origins": [
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 268,
+          "line": 279,
           "sink": "ValueError"
         }
       ]
@@ -224701,7 +224731,7 @@
         },
         {
           "path": "cdmw/services/shader_controls_preview.py",
-          "line": 218,
+          "line": 229,
           "sink": "payload"
         }
       ]

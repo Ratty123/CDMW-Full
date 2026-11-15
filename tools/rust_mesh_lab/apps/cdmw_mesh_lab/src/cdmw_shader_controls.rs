@@ -119,6 +119,13 @@ impl LabApplication {
                 }
             };
             if let Some(row) = rows.first() {
+                // The host names a known limit by code; the sentence is the inspector's.
+                if row["preview_warning"].as_str() == Some("layered_veil") {
+                    ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr(
+                        "This net veil also uses detail layers: its lace sits in the detail textures, tiled by the Mask R transform. \
+                         The preview draws only the net and the height map, so the lace pattern and its density are not shown \
+                         correctly. Judge them in game."));
+                }
                 let path = row["source"]["path"].as_str().unwrap_or("");
                 if !path.is_empty() {
                     ui.small(crate::localization::tr(format!("Material file: {}", path.rsplit('/').next().unwrap_or(path))))

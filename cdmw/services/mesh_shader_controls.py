@@ -166,7 +166,7 @@ def _shader_source_options(session):
         elif len(wrappers) != len(candidates):
             wrappers = ()
         if state is None:
-            values, textures = source_inputs(part)
+            values, textures = source_inputs(part, owner)
             inputs = getattr(part, "preview_material_texture_inputs", ()) or ()
             shaders = {str(item.get("shader_family", "") if isinstance(item, dict) else getattr(item, "shader_family", "")) for item in inputs}
             shaders.discard("")
@@ -175,10 +175,13 @@ def _shader_source_options(session):
                 shader = next(iter(shaders))
             candidates = ((shader, values, textures),)
             # Before the first edit only the preview's resolved wrapper is known.
+            # A texture parameter also appears among the values with no value;
+            # its row shows the resolved path instead of a blank.
             wrappers = ({"slot": owner, "variant_label": "", "rows": [
-                *({"kind": "", "name": key, "item_id": "", "index": None, "value": str(value)} for key, value in values.items()),
+                *({"kind": "Texture" if textures.get(key) else "", "name": key, "item_id": "", "index": None,
+                   "value": textures.get(key) or str(value)} for key, value in values.items()),
                 *({"kind": "Texture", "name": key, "item_id": "", "index": None, "value": path}
-                  for key, path in textures.items() if path)]},)
+                  for key, path in textures.items() if path and key not in values)]},)
             if not static and not sidecar_path:
                 sidecar_path = str(getattr(session.working_mesh, "path", "") or "").replace("\\", "/").replace(
                     "/model/", "/modelproperty/", 1) + "_xml"
@@ -192,8 +195,29 @@ def _shader_source_options(session):
             options = dict.fromkeys(options, "Restore Glow and Translucency before choosing another shader experiment.")
         result[index] = {"source_shader": ", ".join(dict.fromkeys(source[0] for source in candidates)), "shader_options": options,
                          "source": {"path": sidecar_path, "part": name, "viewport_slot": owner},
+                         "preview_warning": _preview_warning(candidates),
                          **_authored_panel_state(candidates, options, wrappers)}
     return result
+
+
+# The inspector shows its own localized sentence for each code.
+_LAYERED_VEIL_WARNING = "layered_veil"
+
+
+def _preview_warning(candidates):
+    """A line for the inspector when the preview cannot show what this material draws."""
+    for shader, values, textures in candidates:
+        if shader != "SkinnedMeshTransparency":
+            continue
+        detail = any(name.startswith("_detail") and name.endswith(("MaskR", "MaskG", "MaskB")) and (textures.get(name) or values.get(name))
+                     for name in (*values, *textures))
+        try:
+            flags = int(str(values.get("_colorBlendingFlag", "0") or "0"), 0)
+        except ValueError:
+            flags = 0
+        if detail or flags & 0xFFF:
+            return _LAYERED_VEIL_WARNING
+    return ""
 
 
 def _owner_slot(part):

@@ -171,15 +171,21 @@ BLENDED_FIELD_HELP = {
 }
 # Starting points taken from shipped materials and released community mods, so a
 # slider session can begin from numbers that are known to work in game.
-# Veil A/B: the two wrappers of cd_phw_00_hel_00_0219 (decoded 2026-11-12).
+# Wedding veil: the two net wrappers of cd_phw_00_hel_00_0219 as the game ships
+# them since the November 2026 patch (veil cloth, and the _01 part), then the
+# same two wrappers before that patch, which also set _uvScale and _dyeingColor.
 # Sheer fabric: Angel Teddy / Angel Outfit SkinnedMeshGlass cloth. The light
 # preset folds that mod's 0xd7 glass-colour alpha into Opacity (0.40 x 0.843),
 # because colour edits keep the source alpha.
 SHADER_PRESETS = {
     "SkinnedMeshTransparency": (
-        ("Wedding veil A", (("_netPitch", (.334,)), ("_netThread", (.538,)), ("_glow", (.443,)), ("_sheen", (.625,)))),
-        ("Wedding veil B", (("_netPitch", (.3,)), ("_netThread", (.727,)), ("_glow", (.516,)), ("_sheen", (.901,)),
-                            ("_uvScale", (.27,)), ("_dyeingColor", (217/255, 217/255, 217/255)))),
+        ("Wedding veil: cloth", (("_netPitch", (.142,)), ("_netThread", (.275,)), ("_glow", (.516,)), ("_sheen", (.901,)))),
+        ("Wedding veil: _01 part", (("_netPitch", (.204,)), ("_netThread", (1.0,)), ("_glow", (.773,)), ("_sheen", (.551,)))),
+        ("Wedding veil before the patch: cloth", (("_netPitch", (.3,)), ("_netThread", (.727,)), ("_glow", (.516,)),
+                                                  ("_sheen", (.901,)), ("_uvScale", (.27,)),
+                                                  ("_dyeingColor", (217/255, 217/255, 217/255)))),
+        ("Wedding veil before the patch: _01 part", (("_netPitch", (.334,)), ("_netThread", (.538,)), ("_glow", (.443,)),
+                                                     ("_sheen", (.625,)))),
         ("Lace veil (community mod)", (("_netPitch", (.3,)), ("_netThread", (.627,)), ("_glow", (.1,)),
                                        ("_sheen", (.901,)), ("_uvScale", (.27,)))),
     ),

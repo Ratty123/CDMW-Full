@@ -19,10 +19,21 @@ EFFECT_NORMAL_PARAMETER = "_hairAnisotropyDetailNormalTexture"
 EYE_COVER_ALPHA_PARAMETER = "_cdmwEyeCoverAlphaTexture"
 
 
-def source_inputs(part):
+def source_inputs(part, owner=-1):
+    """The part's resolved material values and texture paths from preview metadata.
+
+    ``owner`` (a PAC wrapper position) keeps only the inputs resolved from that
+    wrapper. A part's inputs can also carry rows of another wrapper of the same
+    file (a shared texture resolved through it), and merging those would show
+    and preview that wrapper's numbers as this part's.
+    """
     def field(row, name, default=None):
         return row.get(name, default) if isinstance(row, dict) else getattr(row, name, default)
     inputs = tuple(getattr(part, "preview_material_texture_inputs", ()) or ())
+    if isinstance(owner, int) and not isinstance(owner, bool) and owner >= 0:
+        own = tuple(item for item in inputs if field(item, "owner_slot_index", -1) == owner)
+        if own:
+            inputs = own
     parameters = list(getattr(part, "preview_material_parameters", ()) or ())
     textures, values = {}, {}
     for item in inputs:

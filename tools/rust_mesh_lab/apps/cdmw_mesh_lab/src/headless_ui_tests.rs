@@ -9251,6 +9251,27 @@ fn shader_layout_rebuild_is_an_explicit_choice_sent_with_the_controls() -> TestR
 }
 
 #[test]
+fn shader_panel_shows_the_hosts_preview_warning() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let mut state = veil_shader_state();
+    state["parts"][0]["preview_warning"] = json!("layered_veil");
+    ui.application.cdmw_state["shader_controls"] = state;
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    let warning = "This net veil also uses detail layers: its lace sits in the detail textures, tiled by the Mask R transform. \
+                   The preview draws only the net and the height map, so the lace pattern and its density are not shown \
+                   correctly. Judge them in game.";
+    assert!(ui.output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with("This net veil also uses detail layers"))));
+    ui.application.cdmw_state["shader_controls"] = veil_shader_state();
+    ui.settle_layout();
+    assert!(!ui.output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with("This net veil also uses detail layers"))));
+    let _ = warning;
+    Ok(())
+}
+
+#[test]
 fn shader_panel_saves_the_shown_values_as_a_preset_and_deletes_a_saved_one() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
     let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();

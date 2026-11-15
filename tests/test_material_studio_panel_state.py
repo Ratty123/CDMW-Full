@@ -97,7 +97,7 @@ def test_presets_are_valid_controls_for_their_family():
         for label, values in presets:
             ShaderControls(shader, values).validate()
             preview_factors(ShaderControls(shader, values), {})
-    veil_b = dict(SHADER_PRESETS["SkinnedMeshTransparency"])["Wedding veil B"]
+    veil_b = dict(SHADER_PRESETS["SkinnedMeshTransparency"])["Wedding veil before the patch: cloth"]
     assert preview_factors(ShaderControls("SkinnedMeshTransparency", veil_b), {})[:12] == \
         preview_factors(ShaderControls("SkinnedMeshTransparency"), VEIL_B)[:12]
     assert all(family["presets"] == [] for shader, family in catalogue.items() if shader not in SHADER_PRESETS)
@@ -156,3 +156,42 @@ def test_before_the_first_edit_the_source_view_names_the_previews_wrapper():
     values = {item["name"]: item["value"] for item in shown["rows"]}
     assert values["_netPitch"] == "0.300000" and values["_dyeingColor"] == "#d9d9d9ff"
     assert values["_heightTexture"].endswith("_0219_disp.dds")
+
+
+def test_inputs_resolved_through_another_wrapper_do_not_leak_into_the_parts_values():
+    # The 2026-11 patch veil: its own rows are SkinnedMeshTransparency on wrapper 2,
+    # but the preview also lists an input whose rows belong to the ring (wrapper 0).
+    own = (SimpleNamespace(parameter_name="_netPitch", value="0.142000"),
+           SimpleNamespace(parameter_name="_heightTexture", value=""),
+           SimpleNamespace(parameter_name="_scratchRoughness", value="8355717"))
+    ring = (SimpleNamespace(parameter_name="_tintColorG", value="#f0a13cff"),
+            SimpleNamespace(parameter_name="_scratchRoughness", value="11501502"))
+    part = SimpleNamespace(name="cd_phw_00_hel_00_0219", material="cd_phw_00_hel_00_0219",
+                           preview_sidecar_shader_family="SkinnedMeshTransparency", preview_material_parameters=(),
+                           preview_pac_material_owner_slot_index=2)
+    part.preview_material_texture_inputs = (
+        SimpleNamespace(parameter_name="_heightTexture", source_texture_path="character/texture/cd_phw_00_hel_00_0219_02_disp.dds",
+                        material_parameters=own, shader_family="SkinnedMeshTransparency", owner_slot_index=2),
+        SimpleNamespace(parameter_name="_detailMaskTexture", source_texture_path="character/texture/cd_phw_00_hel_00_0161_mg.dds",
+                        material_parameters=ring, shader_family="SkinnedMeshStandard_Ver2", owner_slot_index=0))
+
+    shown = _shader_source_options(session(part))[0]["authored"][0]
+
+    rows = {item["name"]: (item["kind"], item["value"]) for item in shown["rows"]}
+    assert "_tintColorG" not in rows and "_detailMaskTexture" not in rows
+    assert rows["_scratchRoughness"] == ("", "8355717")
+    # A texture parameter shows its resolved path, not a blank.
+    assert rows["_heightTexture"] == ("Texture", "character/texture/cd_phw_00_hel_00_0219_02_disp.dds")
+    assert shown["fields"]["SkinnedMeshTransparency"]["_netPitch"] == [0.142]
+
+
+def test_a_veil_with_ver2_detail_layers_warns_that_the_preview_lacks_the_lace():
+    patched = SimpleNamespace(name="cd_phw_00_hel_00_0219", material="cd_phw_00_hel_00_0219",
+                              preview_sidecar_shader_family="SkinnedMeshTransparency",
+                              preview_material_parameters=(SimpleNamespace(parameter_name="_netPitch", value="0.142000"),
+                                                           SimpleNamespace(parameter_name="_colorBlendingFlag", value="13")))
+    patched.preview_material_texture_inputs = (
+        SimpleNamespace(parameter_name="_detailDiffuseMaskR", source_texture_path="character/texture/cd_phw_00_hel_00_0219.dds",
+                        material_parameters=(), shader_family="SkinnedMeshTransparency"),)
+    assert _shader_source_options(session(patched))[0]["preview_warning"] == "layered_veil"
+    assert _shader_source_options(session(veil_part(VEIL_B)))[0]["preview_warning"] == ""
