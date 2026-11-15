@@ -281,6 +281,16 @@ class EditOperation:
         }
         return tuple(sorted(touched - created))
 
+    def modified_socket_files(self) -> Tuple[Tuple[str, str], ...]:
+        """`(socket file, socket)` for each socket in `modified_sockets`, per file it changed."""
+
+        created = set(self.created_sockets())
+        touched = {
+            (c.game_path, c.target) for c in self.commands
+            if c.kind in {"translate", "rotate", "reparent"} and c.target not in created
+        }
+        return tuple(sorted(touched))
+
     def replaced_clips(self) -> Tuple[str, ...]:
         return tuple(sorted({c.game_path for c in self.commands if c.kind == "replace_file"}))
 

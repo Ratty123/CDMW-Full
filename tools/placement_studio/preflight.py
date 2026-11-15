@@ -451,6 +451,24 @@ def _check_changed_allowlists(
                 )
             )
 
+def socket_users(
+    shared_socket_users: Mapping, socket_file: str, socket_name: str
+) -> Optional[Sequence[str]]:
+    """The rows an in-place change of `socket_name` in `socket_file` moves, or `None`.
+
+    `shared_socket_users` may key a socket by name, which counts every row naming it on any
+    item, or by `(socket file, socket name)`, which counts only the rows that read that file
+    (`PlacementSession.file_shared_users`). The per-file entry wins where there is one: every
+    tower shield reads one file, and only the tower shield row reads its
+    `Spine2_B_Shield_ChildSocket`, although the round shield row names the same socket.
+    """
+
+    users = shared_socket_users.get((socket_file, socket_name))
+    if users is None:
+        users = shared_socket_users.get(socket_name)
+    return users
+
+
 def _check_operation_safety(
     selected: Sequence[EditOperation],
     units: Mapping[str, EquipmentUnit],
@@ -501,13 +519,19 @@ def _check_operation_safety(
                 )
             )
 
-        # F2: a shared child socket was modified in place.
-        for socket_name in operation.modified_sockets():
+        # F2: a shared child socket was modified in place. Counted per socket file where the
+        # caller knows which rows read that file, by name otherwise.
+        reported = set()
+        for socket_file, socket_name in operation.modified_socket_files():
             if socket_name in created:
                 continue
-            users = shared_socket_users.get(socket_name)
+            users = socket_users(shared_socket_users, socket_file, socket_name)
             if users is None:
                 continue
+            users = tuple(users)
+            if (socket_name, users) in reported:
+                continue
+            reported.add((socket_name, users))
             owned = set(units[operation.equipment_unit_id].part_names) if (
                 operation.equipment_unit_id in units
             ) else set(operation.scope.allowed_descriptor_parts)
@@ -747,10 +771,13 @@ def _summarize(
     created = set(changed.all_created())
     shared_modified = tuple(
         sorted(
-            name
-            for op in selected
-            for name in op.modified_sockets()
-            if name not in created and len(shared_socket_users.get(name, ())) > 1
+            {
+                name
+                for op in selected
+                for path, name in op.modified_socket_files()
+                if name not in created
+                and len(socket_users(shared_socket_users, path, name) or ()) > 1
+            }
         )
     )
     return PackageScopeSummary(

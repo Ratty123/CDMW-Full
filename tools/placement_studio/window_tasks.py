@@ -26,12 +26,15 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMenu,
+    QPushButton,
     QSplitter,
     QTabWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
+
+from cdmw.services.active_ui_translation import translate_active_ui_text
 
 from . import ui_kit as kit
 from .clip_names import part_label, socket_label
@@ -54,6 +57,17 @@ _ADVANCED_MODES = (
 
 def _hint(text: str) -> QLabel:
     return kit.hint(text)
+
+
+def _hang_like_text(label: str) -> str:
+    """A Hang like menu entry: the shield types by name, other items by their own label."""
+
+    known = {
+        "round shield": translate_active_ui_text("Round shield"),
+        "tower shield": translate_active_ui_text("Tower shield"),
+        "kite shield": translate_active_ui_text("Kite shield"),
+    }
+    return known.get(label, label[:1].upper() + label[1:])
 
 
 class TaskPanelMixin:
@@ -196,7 +210,49 @@ class TaskPanelMixin:
         form.add("Turn", kit.row(*self._turn_buttons, None, kit.caption("By"), self._angle_box,
                                  stretch=False))
         form.add("", kit.row(self._turn_over_button, self._revert_button))
+        form.add("", kit.row(*self._build_carry_point_actions()))
         return kit.Section("Fine-tune", form)
+
+    def _build_carry_point_actions(self):
+        """Over the other shoulder and Hang like, offered only where they apply."""
+
+        self._other_shoulder_button = QPushButton("Over the other shoulder")
+        self._other_shoulder_button.setToolTip(
+            "Mirror the item across the middle of the body and write the back point it hangs "
+            "from to match, in each of this body's files. For back points that have no left or "
+            "right partner. Everything else that hangs from that point moves with it."
+        )
+        self._other_shoulder_button.clicked.connect(self._mirror_over_other_shoulder)
+        self._hang_like_button = QPushButton("Hang like…")
+        self._hang_like_button.setToolTip(
+            "Copy this point from another item's file, so the item hangs the way that one "
+            "does: a round shield like a tower shield, for example. Saved as a change of this "
+            "item's own file."
+        )
+        self._hang_like_menu = QMenu(self._hang_like_button)
+        self._hang_like_menu.setToolTipsVisible(True)
+        self._hang_like_button.setMenu(self._hang_like_menu)
+        self._other_shoulder_button.setVisible(False)
+        self._hang_like_button.setVisible(False)
+        return self._other_shoulder_button, self._hang_like_button
+
+    def _refresh_carry_point_actions(self) -> None:
+        """Show each action only for a point it can change, and list Hang like's sources."""
+
+        button = getattr(self, "_other_shoulder_button", None)
+        if button is None or getattr(self, "_drag_settle_pending", False):
+            # Mid-drag the point stays the same; the refresh when the drag ends catches up.
+            return
+        name, _child = self._other_shoulder_target()
+        button.setVisible(bool(name))
+        sources = self._hang_like_sources()
+        menu = self._hang_like_menu
+        menu.clear()
+        for source in sources:
+            action = menu.addAction(_hang_like_text(source.label))
+            action.setToolTip(source.socket_file)
+            action.triggered.connect(lambda _checked=False, s=source: self._hang_like(s))
+        self._hang_like_button.setVisible(bool(sources))
 
     def _set_mode(self, value: str) -> None:
         position = self._mode_box.findData(value)
@@ -244,7 +300,7 @@ class TaskPanelMixin:
         explicit = getattr(self, "_adjust_explicit", False)
         wanted = (box.currentData() if box is not None and explicit else "") or "item"
         own = child if child and self._socket_file_of(child) else ""
-        shared = bool(own) and len(self._shared_socket_users().get(own) or ()) > 1
+        shared = bool(own) and len(self._point_users(own)) > 1
         # Unless chosen by hand, a shared point of the item's own is passed over for the body
         # spot: a change to a shared point can never be saved, and a body spot can.
         use_own = bool(own) and wanted == "item" and (explicit or not shared or not body)
@@ -281,7 +337,9 @@ class TaskPanelMixin:
         if session is None or not name:
             note.setVisible(False)
             return
-        shared = self._shared_socket_users().get(name) or ()
+        notes = []
+        shared = self._point_users(name)
+        own = weapon is not None and name in weapon.sockets
         if len(shared) > 1:
             names = ", ".join(part_label(p) for p in list(shared)[:3])
             more = f" and {len(shared) - 3} more" if len(shared) > 3 else ""
@@ -292,18 +350,69 @@ class TaskPanelMixin:
             )
             note.setVisible(True)
             return
+        if own:
+            notes.append(self._file_models_note(weapon.game_path))
         usage = session.usage(name)
         users = sorted(set(usage.stowed) | set(usage.held))
         if session.placed(name) is not None and len(users) > 1:
-            note.setText(
-                f"{socket_label(name)} is a spot on the body. Changing it moves all "
-                f"{len(users)} items that hang there, not only this one."
-            )
-            note.setVisible(True)
-            return
-        note.setVisible(False)
+            notes.append(self._body_point_users_note(name, users))
+            if self._other_shoulder_target()[0]:
+                notes.append(translate_active_ui_text(
+                    "Over the other shoulder mirrors the item across the body and moves them "
+                    "all with it."))
+        if session.placed(name) is not None:
+            notes.append(self._other_mod_point_note(name))
+        # Each sentence is translated on its own, so the note reads whole in any language.
+        text = " ".join(part for part in notes if part)
+        note.setText(text)
+        note.setVisible(bool(text))
 
+    def _body_point_users_note(self, name: str, users) -> str:
+        """`Left hip carries 6 items: ...`, naming the first few of what a change moves."""
 
+        listed = ", ".join(part_label(p) for p in users[:4])
+        if len(users) > 4:
+            return translate_active_ui_text(
+                f"{socket_label(name)} carries {len(users)} items: {listed} and "
+                f"{len(users) - 4} more. Changing it moves all of them, not only this one.")
+        return translate_active_ui_text(
+            f"{socket_label(name)} carries {len(users)} items: {listed}. Changing it moves "
+            f"all of them, not only this one.")
+
+    def _file_models_note(self, socket_file: str) -> str:
+        """Say when several models read this one file, so they all change together."""
+
+        from .equipment_assets import TYPE_LABELS, socket_file_kind, type_label
+
+        session = self._session
+        models = session.models_reading(socket_file) if session is not None else ()
+        kind = type_label(socket_file)
+        if socket_file_kind(socket_file) in TYPE_LABELS:
+            return translate_active_ui_text(
+                f"Every {kind} model reads this one file, so changing this point changes all "
+                f"of them.")
+        if len(models) > 1:
+            return translate_active_ui_text(
+                f"{len(models)} models read this file, so changing this point changes all of "
+                f"them.")
+        return ""
+
+    def _other_mod_point_note(self, name: str) -> str:
+        """Say when one of this body's game files has no such point: another mod adds it."""
+
+        from . import carry_plan
+
+        session, edits = self._session, self._edits
+        if session is None or edits is None:
+            return ""
+        missing = carry_plan.points_other_mods_add(edits, session.model, (name,))
+        if not missing:
+            return ""
+        bodies = ", ".join(carry_plan.body_file_label(path) for path, _point in missing)
+        return translate_active_ui_text(
+            f"The game's body file for {bodies} has no {socket_label(name)} point. Another mod "
+            f"adds it there (for example Character Creator Enhanced or Heroine of Pywel), and "
+            f"CDMW edits the game's own files, so it cannot move that one here.")
 
     # ── Advanced ────────────────────────────────────────────────────
 

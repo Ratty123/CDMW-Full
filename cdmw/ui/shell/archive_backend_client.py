@@ -34,6 +34,31 @@ from cdmw.ui.shell.archive_backend_resources import resolve_archive_backend_work
 
 
 ARCHIVE_BACKEND_STDERR_LIMIT = 64 * 1024
+
+# Windows exit codes a crashed worker reports most often. The code alone tells a
+# user report apart: a CPU, a missing file, security software or a real bug.
+_WINDOWS_EXIT_CODE_NAMES = {
+    0xC0000005: "access violation",
+    0xC000001D: "illegal instruction; the CPU lacks an instruction the worker uses",
+    0xC00000FD: "stack overflow",
+    0xC0000135: "a DLL was not found; antivirus may have removed a worker file",
+    0xC0000139: "a DLL entry point was not found",
+    0xC0000142: "a DLL failed to initialise; security software often causes this",
+    0xC0000409: "the worker stopped itself after a fatal error",
+    0xE0434352: "unhandled .NET exception",
+}
+
+
+def describe_worker_exit(exit_code: object, exit_status: object) -> str:
+    """Name the worker's exit so a crash report carries its cause."""
+    try:
+        code = int(exit_code) & 0xFFFFFFFF
+    except (TypeError, ValueError):
+        return f"Archive worker exit: code {exit_code!r}, status {exit_status}"
+    status = getattr(exit_status, "name", None) or str(exit_status)
+    text = f"Archive worker exit: code 0x{code:08X} ({code}), status {status}"
+    meaning = _WINDOWS_EXIT_CODE_NAMES.get(code)
+    return f"{text}: {meaning}" if meaning else text
 ARCHIVE_BACKEND_START_TIMEOUT_MS = 10_000
 ARCHIVE_BACKEND_SHUTDOWN_GRACE_MS = 1_000
 ARCHIVE_BACKEND_TERMINATE_GRACE_MS = 1_000
@@ -617,7 +642,8 @@ class ArchiveBackendClient(QObject):
                 self._ensure_started()
             return
 
-        detail = self.diagnostics_tail.strip() or f"exit code {exit_code}, status {exit_status}"
+        self._append_diagnostic(describe_worker_exit(exit_code, exit_status))
+        detail = self.diagnostics_tail.strip()
         self._set_state(ArchiveBackendClientState.FAILED)
         self.worker_crashed.emit(detail)
         self._fail_all("worker_crashed", "Archive backend stopped unexpectedly.")

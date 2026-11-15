@@ -565,6 +565,57 @@ class PlacementSession:
 
         return tuple(sorted(set(self.usage(socket_name).child_offset)))
 
+    def file_socket_users(self, weapon, socket_name: str, *,
+                          parts: Optional[Mapping[str, DescriptorPart]] = None
+                          ) -> Tuple[str, ...]:
+        """The rows that read `socket_name` from this item's own socket file.
+
+        `child_socket_users` counts by name across every item; a child socket is looked up in
+        the hanging item's file, so only the rows that read that file move when it changes
+        (`equipment_assets.rows_reading_file`). Both shield rows name
+        `Spine2_B_Shield_ChildSocket`, but the tower shields' file is read by one of them.
+        """
+
+        from .equipment_assets import rows_reading_file
+
+        names = self.child_socket_users(socket_name)
+        if weapon is None or not names:
+            return names
+        parts = parts if parts is not None else self.parts_map()
+        rows = [parts[name] for name in names if name in parts]
+        if len(rows) != len(names):
+            return names
+        return tuple(sorted(rows_reading_file(weapon.game_path, rows)))
+
+    def file_shared_users(self) -> Dict[Tuple[str, str], Tuple[str, ...]]:
+        """`(socket file, child socket) -> rows that read it there`, for every known item file."""
+
+        out: Dict[Tuple[str, str], Tuple[str, ...]] = {}
+        parts = self.parts_map()
+        seen = set()
+        for weapon in self.weapons():
+            if weapon.game_path in seen:
+                continue
+            seen.add(weapon.game_path)
+            for name in weapon.sockets:
+                if self.usage(name).child_offset:
+                    out[(weapon.game_path, name)] = self.file_socket_users(weapon, name,
+                                                                           parts=parts)
+        return out
+
+    def models_reading(self, socket_file: str) -> Tuple[str, ...]:
+        """The meshes whose prefab reads this socket file, as far as the prefabs read so far say."""
+
+        from .equipment_assets import models_reading_file
+
+        return models_reading_file(getattr(self, "_equipment_models", ()), socket_file)
+
+    @property
+    def bind_hierarchy(self) -> Optional[BoneHierarchy]:
+        """The rig in its bind pose, also while an animation poses `hierarchy`."""
+
+        return self._bind_hierarchy if self._bind_hierarchy is not None else self.hierarchy
+
     def socket_edit_decision(self, socket_name: str, owned_parts: Iterable[str]):
         """Whether an operation owning `owned_parts` may edit that child socket in place."""
 

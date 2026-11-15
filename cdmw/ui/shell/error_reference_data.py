@@ -7953,7 +7953,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend compatibility mismatch (protocol={result.protocol_version}, native={result.native_abi_version}, index={result.index_version}).",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 448
+      "cdmw/ui/shell/archive_backend_client.py": 473
     }
   },
   {
@@ -7961,7 +7961,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend did not become ready within 10 seconds.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 560
+      "cdmw/ui/shell/archive_backend_client.py": 585
     }
   },
   {
@@ -7969,7 +7969,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend emitted an oversized protocol message.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 337
+      "cdmw/ui/shell/archive_backend_client.py": 362
     }
   },
   {
@@ -7977,7 +7977,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend emitted invalid protocol JSON: {exc}",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 379
+      "cdmw/ui/shell/archive_backend_client.py": 404
     }
   },
   {
@@ -7985,7 +7985,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend handshake could not be written.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 311
+      "cdmw/ui/shell/archive_backend_client.py": 336
     }
   },
   {
@@ -7993,7 +7993,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend handshake failed: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 436
+      "cdmw/ui/shell/archive_backend_client.py": 461
     }
   },
   {
@@ -8001,7 +8001,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend handshake was malformed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 441
+      "cdmw/ui/shell/archive_backend_client.py": 466
     }
   },
   {
@@ -8009,7 +8009,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend is shutting down.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 168
+      "cdmw/ui/shell/archive_backend_client.py": 193
     }
   },
   {
@@ -8017,7 +8017,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend process failed to start: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 575
+      "cdmw/ui/shell/archive_backend_client.py": 600
     }
   },
   {
@@ -8025,7 +8025,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend protocol {message.protocol_version} is incompatible with {ARCHIVE_BACKEND_PROTOCOL_VERSION}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 382
+      "cdmw/ui/shell/archive_backend_client.py": 407
     }
   },
   {
@@ -8033,7 +8033,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend request could not be written.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 527
+      "cdmw/ui/shell/archive_backend_client.py": 552
     }
   },
   {
@@ -8041,7 +8041,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend request failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 428
+      "cdmw/ui/shell/archive_backend_client.py": 453
     }
   },
   {
@@ -8057,7 +8057,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend request stopped during application shutdown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 232
+      "cdmw/ui/shell/archive_backend_client.py": 257
     }
   },
   {
@@ -8065,7 +8065,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend request was superseded before dispatch.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 507
+      "cdmw/ui/shell/archive_backend_client.py": 532
     }
   },
   {
@@ -8073,7 +8073,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend response correlation failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 407
+      "cdmw/ui/shell/archive_backend_client.py": 432
     }
   },
   {
@@ -8081,7 +8081,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend response was invalidated by a newer UI generation.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 216
+      "cdmw/ui/shell/archive_backend_client.py": 241
     }
   },
   {
@@ -8105,7 +8105,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend stdin rejected a complete request.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 529
+      "cdmw/ui/shell/archive_backend_client.py": 554
     }
   },
   {
@@ -8113,7 +8113,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend stdout exceeded the 1 MiB message bound.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 332
+      "cdmw/ui/shell/archive_backend_client.py": 357
     }
   },
   {
@@ -8121,7 +8121,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend stopped unexpectedly.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 623
+      "cdmw/ui/shell/archive_backend_client.py": 649
     }
   },
   {
@@ -14427,7 +14427,7 @@ MESSAGE_REFERENCE = [
     "message": "Specify worker_executable or worker_program, not both.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 89
+      "cdmw/ui/shell/archive_backend_client.py": 114
     }
   },
   {
@@ -14819,7 +14819,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive backend does not support custom ignored folders. Update or rebuild CDMW before scanning with these exclusions.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 519
+      "cdmw/ui/shell/archive_backend_client.py": 544
     }
   },
   {
@@ -16232,7 +16232,7 @@ MESSAGE_REFERENCE = [
     "message": "Unresponsive archive worker is being stopped.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 656
+      "cdmw/ui/shell/archive_backend_client.py": 682
     }
   },
   {
@@ -17433,7 +17433,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 275,
       "cdmw/ui/archive_browser/workers.py": 927,
-      "cdmw/ui/shell/archive_backend_client.py": 50
+      "cdmw/ui/shell/archive_backend_client.py": 75
     }
   },
   {
@@ -18484,7 +18484,7 @@ MESSAGE_REFERENCE = [
     "message": "unknown_or_stale_request",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 401
+      "cdmw/ui/shell/archive_backend_client.py": 426
     }
   },
   {
@@ -92742,10 +92742,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "No body socket file of this character defines {socket_name}",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 259
+    }
+  },
+  {
+    "area": "placement",
     "message": "No body socket file of this character defines {source}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 289
+      "tools/placement_studio/carry_plan.py": 422
     }
   },
   {
@@ -93194,7 +93202,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation {oid} is not in the session history, so it cannot be packaged",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/preflight.py": 646
+      "tools/placement_studio/preflight.py": 670
     }
   },
   {
@@ -93476,7 +93484,7 @@ MESSAGE_REFERENCE = [
     "message": "Preparation source changed; refresh and prepare the operation again: {path}",
     "recovery": "stale",
     "sources": {
-      "tools/placement_studio/preflight.py": 687
+      "tools/placement_studio/preflight.py": 711
     }
   },
   {
@@ -94215,7 +94223,7 @@ MESSAGE_REFERENCE = [
     "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Move it, which gives it a point of its own.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_tasks.py": 288
+      "tools/placement_studio/window_tasks.py": 346
     }
   },
   {
@@ -94513,7 +94521,7 @@ MESSAGE_REFERENCE = [
     "message": "The aim for {', '.join(sorted(borrowed_aims))} was borrowed or authored by hand and has not been marked reviewed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 558
+      "tools/placement_studio/preflight.py": 582
     }
   },
   {
@@ -94657,7 +94665,7 @@ MESSAGE_REFERENCE = [
     "message": "The mirrored {source.name} could not be solved (off by {error})",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 211
+      "tools/placement_studio/carry_plan.py": 213
     }
   },
   {
@@ -94673,7 +94681,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation contains blocked preparation checks",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/preflight.py": 678
+      "tools/placement_studio/preflight.py": 702
     }
   },
   {
@@ -94681,7 +94689,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation payload differs from its reviewed preparation",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/preflight.py": 675
+      "tools/placement_studio/preflight.py": 699
     }
   },
   {
@@ -94689,7 +94697,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation preparation record is invalid",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/preflight.py": 691
+      "tools/placement_studio/preflight.py": 715
     }
   },
   {
@@ -94817,7 +94825,7 @@ MESSAGE_REFERENCE = [
     "message": "The weapon has no child socket for that spot, so its mirror cannot be solved",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 283
+      "tools/placement_studio/carry_plan.py": 416
     }
   },
   {
@@ -94833,7 +94841,7 @@ MESSAGE_REFERENCE = [
     "message": "This character has no skeleton to mirror across",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 279
+      "tools/placement_studio/carry_plan.py": 255
     }
   },
   {
@@ -94873,7 +94881,7 @@ MESSAGE_REFERENCE = [
     "message": "This placement operation did not record its destination socket, so the orientation zone check could not run",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 572
+      "tools/placement_studio/preflight.py": 596
     }
   },
   {
@@ -95089,7 +95097,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown preparation evidence version",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 671
+      "tools/placement_studio/preflight.py": 695
     }
   },
   {
@@ -95927,7 +95935,7 @@ MESSAGE_REFERENCE = [
     "message": "{command.target} hangs on {destination} ({want_zone}) but is aimed by {child}, which belongs to the {have_zone}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 543
+      "tools/placement_studio/preflight.py": 567
     }
   },
   {
@@ -95935,7 +95943,7 @@ MESSAGE_REFERENCE = [
     "message": "{command.target}.{command.field_name} points at {command.text}, which no packaged file defines",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 593
+      "tools/placement_studio/preflight.py": 617
     }
   },
   {
@@ -96079,7 +96087,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(changed.animation_paths)} animation files would be replaced",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 611
+      "tools/placement_studio/preflight.py": 635
     }
   },
   {
@@ -96111,7 +96119,7 @@ MESSAGE_REFERENCE = [
     "message": "{link.part_name} ({link.role}) stays on its old socket while {unit.primary_part} moves; the two may separate or snap",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 476
+      "tools/placement_studio/preflight.py": 494
     }
   },
   {
@@ -96223,7 +96231,7 @@ MESSAGE_REFERENCE = [
     "message": "{operation.operation_id} is a placement operation but records no route change, so nothing would move",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 496
+      "tools/placement_studio/preflight.py": 514
     }
   },
   {
@@ -96463,7 +96471,7 @@ MESSAGE_REFERENCE = [
     "message": "{socket_name} is used by {', '.join(users)} and was changed in place; clone it and reroute only this operation's rows",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 521
+      "tools/placement_studio/preflight.py": 545
     }
   },
   {
@@ -96471,7 +96479,15 @@ MESSAGE_REFERENCE = [
     "message": "{source or 'That spot'} has no other side to mirror to",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 273
+      "tools/placement_studio/carry_plan.py": 406
+    }
+  },
+  {
+    "area": "placement",
+    "message": "{source.name} has a point on the other side; mirror to that one",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 243
     }
   },
   {
@@ -96543,7 +96559,7 @@ MESSAGE_REFERENCE = [
     "message": "{unit.primary_part} moves but its {link.role} {link.part_name} was not, and no exception was confirmed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 485
+      "tools/placement_studio/preflight.py": 503
     }
   },
   {
@@ -108910,7 +108926,7 @@ SOURCE_COVERAGE = {
   "tools/placement_studio/carry.py": {},
   "tools/placement_studio/carry_plan.py": {
     "diagnostic_field": 2,
-    "raise": 8
+    "raise": 11
   },
   "tools/placement_studio/carry_replacements.py": {},
   "tools/placement_studio/carry_timing.py": {
