@@ -17,7 +17,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, Signal
 
-from cdmw.automation import saved_work_commands
+from cdmw.automation import inspect_commands, saved_work_commands
 from cdmw.automation.pipe import LocalPipeServer, recv_json, send_json
 from cdmw.automation.policy import AutomationSettings
 
@@ -166,6 +166,9 @@ class AutomationBridge(QObject):
             "saved_work_combine_state": lambda args: saved_work_commands.saved_work_combine_state(self.window, args),
             "saved_work_combine_answer": lambda args: saved_work_commands.saved_work_combine_answer(self.window, args),
             "select_parts": lambda args: saved_work_commands.select_whole_parts(self.window, args),
+            # The Scene panel and the Mesh Editor's parts as shown (inspect_commands.py).
+            "scene_panel_rows": lambda args: inspect_commands.scene_panel_rows(self.window, args),
+            "mesh_editor_parts": lambda args: inspect_commands.mesh_editor_parts(self.window, args),
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -323,7 +326,11 @@ class AutomationBridge(QObject):
         finally:
             request.done.set()
 
-    def _state(self, _args: dict) -> dict[str, object]:
+    def _state(self, args: dict) -> dict[str, object]:
+        """The app's state for a driver. With ``light`` the Mesh Editor's step count,
+        revision and manifest are left out: reading them waits for the session's lock,
+        which a preparing set holds, so a stall probe would measure its own reads."""
+
         from cdmw.ui.archive_browser.remote_entry_lookup import LiveCatalogueState, live_catalogue_state
         from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 
@@ -355,11 +362,13 @@ class AutomationBridge(QObject):
                 # P4 V3: the edit is in Browse's viewport, in Browse's process.
                 "in_browse": getattr(getattr(tab, "live_edit", None), "viewport_binding", None) is not None,
                 "process_id": self._editor_process_id(tab),
-                "revision": self._editor_revision(tab),
-                # Editor steps no Finish has taken (journey 3).
-                "editor_steps": self._editor_steps(tab),
                 "texture_unavailable_reason": str(getattr(tab, "standalone_rust_texture_unavailable_reason", "") or ""),
-                "session_manifest": self._editor_session_manifest(tab),
+                **({} if args.get("light") else {
+                    "revision": self._editor_revision(tab),
+                    # Editor steps no Finish has taken (journey 3).
+                    "editor_steps": self._editor_steps(tab),
+                    "session_manifest": self._editor_session_manifest(tab),
+                }),
             },
             "preview_settings": self._preview_settings(archive, tab),
             # P15: the Mesh Editor's open documents, the shown one first by index.
@@ -536,6 +545,7 @@ class AutomationBridge(QObject):
 
         archive = self.window.archive
         archive._note_archive_ui_activity()
+        inspect_commands.watch_scene_panel(self.window)
         bridge = archive.archive_remote_bridge
         paths = [str(path) for path in args["paths"]]
         wanted = [path.replace("\\", "/").casefold() for path in paths]
