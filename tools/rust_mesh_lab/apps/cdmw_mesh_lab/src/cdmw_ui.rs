@@ -1902,12 +1902,12 @@ impl LabApplication {
                 .and_then(Value::as_f64)
         };
         // The spacing the Qt stylesheet uses (P11 step 4).
-        style.spacing.item_spacing = metric_pair("item_spacing", item_spacing);
-        style.spacing.button_padding = metric_pair("frame_pad", button_padding);
-        style.spacing.window_margin = egui::Margin::symmetric(
-            metric_pair("window_pad", egui::vec2(7.0, 6.0)).x as i8,
-            metric_pair("window_pad", egui::vec2(7.0, 6.0)).y as i8,
-        );
+        // ...but never looser than CDMW Native's editor (6,4 spacing, 5,3 padding,
+        // 5,4 window margin): the side panels stay tight at every density.
+        style.spacing.item_spacing = metric_pair("item_spacing", item_spacing).min(egui::vec2(6.0, 4.0));
+        style.spacing.button_padding = metric_pair("frame_pad", button_padding).min(egui::vec2(5.0, 3.0));
+        let window_pad = metric_pair("window_pad", egui::vec2(7.0, 6.0)).min(egui::vec2(5.0, 4.0));
+        style.spacing.window_margin = egui::Margin::symmetric(window_pad.x as i8, window_pad.y as i8);
         if let Some(indent) = metric("indent") {
             style.spacing.indent = indent as f32;
         }
@@ -2878,7 +2878,7 @@ impl LabApplication {
             .to_owned();
         egui::Panel::left("cdmw_tool_rail")
             .default_size(264.0)
-            .min_size(230.0)
+            .min_size(220.0)
             .max_size(340.0)
             .resizable(true)
             .show(root_ui, |ui| {
@@ -2895,11 +2895,7 @@ impl LabApplication {
                         set_cdmw_sidebar_expanded(ui.ctx(), CDMW_TOOLS_SIDEBAR, false);
                         CdmwSidebarSettings::default().store(ui.ctx());
                     }
-                    ui.label(
-                        RichText::new(crate::localization::tr("Tools"))
-                            .heading()
-                            .strong(),
-                    );
+                    ui.label(RichText::new(crate::localization::tr("Tools")).strong());
                 });
                 ui.separator();
                 let morph_active = self.cdmw_rail_page == Some(CdmwRailPage::MorphRefit);
@@ -3081,13 +3077,7 @@ impl LabApplication {
                         if !direct_selection {
                             ui.horizontal_wrapped(|ui| {
                                 for &tool in tools {
-                                    self.draw_cdmw_tool_tab(
-                                        ui,
-                                        tool,
-                                        busy,
-                                        authoring,
-                                        policy_reason,
-                                    );
+                                    self.draw_cdmw_tool_tab(ui, tool, busy, authoring, policy_reason);
                                 }
                             });
                         }
@@ -5226,10 +5216,10 @@ impl LabApplication {
         let columns = cdmw_list_columns(root_ui, "Physics");
         let min_width =
             (columns[1..].iter().sum::<f32>() + root_ui.spacing().item_spacing.x * 3.0 + 140.0)
-                .max(300.0)
-                .min((root_ui.available_width() - 120.0).max(300.0));
+                .max(260.0)
+                .min((root_ui.available_width() - 120.0).max(260.0));
         egui::Panel::right("cdmw_right_panels")
-            .default_size(380.0)
+            .default_size(340.0)
             .min_size(min_width)
             .max_size(640.0_f32.max(min_width))
             .resizable(true)
@@ -5252,7 +5242,7 @@ impl LabApplication {
                             ui.ctx().data_mut(|data| data.insert_temp(panel_id, false));
                         }
                     } else {
-                        ui.label(RichText::new(crate::localization::tr("Inspector")).heading().strong());
+                        ui.label(RichText::new(crate::localization::tr("Inspector")).strong());
                     }
                 });
                 ui.separator();
@@ -6670,7 +6660,8 @@ mod tests {
             style.visuals.selection.stroke.color,
             Color32::from_rgb(17, 24, 39)
         );
-        assert_eq!(style.spacing.item_spacing, egui::vec2(10.0, 8.0));
+        // Comfortable density asks for 10,8; the editor keeps Native's tighter 6,4.
+        assert_eq!(style.spacing.item_spacing, egui::vec2(6.0, 4.0));
         let body = style
             .text_styles
             .get(&egui::TextStyle::Body)

@@ -230,8 +230,15 @@ class WorkspaceShellBuilderMixin:
         host.setObjectName("MeshEditorDockHost")
         host.setDockOptions(QMainWindow.DockOption.AnimatedDocks | QMainWindow.DockOption.AllowTabbedDocks)
         host.setCentralWidget(central_preview)
+        from cdmw.ui.mesh_editor.texture_tools_dock import MeshEditorTextureTools
+
         self.textures_dock = MeshEditorTexturesPanel(host)
         host.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.textures_dock)
+        # The texture tools under the list, beside the model (as CDMW Native docks its
+        # canvas beside the 3D view); the editor inside is made when a texture opens.
+        self.texture_tools_dock = MeshEditorTextureTools(host)
+        host.splitDockWidget(self.textures_dock, self.texture_tools_dock, Qt.Orientation.Vertical)
+        host.resizeDocks([self.textures_dock, self.texture_tools_dock], [1, 3], Qt.Orientation.Vertical)
         self.dock_host = host
         return host
 

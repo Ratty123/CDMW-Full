@@ -1219,11 +1219,17 @@ __all__ = [
 ]
 
 
-def _host_textures_panel(editor: object):
-    """The host's Textures panel (the Mesh Editor tab has one; Browse Archives does not)."""
+def _host_panel(editor: object, name: str):
+    """One of the host's step 8 panels (the Mesh Editor tab has them; Browse Archives does not)."""
 
-    panel = getattr(editor, "_textures_panel", None)
+    panel = getattr(editor, name, None)
     try:
         return panel() if callable(panel) else None
     except AttributeError:
         return None
+
+
+def _host_textures_panel(editor: object):
+    """The host's Textures panel."""
+
+    return _host_panel(editor, "_textures_panel")

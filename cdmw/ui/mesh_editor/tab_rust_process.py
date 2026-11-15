@@ -686,7 +686,7 @@ class MeshEditorRustProcessMixin:
         return document_id
 
     def open_texture_in_window(self, texture_id: str) -> None:
-        """Open a Textures panel row in the floating Texture Editor (step 8)."""
+        """Open a Textures panel row in the texture tools docked beside the model (step 8)."""
 
         from cdmw.ui.mesh_editor.tab_rust_editor import _host_textures_panel
 
@@ -697,7 +697,12 @@ class MeshEditorRustProcessMixin:
             return
         from cdmw.domain.textures.original_output import TextureOutputRefused, check_texture_editable
         from cdmw.services.mesh_live_texture_output import LiveTextureSource
-        from cdmw.ui.mesh_editor.texture_editor_window import LiveTextureTarget, shared_texture_window
+        from cdmw.ui.mesh_editor.tab_rust_editor import _host_panel
+        from cdmw.ui.mesh_editor.texture_tools_dock import LiveTextureTarget
+
+        tools = _host_panel(self, "_texture_tools_panel")
+        if tools is None:
+            return
 
         users = dock.texture_users(texture_id)
         try:
@@ -712,14 +717,7 @@ class MeshEditorRustProcessMixin:
         self._live_textures().remember_source(row.source_sha256, LiveTextureSource(
             game_path=row.game_path, original=original, users=users))
 
-        settings = getattr(self, "settings", None)
-        file_name = getattr(settings, "fileName", None)
-        base_dir = Path(file_name()).parent if callable(file_name) and file_name() else Path(row.decoded_path).parent
-        window = shared_texture_window(settings=settings, base_dir=base_dir)
-        if getattr(self, "_texture_window_connected", None) is not window:
-            window.texture_edited.connect(self._on_texture_window_edit)
-            self._texture_window_connected = window
-        window.open_target(LiveTextureTarget(
+        tools.open_target(LiveTextureTarget(
             session_id=session_id,
             source_path=row.decoded_path,
             source_sha256=row.source_sha256,

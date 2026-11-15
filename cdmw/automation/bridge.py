@@ -644,24 +644,26 @@ class AutomationBridge(QObject):
             tab.open_texture_in_window(str(args["texture_id"]))
         return True
 
-    @staticmethod
-    def _texture_editor_window():
-        from cdmw.ui.mesh_editor import texture_editor_window
+    def _texture_editor_window(self):
+        """The shown document's texture tools (docked beside its model)."""
 
-        return texture_editor_window._window
+        tab = self._shown_mesh_tab()
+        panel = getattr(tab, "_texture_tools_panel", None)
+        return panel() if callable(panel) else None
 
     def _texture_window(self, _args: dict) -> dict[str, object]:
         window = self._texture_editor_window()
         tab = self._shown_mesh_tab()
         live = getattr(tab, "_live_texture_updates", None)
-        if window is None:
-            return {"exists": False}
+        if window is None or window.editor is None:
+            return {"exists": window is not None, "visible": bool(window is not None and window.isVisible())}
         editor = window.editor
         document = getattr(editor, "document", None)
         busy_check = getattr(editor, "_busy", None)
         busy = bool(busy_check()) if callable(busy_check) else False
         return {
-            "exists": True, "visible": window.isVisible(), "title": window.windowTitle(),
+            "exists": True, "visible": window.isVisible(), "title": window.title_label.text(),
+            "floating": window.isFloating(), "width": window.width(), "height": window.height(),
             "notice": window.notice.text() if window.notice.isVisible() else "",
             "document": getattr(document, "title", "") if document is not None else "",
             "source_path": getattr(getattr(document, "source_binding", None), "source_path", "") if document else "",
@@ -676,18 +678,15 @@ class AutomationBridge(QObject):
         }
 
     def _texture_edit(self, args: dict) -> bool:
-        """One edit in the Texture Editor window, as its controls make it: ``hue`` adds a
+        """One edit in the texture tools, as their controls make it: ``hue`` adds a
         Hue / Saturation adjustment and commits ``value``; ``undo`` and ``redo`` step the
-        window's history; ``close`` closes the window."""
+        texture's history."""
 
         window = self._texture_editor_window()
         editor = getattr(window, "editor", None)
         if editor is None or getattr(editor, "document", None) is None:
             return False
         action = str(args.get("action", "hue"))
-        if action == "close":
-            window.close()  # as its title bar's close button: hides it, the edit stays
-            return not window.isVisible()
         if action == "undo":
             editor.undo()
             return True

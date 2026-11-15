@@ -41328,7 +41328,7 @@ MESSAGE_REFERENCE = [
     "message": "Auto Unwrap may split vertices and requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4388
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4378
     }
   },
   {
@@ -41409,7 +41409,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1223,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6212
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6202
     }
   },
   {
@@ -41426,7 +41426,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1205,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6199
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6189
     }
   },
   {
@@ -41771,7 +41771,7 @@ MESSAGE_REFERENCE = [
     "message": "Body and garment Parts must be different",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4819
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4809
     }
   },
   {
@@ -43415,7 +43415,7 @@ MESSAGE_REFERENCE = [
     "message": "Cleanup that changes topology requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4186
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4176
     }
   },
   {
@@ -44111,7 +44111,7 @@ MESSAGE_REFERENCE = [
     "message": "Create Part requires selected faces and Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3743
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3733
     }
   },
   {
@@ -44199,7 +44199,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 862
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 860
     }
   },
   {
@@ -44447,7 +44447,7 @@ MESSAGE_REFERENCE = [
     "message": "Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5903
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5893
     }
   },
   {
@@ -44575,7 +44575,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate and Delete require Free Edit output",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5732
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5722
     }
   },
   {
@@ -45370,7 +45370,7 @@ MESSAGE_REFERENCE = [
     "message": "Extrude requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4096
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4086
     }
   },
   {
@@ -46725,7 +46725,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layer visibility cannot change in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6086
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6076
     }
   },
   {
@@ -46733,7 +46733,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layers cannot be activated in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6068
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6058
     }
   },
   {
@@ -49201,7 +49201,7 @@ MESSAGE_REFERENCE = [
     "message": "Material Colour is deliberately unavailable in the Mesh Editor product contract",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3316
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3306
     }
   },
   {
@@ -49498,7 +49498,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1024
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1022
     }
   },
   {
@@ -49562,7 +49562,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 771
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 769
     }
   },
   {
@@ -49570,7 +49570,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 978,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 976,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 837
     }
   },
@@ -49662,7 +49662,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1515
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1513
     }
   },
   {
@@ -49678,7 +49678,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1319
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1317
     }
   },
   {
@@ -49686,7 +49686,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1315
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1313
     }
   },
   {
@@ -49743,7 +49743,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_native_preview.py": 16,
-      "cdmw/ui/mesh_editor/tab_shell.py": 939
+      "cdmw/ui/mesh_editor/tab_shell.py": 944
     }
   },
   {
@@ -49833,7 +49833,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1345
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1343
     }
   },
   {
@@ -49873,7 +49873,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1028
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1026
     }
   },
   {
@@ -49898,7 +49898,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1103
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1101
     }
   },
   {
@@ -51629,7 +51629,7 @@ MESSAGE_REFERENCE = [
     "message": "Mirrored geometry requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4208
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4198
     }
   },
   {
@@ -55579,7 +55579,7 @@ MESSAGE_REFERENCE = [
     "message": "Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5083
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5073
     }
   },
   {
@@ -57321,7 +57321,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement is unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5409
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5399
     }
   },
   {
@@ -61445,7 +61445,7 @@ MESSAGE_REFERENCE = [
     "message": "This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5563
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5553
     }
   },
   {
@@ -61525,7 +61525,7 @@ MESSAGE_REFERENCE = [
     "message": "This topology action requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4057
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4047
     }
   },
   {
@@ -61541,7 +61541,7 @@ MESSAGE_REFERENCE = [
     "message": "Tightness requires Surface or Rigid component mode on every selected garment.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5118
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5108
     }
   },
   {
@@ -61733,7 +61733,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency is unavailable for this mesh.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6455
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6445
     }
   },
   {
@@ -62554,7 +62554,7 @@ MESSAGE_REFERENCE = [
     "message": "Use the model's own weights. Its rig must be this model's game skeleton: export it with Export Rig GLB…, weight to it in Blender and keep the bones where they are.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3396
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3386
     }
   },
   {
@@ -73958,7 +73958,7 @@ MESSAGE_REFERENCE = [
     "message": "{target} is a helper material for the inside of the model and cannot take imported textures. Map {part} to a main part, join it with one before exporting, or choose Keep Original Materials.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5554
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5544
     }
   },
   {
@@ -74158,7 +74158,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 825
+      "cdmw/automation/bridge.py": 824
     }
   },
   {
@@ -83642,7 +83642,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 829
+      "cdmw/automation/bridge.py": 828
     }
   },
   {
@@ -102759,7 +102759,7 @@ MESSAGE_REFERENCE = [
     "message": "texture pixels must be RGBA",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/texture_editor_window.py": 47
+      "cdmw/ui/mesh_editor/texture_tools_dock.py": 65
     }
   },
   {
@@ -108425,7 +108425,7 @@ SOURCE_COVERAGE = {
     "validation": 1
   },
   "cdmw/ui/mesh_editor/tab_ui_state.py": {},
-  "cdmw/ui/mesh_editor/texture_editor_window.py": {
+  "cdmw/ui/mesh_editor/texture_tools_dock.py": {
     "raise": 1
   },
   "cdmw/ui/mesh_editor/textures_panel.py": {},

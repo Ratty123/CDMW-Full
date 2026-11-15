@@ -262,8 +262,16 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         if textures_dock is not None:
             from cdmw.ui.mesh_editor.textures_panel import remember_dock_layout
 
-            remember_dock_layout(self.standalone_workspace.dock_host, textures_dock, getattr(self, "settings", None))
+            tools = getattr(self.standalone_workspace, "texture_tools_dock", None)
+            docks = (textures_dock, tools) if tools is not None else (textures_dock,)
+            remember_dock_layout(self.standalone_workspace.dock_host, docks, getattr(self, "settings", None))
             textures_dock.texture_activated.connect(self.open_texture_in_window)
+            if tools is not None:
+                tools.settings = getattr(self, "settings", None)
+                file_name = getattr(tools.settings, "fileName", None)
+                if callable(file_name) and file_name():
+                    tools.base_dir = Path(file_name()).parent
+                tools.texture_edited.connect(self._on_texture_window_edit)
         from cdmw.ui.mesh_editor.hair_flow import build_hair_entry_bar
         entry_bar = build_hair_entry_bar(
             self, close_button=self.standalone_workspace.close_session_button,

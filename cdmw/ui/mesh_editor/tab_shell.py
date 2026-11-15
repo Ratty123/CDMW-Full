@@ -169,6 +169,11 @@ class MeshEditorTabShellMixin(
 
         return getattr(getattr(self, "standalone_workspace", None), "textures_dock", None)
 
+    def _texture_tools_panel(self):
+        """The texture tools docked under the Textures panel (step 8), or None."""
+
+        return getattr(getattr(self, "standalone_workspace", None), "texture_tools_dock", None)
+
     def _build_standalone_workspace(self) -> QWidget:
         page = MeshEditorWorkspace(theme_key=self.theme_key, defer_legacy_panels=True, parent=self)
         page.action_requested.connect(self._handle_action_requested)

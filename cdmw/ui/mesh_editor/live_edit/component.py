@@ -24,7 +24,7 @@ from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
 HOST_NAMES = (
     "_archive_refit_picker", "_archive_texture_indexes", "_cloth_collision_picker",
     "_current_target_entry", "_hair_context_preparation", "_hair_picker",
-    "_start_archive_material_context_resolution", "_textures_panel", "archive_material_context_package_path",
+    "_start_archive_material_context_resolution", "_texture_tools_panel", "_textures_panel", "archive_material_context_package_path",
     "archive_material_context_verified_for_rust", "archive_physics_profile_context",
     "archive_session_retry_request", "close_standalone_session", "current_archive_selection",
     "edit_item_set", "font", "hair_entry_status", "item_set_contexts",
@@ -41,7 +41,7 @@ STATE_NAMES = (
     "_pending_hair_start",
     "_rust_last_crash_at",
     "_rust_follows_keymap", "_rust_keymap_echo", "_shared_preview_settings_connected",
-    "_live_texture_document_id", "_live_texture_updates", "_texture_window_connected",
+    "_live_texture_document_id", "_live_texture_updates",
     "_engine_window_refused_session",
     "mesh_editor_backend",
     "standalone_export_validation_revision", "standalone_last_export_validation_report",

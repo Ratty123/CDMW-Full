@@ -699,7 +699,8 @@ def _on_a_screen(widget: QWidget) -> bool:
     return any(screen.availableGeometry().intersects(frame) for screen in QGuiApplication.screens())
 
 
-def remember_dock_layout(host: object, dock: QDockWidget, settings: object, key: str = DOCK_LAYOUT_KEY) -> None:
+def remember_dock_layout(host: object, dock: QDockWidget | tuple[QDockWidget, ...], settings: object,
+                         key: str = DOCK_LAYOUT_KEY) -> None:
     """Restore where the Mesh Editor's docks were, and save it whenever one moves,
     floats, docks again or is closed (Fredric: the panel can be "freely moved around")."""
 
@@ -712,10 +713,12 @@ def remember_dock_layout(host: object, dock: QDockWidget, settings: object, key:
             pass
     # The panel cannot be closed, so a saved state never hides it; and a panel left
     # floating on a screen that is gone (or off every screen) docks again.
-    if dock.isHidden():
-        dock.show()
-    if dock.isFloating() and not _on_a_screen(dock):
-        dock.setFloating(False)
+    docks = tuple(dock) if isinstance(dock, (tuple, list)) else (dock,)
+    for each in docks:
+        if each.isHidden():
+            each.show()
+        if each.isFloating() and not _on_a_screen(each):
+            each.setFloating(False)
 
     def save(*_args: object) -> None:
         save_state = getattr(host, "saveState", None)
@@ -726,6 +729,7 @@ def remember_dock_layout(host: object, dock: QDockWidget, settings: object, key:
         except RuntimeError:
             pass  # the page is being torn down
 
-    dock.dockLocationChanged.connect(save)
-    dock.topLevelChanged.connect(save)
-    dock.visibilityChanged.connect(save)
+    for each in docks:
+        each.dockLocationChanged.connect(save)
+        each.topLevelChanged.connect(save)
+        each.visibilityChanged.connect(save)
