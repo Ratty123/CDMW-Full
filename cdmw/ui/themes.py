@@ -688,6 +688,25 @@ def _app_status_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> st
     QRadioButton::indicator:checked:disabled {{
         background: {theme["button_disabled_text"]};
     }}
+    QTreeWidget#ScenePanelTree::indicator {{
+        width: 12px;
+        height: 12px;
+        margin: 2px 4px 2px 0px;
+        border-radius: 3px;
+        border: 2px solid {theme["border_strong"]};
+        background: {theme["field"]};
+    }}
+    QTreeWidget#ScenePanelTree::indicator:checked {{
+        background: {theme["accent"]};
+        border: 2px solid {theme["accent"]};
+    }}
+    QTreeWidget#ScenePanelTree::indicator:indeterminate {{
+        background: {theme["accent_soft"]};
+        border: 2px solid {theme["accent"]};
+    }}
+    QTreeWidget#ScenePanelTree::indicator:hover {{
+        border-color: {theme["text_strong"]};
+    }}
     QProgressBar {{
         border: 1px solid {theme["border_strong"]};
         border-radius: 4px;

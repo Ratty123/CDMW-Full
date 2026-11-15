@@ -17,10 +17,10 @@ from pathlib import Path
 
 import shiboken6
 
-from PySide6.QtCore import QEvent, QObject
-from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QSplitter, QWidget
+from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtWidgets import QBoxLayout, QSplitter, QWidget
 
-from cdmw.ui.archive_browser.item_set_components import ScenePanel
+from cdmw.ui.archive_browser.item_set_components import ScenePanel, remember_scene_panel_width
 
 #: Fewer parts than this and the panel stays hidden.
 SCENE_PANEL_MIN_PARTS = 2
@@ -87,10 +87,9 @@ def attach_scene_panel(host: QWidget, anchor: QWidget | None = None) -> ScenePan
     owner = parent.layout() if parent is not None and not isinstance(parent, QSplitter) else None
     if not isinstance(parent, QSplitter) and (not isinstance(owner, QBoxLayout) or owner.indexOf(anchor) < 0):
         return None  # a preview laid out otherwise simply has no panel
-    row = QWidget(parent)
+    # A splitter, so the panel's width can be dragged (and is remembered).
+    row = QSplitter(Qt.Orientation.Horizontal, parent)
     row.setObjectName("ScenePanelRow")
-    layout = QHBoxLayout(row)
-    layout.setContentsMargins(0, 0, 0, 0)
     if isinstance(parent, QSplitter):
         index = parent.indexOf(anchor)
         parent.replaceWidget(index, row)
@@ -100,10 +99,10 @@ def attach_scene_panel(host: QWidget, anchor: QWidget | None = None) -> ScenePan
         if replaced is not None:
             shiboken6.delete(replaced)  # the layout gives the old item back to be deleted
         owner.setStretchFactor(row, stretch)
-    layout.addWidget(anchor, 1)
+    row.addWidget(anchor)
     panel = ScenePanel(row, opens_editor=False)
-    panel.setMaximumWidth(260)
-    layout.addWidget(panel)
+    row.addWidget(panel)
+    remember_scene_panel_width(row, panel)
     return ScenePanelBinding(host, panel)
 
 
