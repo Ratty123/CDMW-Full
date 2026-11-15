@@ -13,7 +13,6 @@ offers the visibility actions only.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import shiboken6
@@ -57,10 +56,9 @@ class ScenePanelBinding(QObject):
         """List the files and parts of the package the host now shows."""
 
         self.package_path = Path(package_path)
-        try:
-            manifest = json.loads((self.package_path / "manifest.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError, TypeError):
-            manifest = {}
+        from cdmw.ui.preview.part_manifest import read_part_manifest
+
+        manifest = read_part_manifest(self.package_path) or {}
         batches = manifest.get("batches") if isinstance(manifest, dict) else None
         self.panel.set_parts(list(batches) if isinstance(batches, list) else [])
         hidden = self.panel.hidden_indices

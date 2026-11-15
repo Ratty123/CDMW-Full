@@ -114,3 +114,36 @@ def test_a_host_outside_a_box_layout_simply_has_no_panel(caplog) -> None:
     with caplog.at_level("DEBUG"):
         assert attach_scene_panel(host) is None
     assert not caplog.records
+
+
+def _resident_package(tmp_path, source: str, count: int) -> str:
+    """The resident preview's cached package: geometry without part file names,
+    and a cache entry naming the canonical package it was made from."""
+
+    cache = tmp_path / "rust_wgpu_v1" / "packages" / "key"
+    (cache / "package").mkdir(parents=True)
+    (cache / "package" / "manifest.json").write_text(json.dumps({"preview_core_geometry": {
+        "batches": [{"index": index, "name": f"reference_prefab_0_{index}"} for index in range(count)]}}),
+        encoding="utf-8")
+    (cache / "cache_entry.json").write_text(json.dumps({"source_package": source}), encoding="utf-8")
+    return str(cache / "package")
+
+
+def test_a_set_shown_from_the_preview_cache_lists_its_files_and_parts(tmp_path) -> None:
+    """The built app's set pass (2026-11-15): the resident package Browse applies has no
+    part file names, so a set's Scene panel listed nothing and "Open ticked parts in Mesh
+    Editor" refused it. The parts come from the canonical package it was made from."""
+    from cdmw.ui.preview.part_manifest import read_part_manifest
+
+    batches = [_batch(0, SWORD, 0), _batch(1, SWORD, 1), _batch(2, SHEATH, 0)]
+    canonical = _package(tmp_path, batches)
+    resident = _resident_package(tmp_path, canonical, 3)
+    assert read_part_manifest(__import__("pathlib").Path(resident))["batches"] == batches
+    window, _stack, host, _other, binding = _window()
+    host.controller.package_applied.emit(resident, 1)
+    QApplication.processEvents()
+    assert [path for path, _unticked in binding.panel.ticked_files()] == [SWORD, SHEATH]
+    window.close()
+    # A source with another part count is not trusted: its indices would not match.
+    other = _resident_package(tmp_path / "other", canonical, 2)
+    assert "batches" not in read_part_manifest(__import__("pathlib").Path(other))

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional
+
+from cdmw.ui.preview.part_manifest import read_part_manifest as _read_part_manifest
 
 
 class ArchivePreviewD3D11PartsMixin:
@@ -126,10 +127,8 @@ class ArchivePreviewD3D11PartsMixin:
         self._clear_archive_d3d11_part_visibility_menu()
         self.archive_character_context_pending_hidden_indices = ()
         self.archive_character_context_loaded_indices = ()
-        manifest_path = Path(package_dir) / "manifest.json"
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        manifest = _read_part_manifest(Path(package_dir))
+        if manifest is None:
             return
         batches = manifest.get("batches")
         if not isinstance(batches, list):
