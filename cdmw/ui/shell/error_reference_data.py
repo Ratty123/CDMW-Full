@@ -74086,7 +74086,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 667
+      "cdmw/automation/bridge.py": 700
     }
   },
   {
@@ -75049,6 +75049,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/buffinfo_table.py": 77
+    }
+  },
+  {
+    "area": "other",
+    "message": "Build Mod output is written inside the run's own profile folder only.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/bridge.py": 558
     }
   },
   {
@@ -82914,7 +82922,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 505
+      "cdmw/automation/bridge.py": 506
     }
   },
   {
@@ -83562,7 +83570,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 671
+      "cdmw/automation/bridge.py": 704
     }
   },
   {
@@ -83778,7 +83786,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 483
+      "cdmw/automation/bridge.py": 484
     }
   },
   {
@@ -84379,7 +84387,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown automation command: {command or '(none)'}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 274
+      "cdmw/automation/bridge.py": 275
     }
   },
   {
@@ -87408,7 +87416,7 @@ MESSAGE_REFERENCE = [
     "message": "no {name} event within the timeout",
     "recovery": "timeout",
     "sources": {
-      "cdmw/automation/bridge.py": 240
+      "cdmw/automation/bridge.py": 241
     }
   },
   {
@@ -88709,7 +88717,7 @@ MESSAGE_REFERENCE = [
     "message": "{command} did not finish on the UI thread",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 278
+      "cdmw/automation/bridge.py": 279
     }
   },
   {
@@ -104166,7 +104174,7 @@ SOURCE_COVERAGE = {
   "cdmw/automation/__init__.py": {},
   "cdmw/automation/bridge.py": {
     "diagnostic_field": 4,
-    "raise": 8,
+    "raise": 9,
     "report": 1
   },
   "cdmw/automation/client.py": {

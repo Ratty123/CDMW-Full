@@ -158,6 +158,7 @@ class AutomationBridge(QObject):
             "open_set": self._open_set,
             "switch_piece": self._switch_piece,
             "debug_dump": self._debug_dump,
+            "build_mod": self._build_mod,
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -543,6 +544,39 @@ class AutomationBridge(QObject):
             self.window.shell._open_current_archive_mesh_editor()
         return True
 
+    def _build_mod(self, args: dict) -> bool:
+        """Build Mod on the shown Mesh Editor document, as its button does, with the
+        options dialog accepted on its defaults: output in ``output_dir`` (inside the
+        run's profile), no ZIP and no Explorer window."""
+
+        from cdmw.app.app_folder import cdmw_folder
+        from cdmw.ui.mesh_editor import tab_direct_output
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        output_dir = Path(str(args["output_dir"]))
+        if not output_dir.is_absolute() or not output_dir.resolve().is_relative_to(cdmw_folder()):
+            raise ValueError("Build Mod output is written inside the run's own profile folder only.")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        view = created_tool_widget(self.window.shell.mesh_editor_tab)
+        tab = getattr(view, "active", None) or view
+        if tab is None:
+            return False
+        original = tab_direct_output.MeshModExportDialog
+
+        class _Accepted(original):  # type: ignore[misc, valid-type]
+            def exec(self) -> int:
+                self.output_parent.setText(str(output_dir))
+                self.create_zip.setChecked(False)
+                self.open_folder.setChecked(False)
+                return self.DialogCode.Accepted
+
+        tab_direct_output.MeshModExportDialog = _Accepted
+        try:
+            tab._start_mesh_mod_build_requested()
+        finally:
+            tab_direct_output.MeshModExportDialog = original
+        return True
+
     def _debug_dump(self, _args: dict) -> dict[str, object]:
         """Every Python thread's stack (to a file in the profile) and the shown Mesh
         Editor document's process state, for a run that seems stuck."""
@@ -558,8 +592,7 @@ class AutomationBridge(QObject):
             faulthandler.dump_traceback(handle, all_threads=True)
         view = created_tool_widget(self.window.shell.mesh_editor_tab)
         documents = list(getattr(view, "documents", ()) or ())
-        shown = getattr(view, "current_document", None)
-        tab = shown() if callable(shown) else (documents[0] if documents else None)
+        tab = getattr(view, "active", None) or (documents[0] if documents else None)
         state: dict[str, object] = {}
         for name in sorted(dir(tab)) if tab is not None else ():
             if not name.startswith(("standalone_rust", "_pending", "pending")):

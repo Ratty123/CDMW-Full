@@ -242,3 +242,13 @@ def test_switch_piece_answers_the_prompt_and_restores_it(env, monkeypatch) -> No
     assert bridge._switch_piece({"index": 1, "answer": "discard"})
     assert seen == [(shell, 1, end_edit_prompt.DISCARD)]
     assert end_edit_prompt.prompt_override is None
+
+
+def test_build_mod_writes_inside_the_run_profile_only(env, tmp_path) -> None:
+    from cdmw.automation.bridge import AutomationBridge
+
+    env.setenv(policy.TOKEN_ENV, secrets.token_hex(32))
+    bridge = AutomationBridge(policy.automation_settings())
+    assert "build_mod" in bridge._ui_commands
+    with pytest.raises(ValueError, match="inside the run's own profile"):
+        bridge._build_mod({"output_dir": str(tmp_path / "elsewhere")})
