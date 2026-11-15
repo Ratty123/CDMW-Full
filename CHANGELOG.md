@@ -78,6 +78,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Archive model previews preserve fine tiled fabric, chainmail, dye and metal on supported layered materials, with less memory use. Mesh Editor and Create New Item also retain these layers for unchanged source materials, including the separate files in editable sets; edited materials and exports keep their existing behavior. Grime no longer paints over armor, and constant color masks retain their authored detail layers. These are preview improvements; game shading remains an approximation.
 - Model previews show geometry while textures arrive and reuse unchanged textures during quality upgrades. Already prepared models skip the initial quality tier, and a waiting helper reduces the startup delay for the next preview dialog. Mesh Editor prepares large meshes faster and allows shader preparation to finish without reporting a false connection failure.
 - Head previews include their declared eyes and teeth in the authored shape, with iris and pupil colours. Monster surfaces retain supported detail layers and use their declared roughness and metallic maps instead of blend masks. Textures keep their colour, large layered textures finish loading, and missing unused glow maps no longer remove the model's other textures. Glow stays on the part that declares it.
+- Choosing **Finish Edit Mesh**, or **Switch editable piece**, right after an edit in the Mesh Editor no longer leaves CDMW waiting for ever; the Finish runs as soon as the edit has been recorded.
+- The Mesh Editor opens with the same lighting, shadows, ambient occlusion, ground, view mode and background as Browse Archives. It used its own defaults, such as a black background, until a preview setting was changed.
+- The **Scene** panel lists the files and parts of a set shown from the preview cache, so **Open ticked parts in Mesh Editor** opens the set instead of asking to tick a part.
+- Mesh Editor's **Delete unavailable** message names the operation it is waiting for, and gives the Free Edit advice only when the output mode is the reason.
 
 ### Docs
 
