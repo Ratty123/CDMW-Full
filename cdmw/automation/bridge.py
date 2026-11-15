@@ -17,7 +17,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, Signal
 
-from cdmw.automation import inspect_commands, saved_work_commands
+from cdmw.automation import inspect_commands, pass_commands, saved_work_commands
 from cdmw.automation.pipe import LocalPipeServer, recv_json, send_json
 from cdmw.automation.policy import AutomationSettings
 
@@ -169,6 +169,9 @@ class AutomationBridge(QObject):
             # The Scene panel and the Mesh Editor's parts as shown (inspect_commands.py).
             "scene_panel_rows": lambda args: inspect_commands.scene_panel_rows(self.window, args),
             "mesh_editor_parts": lambda args: inspect_commands.mesh_editor_parts(self.window, args),
+            # Click-like checks for the built exe's pass (pass_commands.py).
+            "preview_settings_page_check": lambda args: pass_commands.preview_settings_page_check(self.window, args),
+            "scene_panel_tick": lambda args: pass_commands.scene_panel_tick(self.window, args),
         }
 
     # ----- lifecycle -------------------------------------------------------
