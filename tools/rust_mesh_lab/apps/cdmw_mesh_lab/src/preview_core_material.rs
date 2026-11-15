@@ -999,6 +999,47 @@ impl ImageCache {
             })
     }
 
+    /// A layer's own texture as that layer samples it: resized to the target,
+    /// then repeated by its detail transform when it has one. Masks never use this.
+    fn layer_source(
+        &mut self,
+        reference: &FileReference,
+        layer: &PreviewCoreMaterialLayer,
+        width: u32,
+        height: u32,
+    ) -> Result<ImagePixels, SessionError> {
+        let resized = self.resized(reference, width, height)?;
+        let Some(transform) = layer.uv_transform.filter(|transform| transform.iter().all(|value| value.is_finite())) else {
+            return Ok(resized);
+        };
+        let key = (
+            format!(
+                "{}|uv:{}",
+                reference.sha256.trim().to_ascii_uppercase(),
+                transform.map(|value| value.to_bits().to_string()).join(",")
+            ),
+            width,
+            height,
+        );
+        if let Some(pixels) = self.resized.get(&key) {
+            return Ok(pixels.clone());
+        }
+        let bytes = u64::from(width) * u64::from(height) * 4;
+        if self.resized_bytes.saturating_add(bytes) > MAX_RESIZED_MATERIAL_BYTES {
+            return Err(SessionError::InvalidPayload(
+                "Preview Core resized material sources exceed the 512 MiB limit".to_owned(),
+            ));
+        }
+        let repeated = ImagePixels(Arc::new(DecodedRgba8 {
+            width,
+            height,
+            pixels: repeat_by_layer_transform(&resized, width, height, transform),
+        }));
+        self.resized_bytes += bytes;
+        self.resized.insert(key, repeated.clone());
+        Ok(repeated)
+    }
+
     fn resized(
         &mut self,
         reference: &FileReference,
@@ -1198,7 +1239,7 @@ fn compose_base_color(
         let Some(reference) = layer.diffuse.as_ref() else {
             continue;
         };
-        let overlay = cache.resized(reference, width, height)?;
+        let overlay = cache.layer_source(reference, layer, width, height)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1448,7 +1489,7 @@ fn compose_material_response(
         let Some(reference) = layer.material.as_ref() else {
             continue;
         };
-        let source = cache.resized(reference, width, height)?;
+        let source = cache.layer_source(reference, layer, width, height)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1588,7 +1629,7 @@ fn compose_normal(
         let Some(reference) = layer.normal.as_ref() else {
             continue;
         };
-        let source = cache.resized(reference, width, height)?;
+        let source = cache.layer_source(reference, layer, width, height)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1653,7 +1694,7 @@ fn compose_height(
         let Some(reference) = layer.height.as_ref() else {
             continue;
         };
-        let source = cache.resized(reference, width, height)?;
+        let source = cache.layer_source(reference, layer, width, height)?;
         let mask = layer
             .mask
             .as_ref()
@@ -1675,6 +1716,45 @@ fn compose_height(
         height,
         pixels: target,
     }))
+}
+
+/// Resample a layer texture the way the layered shader repeats it.
+///
+/// Same convention as the Python material combiner's PAC layer transform:
+/// around the UV centre, the offset is removed, the result divided by the
+/// scale and rotated, and the texture repeats. This image is in the decoded
+/// DDS row order (the combiner works on a vertically flipped copy), so the
+/// Y offset and the angle change sign here; both agree for the common
+/// centred, 180 degree or unrotated transforms.
+fn repeat_by_layer_transform(source: &[u8], width: u32, height: u32, transform: [f32; 5]) -> Vec<u8> {
+    let [scale_x, scale_y, offset_x, offset_y, angle] = transform.map(f64::from);
+    let (scale_x, scale_y) = (scale_x.max(1e-5), scale_y.max(1e-5));
+    let (sine, cosine) = angle.sin_cos();
+    let (w, h) = (width as usize, height as usize);
+    let mut target = vec![0_u8; w * h * 4];
+    let sample = |x: usize, y: usize, channel: usize| f64::from(source[(y * w + x) * 4 + channel]);
+    for row in 0..h {
+        let along_y = ((row as f64 + 0.5) / h as f64 - 0.5 - offset_y) / scale_y;
+        for column in 0..w {
+            let along_x = ((column as f64 + 0.5) / w as f64 - 0.5 - offset_x) / scale_x;
+            let u = (along_x * cosine + along_y * sine + 0.5).rem_euclid(1.0);
+            let v = (-along_x * sine + along_y * cosine + 0.5).rem_euclid(1.0);
+            let source_x = u * w as f64 - 0.5;
+            let source_y = v * h as f64 - 0.5;
+            let (x0, y0) = (source_x.floor(), source_y.floor());
+            let (fx, fy) = (source_x - x0, source_y - y0);
+            let x0 = (x0 as i64).rem_euclid(w as i64) as usize;
+            let y0 = (y0 as i64).rem_euclid(h as i64) as usize;
+            let (x1, y1) = ((x0 + 1) % w, (y0 + 1) % h);
+            let offset = (row * w + column) * 4;
+            for channel in 0..4 {
+                let top = sample(x0, y0, channel) * (1.0 - fx) + sample(x1, y0, channel) * fx;
+                let bottom = sample(x0, y1, channel) * (1.0 - fx) + sample(x1, y1, channel) * fx;
+                target[offset + channel] = (top * (1.0 - fy) + bottom * fy).round().clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
+    target
 }
 
 fn largest_target(
@@ -2109,6 +2189,7 @@ mod tests {
             mask_declared: false,
             mask_archive_path: String::new(),
             mask: None,
+            uv_transform: None,
         }
     }
 
@@ -2196,6 +2277,51 @@ mod tests {
             }],
         };
         (graph, files)
+    }
+
+    #[test]
+    fn a_detail_layer_repeats_by_its_transform_and_its_mask_does_not() {
+        // A 4x4 texture whose columns are 0, 64, 128, 192.
+        let mut source = Vec::new();
+        for _row in 0..4 {
+            for column in 0..4_u8 {
+                source.extend_from_slice(&[column * 64, 0, 0, 255]);
+            }
+        }
+        // Identity leaves every pixel where it was.
+        assert_eq!(repeat_by_layer_transform(&source, 4, 4, [1.0, 1.0, 0.0, 0.0, 0.0]), source);
+        // Scale 0.5 repeats the texture twice across, sampling every second column.
+        let twice = repeat_by_layer_transform(&source, 4, 4, [0.5, 0.5, 0.0, 0.0, 0.0]);
+        let first_row: Vec<u8> = twice[..16].chunks(4).map(|pixel| pixel[0]).collect();
+        assert_eq!(first_row[0], first_row[2]);
+        assert_eq!(first_row[1], first_row[3]);
+        assert_ne!(first_row[0], first_row[1]);
+        // A half turn about the centre mirrors both axes.
+        let turned = repeat_by_layer_transform(&source, 4, 4, [1.0, 1.0, 0.0, 0.0, std::f32::consts::PI]);
+        let turned_row: Vec<u8> = turned[..16].chunks(4).map(|pixel| pixel[0]).collect();
+        assert_eq!(turned_row, vec![192, 128, 64, 0]);
+
+        // Through the cache: the layer's height repeats, a layer without a transform does not.
+        let bytes = encode_rgba8_dds(4, 4, &source, TextureRole::Unknown).unwrap();
+        let file = reference(7, &bytes);
+        let mut detail = layer("detail", "r");
+        detail.height = Some(file.clone());
+        detail.uv_transform = Some([0.5, 0.5, 0.0, 0.0, 0.0]);
+        let plain = layer("detail", "r");
+        let graph = PreviewCoreMaterialGraph {
+            schema_version: 1, graph_version: 4, semantics_version: 10, quality: "full".into(),
+            resources_included: true, source_edge_count: 1, unique_resource_count: 1, copied_resource_count: 1,
+            unique_resource_bytes: bytes.len() as u64,
+            materials: vec![PreviewCoreMaterial { lod_index: 0, material_index: 0, material_slot_index: 0,
+                material_name: "veil".into(), authoring_channels: 0, base_color: [1.0; 3], layers: vec![detail.clone()] }],
+        };
+        let required = [file.sha256.clone()].into_iter().collect();
+        let mut cache = ImageCache::preload(&graph, &required, |_| Ok(bytes.clone())).unwrap();
+        let decoded = cache.resized(&file, 4, 4).unwrap().to_vec();
+        let repeated = cache.layer_source(&file, &detail, 4, 4).unwrap().to_vec();
+        assert_eq!(repeated, repeat_by_layer_transform(&decoded, 4, 4, [0.5, 0.5, 0.0, 0.0, 0.0]));
+        assert_ne!(repeated, decoded);
+        assert_eq!(cache.layer_source(&file, &plain, 4, 4).unwrap().to_vec(), decoded);
     }
 
     #[test]

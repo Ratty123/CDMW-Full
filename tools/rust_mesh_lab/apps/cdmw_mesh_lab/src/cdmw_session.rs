@@ -261,6 +261,12 @@ pub struct PreviewCoreMaterialLayer {
     pub mask_declared: bool,
     pub mask_archive_path: String,
     pub mask: Option<FileReference>,
+    /// The detail layer's repeat sampling, `[scale x, scale y, offset x, offset y,
+    /// angle]` from `_dyeingTransformProperty0/1/3` and `_dyeingPropertyBlend`.
+    /// It applies to this layer's own textures, never to its mask. Absent: the
+    /// layer samples the mesh UV unchanged, as packages without it always did.
+    #[serde(default)]
+    pub uv_transform: Option<[f32; 5]>,
 }
 
 impl PreviewCoreMaterialLayer {
