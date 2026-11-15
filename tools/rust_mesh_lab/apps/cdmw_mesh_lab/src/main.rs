@@ -1685,7 +1685,11 @@ impl UiAction {
     fn allowed_while_cdmw_pending(&self) -> bool {
         matches!(
             self,
-            Self::FrameAll
+            // A Finish asked for during an edit waits for it and is sent after it
+            // (submit_cdmw_finish). Dropping it here left CDMW waiting for a Finish
+            // that never came: Finish or Switch editable piece right after an edit.
+            Self::FinishCdmw
+                | Self::FrameAll
                 | Self::FrameSelected
                 | Self::FrameRigBone
                 | Self::FrameRigInfluence

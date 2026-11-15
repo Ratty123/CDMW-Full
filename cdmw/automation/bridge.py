@@ -157,6 +157,7 @@ class AutomationBridge(QObject):
             "run_editor_command": self._run_editor_command,
             "open_set": self._open_set,
             "switch_piece": self._switch_piece,
+            "debug_dump": self._debug_dump,
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -541,6 +542,42 @@ class AutomationBridge(QObject):
         else:
             self.window.shell._open_current_archive_mesh_editor()
         return True
+
+    def _debug_dump(self, _args: dict) -> dict[str, object]:
+        """Every Python thread's stack (to a file in the profile) and the shown Mesh
+        Editor document's process state, for a run that seems stuck."""
+
+        import faulthandler
+
+        from cdmw.app.app_folder import workspace_folder
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        target = workspace_folder() / "logs" / f"automation-stacks-{int(time.time())}.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("w", encoding="utf-8") as handle:
+            faulthandler.dump_traceback(handle, all_threads=True)
+        view = created_tool_widget(self.window.shell.mesh_editor_tab)
+        documents = list(getattr(view, "documents", ()) or ())
+        shown = getattr(view, "current_document", None)
+        tab = shown() if callable(shown) else (documents[0] if documents else None)
+        state: dict[str, object] = {}
+        for name in sorted(dir(tab)) if tab is not None else ():
+            if not name.startswith(("standalone_rust", "_pending", "pending")):
+                continue
+            try:
+                value = getattr(tab, name)
+            except Exception:
+                continue
+            if isinstance(value, (bool, int, float)) or value is None:
+                state[name] = value
+            elif isinstance(value, str):
+                state[name] = value[-4000:]
+            elif isinstance(value, (list, tuple, dict, set)):
+                state[name] = repr(value)[-2000:]
+        events = list(getattr(tab, "standalone_rust_protocol_events", ()) or ())
+        recent = [{key: event.get(key) for key in ("event", "request_id", "base_revision", "command", "label", "ok")
+                   if key in event} for event in events[-40:] if isinstance(event, dict)]
+        return {"stacks": str(target), "documents": len(documents), "tab": state, "recent_editor_events": recent}
 
     def _open_set(self, _args: dict) -> bool:
         """Open the scoped worn set as Browse's "Open set in Mesh Editor" menu entry does.

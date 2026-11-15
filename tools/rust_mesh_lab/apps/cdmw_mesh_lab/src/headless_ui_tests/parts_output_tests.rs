@@ -177,6 +177,78 @@ fn parts_delete_shortcut_keeps_supported_vertex_deletion_in_exact_output() -> Te
 }
 
 #[test]
+fn a_finish_asked_for_while_a_request_is_in_flight_waits_and_is_sent_after_it() -> TestResult {
+    // The set pass on the built app (2026-11-15): Finish arrived while a selection was
+    // still being recorded, the action guard dropped it, and CDMW waited for ever.
+    let root = tempfile::tempdir()?;
+    let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1400.0, 1000.0));
+    ui.settle_layout();
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "finish-wait", 1, 0));
+    ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
+        request_id: 1,
+        event: "command_result",
+        label: "Select all faces".to_owned(),
+        origin: None,
+    });
+    ui.application.handle_actions(vec![UiAction::FinishCdmw]);
+    assert!(
+        ui.application.cdmw_finish_waiting,
+        "the Finish was dropped while a request was in flight: {}",
+        ui.application.status
+    );
+    // The request's result arrives; the waiting Finish is sent.
+    ui.application.cdmw_pending_request = None;
+    assert!(ui.application.send_waiting_cdmw_finish());
+    assert!(!ui.application.cdmw_finish_waiting);
+    assert!(matches!(&ui.application.cdmw_pending_request,
+        Some(request) if request.label == "Finish Edit Mesh"));
+    Ok(())
+}
+
+#[test]
+fn a_finish_from_cdmw_runs_while_the_delete_guidance_is_open() -> TestResult {
+    // The set pass on the built app (2026-11-15): Delete pressed while a selection ran
+    // opened the guidance, and CDMW's Finish then never ran.
+    let mut application = triangle_application()?;
+    let mesh = application.mesh.as_mut().ok_or("mesh")?;
+    let vertex = mesh.vertices().next().ok_or("vertex")?.0;
+    mesh.set_selection(Selection {
+        vertices: HashSet::from([vertex]),
+        ..Selection::default()
+    })?;
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 1080.0));
+    ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
+        request_id: 7,
+        event: "command_result",
+        label: "Select All".to_owned(),
+        origin: None,
+    });
+    ui.frame(vec![key_event(egui::Key::Delete, true)]);
+    ui.frame(vec![key_event(egui::Key::Delete, false)]);
+    ui.settle_layout();
+    ui.reveal("Delete unavailable")?;
+    ui.application.cdmw_pending_request = None; // the selection's result arrived
+    ui.application
+        .pending_host_commands
+        .push("session.finish".to_owned());
+    ui.last_actions.clear();
+    ui.frame(Vec::new());
+    assert!(
+        ui.application.pending_host_commands.is_empty(),
+        "CDMW's Finish stayed queued behind the Delete guidance"
+    );
+    assert!(
+        ui.last_actions
+            .iter()
+            .any(|action| matches!(action, UiAction::FinishCdmw)),
+        "CDMW's Finish did not run while the Delete guidance was open: {:?}",
+        ui.last_actions
+    );
+    Ok(())
+}
+
+#[test]
 fn parts_delete_guidance_keeps_last_part_and_preserves_modal_keyboard_ownership() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         two_part_application()?,
