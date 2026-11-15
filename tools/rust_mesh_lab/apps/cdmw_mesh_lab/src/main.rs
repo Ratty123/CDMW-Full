@@ -108,6 +108,33 @@ use winit::window::{Window, WindowAttributes, WindowId};
 const LATENCY_SAMPLE_WINDOW: usize = 256;
 const HISTORY_BUDGET_BYTES: usize = 512 * 1024 * 1024;
 
+
+/// Apply the live texture edits that arrived before the textures were loaded (step 8),
+/// and answer each one.
+fn apply_pending_cdmw_texture_updates(
+    renderer: &mut WindowRenderer,
+    sources: &[String],
+    pending: &mut std::collections::BTreeMap<String, (PathBuf, u64)>,
+    bridge: Option<&CdmwBridge>,
+) {
+    for (source_sha256, (path, revision)) in std::mem::take(pending) {
+        let error = match sources.iter().position(|known| *known == source_sha256) {
+            Some(index) => std::fs::read(&path)
+                .map_err(|error| format!("could not read {}: {error}", path.display()))
+                .and_then(|bytes| {
+                    renderer
+                        .replace_material_texture(index, &bytes)
+                        .map_err(|error| error.to_string())
+                })
+                .err(),
+            None => Some("the session has no texture with that source".to_owned()),
+        };
+        if let Some(bridge) = bridge {
+            let _ = bridge.publish_texture_updated(&source_sha256, revision, error.as_deref());
+        }
+    }
+}
+
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -3575,9 +3602,23 @@ impl LabApplication {
             .cdmw_texture_sources
             .iter()
             .position(|known| *known == source_sha256);
-        let (Some(renderer), Some(index)) = (self.renderer.as_mut(), index) else {
+        let Some(renderer) = self.renderer.as_mut() else {
             self.cdmw_pending_texture_updates
                 .insert(source_sha256, (path, revision));
+            return;
+        };
+        let Some(index) = index else {
+            if self.cdmw_texture_sources.is_empty() {
+                // The textures are still loading; the load applies it.
+                self.cdmw_pending_texture_updates
+                    .insert(source_sha256, (path, revision));
+            } else if let Some(bridge) = &self.cdmw_bridge {
+                let _ = bridge.publish_texture_updated(
+                    &source_sha256,
+                    revision,
+                    Some("the session has no texture with that source"),
+                );
+            }
             return;
         };
         let error = std::fs::read(&path)
@@ -4731,18 +4772,12 @@ impl LabApplication {
                 Err(error) => gpu_errors.push(error.to_string()),
             }
             // Texture edits that came before the textures were loaded (step 8).
-            for (source_sha256, (path, revision)) in std::mem::take(&mut self.cdmw_pending_texture_updates) {
-                let error = match self.cdmw_texture_sources.iter().position(|known| *known == source_sha256) {
-                    Some(index) => std::fs::read(&path)
-                        .map_err(|error| format!("could not read {}: {error}", path.display()))
-                        .and_then(|bytes| renderer.replace_material_texture(index, &bytes).map_err(|error| error.to_string()))
-                        .err(),
-                    None => Some("the session has no texture with that source".to_owned()),
-                };
-                if let Some(bridge) = &self.cdmw_bridge {
-                    let _ = bridge.publish_texture_updated(&source_sha256, revision, error.as_deref());
-                }
-            }
+            apply_pending_cdmw_texture_updates(
+                renderer,
+                &self.cdmw_texture_sources,
+                &mut self.cdmw_pending_texture_updates,
+                self.cdmw_bridge.as_ref(),
+            );
             let snapshot = mesh.draw_snapshot();
             let part_colours = identity_colours_active.then(|| {
                 cdmw_islands::identity_colour_snapshot(
@@ -7809,13 +7844,19 @@ impl LabApplication {
             || !self.cdmw_material_layers.is_empty()
         {
             renderer.reset_texture();
+            self.cdmw_texture_sources.clear();
             for texture in &self.cdmw_texture_resources {
                 match renderer.add_dds_texture(
                     &texture.bytes,
                     texture.role,
                     &texture.material_indices_by_lod,
                 ) {
-                    Ok(()) => texture_upload_count = texture_upload_count.saturating_add(1),
+                    Ok(()) => {
+                        texture_upload_count = texture_upload_count.saturating_add(1);
+                        // Live texture edits name the texture by this hash (step 8).
+                        self.cdmw_texture_sources
+                            .push(texture.metadata.source_sha256.to_ascii_lowercase());
+                    }
                     Err(error) => {
                         texture_warning.get_or_insert_with(|| error.to_string());
                     }
@@ -7841,6 +7882,14 @@ impl LabApplication {
                     texture_warning.get_or_insert_with(|| error.to_string());
                 }
             }
+            apply_pending_cdmw_texture_updates(
+                renderer,
+                &self.cdmw_texture_sources,
+                &mut self.cdmw_pending_texture_updates,
+                self.cdmw_bridge.as_ref(),
+            );
+        } else {
+            self.cdmw_texture_sources.clear();
         }
         self.cdmw_texture_upload_failed = texture_warning.is_some();
         if self.cdmw_mode() {
