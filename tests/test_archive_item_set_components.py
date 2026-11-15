@@ -60,7 +60,9 @@ def test_component_tree_and_parts_menu_share_visibility_without_rebuilding(tmp_p
     assert host.hidden == (1, 2) and not preview.reloads
     panel.show_all_button.click()
     assert host.hidden == () and lower_action.isChecked()
-    panel.highlight_path("lower.pac")
+    panel.highlight_path("lower.pac")  # shows the row, selects nothing (no wire by default)
+    assert not hasattr(host, "highlighted")
+    panel.tree.setCurrentItem(panel._groups["lower.pac"])  # the user clicks the file's row
     assert host.highlighted == (2,)
     panel.isolate_button.click()
     assert host.hidden == (0, 1) and not preview.reloads

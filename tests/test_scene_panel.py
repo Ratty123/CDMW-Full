@@ -272,3 +272,29 @@ def test_parts_are_named_as_the_mesh_editor_names_them() -> None:
     assert [sword.child(i).text(0) for i in range(2)] == ["Blade_00", "Guard_01"]
     assert panel.tree.columnWidth(1) >= panel.tree.fontMetrics().horizontalAdvance("000")
 
+
+def test_nothing_is_selected_until_a_hover_or_a_click() -> None:
+    """Fredric (2026-11-15): no yellow selection wire by default; hover highlights,
+    a click selects, empty space or Esc clears."""
+
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QKeyEvent, QMouseEvent
+
+    panel = ScenePanel()
+    highlights: list[tuple[int, ...]] = []
+    panel.highlightRequested.connect(lambda indices: highlights.append(tuple(indices)))
+    panel.set_parts(_sword_batches())
+    panel.highlight_path(SWORD)
+    assert highlights == [] and panel.tree.currentItem() is None
+    panel.hover_part(1)
+    assert highlights[-1] == (1,)
+    panel.hover_part(-1)
+    assert highlights[-1] == ()
+    panel.select_part(0)
+    assert panel.tree.currentItem() is panel._parts[0] and highlights[-1] == (0,)
+    panel.tree.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+    panel.eventFilter(panel.tree, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+    assert panel.tree.currentItem() is None and highlights[-1] == ()
+    panel.select_part(1)
+    panel.select_part(-1)  # empty space clicked in the view
+    assert panel.tree.currentItem() is None and highlights[-1] == ()
