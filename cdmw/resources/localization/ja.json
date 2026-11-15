@@ -17440,6 +17440,7 @@
     "parent #{value_0} {value_1}": "親 #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "親 {value_0} | 子 {value_1}{value_2}",
     "part": "パーツ",
+    "part {number}": "パーツ {number}",
     "partial": "部分",
     "particle mesh exceeds the preview geometry budget": "パーティクルメッシュがプレビューのジオメトリ上限を超えています",
     "particle mesh has invalid coordinates": "パーティクルメッシュに無効な座標があります",

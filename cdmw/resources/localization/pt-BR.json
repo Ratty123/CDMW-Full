@@ -17440,6 +17440,7 @@
     "parent #{value_0} {value_1}": "pai #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "pai {value_0} | filhos {value_1}{value_2}",
     "part": "Parte",
+    "part {number}": "parte {number}",
     "partial": "parcial",
     "particle mesh exceeds the preview geometry budget": "a malha de partículas excede o limite de geometria da visualização",
     "particle mesh has invalid coordinates": "a malha de partículas tem coordenadas inválidas",

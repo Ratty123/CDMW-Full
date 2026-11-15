@@ -8251,7 +8251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 294,
+          "line": 297,
           "sink": "setToolTip"
         }
       ]
@@ -8541,7 +8541,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 345,
+          "line": 348,
           "sink": "setText"
         }
       ]
@@ -13511,7 +13511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 320,
+          "line": 323,
           "sink": "setText"
         }
       ]
@@ -25146,7 +25146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 312,
+          "line": 315,
           "sink": "setText"
         }
       ]
@@ -25156,7 +25156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 312,
+          "line": 315,
           "sink": "setText"
         }
       ]
@@ -45591,7 +45591,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 700,
+          "line": 705,
           "sink": "addTab"
         },
         {
@@ -46286,7 +46286,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 341,
+          "line": 344,
           "sink": "setText"
         },
         {
@@ -46311,7 +46311,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 339,
+          "line": 342,
           "sink": "setText"
         },
         {
@@ -46331,7 +46331,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 340,
+          "line": 343,
           "sink": "setText"
         },
         {
@@ -48366,7 +48366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 294,
+          "line": 297,
           "sink": "setToolTip"
         },
         {
@@ -72266,7 +72266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 309,
+          "line": 312,
           "sink": "setText"
         }
       ]
@@ -72291,7 +72291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 311,
+          "line": 314,
           "sink": "setText"
         }
       ]
@@ -72316,7 +72316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 310,
+          "line": 313,
           "sink": "setText"
         }
       ]
@@ -78356,7 +78356,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 360,
+          "line": 363,
           "sink": "setText"
         }
       ]
@@ -78641,7 +78641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 106,
+          "line": 120,
           "sink": "QPushButton"
         },
         {
@@ -83231,7 +83231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 294,
+          "line": 297,
           "sink": "setToolTip"
         }
       ]
@@ -88586,7 +88586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 323,
+          "line": 326,
           "sink": "setText"
         }
       ]
@@ -108896,7 +108896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 112,
+          "line": 126,
           "sink": "QPushButton"
         }
       ]
@@ -110126,7 +110126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 331,
+          "line": 334,
           "sink": "setText"
         }
       ]
@@ -120366,7 +120366,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 699,
+          "line": 704,
           "sink": "addTab"
         },
         {
@@ -121216,7 +121216,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 354,
+          "line": 357,
           "sink": "setText"
         }
       ]
@@ -121256,7 +121256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 326,
+          "line": 329,
           "sink": "setText"
         }
       ]
@@ -121266,7 +121266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 326,
+          "line": 329,
           "sink": "setText"
         }
       ]
@@ -121416,7 +121416,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 357,
+          "line": 360,
           "sink": "setText"
         }
       ]
@@ -122311,12 +122311,12 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 378,
+          "line": 381,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 378,
+          "line": 381,
           "sink": "setText"
         },
         {
@@ -122551,7 +122551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 380,
+          "line": 383,
           "sink": "setToolTip"
         }
       ]
@@ -123206,7 +123206,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 351,
+          "line": 354,
           "sink": "setText"
         }
       ]
@@ -123266,12 +123266,12 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 378,
+          "line": 381,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 378,
+          "line": 381,
           "sink": "setText"
         },
         {
@@ -123421,12 +123421,12 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 378,
+          "line": 381,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 378,
+          "line": 381,
           "sink": "setText"
         },
         {
@@ -123686,7 +123686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 294,
+          "line": 297,
           "sink": "setToolTip"
         }
       ]
@@ -128036,7 +128036,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 342,
+          "line": 345,
           "sink": "setText"
         }
       ]
@@ -132651,7 +132651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 317,
+          "line": 320,
           "sink": "setText"
         }
       ]
@@ -135056,7 +135056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 337,
+          "line": 340,
           "sink": "setText"
         }
       ]
@@ -135066,7 +135066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 334,
+          "line": 337,
           "sink": "setText"
         }
       ]
@@ -135406,7 +135406,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 363,
+          "line": 366,
           "sink": "setText"
         }
       ]
@@ -135611,7 +135611,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 366,
+          "line": 369,
           "sink": "setText"
         }
       ]
@@ -143661,7 +143661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 83,
+          "line": 89,
           "sink": "QLabel"
         }
       ]
@@ -146501,12 +146501,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 108,
+          "line": 122,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 347,
+          "line": 414,
           "sink": "setToolTip"
         }
       ]
@@ -153211,7 +153211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 105,
+          "line": 119,
           "sink": "QPushButton"
         }
       ]
@@ -153606,7 +153606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 347,
+          "line": 414,
           "sink": "setToolTip"
         }
       ]
@@ -154376,7 +154376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 294,
+          "line": 297,
           "sink": "setToolTip"
         }
       ]
@@ -167446,7 +167446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/component.py",
-          "line": 186,
+          "line": 187,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -167526,7 +167526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/component.py",
-          "line": 195,
+          "line": 196,
           "sink": "emit"
         }
       ]
@@ -174911,7 +174911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 196,
+          "line": 212,
           "sink": "setToolTip"
         }
       ]
@@ -182411,7 +182411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 348,
+          "line": 351,
           "sink": "setText"
         }
       ]
@@ -205182,6 +205182,16 @@
       ]
     },
     {
+      "key": "part {number}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/item_set_components.py",
+          "line": 48,
+          "sink": "python-return:part_number_label"
+        }
+      ]
+    },
+    {
       "key": "partial",
       "origins": [
         {
@@ -214743,11 +214753,6 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_catalog_part_01.py",
           "line": 494,
           "sink": "QTreeWidgetItem"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 257,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -219901,7 +219906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 256,
+          "line": 273,
           "sink": "setText"
         },
         {

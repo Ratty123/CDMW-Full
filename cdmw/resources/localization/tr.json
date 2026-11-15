@@ -17440,6 +17440,7 @@
     "parent #{value_0} {value_1}": "üst #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "üst {value_0} | çocuklar {value_1}{value_2}",
     "part": "parça",
+    "part {number}": "parça {number}",
     "partial": "kısmi",
     "particle mesh exceeds the preview geometry budget": "parçacık mesh'i önizleme geometri sınırını aşıyor",
     "particle mesh has invalid coordinates": "parçacık mesh'inde geçersiz koordinatlar var",

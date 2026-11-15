@@ -17440,6 +17440,7 @@
     "parent #{value_0} {value_1}": "상위 #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "상위 {value_0} | children {value_1}{value_2}",
     "part": "파트",
+    "part {number}": "파트 {number}",
     "partial": "부분",
     "particle mesh exceeds the preview geometry budget": "파티클 메시가 미리보기 지오메트리 한도를 초과합니다",
     "particle mesh has invalid coordinates": "파티클 메시에 잘못된 좌표가 있습니다",

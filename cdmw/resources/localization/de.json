@@ -17440,6 +17440,7 @@
     "parent #{value_0} {value_1}": "übergeordneter #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "übergeordnetes {value_0} | Kinder {value_1}{value_2}",
     "part": "Teil",
+    "part {number}": "Teil {number}",
     "partial": "teilweise",
     "particle mesh exceeds the preview geometry budget": "Partikel-Mesh überschreitet das Geometrielimit der Vorschau",
     "particle mesh has invalid coordinates": "Partikel-Mesh enthält ungültige Koordinaten",
