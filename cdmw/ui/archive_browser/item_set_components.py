@@ -42,6 +42,12 @@ ISOLATE_HINT = "Select a part or a file to isolate it."
 ISOLATE_TIP = "Show only the selected part or file."
 
 
+def part_number_label(local: int) -> str:
+    """A part's place in its file, counted from 1 as a person counts."""
+
+    return "part {number}".format(number=int(local) + 1)
+
+
 #: A loaded file row's part count.
 _STATE_COLUMN = 1
 
@@ -91,7 +97,9 @@ class ItemSetComponentsWidget(QWidget):
         header = self.tree.header()
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(_STATE_COLUMN, QHeaderView.ResizeMode.ResizeToContents)
+        # Wide enough for a three-digit part count and the cell padding: never clipped.
+        header.setSectionResizeMode(_STATE_COLUMN, QHeaderView.ResizeMode.Fixed)
+        self.tree.setColumnWidth(_STATE_COLUMN, self.tree.fontMetrics().horizontalAdvance("0000") + scaled_px(16, self))
         self.tree.setUniformRowHeights(True)
         self.tree.setIndentation(scaled_px(16, self))
         # The end of a part or file name tells similar ones apart, so cut the middle.
@@ -175,7 +183,9 @@ class ItemSetComponentsWidget(QWidget):
                 if index < 0 or index in self._parts:
                     continue
                 group = self._group(path)
-                label = str(identity.get("part_label") or "")
+                # The PAC submesh's own name, as the Mesh Editor's Parts list shows it;
+                # part_label is the file's label (or the material) and is a fallback only.
+                label = str(identity.get("part_name") or identity.get("part_label") or "")
                 material = str(batch.get("material_name") or "")
                 if not label or label.casefold() == PurePosixPath(path).name:
                     label = material or str(local)
@@ -252,9 +262,10 @@ class ItemSetComponentsWidget(QWidget):
                 for row in same:
                     label, material, local = row.data(0, _LABEL_ROLE)
                     if len(same) > 1:
-                        detail = material if material and len(materials) == len(same) else f"#{local}"
+                        detail = (material if material and len(materials) == len(same)
+                                  else part_number_label(local))
                         row.setText(0, f"{label} \u00b7 {detail}")
-                    row.setToolTip(0, "\n".join(text for text in (label, material, f"{name} #{local}") if text))
+                    row.setToolTip(0, "\n".join(text for text in (label, material, name) if text))
 
     @property
     def hidden_indices(self) -> tuple[int, ...]:

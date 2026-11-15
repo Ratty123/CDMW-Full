@@ -221,8 +221,8 @@ def test_rows_tell_files_and_same_named_parts_apart() -> None:
     assert (sword.text(0), sword.text(1)) == ("cd_phm_02_sword_0015", "5")
     assert sword.font(0).bold()
     assert [sword.child(i).text(0) for i in range(5)] == [
-        "Sho \u00b7 sho_l", "Sho \u00b7 sho_r", "Blade", "Hilt \u00b7 #3", "Hilt \u00b7 #4"]
-    assert "sho_l" in sword.child(0).toolTip(0) and "cd_phm_02_sword_0015.pac #0" in sword.child(0).toolTip(0)
+        "Sho \u00b7 sho_l", "Sho \u00b7 sho_r", "Blade", "Hilt \u00b7 part 4", "Hilt \u00b7 part 5"]
+    assert "sho_l" in sword.child(0).toolTip(0) and "cd_phm_02_sword_0015.pac" in sword.child(0).toolTip(0)
     scabbard = panel._groups[SCABBARD]
     assert (scabbard.text(0), scabbard.text(1)) == ("cd_phm_02_sword_0015_in", "")
     assert not scabbard.font(0).bold() and scabbard.toolTip(0).startswith("Tick to load")
@@ -256,3 +256,19 @@ def test_the_panel_width_is_dragged_and_remembered(tmp_path) -> None:
     _APP.processEvents()
     assert splitter.sizes()[1] != 340 and int(settings.value(WIDTH_KEY)) == splitter.sizes()[1]
     splitter.deleteLater()
+
+
+def test_parts_are_named_as_the_mesh_editor_names_them() -> None:
+    """Fredric's set (2026-11-15): the panel showed material names (Cloak, Foot,
+    texturelayer) where the Parts list shows the PAC's part names."""
+
+    batches = [{"index": index, "material_name": material, "editor_identity": {
+        "source_submesh_index": index, "source_local_submesh_index": index, "source_model_path": SWORD,
+        "part_label": "cd_phm_02_sword_0015.pac", "part_name": part}}
+        for index, (part, material) in enumerate((("Blade_00", "CD_Cloak_Material"), ("Guard_01", "cd_texturelayer_004")))]
+    panel = ScenePanel()
+    panel.set_parts(batches)
+    sword = panel._groups[SWORD]
+    assert [sword.child(i).text(0) for i in range(2)] == ["Blade_00", "Guard_01"]
+    assert panel.tree.columnWidth(1) >= panel.tree.fontMetrics().horizontalAdvance("000")
+
