@@ -9403,7 +9403,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse's viewport cannot edit in place",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/edit_in_place.py": 312
+      "cdmw/ui/archive_browser/edit_in_place.py": 322
     }
   },
   {
@@ -15364,7 +15364,7 @@ MESSAGE_REFERENCE = [
     "message": "The edit could not move to the Mesh Editor tab now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/edit_in_place.py": 358
+      "cdmw/ui/archive_browser/edit_in_place.py": 368
     }
   },
   {

@@ -680,3 +680,47 @@ def test_the_offer_opens_drafts_and_mods_on_the_newest_draft() -> None:
         assert show_crash_draft_offer(window, ()) is None
     finally:
         window.deleteLater()
+
+
+def test_open_in_mesh_editor_on_a_shown_model_opens_the_tab_and_leaves_browse_a_preview(tmp_path: Path) -> None:
+    """Owner's decision (2026-11-15): Open in Mesh Editor opens the Mesh Editor tab, as
+    CDMW Full always has. A model Browse is showing, in a viewport that could edit in
+    place, gets no in-place edit: no binding, no folded layout or banner, no early view."""
+    from cdmw.models import ArchiveEntry
+    from cdmw.ui.archive_browser import edit_in_place
+    from cdmw.ui.archive_browser.edit_in_place import BrowseEditInPlaceMixin
+    from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
+
+    assert edit_in_place.EDIT_IN_BROWSE_ENABLED is False
+    entry = ArchiveEntry(path="character/model/upper.pac", pamt_path=tmp_path / "0.pamt",
+                         paz_file=tmp_path / "0.paz", offset=0, comp_size=1, orig_size=1, flags=0, paz_index=0)
+    host = SimpleNamespace(controller=SimpleNamespace(edit_in_place_blocker=lambda: ""))
+
+    class _Browse(BrowseEditInPlaceMixin):
+        archive_d3d11_preview_host = host
+        archive_preview_stack = SimpleNamespace(currentWidget=lambda: host)
+        _current_archive_entry = staticmethod(lambda: entry)
+        archive_preview_request_entry = entry
+
+    browse = _Browse()
+    assert browse.edit_in_place_blocker(entry) == edit_in_place.EDIT_IN_BROWSE_OFF
+    assert browse.begin_edit_in_place(entry) is None
+    assert getattr(browse, "_edit_in_place_layout", None) is None  # nothing folded, no banner
+    assert not browse.editing_in_place and not browse.edit_shown_as_mesh_workspace
+
+    events = []
+
+    class _Shell(MeshEditorShellBridgeMixin):
+        def __init__(self) -> None:
+            self.archive = browse
+            self.mesh_editor_tab = SimpleNamespace(live_edit=SimpleNamespace())
+            self._record_runtime_event = lambda name, **fields: events.append(name)
+
+    shell = _Shell()
+    shell._show_browse_view_first(entry)
+    assert shell._take_early_browse_binding(entry) is None and events == []
+    assert shell._browse_edit_binding(entry, True, {}) is None  # so the open goes to the tab
+
+    # Switched back on, the same model would be edited in place: the switch is the only gate.
+    with patch.object(edit_in_place, "EDIT_IN_BROWSE_ENABLED", True):
+        assert browse.edit_in_place_blocker(entry) == ""

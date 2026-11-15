@@ -115,45 +115,37 @@ def _one_edit(run, before: int) -> int:
                     and run.state()["mesh_editor"]["editor_steps"], timeout=60, what="the edit to be accepted")
 
 
-def test_journey_3_an_edit_through_the_bridge_in_browse_and_in_the_mesh_workspace(run):
-    """P15 step 5a (step 5 item 7): an edit sent through the bridge lands while the edit
-    is in Browse's view, and again after the rail switched to the Mesh Editor, which
-    keeps the same window. The restart-and-recover half of the stage B journey is
-    not written yet."""
+def test_journey_3_an_edit_through_the_bridge_in_the_mesh_editor_tab(run):
+    """An edit sent through the bridge lands in the Mesh Editor tab, which Open in Mesh
+    Editor opens (owner's decision, 2026-11-15: never an edit inside Browse Archives),
+    and again after the rail went to Browse and back. The restart-and-recover half of
+    the stage B journey is not written yet."""
 
     run.select(driver.SWORD)
-    hwnd = run.state()["browse_frame_hwnd"]
     before = _capture(run, "before.png")
     run.open_mesh_editor()
     _editor_ready(run)
-    assert run.state()["mesh_editor"]["in_browse"]
-    first = _one_edit(run, run.state()["mesh_editor"]["editor_steps"])
-    # Section 8.7 B4: an edit idling in Browse's view leaves the process idle too.
+    state = run.state()
+    assert not state["mesh_editor"]["in_browse"] and state["mesh_page_visible"], state
+    first = _one_edit(run, state["mesh_editor"]["editor_steps"])
+    # Section 8.7 B4: an idle edit leaves the shared process idle too.
     time.sleep(3.0)  # the edit's own upload and redraw finish first
     total, busy = _cpu_share(run.state()["browse_process_id"], seconds=3.0)
-    print(f"B4: Browse's process used {total:.1%} of a core while the edit idled, {busy:.1%} without thumbnails")
-    assert busy < 0.25, f"Browse's process used {busy:.0%} of a core while the edit idled"
-    index = len(run.call("events"))
+    print(f"B4: the preview process used {total:.1%} of a core while the edit idled, {busy:.1%} without thumbnails")
+    assert busy < 0.25, f"the preview process used {busy:.0%} of a core while the edit idled"
+    run.call("activate_tool", key="archive_browser")
+    run.wait(lambda: run.state()["browse_page_visible"], timeout=20, what="Browse to show")
+    assert not run.state()["browse_edit_as_mesh"]
     run.call("activate_tool", key="mesh_editor")
-    state = run.wait(lambda: run.state()["browse_edit_as_mesh"] and run.state(), timeout=20,
-                     what="Browse's page to be the Mesh workspace")
-    assert state["workspace"] == "mesh_editor" and state["browse_page_visible"], state
-    assert state["browse_frame_hwnd"] == hwnd and state["mesh_editor"]["in_browse"], state
+    run.wait(lambda: run.state()["mesh_page_visible"], timeout=20, what="the Mesh Editor tab to show")
     second = _one_edit(run, first)
     assert second > first
-    assert not [e for e in run.call("events", since=index) if e["event"] == "preview:edit_entered"]
     # Section 8.7 C2: after Finish Browse's view never draws the model from before.
-    run.call("activate_tool", key="archive_browser")
     index = len(run.call("events"))
     assert run.call("end_edit", answer="finish")
-    try:
-        run.wait(lambda: any(e["event"] == "preview:edit_left" for e in run.call("events", since=index)),
-                 timeout=60, what="the edit to leave Browse's view")
-    except TimeoutError:
-        print("DEBUG state", run.state()["mesh_editor"])
-        for event in run.call("events", since=index)[-40:]:
-            print("DEBUG event", event)
-        raise
+    run.call("activate_tool", key="archive_browser")
+    run.wait(lambda: any(e["event"] == "preview:package_load_applied" for e in run.call("events", since=index)),
+             timeout=120, what="Browse to show the finished model")
     after = _capture(run, "after-finish.png")
     assert after != before, "Browse's view drew the model from before the edit after Finish"
 
@@ -285,25 +277,16 @@ def test_journey_4_switch_workspaces_around_one_window(run):
     loads = [e for e in run.call("events", since=index)
              if e["event"].startswith("preview:package") or e["event"] == "preview:edit_entered"]
     assert not loads, loads
-    # With an edit in Browse's view, the Mesh workspace is Browse's page and window.
+    # Open in Mesh Editor opens the Mesh Editor tab; Browse's page stays a preview.
     run.open_mesh_editor()
     _editor_ready(run)
-    index = len(run.call("events"))
-    run.call("activate_tool", key="mesh_editor")
-    mesh = run.wait(lambda: run.state()["browse_edit_as_mesh"] and run.state(), timeout=20,
-                    what="Browse's page to be the Mesh workspace")
-    assert mesh["browse_frame_hwnd"] == hwnd and mesh["visible_viewports"] == 1 and not mesh["mesh_page_visible"], mesh
-    run.call("activate_tool", key="new_item_studio")
-    run.wait(lambda: not run.state()["browse_page_visible"], timeout=60, what="Create New Item to show")
-    assert run.state()["visible_viewports"] == 0
-    run.call("activate_tool", key="mesh_editor")
-    again = run.wait(lambda: run.state()["browse_edit_as_mesh"] and run.state(), timeout=20,
-                     what="the Mesh workspace in Browse's page again")
-    assert again["browse_frame_hwnd"] == hwnd and again["mesh_editor"]["in_browse"], again
+    mesh = run.state()
+    assert not mesh["mesh_editor"]["in_browse"] and not mesh["browse_edit_as_mesh"], mesh
+    assert mesh["mesh_page_visible"] and not mesh["browse_page_visible"] and mesh["visible_viewports"] <= 1, mesh
     run.call("activate_tool", key="archive_browser")
-    browse = run.wait(lambda: not run.state()["browse_edit_as_mesh"] and run.state(), timeout=20, what="Browse again")
-    assert browse["browse_frame_hwnd"] == hwnd and browse["mesh_editor"]["in_browse"], browse
-    assert not [e for e in run.call("events", since=index) if e["event"] == "preview:edit_entered"]
+    browse = run.wait(lambda: run.state()["browse_page_visible"] and run.state(), timeout=20, what="Browse again")
+    assert browse["browse_frame_hwnd"] == hwnd and not browse["mesh_editor"]["in_browse"], browse
+    run.call("activate_tool", key="mesh_editor")
     assert run.call("end_edit", answer="discard")
 
 
@@ -327,35 +310,25 @@ def test_journey_5_a_preview_setting_changed_once_reaches_every_viewport(run):
     assert reached["shared"]["shadows"] == flipped["shadows"]
 
 
-def test_journey_6_edit_in_browse_in_its_own_process_and_return(run):
-    """P4 V3: Open in Mesh Editor edits in Browse's viewport, in Browse's process, with
-    no texture uploaded again; Discard hands the view back to Browse."""
+def test_journey_6_open_in_mesh_editor_opens_the_tab_and_browse_stays_a_preview(run):
+    """Owner's decision (2026-11-15): Open in Mesh Editor on a model Browse shows opens
+    the Mesh Editor tab, in the preview's own process, and Browse stays a preview: no
+    edit in its view, nothing to move to the tab. Discard leaves Browse's process."""
 
     run.select(driver.UPPER)
     browse_pid = run.state()["browse_process_id"]
     index = len(run.call("events"))
     editor = run.open_mesh_editor()
     assert editor["texture_unavailable_reason"] == "", editor
-    state = run.state()["mesh_editor"]
-    assert state["in_browse"] and state["process_id"] == browse_pid
-    entered = run.wait(lambda: [e for e in run.call("events", since=index) if e["event"] == "preview:edit_entered"],
-                       what="the edit to report its uploads")[-1]
-    # P4 V4: the editor showed Browse's model before its session was ready.
-    viewing = [e for e in run.call("events", since=index) if e["event"] == "preview:edit_viewing"]
-    assert viewing and viewing[0]["i"] < entered["i"], "the view did not come before the session"
-    assert viewing[0]["install_ms"] < 500
-    assert entered["texture_uploads_after"] == entered["texture_uploads_before"], entered
-    assert entered["edit_camera_yaw"] == pytest.approx(entered["browse_camera_yaw"], abs=1e-4)
-    assert entered["edit_camera_distance"] == pytest.approx(entered["browse_camera_distance"], rel=1e-4)
-    # P4 V5: Promote to tab moves the edit as it is; Browse previews again.
-    assert run.call("promote_edit")
-    run.wait(lambda: not run.state()["mesh_editor"]["in_browse"], timeout=30, what="the edit to move to the tab")
-    state = run.state()["mesh_editor"]
-    assert state["process_id"] == browse_pid and state["ready"], state
-    index = len(run.call("events"))
+    state = run.state()
+    assert not state["mesh_editor"]["in_browse"] and state["mesh_page_visible"], state
+    assert state["mesh_editor"]["process_id"] == browse_pid, state
+    assert not state["browse_edit_as_mesh"]
+    assert not [e for e in run.call("events", since=index) if e["event"] == "preview:edit_viewing"]
+    assert not run.call("promote_edit")  # Browse holds no edit to move
     assert run.call("end_edit", answer="discard")
-    run.wait(lambda: any(e["event"] == "preview:edit_left" for e in run.call("events", since=index)),
-             timeout=30, what="the helper to leave edit mode")
+    run.call("activate_tool", key="archive_browser")
+    run.wait(lambda: run.state()["browse_page_visible"], timeout=30, what="Browse to show")
     assert run.state()["browse_process_id"] == browse_pid
 
 

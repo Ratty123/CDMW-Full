@@ -62,8 +62,8 @@ def test_browse_and_the_mesh_editor_draw_the_same_pixels(case, tmp_path):
         editor = app.open_mesh_editor(item_set=not isinstance(target, str))
         assert editor["texture_unavailable_reason"] == "", editor
         if isinstance(target, str):
-            # P4 V3: one scene before and after enter_edit, in Browse's own process.
-            assert app.state()["mesh_editor"]["in_browse"], "the edit did not open in Browse's viewport"
+            # Open in Mesh Editor opens the Mesh Editor tab (owner's decision, 2026-11-15).
+            assert not app.state()["mesh_editor"]["in_browse"], "the edit opened inside Browse Archives"
         state = app.state()
         browse = Path(state["browse_package"])
         browse = browse / "manifest.json" if browse.is_dir() else browse

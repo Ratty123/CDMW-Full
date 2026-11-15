@@ -29,6 +29,14 @@ from collections.abc import Callable
 from PySide6.QtCore import QEvent, QObject, QTimer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QTabBar, QWidget
 
+#: Open in Mesh Editor opens the Mesh Editor tab, as CDMW Full always has (owner's
+#: decision, 2026-11-15). The in-Browse edit below stays in the code, switched off here,
+#: its one entry point: with it False, ``edit_in_place_blocker`` refuses every file, so
+#: ``begin_edit_in_place`` returns None and every route opens the edit in its tab.
+EDIT_IN_BROWSE_ENABLED = False
+#: Why the in-Browse edit is refused while it is switched off.
+EDIT_IN_BROWSE_OFF = "Open in Mesh Editor opens the Mesh Editor tab"
+
 #: Width of a collapsed pane while editing.
 STRIP_WIDTH = 28
 #: Idle time after a model shows before the Mesh Editor tab is created ahead of use.
@@ -305,6 +313,8 @@ class BrowseEditInPlaceMixin:
     def edit_in_place_blocker(self, entry: object) -> str:
         """Why Browse's viewport cannot hold an edit of ``entry`` now ("" when it can)."""
 
+        if not EDIT_IN_BROWSE_ENABLED:
+            return EDIT_IN_BROWSE_OFF
         host = getattr(self, "archive_d3d11_preview_host", None)
         controller = getattr(host, "controller", None)
         check = getattr(controller, "edit_in_place_blocker", None)
