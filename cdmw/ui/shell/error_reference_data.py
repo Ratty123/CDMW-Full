@@ -73236,7 +73236,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 596
+      "cdmw/automation/bridge.py": 630
     }
   },
   {
@@ -81916,7 +81916,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 502
+      "cdmw/automation/bridge.py": 504
     }
   },
   {
@@ -82532,7 +82532,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 600
+      "cdmw/automation/bridge.py": 634
     }
   },
   {
@@ -82724,7 +82724,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 480
+      "cdmw/automation/bridge.py": 482
     }
   },
   {
@@ -83309,7 +83309,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown automation command: {command or '(none)'}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 271
+      "cdmw/automation/bridge.py": 273
     }
   },
   {
@@ -86345,7 +86345,7 @@ MESSAGE_REFERENCE = [
     "message": "no {name} event within the timeout",
     "recovery": "timeout",
     "sources": {
-      "cdmw/automation/bridge.py": 237
+      "cdmw/automation/bridge.py": 239
     }
   },
   {
@@ -87667,7 +87667,7 @@ MESSAGE_REFERENCE = [
     "message": "{command} did not finish on the UI thread",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 275
+      "cdmw/automation/bridge.py": 277
     }
   },
   {
