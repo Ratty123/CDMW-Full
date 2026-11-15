@@ -149,6 +149,7 @@ _CONTROLS = (
     "Cloth pins (experimental)", "Pin guides at or above Y", "Use painted pins", "Create / update guides",
     "Copy shape", "Remove shape", "Scale all sizes", "Apply shape edits", "Restore source shapes",
     "Collision sources", "Cloth profile",
+    "Fit to Original", "Reset Placement", "Keep Original Materials", "Quick turn", "Open Package in CDMW...",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(
@@ -218,6 +219,8 @@ def _control_pattern(locale: str):
             # such as "Mod-Verwaltung" are names, not the Create button or Mod toggle.
             exception = {
                 "Move": r"(?! away\b)", "Create": r"(?! New Item\b)", "Mod": r"(?! Manage(?:ment|r)\b)(?!-)",
+                # Blender's own glTF export and import labels, not CDMW controls.
+                "Include": r"(?! All Bone Influences\b)", "Import": r"(?! > glTF\b)",
             }.get(name, "")
             before = r"(?<![\w-])" if name == "Mod" else r"(?<!\w)"
             patterns.append(re.escape(name) if cjk else before + re.escape(name) + r"(?!\w)" + exception)
