@@ -1757,7 +1757,15 @@ impl LabApplication {
         crate::cdmw_layout::restore(&self.egui_context, &bridge.manifest().theme["layout"]);
         crate::shortcuts::apply_app_command_chords(&bridge.manifest().theme);
         let shortcuts = bridge.manifest().theme.get("shortcuts").cloned();
+        let preview_settings = bridge.manifest().theme.get("preview_settings").cloned();
         self.apply_shortcut_overrides(shortcuts.as_ref());
+        // The shared Preview settings come with the launch theme too. Only a later
+        // theme update used to apply them, so a newly opened editor drew with its own
+        // defaults (a near-black background, the default lighting) instead of what
+        // Browse shows, and did not publish its own changes until then.
+        if let Some(settings) = preview_settings {
+            self.apply_shared_preview_settings(&settings);
+        }
     }
 
     pub(super) fn current_shared_preview_settings(&self) -> serde_json::Value {
@@ -6564,6 +6572,34 @@ mod tests {
         let shared = application.current_shared_preview_settings();
         assert_eq!(shared["view_mode"], "wire");
         assert_eq!(shared["background_color"], "#102030");
+    }
+
+    #[test]
+    fn a_new_editor_draws_with_the_shared_preview_settings_of_its_launch_theme() {
+        // Fredric saw Browse and the Mesh Editor lit differently (2026-11-15): the
+        // launch theme's shared settings were ignored until a later theme update.
+        let root = std::env::temp_dir().join(format!("cdmw-launch-theme-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("root");
+        let mut bridge = crate::cdmw_session::CdmwBridge::for_test(root.clone(), "launch-theme", 1, 0);
+        let shared = json!({
+            "lighting_preset": "showcase", "shadows": false, "ambient_occlusion": false,
+            "ground": false, "ground_grid": false, "view_mode": "textured",
+            "background_color": "#3B3B3B",
+        });
+        bridge.set_theme_for_test(json!({"preview_settings": shared.clone()}));
+        let mut application = LabApplication::new(None, None);
+        assert_ne!(application.viewport_background_colour, Color32::from_rgb(0x3B, 0x3B, 0x3B));
+        application.cdmw_bridge = Some(bridge);
+        application.apply_cdmw_theme();
+        assert_eq!(application.lighting_preset.id(), "showcase");
+        assert!(!application.lighting_depth.shadows && !application.lighting_depth.ambient_occlusion);
+        assert!(!application.ground_visible && !application.ground_grid);
+        assert_eq!(application.viewport_background_colour, Color32::from_rgb(0x3B, 0x3B, 0x3B));
+        // What the editor now draws with is exactly what the host sent, so a later
+        // change in the editor is published back to the other viewports.
+        assert_eq!(application.current_shared_preview_settings(), shared);
+        assert_eq!(application.shared_preview_settings, Some(shared));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

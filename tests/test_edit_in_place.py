@@ -481,6 +481,26 @@ def test_the_store_carries_view_mode_and_background_to_every_viewport(tmp_path: 
     assert not hub.update(background_color="not a colour", view_mode="xray")  # invalid colour keeps the default
 
 
+def test_browse_and_the_mesh_editor_are_given_the_same_render_settings() -> None:
+    """Fredric saw Browse and the Mesh Editor lit differently (2026-11-15). Both now take
+    every render setting from the one store: Browse's viewport (no local override) and
+    the Mesh Editor's launch theme get the same values; the editor applies its launch
+    values at once (Rust test a_new_editor_draws_with_the_shared_preview_settings...)."""
+    from cdmw.ui.mesh_editor.tab_rust_editor import _shared_preview_settings
+    from cdmw.ui.preview.dotnet_host import RustPreviewHostFrame
+    from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
+
+    hub = preview_settings_hub()
+    assert hub is not None
+    hub.update(lighting_preset="showcase", shadows=False, ambient_occlusion=False, ground=False,
+               ground_grid=False, view_mode="xray", background_color="#204060")
+    browse = RustPreviewHostFrame.effective_preview_settings(SimpleNamespace(_local_preview_settings={}))
+    editor = _shared_preview_settings()
+    assert browse == editor == hub.values()
+    assert set(editor) >= {"lighting_preset", "shadows", "ambient_occlusion", "ground", "ground_grid",
+                           "view_mode", "background_color"}
+
+
 def test_browse_keeps_the_shared_values_another_viewport_set(monkeypatch) -> None:
     from cdmw.models import ModelPreviewRenderSettings
     from cdmw.ui.archive_browser import preview_settings

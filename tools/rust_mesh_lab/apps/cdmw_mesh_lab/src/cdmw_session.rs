@@ -1642,6 +1642,11 @@ impl CdmwBridge {
     }
 
     #[cfg(test)]
+    pub(crate) fn set_theme_for_test(&mut self, theme: Value) {
+        self.manifest.theme = theme;
+    }
+
+    #[cfg(test)]
     pub(crate) fn set_reference_files_for_test(&mut self, files: Vec<String>) {
         self.manifest.item_set_files = files;
     }
