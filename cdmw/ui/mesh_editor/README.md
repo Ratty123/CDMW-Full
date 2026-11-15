@@ -3474,10 +3474,12 @@ a copy of each original rule without the kept layers. A replacement keeps its it
 identity, so whole-part hide conditions, which match prefab name suffixes shared with
 other items, stay unchanged; skin and hair are therefore not offered. Layers match
 the rule's spelling regardless of case. A ticked layer the garment's rules never cut
-is reported after the build and changes nothing; if none of the ticked layers is cut,
-the build refuses instead of shipping an unchanged descriptor. It also refuses when a
-prefab that mentions the mesh cannot be decoded exactly, rather than leaving that
-item cutting.
+is reported after the build and changes nothing. If none of the ticked layers is cut
+(for example Lowerbody on the pants themselves), or no prefab binds the mesh, the mod
+is built without its own descriptor or prefabs and a note names the layers the mesh's
+rules do cut. It refuses when a prefab that mentions the mesh cannot be decoded
+exactly, rather than leaving that item cutting. A Build Mod failure is shown in a
+dialog as well as the status bar.
 `mesh-editor-session.json` records the prefabs, tags and kept layers under
 `layer_visibility`. The mod ships the whole descriptor, so another mod that ships it
 replaces these rules, or loses its own. The preview does not simulate shrink rules;

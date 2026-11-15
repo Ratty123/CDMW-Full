@@ -192,8 +192,8 @@ def test_mesh_output_refuses_without_layers_or_a_binding_prefab():
     entries, read = mesh_entries(mesh_files())
     with pytest.raises(ValueError, match="at least one layer"):
         prepare_layer_visibility(PAC, (), entries, read)
-    with pytest.raises(ValueError, match="No prefab binds"):
-        prepare_layer_visibility("character/model/none.pac", ("Underwear",), entries, read)
+    unbound = prepare_layer_visibility("character/model/none.pac", ("Underwear",), entries, read)
+    assert unbound.patches == () and "No prefab uses none.pac" in unbound.notes[-1]
     without = {k: v for k, v in mesh_entries(mesh_files())[0].items() if k != SHRINK_PATH}
     with pytest.raises(ValueError, match="has no character/descriptors/partshrinkdesc.xml"):
         prepare_layer_visibility(PAC, ("Underwear",), without, read)
@@ -204,8 +204,16 @@ def test_mesh_output_names_layers_the_rule_never_cut_last():
     out = prepare_layer_visibility(PAC, ("Underwear", "Lowerbody"), entries, read)
     # The status bar keeps the last message; it must be the one about this mesh.
     assert "none of this equipment's shrink rules cut Lowerbody;" in out.notes[-1]
-    with pytest.raises(ValueError, match="do not cut Lowerbody; there is nothing to change"):
-        prepare_layer_visibility(PAC, ("Lowerbody",), entries, read)
+
+
+def test_mesh_output_builds_unchanged_when_no_kept_layer_is_cut():
+    # Issue report: pants with Lowerbody and Lowerbody_Up ticked failed the whole build.
+    entries, read = mesh_entries(mesh_files())
+    out = prepare_layer_visibility(PAC, ("Lowerbody", "Lowerbody_Up"), entries, read)
+    assert out.patches == ()
+    assert out.record["profiles"] == [] and "Lowerbody, Lowerbody_Up" in out.record["unchanged"]
+    assert out.notes[-1].startswith("Keep layers underneath changed nothing:")
+    assert "do not cut Lowerbody, Lowerbody_Up; they cut Underwear." in out.notes[-1]
 
 
 def test_mesh_output_matches_the_rules_spelling_of_a_layer():
@@ -273,6 +281,10 @@ def test_build_mod_worker_refuses_to_patch_a_file_the_mod_already_writes(monkeyp
         worker._layer_visibility(taken, [])
     with pytest.raises(ValueError, match="only to Build Mod"):
         MeshDirectOutputWorker(1, None, "s", entry, kind="archive_result", keep_layers=("Underwear",))
+    unchanged = MeshDirectOutputWorker(1, None, "s", entry, kind="loose_mod", keep_layers=("Lowerbody",))
+    requests = []
+    out = unchanged._layer_visibility(requests, [])
+    assert requests == [] and "changed nothing" in out.notes[-1]
 
 
 def test_build_mod_dialog_returns_ticked_layers_only_when_enabled(tmp_path):
@@ -292,3 +304,20 @@ def test_build_mod_dialog_returns_ticked_layers_only_when_enabled(tmp_path):
         assert dialog.kept_layers() == () and dialog.build_button.isEnabled()
     finally:
         dialog.deleteLater()
+
+
+def test_a_failed_build_mod_says_why_in_a_dialog(monkeypatch):
+    import cdmw.ui.mesh_editor.tab_direct_output as direct
+    shown, status = [], []
+    box = SimpleNamespace(warning=lambda _parent, title, text: shown.append((title, text)))
+    monkeypatch.setattr(direct, "_tab", SimpleNamespace(QMessageBox=box))
+    tab = SimpleNamespace(standalone_output_request_id=3, standalone_output_kind="loose_mod",
+                          status_message_requested=SimpleNamespace(emit=lambda *args: status.append(args)))
+    direct.MeshEditorDirectOutputMixin._handle_mesh_direct_output_error(tab, 3, "ValueError: refused")
+    assert status == [("Mesh output failed: ValueError: refused", True)]
+    assert shown == [("Build Mod", "The mod was not built.\n\nValueError: refused")]
+    # A stale request and outputs that are not Build Mod stay on the status bar only.
+    direct.MeshEditorDirectOutputMixin._handle_mesh_direct_output_error(tab, 2, "old")
+    tab.standalone_output_kind = "archive_result"
+    direct.MeshEditorDirectOutputMixin._handle_mesh_direct_output_error(tab, 3, "x")
+    assert len(shown) == 1

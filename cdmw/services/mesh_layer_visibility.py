@@ -135,12 +135,18 @@ def prepare_layer_visibility(
             patches.append((entry, retag.data))
         prefab_records.append({"prefab": entry.path, "components": retag.details})
     if not prefab_records:
-        raise ValueError(f"No prefab binds {pac_path}; there is no shrink rule to change.")
+        return _unchanged(pac_path, choice, prefab_records,
+                          f"No prefab uses {PurePosixPath(target).name}, so it has no shrink rule to change.")
     unlisted = sorted(name for name in choice.keep_receivers if name.casefold() not in cut)
     if not profiles:
-        if cut and unlisted:
-            raise ValueError(f"The shrink rules this mesh uses do not cut {', '.join(unlisted)}; there is nothing to change.")
-        raise ValueError("The prefabs that use this mesh have no shrink tag CDMW can change.")
+        # Nothing the author ticked is cut by this mesh. That is an answer, not a
+        # failure: build the mod unchanged and say which layers the mesh does cut.
+        if cut:
+            reason = (f"The shrink rules this mesh uses do not cut {', '.join(unlisted)}; "
+                      f"they cut {', '.join(_cut_names(prefab_records, rule_receivers))}.")
+        else:
+            reason = "The prefabs that use this mesh have no shrink tag CDMW can change."
+        return _unchanged(pac_path, choice, prefab_records, reason, warnings)
     changed = clone_shrink_rules(shrink, tuple(profiles))
     patches.append((shrink_entry, changed))
     # Generic notes first: the status bar keeps the last message, which should be
@@ -154,6 +160,23 @@ def prepare_layer_visibility(
     record = {"experimental": True, "mesh": pac_path, "keep_layers": sorted(choice.keep_receivers),
               "prefabs": prefab_records, "profiles": [profile_record(p) for p in profiles]}
     return LayerVisibilityOutput(tuple(patches), tuple(dict.fromkeys(notes)), record)
+
+
+def _cut_names(prefab_records, rule_receivers) -> list[str]:
+    """Clothing layers the examined components' rules cut, in the rules' spelling."""
+    clothing = {name.casefold() for name in CLOTHING_LAYERS}
+    tags = (detail.get("source_tag") for record in prefab_records for detail in record["components"])
+    names = (name for tag in dict.fromkeys(tags) if tag for name in rule_receivers(tag))
+    return [name for name in dict.fromkeys(names) if name.casefold() in clothing] or ["no clothing layer"]
+
+
+def _unchanged(pac_path, choice, prefab_records, reason, warnings=()) -> LayerVisibilityOutput:
+    """Keep layers underneath changes nothing for this mesh; the mod is built without it."""
+    notes = [*warnings, f"Keep layers underneath changed nothing: {reason} "
+             "The mod was built without its own shrink rules."]
+    record = {"experimental": True, "mesh": pac_path, "keep_layers": sorted(choice.keep_receivers),
+              "prefabs": prefab_records, "profiles": [], "unchanged": reason}
+    return LayerVisibilityOutput((), tuple(dict.fromkeys(notes)), record)
 
 
 def mounted_entries(game_root, wanted: Callable[[str], bool], *, stop_event=None) -> dict[str, object]:

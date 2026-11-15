@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- Mesh Editor's **Build Mod** with **Keep layers underneath** ticked no longer fails when the edited garment never cut the ticked layers, such as Lowerbody on the pants themselves. The mod is built without its own shrink rules, and a note names the layers the garment does cut. When Build Mod does fail, a message now says why instead of the progress bar closing with no mod.
+
 ## [0.12.0-alpha.5] - 2026-11-14
 
 ### Added

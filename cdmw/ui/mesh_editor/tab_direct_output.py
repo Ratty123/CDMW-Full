@@ -525,6 +525,10 @@ class MeshEditorDirectOutputMixin:
     def _handle_mesh_direct_output_error(self, request_id: int, message: str) -> None:
         if int(request_id) == int(self.standalone_output_request_id):
             self.status_message_requested.emit(f"Mesh output failed: {message}", True)
+            # Build Mod closes its progress dialog with no mod on disk; a status
+            # line alone is easy to miss, so say why the mod was not written.
+            if self.standalone_output_kind in {"loose_mod", "overlay_package"}:
+                _tab.QMessageBox.warning(self, "Build Mod", f"The mod was not built.\n\n{message}")
 
     def _cleanup_mesh_direct_output_worker(self, thread: QThread, worker: object) -> None:
         if not thread.wait(0):
