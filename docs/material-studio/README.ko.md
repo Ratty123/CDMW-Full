@@ -170,6 +170,25 @@
 | `tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs` | 프리셋 저장·삭제 UI |
 | `tests/test_material_studio_presets.py` 외 | 테스트 |
 
+## 4차: 11월 패치 웨딩 면사포 대응 (2026-11-15)
+
+### 확인한 사실
+- 게임 업데이트로 `cd_phw_00_hel_00_0219.pac_xml`이 바뀌었다(메시 .pac은 동일). 면사포 천(wrapper 3)은 0.142 / 0.275 / 0.516 / 0.901이고, `_baseColorTexture`, `_uvScale`, `_dyeingColor`가 빠졌다.
+- `SkinnedMeshTransparency.material`도 바뀌었다. `SkinnedMeshStandardParameterSet_Ver2`와 `PartColorBlendingParameterSet`을 쓰고(`USE_COMMON_PIXEL_VER2`), `_dyeingTransformProperty0/1/3`(Mask R/G/B Scale X, Scale Y, Offset X, Offset Y)이 추가됐다.
+- 레이스 무늬는 디테일 레이어로 옮겨졌다. `_detailDiffuseMaskR` = 잔잔한 반복 레이스(`0219.dds`, 1024²), `_detailHeightMaskR` = 큰 꽃무늬(`0219_disp.dds`). `_colorBlendingFlag 13` = R 채널의 Diffuse, Material, Height 디테일 사용. `_colorBlendingMaskTexture`는 `temp_r.dds`(전체 R).
+- `_heightTexture`는 새 `0219_02_disp.dds`로, 반복 무늬가 아니라 메시 UV에 맞춰 구운 주름 맵이다.
+- `_dyeingTransformProperty0 = 11565` → 바이트 [45, 45, 0, 0] → Scale 0.176 × 0.176, Offset 0. CDMW 결합기 규칙(`(uv - 0.5 - offset) / scale`)으로는 약 5.7회 반복이다. `_dyeingPropertyBlend`의 R 회전 바이트는 0이다.
+- CDMW 미리보기의 망사(family 11)는 패치 전 셰이더(베이스 + 높이 맵)만 구현한다. 그래서 새 면사포는 주름 맵이 실 굵기로 쓰이고 레이스는 그려지지 않는다.
+
+### 고친 것
+- 편집 세션 전 미리보기 메타데이터로 만든 원본 행에, 같은 파일의 다른 wrapper(화관 고리)의 행이 섞이던 문제. 부위가 그려진 wrapper(owner slot)의 입력만 쓴다. 텍스처 행은 빈칸 대신 해석된 경로를 보인다.
+- 내장 프리셋: "웨딩 면사포: 천 / _01 부위"(패치 후 값), "웨딩 면사포 (패치 전): 천 / _01 부위".
+- 디테일 레이어를 쓰는 망사 재질이면 패널에 "레이스 무늬와 밀도가 미리보기에 정확히 표시되지 않음" 경고.
+
+### 남은 것
+- 새 면사포를 제대로 그리려면, 망사 커버리지와 디테일 레이어(레이스)가 어떻게 합쳐지는지 알아야 한다. 정의 파일만으로는 합성 순서와 수식을 알 수 없다(셰이더 DXIL 필요).
+- 처음 열 때와 다시 열 때 화면이 다른 문제: 다시 열 때 미리보기가 다른 wrapper의 입력을 같은 부위에 묶는 것으로 보인다(위 행 섞임과 같은 원인). 미리보기 렌더링 자체는 upstream 경로라 아직 고치지 않았다.
+
 ## 남긴 결정 사항
 
 1. `_screenSpaceDisplacementScale`은 슬라이더로 추가하지 않았다. 유일한 근거인 Angel Teddy 모드가 이 행에 작은 ItemID 3을 쓰는데, 작은 ID의 규칙이 밝혀지지 않았다. 다만 Glass를 "다시 쓰기"로 만들면 그 모드의 구성대로 이 행(ItemID 3)을 넣는다. 원본에 값이 있으면 그 값을, 없으면 0을 쓴다.
