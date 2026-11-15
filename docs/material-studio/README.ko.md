@@ -192,6 +192,37 @@
   - 처음 열 때의 화면(주름 맵만 보이는 매끈한 베일)은 Archive Browser가 준비한 재질을 그대로 쓰는 다른 경로로 보인다. 두 경로가 같아지는지는 실제 앱에서 확인해야 한다.
   - 회전 부호: 결합기는 세로로 뒤집은 이미지에서 계산한다. 합성기는 DDS 원래 방향이라 Y 오프셋과 회전 부호를 바꿨다. 중심 기준·180°·무회전 변환에서는 두 식이 같다.
 
+## 5차: 새 면사포를 게임 셰이더 식으로 그리기 (2026-11-16)
+
+근거는 `blablahandsome1212/rigging`의 `docs/character-library/shader-research/veil-update-2026-11-16/`에 있는 DXIL 디스어셈블이다(기준 변형 `..._fd5b7acb_2_bd122a23_151cd770`).
+
+### 확정 (DXIL 명령 근거)
+- 실 굵기: `_netThread × 0.0003 × (Hbase + Hdetail) × _screenSpaceDisplacementScale`, 뒷면 ×4, 그 뒤 `min(굵기, 칸 간격)`.
+- `Hdetail = opacity × mask × 디테일 높이(디테일 UV).r × _detailScreenSpaceDisplacementScale`. opacity는 `_dyeingGlobalOpacity`의 채널 바이트 / 255다.
+- 디테일 UV(`%236–%249`, 원문 재확인): `qx = (u − 0.5 − Ox) / Sx`, `qy = (v − 0.5 + Oy) / Sy`, `u' = qx·cos − qy·sin + 0.5`, `v' = qx·sin + qy·cos + 0.5`, `θ = 회전 바이트 × 2π/255 − π`.
+- 알파: `C = 망사 coverage × _overlayColorTexture 알파`, 색은 C로 premultiply, 블렌드 알파는 `C × 0.99`. 패치 전의 앞면 0.3 / 뒷면 0.7과 base 알파 × 염색 알파는 쓰지 않는다.
+- 행이 없을 때의 기본값(정의 파일): `_screenSpaceDisplacementScale` 1.0(면사포 `.material`), `_detailScreenSpaceDisplacementScale` 0, `_dyeingGlobalOpacity` 0, 회전 0.5(바이트 128), Transform (1, 1, 0, 0), `_overlayColorTexture` = `nonetexture0xff888888`(알파 1).
+
+### 구현
+- **Rust 합성기의 디테일 UV**(`repeat_by_layer_transform`)를 위 식 그대로 고쳤다. 이전에는 Oy 부호와 회전 방향이 반대였다(면사포는 오프셋 0, 180°라 결과가 같았다).
+- **렌더러**(`cdmw_render_wgpu`, kind 11): 13번 칸이 1이면 새 식을 쓴다. 14 = `_screenSpaceDisplacementScale`, 15 = `_detailScreenSpaceDisplacementScale`, 16 = opacity × mask, 17–20 = Scale X, Scale Y, Offset X, Offset Y, 21 = 회전(라디안), 22 = overlay 알파. 디테일 높이 텍스처는 shader mask 슬롯으로 받아 디테일 UV로 직접 샘플링한다(원본 DDS의 밉맵을 그대로 쓴다). 13번 칸이 0이면 패치 전 식 그대로다.
+- **Python**(`cdmw/domain/mesh/shader_controls.py`): `veil_layer_inputs`가 원본 셰이더가 망사이고 `_detailHeightMask*`가 있거나 `_colorBlendingFlag`의 하위 12비트가 켜져 있을 때만 새 칸을 채운다. 패치 전 면사포, Lace Veil 모드, Glass는 벡터가 이전과 같다(테스트로 고정).
+- **두 열기 경로를 같게**: 새 망사 부위는 편집기로 보낼 때 항상 자기 `_heightTexture`(주름 맵)를 height로, 선택된 채널의 `_detailHeightMask*`를 shader mask로 넘긴다(`_mesh_texture_payloads`). 합성 그래프에서는 망사 wrapper의 디테일 height를 빼서, Rust 합성기가 레이스를 주름 맵 위에 덮어쓴 height를 만들지 않게 했다.
+- **패널**: 새 망사에서는 `_uvScale`, `_dyeingColor`를 숨기고(원본에 행이 있으면 보인다), "디테일 레이어 값 (읽기 전용)"에 변위 배율 두 개와 채널, 반복 횟수, 오프셋, 회전을 보인다. "다시 쓰기"를 켜면 패치 전 구성이 되므로 실시간 미리보기도 디테일 레이어를 끈다.
+- **재질 쓰기**: 새 망사에는 `_uvScale`, `_dyeingColor` 행을 새로 추가하지 않는다(이미 있는 행은 고친다).
+
+### 추정
+- 채널 선택: `_colorBlendingMaskTexture`의 최대 채널을 텍스처를 디코드하지 않고 파일 이름(`temp_r/g/b.dds`)으로 정한다. 그 외의 마스크면 디테일 높이 텍스처가 있는 첫 채널을 쓰고 마스크 값은 1로 본다.
+- overlay 알파: `nonetexture0xAARRGGBB` 이름이면 그 알파, 다른 텍스처면 1로 본다.
+- 렌더 파라미터 offset 40의 진입 조건 `(v & 254) < 2`는 의미가 확인되지 않아 "켜짐"으로 뒀다.
+- 조명(`lightingRGB`)은 기존 근사 그대로다. 새 프로필은 base 색에 `linear_to_srgb`와 염색 색을 적용하지 않는다(새 정의에서 `_baseColorTexture`가 sRGB=True).
+
+### 확인한 것 / 못 한 것
+- 실제 파일(패치 후·패치 전 `cd_phw_00_hel_00_0219.pac_xml`)로 벡터를 확인했다. 천: 13–22번 칸 = 1, 1, 1.732, 1, 0.176, 0.176, 0, 0, −π, 1. `_01` 부위는 `_detailScreenSpaceDisplacementScale` 행이 없어 디테일 가산이 0이다. 패치 전 파일은 13번 이후가 모두 0이다.
+- Python 결합기(`_apply_pac_layer_sampling_transform`)는 DXIL과 같은 식을 쓰지만, 세로로 뒤집은 이미지에 적용하는 호출이 있다. 그 경우 Oy와 회전 방향이 반대가 된다(오프셋 0, 0°/180°에서는 같다). 원작자 코드라 고치지 않았다.
+- 이 환경에는 GPU가 없어 화면 캡처는 만들지 못했다. WGSL은 naga 검증과 문자열 테스트로, 식은 Python 참조 구현으로 확인했다. 처음 열 때와 다시 열 때가 같아졌는지는 Windows 빌드에서 봐야 한다. 두 경로의 base 색(다시 열 때는 `_detailDiffuseMaskR` 합성)이 다를 수 있다.
+- 변위 배율 두 개의 슬라이더와 Byte4 Transform 편집은 넣지 않았다(행 쓰기 규칙 미확정).
+
 ## 남긴 결정 사항
 
 1. `_screenSpaceDisplacementScale`은 슬라이더로 추가하지 않았다. 유일한 근거인 Angel Teddy 모드가 이 행에 작은 ItemID 3을 쓰는데, 작은 ID의 규칙이 밝혀지지 않았다. 다만 Glass를 "다시 쓰기"로 만들면 그 모드의 구성대로 이 행(ItemID 3)을 넣는다. 원본에 값이 있으면 그 값을, 없으면 0을 쓴다.

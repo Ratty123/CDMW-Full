@@ -198,3 +198,52 @@ def test_the_composed_graph_leaves_a_net_veils_detail_height_to_the_renderer(tmp
     with pytest.raises(ValueError, match="missing"):
         _copy_preview_core_material_layers(batch([{"parameter_name": "_roughness", "value": "1"}]), tmp_path, tmp_path,
                                            "metadata", {}, 0, 0, {}, [], 0, None, None)
+
+
+def test_the_editor_gets_the_veils_own_height_map_and_its_detail_height_texture(tmp_path):
+    """On every open path: the composed height (lace blended over the folds) is not what the shader reads."""
+    from unittest.mock import patch
+
+    import cdmw.services.mesh_rust_authoring as authoring
+    from cdmw.models import PreviewMaterialTextureInput
+
+    session_root = tmp_path / "session"
+    session_root.mkdir()
+    files = {}
+    for name in ("folds", "lace", "composed"):
+        files[name] = tmp_path / f"{name}.dds"
+        files[name].write_bytes(b"DDS " + name.encode())
+    parameters = tuple(SimpleNamespace(parameter_name=key, value=value) for key, value in CLOTH_VALUES.items())
+
+    def texture_input(name, path, source):
+        return PreviewMaterialTextureInput(parameter_name=name, source_texture_path=source, source_dds_path=str(path),
+                                           owner_slot_index=2, binding_authority="authoritative", shader_family=VEIL,
+                                           material_parameters=parameters)
+
+    def payloads(textures, synthesized):
+        submesh = SimpleNamespace(
+            name="veil", material="veil", preview_pac_material_owner_slot_index=2, preview_sidecar_shader_family=VEIL,
+            preview_material_parameters=(),
+            preview_material_texture_inputs=tuple(texture_input(name, files[key], source)
+                                                  for name, (key, source) in textures.items()))
+        mesh = SimpleNamespace(path="character/model/veil.pac", lod_levels=[], submeshes=[submesh])
+        with patch.object(authoring, "_vortice_material_layer_overrides", return_value={}, create=True), \
+                patch.object(authoring, "_mesh_synthesized_texture_overrides", return_value=synthesized):
+            rows = authoring._mesh_texture_payloads(session_root, mesh,
+                                                    expected_root_identity=authoring._session_root_identity(session_root))
+        return {row["role"]: row for row in rows}
+
+    layered = {"_heightTexture": ("folds", CLOTH_TEXTURES["_heightTexture"]),
+               "_detailHeightMaskR": ("lace", CLOTH_TEXTURES["_detailHeightMaskR"]),
+               "_colorBlendingMaskTexture": ("composed", CLOTH_TEXTURES["_colorBlendingMaskTexture"])}
+    sha = lambda name: __import__("hashlib").sha256(files[name].read_bytes()).hexdigest()
+    for synthesized in ({}, {(0, 0, "height"): files["composed"]}):
+        rows = payloads(layered, synthesized)
+        assert rows["height"]["file"]["sha256"].casefold() == sha("folds")
+        assert rows["shader_mask"]["file"]["sha256"].casefold() == sha("lace")
+        assert rows["shader_mask"]["material_indices_by_lod"] == [[0]]
+    # The veil before the patch: no detail texture, and a composed height stays in use.
+    before = {"_heightTexture": ("folds", BEFORE_TEXTURES["_heightTexture"])}
+    parameters = tuple(SimpleNamespace(parameter_name=key, value=value) for key, value in BEFORE.items())
+    rows = payloads(before, {(0, 0, "height"): files["composed"]})
+    assert "shader_mask" not in rows and rows["height"]["file"]["sha256"].casefold() == sha("composed")
