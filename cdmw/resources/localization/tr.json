@@ -17049,7 +17049,6 @@
     "executable hash does not match its provenance manifest": "yürütülebilir karma, kaynak bildirimiyle eşleşmiyor",
     "executable package changed while it was being validated": "yürütülebilir paketi doğrulanırken değişti",
     "existing": "mevcut",
-    "exit code {value_0}, status {value_1}": "çıkış kodu {value_0}, durum {value_1}",
     "expected a three-component vector": "üç bileşenli bir vektör bekleniyor",
     "experience": "deneyim",
     "experimental": "deneysel",

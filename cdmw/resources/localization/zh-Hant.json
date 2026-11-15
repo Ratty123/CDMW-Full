@@ -17049,7 +17049,6 @@
     "executable hash does not match its provenance manifest": "可執行哈希與其出處清單不匹配",
     "executable package changed while it was being validated": "可執行套件在驗證期間發生變更",
     "existing": "現有",
-    "exit code {value_0}, status {value_1}": "退出代碼 {value_0}，狀態 {value_1}",
     "expected a three-component vector": "預期為三分量向量",
     "experience": "經驗值",
     "experimental": "實驗性的",

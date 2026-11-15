@@ -17049,7 +17049,6 @@
     "executable hash does not match its provenance manifest": "실행 가능한 해시가 출처 매니페스트와 일치하지 않습니다.",
     "executable package changed while it was being validated": "실행 패키지가 검증되는 동안 변경되었습니다",
     "existing": "기존",
-    "exit code {value_0}, status {value_1}": "종료 코드 {value_0}, 상태 {value_1}",
     "expected a three-component vector": "세 구성 요소 벡터가 예상됨",
     "experience": "경험치",
     "experimental": "실험적인",

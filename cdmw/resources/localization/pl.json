@@ -17049,7 +17049,6 @@
     "executable hash does not match its provenance manifest": "Hash pliku wykonywalnego nie jest zgodny z manifestem pochodzenia",
     "executable package changed while it was being validated": "Pakiet wykonywalny zmienił się podczas walidacji",
     "existing": "istniejące",
-    "exit code {value_0}, status {value_1}": "kod zakończenia {value_0}, status {value_1}",
     "expected a three-component vector": "oczekiwano wektora trójskładnikowego",
     "experience": "doświadczenie",
     "experimental": "eksperymentalny",

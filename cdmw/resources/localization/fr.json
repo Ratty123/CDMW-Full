@@ -17049,7 +17049,6 @@
     "executable hash does not match its provenance manifest": "le hachage de l'exécutable ne correspond pas à son manifeste de provenance",
     "executable package changed while it was being validated": "Le paquet exécutable a été modifié pendant sa validation",
     "existing": "existant",
-    "exit code {value_0}, status {value_1}": "code de sortie {value_0}, statut {value_1}",
     "expected a three-component vector": "attend un vecteur à trois composants",
     "experience": "expérience",
     "experimental": "expérimental",

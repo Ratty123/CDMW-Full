@@ -14176,7 +14176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 448,
+          "line": 473,
           "sink": "_protocol_failure"
         }
       ]
@@ -14186,7 +14186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 560,
+          "line": 585,
           "sink": "_protocol_failure"
         }
       ]
@@ -14196,7 +14196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 337,
+          "line": 362,
           "sink": "_protocol_failure"
         }
       ]
@@ -14206,7 +14206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 379,
+          "line": 404,
           "sink": "_protocol_failure"
         }
       ]
@@ -14216,7 +14216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 311,
+          "line": 336,
           "sink": "_protocol_failure"
         }
       ]
@@ -14226,7 +14226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 436,
+          "line": 461,
           "sink": "_protocol_failure"
         }
       ]
@@ -14236,7 +14236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 441,
+          "line": 466,
           "sink": "_protocol_failure"
         }
       ]
@@ -14246,7 +14246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 168,
+          "line": 193,
           "sink": "RuntimeError"
         }
       ]
@@ -14256,7 +14256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 575,
+          "line": 600,
           "sink": "_fail_all"
         }
       ]
@@ -14266,7 +14266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 382,
+          "line": 407,
           "sink": "_protocol_failure"
         }
       ]
@@ -14276,7 +14276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 527,
+          "line": 552,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14286,7 +14286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 428,
+          "line": 453,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14296,7 +14296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 708,
+          "line": 734,
           "sink": "log"
         }
       ]
@@ -14306,7 +14306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 232,
+          "line": 257,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14316,7 +14316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 507,
+          "line": 532,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14326,7 +14326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 407,
+          "line": 432,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14336,7 +14336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 216,
+          "line": 241,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14366,7 +14366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 529,
+          "line": 554,
           "sink": "_protocol_failure"
         }
       ]
@@ -14376,7 +14376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 332,
+          "line": 357,
           "sink": "_protocol_failure"
         }
       ]
@@ -14386,7 +14386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 623,
+          "line": 649,
           "sink": "_fail_all"
         }
       ]
@@ -160241,7 +160241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 89,
+          "line": 114,
           "sink": "ValueError"
         }
       ]
@@ -167771,7 +167771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 519,
+          "line": 544,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -181481,7 +181481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 656,
+          "line": 682,
           "sink": "_fail_all"
         }
       ]
@@ -199168,16 +199168,6 @@
           "path": "cdmw/ui/mesh_editor/hair_setup_dialog.py",
           "line": 39,
           "sink": "addItem"
-        }
-      ]
-    },
-    {
-      "key": "exit code {value_0}, status {value_1}",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/archive_backend_client.py",
-          "line": 622,
-          "sink": "emit"
         }
       ]
     },

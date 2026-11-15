@@ -17049,7 +17049,6 @@
     "executable hash does not match its provenance manifest": "実行可能ファイルのハッシュがその出所マニフェストと一致しません",
     "executable package changed while it was being validated": "実行可能パッケージは検証中に変更されました",
     "existing": "既存",
-    "exit code {value_0}, status {value_1}": "終了コード {value_0}、ステータス {value_1}",
     "expected a three-component vector": "3 成分ベクトルを予期しました",
     "experience": "経験値",
     "experimental": "実験的な",
