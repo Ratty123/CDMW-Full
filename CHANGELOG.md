@@ -89,6 +89,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **Preview Settings** stays on the page you are on. Changing the Lighting preset, or any other setting on Quality or Lighting, moved the window to Camera Input.
 - Browse Archives no longer shows a model or set with a part selected and drawn in a yellow wire when it is first shown. Hovering a part in the **Scene** panel or the view highlights it, a click selects it, and a click on empty space or Esc clears the selection.
 - The **Scene** panel names a set's parts as the Mesh Editor's **Parts** list does, in the same order, instead of by their material names. Parts that share a name show their material or their number in the list, and a file's part count is no longer cut off.
+- Opening a set in the Mesh Editor, or showing a large model, no longer holds the window while CDMW checks the cached preview files. The check resolved every file's full path one by one, about 0.1 s for each of a set's files with warm caches and over 10 s in all on a first open; it now checks each folder once and still refuses a file reached through a link out of the cache.
 
 ### Docs
 
