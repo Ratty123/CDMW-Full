@@ -530,6 +530,31 @@ fn run_command_must_name_an_editor_command() {
 }
 
 #[test]
+fn select_parts_from_the_host_selects_whole_parts_as_a_row_click_does() -> TestResult {
+    let root = tempfile::tempdir()?;
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "parts", 1, 0);
+    let message = |indices: Value| {
+        json!({"event": "select_parts", "protocol": cdmw_session::PROTOCOL, "session_id": "parts",
+               "process_generation": 1, "indices": indices})
+    };
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message(json!([1, 0]))),
+        HostEvent::SelectParts(indices) if indices == vec![1, 0]
+    ));
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message(json!(["one"]))),
+        HostEvent::Fatal(_)
+    ));
+    let mut ui = HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    // Out-of-range numbers are dropped; the rest are selected as whole parts.
+    ui.application
+        .handle_cdmw_host_event(HostEvent::SelectParts(vec![1, 9, 1]));
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(mesh.selection.submeshes.iter().copied().collect::<Vec<_>>(), vec![1]);
+    Ok(())
+}
+
+#[test]
 fn finish_and_late_morph_data_come_from_the_host() {
     // P4 V3: the Finish, Discard, Keep editing prompt finishes as the button does,
     // and an editor that opened before its morph query gets the data afterwards.

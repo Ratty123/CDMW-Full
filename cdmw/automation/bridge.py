@@ -17,6 +17,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, Signal
 
+from cdmw.automation import saved_work_commands
 from cdmw.automation.pipe import LocalPipeServer, recv_json, send_json
 from cdmw.automation.policy import AutomationSettings
 
@@ -159,6 +160,12 @@ class AutomationBridge(QObject):
             "switch_piece": self._switch_piece,
             "debug_dump": self._debug_dump,
             "build_mod": self._build_mod,
+            # Drafts & Mods and whole-part selection (saved_work_commands.py).
+            "saved_work_rows": lambda args: saved_work_commands.saved_work_rows(self.window, args),
+            "saved_work_combine": lambda args: saved_work_commands.saved_work_combine(self.window, args),
+            "saved_work_combine_state": lambda args: saved_work_commands.saved_work_combine_state(self.window, args),
+            "saved_work_combine_answer": lambda args: saved_work_commands.saved_work_combine_answer(self.window, args),
+            "select_parts": lambda args: saved_work_commands.select_whole_parts(self.window, args),
         }
 
     # ----- lifecycle -------------------------------------------------------

@@ -3690,6 +3690,20 @@ impl LabApplication {
                 // Run at the next frame, where the key press would have run it.
                 self.pending_host_commands.push(command);
             }
+            HostEvent::SelectParts(indices) => {
+                let count = self
+                    .document
+                    .as_ref()
+                    .and_then(|document| document.lods.get(self.active_lod_index))
+                    .map_or(0, |lod| lod.submeshes.len());
+                let mut indices: Vec<u32> = indices
+                    .into_iter()
+                    .filter(|index| (*index as usize) < count)
+                    .collect();
+                indices.sort_unstable();
+                indices.dedup();
+                self.handle_actions(vec![UiAction::SetPartSelection(indices)]);
+            }
             HostEvent::VertexInspection {
                 request_id,
                 ok,
