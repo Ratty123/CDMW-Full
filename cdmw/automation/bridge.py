@@ -155,6 +155,8 @@ class AutomationBridge(QObject):
             "promote_edit": self._promote_edit,
             "show_document": self._show_document,
             "run_editor_command": self._run_editor_command,
+            "open_set": self._open_set,
+            "switch_piece": self._switch_piece,
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -538,6 +540,38 @@ class AutomationBridge(QObject):
             self.window.archive.archive_item_set_components.edit_set_button.click()
         else:
             self.window.shell._open_current_archive_mesh_editor()
+        return True
+
+    def _open_set(self, _args: dict) -> bool:
+        """Open the scoped worn set as Browse's "Open set in Mesh Editor" menu entry does.
+
+        ``open_mesh_editor`` with ``set`` clicks the Scene panel's "Open ticked parts"
+        button instead, which needs the panel's ticks."""
+
+        from cdmw.ui.mesh_editor.item_set_preparation import prepare_item_set_for_editor
+
+        shell = self.window.shell
+        entry = self.window.archive._current_archive_entry()
+        take = getattr(shell, "_take_pending_hidden_parts_for_open", None)
+        if callable(take):
+            take()
+        return bool(entry is not None and prepare_item_set_for_editor(shell, entry, edit_set=True))
+
+    def _switch_piece(self, args: dict) -> bool:
+        """Make another piece of the open set editable, as the editor's Switch editable
+        piece does; an unfinished edit is answered with ``answer`` (finish or discard)."""
+
+        from cdmw.ui.mesh_editor.item_set_preparation import switch_item_piece
+        from cdmw.ui.mesh_editor.live_edit import end_edit_prompt
+
+        answer = {"finish": end_edit_prompt.FINISH, "discard": end_edit_prompt.DISCARD}[
+            str(args.get("answer", "finish"))]
+        previous = end_edit_prompt.prompt_override
+        end_edit_prompt.prompt_override = lambda _parent, _label: answer
+        try:
+            switch_item_piece(self.window.shell, int(args["index"]))
+        finally:
+            end_edit_prompt.prompt_override = previous
         return True
 
     def _resize(self, args: dict) -> bool:

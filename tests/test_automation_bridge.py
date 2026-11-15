@@ -217,3 +217,28 @@ def test_windows_are_kept_off_screen_even_when_qt_itself_shows_them() -> None:
             widget.deleteLater()
     finally:
         app.removeEventFilter(placement)
+
+
+def test_switch_piece_answers_the_prompt_and_restores_it(env, monkeypatch) -> None:
+    """The set commands call what the menu and the editor call; the end-edit prompt
+    is answered only while the switch runs."""
+    from types import SimpleNamespace
+
+    from cdmw.automation.bridge import AutomationBridge
+    from cdmw.ui.mesh_editor import item_set_preparation
+    from cdmw.ui.mesh_editor.live_edit import end_edit_prompt
+
+    env.setenv(policy.TOKEN_ENV, secrets.token_hex(32))
+    bridge = AutomationBridge(policy.automation_settings())
+    assert {"open_set", "switch_piece"} <= set(bridge._ui_commands)
+    seen = []
+
+    def switch(shell, index):
+        seen.append((shell, index, end_edit_prompt.prompt_override(None, "file")))
+
+    monkeypatch.setattr(item_set_preparation, "switch_item_piece", switch)
+    shell = object()
+    bridge.window = SimpleNamespace(shell=shell)
+    assert bridge._switch_piece({"index": 1, "answer": "discard"})
+    assert seen == [(shell, 1, end_edit_prompt.DISCARD)]
+    assert end_edit_prompt.prompt_override is None
