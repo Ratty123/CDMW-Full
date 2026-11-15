@@ -271,6 +271,8 @@ class AutomationBridge(QObject):
             return self._wait_event(args)
         if command == "processes":
             return self._processes()
+        if command == "ui_stack":
+            return self._ui_stack()
         if command not in self._ui_commands:
             raise ValueError(f"Unknown automation command: {command or '(none)'}")
         request = _Request(command, args)
@@ -280,6 +282,19 @@ class AutomationBridge(QObject):
         if request.error:
             raise RuntimeError(request.error)
         return request.result
+
+    @staticmethod
+    def _ui_stack() -> list[str]:
+        """The UI thread's Python stack right now, read on the listener thread, so it
+        answers while the UI thread is busy (to find what blocks it)."""
+
+        import sys
+        import traceback
+
+        frame = sys._current_frames().get(threading.main_thread().ident)
+        if frame is None:
+            return []
+        return [f"{Path(item.filename).name}:{item.lineno} {item.name}" for item in traceback.extract_stack(frame)]
 
     def _processes(self) -> dict[str, object]:
         from cdmw.core.common import _windows_descendant_pids
