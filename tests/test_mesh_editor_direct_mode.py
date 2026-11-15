@@ -1968,7 +1968,6 @@ def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
         ("replace_from_archive_button", "replace_from_archive_requested", "replace_from_archive"),
         ("export_mesh_file_button", "export_mesh_file_requested", "export_mesh"),
         ("build_mod_button", "build_mod_requested", "build_mod"),
-        ("restore_overlay_button", "restore_overlay_requested", "restore_overlay"),
     )
     tab.status_message_requested.connect(
         lambda message, error=False: messages.append((str(message), bool(error)))
@@ -1986,8 +1985,9 @@ def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
         "replace_from_archive",
         "export_mesh",
         "build_mod",
-        "restore_overlay",
     ]
+    # The overlay install and restore are gone with the overlay installs (owner-approved removal).
+    assert not hasattr(workspace, "restore_overlay_button")
     assert messages == [
         ("Open a mesh session before running validation.", True),
         ("Select a supported archive mesh first.", True),
@@ -2007,8 +2007,9 @@ def test_mesh_editor_inventory_is_mesh_only_and_direct_authoring_is_explicit(tmp
     assert workspace.findChild(QToolButton, "MeshEditorOpenTextureButton") is None
     assert workspace.findChild(QToolButton, "MeshEditorExportMeshFileButton") is not None
     assert workspace.findChild(QToolButton, "MeshEditorBuildModButton") is not None
-    assert workspace.findChild(QToolButton, "MeshEditorInstallOverlayButton") is not None
-    assert workspace.findChild(QToolButton, "MeshEditorRestoreOverlayButton") is not None
+    # CDMW no longer installs into the game: no overlay install or restore buttons.
+    assert workspace.findChild(QToolButton, "MeshEditorInstallOverlayButton") is None
+    assert workspace.findChild(QToolButton, "MeshEditorRestoreOverlayButton") is None
 
     app.processEvents()
 

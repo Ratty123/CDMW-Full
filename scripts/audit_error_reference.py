@@ -123,6 +123,12 @@ def audit(root=ROOT):
                 if isinstance(node, ast.Raise):
                     kind = 'Python raise'
                     value = node.exc.args[0] if isinstance(node.exc, ast.Call) and node.exc.args else node.exc
+                    # A code first, then its message, as cdmw.mcp's ToolError(NOT_FOUND, "..."):
+                    # the message is the diagnostic text.
+                    if (isinstance(node.exc, ast.Call) and len(node.exc.args) >= 2
+                            and isinstance(value, (ast.Name, ast.Attribute))
+                            and (ast.unparse(value).rsplit('.', 1)[-1].isupper() or ast.unparse(value) == 'code')):
+                        value = node.exc.args[1]
                 elif isinstance(node, ast.Assert):
                     kind, value = 'Python assertion', node.msg
                 elif isinstance(node, ast.Call):
@@ -156,7 +162,7 @@ def audit(root=ROOT):
                                 if report_failure.search(fragment):
                                     check(path, node.lineno, [fragment], 'Python diagnostic report fragment')
                 if kind:
-                    fragments = aliases[(scope(node), value.id)] or aliases[(tree, value.id)] if isinstance(value, ast.Name) else literal_fragments(value)
+                    fragments = (aliases[(scope(node), value.id)] or aliases[(tree, value.id)] or constants.get(value.id, [])) if isinstance(value, ast.Name) else literal_fragments(value)
                     check(path, node.lineno, fragments, kind)
         else:
             # Deliberately separate regex recognizer for direct native throws,

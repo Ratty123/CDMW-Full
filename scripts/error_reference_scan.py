@@ -503,6 +503,14 @@ def scan_sources(root: Path) -> tuple[list[Emission], dict[str, dict[str, int]]]
                 fields = [n.target.id for n in node.body if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)]
                 if DIAGNOSTIC_FIELDS.intersection(fields) or "code" in fields and any(key in fields for key in ("message", "detail", "severity")):
                     signatures[node.name] = fields
+                # An exception taking a code first and then its message, as cdmw.mcp's
+                # ToolError(code, message): the message is the diagnostic text.
+                init = next((member for member in node.body
+                             if isinstance(member, ast.FunctionDef) and member.name == "__init__"), None)
+                if node.name not in signatures and init is not None:
+                    params = [arg.arg for arg in init.args.args if arg.arg not in {"self", "cls"}]
+                    if params[:2] == ["code", "message"]:
+                        signatures[node.name] = params
                 for member in node.body:
                     if isinstance(member, ast.Assign) and isinstance(member.value, ast.Constant) and isinstance(member.value.value, str):
                         for target in member.targets:
