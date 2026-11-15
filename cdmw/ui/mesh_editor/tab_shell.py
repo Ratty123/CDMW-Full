@@ -163,6 +163,12 @@ class MeshEditorTabShellMixin(
             lambda _checked=False: self._emit_target(self.open_archive_session_requested)
         )
         return page
+
+    def _textures_panel(self):
+        """The Textures panel beside this tab's 3D view (step 8), or None."""
+
+        return getattr(getattr(self, "standalone_workspace", None), "textures_dock", None)
+
     def _build_standalone_workspace(self) -> QWidget:
         page = MeshEditorWorkspace(theme_key=self.theme_key, defer_legacy_panels=True, parent=self)
         page.action_requested.connect(self._handle_action_requested)

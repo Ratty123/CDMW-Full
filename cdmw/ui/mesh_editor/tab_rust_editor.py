@@ -1187,7 +1187,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
     def _show_session_textures(self, session_root) -> None:
         """The Textures panel follows the document's session (step 8)."""
 
-        dock = getattr(getattr(self, "standalone_workspace", None), "textures_dock", None)
+        dock = _host_textures_panel(self)
         if dock is not None:
             dock.show_session(session_root)
 
@@ -1217,3 +1217,13 @@ __all__ = [
     "MESH_EDITOR_BACKEND_VORTICE",
     "MeshEditorRustEditorMixin",
 ]
+
+
+def _host_textures_panel(editor: object):
+    """The host's Textures panel (the Mesh Editor tab has one; Browse Archives does not)."""
+
+    panel = getattr(editor, "_textures_panel", None)
+    try:
+        return panel() if callable(panel) else None
+    except AttributeError:
+        return None

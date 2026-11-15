@@ -688,7 +688,9 @@ class MeshEditorRustProcessMixin:
     def open_texture_in_window(self, texture_id: str) -> None:
         """Open a Textures panel row in the floating Texture Editor (step 8)."""
 
-        dock = getattr(getattr(self, "standalone_workspace", None), "textures_dock", None)
+        from cdmw.ui.mesh_editor.tab_rust_editor import _host_textures_panel
+
+        dock = _host_textures_panel(self)
         row = dock.texture_row(texture_id) if dock is not None else None
         session_id = self._live_texture_session_id()
         if row is None or not row.decoded_path:

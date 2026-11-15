@@ -610,11 +610,22 @@ class AutomationBridge(QObject):
         view = created_tool_widget(self.window.shell.mesh_editor_tab)
         return getattr(view, "active", None) or view
 
-    def _texture_rows(self, _args: dict) -> list[dict[str, object]]:
-        """The shown document's Textures panel rows."""
+    def _texture_rows(self, args: dict) -> list[dict[str, object]] | dict[str, object]:
+        """The shown document's Textures panel rows; with ``panel`` also the panel's state."""
 
         tab = self._shown_mesh_tab()
         dock = getattr(getattr(tab, "standalone_workspace", None), "textures_dock", None)
+        if args.get("panel"):
+            placeholder = getattr(dock, "placeholder_label", None)
+            return {
+                "rows": self._texture_rows({}),
+                "dock": dock is not None,
+                "dock_visible": bool(dock is not None and dock.isVisible()),
+                "requests": int(getattr(dock, "_session_request", -1)),
+                "placeholder": placeholder.text() if placeholder is not None else "",
+                "session_root": str(getattr(tab, "standalone_rust_session_root", "") or ""),
+                "tab_type": type(tab).__name__,
+            }
         rows = []
         for group in getattr(dock, "groups", ()) or ():
             for row in group.rows:
@@ -657,6 +668,11 @@ class AutomationBridge(QObject):
             "history_index": int(getattr(editor, "history_index", -1)), "busy": busy,
             "edited": sorted(live.edited_textures()) if live is not None else [],
             "in_flight": {key: state.in_flight for key, state in getattr(live, "_textures", {}).items()},
+            "unsent": dict(getattr(live, "_unsent", {}) or {}),
+            "written": {key: {str(r): str(p) for r, p in (state.written or {}).items()}
+                        for key, state in getattr(live, "_textures", {}).items()},
+            "editor_ready": bool(getattr(tab, "standalone_rust_ready", False)),
+            "editor_stderr": str(getattr(tab, "standalone_rust_stderr_tail", "") or "")[-1500:],
         }
 
     def _texture_edit(self, args: dict) -> bool:
