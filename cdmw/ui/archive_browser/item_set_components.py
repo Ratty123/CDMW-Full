@@ -14,12 +14,36 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from pathlib import PurePosixPath
 
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenu, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+import shiboken6
+from PySide6.QtCore import QEvent, QObject, QPoint, QTimer, Qt, Signal
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMenu,
+    QPushButton,
+    QSplitter,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from cdmw.ui.layout_utils import scaled_px
 
 #: The one label for opening the ticked files as one session (P5).
 OPEN_TICKED_LABEL = "Open ticked parts in Mesh Editor"
 _PREFAB_ROLE = Qt.UserRole + 1
+#: The panel's width, remembered across previews and restarts.
+WIDTH_KEY = "scene_panel/width"
+DEFAULT_WIDTH = 320
+MINIMUM_WIDTH = 200
+ISOLATE_HINT = "Select a part or a file to isolate it."
+ISOLATE_TIP = "Show only the selected part or file."
+
+
+#: A loaded file row's part count.
+_STATE_COLUMN = 1
 
 
 def _path_key(value: object) -> str:
@@ -53,24 +77,43 @@ class ItemSetComponentsWidget(QWidget):
         #: Prefab component files listed but not loaded: path key -> group item.
         self._prefab_groups: dict[str, QTreeWidgetItem] = {}
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(QLabel("Scene"))
+        # Laid out as the app's other side panels: a section title, the list, then the actions.
+        layout.setContentsMargins(scaled_px(6, self), scaled_px(4, self), 0, 0)
+        layout.setSpacing(scaled_px(6, self))
+        self.title_label = QLabel("Scene")
+        self.title_label.setObjectName("FlatSectionTitle")
+        layout.addWidget(self.title_label)
         self.tree = QTreeWidget()
+        self.tree.setObjectName("ScenePanelTree")
         self.tree.setHeaderHidden(True)
-        self.tree.setMinimumWidth(150)
+        # The name, and a narrow column with a loaded file's part count.
+        self.tree.setColumnCount(2)
+        header = self.tree.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(_STATE_COLUMN, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.setUniformRowHeights(True)
+        self.tree.setIndentation(scaled_px(16, self))
+        # The end of a part or file name tells similar ones apart, so cut the middle.
+        self.tree.setTextElideMode(Qt.ElideMiddle)
+        self.tree.setMinimumWidth(scaled_px(MINIMUM_WIDTH - 12, self))
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
         layout.addWidget(self.tree, 1)
         buttons = QHBoxLayout()
+        buttons.setSpacing(scaled_px(6, self))
         self.show_all_button = QPushButton("Show all")
         self.isolate_button = QPushButton("Isolate")
         self.isolate_button.setEnabled(False)
+        self.isolate_button.setToolTip(ISOLATE_HINT)
         buttons.addWidget(self.show_all_button)
         buttons.addWidget(self.isolate_button)
         layout.addLayout(buttons)
         self.edit_set_button = QPushButton(OPEN_TICKED_LABEL)
+        self.edit_set_button.setObjectName("EditorPrimaryButton")
         self.edit_set_button.clicked.connect(self.editSetRequested.emit)
         layout.addWidget(self.edit_set_button)
+        self.setMinimumWidth(scaled_px(MINIMUM_WIDTH, self))
         self.edit_set_button.setVisible(self.opens_editor)
         self.tree.itemChanged.connect(self._item_changed)
         self.tree.currentItemChanged.connect(self._current_changed)
@@ -133,11 +176,13 @@ class ItemSetComponentsWidget(QWidget):
                     continue
                 group = self._group(path)
                 label = str(identity.get("part_label") or "")
+                material = str(batch.get("material_name") or "")
                 if not label or label.casefold() == PurePosixPath(path).name:
-                    label = str(batch.get("material_name") or local)
+                    label = material or str(local)
                 part = QTreeWidgetItem(group, [label])
                 part.setFlags(part.flags() | Qt.ItemIsUserCheckable)
                 part.setData(0, Qt.UserRole, index)
+                part.setData(0, _LABEL_ROLE, (label, material, local))
                 self._parts[index] = part
                 self._keys[index] = (path, local)
                 part.setCheckState(0, Qt.Unchecked if (path, local) in self._hidden_keys else Qt.Checked)
@@ -146,12 +191,13 @@ class ItemSetComponentsWidget(QWidget):
                 if not path or path in self._groups:
                     continue
                 # Listed, not loaded: ticking it asks the host to load it.
-                group = self._group(path, label=str(label or PurePosixPath(path).name))
+                group = self._group(path, label=str(label or PurePosixPath(path).stem))
                 group.setData(0, _PREFAB_ROLE, path)
                 group.setToolTip(0, f"Tick to load this prefab component: {raw_path}")
                 group.setCheckState(0, Qt.Unchecked)
                 self._prefab_groups[path] = group
             self._hidden_keys.intersection_update(self._keys.values())
+            self._label_rows()
             self._sync_group_checks()
             self.tree.expandAll()
         finally:
@@ -163,11 +209,52 @@ class ItemSetComponentsWidget(QWidget):
     def _group(self, path: str, *, label: str = "") -> QTreeWidgetItem:
         group = self._groups.get(path)
         if group is None:
-            group = QTreeWidgetItem(self.tree, [label or PurePosixPath(path).name])
+            # The file's stem: the extension is the same for every file, the tooltip has the path.
+            group = QTreeWidgetItem(self.tree, [label or PurePosixPath(path).stem])
             group.setToolTip(0, path)
             group.setFlags(group.flags() | Qt.ItemIsUserCheckable)
+            # Files read as headings over their parts.
+            font = group.font(0)
+            font.setBold(True)
+            group.setFont(0, font)
             self._groups[path] = group
         return group
+
+    def _label_rows(self) -> None:
+        """Name every row in full in its tooltip, count each file's parts, and tell
+        parts apart that share a name (by material, else by their number)."""
+
+        muted = self.palette().placeholderText()
+        for path, group in self._groups.items():
+            name = PurePosixPath(path).name
+            group.setTextAlignment(_STATE_COLUMN, Qt.AlignRight | Qt.AlignVCenter)
+            group.setForeground(_STATE_COLUMN, muted)
+            if path in self._prefab_groups:
+                # Listed, not loaded: muted, no count, its whole name (its tooltip says to tick it).
+                font = group.font(0)
+                font.setBold(False)
+                group.setFont(0, font)
+                group.setForeground(0, muted)
+                self.tree.setFirstColumnSpanned(self.tree.indexOfTopLevelItem(group), self.tree.rootIndex(), True)
+                continue
+            group.setText(_STATE_COLUMN, str(group.childCount()))
+            rows = [group.child(i) for i in range(group.childCount())]
+            parent_index = self.tree.indexOfTopLevelItem(group)
+            for row_number in range(len(rows)):
+                # A part row has no state: its name takes the full width.
+                self.tree.setFirstColumnSpanned(row_number, self.tree.model().index(parent_index, 0), True)
+            names: dict[str, list[QTreeWidgetItem]] = {}
+            for row in rows:
+                label, _material, _local = row.data(0, _LABEL_ROLE)
+                names.setdefault(label.casefold(), []).append(row)
+            for same in names.values():
+                materials = {row.data(0, _LABEL_ROLE)[1].casefold() for row in same}
+                for row in same:
+                    label, material, local = row.data(0, _LABEL_ROLE)
+                    if len(same) > 1:
+                        detail = material if material and len(materials) == len(same) else f"#{local}"
+                        row.setText(0, f"{label} \u00b7 {detail}")
+                    row.setToolTip(0, "\n".join(text for text in (label, material, f"{name} #{local}") if text))
 
     @property
     def hidden_indices(self) -> tuple[int, ...]:
@@ -255,7 +342,9 @@ class ItemSetComponentsWidget(QWidget):
 
     def _current_changed(self, current: QTreeWidgetItem | None, _previous: QTreeWidgetItem | None) -> None:
         if not self._updating:
-            self.isolate_button.setEnabled(bool(self._indices_for(current)))
+            selected = bool(self._indices_for(current))
+            self.isolate_button.setEnabled(selected)
+            self.isolate_button.setToolTip(ISOLATE_TIP if selected else ISOLATE_HINT)
             self.highlightRequested.emit(self._indices_for(current))
 
     def _isolate(self) -> None:
@@ -302,5 +391,75 @@ class ItemSetComponentsWidget(QWidget):
 
 #: The panel's name since P5.
 ScenePanel = ItemSetComponentsWidget
+_LABEL_ROLE = Qt.UserRole + 2
 
-__all__ = ["ItemSetComponentsWidget", "OPEN_TICKED_LABEL", "ScenePanel"]
+
+def remember_scene_panel_width(splitter: QSplitter, panel: QWidget, settings: object | None = None) -> None:
+    """Let ``splitter`` resize the panel and keep its width in the app's settings.
+
+    One width for every preview's panel: dragging it in one place widens it everywhere
+    it is shown next.
+    """
+
+    if settings is None:
+        from cdmw.services.settings_service import app_settings
+
+        settings = app_settings()
+    index = splitter.indexOf(panel)
+    if index < 0:
+        return
+    splitter.setChildrenCollapsible(False)
+    splitter.setStretchFactor(index, 0)
+    for other in range(splitter.count()):
+        if other != index:
+            splitter.setStretchFactor(other, 1)
+    try:
+        stored = int(settings.value(WIDTH_KEY, 0) or 0)
+    except (TypeError, ValueError):
+        stored = 0
+    width = max(scaled_px(MINIMUM_WIDTH, panel), stored or scaled_px(DEFAULT_WIDTH, panel))
+    panel.setProperty("_scene_panel_width", width)
+
+    def apply() -> None:
+        if not shiboken6.isValid(splitter) or not shiboken6.isValid(panel):
+            return
+        sizes = splitter.sizes()
+        total = sum(sizes)
+        if total <= width or index >= len(sizes):
+            return
+        rest = [size for i, size in enumerate(sizes) if i != index]
+        share = (total - width) / max(1, sum(rest)) if sum(rest) else 0
+        splitter.setSizes([width if i == index else max(1, int(size * share)) for i, size in enumerate(sizes)])
+
+    def moved(*_args: object) -> None:
+        if not shiboken6.isValid(splitter) or not shiboken6.isValid(panel):
+            return
+        sizes = splitter.sizes()
+        if index < len(sizes) and sizes[index] > 0 and panel.isVisible():
+            panel.setProperty("_scene_panel_width", sizes[index])
+            settings.setValue(WIDTH_KEY, int(sizes[index]))
+
+    splitter.splitterMoved.connect(moved)
+    panel.installEventFilter(_ShowFilter(panel, apply))
+    apply()
+
+
+class _ShowFilter(QObject):
+    """Applies the remembered width each time the panel is shown (it is hidden for one-part models)."""
+
+    def __init__(self, panel: QWidget, apply) -> None:
+        super().__init__(panel)
+        self._apply = apply
+
+    def eventFilter(self, _watched, event) -> bool:  # noqa: N802 - Qt API
+        if event.type() == QEvent.Type.Show:
+            QTimer.singleShot(0, self, self._apply)
+        return False
+
+
+__all__ = [
+    "ItemSetComponentsWidget",
+    "OPEN_TICKED_LABEL",
+    "ScenePanel",
+    "remember_scene_panel_width",
+]

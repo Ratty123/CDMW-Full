@@ -203,3 +203,56 @@ def test_a_set_s_unticked_parts_survive_an_open_started_while_it_prepares(monkey
     MeshEditorShellBridgeMixin._take_pending_hidden_parts_for_open(shell)  # another open, meanwhile
     item_set_preparation._open_prepared_set(shell, preparation, ("context",))
     assert opened == [({SWORD: (1,)}, True)] and preparation.hidden_parts is None
+
+
+def test_rows_tell_files_and_same_named_parts_apart() -> None:
+    """Fredric's set screenshot (2026-11-15): three CD_PHM_00_Sho_00_0374 rows, cut names."""
+
+    from cdmw.ui.archive_browser.item_set_components import ISOLATE_HINT, ISOLATE_TIP
+
+    batches = [{"index": index, "material_name": material, "editor_identity": {
+        "source_submesh_index": index, "source_local_submesh_index": index,
+        "source_model_path": SWORD, "part_label": label}}
+        for index, (label, material) in enumerate((("Sho", "sho_l"), ("Sho", "sho_r"), ("Blade", "blade"),
+                                                   ("Hilt", "metal"), ("Hilt", "metal")))]
+    panel = ScenePanel()
+    panel.set_parts(batches, prefab_components=((SCABBARD, ""),))
+    sword = panel._groups[SWORD]
+    assert (sword.text(0), sword.text(1)) == ("cd_phm_02_sword_0015", "5")
+    assert sword.font(0).bold()
+    assert [sword.child(i).text(0) for i in range(5)] == [
+        "Sho \u00b7 sho_l", "Sho \u00b7 sho_r", "Blade", "Hilt \u00b7 #3", "Hilt \u00b7 #4"]
+    assert "sho_l" in sword.child(0).toolTip(0) and "cd_phm_02_sword_0015.pac #0" in sword.child(0).toolTip(0)
+    scabbard = panel._groups[SCABBARD]
+    assert (scabbard.text(0), scabbard.text(1)) == ("cd_phm_02_sword_0015_in", "")
+    assert not scabbard.font(0).bold() and scabbard.toolTip(0).startswith("Tick to load")
+    assert panel.tree.textElideMode() == Qt.ElideMiddle
+    assert panel.isolate_button.toolTip() == ISOLATE_HINT
+    panel.tree.setCurrentItem(sword.child(1))
+    assert panel.isolate_button.isEnabled() and panel.isolate_button.toolTip() == ISOLATE_TIP
+    assert panel.edit_set_button.objectName() == "EditorPrimaryButton"
+
+
+def test_the_panel_width_is_dragged_and_remembered(tmp_path) -> None:
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QFrame, QSplitter
+
+    from cdmw.ui.archive_browser.item_set_components import WIDTH_KEY, remember_scene_panel_width
+
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    settings.setValue(WIDTH_KEY, 340)
+    splitter = QSplitter(Qt.Horizontal)
+    splitter.addWidget(QFrame())
+    panel = ScenePanel()
+    splitter.addWidget(panel)
+    panel.show()
+    splitter.resize(1000, 400)
+    remember_scene_panel_width(splitter, panel, settings)
+    splitter.show()
+    for _ in range(5):
+        _APP.processEvents()
+    assert splitter.sizes()[1] == 340 and not splitter.childrenCollapsible()
+    splitter.moveSplitter(600, 1)
+    _APP.processEvents()
+    assert splitter.sizes()[1] != 340 and int(settings.value(WIDTH_KEY)) == splitter.sizes()[1]
+    splitter.deleteLater()

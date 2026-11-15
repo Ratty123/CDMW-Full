@@ -684,7 +684,10 @@ class ArchivePreviewLayoutMixin:
         preview_with_components.addWidget(self.archive_item_set_components)
         preview_with_components.setStretchFactor(0, 1)
         preview_with_components.setStretchFactor(1, 0)
-        preview_with_components.setSizes([600, 220])
+        preview_with_components.setSizes([600, 280])
+        from cdmw.ui.archive_browser.item_set_components import remember_scene_panel_width
+
+        remember_scene_panel_width(preview_with_components, self.archive_item_set_components)
         archive_preview_tab_layout.addWidget(preview_with_components)
         archive_preview_tab_layout.addWidget(self.archive_preview_text_tools)
         archive_preview_tab_layout.addWidget(self.archive_preview_info_tools)

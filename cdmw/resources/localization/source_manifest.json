@@ -45591,7 +45591,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 697,
+          "line": 700,
           "sink": "addTab"
         },
         {
@@ -78641,7 +78641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 66,
+          "line": 106,
           "sink": "QPushButton"
         },
         {
@@ -108896,7 +108896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 71,
+          "line": 112,
           "sink": "QPushButton"
         }
       ]
@@ -120366,7 +120366,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 696,
+          "line": 699,
           "sink": "addTab"
         },
         {
@@ -143661,7 +143661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 57,
+          "line": 83,
           "sink": "QLabel"
         }
       ]
@@ -146493,6 +146493,21 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 656,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Select a part or a file to isolate it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/item_set_components.py",
+          "line": 108,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/item_set_components.py",
+          "line": 347,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -153196,7 +153211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 65,
+          "line": 105,
           "sink": "QPushButton"
         }
       ]
@@ -153582,6 +153597,16 @@
         {
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 225,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Show only the selected part or file.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/item_set_components.py",
+          "line": 347,
           "sink": "setToolTip"
         }
       ]
@@ -174886,7 +174911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_components.py",
-          "line": 151,
+          "line": 196,
           "sink": "setToolTip"
         }
       ]
@@ -214718,6 +214743,11 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_catalog_part_01.py",
           "line": 494,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/item_set_components.py",
+          "line": 257,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -219869,6 +219899,11 @@
     {
       "key": "{value_0} · {value_1}",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/item_set_components.py",
+          "line": 256,
+          "sink": "setText"
+        },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 613,
