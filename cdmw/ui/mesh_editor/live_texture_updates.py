@@ -7,6 +7,11 @@ answers ``texture_updated``. Per texture at most one update is in flight and the
 latest edit wins, so painting never queues work behind itself. Files are written
 on a worker, never on the UI thread. Edits made before the editor is ready wait
 and go out when it is.
+
+The edits belong to the document, not to one editor session: Finish closes the
+session (and deletes its folder), and the edited textures stay for Build Mod and
+are shown again when the document's next session is ready. Discard or closing
+the document forgets them.
 """
 
 from __future__ import annotations
@@ -127,6 +132,8 @@ class LiveTextureUpdates(QObject):
         self._signals = _WriteSignals()
         self._signals.written.connect(self._on_written)
         self._unsent: dict[str, tuple[int, str]] = {}
+        #: What Build Mod needs about each opened texture, by source hash (stays after Finish).
+        self.sources: dict[str, object] = {}
 
     def push(self, source_sha256: str, image: QImage, *, changed: bool = True) -> int:
         """Show ``image`` in place of the texture loaded with ``source_sha256``; the
@@ -174,11 +181,34 @@ class LiveTextureUpdates(QObject):
         return {key: state.latest for key, state in self._textures.items()
                 if state.changed and state.latest is not None}
 
+    def remember_source(self, source_sha256: str, source: object) -> None:
+        self.sources[str(source_sha256).lower()] = source
+
+    def detach(self) -> None:
+        """The editor session ended (Finish, a crash, a park): its folder and the files in
+        it go with it, the edits stay and are shown again by ``reapply``."""
+
+        for state in self._textures.values():
+            state.in_flight = 0
+            state.pending = None
+            state.written = {}
+        self._unsent.clear()
+
+    def reapply(self) -> None:
+        """A new editor session is ready: show every edited texture in it."""
+
+        for key, state in self._textures.items():
+            if state.changed and state.latest is not None and not state.in_flight:
+                state.revision += 1
+                state.pending = state.latest
+                self._start(key, state)
+
     def clear(self) -> None:
-        """Forget everything; the session folder (and its edits) goes with the session."""
+        """Forget everything (Discard, or the document closed)."""
 
         self._textures.clear()
         self._unsent.clear()
+        self.sources.clear()
 
     def _start(self, key: str, state: _Texture) -> None:
         root = self._session_root()

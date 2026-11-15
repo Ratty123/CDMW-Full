@@ -122,3 +122,14 @@ def test_the_real_encoder_writes_the_original_format_size_and_mips(tmp_path: Pat
     info = parse_dds(written)
     assert (info.dds_format, info.width, info.height, info.mip_count) == ("R8G8B8A8_UNORM", 4, 2, 1)
     assert not any((tmp_path / "session").glob(ENCODE_DIRNAME + "/*"))
+
+
+def test_a_stored_source_plans_without_the_session_folder(tmp_path: Path) -> None:
+    from cdmw.domain.textures.original_output import check_texture_editable
+
+    original = check_texture_editable(_original(tmp_path))
+    (tmp_path / "session" / "texture-0-ab.dds").unlink()  # Finish deleted the session folder
+    edit = LiveTextureEdit(source_sha256="ab" * 32, game_path=GAME_PATH, rgba=np.zeros((2, 4, 4), dtype=np.uint8),
+                           original=original)
+    plan = plan_live_texture_outputs([edit], {GAME_PATH: (_entry(),)})
+    assert plan.refusals == () and plan.outputs[0].original == original

@@ -49,14 +49,27 @@ class LiveTextureOutput:
 
 
 @dataclass(frozen=True, slots=True)
+class LiveTextureSource:
+    """An opened texture's game path, how it is written back and the parts that share it.
+
+    Read when the texture is opened, so it outlives the editor session's folder."""
+
+    game_path: str
+    original: OriginalTextureOutput
+    users: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class LiveTextureEdit:
     """What the Mesh Editor knows about one edited texture."""
 
     source_sha256: str
     game_path: str
-    original_path: str
     rgba: np.ndarray
     users: tuple[str, ...] = ()
+    #: The original's output settings, or the file to read them from.
+    original: OriginalTextureOutput | None = None
+    original_path: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,11 +108,13 @@ def plan_live_texture_outputs(
         if entry is None:
             refusals.append(f"{edit.game_path}: the game file was not found in the archives.")
             continue
-        try:
-            original = check_texture_editable(Path(edit.original_path))
-        except TextureOutputRefused as exc:
-            refusals.append(f"{edit.game_path}: {exc.reason}")
-            continue
+        original = edit.original
+        if original is None:
+            try:
+                original = check_texture_editable(Path(edit.original_path))
+            except TextureOutputRefused as exc:
+                refusals.append(f"{edit.game_path}: {exc.reason}")
+                continue
         rgba = np.asarray(edit.rgba)
         if rgba.ndim != 3 or (int(rgba.shape[1]), int(rgba.shape[0])) != (original.width, original.height):
             refusals.append(f"{edit.game_path}: the edit is not the original's size.")
@@ -156,6 +171,7 @@ __all__ = [
     "LiveTextureEdit",
     "LiveTextureOutput",
     "LiveTexturePlan",
+    "LiveTextureSource",
     "encode_live_texture_outputs",
     "live_texture_metadata",
     "plan_live_texture_outputs",

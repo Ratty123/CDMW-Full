@@ -14414,7 +14414,6 @@
     "The edited result exceeds the 1 GiB prepared-file limit.": "編輯結果超出 1 GiB 的已準備檔案大小限制。",
     "The edited result exceeds the 8,192-entry dependency limit.": "編輯結果超出 8,192 個依賴條目的限制。",
     "The edited texture is not an RGBA image.": "編輯過的紋理不是 RGBA 影像。",
-    "The edited textures need an open Mesh Editor session.": "編輯過的紋理需要一個開啟的「網格編輯器」工作階段。",
     "The edited visibility components did not decode identically.": "編輯過的可見性組件解碼後不完全相同。",
     "The editor or archive changed during reference selection.": "選擇參照期間編輯器或封存已變更。",
     "The effect catalogue could not be cached: {value_0}": "無法快取特效目錄：{value_0}",

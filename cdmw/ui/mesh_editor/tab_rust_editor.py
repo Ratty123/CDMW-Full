@@ -1196,7 +1196,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self._show_session_textures(None)
         live = getattr(self, "_live_texture_updates", None)
         if live is not None:
-            live.clear()
+            live.detach()  # the edits stay with the document (Finish, then Build Mod)
         self.standalone_rust_authoring_session = None
         self.standalone_rust_target_controller = None
         self.standalone_rust_session_root = None

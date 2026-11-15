@@ -677,8 +677,13 @@ class MeshEditorRustProcessMixin:
         return live
 
     def _live_texture_session_id(self) -> str:
-        root = getattr(self, "standalone_rust_session_root", None)
-        return str(root) if root else ""
+        # The document, not one editor session: edits made after Finish still belong to it.
+        document_id = getattr(self, "_live_texture_document_id", "")
+        if not document_id:
+            from uuid import uuid4
+
+            document_id = self._live_texture_document_id = f"mesh-document-{uuid4().hex}"
+        return document_id
 
     def open_texture_in_window(self, texture_id: str) -> None:
         """Open a Textures panel row in the floating Texture Editor (step 8)."""
@@ -686,9 +691,24 @@ class MeshEditorRustProcessMixin:
         dock = getattr(getattr(self, "standalone_workspace", None), "textures_dock", None)
         row = dock.texture_row(texture_id) if dock is not None else None
         session_id = self._live_texture_session_id()
-        if row is None or not row.decoded_path or not session_id:
+        if row is None or not row.decoded_path:
             return
+        from cdmw.domain.textures.original_output import TextureOutputRefused, check_texture_editable
+        from cdmw.services.mesh_live_texture_output import LiveTextureSource
         from cdmw.ui.mesh_editor.texture_editor_window import LiveTextureTarget, shared_texture_window
+
+        users = dock.texture_users(texture_id)
+        try:
+            # Refused before the first edit when the original cannot be written back as it was.
+            original = check_texture_editable(Path(row.decoded_path))
+        except TextureOutputRefused as exc:
+            self.status_message_requested.emit(exc.reason, True)
+            from PySide6.QtWidgets import QMessageBox
+
+            QMessageBox.warning(self, "Texture Editor", exc.reason)
+            return
+        self._live_textures().remember_source(row.source_sha256, LiveTextureSource(
+            game_path=row.game_path, original=original, users=users))
 
         settings = getattr(self, "settings", None)
         file_name = getattr(settings, "fileName", None)
@@ -704,7 +724,7 @@ class MeshEditorRustProcessMixin:
             channel=row.role,
             display_name=row.file_name,
             game_path=row.game_path,
-            users=dock.texture_users(texture_id),
+            users=users,
             in_renderer=row.in_renderer,
         ))
 
@@ -717,31 +737,25 @@ class MeshEditorRustProcessMixin:
 
         live = getattr(self, "_live_texture_updates", None)
         edited = live.edited_textures() if live is not None else {}
-        dock = getattr(getattr(self, "standalone_workspace", None), "textures_dock", None)
-        if not edited or dock is None:
+        if not edited:
             return None
         import numpy as np
 
         from cdmw.services.mesh_live_texture_output import LiveTextureEdit, plan_live_texture_outputs
         from cdmw.ui.mesh_editor.live_texture_updates import image_rgba8
 
-        rows = {}
-        for group in dock.groups:
-            for row in group.rows:
-                if row.source_sha256:
-                    rows.setdefault(row.source_sha256, row)
         edits = []
         for source_sha256, image in edited.items():
-            row = rows.get(source_sha256)
-            if row is None:
+            source = live.sources.get(source_sha256)
+            if source is None:
                 continue
             width, height, data = image_rgba8(image)
             edits.append(LiveTextureEdit(
                 source_sha256=source_sha256,
-                game_path=row.game_path,
-                original_path=row.decoded_path,
+                game_path=source.game_path,
+                original=source.original,
                 rgba=np.frombuffer(data, dtype=np.uint8).reshape(height, width, 4).copy(),
-                users=dock.texture_users(row.texture_id),
+                users=source.users,
             ))
         return plan_live_texture_outputs(edits, self._archive_texture_indexes()[0])
 
@@ -758,6 +772,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_ready = True
         live = getattr(self, "_live_texture_updates", None)
         if live is not None:
+            live.reapply()
             live.flush()  # edits made while the editor was starting (step 8)
         self._release_background_warmups()
         self._query_deferred_rust_morph_state()

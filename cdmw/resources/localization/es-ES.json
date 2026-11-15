@@ -14414,7 +14414,6 @@
     "The edited result exceeds the 1 GiB prepared-file limit.": "El resultado editado supera el límite de 1 GiB para archivos preparados.",
     "The edited result exceeds the 8,192-entry dependency limit.": "El resultado editado supera el límite de 8.192 entradas de dependencias.",
     "The edited texture is not an RGBA image.": "La textura editada no es una imagen RGBA.",
-    "The edited textures need an open Mesh Editor session.": "Las texturas editadas necesitan una sesión abierta del Editor de mallas.",
     "The edited visibility components did not decode identically.": "Los componentes de visibilidad editados no se decodificaron de manera idéntica.",
     "The editor or archive changed during reference selection.": "El editor o el archivo cambió durante la selección de referencia.",
     "The effect catalogue could not be cached: {value_0}": "No se pudo guardar en caché el catálogo de efectos: {value_0}",

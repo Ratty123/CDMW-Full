@@ -14414,7 +14414,6 @@
     "The edited result exceeds the 1 GiB prepared-file limit.": "Düzenlenen sonuç, 1 GiB hazırlanmış dosya sınırını aşıyor.",
     "The edited result exceeds the 8,192-entry dependency limit.": "Düzenlenen sonuç, 8.192 girdilik bağımlılık sınırını aşıyor.",
     "The edited texture is not an RGBA image.": "Düzenlenen doku bir RGBA görüntüsü değil.",
-    "The edited textures need an open Mesh Editor session.": "Düzenlenen dokular için açık bir Mesh Düzenleyici oturumu gerekir.",
     "The edited visibility components did not decode identically.": "Düzenlenen görünürlük bileşenleri aynı şekilde çözümlenmedi.",
     "The editor or archive changed during reference selection.": "Referans seçilirken düzenleyici veya arşiv değişti.",
     "The effect catalogue could not be cached: {value_0}": "Efekt kataloğu önbelleğe alınamadı: {value_0}",

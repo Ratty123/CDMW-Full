@@ -14414,7 +14414,6 @@
     "The edited result exceeds the 1 GiB prepared-file limit.": "편집된 결과가 준비 파일 제한인 1GiB를 초과합니다.",
     "The edited result exceeds the 8,192-entry dependency limit.": "편집된 결과가 종속성 항목 제한인 8,192개를 초과합니다.",
     "The edited texture is not an RGBA image.": "편집한 텍스처가 RGBA 이미지가 아닙니다.",
-    "The edited textures need an open Mesh Editor session.": "편집한 텍스처에는 열린 메시 편집기 세션이 필요합니다.",
     "The edited visibility components did not decode identically.": "편집된 가시성 구성 요소가 동일하게 디코딩되지 않았습니다.",
     "The editor or archive changed during reference selection.": "참조를 선택하는 동안 편집기 또는 아카이브가 변경되었습니다.",
     "The effect catalogue could not be cached: {value_0}": "효과 카탈로그를 캐시하지 못했습니다: {value_0}",

@@ -100,3 +100,27 @@ def test_a_refused_edit_is_reported() -> None:
         "cdmw.ui.mesh_editor.live_texture_updates", fromlist=["_Texture"])._Texture(revision=1, in_flight=1, written={})
     live.acknowledge({"source_sha256": SHA, "revision": 1, "ok": False, "error": "wrong size"})
     assert failures == [(SHA, "wrong size")]
+
+
+def test_edits_outlive_the_editor_session_until_discard(tmp_path: Path) -> None:
+    """Finish ends the session and deletes its folder; the edit stays for Build Mod and
+    is shown again in the document's next session. Discard forgets it."""
+
+    app = _app()
+    root = {"value": tmp_path / "first"}
+    sent: list[dict] = []
+    live = LiveTextureUpdates(lambda: root["value"], lambda fields: sent.append(dict(fields)) or True)
+    live.remember_source(SHA.upper(), "source info")
+    live.push(SHA, _image("red"))
+    assert _wait(app, lambda: len(sent) == 1)
+    live.detach()  # Finish: the session and its folder go
+    root["value"] = None
+    assert list(live.edited_textures()) == [SHA] and live.sources == {SHA: "source info"}
+    live.push(SHA, _image("green"))  # edited while no editor is open
+    root["value"] = tmp_path / "second"
+    live.reapply()  # Resume: the next session is ready
+    assert _wait(app, lambda: len(sent) == 2)
+    assert (tmp_path / "second" / sent[1]["file"]).is_file()
+    assert live.edited_textures()[SHA].pixelColor(0, 0).green() == 128
+    live.clear()  # Discard
+    assert live.edited_textures() == {} and live.sources == {}

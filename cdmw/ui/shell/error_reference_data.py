@@ -44191,7 +44191,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 845
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 860
     }
   },
   {
@@ -49490,7 +49490,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1007
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1022
     }
   },
   {
@@ -49554,7 +49554,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 755
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 769
     }
   },
   {
@@ -49562,7 +49562,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 961,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 976,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 837
     }
   },
@@ -49654,7 +49654,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1498
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1513
     }
   },
   {
@@ -49670,7 +49670,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1302
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1317
     }
   },
   {
@@ -49678,7 +49678,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1298
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1313
     }
   },
   {
@@ -49825,7 +49825,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1328
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1343
     }
   },
   {
@@ -49865,7 +49865,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1011
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1026
     }
   },
   {
@@ -49890,7 +49890,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1086
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1101
     }
   },
   {
@@ -51068,7 +51068,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 357
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 356
     }
   },
   {
@@ -60632,7 +60632,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was not built. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 444
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 443
     }
   },
   {
@@ -74150,7 +74150,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 700
+      "cdmw/automation/bridge.py": 783
     }
   },
   {
@@ -75120,7 +75120,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod output is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 558
+      "cdmw/automation/bridge.py": 562
     }
   },
   {
@@ -82986,7 +82986,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 506
+      "cdmw/automation/bridge.py": 510
     }
   },
   {
@@ -83634,7 +83634,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 704
+      "cdmw/automation/bridge.py": 787
     }
   },
   {
@@ -83850,7 +83850,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 484
+      "cdmw/automation/bridge.py": 488
     }
   },
   {
@@ -84451,7 +84451,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown automation command: {command or '(none)'}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 275
+      "cdmw/automation/bridge.py": 279
     }
   },
   {
@@ -87480,7 +87480,7 @@ MESSAGE_REFERENCE = [
     "message": "no {name} event within the timeout",
     "recovery": "timeout",
     "sources": {
-      "cdmw/automation/bridge.py": 241
+      "cdmw/automation/bridge.py": 245
     }
   },
   {
@@ -88781,7 +88781,7 @@ MESSAGE_REFERENCE = [
     "message": "{command} did not finish on the UI thread",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 279
+      "cdmw/automation/bridge.py": 283
     }
   },
   {
@@ -100593,7 +100593,7 @@ MESSAGE_REFERENCE = [
     "message": "RGBA8 pixels do not match the size",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/live_texture_updates.py": 34
+      "cdmw/ui/mesh_editor/live_texture_updates.py": 39
     }
   },
   {
@@ -101345,7 +101345,7 @@ MESSAGE_REFERENCE = [
     "message": "The editor could not show the edit.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/live_texture_updates.py": 166
+      "cdmw/ui/mesh_editor/live_texture_updates.py": 173
     }
   },
   {
@@ -108381,6 +108381,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/mesh_editor/tab_rust_process.py": {
     "diagnostic_field": 9,
+    "dialog": 1,
     "display": 3,
     "failure": 29,
     "raise": 5,

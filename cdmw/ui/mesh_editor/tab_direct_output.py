@@ -265,12 +265,11 @@ class MeshEditorDirectOutputMixin:
         extra = {"archive_dependency_sources": archive_dependency_sources,
                  "archive_material_sources": archive_material_sources} if kind == "archive_result" else {}
         if texture_outputs:
-            root = getattr(self, "standalone_rust_session_root", None)
-            if not root:
-                self.status_message_requested.emit("The edited textures need an open Mesh Editor session.", True)
-                return False
+            from cdmw.app.app_folder import workspace_temp_folder
+
+            # The editor session's folder is gone after Finish; encode in workspace\temp.
             extra["texture_outputs"] = tuple(texture_outputs)
-            extra["texture_work_root"] = Path(root)
+            extra["texture_work_root"] = workspace_temp_folder() / "mesh-texture-output"
         if kind != "archive_result":
             from cdmw.services.mesh_archive_results import RESULT_NOTES
             dependencies = getattr(self, "archive_session_dependencies", None)

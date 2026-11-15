@@ -14414,7 +14414,6 @@
     "The edited result exceeds the 1 GiB prepared-file limit.": "Отредактированный результат превышает ограничение подготовленных файлов в 1 ГиБ.",
     "The edited result exceeds the 8,192-entry dependency limit.": "Отредактированный результат превышает ограничение зависимостей в 8 192 записи.",
     "The edited texture is not an RGBA image.": "Изменённая текстура не является изображением RGBA.",
-    "The edited textures need an open Mesh Editor session.": "Для изменённых текстур нужен открытый сеанс «Редактор сеток».",
     "The edited visibility components did not decode identically.": "Отредактированные компоненты видимости не декодировались одинаково.",
     "The editor or archive changed during reference selection.": "Редактор или архив изменился во время выбора образца.",
     "The effect catalogue could not be cached: {value_0}": "Не удалось сохранить каталог эффектов в кэш: {value_0}",

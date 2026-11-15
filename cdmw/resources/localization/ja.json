@@ -14414,7 +14414,6 @@
     "The edited result exceeds the 1 GiB prepared-file limit.": "編集結果が、準備済みファイルの上限である1 GiBを超えています。",
     "The edited result exceeds the 8,192-entry dependency limit.": "編集結果が、依存項目数の上限である8,192を超えています。",
     "The edited texture is not an RGBA image.": "編集したテクスチャが RGBA 画像ではありません。",
-    "The edited textures need an open Mesh Editor session.": "編集したテクスチャには、開いている「メッシュ エディタ」のセッションが必要です。",
     "The edited visibility components did not decode identically.": "編集された可視性コンポーネントは同一にデコードされませんでした。",
     "The editor or archive changed during reference selection.": "参照の選択中にエディターまたはアーカイブが変更されました。",
     "The effect catalogue could not be cached: {value_0}": "エフェクトカタログをキャッシュできませんでした：{value_0}",

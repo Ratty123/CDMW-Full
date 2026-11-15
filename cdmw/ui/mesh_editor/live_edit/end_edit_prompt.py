@@ -156,6 +156,9 @@ def mark_discarded(tab: object) -> None:
             session.discard_requested = True
         except AttributeError:
             pass
+    live = getattr(tab, "_live_texture_updates", None)
+    if live is not None:
+        live.clear()  # Discard drops the texture edits too
 
 
 def _preparing_over_recovery(tab: object) -> bool:
