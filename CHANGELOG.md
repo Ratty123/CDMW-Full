@@ -85,6 +85,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - The **Scene** panel lists the files and parts of a set shown from the preview cache, so **Open ticked parts in Mesh Editor** opens the set instead of asking to tick a part.
 - Mesh Editor's **Delete unavailable** message names the operation it is waiting for, and gives the Free Edit advice only when the output mode is the reason.
 - Deleting a large selection across a whole worn set in the Mesh Editor no longer ends every open editing session; the delete used to be refused and the set could not be finished.
+- In the Mesh Editor's **Parts** list of a set, the file rows' **View** and **Include** boxes line up with the part rows' and their headers, and the **Physics** column is as wide as its longest value, leaving the part names at least a third of the list. Before, every cell read "Unknown p..." while the names had room to spare. A part whose physics was not inspected, such as every part of a set, now leaves the cell empty; its tooltip says why.
 
 ### Docs
 

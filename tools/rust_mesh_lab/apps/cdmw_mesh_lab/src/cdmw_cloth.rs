@@ -622,6 +622,13 @@ pub(super) mod profiles {
 use super::*;
 use crate::cdmw_ui::{state_bool, state_str, state_u64};
 
+/// Whether the Parts list shows a physics badge for a part: not for no bindings, and
+/// not for "unknown" (nothing was inspected, e.g. a set's parts): the cell stays empty
+/// and the row's tooltip says why.
+pub(super) fn physics_badge_shown(part: &Value) -> bool {
+    !matches!(part["kind"].as_str(), Some("none") | Some("unknown") | None)
+}
+
 pub(super) fn physics_badge(part: &Value) -> String {
     let label = match part["kind"].as_str() {
         Some("spline") => crate::localization::tr("Spline"),
