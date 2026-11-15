@@ -40140,7 +40140,7 @@ MESSAGE_REFERENCE = [
     "message": "A valid game mount catalogue is required.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_layer_visibility.py": 195
+      "cdmw/services/mesh_layer_visibility.py": 199
     }
   },
   {
@@ -40381,7 +40381,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output has duplicate asset paths",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 819
+      "cdmw/workers/mesh_editor_workers.py": 829
     }
   },
   {
@@ -40453,7 +40453,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mesh path escapes the loose package",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 817
+      "cdmw/workers/mesh_editor_workers.py": 827
     }
   },
   {
@@ -42613,7 +42613,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose at least one layer to keep underneath.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_layer_visibility.py": 100
+      "cdmw/services/mesh_layer_visibility.py": 102
     }
   },
   {
@@ -43565,7 +43565,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 887
+      "cdmw/workers/mesh_editor_workers.py": 897
     }
   },
   {
@@ -43573,7 +43573,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM archive-group package is missing {relative}",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 913
+      "cdmw/workers/mesh_editor_workers.py": 923
     }
   },
   {
@@ -43581,7 +43581,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM package metadata changed archive-group payload {relative}",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 940
+      "cdmw/workers/mesh_editor_workers.py": 950
     }
   },
   {
@@ -44929,7 +44929,7 @@ MESSAGE_REFERENCE = [
     "message": "Field-JSON only describes DDS assets and cannot safely package a mesh payload",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 807
+      "cdmw/workers/mesh_editor_workers.py": 817
     }
   },
   {
@@ -48407,7 +48407,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 805
+      "cdmw/workers/mesh_editor_workers.py": 815
     }
   },
   {
@@ -50121,7 +50121,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh mod output already exists: {root}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 810
+      "cdmw/workers/mesh_editor_workers.py": 820
     }
   },
   {
@@ -56535,7 +56535,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has an invalid or duplicate package path",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 838
+      "cdmw/workers/mesh_editor_workers.py": 848
     }
   },
   {
@@ -59758,7 +59758,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_hair_output.py": 345,
-      "cdmw/services/mesh_layer_visibility.py": 200
+      "cdmw/services/mesh_layer_visibility.py": 204
     }
   },
   {
@@ -59950,7 +59950,7 @@ MESSAGE_REFERENCE = [
     "message": "The mounted game has no {SHRINK_PATH}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_layer_visibility.py": 103
+      "cdmw/services/mesh_layer_visibility.py": 105
     }
   },
   {
@@ -72442,7 +72442,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is already part of this mod; Layers underneath cannot change it as well.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 698
+      "cdmw/workers/mesh_editor_workers.py": 708
     }
   },
   {
@@ -72450,7 +72450,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} mentions this mesh but cannot be read exactly: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_layer_visibility.py": 128
+      "cdmw/services/mesh_layer_visibility.py": 132
     }
   },
   {
