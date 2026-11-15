@@ -227,6 +227,18 @@ def _write_parameter(block, name, kind, value, item_id, *, static):
     return append_emission_parameter(block, row)
 
 
+VEIL_PRE_PATCH_FIELDS = ("_uvScale", "_dyeingColor")
+
+
+def _has_veil_layers(parameters):
+    row = parameters.get("_colorBlendingFlag")
+    try:
+        flags = int(str(row.get("_value", "0") if row is not None else "0") or "0", 0)
+    except ValueError:
+        flags = 0
+    return bool(flags & 0xFFF) or any(name.startswith("_detailHeightMask") for name in parameters)
+
+
 def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
     parameters = _parameter_rows(block)
     validate_source(shader, controls, parameters, static=static)
@@ -234,8 +246,14 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
     if family == EYE_COVER and texture_paths is None:
         raise ValueError("EyeCover requires Create New Item texture preparation.")
     fields = {field.name: field for field in family.fields}
+    # A net veil that draws Ver2 detail layers (November 2026 patch) no longer reads
+    # these two rows; they are not added to it. A rebuild writes the older layout.
+    unread = (VEIL_PRE_PATCH_FIELDS if shader == controls.shader == "SkinnedMeshTransparency"
+              and not controls.rebuild and _has_veil_layers(parameters) else ())
     for name, numbers in controls.effective_values().items():
         field = fields[name]
+        if name in unread and name not in parameters:
+            continue
         if field.kind == "ExportToggle":
             # These options belong to the New Item plan, never to PAC parameters.
             continue

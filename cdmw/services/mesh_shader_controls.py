@@ -7,7 +7,7 @@ from cdmw.core.common import raise_if_cancelled
 from cdmw.core.material_shader_controls import (control_material_variants, material_source_details,
                                                  rewrite_shader_controls, rewrite_texture_paths, validate_source)
 from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
-from cdmw.domain.mesh.shader_controls import (MESH_FAMILIES, ShaderControls, authored_values_payload, catalogue_payload,
+from cdmw.domain.mesh.shader_controls import (veil_layer_inputs, MESH_FAMILIES, ShaderControls, authored_values_payload, catalogue_payload,
                                              family_for, preview_factors)
 from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 
@@ -196,6 +196,7 @@ def _shader_source_options(session):
         result[index] = {"source_shader": ", ".join(dict.fromkeys(source[0] for source in candidates)), "shader_options": options,
                          "source": {"path": sidecar_path, "part": name, "viewport_slot": owner},
                          "preview_warning": _preview_warning(candidates),
+                         "veil_layers": _veil_layers_state(candidates),
                          **_authored_panel_state(candidates, options, wrappers)}
     return result
 
@@ -218,6 +219,25 @@ def _preview_warning(candidates):
         if detail or flags & 0xFFF:
             return _LAYERED_VEIL_WARNING
     return ""
+
+
+def _veil_layers_state(candidates):
+    """What the renderer reads for a net veil with Ver2 detail layers, for the inspector; else None."""
+    import math
+    from cdmw.domain.mesh.shader_controls import veil_layer_factors, veil_layer_texture
+    for shader, values, textures in candidates:
+        layers = veil_layer_inputs(shader, values, textures)
+        if not layers:
+            continue
+        _, displacement, detail, gain, scale_x, scale_y, offset_x, offset_y, angle, overlay = veil_layer_factors(
+            {**values, **layers})
+        return {"channel": layers["_cdmwVeilLayers"].upper(), "displacement": displacement,
+                "displacement_authored": "_screenSpaceDisplacementScale" in values,
+                "detail_displacement": detail, "gain": gain,
+                "repeat": [1.0 / scale_x, 1.0 / scale_y], "offset": [offset_x, offset_y],
+                "rotation_degrees": math.degrees(angle), "overlay_alpha": overlay,
+                "detail_texture": veil_layer_texture(layers, textures)}
+    return None
 
 
 def _owner_slot(part):
@@ -261,12 +281,13 @@ def _authored_panel_state(candidates, options, wrappers=()):
     variants = [{**row, **origin} for row, origin in zip(variants, origins)]
     base = {}
     if candidates:
-        _, values, _ = candidates[0]
+        _, values, textures = candidates[0]
         for family in MESH_FAMILIES:
             if options.get(family.shader):
                 continue
             try:
-                base[family.shader] = list(preview_factors(ShaderControls(family.shader), values))
+                layers = veil_layer_inputs(family.shader, values, textures)
+                base[family.shader] = list(preview_factors(ShaderControls(family.shader), {**values, **layers}))
             except ValueError:
                 continue
     return {"authored": variants, "preview_base": base}

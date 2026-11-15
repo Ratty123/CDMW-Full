@@ -444,6 +444,107 @@ def authored_values_payload(authored):
     return result
 
 
+# The November 2026 patch gave SkinnedMeshTransparency the Ver2 detail layers.
+# These rows are read from the shipped pixel shader (DXIL variant ..._151cd770):
+#   thread = _netThread * 0.0003 * (Hbase + Hdetail) * _screenSpaceDisplacementScale
+#   Hdetail = opacity[ch] * mask[ch] * detailHeightMask[ch](detail UV).r * _detailScreenSpaceDisplacementScale
+#   detail UV: q = ((u - 0.5 - Ox) / Sx, (v - 0.5 + Oy) / Sy), rotated by rotation byte * 2 pi / 255 - pi
+#   alpha = coverage * _overlayColorTexture alpha * 0.99
+# ch is the largest channel of _colorBlendingMaskTexture. The keys below carry
+# what only the caller that knows the source material can tell preview_factors.
+VEIL_LAYERS_KEY = "_cdmwVeilLayers"           # "r", "g" or "b": the detail channel in use
+VEIL_LAYER_MASK_KEY = "_cdmwVeilLayerMask"    # that channel's mask value, 0-1
+VEIL_OVERLAY_ALPHA_KEY = "_cdmwVeilOverlayAlpha"
+VEIL_LAYER_TRANSFORMS = {"r": "_dyeingTransformProperty0", "g": "_dyeingTransformProperty1",
+                         "b": "_dyeingTransformProperty3"}
+# The veil's .material declares this scale as 1 itself and 0 in the shared group;
+# 0 would remove the net, so 1 is assumed when the wrapper has no row.
+VEIL_DISPLACEMENT_DEFAULT = 1.0
+
+
+def _authored_number(value, default):
+    try:
+        number = float(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+    return number if math.isfinite(number) else default
+
+
+def _authored_bytes(value):
+    """A Byte4 row as four 0-1 numbers, lowest byte first; () when it is not one."""
+    number = _authored_number(value, -1.0)
+    if number < 0 or number > 0xFFFFFFFF or number != int(number):
+        return ()
+    return tuple(((int(number) >> (8 * index)) & 0xFF) / 255.0 for index in range(4))
+
+
+def _texture_name(path):
+    return str(path or "").replace("\\", "/").rsplit("/", 1)[-1].casefold()
+
+
+def veil_layer_inputs(shader, values, textures):
+    """Keys for preview_factors when a source net veil draws Ver2 detail layers, else {}.
+
+    The channel is the one the mask texture names (the engine's Temp_r/g/b
+    constants), otherwise the first channel with a detail height texture; the
+    mask value is then taken as 1. A constant overlay (nonetexture0xAARRGGBB)
+    gives its alpha; any other overlay is taken as opaque.
+    """
+    if shader != "SkinnedMeshTransparency":
+        return {}
+    heights = {channel: textures.get(f"_detailHeightMask{channel.upper()}", "") for channel in "rgb"}
+    try:
+        flags = int(str(values.get("_colorBlendingFlag", "0") or "0"), 0)
+    except ValueError:
+        flags = 0
+    if not any(heights.values()) and not flags & 0xFFF:
+        return {}
+    mask = _texture_name(textures.get("_colorBlendingMaskTexture", ""))
+    channel = next((name for name in "rgb" if mask == f"temp_{name}.dds"), None)
+    if channel is None:
+        channel = next((name for name in "rgb" if heights[name]), "r")
+    result = {VEIL_LAYERS_KEY: channel, VEIL_LAYER_MASK_KEY: "1"}
+    overlay = _texture_name(textures.get("_overlayColorTexture", ""))
+    if overlay.startswith("nonetexture0x") and len(overlay) >= 21:
+        try:
+            result[VEIL_OVERLAY_ALPHA_KEY] = str(int(overlay[13:15], 16) / 255.0)
+        except ValueError:
+            pass
+    return result
+
+
+def veil_layer_texture(values, textures):
+    """Path of the detail height texture the keys from veil_layer_inputs select, or ""."""
+    channel = str(values.get(VEIL_LAYERS_KEY, "") or "")
+    return textures.get(f"_detailHeightMask{channel.upper()}", "") if channel in ("r", "g", "b") else ""
+
+
+def veil_layer_factors(authored):
+    """Lanes 13-22 for the Ver2 veil, or () for the veil before the patch.
+
+    13 on, 14 _screenSpaceDisplacementScale, 15 _detailScreenSpaceDisplacementScale,
+    16 opacity x mask of the channel, 17-20 scale X, scale Y, offset X, offset Y,
+    21 rotation in radians, 22 overlay alpha.
+    """
+    channel = str(authored.get(VEIL_LAYERS_KEY, "") or "")
+    if channel not in ("r", "g", "b"):
+        return ()
+    index = "rgb".index(channel)
+    clamp = lambda number, high: min(max(number, 0.0), high)
+    opacity = _authored_bytes(authored.get("_dyeingGlobalOpacity"))
+    transform = _authored_bytes(authored.get(VEIL_LAYER_TRANSFORMS[channel])) or (1.0, 1.0, 0.0, 0.0)
+    rotation = _authored_bytes(authored.get("_dyeingPropertyBlend"))
+    # An absent row takes the shader definition's default: opacity 0, scale 1,
+    # offset 0, rotation 0.5 (byte 128) and detail displacement 0.
+    gain = (opacity[index] if opacity else 0.0) * clamp(_authored_number(authored.get(VEIL_LAYER_MASK_KEY), 1.0), 1.0)
+    angle = (rotation[index] if rotation else 128 / 255) * 2.0 * math.pi - math.pi
+    return (1.0,
+            clamp(_authored_number(authored.get("_screenSpaceDisplacementScale"), VEIL_DISPLACEMENT_DEFAULT), 64.0),
+            clamp(_authored_number(authored.get("_detailScreenSpaceDisplacementScale"), 0.0), 64.0),
+            gain, max(transform[0], 1e-5), max(transform[1], 1e-5), transform[2], transform[3], angle,
+            clamp(_authored_number(authored.get(VEIL_OVERLAY_ALPHA_KEY), 1.0), 1.0))
+
+
 def preview_factors(controls, authored=None):
     """Eight vec4s shared with the renderer; source values precede explicit edits.
 
@@ -504,6 +605,8 @@ def preview_factors(controls, authored=None):
         # writer keeps the source alpha, so readback always uses the authored byte.
         colour = family.fields[-1].name
         result.append(_colour_alpha(authored.get(colour)))
+    if family.shader == "SkinnedMeshTransparency":
+        result.extend(veil_layer_factors(authored))
     result.extend([0.] * (32 - len(result)))
     result[30] = float(controls.cutout_mask is not None)
     return tuple(result)

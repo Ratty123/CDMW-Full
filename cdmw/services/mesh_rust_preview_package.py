@@ -683,6 +683,12 @@ def _byte4_unit_channels(value: object) -> tuple[float, ...]:
     return tuple(((integer >> (8 * index)) & 0xFF) / 255.0 for index in range(4))
 
 
+def _is_net_veil_wrapper(parameters: Sequence[object]) -> bool:
+    return any(isinstance(parameter, Mapping)
+               and str(parameter.get("parameter_name", "") or "").strip().casefold() == "_netpitch"
+               for parameter in parameters)
+
+
 def _preview_core_layer_uv_transform(parameters: Sequence[object], channel: str) -> list[float] | None:
     """A detail layer's repeat sampling from its wrapper's Byte4 parameters, or None.
 
@@ -803,11 +809,16 @@ def _copy_preview_core_material_layers(
                 if uv_transform is not None:
                     layer["uv_transform"] = uv_transform
             layer_has_source = False
+            # A net veil's detail height is not blended over its base height: the
+            # game adds it to the thread width, and the renderer samples it itself.
+            veil_detail = role != "base" and _is_net_veil_wrapper(wrapper_parameters.get(owner, ()))
             for resource_role in ("diffuse", "normal", "material", "height", "mask"):
                 _cancelled(cancelled)
                 source_key = f"{resource_role}_source"
                 archive_key = f"{resource_role}_archive_path"
                 source_text = str(raw_layer.get(source_key, "") or "").strip()
+                if veil_detail and resource_role == "height":
+                    source_text = ""
                 archive_path = str(raw_layer.get(archive_key, "") or "").strip().replace("\\", "/")
                 layer[f"{resource_role}_archive_path"] = archive_path
                 reference: dict[str, object] | None = None

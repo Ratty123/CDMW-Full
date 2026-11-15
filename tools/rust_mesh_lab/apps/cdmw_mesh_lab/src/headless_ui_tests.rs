@@ -9251,23 +9251,51 @@ fn shader_layout_rebuild_is_an_explicit_choice_sent_with_the_controls() -> TestR
 }
 
 #[test]
-fn shader_panel_shows_the_hosts_preview_warning() -> TestResult {
+fn shader_panel_shows_a_layered_veils_values_and_hides_the_rows_it_does_not_read() -> TestResult {
+    let shows = |ui: &HeadlessUi, start: &str| ui.output.shapes.iter().any(|shape|
+        matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with(start)));
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
     let mut state = veil_shader_state();
     state["parts"][0]["preview_warning"] = json!("layered_veil");
+    state["parts"][0]["veil_layers"] = json!({"channel": "R", "displacement": 1.0, "displacement_authored": false,
+        "detail_displacement": 1.732051, "gain": 1.0, "repeat": [5.667, 5.667], "offset": [0.0, 0.0],
+        "rotation_degrees": -180.0, "overlay_alpha": 1.0, "detail_texture": "character/texture/cd_phw_00_hel_00_0219_disp.dds"});
+    // The patched veil declares neither row.
+    for name in ["_uvScale", "_dyeingColor"] {
+        state["parts"][0]["authored"][0]["fields"]["SkinnedMeshTransparency"].as_object_mut().unwrap().remove(name);
+    }
     ui.application.cdmw_state["shader_controls"] = state;
     ui.settle_layout();
     ui.click("1: Part B")?;
     ui.click("Shader experiments")?;
     ui.settle_layout();
-    let warning = "This net veil also uses detail layers: its lace sits in the detail textures, tiled by the Mask R transform. \
-                   The preview draws only the net and the height map, so the lace pattern and its density are not shown \
-                   correctly. Judge them in game.";
-    assert!(ui.output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with("This net veil also uses detail layers"))));
+    assert!(shows(&ui, "This net veil uses detail layers"));
+    assert!(shows(&ui, "Net spacing"));
+    assert!(!shows(&ui, "Thread map scale") && !shows(&ui, "Veil colour RGB"));
+    ui.click("Detail layer values (read only)")?;
+    ui.settle_layout();
+    assert!(shows(&ui, "Displacement scale (no row in this material; 1 is assumed): 1.000"));
+    assert!(shows(&ui, "Detail displacement scale: 1.732"));
+    assert!(shows(&ui, "Detail repeat: 5.67 x 5.67"));
+    assert!(shows(&ui, "Detail rotation (degrees): -180.0"));
+    // The veil before the patch keeps both rows and has no note.
     ui.application.cdmw_state["shader_controls"] = veil_shader_state();
     ui.settle_layout();
-    assert!(!ui.output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with("This net veil also uses detail layers"))));
-    let _ = warning;
+    assert!(!shows(&ui, "This net veil uses detail layers"));
+    assert!(shows(&ui, "Thread map scale") && shows(&ui, "Veil colour RGB"));
+
+    // A rewrite to the older layout previews without the detail layers.
+    let family = json!({"shader": "SkinnedMeshTransparency", "fields": []});
+    let mut base = vec![0.0; 32];
+    base[0] = 11.0;
+    base[13] = 1.0;
+    base[15] = 1.732;
+    let row = json!({"preview_base": {"SkinnedMeshTransparency": base}});
+    let kept = crate::cdmw_shader_controls::shader_live_factors(&row, &family, &json!({"shader": "SkinnedMeshTransparency", "values": {}})).unwrap();
+    assert_eq!((kept[13], kept[15]), (1.0, 1.732));
+    let rebuilt = crate::cdmw_shader_controls::shader_live_factors(&row, &family,
+        &json!({"shader": "SkinnedMeshTransparency", "values": {}, "rebuild": true})).unwrap();
+    assert_eq!((rebuilt[13], rebuilt[15]), (0.0, 0.0));
     Ok(())
 }
 

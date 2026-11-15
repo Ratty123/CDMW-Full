@@ -52,6 +52,10 @@ pub(crate) fn shader_live_factors(row: &Value, family: &Value, value: &Value) ->
         }
         lane += width;
     }
+    if value["rebuild"].as_bool() == Some(true) && factors[0] == 11.0 {
+        // Rewriting a net veil to the older layout drops its detail layers.
+        factors[13..23].fill(0.0);
+    }
     Some(factors)
 }
 
@@ -121,10 +125,9 @@ impl LabApplication {
             if let Some(row) = rows.first() {
                 // The host names a known limit by code; the sentence is the inspector's.
                 if row["preview_warning"].as_str() == Some("layered_veil") {
-                    ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr(
-                        "This net veil also uses detail layers: its lace sits in the detail textures, tiled by the Mask R transform. \
-                         The preview draws only the net and the height map, so the lace pattern and its density are not shown \
-                         correctly. Judge them in game."));
+                    ui.label(crate::localization::tr(
+                        "This net veil uses detail layers. The preview adds the detail height texture to the thread width, \
+                         as the game shader does. Lighting is still approximate; judge the final look in game."));
                 }
                 let path = row["source"]["path"].as_str().unwrap_or("");
                 if !path.is_empty() {
@@ -275,11 +278,36 @@ impl LabApplication {
                             "This part's source material differs between model variants. Original values are shown for the chosen variant; an edit applies to all of them."));
                     }
                     let authored = variants.get(variant).map(|row| &row["fields"][shader.as_str()]);
+                    // A net veil with Ver2 detail layers, unless it is rewritten to the older layout.
+                    let veil_layers = rows.first().map(|row| &row["veil_layers"]).filter(|layers| layers.is_object()
+                        && shader.as_str() == "SkinnedMeshTransparency" && value["rebuild"].as_bool() != Some(true));
+                    if let Some(layers) = veil_layers {
+                        let number = |key: &str| layers[key].as_f64().unwrap_or(0.0);
+                        let pair = |key: &str| (layers[key][0].as_f64().unwrap_or(0.0), layers[key][1].as_f64().unwrap_or(0.0));
+                        crate::localization::collapsing("Detail layer values (read only)").id_salt("shader_veil_layers").show(ui, |ui| {
+                            let displacement = if layers["displacement_authored"].as_bool() == Some(true) {
+                                crate::localization::tr("Displacement scale")
+                            } else {
+                                crate::localization::tr("Displacement scale (no row in this material; 1 is assumed)")
+                            };
+                            ui.small(format!("{displacement}: {:.3}", number("displacement")));
+                            ui.small(format!("{}: {:.3}", crate::localization::tr("Detail displacement scale"), number("detail_displacement")));
+                            ui.small(format!("{}: {}", crate::localization::tr("Detail channel"), layers["channel"].as_str().unwrap_or("")));
+                            ui.small(format!("{}: {:.2} x {:.2}", crate::localization::tr("Detail repeat"), pair("repeat").0, pair("repeat").1));
+                            ui.small(format!("{}: {:.3}, {:.3}", crate::localization::tr("Detail offset"), pair("offset").0, pair("offset").1));
+                            ui.small(format!("{}: {:.1}", crate::localization::tr("Detail rotation (degrees)"), number("rotation_degrees")));
+                            ui.small(crate::localization::tr(
+                                "Thread map scale and Veil colour are not read by this material, so they are hidden."));
+                        });
+                    }
                     for field in family["fields"].as_array().into_iter().flatten() {
                         let Some(name) = field["name"].as_str() else { continue; };
                         let declared = authored.map(|fields| &fields[name]).filter(|numbers| numbers.is_array());
                         let original = declared.unwrap_or(&field["default"]).clone();
                         let overridden = value["values"][name].is_array();
+                        if veil_layers.is_some() && matches!(name, "_uvScale" | "_dyeingColor") && declared.is_none() {
+                            continue;
+                        }
                         let mut numbers = if overridden { value["values"][name].clone() } else { original.clone() };
                         let mut edited = false;
                         let mut restore = false;
