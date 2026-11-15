@@ -18458,6 +18458,7 @@
     "{value_0} influenced vertices are in hidden Parts": "{value_0} influenced vertices are in hidden Parts",
     "{value_0} influenced vertices · {value_1} {value_2}": "{value_0} influenced vertices · {value_1} {value_2}",
     "{value_0} invalid rows | {value_1} unnormalized vertices": "{value_0} invalid rows | {value_1} unnormalized vertices",
+    "{value_0} is a helper material for the inside of the model and cannot take imported textures. Map {value_1} to a main part, join it with one before exporting, or choose Keep Original Materials.": "{value_0} is a helper material for the inside of the model and cannot take imported textures. Map {value_1} to a main part, join it with one before exporting, or choose Keep Original Materials.",
     "{value_0} is a marker that does not move with the body, so bones attached here stay behind when the character moves. For a cape choose Upper back; for hair choose Head.": "{value_0} is a marker that does not move with the body, so bones attached here stay behind when the character moves. For a cape choose Upper back; for hair choose Head.",
     "{value_0} is already defined in this file": "{value_0} is already defined in this file",
     "{value_0} is already open in Texture Editor.": "{value_0} is already open in Texture Editor.",

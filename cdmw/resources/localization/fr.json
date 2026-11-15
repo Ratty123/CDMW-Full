@@ -18460,6 +18460,7 @@
     "{value_0} influenced vertices are in hidden Parts": "Les sommets influencés par {value_0} se trouvent dans des pièces cachées",
     "{value_0} influenced vertices · {value_1} {value_2}": "{value_0} sommets influencés · {value_1} {value_2}",
     "{value_0} invalid rows | {value_1} unnormalized vertices": "Lignes invalides {value_0} | {value_1} sommets non normalisés",
+    "{value_0} is a helper material for the inside of the model and cannot take imported textures. Map {value_1} to a main part, join it with one before exporting, or choose Keep Original Materials.": "{value_0} est un matériau auxiliaire pour l’intérieur du modèle et ne peut pas recevoir de textures importées. Associez {value_1} à une partie principale, fusionnez-le avec l’une d’elles avant l’export ou choisissez Conserver les matériaux originaux.",
     "{value_0} is a marker that does not move with the body, so bones attached here stay behind when the character moves. For a cape choose Upper back; for hair choose Head.": "{value_0} est un repère qui ne bouge pas avec le corps : les os attachés ici restent en arrière quand le personnage bouge. Pour une cape, choisissez Haut du dos ; pour des cheveux, Tête.",
     "{value_0} is already defined in this file": "{value_0} est déjà défini dans ce fichier",
     "{value_0} is already open in Texture Editor.": "{value_0} est déjà ouvert dans l'éditeur de texture.",

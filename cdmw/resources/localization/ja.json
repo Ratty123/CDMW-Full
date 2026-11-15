@@ -18456,6 +18456,7 @@
     "{value_0} influenced vertices are in hidden Parts": "{value_0} に影響を与える頂点は非表示のパーツにあります",
     "{value_0} influenced vertices · {value_1} {value_2}": "{value_0} に影響を与える頂点 · {value_1} {value_2}",
     "{value_0} invalid rows | {value_1} unnormalized vertices": "{value_0} 無効な行 | {value_1} 正規化されていない頂点",
+    "{value_0} is a helper material for the inside of the model and cannot take imported textures. Map {value_1} to a main part, join it with one before exporting, or choose Keep Original Materials.": "{value_0} はモデル内側用の補助マテリアルのため、インポートしたテクスチャを適用できません。{value_1} をメインのパーツに割り当てるか、エクスポート前にメインのパーツと結合するか、「元のマテリアルを保持」を選択してください。",
     "{value_0} is a marker that does not move with the body, so bones attached here stay behind when the character moves. For a cape choose Upper back; for hair choose Head.": "{value_0} は体と一緒に動かないマーカーなので、ここに取り付けたボーンはキャラクターが動くと取り残されます。マントには背中上部、髪には頭を選んでください。",
     "{value_0} is already defined in this file": "{value_0} はこのファイルですでに定義されています。",
     "{value_0} is already open in Texture Editor.": "{value_0} はテクスチャ エディタですでに開いています。",

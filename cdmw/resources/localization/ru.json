@@ -18462,6 +18462,7 @@
     "{value_0} influenced vertices are in hidden Parts": "Вершины, на которые влияет {value_0}, находятся в скрытых частях.",
     "{value_0} influenced vertices · {value_1} {value_2}": "{value_0} вершин под влиянием · {value_1} {value_2}",
     "{value_0} invalid rows | {value_1} unnormalized vertices": "{value_0} недопустимые строки | Ненормализованные вершины {value_1}",
+    "{value_0} is a helper material for the inside of the model and cannot take imported textures. Map {value_1} to a main part, join it with one before exporting, or choose Keep Original Materials.": "{value_0} — вспомогательный материал для внутренней стороны модели, к нему нельзя применить импортированные текстуры. Сопоставьте {value_1} с основной частью, объедините его с ней перед экспортом или выберите «Сохранить оригинальные материалы».",
     "{value_0} is a marker that does not move with the body, so bones attached here stay behind when the character moves. For a cape choose Upper back; for hair choose Head.": "{value_0} — маркер, который не движется вместе с телом, поэтому прикреплённые к нему кости остаются на месте, когда персонаж движется. Для плаща выберите «Верх спины», для волос — «Голова».",
     "{value_0} is already defined in this file": "{value_0} уже определен в этом файле",
     "{value_0} is already open in Texture Editor.": "{value_0} уже открыт в редакторе текстур.",

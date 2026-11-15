@@ -18456,6 +18456,7 @@
     "{value_0} influenced vertices are in hidden Parts": "{value_0}가 영향을 준 정점이 숨겨진 파트에 있음",
     "{value_0} influenced vertices · {value_1} {value_2}": "{value_0}가 영향을 준 정점 · {value_1} {value_2}",
     "{value_0} invalid rows | {value_1} unnormalized vertices": "{value_0} 잘못된 행 | {value_1} 정규화되지 않은 정점",
+    "{value_0} is a helper material for the inside of the model and cannot take imported textures. Map {value_1} to a main part, join it with one before exporting, or choose Keep Original Materials.": "{value_0}은(는) 모델 안쪽용 보조 머티리얼이라 가져온 텍스처를 적용할 수 없습니다. {value_1}을(를) 주 파트에 매핑하거나, 내보내기 전에 주 파트와 합치거나, 원본 머티리얼 유지를 선택하세요.",
     "{value_0} is a marker that does not move with the body, so bones attached here stay behind when the character moves. For a cape choose Upper back; for hair choose Head.": "{value_0}은(는) 몸과 함께 움직이지 않는 마커이므로 여기에 붙인 본은 캐릭터가 움직일 때 제자리에 남습니다. 망토는 등 위쪽, 머리카락은 머리를 고르세요.",
     "{value_0} is already defined in this file": "{value_0}는 이미 이 파일에 정의되어 있습니다.",
     "{value_0} is already open in Texture Editor.": "{value_0}는 이미 텍스처 편집기에 열려 있습니다.",

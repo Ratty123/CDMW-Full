@@ -4701,6 +4701,23 @@ impl LabApplication {
                         }
                         ui.ctx().data_mut(|data| data.insert_temp(surface_id, surface_values));
                     }
+                    // Helper wrappers (a helmet's `_inside`) keep the game's
+                    // material, so a part mapped only there has nowhere to go.
+                    if imported {
+                        let helpers = pending["materials"]["helper_targets"].as_array().cloned().unwrap_or_default();
+                        for (source, choice) in sources.iter().zip(&choices) {
+                            if !helpers.iter().any(|id| id.as_str() == Some(choice.as_str())) {
+                                continue;
+                            }
+                            let target = targets.iter().find(|row| row["id"].as_str() == Some(choice.as_str()))
+                                .and_then(|row| row["name"].as_str()).unwrap_or(choice.as_str());
+                            let part = source["name"].as_str().unwrap_or("");
+                            ui.colored_label(
+                                ui.visuals().warn_fg_color,
+                                crate::localization::tr(format!("{target} is a helper material for the inside of the model and cannot take imported textures. Map {part} to a main part, join it with one before exporting, or choose Keep Original Materials.")),
+                            );
+                        }
+                    }
                     // Keep Original Materials draws the game's textures on the
                     // imported UVs; say so before the result looks mixed up.
                     if !material_error.is_empty() {

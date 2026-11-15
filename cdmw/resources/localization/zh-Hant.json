@@ -18456,6 +18456,7 @@
     "{value_0} influenced vertices are in hidden Parts": "{value_0} 影響的頂點在隱藏的部件中",
     "{value_0} influenced vertices · {value_1} {value_2}": "{value_0} 影響的頂點 · {value_1} {value_2}",
     "{value_0} invalid rows | {value_1} unnormalized vertices": "{value_0} 無效行 | {value_1} 非標準化頂點",
+    "{value_0} is a helper material for the inside of the model and cannot take imported textures. Map {value_1} to a main part, join it with one before exporting, or choose Keep Original Materials.": "{value_0} 是用於模型內側的輔助材質，無法使用匯入的紋理。請將 {value_1} 對應到主要部件，或在匯出前將其與主要部件合併，或選擇「保留原始材質」。",
     "{value_0} is a marker that does not move with the body, so bones attached here stay behind when the character moves. For a cape choose Upper back; for hair choose Head.": "{value_0} 是不隨身體移動的標記，掛接在這裡的骨骼會在角色移動時留在原地。披風請選擇上背部，頭髮請選擇頭部。",
     "{value_0} is already defined in this file": "{value_0} 已在此檔案中定義",
     "{value_0} is already open in Texture Editor.": "{value_0} 已在紋理編輯器中開啟。",

@@ -8052,7 +8052,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend compatibility mismatch (protocol={result.protocol_version}, native={result.native_abi_version}, index={result.index_version}).",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 448
+      "cdmw/ui/shell/archive_backend_client.py": 473
     }
   },
   {
@@ -8060,7 +8060,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend did not become ready within 10 seconds.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 560
+      "cdmw/ui/shell/archive_backend_client.py": 585
     }
   },
   {
@@ -8068,7 +8068,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend emitted an oversized protocol message.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 337
+      "cdmw/ui/shell/archive_backend_client.py": 362
     }
   },
   {
@@ -8076,7 +8076,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend emitted invalid protocol JSON: {exc}",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 379
+      "cdmw/ui/shell/archive_backend_client.py": 404
     }
   },
   {
@@ -8084,7 +8084,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend handshake could not be written.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 311
+      "cdmw/ui/shell/archive_backend_client.py": 336
     }
   },
   {
@@ -8092,7 +8092,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend handshake failed: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 436
+      "cdmw/ui/shell/archive_backend_client.py": 461
     }
   },
   {
@@ -8100,7 +8100,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend handshake was malformed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 441
+      "cdmw/ui/shell/archive_backend_client.py": 466
     }
   },
   {
@@ -8108,7 +8108,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend is shutting down.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 168
+      "cdmw/ui/shell/archive_backend_client.py": 193
     }
   },
   {
@@ -8116,7 +8116,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend process failed to start: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 575
+      "cdmw/ui/shell/archive_backend_client.py": 600
     }
   },
   {
@@ -8124,7 +8124,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend protocol {message.protocol_version} is incompatible with {ARCHIVE_BACKEND_PROTOCOL_VERSION}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 382
+      "cdmw/ui/shell/archive_backend_client.py": 407
     }
   },
   {
@@ -8132,7 +8132,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend request could not be written.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 527
+      "cdmw/ui/shell/archive_backend_client.py": 552
     }
   },
   {
@@ -8140,7 +8140,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend request failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 428
+      "cdmw/ui/shell/archive_backend_client.py": 453
     }
   },
   {
@@ -8156,7 +8156,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend request stopped during application shutdown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 232
+      "cdmw/ui/shell/archive_backend_client.py": 257
     }
   },
   {
@@ -8164,7 +8164,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend request was superseded before dispatch.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 507
+      "cdmw/ui/shell/archive_backend_client.py": 532
     }
   },
   {
@@ -8172,7 +8172,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend response correlation failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 407
+      "cdmw/ui/shell/archive_backend_client.py": 432
     }
   },
   {
@@ -8180,7 +8180,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend response was invalidated by a newer UI generation.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 216
+      "cdmw/ui/shell/archive_backend_client.py": 241
     }
   },
   {
@@ -8204,7 +8204,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend stdin rejected a complete request.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 529
+      "cdmw/ui/shell/archive_backend_client.py": 554
     }
   },
   {
@@ -8212,7 +8212,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend stdout exceeded the 1 MiB message bound.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 332
+      "cdmw/ui/shell/archive_backend_client.py": 357
     }
   },
   {
@@ -8220,7 +8220,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend stopped unexpectedly.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 623
+      "cdmw/ui/shell/archive_backend_client.py": 649
     }
   },
   {
@@ -15032,7 +15032,7 @@ MESSAGE_REFERENCE = [
     "message": "Specify worker_executable or worker_program, not both.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 89
+      "cdmw/ui/shell/archive_backend_client.py": 114
     }
   },
   {
@@ -15488,7 +15488,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive backend does not support custom ignored folders. Update or rebuild CDMW before scanning with these exclusions.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 519
+      "cdmw/ui/shell/archive_backend_client.py": 544
     }
   },
   {
@@ -17164,7 +17164,7 @@ MESSAGE_REFERENCE = [
     "message": "Unresponsive archive worker is being stopped.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 656
+      "cdmw/ui/shell/archive_backend_client.py": 682
     }
   },
   {
@@ -18406,7 +18406,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 272,
       "cdmw/ui/archive_browser/workers.py": 910,
-      "cdmw/ui/shell/archive_backend_client.py": 50
+      "cdmw/ui/shell/archive_backend_client.py": 75
     }
   },
   {
@@ -19518,7 +19518,7 @@ MESSAGE_REFERENCE = [
     "message": "unknown_or_stale_request",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/shell/archive_backend_client.py": 401
+      "cdmw/ui/shell/archive_backend_client.py": 426
     }
   },
   {
@@ -43883,7 +43883,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1032,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5237
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5254
     }
   },
   {
@@ -43900,7 +43900,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1014,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5224
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5241
     }
   },
   {
@@ -46816,7 +46816,7 @@ MESSAGE_REFERENCE = [
     "message": "Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4941
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4958
     }
   },
   {
@@ -46944,7 +46944,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate and Delete require Free Edit output",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4837
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4854
     }
   },
   {
@@ -49086,7 +49086,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layer visibility cannot change in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5119
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5136
     }
   },
   {
@@ -49094,7 +49094,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layers cannot be activated in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5101
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5118
     }
   },
   {
@@ -63375,7 +63375,7 @@ MESSAGE_REFERENCE = [
     "message": "This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4709
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4726
     }
   },
   {
@@ -63599,7 +63599,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency is unavailable for this mesh.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5472
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5489
     }
   },
   {
@@ -75307,6 +75307,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "{target} is a helper material for the inside of the model and cannot take imported textures. Map {part} to a main part, join it with one before exporting, or choose Keep Original Materials.",
+    "recovery": "input",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4717
+    }
+  },
+  {
+    "area": "mesh",
     "message": "{text} shares no name with the family stem {self.model_stem}",
     "recovery": "internal",
     "sources": {
@@ -76270,7 +76278,7 @@ MESSAGE_REFERENCE = [
     "message": "At least one output profile must be enabled.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/recolor_variants.py": 500
+      "cdmw/core/recolor_variants.py": 501
     }
   },
   {
@@ -78313,7 +78321,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not stage {copy_result.failed_files} recolor output file(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 655
+      "cdmw/core/recolor_variants.py": 657
     }
   },
   {
@@ -78329,7 +78337,7 @@ MESSAGE_REFERENCE = [
     "message": "Current recolor template does not match the selected texture target.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/recolor_variants.py": 430
+      "cdmw/core/recolor_variants.py": 431
     }
   },
   {
@@ -78369,7 +78377,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS metadata is only available for loose files or zip members.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 827
+      "cdmw/core/recolor_variants.py": 829
     }
   },
   {
@@ -82265,7 +82273,7 @@ MESSAGE_REFERENCE = [
     "message": "Multiple output profiles resolve to the same folder: {final_root}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 616
+      "cdmw/core/recolor_variants.py": 618
     }
   },
   {
@@ -82377,7 +82385,7 @@ MESSAGE_REFERENCE = [
     "message": "Native DDS encode failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 1098,
+      "cdmw/core/recolor_variants.py": 1100,
       "cdmw/core/replace_assistant.py": 873
     }
   },
@@ -82594,7 +82602,7 @@ MESSAGE_REFERENCE = [
     "message": "No safe editable recolor targets were detected.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 357
+      "cdmw/core/recolor_variants.py": 358
     }
   },
   {
@@ -82770,7 +82778,7 @@ MESSAGE_REFERENCE = [
     "message": "Only DDS texture targets can be opened in the visual recolor preview.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 425
+      "cdmw/core/recolor_variants.py": 426
     }
   },
   {
@@ -82874,7 +82882,7 @@ MESSAGE_REFERENCE = [
     "message": "Output already exists and is not empty: {final_root}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/recolor_variants.py": 623
+      "cdmw/core/recolor_variants.py": 625
     }
   },
   {
@@ -82890,7 +82898,7 @@ MESSAGE_REFERENCE = [
     "message": "Output path exists and is not a folder: {final_root}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/recolor_variants.py": 620
+      "cdmw/core/recolor_variants.py": 622
     }
   },
   {
@@ -82906,7 +82914,7 @@ MESSAGE_REFERENCE = [
     "message": "Output root cannot be inside the source mod package.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/recolor_variants.py": 515
+      "cdmw/core/recolor_variants.py": 516
     }
   },
   {
@@ -83715,7 +83723,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor output ZIP was not staged: {staged_zip}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 678
+      "cdmw/core/recolor_variants.py": 680
     }
   },
   {
@@ -83731,7 +83739,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor preview source texture was not found in zip: {target.game_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/recolor_variants.py": 1035
+      "cdmw/core/recolor_variants.py": 1037
     }
   },
   {
@@ -83739,7 +83747,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor preview source texture was not found: {target.game_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/recolor_variants.py": 1029
+      "cdmw/core/recolor_variants.py": 1031
     }
   },
   {
@@ -83747,7 +83755,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor preview target was not found in the current analysis.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/recolor_variants.py": 423
+      "cdmw/core/recolor_variants.py": 424
     }
   },
   {
@@ -84141,7 +84149,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected target is locked for safe recolor variants.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/recolor_variants.py": 427
+      "cdmw/core/recolor_variants.py": 428
     }
   },
   {
@@ -84493,7 +84501,7 @@ MESSAGE_REFERENCE = [
     "message": "Skipped missing material sidecar payload: {sidecar_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/recolor_variants.py": 583
+      "cdmw/core/recolor_variants.py": 584
     }
   },
   {
@@ -84501,7 +84509,7 @@ MESSAGE_REFERENCE = [
     "message": "Skipped missing texture payload: {target.game_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/recolor_variants.py": 554
+      "cdmw/core/recolor_variants.py": 555
     }
   },
   {
@@ -84790,7 +84798,7 @@ MESSAGE_REFERENCE = [
     "message": "Template does not match any editable targets in this package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 391
+      "cdmw/core/recolor_variants.py": 392
     }
   },
   {
@@ -84798,7 +84806,7 @@ MESSAGE_REFERENCE = [
     "message": "Template does not match any editable targets.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 506
+      "cdmw/core/recolor_variants.py": 507
     }
   },
   {
@@ -84806,7 +84814,7 @@ MESSAGE_REFERENCE = [
     "message": "Template import must contain a JSON array or a templates array.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/recolor_variants.py": 253
+      "cdmw/core/recolor_variants.py": 254
     }
   },
   {
@@ -88098,7 +88106,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported recolor preview source package: {source_package}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/recolor_variants.py": 1040
+      "cdmw/core/recolor_variants.py": 1042
     }
   },
   {
@@ -88450,7 +88458,7 @@ MESSAGE_REFERENCE = [
     "message": "Zip member scan failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/recolor_variants.py": 797
+      "cdmw/core/recolor_variants.py": 799
     }
   },
   {
@@ -90792,7 +90800,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/common.py": 418,
       "cdmw/core/item_index.py": 902,
       "cdmw/core/pat_decoder.py": 115,
-      "cdmw/core/recolor_variants.py": 1172,
+      "cdmw/core/recolor_variants.py": 1174,
       "cdmw/core/structured_binary_editor.py": 117,
       "cdmw/core/text_search.py": 173,
       "cdmw/domain/xml_text.py": 211,
@@ -94682,7 +94690,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous original material dependency: {binding.texture_path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 151
+      "cdmw/services/mesh_replacement_materials.py": 189
     }
   },
   {
@@ -94916,7 +94924,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a replacement model first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 213
+      "cdmw/services/mesh_rust_replacement.py": 215
     }
   },
   {
@@ -95639,7 +95647,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated material sidecar has no captured target: {payload.target_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 291
+      "cdmw/services/mesh_replacement_materials.py": 330
     }
   },
   {
@@ -95807,7 +95815,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement or change output inclusion before previewing output.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 177
+      "cdmw/services/mesh_rust_replacement.py": 179
     }
   },
   {
@@ -95863,7 +95871,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: no representable source material textures",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 260
+      "cdmw/services/mesh_replacement_materials.py": 299
     }
   },
   {
@@ -95871,7 +95879,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 260
+      "cdmw/services/mesh_replacement_materials.py": 299
     }
   },
   {
@@ -95887,7 +95895,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material {part.material or part.name} has no proven target binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 267
+      "cdmw/services/mesh_replacement_materials.py": 306
     }
   },
   {
@@ -95895,7 +95903,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials have no proven target sidecar wrapper mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 302
+      "cdmw/services/mesh_replacement_materials.py": 341
     }
   },
   {
@@ -95903,7 +95911,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials produced no output textures or sidecars; original-material fallback is disabled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 262
+      "cdmw/services/mesh_replacement_materials.py": 301
     }
   },
   {
@@ -95911,7 +95919,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a captured archive target identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 228
+      "cdmw/services/mesh_replacement_materials.py": 267
     }
   },
   {
@@ -95927,7 +95935,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a readable target material sidecar (.pac_xml or .pami).",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 247
+      "cdmw/services/mesh_replacement_materials.py": 286
     }
   },
   {
@@ -95935,7 +95943,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require one source material part per target part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 193
+      "cdmw/services/mesh_replacement_materials.py": 231
     }
   },
   {
@@ -95951,7 +95959,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require the original material sidecar and texture dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 195
+      "cdmw/services/mesh_replacement_materials.py": 233
     }
   },
   {
@@ -96760,7 +96768,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing imported texture: {path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 251
+      "cdmw/services/mesh_replacement_materials.py": 290
     }
   },
   {
@@ -96800,7 +96808,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required generated texture: {target_path or 'unresolved material slot'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 272
+      "cdmw/services/mesh_replacement_materials.py": 311
     }
   },
   {
@@ -97013,10 +97021,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "No body socket file of this character defines {socket_name}",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 259
+    }
+  },
+  {
+    "area": "placement",
     "message": "No body socket file of this character defines {source}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 289
+      "tools/placement_studio/carry_plan.py": 422
     }
   },
   {
@@ -97465,7 +97481,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation {oid} is not in the session history, so it cannot be packaged",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/preflight.py": 646
+      "tools/placement_studio/preflight.py": 670
     }
   },
   {
@@ -97747,7 +97763,7 @@ MESSAGE_REFERENCE = [
     "message": "Preparation source changed; refresh and prepare the operation again: {path}",
     "recovery": "stale",
     "sources": {
-      "tools/placement_studio/preflight.py": 687
+      "tools/placement_studio/preflight.py": 711
     }
   },
   {
@@ -98099,7 +98115,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement dependencies exceed the 512 MiB snapshot limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 166
+      "cdmw/services/mesh_replacement_materials.py": 204
     }
   },
   {
@@ -98355,7 +98371,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no replaced equipment material to apply to.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 326
+      "cdmw/services/mesh_replacement_materials.py": 365
     }
   },
   {
@@ -98363,7 +98379,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic must be between 0% and 100%.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 159
+      "cdmw/services/mesh_rust_replacement.py": 161
     }
   },
   {
@@ -98371,7 +98387,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic need a Ver2 equipment material, which this item does not use.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 148
+      "cdmw/services/mesh_rust_replacement.py": 150
     }
   },
   {
@@ -98379,7 +98395,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic need the item's equipment material file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 146
+      "cdmw/services/mesh_rust_replacement.py": 148
     }
   },
   {
@@ -98430,7 +98446,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one target part before importing a replacement.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 202
+      "cdmw/services/mesh_rust_replacement.py": 204
     }
   },
   {
@@ -98486,7 +98502,7 @@ MESSAGE_REFERENCE = [
     "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Move it, which gives it a point of its own.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_tasks.py": 288
+      "tools/placement_studio/window_tasks.py": 346
     }
   },
   {
@@ -98784,7 +98800,7 @@ MESSAGE_REFERENCE = [
     "message": "The aim for {', '.join(sorted(borrowed_aims))} was borrowed or authored by hand and has not been marked reviewed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 558
+      "tools/placement_studio/preflight.py": 582
     }
   },
   {
@@ -98792,7 +98808,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive target and its dependency snapshot are required for replacement.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 137
+      "cdmw/services/mesh_replacement_materials.py": 175
     }
   },
   {
@@ -98912,7 +98928,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh changed after import preparation. Import again before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 217
+      "cdmw/services/mesh_rust_replacement.py": 219
     }
   },
   {
@@ -98928,7 +98944,7 @@ MESSAGE_REFERENCE = [
     "message": "The mirrored {source.name} could not be solved (off by {error})",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 211
+      "tools/placement_studio/carry_plan.py": 213
     }
   },
   {
@@ -98944,7 +98960,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation contains blocked preparation checks",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/preflight.py": 678
+      "tools/placement_studio/preflight.py": 702
     }
   },
   {
@@ -98952,7 +98968,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation payload differs from its reviewed preparation",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/preflight.py": 675
+      "tools/placement_studio/preflight.py": 699
     }
   },
   {
@@ -98960,7 +98976,7 @@ MESSAGE_REFERENCE = [
     "message": "The operation preparation record is invalid",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/preflight.py": 691
+      "tools/placement_studio/preflight.py": 715
     }
   },
   {
@@ -99088,7 +99104,7 @@ MESSAGE_REFERENCE = [
     "message": "The weapon has no child socket for that spot, so its mirror cannot be solved",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 283
+      "tools/placement_studio/carry_plan.py": 416
     }
   },
   {
@@ -99104,7 +99120,7 @@ MESSAGE_REFERENCE = [
     "message": "This character has no skeleton to mirror across",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 279
+      "tools/placement_studio/carry_plan.py": 255
     }
   },
   {
@@ -99144,7 +99160,7 @@ MESSAGE_REFERENCE = [
     "message": "This placement operation did not record its destination socket, so the orientation zone check could not run",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 572
+      "tools/placement_studio/preflight.py": 596
     }
   },
   {
@@ -99152,7 +99168,7 @@ MESSAGE_REFERENCE = [
     "message": "This replacement mapping belongs to an older import. Review the current import before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 215
+      "cdmw/services/mesh_rust_replacement.py": 217
     }
   },
   {
@@ -99360,7 +99376,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown preparation evidence version",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 671
+      "tools/placement_studio/preflight.py": 695
     }
   },
   {
@@ -99368,7 +99384,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown replacement comparison mode.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 173
+      "cdmw/services/mesh_rust_replacement.py": 175
     }
   },
   {
@@ -99408,7 +99424,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported replacement command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 282
+      "cdmw/services/mesh_rust_replacement.py": 284
     }
   },
   {
@@ -100198,7 +100214,7 @@ MESSAGE_REFERENCE = [
     "message": "{command.target} hangs on {destination} ({want_zone}) but is aimed by {child}, which belongs to the {have_zone}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 543
+      "tools/placement_studio/preflight.py": 567
     }
   },
   {
@@ -100206,7 +100222,7 @@ MESSAGE_REFERENCE = [
     "message": "{command.target}.{command.field_name} points at {command.text}, which no packaged file defines",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 593
+      "tools/placement_studio/preflight.py": 617
     }
   },
   {
@@ -100299,6 +100315,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "{helpers[target]} is a helper material for the inside of the model and cannot take imported textures. Map {part.name or part.material} to a main part, join it with one before exporting, or choose Keep Original Materials.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_replacement_materials.py": 143
+    }
+  },
+  {
+    "area": "placement",
     "message": "{identity} already has {attribute}",
     "recovery": "internal",
     "sources": {
@@ -100350,7 +100374,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(changed.animation_paths)} animation files would be replaced",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 611
+      "tools/placement_studio/preflight.py": 635
     }
   },
   {
@@ -100382,7 +100406,7 @@ MESSAGE_REFERENCE = [
     "message": "{link.part_name} ({link.role}) stays on its old socket while {unit.primary_part} moves; the two may separate or snap",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 476
+      "tools/placement_studio/preflight.py": 494
     }
   },
   {
@@ -100494,7 +100518,7 @@ MESSAGE_REFERENCE = [
     "message": "{operation.operation_id} is a placement operation but records no route change, so nothing would move",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 496
+      "tools/placement_studio/preflight.py": 514
     }
   },
   {
@@ -100734,7 +100758,7 @@ MESSAGE_REFERENCE = [
     "message": "{socket_name} is used by {', '.join(users)} and was changed in place; clone it and reroute only this operation's rows",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 521
+      "tools/placement_studio/preflight.py": 545
     }
   },
   {
@@ -100742,7 +100766,15 @@ MESSAGE_REFERENCE = [
     "message": "{source or 'That spot'} has no other side to mirror to",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/carry_plan.py": 273
+      "tools/placement_studio/carry_plan.py": 406
+    }
+  },
+  {
+    "area": "placement",
+    "message": "{source.name} has a point on the other side; mirror to that one",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/carry_plan.py": 243
     }
   },
   {
@@ -100822,7 +100854,7 @@ MESSAGE_REFERENCE = [
     "message": "{unit.primary_part} moves but its {link.role} {link.part_name} was not, and no exception was confirmed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/preflight.py": 485
+      "tools/placement_studio/preflight.py": 503
     }
   },
   {
@@ -109115,7 +109147,7 @@ SOURCE_COVERAGE = {
     "validation": 2
   },
   "cdmw/services/mesh_replacement_materials.py": {
-    "raise": 21
+    "raise": 22
   },
   "cdmw/services/mesh_replacement_output.py": {
     "code": 2,
@@ -112669,7 +112701,7 @@ SOURCE_COVERAGE = {
   "tools/placement_studio/carry.py": {},
   "tools/placement_studio/carry_plan.py": {
     "diagnostic_field": 2,
-    "raise": 8
+    "raise": 11
   },
   "tools/placement_studio/carry_replacements.py": {},
   "tools/placement_studio/carry_timing.py": {
@@ -113052,7 +113084,7 @@ SOURCE_COVERAGE = {
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": {
     "native_handoff": 1,
-    "native_message": 25
+    "native_message": 26
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs": {
     "native_handoff": 7,

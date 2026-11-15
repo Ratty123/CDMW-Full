@@ -5527,6 +5527,33 @@ fn integrated_replacement_mapping_points_out_the_models_own_textures() -> TestRe
     Ok(())
 }
 
+#[test]
+fn integrated_replacement_mapping_warns_about_helper_material_targets() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    // A helmet's `_inside` wrapper keeps the game's material (a user report
+    // reached Apply and got only "no proven target binding").
+    let warning = "Helm_inside is a helper material for the inside of the model and cannot take imported textures. Map Visor to a main part, join it with one before exporting, or choose Keep Original Materials.";
+    let mut state = replacement_pending_with_materials(json!({
+        "error": "", "textures": 1, "helper_targets": ["stable:1"],
+    }));
+    state["parts"] = json!([
+        {"index": 0, "id": "stable:0", "name": "Helm", "included": true},
+        {"index": 1, "id": "stable:1", "name": "Helm_inside", "included": true},
+    ]);
+    state["pending"]["targets"] = json!([{"id": "stable:0", "name": "Helm"}, {"id": "stable:1", "name": "Helm_inside"}]);
+    state["pending"]["sources"] = json!([{"name": "Shell", "target": "stable:0"}, {"name": "Visor", "target": "stable:1"}]);
+    ui.application.cdmw_state["replacement"] = state;
+    ui.settle_layout();
+    // Keep Original Materials leaves the helper wrapper as it is: no warning.
+    assert!(ui.label_rect(warning).is_none());
+    ui.click("Imported Materials & Textures")?;
+    ui.reveal(warning)?;
+    Ok(())
+}
+
 const REPLACEMENT_SURFACE_HINT: &str = "Roughness and Metallic set the whole imported surface. At 0% roughness it shines like a mirror.";
 
 #[test]
