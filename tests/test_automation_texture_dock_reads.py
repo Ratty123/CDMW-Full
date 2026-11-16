@@ -17,6 +17,41 @@ from cdmw.ui.mesh_editor.texture_tools_dock import MeshEditorTextureTools
 _APP = QApplication.instance() or QApplication([])
 
 
+class _Slider:
+    def __init__(self, maximum: int) -> None:
+        self._maximum, self._value = maximum, 0
+
+    def maximum(self) -> int:
+        return self._maximum
+
+    def setValue(self, value: int) -> None:  # noqa: N802 - Qt API
+        self._value = int(value)
+
+    def value(self) -> int:
+        return self._value
+
+
+def test_the_marker_is_one_solid_paint_stroke_across_the_centre():
+    strokes, tools, synced = [], [], []
+    color = SimpleNamespace(text="", setText=lambda value: setattr(color, "text", value))
+    editor = SimpleNamespace(
+        document=SimpleNamespace(width=1024, height=512),
+        _set_active_tool=tools.append, paint_color_edit=color,
+        brush_size_slider=_Slider(500), hardness_slider=_Slider(100), opacity_slider=_Slider(100),
+        flow_slider=_Slider(100), _handle_tool_settings_changed=lambda: synced.append(True),
+        canvas=SimpleNamespace(stroke_committed=SimpleNamespace(emit=strokes.append)))
+    assert bridge_module.AutomationBridge._texture_marker(editor, {}) is True
+    assert tools == ["paint"] and color.text == "#FF00FF" and synced == [True]
+    assert editor.brush_size_slider.value() == 64
+    assert editor.hardness_slider.value() == editor.opacity_slider.value() == editor.flow_slider.value() == 100
+    (stroke,) = strokes
+    assert stroke["tool"] == "paint"
+    assert {y for _x, y in stroke["points"]} == {256}
+    assert stroke["points"][0][0] == 512 - 64 and stroke["points"][-1][0] == 512 + 64
+    editor.document = SimpleNamespace(width=0, height=0)
+    assert bridge_module.AutomationBridge._texture_marker(editor, {}) is False
+
+
 def test_the_dock_float_command_and_its_lines(monkeypatch, tmp_path):
     host = QMainWindow()
     tools = MeshEditorTextureTools(host)

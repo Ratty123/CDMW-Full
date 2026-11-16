@@ -773,12 +773,38 @@ class AutomationBridge(QObject):
         if action == "redo":
             editor.redo()
             return True
+        if action == "marker":
+            return self._texture_marker(editor, args)
         combo = editor.adjustment_add_combo
         combo.setCurrentIndex(combo.findData("hue_saturation"))
         editor.add_adjustment_layer()
         editor.adjustment_param_a_slider.setValue(int(args.get("value", 120)))
         editor.preview_selected_adjustment_properties()
         editor.commit_selected_adjustment_properties()
+        return True
+
+    @staticmethod
+    def _texture_marker(editor, args: dict) -> bool:
+        """A test edit that reads as one at a glance: a short solid bar in one colour
+        (magenta unless ``color`` says otherwise) across the texture's centre, painted with
+        the Paint tool and committed as the canvas commits a stroke."""
+
+        document = editor.document
+        width = int(getattr(document, "width", 0) or 0)
+        height = int(getattr(document, "height", 0) or 0)
+        if width <= 0 or height <= 0:
+            return False
+        editor._set_active_tool("paint")
+        editor.paint_color_edit.setText(str(args.get("color", "#FF00FF")))
+        size = min(editor.brush_size_slider.maximum(), max(8, width // 16))
+        editor.brush_size_slider.setValue(size)
+        for slider in (editor.hardness_slider, editor.opacity_slider, editor.flow_slider):
+            slider.setValue(slider.maximum())
+        editor._handle_tool_settings_changed()
+        y = height // 2
+        start = width // 2 - size
+        points = [(x, y) for x in range(start, start + 2 * size + 1, max(1, size // 4))]
+        editor.canvas.stroke_committed.emit({"tool": "paint", "points": points})
         return True
 
     def _debug_dump(self, _args: dict) -> dict[str, object]:
