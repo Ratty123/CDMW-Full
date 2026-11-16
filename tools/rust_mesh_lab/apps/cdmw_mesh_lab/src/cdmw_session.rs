@@ -3600,11 +3600,58 @@ fn reject_unexpected_initial_files(
             validate_owned_effect_texture_directory(&entry.path(), manifest)?;
             continue;
         }
+        if name == LIVE_TEXTURE_EDITS_DIR && file_type.is_dir() {
+            // Texture edits CDMW keeps in a draft are written here before the editor
+            // starts when the draft is resumed (B pass 5, 2026-11-16).
+            validate_live_texture_edits_directory(&entry.path())?;
+            continue;
+        }
         return Err(SessionError::InvalidManifest(format!(
             "unexpected session entry {name}"
         )));
     }
     Ok(())
+}
+
+/// Live texture edits CDMW writes in the session (`live_texture_updates.EDITS_DIRNAME`).
+const LIVE_TEXTURE_EDITS_DIR: &str = "texture_edits";
+
+/// One plain file per edited texture, named `<16 hex>-r<revision>.dds` (or `.partial`
+/// while it is written), and nothing else: no links, no folders, no other names.
+pub(crate) fn validate_live_texture_edits_directory(directory: &Path) -> Result<(), SessionError> {
+    if fs::symlink_metadata(directory)?.file_type().is_symlink() {
+        return Err(SessionError::InvalidManifest(
+            "texture edit directory must not be a link".to_owned(),
+        ));
+    }
+    let mut count = 0_usize;
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        count += 1;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let file_type = entry.file_type()?;
+        if count > 512 || !file_type.is_file() || file_type.is_symlink() || !live_texture_edit_name(&name) {
+            return Err(SessionError::InvalidManifest(format!(
+                "unexpected texture edit entry {name}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn live_texture_edit_name(name: &str) -> bool {
+    let Some((stem, extension)) = name.rsplit_once('.') else {
+        return false;
+    };
+    let Some((key, revision)) = stem.split_once("-r") else {
+        return false;
+    };
+    matches!(extension, "dds" | "partial")
+        && key.len() == 16
+        && key.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        && !revision.is_empty()
+        && revision.len() <= 9
+        && revision.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn validate_owned_effect_texture_directory(
@@ -5961,6 +6008,16 @@ pub(crate) mod tests {
             "aliases share one immutable package resource"
         );
 
+        // A resumed draft's kept texture edits are in the session before the editor starts.
+        let edits = root.path().join("texture_edits");
+        fs::create_dir(&edits).expect("texture edits directory");
+        fs::write(edits.join("4092a553b170619f-r3.dds"), b"DDS ").expect("kept edit");
+        fs::write(edits.join("4092a553b170619f-r4.partial"), b"DDS ").expect("edit being written");
+        LoadedCdmwSessionPackage::load(&manifest_path).expect("a session with kept texture edits loads");
+        fs::write(edits.join("notes.txt"), b"x").expect("stray file");
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+        fs::remove_dir_all(&edits).expect("remove texture edits");
+
         for (field, invalid) in [
             ("path", json!("../escape.dds")),
             ("byte_length", json!(bytes.len() + 1)),
@@ -6473,5 +6530,39 @@ pub(crate) mod tests {
         assert!(wire["hair"].get("scalp").is_none());
         assert!(wire["hair"].get("bindings").is_none());
         assert!(wire["hair"].get("guides").is_none());
+    }
+}
+
+#[cfg(test)]
+mod live_texture_edit_directory_tests {
+    use super::*;
+
+    #[test]
+    fn live_texture_edit_names_are_exact() {
+        for good in ["4092a553b170619f-r3.dds", "0123456789abcdef-r123456789.partial"] {
+            assert!(live_texture_edit_name(good), "{good}");
+        }
+        for bad in [
+            "4092A553B170619F-r3.dds",
+            "4092a553b170619f-r.dds",
+            "4092a553b170619f-r1234567890.dds",
+            "4092a553b170619-r3.dds",
+            "4092a553b170619f-r3.png",
+            "4092a553b170619f.dds",
+            "../4092a553b170619f-r3.dds",
+        ] {
+            assert!(!live_texture_edit_name(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_texture_edits_directory_refuses_folders_and_other_names() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let edits = root.path().join("texture_edits");
+        fs::create_dir(&edits).expect("edits");
+        fs::write(edits.join("4092a553b170619f-r3.dds"), b"DDS ").expect("edit");
+        validate_live_texture_edits_directory(&edits).expect("plain edit files pass");
+        fs::create_dir(edits.join("nested")).expect("nested");
+        assert!(validate_live_texture_edits_directory(&edits).is_err());
     }
 }
