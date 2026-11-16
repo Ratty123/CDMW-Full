@@ -176,6 +176,7 @@ class AutomationBridge(QObject):
             "open_texture": self._open_texture,
             "texture_window": self._texture_window,
             "texture_edit": self._texture_edit,
+            "texture_dock": self._texture_dock,
             # Drafts & Mods and whole-part selection (saved_work_commands.py).
             "saved_work_rows": lambda args: saved_work_commands.saved_work_rows(self.window, args),
             "saved_work_combine": lambda args: saved_work_commands.saved_work_combine(self.window, args),
@@ -677,12 +678,17 @@ class AutomationBridge(QObject):
                 "session_root": str(getattr(tab, "standalone_rust_session_root", "") or ""),
                 "tab_type": type(tab).__name__,
             }
+        from cdmw.ui.mesh_editor.textures_panel import contributing_rows, made_from_several_files
+
         rows = []
         for group in getattr(dock, "groups", ()) or ():
             for row in group.rows:
                 rows.append({"part": group.group_heading, "texture_id": row.texture_id, "role": row.role,
                              "game_path": row.game_path, "shared": row.shared, "in_renderer": row.in_renderer,
-                             "source_sha256": row.source_sha256})
+                             "source_sha256": row.source_sha256,
+                             # Item 6: a colour made from several files, and what it is made from.
+                             "not_one_file": made_from_several_files(row),
+                             "made_from": [other.game_path for other in contributing_rows(group, row)]})
         return rows
 
     def _open_texture(self, args: dict) -> bool:
@@ -726,7 +732,29 @@ class AutomationBridge(QObject):
                         for key, state in getattr(live, "_textures", {}).items()},
             "editor_ready": bool(getattr(tab, "standalone_rust_ready", False)),
             "editor_stderr": str(getattr(tab, "standalone_rust_stderr_tail", "") or "")[-1500:],
+            # Items 3 and 5: what the dock says about sharing and keeping, and the draft.
+            "sharing_text": window.sharing_label.text() if window.sharing_label.isVisible() else "",
+            "kept_text": window.kept_label.text() if window.kept_label.isVisible() else "",
+            "unkept": self._unkept_texture_edits(tab),
+            "draft_root": str(tab._live_texture_draft_root() or "") if hasattr(tab, "_live_texture_draft_root") else "",
         }
+
+    @staticmethod
+    def _unkept_texture_edits(tab) -> int:
+        keeper = getattr(tab, "_live_texture_keeping", None)
+        return int(keeper.unkept_count()) if keeper is not None else 0
+
+    def _texture_dock(self, args: dict) -> dict[str, object]:
+        """Float the texture tools onto the automation screen or dock them again, as a
+        double-click on their title bar does."""
+
+        window = self._texture_editor_window()
+        if window is None:
+            return {"exists": False}
+        window.setFloating(bool(args.get("floating", False)))
+        if window.isFloating():
+            place_on_automation_screen(window)
+        return {"exists": True, "floating": window.isFloating(), "visible": window.isVisible()}
 
     def _texture_edit(self, args: dict) -> bool:
         """One edit in the texture tools, as their controls make it: ``hue`` adds a
