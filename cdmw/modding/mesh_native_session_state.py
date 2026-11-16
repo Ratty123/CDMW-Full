@@ -66,11 +66,21 @@ _write_vec3_binary_payload = _proxy("_write_vec3_binary_payload")
 
 _native_mesh_core_session_cache_lock = threading.RLock()
 _native_mesh_core_session_cache: dict[tuple[str, int], tuple[tuple[object, ...], str]] = {}
+# Mesh Editor sessions the resident core holds, and the ones it no longer holds
+# although their owner may still take them for open: a job that timed out or
+# was cancelled has its session closed in the core, and a core that ended or
+# started again holds none. The mesh service asks before it uses a session and
+# opens a lost one again; without this, Finish failed on "missing mesh editor
+# session" for the rest of the edit (built-app passes 9 and 11, 2026-11-16).
+_open_native_editor_sessions: set[str] = set()
+_lost_native_editor_sessions: set[str] = set()
 
 
 def _clear_native_mesh_core_session_cache() -> None:
     with _native_mesh_core_session_cache_lock:
         _native_mesh_core_session_cache.clear()
+        _lost_native_editor_sessions.update(_open_native_editor_sessions)
+        _open_native_editor_sessions.clear()
 
 
 def _forget_native_mesh_core_session(session_id: str) -> None:
@@ -79,6 +89,28 @@ def _forget_native_mesh_core_session(session_id: str) -> None:
     with _native_mesh_core_session_cache_lock:
         for key in [key for key, (_signature, cached) in _native_mesh_core_session_cache.items() if cached == session_id]:
             _native_mesh_core_session_cache.pop(key, None)
+        if session_id in _open_native_editor_sessions:
+            _open_native_editor_sessions.discard(session_id)
+            _lost_native_editor_sessions.add(session_id)
+
+
+def _note_native_editor_session_opened(session_id: str) -> None:
+    with _native_mesh_core_session_cache_lock:
+        _lost_native_editor_sessions.discard(session_id)
+        _open_native_editor_sessions.add(session_id)
+
+
+def _note_native_editor_session_closed(session_id: str) -> None:
+    with _native_mesh_core_session_cache_lock:
+        _lost_native_editor_sessions.discard(session_id)
+        _open_native_editor_sessions.discard(session_id)
+
+
+def native_mesh_editor_session_lost(session_id: str) -> bool:
+    """True when the core no longer holds a session that was opened in it."""
+
+    with _native_mesh_core_session_cache_lock:
+        return str(session_id or "") in _lost_native_editor_sessions
 
 def _native_mesh_session_token(mesh: ParsedMesh) -> str:
     token = getattr(mesh, _NATIVE_MESH_SESSION_TOKEN_ATTR, "")

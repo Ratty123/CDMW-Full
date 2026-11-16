@@ -43077,7 +43077,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot fit excluded islands without valid source face identities.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2098
+      "cdmw/services/mesh_service_morph.py": 2141
     }
   },
   {
@@ -45151,7 +45151,7 @@ MESSAGE_REFERENCE = [
     "message": "Enable and bind a garment before fitting it to the body.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2463
+      "cdmw/services/mesh_service_morph.py": 2506
     }
   },
   {
@@ -52965,7 +52965,7 @@ MESSAGE_REFERENCE = [
     "message": "Native helper failed: %s",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 256
+      "cdmw/modding/mesh_native_dispatch.py": 260
     }
   },
   {
@@ -57745,7 +57745,7 @@ MESSAGE_REFERENCE = [
     "message": "Resident C++ Edit Mesh session failed to open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2056
+      "cdmw/services/mesh_service_morph.py": 2068
     }
   },
   {
@@ -57825,7 +57825,7 @@ MESSAGE_REFERENCE = [
     "message": "Resident C++ mesh state is dirty and cannot be reopened from stale Python geometry.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2053
+      "cdmw/services/mesh_service_morph.py": 2065
     }
   },
   {
@@ -57833,7 +57833,7 @@ MESSAGE_REFERENCE = [
     "message": "Resident C++ morph report omitted submesh counts.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2242
+      "cdmw/services/mesh_service_morph.py": 2285
     }
   },
   {
@@ -57841,7 +57841,7 @@ MESSAGE_REFERENCE = [
     "message": "Resident C++ {command} failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2528
+      "cdmw/services/mesh_service_morph.py": 2571
     }
   },
   {
@@ -57849,7 +57849,7 @@ MESSAGE_REFERENCE = [
     "message": "Resident C++ {command} failed: {reason}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2527
+      "cdmw/services/mesh_service_morph.py": 2570
     }
   },
   {
@@ -57857,7 +57857,7 @@ MESSAGE_REFERENCE = [
     "message": "Resident C++ {command} timed out after {timeout_seconds} s.",
     "recovery": "timeout",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2525
+      "cdmw/services/mesh_service_morph.py": 2568
     }
   },
   {
@@ -58529,7 +58529,7 @@ MESSAGE_REFERENCE = [
     "message": "Restore target session ID is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 787
+      "cdmw/modding/mesh_native_session_api.py": 790
     }
   },
   {
@@ -59482,7 +59482,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot checksum is missing or invalid.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 686
+      "cdmw/modding/mesh_native_session_api.py": 689
     }
   },
   {
@@ -59490,7 +59490,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot descriptor is not an object.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 664
+      "cdmw/modding/mesh_native_session_api.py": 667
     }
   },
   {
@@ -59498,7 +59498,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot descriptor schema mismatch.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 666
+      "cdmw/modding/mesh_native_session_api.py": 669
     }
   },
   {
@@ -59506,7 +59506,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot file checksum differs from its descriptor.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 702
+      "cdmw/modding/mesh_native_session_api.py": 705
     }
   },
   {
@@ -59514,7 +59514,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot file length differs from its descriptor or is not a file.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 700
+      "cdmw/modding/mesh_native_session_api.py": 703
     }
   },
   {
@@ -59522,7 +59522,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot filename is not an app-owned runtime snapshot.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 698
+      "cdmw/modding/mesh_native_session_api.py": 701
     }
   },
   {
@@ -59530,7 +59530,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot history accounting is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 682
+      "cdmw/modding/mesh_native_session_api.py": 685
     }
   },
   {
@@ -59538,7 +59538,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot identity or source session is missing or invalid.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 684
+      "cdmw/modding/mesh_native_session_api.py": 687
     }
   },
   {
@@ -59546,7 +59546,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot is outside the app-owned temporary location.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 694
+      "cdmw/modding/mesh_native_session_api.py": 697
     }
   },
   {
@@ -59554,7 +59554,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot retained bytes or file length is outside the allowed bounds.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 690
+      "cdmw/modding/mesh_native_session_api.py": 693
     }
   },
   {
@@ -59562,7 +59562,7 @@ MESSAGE_REFERENCE = [
     "message": "Snapshot topology digest is missing or invalid.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 688
+      "cdmw/modding/mesh_native_session_api.py": 691
     }
   },
   {
@@ -60913,6 +60913,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 321
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The mesh helper lost this edit's Morph & Refit state: one of its jobs did not finish in time, or the helper started again. Cancel this edit and open the model again to keep using Morph & Refit.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_service_morph.py": 2056
     }
   },
   {
@@ -62802,7 +62810,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported snapshot descriptor version.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_native_session_api.py": 668
+      "cdmw/modding/mesh_native_session_api.py": 671
     }
   },
   {
@@ -66253,7 +66261,7 @@ MESSAGE_REFERENCE = [
     "message": "inline status {status or 'missing'} with no message",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 183
+      "cdmw/modding/mesh_native_dispatch.py": 187
     }
   },
   {
@@ -66261,7 +66269,7 @@ MESSAGE_REFERENCE = [
     "message": "inline status {status or 'missing'}: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 183
+      "cdmw/modding/mesh_native_dispatch.py": 187
     }
   },
   {
@@ -66269,7 +66277,7 @@ MESSAGE_REFERENCE = [
     "message": "inline {type(exc).__name__}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 192
+      "cdmw/modding/mesh_native_dispatch.py": 196
     }
   },
   {
@@ -69208,7 +69216,7 @@ MESSAGE_REFERENCE = [
     "message": "native history normal recompute failed and Python fallback was blocked",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_native_session.py": 910
+      "cdmw/services/mesh_service_native_session.py": 942
     }
   },
   {
@@ -69865,7 +69873,7 @@ MESSAGE_REFERENCE = [
     "message": "native sparse history restore failed and Python fallback was blocked",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_service_native_session.py": 887
+      "cdmw/services/mesh_service_native_session.py": 919
     }
   },
   {
@@ -69889,7 +69897,7 @@ MESSAGE_REFERENCE = [
     "message": "native status {status or 'missing'} with no message",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 333
+      "cdmw/modding/mesh_native_dispatch.py": 337
     }
   },
   {
@@ -69897,7 +69905,7 @@ MESSAGE_REFERENCE = [
     "message": "native status {status or 'missing'}: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 333
+      "cdmw/modding/mesh_native_dispatch.py": 337
     }
   },
   {
@@ -107378,7 +107386,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/mesh_service_morph.py": {
     "diagnostic_field": 1,
-    "raise": 76,
+    "raise": 77,
     "validation": 3
   },
   "cdmw/services/mesh_service_morph_authoring.py": {

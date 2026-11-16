@@ -23,6 +23,7 @@ from cdmw.modding.mesh_native_core import (
     last_native_mesh_core_job_rejection,
     last_native_mesh_editor_apply_error,
     native_mesh_core_available,
+    native_mesh_editor_session_lost,
     native_mesh_editor_session_preview_triangle_groups,
     native_mesh_editor_session_preview_vertex_update_groups,
     native_mesh_editor_session_selection_from_report,
@@ -113,11 +114,40 @@ def _close_native_editor_session(session: _MeshEditSession) -> None:
 def _refresh_native_editor_session_if_mesh_changed(session: _MeshEditSession) -> None:
     if not session.native_editor_session_ready:
         return
+    if native_mesh_editor_session_lost(session.session_id):
+        _forget_lost_native_editor_session(session)
+        return
     if session.native_editor_mesh_dirty:
         return
     current = _native_editor_mesh_storage_signature(session.working_mesh)
     if current != session.native_editor_mesh_signature:
         _close_native_editor_session(session)
+
+
+def _forget_lost_native_editor_session(session: _MeshEditSession) -> None:
+    """The core no longer holds this session: the next use opens it again.
+
+    A job the mesh-core client gave up on (a timeout or a cancel) has its
+    session closed in the core, and a core that started again holds no session
+    at all. This side kept the session marked open, so every later use got
+    "missing mesh editor session" and Finish failed at once (built-app passes 9
+    and 11, 2026-11-16). Geometry exported to this side is reopened from; edits
+    the core held and never exported are gone with it, as for any lost session.
+    """
+
+    session.native_editor_runtime_lost = True
+    if session.native_editor_mesh_dirty:
+        _abandon_lost_native_editor_session(session)
+        return
+    session.native_editor_session_ready = False
+    session.native_editor_selection_signature = ()
+    session.native_editor_active_stroke_id = ""
+    session.native_editor_mesh_signature = ()
+    session.native_editor_mesh_dirty_counts = ()
+    session.native_history_undo_count = 0
+    session.native_history_redo_count = 0
+    session.native_history_retained_bytes = 0
+    session.native_editor_lost_recoveries += 1
 
 
 def _abandon_lost_native_editor_session(session: _MeshEditSession) -> bool:
@@ -489,7 +519,9 @@ def _execute_native_editor_request(
         )
         if report is None:
             native_rejection = str(last_native_mesh_core_job_rejection() or "").strip()
-            if native_rejection:
+            # "missing mesh editor session" is the one refusal that means the
+            # session is gone rather than intact.
+            if native_rejection and not native_mesh_editor_session_lost(session.session_id):
                 # The native core answered with a structured refusal (for
                 # example the per-submesh face limit) and threw before its
                 # first mutation, so the resident session is exactly as it

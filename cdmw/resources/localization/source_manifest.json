@@ -26271,12 +26271,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2098,
+          "line": 2141,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2103,
+          "line": 2146,
           "sink": "ValueError"
         }
       ]
@@ -52531,7 +52531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2463,
+          "line": 2506,
           "sink": "ValueError"
         }
       ]
@@ -98826,7 +98826,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 403,
+          "line": 433,
           "sink": "raise_if_cancelled"
         },
         {
@@ -136556,7 +136556,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2056,
+          "line": 2068,
           "sink": "RuntimeError"
         }
       ]
@@ -136656,7 +136656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2053,
+          "line": 2065,
           "sink": "RuntimeError"
         }
       ]
@@ -136666,7 +136666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2242,
+          "line": 2285,
           "sink": "RuntimeError"
         }
       ]
@@ -136676,7 +136676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2528,
+          "line": 2571,
           "sink": "python-return:_morph_query_failure"
         }
       ]
@@ -136686,7 +136686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2527,
+          "line": 2570,
           "sink": "python-return:_morph_query_failure"
         }
       ]
@@ -136696,7 +136696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 2525,
+          "line": 2568,
           "sink": "python-return:_morph_query_failure"
         }
       ]
@@ -169972,6 +169972,16 @@
         {
           "path": "cdmw/services/mesh_archive_results.py",
           "line": 209,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "The mesh helper lost this edit's Morph & Refit state: one of its jobs did not finish in time, or the helper started again. Cancel this edit and open the model again to keep using Morph & Refit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 2056,
           "sink": "RuntimeError"
         }
       ]
@@ -204391,7 +204401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 910,
+          "line": 942,
           "sink": "RuntimeError"
         }
       ]
@@ -204796,7 +204806,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 887,
+          "line": 919,
           "sink": "RuntimeError"
         }
       ]

@@ -14607,6 +14607,7 @@
     "The mesh changed while choosing the destination. Finish or check it again before exporting.": "保存先の選択中にメッシュが変更されました。編集を完了するか、再度確認してからエクスポートしてください。",
     "The mesh changed while preparing decoded motion. Play again after the operation.": "デコードしたモーションの準備中にメッシュが変更されました。操作後に再度再生してください。",
     "The mesh changed while preparing the archive result; validate it again.": "アーカイブ結果の準備中にメッシュが変更されました。再度検証してください。",
+    "The mesh helper lost this edit's Morph & Refit state: one of its jobs did not finish in time, or the helper started again. Cancel this edit and open the model again to keep using Morph & Refit.": "メッシュ ヘルパーがこの編集の Morph & Refit の状態を失いました。ジョブの 1 つが時間内に終わらなかったか、ヘルパーが再起動しました。Morph & Refit を引き続き使うには、この編集をキャンセルしてモデルを開き直してください。",
     "The mesh session closed during replacement selection.": "置換の選択中にメッシュセッションが閉じられました。",
     "The message index includes errors without a code, validation refusals, warnings and native/helper diagnostics. Search a distinctive part of the message as well as its code. Braces and percent placeholders represent runtime values such as a path, number or upstream error; they are not text you must type.": "メッセージ索引にはコードのないエラー、検証による拒否、警告、ネイティブ／ヘルパーの診断が含まれます。コードだけでなく特徴的な文言でも検索してください。波括弧やパーセント形式のプレースホルダーはパス、数値、元のエラーなどの実行時値を表し、入力すべき文字列ではありません。",
     "The mod and its editing state are saved. Continue Earlier Work reopens them.": "Mod と編集状態を保存しました。「以前の作業を続ける」から再び開けます。",

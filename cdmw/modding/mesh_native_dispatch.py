@@ -180,6 +180,10 @@ def _run_native_mesh_core_service_inline_job(
             # the session down as lost.
             if detail:
                 _LAST_NATIVE_JOB_REJECTION[0] = detail
+            if command == "mesh-editor-session-json" and detail == "missing mesh editor session":
+                # Not a refusal of this job: the core no longer holds the session.
+                import_module("cdmw.modding.mesh_native_core")._forget_native_mesh_core_session(
+                    str(payload.get("session_id") or ""))
             note_failure(
                 f"inline status {status or 'missing'}" + (f": {detail}" if detail else " with no message"),
             )

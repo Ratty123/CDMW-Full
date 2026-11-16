@@ -14607,6 +14607,7 @@
     "The mesh changed while choosing the destination. Finish or check it again before exporting.": "選擇目標位置時網格發生了變更。請完成編輯或重新檢查後再匯出。",
     "The mesh changed while preparing decoded motion. Play again after the operation.": "準備已解碼動作時網格發生了變化。操作完成後請重新播放。",
     "The mesh changed while preparing the archive result; validate it again.": "網格在準備封存檔結果時發生了變更；請重新驗證。",
+    "The mesh helper lost this edit's Morph & Refit state: one of its jobs did not finish in time, or the helper started again. Cancel this edit and open the model again to keep using Morph & Refit.": "網格助手遺失了此次編輯的 Morph & Refit 狀態：它的某個作業未能及時完成，或助手已重新啟動。請取消此次編輯並重新開啟模型，以繼續使用 Morph & Refit。",
     "The mesh session closed during replacement selection.": "選擇替換期間網格工作階段已關閉。",
     "The message index includes errors without a code, validation refusals, warnings and native/helper diagnostics. Search a distinctive part of the message as well as its code. Braces and percent placeholders represent runtime values such as a path, number or upstream error; they are not text you must type.": "訊息索引包含沒有代碼的錯誤、驗證拒絕、警告及原生或輔助程式診斷。除了代碼，也可搜尋訊息中有辨識度的片段。大括號和百分比預留位置表示路徑、數值或上游錯誤等執行時值，並非需要輸入的文字。",
     "The mod and its editing state are saved. Continue Earlier Work reopens them.": "模組及其編輯狀態已儲存。選擇繼續先前的工作可重新開啟它們。",

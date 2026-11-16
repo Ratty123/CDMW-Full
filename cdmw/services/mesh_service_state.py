@@ -359,6 +359,10 @@ class _MeshEditSession:
     # How many times the resident session died holding edits this side never
     # received, and had to be abandoned back to the last exported state.
     native_editor_lost_recoveries: int = 0
+    # The core lost this session after it was opened (a job given up on, or the
+    # core starting again). Morph & Refit reads it: what the lost runtime held
+    # cannot be opened again from this side's geometry.
+    native_editor_runtime_lost: bool = False
     resident_interaction_process_generation: int = 0
     resident_interaction_last_sequence: int = 0
     resident_interaction_ledger: dict[int, tuple[str, object]] = field(default_factory=dict)

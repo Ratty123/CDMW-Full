@@ -14607,6 +14607,7 @@
     "The mesh changed while choosing the destination. Finish or check it again before exporting.": "대상 위치를 선택하는 동안 메시가 변경되었습니다. 편집을 완료하거나 다시 확인한 후 내보내세요.",
     "The mesh changed while preparing decoded motion. Play again after the operation.": "디코딩된 동작을 준비하는 동안 메시가 변경되었습니다. 작업 후 다시 재생하세요.",
     "The mesh changed while preparing the archive result; validate it again.": "아카이브 결과를 준비하는 중 메시가 변경되었습니다. 다시 검증하세요.",
+    "The mesh helper lost this edit's Morph & Refit state: one of its jobs did not finish in time, or the helper started again. Cancel this edit and open the model again to keep using Morph & Refit.": "메시 도우미가 이 편집의 Morph & Refit 상태를 잃었습니다. 작업 중 하나가 제시간에 끝나지 않았거나 도우미가 다시 시작되었습니다. Morph & Refit을 계속 사용하려면 이 편집을 취소하고 모델을 다시 여세요.",
     "The mesh session closed during replacement selection.": "교체 항목을 선택하는 동안 메시 세션이 닫혔습니다.",
     "The message index includes errors without a code, validation refusals, warnings and native/helper diagnostics. Search a distinctive part of the message as well as its code. Braces and percent placeholders represent runtime values such as a path, number or upstream error; they are not text you must type.": "메시지 색인에는 코드 없는 오류, 검증 거부, 경고와 네이티브/도우미 진단이 포함됩니다. 코드와 함께 메시지의 특징적인 부분도 검색하세요. 중괄호와 백분율 자리표시자는 경로, 숫자, 이전 오류 같은 실행 시 값을 나타내며 직접 입력할 텍스트가 아닙니다.",
     "The mod and its editing state are saved. Continue Earlier Work reopens them.": "모드와 편집 상태가 저장되었습니다. 이전 작업 이어하기로 다시 열 수 있습니다.",

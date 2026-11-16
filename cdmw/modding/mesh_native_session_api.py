@@ -172,7 +172,7 @@ def open_native_mesh_editor_session(
                     items.append(item)
             if not items:
                 return None
-            return _run_native_mesh_core_service_job(
+            report = _run_native_mesh_core_service_job(
                 binary,
                 "mesh-editor-session-json",
                 {
@@ -186,6 +186,9 @@ def open_native_mesh_editor_session(
                 stop_event=stop_event,
                 timeout_seconds=timeout_seconds,
             )
+            if report is not None:
+                _facade_attr("_note_native_editor_session_opened")(str(session_id or "").strip())
+            return report
     except (OSError, OverflowError, RuntimeError, ValueError):
         return None
 
@@ -967,6 +970,7 @@ def close_native_mesh_editor_session(
     stop_event: threading.Event | None = None,
     timeout_seconds: float = 2.0,
 ) -> dict[str, object] | None:
+    _facade_attr("_note_native_editor_session_closed")(str(session_id or "").strip())
     return native_mesh_editor_session_command(
         "close",
         session_id,

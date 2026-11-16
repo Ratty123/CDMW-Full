@@ -2314,6 +2314,7 @@
   "The matching material sidecar is missing or incomplete for: {value_0}",
   "The mesh changed after import preparation. Import again before applying.",
   "The mesh changed while preparing decoded motion. Play again after the operation.",
+  "The mesh helper lost this edit's Morph & Refit state: one of its jobs did not finish in time, or the helper started again. Cancel this edit and open the model again to keep using Morph & Refit.",
   "The model is weighted to {value_0} bone(s) the original model does not use: {value_1}. Move their weights to parent bones, or add the bones to the model.",
   "The mounted character needs one resolved head joint for its authored scale.",
   "The mounted reference has an invalid component scale.",

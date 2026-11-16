@@ -2047,6 +2047,18 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         if not native_mesh_core_available():
             raise RuntimeError("Procedural Morph & Refit requires the resident C++ mesh core.")
         _service_call("_refresh_native_editor_session_if_mesh_changed", session)
+        if session.native_editor_runtime_lost:
+            # Reopening from this side's geometry gives a runtime with no
+            # profile, sliders, fit or capture. Without any, that is the same
+            # runtime; with one, Finish would commit Morph & Refit state that
+            # no longer exists, so it is refused and says why.
+            if self._morph_runtime_held_locked(session):
+                raise RuntimeError(
+                    "The mesh helper lost this edit's Morph & Refit state: one of its jobs did not finish "
+                    "in time, or the helper started again. Cancel this edit and open the model again to "
+                    "keep using Morph & Refit."
+                )
+            session.native_editor_runtime_lost = False
         if session.native_editor_session_ready:
             return
         if session.native_editor_mesh_dirty:
@@ -2058,6 +2070,37 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
         session.native_editor_selection_signature = ()
         session.native_editor_active_stroke_id = ""
         session.native_editor_mesh_signature = _service_call("_native_editor_mesh_storage_signature", session.working_mesh)  # type: ignore[assignment]
+
+    def _morph_runtime_held_locked(self, session: _MeshEditSession) -> bool:
+        """True when the resident runtime held Morph & Refit state of its own."""
+
+        data = self._morph_sessions.get(session.session_id)
+        if not isinstance(data, _MeshMorphSessionData):
+            return False
+        if (
+            data.profile is not None
+            or data.authoring_baseline is not None
+            or data.correction_capture is not None
+            or bool(data.manual_values)
+            or any(float(value or 0.0) for value in data.macro_values.values())
+            or data.symmetry_enabled
+            or not data.corrections_enabled
+        ):
+            return True
+        state = data.state
+        return state is not None and bool(
+            state.profile_id
+            or state.values
+            or state.manual_values
+            or any(value for _key, value in state.macro_values)
+            or state.driver_submesh_indices
+            or state.refit.driver_submesh_indices
+            or state.refit.garment_submesh_indices
+            or state.refit.reference_body is not None
+            or state.authoring_baseline_ready
+            or state.correction_definition_id
+            or state.shape_restore_source
+        )
 
     def _run_morph_query_locked(self, session: _MeshEditSession, command: str) -> Mapping[str, object]:
         self._ensure_native_morph_session_locked(session)
