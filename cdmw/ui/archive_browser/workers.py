@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QThread, QTimer
+from PySide6.QtCore import QObject, QThread, QTimer
 
 from cdmw.models import ArchiveEntry, ArchivePreviewResult
 from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
@@ -23,6 +23,13 @@ ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS = 2500
 ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_LIMIT = 3
 ARCHIVE_PREVIEW_SELECTION_RETRY_MS = 60
 ARCHIVE_PREVIEW_SELECTION_RETRY_LIMIT = 4
+# Finder thumbnails and Create New Item's table preload pause while a preview
+# worker runs (quick, fast and full tiers). They run Python in this process, so
+# the worker and the window thread waited behind them for Python's lock: the
+# review saw pauses of one to two seconds after selecting a model. A worker
+# that never ends releases them after the limit.
+ARCHIVE_PREVIEW_WARMUP_HOLD = object()
+ARCHIVE_PREVIEW_WARMUP_HOLD_LIMIT_MS = 120_000
 
 
 def _archive_preview_debounce_ms(entry: Optional[ArchiveEntry]) -> int:
@@ -42,6 +49,35 @@ def _record_archive_worker_lifecycle(target: object, event: str, **fields: objec
             recorder(str(event), **fields)
         except Exception:
             return
+
+
+def _hold_warmups_for_archive_preview(archive: object) -> None:
+    hold = getattr(archive, "hold_background_warmups", None)
+    if not callable(hold):
+        return
+    hold(ARCHIVE_PREVIEW_WARMUP_HOLD)
+    token = object()
+    archive._archive_preview_warmup_hold_token = token
+
+    def release_after_limit() -> None:
+        if getattr(archive, "_archive_preview_warmup_hold_token", None) is token:
+            _release_warmups_for_archive_preview(archive)
+
+    if isinstance(archive, QObject):
+        # The context drops the call if Browse is deleted first.
+        QTimer.singleShot(ARCHIVE_PREVIEW_WARMUP_HOLD_LIMIT_MS, archive, release_after_limit)
+    else:
+        QTimer.singleShot(ARCHIVE_PREVIEW_WARMUP_HOLD_LIMIT_MS, release_after_limit)
+
+
+def _release_warmups_for_archive_preview(archive: object) -> None:
+    archive._archive_preview_warmup_hold_token = None
+    release = getattr(archive, "release_background_warmups", None)
+    if callable(release):
+        try:
+            release(ARCHIVE_PREVIEW_WARMUP_HOLD)
+        except RuntimeError:  # the window closed first
+            pass
 
 
 class ArchiveWorkerLifecycleMixin:
@@ -758,6 +794,7 @@ class ArchivePreviewWorkerMixin:
 
         self.archive_preview_worker = worker
         self.archive_preview_thread = thread
+        _hold_warmups_for_archive_preview(self)
         thread.start()
 
     def _handle_archive_preview_ready(self, request_id: int, payload: object) -> None:
@@ -968,6 +1005,13 @@ class ArchivePreviewWorkerMixin:
                 thread.deleteLater()
             except RuntimeError:
                 pass
+        try:
+            self._start_pending_archive_preview_request()
+        finally:
+            if self.archive_preview_thread is None:
+                _release_warmups_for_archive_preview(self)
+
+    def _start_pending_archive_preview_request(self) -> None:
         if self.shell._shutting_down:
             _record_archive_worker_lifecycle(
                 self,
