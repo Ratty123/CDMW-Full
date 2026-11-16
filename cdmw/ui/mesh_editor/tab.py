@@ -266,6 +266,7 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
             docks = (textures_dock, tools) if tools is not None else (textures_dock,)
             remember_dock_layout(self.standalone_workspace.dock_host, docks, getattr(self, "settings", None))
             textures_dock.texture_activated.connect(self.open_texture_in_window)
+            textures_dock.texture_refused.connect(lambda reason: self.status_message_requested.emit(reason, True))
             if tools is not None:
                 tools.settings = getattr(self, "settings", None)
                 file_name = getattr(tools.settings, "fileName", None)

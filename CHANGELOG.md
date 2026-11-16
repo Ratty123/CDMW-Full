@@ -31,6 +31,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Preview and Mesh Editor add **Shadows** and **Ambient occlusion** switches for Textured and Game Outdoor views. Both start on. Icon captures retain self-shadows on a transparent background. **Studio (fixed lights)** adds lighting that stays in place as you orbit, alongside the unchanged default preset.
 - Texture edits made in the Mesh Editor are kept in the draft once it exists (Finish creates it) and are shown on the model again when you continue the draft after a restart. Until then the Texture Editor panel says they are not kept yet, and closing asks first. Their Undo after a restart starts from the kept image.
 - When you open a texture from the Mesh Editor's **Textures** panel, CDMW looks in the background for other game files that use it, as **Find References** in Browse Archives does, and the Texture Editor panel names them before you paint; **Build Mod**'s list names them again, since the mod changes the texture for them too.
+- In the Mesh Editor's **Textures** panel, a colour CDMW made from several files (a layered material's shown colour) says **Not one file** and why it cannot be edited; double-clicking it opens the file it is made from, such as its layer mask or detail map, or asks which when there are several.
 
 ### Changed
 

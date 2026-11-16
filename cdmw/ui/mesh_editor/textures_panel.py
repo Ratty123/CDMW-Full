@@ -10,6 +10,7 @@ a Qt thread pool and delivered back through a queued signal.
 from __future__ import annotations
 
 import dataclasses
+import re
 import os
 import threading
 from collections import OrderedDict
@@ -309,6 +310,39 @@ def _has_game_path(row: TextureRow) -> bool:
     return "/" in row.game_path.replace("\\", "/")
 
 
+#: A colour CDMW made from several files (no game file of its own), as the row says it.
+NOT_ONE_FILE_STATE = "Not one file"
+NOT_ONE_FILE_REASON = ("CDMW made this colour from several files, so there is no game file to write it to. "
+                       "Edit one of the files it is made from.")
+EDIT_INSTEAD_TEXT = "Edit instead: {files}"
+#: The roles that feed a shader-combined colour, the first ones offered.
+_CONTRIBUTING_ROLES = ("layer_mask", "detail", "layer", "base", "mask")
+
+
+#: The name CDMW gives a colour it generates for the view from a layered material
+#: (``_encode_generated_material_channel`` in mesh_rust_authoring).
+_GENERATED_NAME = re.compile(r"^lod-\d+-material-\d+-[a-z_]+\.dds$", re.IGNORECASE)
+
+
+def made_from_several_files(row: TextureRow) -> bool:
+    """A colour CDMW generated for the view: no game file of its own."""
+
+    return not _has_game_path(row) and bool(_GENERATED_NAME.match(row.file_name))
+
+
+def contributing_rows(group: "TexturePartGroup", row: TextureRow) -> tuple[TextureRow, ...]:
+    """The same part's game files a generated colour is made from, masks and detail first."""
+
+    if not made_from_several_files(row):
+        return ()
+    others = [other for other in group.rows if other is not row and _has_game_path(other) and other.decoded_path]
+
+    def rank(other: TextureRow) -> int:
+        return _CONTRIBUTING_ROLES.index(other.role) if other.role in _CONTRIBUTING_ROLES else len(_CONTRIBUTING_ROLES)
+
+    return tuple(sorted(others, key=rank))
+
+
 def _share_key(row: TextureRow) -> str:
     if _has_game_path(row):
         return row.game_path.replace("\\", "/").casefold()
@@ -497,6 +531,8 @@ class MeshEditorTexturesPanel(QDockWidget):
     """Dockable, read-only list of the open session's textures, per part."""
 
     texture_activated = Signal(str)
+    #: Why a double-clicked row cannot be edited (a colour made from several files).
+    texture_refused = Signal(str)
     """A texture row's texture_id, on double-click."""
 
     def __init__(self, parent: QWidget | None = None, *,
@@ -570,7 +606,13 @@ class MeshEditorTexturesPanel(QDockWidget):
                 item.setText(COLUMN_ROLE, texture_role_label(row.role))
                 item.setText(COLUMN_FILE, row.file_name)
                 item.setToolTip(COLUMN_FILE, row.game_path)
-                if row.shared:
+                if made_from_several_files(row):
+                    item.setText(COLUMN_STATE, NOT_ONE_FILE_STATE)
+                    contributors = contributing_rows(group, row)
+                    item.setToolTip(COLUMN_STATE, NOT_ONE_FILE_REASON + (
+                        "\n" + EDIT_INSTEAD_TEXT.format(files=", ".join(other.file_name for other in contributors))
+                        if contributors else ""))
+                elif row.shared:
                     item.setText(COLUMN_STATE, "Shared")
                     item.setToolTip(COLUMN_STATE, "Used by more than one part of this model.")
                 if row.decoded_path:
@@ -630,8 +672,33 @@ class MeshEditorTexturesPanel(QDockWidget):
 
     def _on_item_double_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
         texture_id = item.data(COLUMN_THUMBNAIL, TEXTURE_ID_ROLE)
-        if texture_id:
-            self.texture_activated.emit(str(texture_id))
+        if not texture_id:
+            return
+        group = next((group for group in self.groups for row in group.rows if row.texture_id == texture_id), None)
+        row = self.texture_row(str(texture_id))
+        if group is not None and row is not None and made_from_several_files(row):
+            # Not one file (item 6): offer the files it is made from instead.
+            contributors = contributing_rows(group, row)
+            chosen = contributors[0] if len(contributors) == 1 else self._choose_contributor(contributors)
+            if chosen is None:
+                self.texture_refused.emit(NOT_ONE_FILE_REASON)
+                return
+            self.texture_activated.emit(chosen.texture_id)
+            return
+        self.texture_activated.emit(str(texture_id))
+
+    def _choose_contributor(self, rows: Sequence[TextureRow]) -> TextureRow | None:
+        """Ask which of the files a generated colour is made from to edit (None: none)."""
+
+        if not rows:
+            return None
+        from PySide6.QtGui import QCursor
+        from PySide6.QtWidgets import QMenu
+
+        menu = QMenu(self)
+        actions = {menu.addAction(f"{texture_role_label(row.role)}: {row.file_name}"): row for row in rows}
+        picked = menu.exec(QCursor.pos())
+        return actions.get(picked)
 
     def _on_thumbnail_ready(self, generation: int, path: str, image: QImage) -> None:
         if generation != self._generation or image.isNull():

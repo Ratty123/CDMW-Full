@@ -73,6 +73,8 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Checking whether other game files use this texture...",
         "Whether other game files use this texture is not known: {reason}",
         "Other game files use this texture, and the mod changes it for them too: {files}.",
+        # A colour made from several files: the files it is made from (textures_panel.py, item 6).
+        "Edit instead: {files}",
         # The close guard's status line (cdmw/ui/shell/close_controller.py, P4 V3).
         "Finishing the edit. Close CDMW again when it has finished.",
         # Settings > Shortcuts: a context name and the conflict line, both translated at run time.
