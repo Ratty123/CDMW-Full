@@ -486,6 +486,8 @@ pub enum HostEvent {
         error: String,
     },
     StateSnapshot(Value),
+    /// The history after a texture edit made in CDMW's texture tools (B item 4).
+    HistoryUpdate(Value),
     /// The morph data of an editor that opened before its query answered (P4 V3).
     MorphState(Value),
     /// Which tool groups are still preparing (P4 V4).
@@ -1951,6 +1953,9 @@ impl CdmwBridge {
                         SessionError::Protocol("morph_state needs an object payload".to_owned())
                     }),
                 "state_snapshot" => Ok(HostEvent::StateSnapshot(
+                    value.get("payload").cloned().unwrap_or(Value::Null),
+                )),
+                "history_update" => Ok(HostEvent::HistoryUpdate(
                     value.get("payload").cloned().unwrap_or(Value::Null),
                 )),
                 "theme_update" => {

@@ -82,11 +82,18 @@ impl LabApplication {
                 .or_else(|| entry["label"].as_str())
                 .unwrap_or("Mesh Edit");
             let applied = index < cursor.unwrap_or(0);
+            // A texture entry names the texture it changed (B item 4).
+            let texture = entry["texture"]
+                .as_str()
+                .filter(|name| !name.is_empty())
+                .map(|name| format!(" · {name}"))
+                .unwrap_or_default();
             let label = format!(
-                "{} {}. {}",
+                "{} {}. {}{}",
                 if applied { "●" } else { "○" },
                 index + 1,
-                crate::localization::tr(label)
+                crate::localization::tr(label),
+                texture
             );
             ui.push_id(index, |ui| {
                 let row = ui.add(egui::Button::new(if applied { RichText::new(label) } else { RichText::new(label).weak() })
@@ -107,6 +114,25 @@ impl LabApplication {
                     }
                 });
             });
+        }
+    }
+
+    /// Texture edits made in CDMW's texture tools join the history between requests
+    /// (B item 4). Only the history fields change, never geometry, selection or revisions,
+    /// so it may arrive while a request is pending: that request's reply carries the same
+    /// merged history, or CDMW sends a newer update after it.
+    pub(super) fn apply_cdmw_history_update(&mut self, fields: &Value) {
+        let (Some(entries), Some(cursor)) = (
+            fields["history_entries"].as_array(),
+            fields["history_cursor"].as_u64(),
+        ) else {
+            return;
+        };
+        if usize::try_from(cursor).map_or(true, |cursor| cursor > entries.len()) {
+            return;
+        }
+        for key in ["undo_count", "redo_count", "history_cursor", "history_entries"] {
+            self.cdmw_state[key] = fields[key].clone();
         }
     }
 

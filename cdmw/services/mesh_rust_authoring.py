@@ -9098,6 +9098,16 @@ class RustMeshAuthoringSession:
             row["preview_core_material_graph"] = graph
         return row
 
+    def history_fields(self, view) -> dict[str, object]:
+        """The history every state sent to the editor carries: the mesh history merged with
+        the document's texture edits when the tab keeps one history for both (B item 4)."""
+
+        shared = getattr(self, "shared_history", None)
+        if shared is not None:
+            return shared.merged(view.history_entries)
+        return {"undo_count": view.undo_count, "redo_count": view.redo_count,
+                "history_cursor": view.history_cursor, "history_entries": _json_safe(view.history_entries)}
+
     def state_payload(self, *, include_document: bool = True) -> dict[str, object]:
         self._require_open()
         view = self.shadow_service.session_view(self.shadow_session_id)
@@ -9152,10 +9162,7 @@ class RustMeshAuthoringSession:
             "submesh_count": view.submesh_count,
             "vertex_count": view.vertex_count,
             "face_count": view.face_count,
-            "undo_count": view.undo_count,
-            "redo_count": view.redo_count,
-            "history_cursor": view.history_cursor,
-            "history_entries": _json_safe(view.history_entries),
+            **self.history_fields(view),
             "mesh_format": view.mesh_format,
             "lod_index": view.lod_index,
             "output_policy": view.output_policy,
@@ -9453,8 +9460,7 @@ class RustMeshAuthoringSession:
                 view = self.shadow_service.session_view(self.shadow_session_id)
                 return {"session_id": self.session_id, "base_revision": int(view.revision),
                         "hair_ack": self.shadow_service._session(self.shadow_session_id).hair_state.revision,
-                        "undo_count": view.undo_count, "redo_count": view.redo_count,
-                        "history_cursor": view.history_cursor, "history_entries": _json_safe(view.history_entries)}
+                        **self.history_fields(view)}
             return self.state_payload(include_document=True)
         if shadow_session.hair_state is not None and not shadow_session.hair_state.payload["converted"]:
             raise RustMeshValidationError("Use Hair grooming, or explicitly convert guides before editing ordinary mesh geometry.")

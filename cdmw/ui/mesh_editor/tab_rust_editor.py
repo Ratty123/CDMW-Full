@@ -1022,6 +1022,9 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_prepare_process_generation = 0
         self.standalone_rust_authoring_session = session
         self.standalone_rust_session_root = session.root
+        from cdmw.ui.mesh_editor.shared_history_routing import attach_shared_history
+
+        attach_shared_history(self, session)
         self._show_session_textures(session.root)
         self.standalone_rust_parked = False  # a new session is never parked (P15)
         self.standalone_rust_unpark_requested = False

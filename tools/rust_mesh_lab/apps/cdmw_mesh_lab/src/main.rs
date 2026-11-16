@@ -3726,6 +3726,7 @@ impl LabApplication {
                     window.request_redraw();
                 }
             }
+            HostEvent::HistoryUpdate(fields) => self.apply_cdmw_history_update(&fields),
             HostEvent::StateSnapshot(state) => {
                 if self.cdmw_busy() {
                     self.handle_cdmw_host_event(HostEvent::Fatal(

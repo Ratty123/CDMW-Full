@@ -940,6 +940,9 @@ class MeshEditorRustProcessMixin:
             self.standalone_rust_protocol_queue.clear()
             return
         event = self.standalone_rust_protocol_queue.pop(0)
+        from cdmw.ui.mesh_editor.shared_history_routing import route_history_step
+
+        event = route_history_step(self, event)
         preparation_error = str(event.get("_hair_preparation_error", ""))
         if (event.get("command") == "hair_begin"
                 and not dict(event.get("arguments") or {}).get("_hair_context_ready")):
@@ -1083,6 +1086,9 @@ class MeshEditorRustProcessMixin:
         elif cancelled:
             self.standalone_rust_closing = True
         self._send_rust_message(response)
+        from cdmw.ui.mesh_editor.shared_history_routing import follow_reply
+
+        follow_reply(self)
         if finish_accepted:
             self._refresh_after_rust_finish(response)
             if self.standalone_rust_process is not None:

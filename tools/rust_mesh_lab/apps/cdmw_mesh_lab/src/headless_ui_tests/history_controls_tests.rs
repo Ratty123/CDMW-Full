@@ -63,6 +63,46 @@ fn action_history_selects_duplicate_labels_without_editing_and_undoes_from_conte
 }
 
 #[test]
+fn texture_entries_name_their_texture_and_arrive_while_a_request_is_pending() -> TestResult {
+    let mut ui = history_ui(3)?;
+    ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
+        request_id: 4,
+        event: "command_result",
+        label: "Select".into(),
+        origin: Some(CdmwRequestOrigin::Selection),
+    });
+    ui.application
+        .handle_cdmw_host_event(HostEvent::HistoryUpdate(json!({
+            "history_entries": [
+                {"action": "transform", "label": "Move", "state": "applied"},
+                {"action": "texture_edit", "label": "Texture edit", "state": "applied",
+                 "texture": "cd_phm_00_ub_00_0374_d.dds"},
+                {"action": "transform", "label": "Scale", "state": "undone"}
+            ],
+            "history_cursor": 2,
+            "undo_count": 2,
+            "redo_count": 1,
+            "history_revision": 7
+        })));
+    // The pending request is untouched and the editor stays open.
+    assert!(ui.application.cdmw_pending_request.is_some());
+    assert!(!ui.application.cdmw_exit_requested);
+    ui.settle_layout();
+    assert!(
+        ui.label_rect("● 2. Texture edit · cd_phm_00_ub_00_0374_d.dds")
+            .is_some()
+    );
+    assert!(ui.label_rect("○ 3. Scale").is_some());
+    // A malformed update changes nothing.
+    ui.application
+        .handle_cdmw_host_event(HostEvent::HistoryUpdate(json!({
+            "history_entries": [], "history_cursor": 5
+        })));
+    assert_eq!(ui.application.cdmw_state["history_cursor"], json!(2));
+    Ok(())
+}
+
+#[test]
 fn action_history_restores_through_undone_entry_and_blocks_unconfirmed_requests() -> TestResult {
     let mut ui = history_ui(1)?;
     right_click(&mut ui, "○ 3. Select")?;

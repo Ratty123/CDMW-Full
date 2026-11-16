@@ -273,6 +273,11 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
                 if callable(file_name) and file_name():
                     tools.base_dir = Path(file_name()).parent
                 tools.texture_edited.connect(self._on_texture_window_edit)
+                # One history for mesh and texture edits (B item 4).
+                from cdmw.ui.mesh_editor.shared_history_routing import step_from_dock, texture_history_changed
+
+                tools.step_handler = lambda step: step_from_dock(self.live_edit, step)
+                tools.history_moved.connect(lambda: texture_history_changed(self.live_edit))
         from cdmw.ui.mesh_editor.hair_flow import build_hair_entry_bar
         entry_bar = build_hair_entry_bar(
             self, close_button=self.standalone_workspace.close_session_button,

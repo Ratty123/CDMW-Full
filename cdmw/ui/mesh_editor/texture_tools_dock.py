@@ -87,6 +87,8 @@ class MeshEditorTextureTools(QDockWidget):
     texture_edited = Signal(str, str, QImage, bool)
     """session_id, source_sha256, the edited texture, and False when it was undone back
     to the texture as it was opened."""
+    history_moved = Signal()
+    """The shared history (B item 4) took in a texture edit, undo or redo made here."""
 
     def __init__(self, parent: QWidget | None = None, *, settings: object = None, base_dir: Path | None = None,
                  editor_factory: Callable[[QWidget], QWidget] | None = None) -> None:
@@ -101,6 +103,10 @@ class MeshEditorTextureTools(QDockWidget):
         self.editor: QWidget | None = None
         self.target: LiveTextureTarget | None = None
         self._targets: dict[str, LiveTextureTarget] = {}
+        # One history for mesh and texture edits (B item 4): set by the tab.
+        self.shared_history = None
+        self.step_handler: Callable[[str], bool] | None = None
+        self.stepping = False
 
         body = QWidget(self)
         body.setObjectName("MeshEditorTextureTools")
@@ -208,7 +214,9 @@ class MeshEditorTextureTools(QDockWidget):
         source_sha256 = str(getattr(binding, "mesh_resource_id", "") or "")
         if not session_id or not source_sha256:
             return
-        if not any(t.session_id == session_id and t.source_sha256 == source_sha256 for t in self._targets.values()):
+        target = next((t for t in self._targets.values()
+                       if t.session_id == session_id and t.source_sha256 == source_sha256), None)
+        if target is None:
             return
         try:
             image = rgba_array_image(getattr(patch, "current_rgba", None))
@@ -217,6 +225,30 @@ class MeshEditorTextureTools(QDockWidget):
         # The editor's first history entry is the opened file; any later one is an edit.
         changed = int(getattr(self.editor, "history_index", 1) or 0) > 0
         self.texture_edited.emit(session_id, source_sha256, image, changed)
+        self.observe_history(target)
+
+    def observe_history(self, target: LiveTextureTarget | None) -> None:
+        """Tell the shared history what the editor's history for ``target`` now holds."""
+
+        history, editor = self.shared_history, self.editor
+        if history is None or editor is None or target is None:
+            return
+        name = Path(str(target.game_path or target.display_name).replace("\\", "/")).name
+        if history.observe_texture(_target_key(target.source_path), name,
+                                   getattr(editor, "history_snapshots", ()) or (),
+                                   int(getattr(editor, "history_index", 0) or 0)):
+            self.history_moved.emit()
+
+    def _step(self, step: str) -> None:
+        """Undo or Redo here: the shared history's next step (mesh or texture), or this
+        texture's own when the dock is not joined to one."""
+
+        handler = self.step_handler
+        if callable(handler) and handler(step):
+            return
+        editor = self.editor
+        if editor is not None:
+            (editor.undo if step == "undo" else editor.redo)()
 
     # Layout ------------------------------------------------------------------
 
@@ -239,9 +271,14 @@ class MeshEditorTextureTools(QDockWidget):
 
     def _lay_out(self, editor: QWidget) -> None:
         body = self.widget()
-        for name in ("undo_button", "redo_button"):
+        for name, step in (("undo_button", "undo"), ("redo_button", "redo")):
             button = getattr(editor, name, None)
             if button is not None:
+                # Undo and Redo here take the shared history's next step (B item 4), so the
+                # editor's own connection to its texture-only undo is replaced.
+                if button.receivers("2clicked(bool)") > 0:
+                    button.clicked.disconnect()
+                button.clicked.connect(lambda _checked=False, s=step: self._step(s))
                 button.setParent(body)
                 button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
                 self.header.addWidget(button)

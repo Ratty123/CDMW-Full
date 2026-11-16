@@ -57,6 +57,9 @@ _DECLARED_PYTHON_UI_RETURN_METHODS = {
 
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # The Mesh Editor's History names a texture edit so (shared_edit_history.py, B item 4);
+        # the Rust editor translates the label it is sent.
+        "Texture edit",
         # Command reasons (cdmw/ui/shell/shell_commands.py); the command views set
         # them as tooltips at run time, where the localizer translates them.
         "Wait for the current task to finish.",
