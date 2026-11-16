@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import sys
 import time
-import traceback
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Optional
@@ -100,24 +100,28 @@ def _preview_request_origin(depth: int = 6) -> str:
     Rebuilding a preview is expensive, there are a dozen places that ask for
     one, and ``archive_preview_request_sources`` records the literal string
     "worker" for every single one of them, so a captured session could show the
-    same asset being previewed three times without saying who asked. Reading the
-    stack costs nothing here -- this runs once per preview request, not per
-    frame -- and it is the difference between knowing and guessing.
+    same asset being previewed three times without saying who asked.
+
+    Only the frames' names and line numbers are read, from the caller of the
+    preview request outwards. ``traceback.extract_stack`` also looked up the
+    source line of every frame of the whole stack; in the built app the
+    modules have no source files, so each lookup asked the frozen importer
+    again (part of a 537 ms pause on a Browse reselect in the review).
     """
 
     try:
-        frames = traceback.extract_stack()[:-2]
-    except Exception:
+        # 0: this function, 1: the preview request, 2: who asked for it.
+        frame = sys._getframe(2)
+    except (AttributeError, ValueError):
         return "unknown"
     interesting: list[str] = []
-    for frame in reversed(frames):
-        name = str(frame.name or "")
-        if name.startswith("_preview_request_origin"):
-            continue
-        module = Path(str(frame.filename or "")).stem
-        interesting.append(f"{module}.{name}:{frame.lineno}")
-        if len(interesting) >= depth:
-            break
+    while frame is not None and len(interesting) < depth:
+        code = frame.f_code
+        name = str(code.co_name or "")
+        if not name.startswith("_preview_request_origin"):
+            module = Path(str(code.co_filename or "")).stem
+            interesting.append(f"{module}.{name}:{frame.f_lineno}")
+        frame = frame.f_back
     return " <- ".join(interesting) if interesting else "unknown"
 
 
