@@ -19,6 +19,7 @@ import struct
 import tempfile
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
@@ -34,6 +35,7 @@ from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.material_layer_uv import pac_layer_uv_transform
 from cdmw.services import mesh_rust_preview_files as _preview_files
 from cdmw.services.mesh_rust_preview_files import atomic_preview_publication, validate_preview_files
+from cdmw.services.json_file_facts import json_file_fact
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.static_mesh_scene_frame import (
@@ -1903,14 +1905,17 @@ def build_rust_preview_package(
     )
 
 
-def _read_preview_manifest(path: Path | str) -> tuple[Path, dict]:
+def _preview_manifest_package_dir(path: Path | str) -> tuple[Path, Path]:
     package_dir = Path(path)
     if package_dir.is_file():
         package_dir = package_dir.parent
     manifest_path = package_dir / "manifest.json"
     if manifest_path.stat().st_size > _PREVIEW_MANIFEST_MAX_BYTES:
         raise ValueError("preview manifest exceeds its size limit")
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return package_dir, manifest_path
+
+
+def _checked_preview_manifest(payload: object) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("preview manifest is not an object")
     expected = {
@@ -1922,28 +1927,117 @@ def _read_preview_manifest(path: Path | str) -> tuple[Path, dict]:
     for key, value in expected.items():
         if str(payload.get(key, "") or "") != value:
             raise ValueError(f"preview manifest {key} does not match")
-    return package_dir, payload
+    return payload
+
+
+def _read_preview_manifest(path: Path | str) -> tuple[Path, dict]:
+    package_dir, manifest_path = _preview_manifest_package_dir(path)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return package_dir, _checked_preview_manifest(payload)
+
+
+def _preview_manifest_session_id(payload: object) -> str:
+    return str(_checked_preview_manifest(payload).get("session_id", "") or "")
 
 
 def rust_preview_package_from_path(path: Path | str) -> RustPreviewPackage:
-    package_dir, payload = _read_preview_manifest(path)
-    manifest_path = package_dir / "manifest.json"
+    # The session is all this needs of a manifest that can be megabytes; it is
+    # read once per unchanged file (the UI thread asks on every package load).
+    package_dir, manifest_path = _preview_manifest_package_dir(path)
+    session_id = json_file_fact(manifest_path, _preview_manifest_session_id)
     return RustPreviewPackage(
         package_dir=package_dir.resolve(),
         manifest_path=manifest_path.resolve(),
         status_path=package_dir / "rust-preview-status.json",
         output_dir=package_dir,
         edit_operations_path=package_dir / "rust-preview-read-only.json",
-        scene_session_id=str(payload.get("session_id", "") or ""),
+        scene_session_id=session_id,
     )
+
+
+# Packages this process found valid, with the identity of their manifest and
+# of every folder that holds one of their files. Published preview files are
+# never rewritten in place: a file added, removed, renamed or replaced (a
+# cache prune included) changes its folder's modification time, and any
+# manifest rewrite changes the manifest's identity. While both hold, the UI
+# thread's structural check (hash_unverified=False) is not repeated: a set's
+# packages hold hundreds of files and the walk held the UI thread 275 ms in
+# the review. Full checks (hash_unverified=True) always run in full.
+_VALID_PACKAGE_LIMIT = 4096
+_VALID_PACKAGE_MIN_AGE_NS = 100_000_000
+_valid_packages_lock = threading.Lock()
+_valid_packages: "OrderedDict[str, tuple]" = OrderedDict()
+
+
+def _package_stamp(manifest_path: Path, folders) -> tuple | None:
+    try:
+        manifest = os.stat(manifest_path)
+        if not int(getattr(manifest, "st_ino", 0) or 0):
+            return None
+        stamps = [(str(manifest_path), manifest.st_dev, manifest.st_ino, manifest.st_size, manifest.st_mtime_ns)]
+        for folder in sorted(folders, key=str):
+            identity = os.lstat(folder)
+            stamps.append((str(folder), identity.st_dev, identity.st_ino, identity.st_mtime_ns))
+    except OSError:
+        return None
+    return tuple(stamps)
+
+
+def _stamp_older_than(stamp: tuple, started_ns: int) -> bool:
+    return all(started_ns - int(item[-1]) >= _VALID_PACKAGE_MIN_AGE_NS for item in stamp)
+
+
+def _known_valid_package(package_dir: Path) -> bool:
+    key = os.path.normcase(os.path.abspath(package_dir))
+    with _valid_packages_lock:
+        known = _valid_packages.get(key)
+    if known is None:
+        return False
+    manifest_path, folders, stamp = known
+    if _package_stamp(manifest_path, folders) != stamp:
+        with _valid_packages_lock:
+            if _valid_packages.get(key) is known:
+                del _valid_packages[key]
+        return False
+    with _valid_packages_lock:
+        if key in _valid_packages:
+            _valid_packages.move_to_end(key)
+    return True
+
+
+def _remember_valid_package(package_dir: Path, folders: set[Path], started_ns: int) -> None:
+    manifest_path = package_dir / "manifest.json"
+    stamp = _package_stamp(manifest_path, folders)
+    if stamp is None or not _stamp_older_than(stamp, started_ns):
+        return
+    key = os.path.normcase(os.path.abspath(package_dir))
+    with _valid_packages_lock:
+        _valid_packages[key] = (manifest_path, tuple(folders), stamp)
+        _valid_packages.move_to_end(key)
+        while len(_valid_packages) > _VALID_PACKAGE_LIMIT:
+            _valid_packages.popitem(last=False)
+
+
+def forget_valid_preview_packages() -> None:
+    """Start from an empty memo (tests)."""
+
+    with _valid_packages_lock:
+        _valid_packages.clear()
 
 
 def validate_rust_preview_package(path: Path | str, *, hash_unverified: bool = True) -> tuple[str, ...]:
     try:
+        if not hash_unverified:
+            package_dir, _manifest_path = _preview_manifest_package_dir(path)
+            if _known_valid_package(package_dir):
+                return ()
+        started_ns = time.time_ns()
         package_dir, payload = _read_preview_manifest(path)
-        validate_preview_files(package_dir, payload, hash_unverified=hash_unverified)
+        folders: set[Path] = set()
+        validate_preview_files(package_dir, payload, hash_unverified=hash_unverified, checked_dirs=folders)
     except (OSError, UnicodeError, ValueError, TypeError, OverflowError, RecursionError) as exc:
         return (str(exc),)
+    _remember_valid_package(package_dir, folders, started_ns)
     return ()
 
 
