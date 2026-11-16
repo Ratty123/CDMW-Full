@@ -134,6 +134,68 @@ def test_the_tab_opens_its_editor_in_browse_s_process_and_falls_back_once_refuse
         _dispose(tab)
 
 
+def test_an_editor_window_that_ends_before_its_handshake_opens_elsewhere_not_as_a_crash(
+        tmp_path: Path, monkeypatch) -> None:
+    """2026-11-16 review: the edit in Browse's process ended by itself before its hello
+    (its session did not open there). CDMW said "Mesh Editor closed (exit 0); its shadow
+    changes were discarded." with no reason. It is a refusal: the session opens in a
+    process of its own, whose stderr CDMW reads."""
+
+    from tests.test_mesh_rust_editor_selection import _dispose, _tab
+
+    router = EngineCaptureRouter()
+    browse = _Resident()
+    router.register(browse, resident=True)
+    monkeypatch.setattr(engine_capture, "engine_capture_router", lambda: router)
+    tab = _tab(tmp_path)
+    live = tab.live_edit
+    session = SimpleNamespace(manifest_path=tmp_path / "manifest.json", closed=False, theme=None)
+    launched, statuses = [], []
+    monkeypatch.setattr(live, "_launch_rust_editor_process", lambda current: launched.append(current))
+    monkeypatch.setattr(live, "_set_rust_status", lambda message, **_kw: statuses.append(message))
+    try:
+        live.standalone_rust_authoring_session = session
+        assert live._open_in_engine_window(session, 777)
+        # The engine's line before this fix: edit_left, no reason, no hello first.
+        browse.channel.feed(_line({"event": "edit_left", "protocol": RUST_MESH_EDITOR_PROTOCOL}))
+        QApplication.processEvents()
+        assert launched == [session]
+        assert not any("closed (exit" in message for message in statuses)
+        assert not session.closed
+        assert not live._open_in_engine_window(session, 777)  # not asked again
+    finally:
+        _dispose(tab)
+
+
+def test_an_editor_window_that_says_why_it_did_not_open_names_it_in_the_runtime_record(
+        tmp_path: Path, monkeypatch) -> None:
+    from tests.test_mesh_rust_editor_selection import _dispose, _tab
+
+    router = EngineCaptureRouter()
+    browse = _Resident()
+    router.register(browse, resident=True)
+    monkeypatch.setattr(engine_capture, "engine_capture_router", lambda: router)
+    tab = _tab(tmp_path)
+    live = tab.live_edit
+    session = SimpleNamespace(manifest_path=tmp_path / "manifest.json", closed=False, theme=None)
+    launched, recorded = [], []
+    monkeypatch.setattr(live, "_launch_rust_editor_process", lambda current: launched.append(current))
+    monkeypatch.setattr(live.window(), "_record_runtime_event",
+                        lambda name, **fields: recorded.append((name, fields)), raising=False)
+    try:
+        live.standalone_rust_authoring_session = session
+        assert live._open_in_engine_window(session, 777)
+        browse.channel.feed(_line({"event": "edit_refused", "protocol": RUST_MESH_EDITOR_PROTOCOL,
+                                   "reason": "failed to open CDMW session: bad manifest"}))
+        QApplication.processEvents()
+        assert launched == [session]
+        assert ("mesh_editor_engine_edit_refused",
+                {"severity": "warning", "reason": "failed to open CDMW session: bad manifest",
+                 "own_window": True}) in recorded
+    finally:
+        _dispose(tab)
+
+
 def test_promote_to_tab_moves_the_edit_out_of_browse_s_viewport_without_ending_it(tmp_path: Path, monkeypatch) -> None:
     from cdmw.ui.mesh_editor.live_edit.browse_viewport import BrowseViewportBinding
     from tests.test_mesh_rust_editor_selection import _dispose, _tab

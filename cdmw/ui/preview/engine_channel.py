@@ -81,6 +81,8 @@ class EngineEditChannel(QObject):
         self.refusal = ""
         self.entered_report: dict = {}
         self.viewing = False
+        #: The edit's session said hello; from then on, leaving is an ordinary end.
+        self.said_hello = False
         #: The edit has a window of its own in this process instead of Browse's (P4 V5).
         self.own_window = False
         #: The session this edit opened (P15): the engine routes lines by it both ways.
@@ -113,11 +115,19 @@ class EngineEditChannel(QObject):
                 self.entered_report = dict(payload)
             return
         if event in _LEAVE_EVENTS:
+            if event == "edit_left" and not self.said_hello and not self.viewing:
+                # The edit ended by itself before its session said hello: its open
+                # failed in this process. That is a refusal, so the host opens the
+                # session elsewhere and never reports an ordinary exit 0 (2026-11-16).
+                event = "edit_refused"
+                payload = {"reason": payload.get("reason") or "the edit ended before its CDMW handshake"}
             if event == "edit_refused":
                 self.refusal = str(payload.get("reason") or "The viewport could not enter edit mode.")
                 self.refused.emit(self.refusal)
             self._end(send_leave=False, exit_code=0 if event == "edit_left" else 1)
             return
+        if event == "hello":
+            self.said_hello = True
         self._buffer += line + b"\n"
         self.readyReadStandardOutput.emit()
 

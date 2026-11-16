@@ -1244,6 +1244,7 @@ class MeshEditorRustProcessMixin:
             # host's own viewport with the same prepared session.
             self.standalone_rust_process = None
             self.standalone_rust_ready_timer.stop()
+            self._record_engine_edit_refusal(process, refusal)
             if getattr(process, "own_window", False):
                 # Browse's process could not hold the tab's window: a process of its own.
                 self._engine_window_refused_session = session
@@ -1329,6 +1330,22 @@ class MeshEditorRustProcessMixin:
         closed = getattr(self, "closed", None)  # the live-edit component's signal
         if closed is not None and hasattr(closed, "emit"):
             closed.emit()
+
+    def _record_engine_edit_refusal(self, process: object, reason: str) -> None:
+        """Name in the runtime record why Browse's process did not hold this edit."""
+
+        try:
+            window = self.window()
+        except (AttributeError, RuntimeError, TypeError):
+            return
+        recorder = getattr(window, "_record_runtime_event", None)
+        if callable(recorder):
+            try:
+                # A warning, so the diagnostics log keeps it without verbose logging.
+                recorder("mesh_editor_engine_edit_refused", severity="warning", reason=str(reason),
+                         own_window=bool(getattr(process, "own_window", False)))
+            except (RuntimeError, TypeError, ValueError):
+                pass
 
     def _recover_rust_editor_after_crash(self) -> bool:
         """Keep the shadow session when the renderer exits unexpectedly (P4 V3).

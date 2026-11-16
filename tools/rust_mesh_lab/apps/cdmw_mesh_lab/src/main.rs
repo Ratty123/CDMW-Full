@@ -2429,6 +2429,9 @@ struct LabApplication {
     /// lent by its Preview, and ending the edit gives them back instead of exiting.
     engine_hosted: bool,
     engine_leave_requested: bool,
+    /// Why an engine-hosted edit's session never opened; it then leaves refused,
+    /// not as an ordinary end (the host has no stderr of its own for it).
+    engine_open_failure: Option<String>,
     /// The Preview's camera, taken over once the session is installed (`keep_view`).
     kept_camera: Option<OrbitCamera>,
     /// Tool groups CDMW is still preparing (P4 V4); empty when all are ready.
@@ -2722,6 +2725,7 @@ impl LabApplication {
             cdmw_exit_requested: false,
             engine_hosted: false,
             engine_leave_requested: false,
+            engine_open_failure: None,
             kept_camera: None,
             cdmw_tool_groups: tool_groups::ToolGroupState::default(),
             kept_hidden_parts: None,
@@ -3048,6 +3052,29 @@ impl LabApplication {
         self.engine_leave_requested
     }
 
+    /// Why this edit's session never opened, when it did not.
+    fn engine_open_failure(&self) -> Option<&str> {
+        self.engine_open_failure.as_deref()
+    }
+
+    /// The pending session could not open: say why, then end this edit or helper.
+    /// A helper of its own tells its host on `pending_failed`; an edit in Browse's
+    /// process keeps the reason for the line that ends it, which names its session.
+    fn fail_pending_open(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        error: String,
+        announce_windows: Option<(u64, u64)>,
+    ) {
+        error!("{error}");
+        if self.engine_hosted {
+            self.engine_open_failure = Some(error);
+        } else if let Some((child_hwnd, parent_hwnd)) = announce_windows {
+            let _ = cdmw_session::announce_pending_ready(child_hwnd, parent_hwnd, Some(&error));
+        }
+        self.leave_or_exit(event_loop);
+    }
+
     /// Whether CDMW accepted this edit's Finish (its followers then wait for the
     /// finished package instead of going back to their own mesh).
     fn engine_finished(&self) -> bool {
@@ -3109,8 +3136,11 @@ impl LabApplication {
             Ok(None) => return,
             Ok(Some(request)) => request,
             Err(error) => {
-                error!("pending Mesh Editor helper refused: {error}");
-                self.leave_or_exit(event_loop);
+                self.fail_pending_open(
+                    event_loop,
+                    format!("pending Mesh Editor helper refused: {error}"),
+                    None,
+                );
                 return;
             }
         };
@@ -3139,9 +3169,7 @@ impl LabApplication {
                 installed
             });
         if let Err(error) = opened {
-            error!("{error}");
-            let _ = cdmw_session::announce_pending_ready(child_hwnd, parent_hwnd, Some(&error));
-            self.leave_or_exit(event_loop);
+            self.fail_pending_open(event_loop, error, Some((child_hwnd, parent_hwnd)));
             return;
         }
         if self.viewport_rect.is_some()
@@ -3163,8 +3191,7 @@ impl LabApplication {
                 .and_then(|()| bridge.announce_ready())
         });
         if let Some(Err(error)) = announced {
-            error!("CDMW handshake failed: {error}");
-            self.leave_or_exit(event_loop);
+            self.fail_pending_open(event_loop, format!("CDMW handshake failed: {error}"), None);
             return;
         }
         window.set_title("CDMW — Mesh Editor");
