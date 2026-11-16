@@ -1071,3 +1071,44 @@ def test_open_in_mesh_editor_prepares_a_model_that_only_has_a_borrowed_set(tmp_p
     assert not harness.opened and previews == [clicked]
     assert harness.statuses[-1] == (
         "Preparing clicked.pac and its related files. Open Open in Mesh Editor again when its preview finishes.", False)
+
+
+@pytest.mark.parametrize("renderer_package", ["paused", "untextured"])
+def test_a_second_open_reuses_the_retained_preview_model_and_package(tmp_path: Path, renderer_package: str) -> None:
+    """Close, then Open Selected Mesh: the Archive Browser renderer was paused by the
+    first open, but its preview result still holds the resolved model and package.
+    Reusing them opens the model as the first open did; rebuilding the materials
+    from the package's batches paired a part with another part's material."""
+    entry = _entry(tmp_path)
+    geometry = _package(tmp_path / "geometry", entry, textured=False)
+    textured = _package(tmp_path / "textured", entry, textured=True)
+    harness = _LaunchHarness(entry, geometry)
+    harness.archive_isolated_renderer_active_package = None if renderer_package == "paused" else geometry
+    harness.current_archive_preview_result = SimpleNamespace(
+        preview_model="resolved-archive-model", dotnet_preview_package_path=str(textured))
+    lease = _Lease()
+    with patch("cdmw.ui.mesh_editor.shell_bridge.acquire_dotnet_preview_package_cache_lease_for_path",
+               return_value=lease):
+        harness._launch_archive_mesh_editor_for_entry(entry)
+
+    assert harness.texture_requests == []
+    assert len(harness.opened) == 1
+    _, kwargs = harness.opened[0]
+    assert kwargs["material_preview_model"] == "resolved-archive-model"
+    assert kwargs["material_package_path"] == str(textured)
+    assert kwargs["material_package_lease"] is lease
+    assert kwargs["material_context_verified_for_rust"] is True
+
+
+@pytest.mark.parametrize("case", ["other_model", "untextured", "missing", "no_model"])
+def test_a_second_open_does_not_reuse_a_preview_that_is_not_this_models(tmp_path: Path, case: str) -> None:
+    entry = _entry(tmp_path)
+    other = _entry(tmp_path, "other.pac", offset=64)
+    geometry = _package(tmp_path / "geometry", entry, textured=False)
+    textured = _package(tmp_path / "textured", other if case == "other_model" else entry, textured=case != "untextured")
+    harness = _LaunchHarness(entry, geometry)
+    harness.archive_isolated_renderer_active_package = None
+    harness.current_archive_preview_result = SimpleNamespace(
+        preview_model=None if case == "no_model" else "resolved-archive-model",
+        dotnet_preview_package_path=str(tmp_path / "gone") if case == "missing" else str(textured))
+    assert harness._mesh_editor_active_textured_package_for_entry(entry) is None

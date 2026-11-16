@@ -228,6 +228,17 @@
 - 원인: 다시 열 때는 Archive Browser가 준비한 재질 대신 Preview Core 패키지(manifest의 batch)로 재질을 다시 만든다. 이 패키지는 부위별 입력과 wrapper 파라미터를 `dds_textures.material_inputs` 아래에 쓰는데(`native/cdmw_preview_core/src/owners/package_writer_json.cpp`), 레이어 복사 코드는 batch 최상위 `material_inputs`만 읽었다. 그래서 이 경로에서는 디테일 레이어의 UV 변환(약 5.67회 반복)과 "망사는 디테일 높이를 합성하지 않음"이 둘 다 빠져, 레이스가 반복 없이 주름 맵 위에 덮어씌워진 높이가 실 굵기로 쓰였다.
 - 수정: `_preview_core_batch_material_inputs`가 두 위치를 모두 읽는다. 테스트는 두 형태의 batch를 모두 확인한다.
 
+### 다시 열 때 문제의 실제 원인 (2026-11-17, 세션 폴더 비교)
+- 앞의 `dds_textures` 수정은 맞는 수정이었지만 원인은 아니었다. 사용자가 보낸 두 세션 폴더(정상 / 깨짐)의 `manifest.json`을 비교해서 찾았다.
+- 깨진 세션에서는 부위와 재질의 짝이 어긋나 있었다.
+  - 화관(`Hel_Ring_00_0169`, `Hel_00_0169`)에 면사포 셰이더(SkinnedMeshTransparency)가 붙어, 망사로 그려져 사라졌다.
+  - 면사포 천(`0219`)에는 `_01` 부위의 높이 맵(`0219_01_disp`)이 붙었다.
+  - `_01` 부위는 셰이더를 잃었다.
+  - `texture_status`에는 `compiler_owner_conservation_failed`(부위 0, 2, 3)가 기록돼 있었다.
+- 경로: 첫 번째 열기가 Archive Browser 렌더러를 멈춘다(`_strip_archive_preview_heavy_payloads_for_mesh_editor`). 그래서 다시 열 때는 활성 패키지가 없어 `material_context_verified_for_rust`가 False가 된다. 그러면 `MeshArchiveMaterialContextWorker`가 원작자 설계대로 네이티브 패키지 batch로 재질 모델을 다시 만드는데, 이 메시에서는 그 짝짓기가 틀린다. "Show target in archive"를 거치면 Archive Browser가 미리보기를 다시 만들어 첫 번째 열기와 같은 경로를 탄다.
+- 수정(`shell_bridge.py`의 `_mesh_editor_retained_textured_package_for_entry`): Archive Browser가 같은 모델의 미리보기 결과(해석된 재질 모델과 패키지)를 아직 들고 있고 그 패키지가 디스크에 있으면, 그것으로 첫 번째 열기와 똑같이 연다. 현재 미리보기 결과가 참조하는 패키지는 정리 대상에서 빠지므로 남아 있다.
+- 남은 것: 미리보기 결과가 없을 때(다른 모델을 보다가 Mesh Editor에서 여는 경우 등)는 여전히 네이티브 batch 경로를 탄다. 그 경로의 짝짓기 오류는 원작자 네이티브 코어(`package_writer_json.cpp`의 batch `shader_family` = 첫 binding의 family) 쪽 문제라 고치지 않았다.
+
 ## 남긴 결정 사항
 
 1. `_screenSpaceDisplacementScale`은 슬라이더로 추가하지 않았다. 유일한 근거인 Angel Teddy 모드가 이 행에 작은 ItemID 3을 쓰는데, 작은 ID의 규칙이 밝혀지지 않았다. 다만 Glass를 "다시 쓰기"로 만들면 그 모드의 구성대로 이 행(ItemID 3)을 넣는다. 원본에 값이 있으면 그 값을, 없으면 0을 쓴다.
