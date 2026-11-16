@@ -100,6 +100,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **Open in Mesh Editor** no longer pauses the window while CDMW checks that Browse's preview belongs to the chosen model. The check read the whole preview description, megabytes for an armour piece, several times per open; each file is now read once while it is unchanged, and read again when it changes.
 - Selecting a set such as the Hernandian Honor Guard in **Item Finder**, or a model again in **Browse Archives**, no longer pauses the window while CDMW checks the cached preview files it already checked. A preview whose description and folders have not changed since is trusted again; a file pruned from the cache, added or removed is still found.
 - Opening a tool for the first time, such as **Drafts & Mods**, **Model Library** or **Create New Item**, pauses the window less. Each opening set the interface fonts again even when they had not changed, which made every widget in the window update its font; unchanged fonts are now left alone.
+- Opening **Create New Item** no longer freezes the window for about two seconds while it lays out its steps. The step pages are now set up first and each panel is moved into its page on its own, and the Model step's panel is built in several smaller parts, so the window keeps responding while the workspace opens.
 
 ### Docs
 

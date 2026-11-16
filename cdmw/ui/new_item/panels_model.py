@@ -171,8 +171,21 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         parent=None,
         *,
         native_preview_core_cache_root: Path | None = None,
+        build_in_steps: bool = False,
     ) -> None:
         super().__init__("3. Model and placement", parent)
+        steps = self._build(controller, native_preview_core_cache_root)
+        if build_in_steps:
+            #: The rest of the construction, one section per step: New Item's tab
+            #: runs it across event-loop turns (one call held the UI thread for
+            #: 0.8 s in the review). The panel is not usable until it is exhausted.
+            self.remaining_build_steps = steps
+        else:
+            self.remaining_build_steps = iter(())
+            for _ in steps:
+                pass
+
+    def _build(self, controller: NewItemStudioController, native_preview_core_cache_root: Path | None):
         self._controller = controller
         self._workspace_ready = False
         self._fitting_workspace = False
@@ -236,7 +249,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._appearance_preview_timer.setInterval(80)
         self._appearance_preview_timer.timeout.connect(self.refresh_preview)
 
+        yield
         model, model_layout, import_row = self._build_model_source_controls()
+        yield
         self.appearance_page = QWidget()
         appearance_layout = QVBoxLayout(self.appearance_page)
         appearance_layout.setContentsMargins(8, 8, 8, 8)
@@ -259,12 +274,14 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             edit_layout.addWidget(widget)
         self.model_layout.removeWidget(self.busy_bar)
         self.model_layout.addWidget(self.busy_bar)
+        yield
 
         self._build_placement_controls()
 
         self._build_preview_controls(controller)
 
         self._build_icon_controls()
+        yield
 
         # The column follows the work: which component, its model (and any Mesh Editor
         # or cloth preparation), where it sits and how it looks, then what stays
@@ -294,6 +311,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.inspector_tabs.addTab(self.dyes, "Dyes")
         self.inspector_tabs.addTab(self.icon_group, "Icon")
         model_icon_content_layout.addWidget(self.inspector_tabs)
+        yield
         self.body_details = _foldout(self.body_visibility_editor)
         self.body_details.setObjectName("new_item_body_underneath")
         self.body_details.toggle.setText("Body underneath")
@@ -328,6 +346,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.model_outer_splitter.setStretchFactor(0, 0)
         self.model_outer_splitter.setStretchFactor(1, 1)
         self.model_outer_splitter.setSizes((220, 1200))
+        yield
         # The component list is the binding selector; it lives with the model, not the preview.
         self.variants = self.components
         self.preview_controls.layout().insertWidget(0, self.show_character)

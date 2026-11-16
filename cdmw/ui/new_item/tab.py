@@ -518,52 +518,8 @@ class NewItemStudioTab(QWidget):
             if not self.controller._synchronous:
                 self._panel_mount_timer.start()
 
-    def _build_panels(self):
-        # Keep partially built panels owned and hidden. Each yield gives the
-        # shell an event-loop turn before the next constructor or final layout.
-        controller = self.controller
-        self.template_panel = TemplatePanel(controller, self)
-        self.template_panel.hide()
-        self.template_panel.open_archive_entry_requested.connect(self.open_archive_entry_requested.emit)
-        yield
-        self.identity_panel = IdentityPanel(controller, self)
-        self.identity_panel.hide()
-        yield
-        self.model_panel = ModelPanel(
-            controller, self,
-            native_preview_core_cache_root=self._native_preview_core_cache_root(),
-        )
-        self.model_panel.hide()
-        if self._model_status_host is not None:
-            self.model_panel.set_operation_status_host(self._model_status_host)
-        self.model_panel.preview.set_render_settings(self._preview_render_settings)
-        self.model_panel.preview.set_cache_mode(self._preview_cache_mode)
-        controller._template_preview_context = dict(
-            output_root=self.model_panel.preview._output_root,
-            native_preview_core_cache_root=self._native_preview_core_cache_root(),
-            render_settings=self._preview_render_settings, cache_mode=self._preview_cache_mode,
-        )
-        self.model_panel.preview.status_changed.connect(self._log_preview_status)
-        self.model_panel.set_preview_editable(False)
-        self.template_panel.mount_preview(self.model_panel.preview)
-        yield
-        self.output_panel = OutputPanel(controller, self, settings=getattr(getattr(self._window, "shell", None), "settings", None))
-        self.output_panel.hide()
-        controller.log_message.disconnect(self.output_panel.append_log)
-        self.output_panel._log_binding.set_document(self.log.document())
-        yield
-        self._apply_step_style()
-        yield
-        controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
-        controller.model_import_changed.connect(self._refresh_summary)
-        controller.model_import_changed.connect(self._model_part_editor_source_changed)
-        controller.model_placement_changed.connect(self._refresh_summary)
-        controller.model_part_edit_finished.connect(self._model_part_edit_finished)
-        controller.model_part_edit_failed.connect(self._model_part_edit_failed)
-        self.model_panel.keep_physics.toggled.connect(self._refresh_model_part_edit_note)
-        self.model_panel.part_editor_open_requested.connect(self._open_model_part_editor)
-        self.model_panel.part_editor_apply_requested.connect(self._use_model_part_editor_changes)
-        controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
+    def _build_step_shell(self) -> None:
+        """The step header, an empty page per step, the summary and the footer, hidden."""
 
         # One guided workspace: the clickable header owns navigation, the current page
         # owns the whole width, and the footer keeps Back / progress / Continue stable.
@@ -573,11 +529,8 @@ class NewItemStudioTab(QWidget):
         # Each page owns its scrolling/responsive splitters. A hidden page's
         # narrow initial layout must not pin the whole window to that height.
         self.pages.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
-        self._panels = [self.template_panel, self.identity_panel, self.model_panel,
-                        None, None, None, self.output_panel]
-        for index, panel in enumerate(self._panels):
-            self.pages.addWidget(self._page_for_panel(index, panel) if panel is not None else QWidget())
-        self.steps.currentRowChanged.connect(self._show_step)
+        for _index in range(7):
+            self.pages.addWidget(QWidget())
 
         # The old rail summary remains computed authority. It is hidden and projected
         # onto each header step's tooltip and accessible text instead of taking a column.
@@ -615,7 +568,85 @@ class NewItemStudioTab(QWidget):
         footer.addWidget(self.step_hint, 1)
         footer.addWidget(self.continue_button)
         body_layout.addLayout(footer)
+        # Attached while still small, and hidden until every panel is in place.
+        body.hide()
         self._layout.addWidget(body, 1)
+        self._step_body = body
+
+    def _mount_step_page(self, index, panel) -> None:
+        old = self.pages.widget(index)
+        self.pages.removeWidget(old)
+        self.pages.insertWidget(index, self._page_for_panel(index, panel))
+        old.deleteLater()
+
+    def _build_panels(self):
+        # Keep partially built panels owned and hidden. Each yield gives the
+        # shell an event-loop turn before the next constructor or final layout.
+        # The step header, the page stack and the footer come first, attached
+        # to this tab but hidden: each panel then moves into its page in its own
+        # step. Building the stack at the end moved every finished panel three
+        # times (into the stack, the stack into the body, the body into the
+        # tab), and each move restyled the whole subtree: 1.8 s on the UI
+        # thread in one step in the review.
+        controller = self.controller
+        self._build_step_shell()
+        yield
+        self.template_panel = TemplatePanel(controller, self)
+        self.template_panel.hide()
+        self.template_panel.open_archive_entry_requested.connect(self.open_archive_entry_requested.emit)
+        self._mount_step_page(0, self.template_panel)
+        yield
+        self.identity_panel = IdentityPanel(controller, self)
+        self.identity_panel.hide()
+        self._mount_step_page(1, self.identity_panel)
+        yield
+        # The Model panel is the largest: it is built a section per step too.
+        model_panel = ModelPanel(
+            controller, self,
+            native_preview_core_cache_root=self._native_preview_core_cache_root(),
+            build_in_steps=True,
+        )
+        model_panel.hide()
+        for _section in model_panel.remaining_build_steps:
+            yield
+        self.model_panel = model_panel
+        if self._model_status_host is not None:
+            self.model_panel.set_operation_status_host(self._model_status_host)
+        self.model_panel.preview.set_render_settings(self._preview_render_settings)
+        self.model_panel.preview.set_cache_mode(self._preview_cache_mode)
+        controller._template_preview_context = dict(
+            output_root=self.model_panel.preview._output_root,
+            native_preview_core_cache_root=self._native_preview_core_cache_root(),
+            render_settings=self._preview_render_settings, cache_mode=self._preview_cache_mode,
+        )
+        self.model_panel.preview.status_changed.connect(self._log_preview_status)
+        self.model_panel.set_preview_editable(False)
+        self.template_panel.mount_preview(self.model_panel.preview)
+        yield
+        self._mount_step_page(2, self.model_panel)
+        yield
+        self.output_panel = OutputPanel(controller, self, settings=getattr(getattr(self._window, "shell", None), "settings", None))
+        self.output_panel.hide()
+        controller.log_message.disconnect(self.output_panel.append_log)
+        self.output_panel._log_binding.set_document(self.log.document())
+        self._mount_step_page(6, self.output_panel)
+        yield
+        self._apply_step_style()
+        yield
+        controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
+        controller.model_import_changed.connect(self._refresh_summary)
+        controller.model_import_changed.connect(self._model_part_editor_source_changed)
+        controller.model_placement_changed.connect(self._refresh_summary)
+        controller.model_part_edit_finished.connect(self._model_part_edit_finished)
+        controller.model_part_edit_failed.connect(self._model_part_edit_failed)
+        self.model_panel.keep_physics.toggled.connect(self._refresh_model_part_edit_note)
+        self.model_panel.part_editor_open_requested.connect(self._open_model_part_editor)
+        self.model_panel.part_editor_apply_requested.connect(self._use_model_part_editor_changes)
+        controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
+        self._panels = [self.template_panel, self.identity_panel, self.model_panel,
+                        None, None, None, self.output_panel]
+        self.steps.currentRowChanged.connect(self._show_step)
+        self._step_body.show()
         self._layout.removeWidget(self._bootstrap)
         self._bootstrap.hide()
         self._bootstrap.deleteLater()
