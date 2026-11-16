@@ -14,7 +14,8 @@ the model at once. Hiding the panel keeps the edit.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import dataclasses
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -54,6 +55,7 @@ class LiveTextureTarget:
     display_name: str
     game_path: str = ""
     users: tuple[str, ...] = ()
+    #: An edit shows on the model while the user paints (B item 6).
     in_renderer: bool = True
 
 
@@ -77,7 +79,7 @@ def shared_texture_notice(target: LiveTextureTarget) -> str:
 def unseen_texture_notice(target: LiveTextureTarget) -> str:
     if target.in_renderer:
         return ""
-    return ("The 3D view combines this layer in the shader, so edits to it are not shown on "
+    return ("The 3D view does not draw this file directly, so edits to it are not shown on "
             "the model while you paint. The file opens here so you can edit it.")
 
 
@@ -151,9 +153,7 @@ class MeshEditorTextureTools(QDockWidget):
         editor = self._ensure_editor()
         self.target = target
         self._targets[_target_key(target.source_path)] = target
-        notice = " ".join(text for text in (shared_texture_notice(target), unseen_texture_notice(target)) if text)
-        self.notice.setText(notice)
-        self.notice.setVisible(bool(notice))
+        self._show_notice(target)
         self.title_label.setText(target.display_name)
         self.title_label.setToolTip(target.game_path or target.display_name)
         binding = TextureEditorSourceBinding(
@@ -172,6 +172,22 @@ class MeshEditorTextureTools(QDockWidget):
         self.show()
         self.raise_()
         self._widen_for_the_canvas()
+
+    def _show_notice(self, target: LiveTextureTarget) -> None:
+        notice = " ".join(text for text in (shared_texture_notice(target), unseen_texture_notice(target)) if text)
+        self.notice.setText(notice)
+        self.notice.setVisible(bool(notice))
+
+    def set_shown_live_sources(self, sources: Iterable[str]) -> None:
+        """The editor said which textures an edit shows on (B item 6): the open one's
+        notice follows."""
+
+        shown = {str(source).lower() for source in sources}
+        self._targets = {key: dataclasses.replace(target, in_renderer=target.source_sha256.lower() in shown)
+                         for key, target in self._targets.items()}
+        if self.target is not None:
+            self.target = dataclasses.replace(self.target, in_renderer=self.target.source_sha256.lower() in shown)
+            self._show_notice(self.target)
 
     def _widen_for_the_canvas(self) -> None:
         """Docked beside the model, the tools take about 45 % of the editor's width (once)."""

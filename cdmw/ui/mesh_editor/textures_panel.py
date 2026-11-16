@@ -69,8 +69,10 @@ class TextureRow:
     shared: bool = False
     #: The hash the editor loaded this texture with; live edits name it (step 8).
     source_sha256: str = ""
-    #: The 3D view loaded this file itself; a layer the shader combines from a
-    #: material graph is not, so its edits cannot be shown live.
+    #: An edit of this file shows on this part of the model while the user paints: the
+    #: 3D view samples it, as a texture of its own or as a layer the shader combines
+    #: (B item 6). Until the editor says which it samples (``with_shown_live_textures``),
+    #: only the textures it loaded itself count.
     in_renderer: bool = False
 
     @property
@@ -343,6 +345,29 @@ def contributing_rows(group: "TexturePartGroup", row: TextureRow) -> tuple[Textu
     return tuple(sorted(others, key=rank))
 
 
+def shown_live_by_source(textures: object) -> dict[str, frozenset[int]]:
+    """The editor's ``live_textures`` event as source hash -> the parts an edit shows on."""
+
+    shown: dict[str, frozenset[int]] = {}
+    for entry in _sequence(textures):
+        if not isinstance(entry, Mapping):
+            continue
+        sha = str(entry.get("source_sha256", "") or "").strip().lower()
+        if sha:
+            shown[sha] = shown.get(sha, frozenset()) | frozenset(_int_values(entry.get("parts")))
+    return shown
+
+
+def with_shown_live_textures(groups: Sequence[TexturePartGroup],
+                             shown: Mapping[str, frozenset[int]]) -> list[TexturePartGroup]:
+    """``groups`` with each row's ``in_renderer`` as the editor reported it: True when the
+    3D view samples that file on that part (B item 6)."""
+
+    return [dataclasses.replace(group, rows=tuple(
+        dataclasses.replace(row, in_renderer=group.part_index in shown.get(row.source_sha256.lower(), ()))
+        for row in group.rows)) for group in groups]
+
+
 def _share_key(row: TextureRow) -> str:
     if _has_game_path(row):
         return row.game_path.replace("\\", "/").casefold()
@@ -550,6 +575,9 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._session_request = 0
         self._manifest_readers: set[QObject] = set()
         self.groups: list[TexturePartGroup] = []
+        #: What the editor said an edit shows on (B item 6); None until it says.
+        self._shown_live: Mapping[str, frozenset[int]] | None = None
+        self._session_root: str | None = None
 
         body = QWidget(self)
         layout = QVBoxLayout(body)
@@ -586,6 +614,8 @@ class MeshEditorTexturesPanel(QDockWidget):
             self.clear()
             return
         groups = texture_rows_from_manifest(manifest, session_root=session_root, part_names=part_names)
+        if self._shown_live is not None:
+            groups = with_shown_live_textures(groups, self._shown_live)
         self._generation += 1
         self._items_by_path = {}
         self.groups = groups
@@ -636,6 +666,19 @@ class MeshEditorTexturesPanel(QDockWidget):
         """Drop pending thumbnails; the host calls this before tearing the page down."""
 
         self.thumbnails.shutdown()
+
+    def set_shown_live_textures(self, shown: Mapping[str, frozenset[int]] | None) -> None:
+        """The editor said which textures an edit shows on, per part (B item 6)."""
+
+        self._shown_live = dict(shown) if shown is not None else None
+        if shown is not None and self.groups:
+            self.groups = with_shown_live_textures(self.groups, shown)
+
+    def texture_shown_live(self, source_sha256: str) -> bool:
+        """Whether an edit of this file shows on any part of the model."""
+
+        key = str(source_sha256 or "").lower()
+        return any(row.in_renderer for row in self.texture_rows() if row.source_sha256.lower() == key)
 
     def texture_rows(self) -> tuple[TextureRow, ...]:
         """Every listed texture row, part by part."""
@@ -719,6 +762,10 @@ class MeshEditorTexturesPanel(QDockWidget):
         """
 
         self._session_request += 1
+        root = str(session_root) if session_root is not None else None
+        if root is None or root != self._session_root:
+            self._session_root = root
+            self._shown_live = None  # another session's editor says again
         if session_root is None:
             self.clear()
             return

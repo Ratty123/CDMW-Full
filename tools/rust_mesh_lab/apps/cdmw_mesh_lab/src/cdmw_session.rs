@@ -1405,6 +1405,15 @@ impl CdmwBridge {
         }))
     }
 
+    /// Tell CDMW which textures an edit shows on the model: each source hash the
+    /// renderer samples, with the LOD 0 parts that sample it (B item 6).
+    pub fn publish_live_textures(
+        &self,
+        shown: &BTreeMap<String, BTreeSet<u32>>,
+    ) -> Result<(), SessionError> {
+        self.send_message(live_textures_message(&self.manifest, shown))
+    }
+
     fn decode_texture_update(&self, value: &Value) -> Result<HostEvent, SessionError> {
         let invalid = |what: &str| SessionError::Protocol(format!("texture_update {what}"));
         let source_sha256 = value
@@ -2151,6 +2160,24 @@ fn validate_document_material_graph(
         validate_preview_core_material_graph(manifest, graph, &owners, false)?;
     }
     Ok(())
+}
+
+/// The `live_textures` event: `textures` lists each shown source hash (lower case)
+/// with the LOD 0 parts (material indices) that sample it.
+pub(crate) fn live_textures_message(
+    manifest: &SessionManifest,
+    shown: &BTreeMap<String, BTreeSet<u32>>,
+) -> Value {
+    let textures = shown
+        .iter()
+        .map(|(source_sha256, parts)| json!({"source_sha256": source_sha256, "parts": parts}))
+        .collect::<Vec<_>>();
+    json!({
+        "event": "live_textures", "protocol": PROTOCOL,
+        "session_id": manifest.session_id,
+        "process_generation": manifest.process_generation,
+        "textures": textures,
+    })
 }
 
 fn read_updated_materials(
