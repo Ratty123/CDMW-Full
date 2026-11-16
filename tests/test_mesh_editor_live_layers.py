@@ -124,11 +124,11 @@ def test_the_open_texture_stops_saying_it_is_not_shown_once_the_editor_draws_it(
     tools.open_target(LiveTextureTarget(
         session_id="doc", source_path=str(tmp_path / "layer.dds"), source_sha256=DETAIL_SHA,
         channel="detail", display_name="cd_texturelayer_003_0102.dds", in_renderer=False))
-    assert "not shown" in tools.notice.text()
+    assert "not shown" in tools.notice_text
     tools.set_shown_live_sources([DETAIL_SHA.upper()])
-    assert tools.target.in_renderer and tools.notice.text() == "" and tools.notice.isHidden()
+    assert tools.target.in_renderer and tools.notice_text == "" and tools.warning_marker.isHidden()
     tools.set_shown_live_sources([MASK_SHA])
-    assert "not shown" in tools.notice.text()
+    assert "not shown" in tools.notice_text
     tools.deleteLater()
 
 
@@ -146,7 +146,7 @@ def test_the_mesh_editor_passes_the_report_to_its_panels(tmp_path: Path) -> None
         _textures_panel=lambda: panel, _texture_tools_panel=lambda: tools)
     editor._show_live_textures = lambda textures: MeshEditorRustProcessMixin._show_live_textures(editor, textures)
     MeshEditorRustProcessMixin._handle_rust_protocol_event(editor, {"event": "live_textures", "textures": _report()})
-    assert panel.texture_shown_live(DETAIL_SHA) and tools.notice.isHidden()
+    assert panel.texture_shown_live(DETAIL_SHA) and tools.warning_marker.isHidden()
     # Opening a row asks the panel whether any part draws the file.
     part_8_row = _row(panel.groups, 8, DETAIL_SHA)
     assert not part_8_row.in_renderer

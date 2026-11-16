@@ -73,3 +73,42 @@ def test_the_dock_float_command_and_its_lines(monkeypatch, tmp_path):
         assert bridge._unkept_texture_edits(tab) == 2
     finally:
         host.deleteLater()
+
+
+def test_the_window_read_reports_the_docks_texts_as_plain_strings(monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QWidget
+
+    from cdmw.ui.mesh_editor.texture_tools_dock import LiveTextureTarget
+
+    class _Editor(QWidget):
+        history_index = 0
+
+        def open_source_path(self, path, *, binding=None) -> None:
+            pass
+
+    tools = MeshEditorTextureTools(editor_factory=_Editor)
+    game_path = "character/texture/belt.dds"
+    tools.open_target(LiveTextureTarget(
+        session_id="doc", source_path=str(tmp_path / "belt.dds"), source_sha256="ab" * 32, channel="base_color",
+        display_name="belt.dds", game_path=game_path, users=("A", "B"), in_renderer=False))
+    tools.set_sharing_text(game_path, "Checking whether other game files use this texture...")
+    tools.set_kept_text("Texture edits are not kept yet: Finish keeps them in the draft.")
+    tab = SimpleNamespace(standalone_rust_ready=False)
+    bridge = bridge_module.AutomationBridge.__new__(bridge_module.AutomationBridge)
+    monkeypatch.setattr(bridge, "_texture_editor_window", lambda: tools, raising=False)
+    monkeypatch.setattr(bridge, "_shown_mesh_tab", lambda: tab, raising=False)
+    try:
+        tools.hide()  # hidden (say, behind another tab): the texts are reported all the same
+        read = bridge._texture_window({})
+        assert read["title"] == "belt.dds"
+        assert read["notice"].startswith("This texture is shared. Edits change it on: A, B")
+        assert "not shown on the model" in read["notice"]
+        assert read["sharing_text"] == "Checking whether other game files use this texture..."
+        assert read["kept_text"] == "Texture edits are not kept yet: Finish keeps them in the draft."
+        tools.set_kept_text("")
+        tools.set_sharing_text(game_path, "")
+        read = bridge._texture_window({})
+        assert read["kept_text"] == "" and read["sharing_text"] == ""
+        assert all(isinstance(read[key], str) for key in ("notice", "sharing_text", "kept_text"))
+    finally:
+        tools.deleteLater()

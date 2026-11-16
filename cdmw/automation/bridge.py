@@ -722,7 +722,8 @@ class AutomationBridge(QObject):
         return {
             "exists": True, "visible": window.isVisible(), "title": window.title_label.text(),
             "floating": window.isFloating(), "width": window.width(), "height": window.height(),
-            "notice": window.notice.text() if window.notice.isVisible() else "",
+            # The marker's details by the file name: shared, or not drawn on the model live.
+            "notice": str(getattr(window, "notice_text", "") or ""),
             "document": getattr(document, "title", "") if document is not None else "",
             "source_path": getattr(getattr(document, "source_binding", None), "source_path", "") if document else "",
             "history_index": int(getattr(editor, "history_index", -1)), "busy": busy,
@@ -733,9 +734,10 @@ class AutomationBridge(QObject):
                         for key, state in getattr(live, "_textures", {}).items()},
             "editor_ready": bool(getattr(tab, "standalone_rust_ready", False)),
             "editor_stderr": str(getattr(tab, "standalone_rust_stderr_tail", "") or "")[-1500:],
-            # Items 3 and 5: what the dock says about sharing and keeping, and the draft.
-            "sharing_text": window.sharing_label.text() if window.sharing_label.isVisible() else "",
-            "kept_text": window.kept_label.text() if window.kept_label.isVisible() else "",
+            # Items 3 and 5: what the dock's status line says about sharing and keeping,
+            # shown or not ("" when it has nothing to say), and the draft.
+            "sharing_text": str(getattr(window, "sharing_text", "") or ""),
+            "kept_text": str(getattr(window, "kept_text", "") or ""),
             "unkept": self._unkept_texture_edits(tab),
             "draft_root": str(tab._live_texture_draft_root() or "") if hasattr(tab, "_live_texture_draft_root") else "",
         }

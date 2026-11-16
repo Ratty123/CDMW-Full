@@ -201,6 +201,11 @@ class WorkspaceStateMixin:
         log_list = getattr(self, "log_list", None)
         if log_list is not None:
             log_list.setMaximumHeight(max(54, log_list.fontMetrics().height() * 3 + 12))
+        # The docked texture tools take the size the Rust editor is sent, lists included.
+        texture_tools = self.__dict__.get("texture_tools_dock")
+        sync_texture_tools = getattr(texture_tools, "sync_ui_font", None)
+        if callable(sync_texture_tools):
+            sync_texture_tools(ui_font, dense_font)
 
     @staticmethod
     def _set_widget_font(widget: QWidget | None, font: QFont) -> None:

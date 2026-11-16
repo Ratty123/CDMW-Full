@@ -73,7 +73,8 @@ def test_opening_lays_out_only_the_editing_parts_beside_the_canvas(tmp_path: Pat
     editor = tools.editor
     assert editor.isHidden()  # the full editor never shows; its editing parts do
     body = tools.widget()
-    assert editor.undo_button.parent() is body and editor.redo_button.parent() is body
+    # No Undo or Redo of its own: the Mesh Editor's cover texture edits (they stay hidden).
+    assert editor.undo_button.parent() is editor and editor.redo_button.parent() is editor
     rail = tools.split.widget(0).widget()
     assert all(button.parent() is rail for button in editor.tool_buttons.values())
     assert editor.tool_settings_section.parent() is rail and editor.layers_section.parent() is rail
@@ -107,8 +108,11 @@ def test_a_committed_edit_reaches_the_document(tmp_path: Path) -> None:
 def test_shared_and_shader_layer_textures_say_so(tmp_path: Path) -> None:
     tools = _tools()
     tools.open_target(_target(tmp_path, users=("Upper body", "Belt"), in_renderer=False))
-    text = tools.notice.text()
+    text = tools.notice_text
     assert "Upper body" in text and "Belt" in text and "not shown" in text
+    tip = tools.warning_marker.toolTip()  # one line each: shared, then not drawn live
+    assert tip.splitlines() == [shared_texture_notice(tools.target), unseen_texture_notice(tools.target)]
+    assert not tools.warning_marker.isHidden()
     assert shared_texture_notice(_target(tmp_path, users=("Upper body",))) == ""
     assert unseen_texture_notice(_target(tmp_path)) == ""
     tools.deleteLater()

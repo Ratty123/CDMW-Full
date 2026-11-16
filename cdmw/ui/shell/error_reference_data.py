@@ -61870,7 +61870,7 @@ MESSAGE_REFERENCE = [
     "message": "UV: {summary.island_count} island(s) | {selected} selected | {', '.join(textures[:3]) or 'missing texture'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/workspace_state.py": 560
+      "cdmw/ui/mesh_editor/workspace_state.py": 565
     }
   },
   {
@@ -74190,7 +74190,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 930
+      "cdmw/automation/bridge.py": 932
     }
   },
   {
@@ -83706,7 +83706,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 934
+      "cdmw/automation/bridge.py": 936
     }
   },
   {
@@ -102847,7 +102847,7 @@ MESSAGE_REFERENCE = [
     "message": "texture pixels must be RGBA",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/texture_tools_dock.py": 67
+      "cdmw/ui/mesh_editor/texture_tools_dock.py": 80
     }
   },
   {

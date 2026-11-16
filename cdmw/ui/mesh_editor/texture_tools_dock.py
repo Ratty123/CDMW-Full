@@ -10,6 +10,12 @@ A Texture Editor does the editing; this panel shows only the parts of it that ed
 the texture, so its file, export and workflow controls stay out of the Mesh Editor.
 Every committed stroke or adjustment is handed to the document, which shows it on
 the model at once. Hiding the panel keeps the edit.
+
+It looks like part of the Mesh Editor: the file name on top with a warning marker when
+the texture is shared or not drawn on the model live (the details in its tooltip), one
+status line at the bottom (whether the edits are kept, what the sharing check found),
+no Undo or Redo of its own (the Mesh Editor's cover texture edits too, and so do its
+keys pressed here), and the Mesh Editor's font size throughout.
 """
 
 from __future__ import annotations
@@ -20,8 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QEvent, QObject, Qt, Signal
-from PySide6.QtGui import QImage
+from PySide6.QtCore import QEvent, QObject, QSize, Qt, Signal
+from PySide6.QtGui import QFont, QImage, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QDockWidget,
     QFrame,
@@ -31,17 +37,24 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSplitter,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
 
 from cdmw.models import TextureEditorSourceBinding
 from cdmw.ui.layout_utils import scaled_px
+from cdmw.ui.mesh_editor.elided_label import ElidedLabel
+from cdmw.ui.mesh_editor.live_texture_keeping import KEPT_TEXT
+from cdmw.ui.mesh_editor.shared_texture_check import CHECKING_TEXT
 
 LAUNCH_ORIGIN = "mesh_editor"
 EMPTY_TEXT = "Double-click a texture in the Textures panel to edit it here."
 #: The Texture Editor sections that edit the texture; the rest stay out.
 _SECTIONS = ("tool_settings_section", "layers_section", "adjustments_section", "history_section")
+#: The Mesh Editor's own Undo and Redo keys (the Rust editor's defaults for session.undo
+#: and session.redo in shortcuts.rs); keys the user gave those commands replace them.
+MESH_STEP_KEYS = {"undo": ("Ctrl+Z",), "redo": ("Ctrl+Shift+Z", "Ctrl+Y")}
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,14 +83,41 @@ def rgba_array_image(rgba: object) -> QImage:
     return image.copy()
 
 
-def shared_texture_notice(target: LiveTextureTarget) -> str:
-    if len(target.users) < 2:
+def panel_step_keys(settings: object) -> dict[str, tuple[str, ...]]:
+    """The keys that take an Undo or Redo step while the panel has focus: the Mesh
+    Editor's (as the user set them) and the Texture Editor's own. A key both commands
+    claim stays Undo's."""
+
+    from cdmw.domain.texture_editor_shortcuts import default_texture_editor_shortcuts
+
+    mesh: dict[str, list[str]] = {}
+    texture = default_texture_editor_shortcuts()
+    if settings is not None:
+        from cdmw.services.keymap_store import mesh_editor_overrides, texture_editor_keys
+
+        try:
+            mesh = mesh_editor_overrides(settings)
+            texture = texture_editor_keys(settings)
+        except (AttributeError, TypeError, ValueError):
+            pass
+    keys: dict[str, tuple[str, ...]] = {}
+    taken: set[str] = set()
+    for step, defaults in MESH_STEP_KEYS.items():
+        chosen = [*mesh.get(f"session.{step}", defaults), texture.get(step, "")]
+        normal = [QKeySequence(str(key)).toString() for key in chosen if str(key or "").strip()]
+        keys[step] = tuple(key for key in dict.fromkeys(normal) if key and key not in taken)
+        taken.update(keys[step])
+    return keys
+
+
+def shared_texture_notice(target: LiveTextureTarget | None) -> str:
+    if target is None or len(target.users) < 2:
         return ""
     return "This texture is shared. Edits change it on: " + ", ".join(target.users)
 
 
-def unseen_texture_notice(target: LiveTextureTarget) -> str:
-    if target.in_renderer:
+def unseen_texture_notice(target: LiveTextureTarget | None) -> str:
+    if target is None or target.in_renderer:
         return ""
     return ("The 3D view does not draw this file directly, so edits to it are not shown on "
             "the model while you paint. The file opens here so you can edit it.")
@@ -109,6 +149,13 @@ class MeshEditorTextureTools(QDockWidget):
         self.shared_history = None
         self.step_handler: Callable[[str], bool] | None = None
         self.stepping = False
+        self._step_shortcuts: list[QShortcut] = []
+        #: What the panel says, as plain text, shown or not (the bridge reads them).
+        self.notice_text = ""
+        self.sharing_text = ""
+        self.kept_text = ""
+        #: The Mesh Editor's UI font, once it has said which (``sync_ui_font``).
+        self._ui_font: QFont | None = None
 
         body = QWidget(self)
         body.setObjectName("MeshEditorTextureTools")
@@ -116,34 +163,44 @@ class MeshEditorTextureTools(QDockWidget):
         pad = scaled_px(4, body)
         layout.setContentsMargins(pad, pad, pad, pad)
         layout.setSpacing(scaled_px(4, body))
+        # The file name, with a marker when the texture is shared or not drawn live.
         self.header = QHBoxLayout()
+        self.header.setContentsMargins(0, 0, 0, 0)
         self.header.setSpacing(scaled_px(4, body))
+        self.warning_marker = QLabel(body)
+        self.warning_marker.setObjectName("MeshEditorTextureWarning")
+        self.warning_marker.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.warning_marker.setVisible(False)
+        self.header.addWidget(self.warning_marker)
         self.title_label = QLabel(EMPTY_TEXT, body)
         self.title_label.setObjectName("FlatSectionTitle")
         self.title_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.header.addWidget(self.title_label, 1)
         layout.addLayout(self.header)
-        self.notice = QLabel(body)
-        self.notice.setObjectName("WarningText")
-        self.notice.setWordWrap(True)
-        self.notice.setVisible(False)
-        layout.addWidget(self.notice)
-        # Which other game files use the opened texture (step 8, item 5).
-        self.sharing_label = QLabel(body)
-        self.sharing_label.setObjectName("WarningText")
-        self.sharing_label.setWordWrap(True)
-        self.sharing_label.setVisible(False)
-        layout.addWidget(self.sharing_label)
-        # Whether the edits are kept in the draft yet (step 8, item 3).
-        self.kept_label = QLabel(body)
-        self.kept_label.setObjectName("MeshEditorTextureKeptState")
-        self.kept_label.setWordWrap(True)
-        self.kept_label.setVisible(False)
-        layout.addWidget(self.kept_label)
         self.split = QSplitter(Qt.Orientation.Horizontal, body)
         self.split.setChildrenCollapsible(False)
         layout.addWidget(self.split, 1)
+        # One status line under the tools, as the Mesh Editor has: each text on one
+        # line, the whole of it in its tooltip.
+        self.status_bar = QWidget(body)
+        self.status_bar.setObjectName("MeshEditorTextureStatus")
+        status = QHBoxLayout(self.status_bar)
+        status.setContentsMargins(scaled_px(2, body), 0, scaled_px(2, body), 0)
+        status.setSpacing(scaled_px(12, body))
+        # Whether the edits are kept in the draft yet (step 8, item 3); not kept stands out.
+        self.kept_label = ElidedLabel(self.status_bar)
+        self.kept_label.setObjectName("HintLabel")
+        self.kept_label.setVisible(False)
+        status.addWidget(self.kept_label)
+        # Which other game files use the opened texture (step 8, item 5).
+        self.sharing_label = ElidedLabel(self.status_bar)
+        self.sharing_label.setObjectName("HintLabel")
+        self.sharing_label.setVisible(False)
+        status.addWidget(self.sharing_label, 1)
+        self.status_bar.setVisible(False)
+        layout.addWidget(self.status_bar)
         self.setWidget(body)
+        self._draw_warning_marker()
 
     # Opening -----------------------------------------------------------------
 
@@ -153,7 +210,7 @@ class MeshEditorTextureTools(QDockWidget):
         editor = self._ensure_editor()
         self.target = target
         self._targets[_target_key(target.source_path)] = target
-        self._show_notice(target)
+        self._show_warning_marker()
         self.title_label.setText(target.display_name)
         self.title_label.setToolTip(target.game_path or target.display_name)
         binding = TextureEditorSourceBinding(
@@ -173,10 +230,34 @@ class MeshEditorTextureTools(QDockWidget):
         self.raise_()
         self._widen_for_the_canvas()
 
-    def _show_notice(self, target: LiveTextureTarget) -> None:
-        notice = " ".join(text for text in (shared_texture_notice(target), unseen_texture_notice(target)) if text)
-        self.notice.setText(notice)
-        self.notice.setVisible(bool(notice))
+    def _sharing_is_a_warning(self) -> bool:
+        """What the sharing check found (other files, or that it could not tell); its
+        progress is only a status."""
+
+        return bool(self.sharing_text) and not self.sharing_text.startswith(CHECKING_TEXT.rstrip("."))
+
+    def _show_warning_marker(self) -> None:
+        """The marker by the file name, when the open texture is shared or not drawn
+        live or other game files use it; its tooltip says which, one line each."""
+
+        target = self.target
+        self.notice_text = " ".join(text for text in (shared_texture_notice(target), unseen_texture_notice(target))
+                                    if text)
+        found = self.sharing_text if self._sharing_is_a_warning() else ""
+        details = "\n".join(text for text in (shared_texture_notice(target), unseen_texture_notice(target), found)
+                            if text)
+        self.warning_marker.setToolTip(details)
+        self.warning_marker.setVisible(bool(details))
+
+    def _draw_warning_marker(self) -> None:
+        side = max(8, self.title_label.fontMetrics().height() - scaled_px(2, self))
+        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning)
+        self.warning_marker.setPixmap(icon.pixmap(QSize(side, side)))
+
+    def _show_status(self) -> None:
+        self.kept_label.setVisible(bool(self.kept_text))
+        self.sharing_label.setVisible(bool(self.sharing_text))
+        self.status_bar.setVisible(bool(self.kept_text or self.sharing_text))
 
     def set_shown_live_sources(self, sources: Iterable[str]) -> None:
         """The editor said which textures an edit shows on (B item 6): the open one's
@@ -187,7 +268,7 @@ class MeshEditorTextureTools(QDockWidget):
                          for key, target in self._targets.items()}
         if self.target is not None:
             self.target = dataclasses.replace(self.target, in_renderer=self.target.source_sha256.lower() in shown)
-            self._show_notice(self.target)
+            self._show_warning_marker()
 
     def _widen_for_the_canvas(self) -> None:
         """Docked beside the model, the tools take about 45 % of the editor's width (once)."""
@@ -206,14 +287,20 @@ class MeshEditorTextureTools(QDockWidget):
 
         if self.target is None or self.target.game_path.casefold() != str(game_path).casefold():
             return
-        self.sharing_label.setText(text)
-        self.sharing_label.setVisible(bool(text))
+        self.sharing_text = str(text or "")
+        self.sharing_label.setText(self.sharing_text)
+        _restyle(self.sharing_label, "WarningText" if self._sharing_is_a_warning() else "HintLabel")
+        self._show_warning_marker()
+        self._show_status()
 
     def set_kept_text(self, text: str) -> None:
-        """Say whether this document's texture edits are kept in its draft ("" hides it)."""
+        """Say whether this document's texture edits are kept in its draft ("" hides it).
+        Edits not kept yet stand out: closing asks about them first."""
 
-        self.kept_label.setText(text)
-        self.kept_label.setVisible(bool(text))
+        self.kept_text = str(text or "")
+        self.kept_label.setText(self.kept_text)
+        _restyle(self.kept_label, "WarningText" if self.kept_text and self.kept_text != KEPT_TEXT else "HintLabel")
+        self._show_status()
 
     def forget_session(self, session_id: str) -> None:
         """A document went away; its textures no longer reach a model."""
@@ -256,8 +343,8 @@ class MeshEditorTextureTools(QDockWidget):
             self.history_moved.emit()
 
     def _step(self, step: str) -> None:
-        """Undo or Redo here: the shared history's next step (mesh or texture), or this
-        texture's own when the dock is not joined to one."""
+        """Undo or Redo pressed here: the shared history's next step (mesh or texture),
+        or this texture's own when the dock is not joined to one."""
 
         handler = self.step_handler
         if callable(handler) and handler(step):
@@ -265,6 +352,51 @@ class MeshEditorTextureTools(QDockWidget):
         editor = self.editor
         if editor is not None:
             (editor.undo if step == "undo" else editor.redo)()
+
+    def _install_step_shortcuts(self) -> None:
+        """The Mesh Editor's Undo and Redo keys, and the Texture Editor's own, pressed
+        anywhere in the panel take the step (a text field keeps its own undo)."""
+
+        for shortcut in self._step_shortcuts:
+            shortcut.setEnabled(False)
+            shortcut.deleteLater()
+        self._step_shortcuts = []
+        for step, keys in panel_step_keys(self.settings).items():
+            for key in keys:
+                shortcut = QShortcut(QKeySequence(key), self)
+                shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+                shortcut.activated.connect(lambda s=step: self._step(s))
+                self._step_shortcuts.append(shortcut)
+
+    # Font --------------------------------------------------------------------
+
+    def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
+        """The Mesh Editor's UI font, whose size its Rust editor is sent, on the whole
+        panel: title, tools, their settings, Layers, Adjustments, History and the status
+        line. Lists take it too, not the app's data font, as in the Rust editor."""
+
+        _ = data_font
+        self._ui_font = QFont(font)
+        self._apply_ui_font()
+
+    def _apply_ui_font(self) -> None:
+        font = self._ui_font
+        if font is None:
+            return
+        for widget in (self, *self.findChildren(QWidget)):
+            if widget.font() != font or not widget.testAttribute(Qt.WidgetAttribute.WA_SetFont):
+                widget.setFont(font)
+        sync = getattr(self.editor, "sync_ui_font", None)
+        if callable(sync):
+            sync(QFont(font))  # its sizes that follow the font
+        self._fit_colour_fields()
+        self._draw_warning_marker()
+
+    def _fit_colour_fields(self) -> None:
+        for name in ("paint_color_edit", "secondary_color_edit"):
+            field = getattr(self.editor, name, None)
+            if field is not None:  # a whole hex colour stays readable
+                field.setMinimumWidth(field.fontMetrics().horizontalAdvance("#C8C8C8") + scaled_px(14, self))
 
     # Layout ------------------------------------------------------------------
 
@@ -278,6 +410,13 @@ class MeshEditorTextureTools(QDockWidget):
             signal.connect(self._on_patch)
         self.editor = editor
         self._lay_out(editor)
+        self._install_step_shortcuts()
+        from cdmw.ui.commands.registry import command_registry
+
+        registry = command_registry()
+        if registry is not None:  # a key changed in Settings > Shortcuts applies at once
+            registry.keymap_changed.connect(self._install_step_shortcuts)
+        self._apply_ui_font()
         return editor
 
     def _default_editor(self) -> QWidget:
@@ -286,18 +425,15 @@ class MeshEditorTextureTools(QDockWidget):
         return TextureEditorTab(settings=self.settings, base_dir=self.base_dir, get_png_root=lambda: "", parent=self)
 
     def _lay_out(self, editor: QWidget) -> None:
-        body = self.widget()
         for name, step in (("undo_button", "undo"), ("redo_button", "redo")):
             button = getattr(editor, name, None)
             if button is not None:
-                # Undo and Redo here take the shared history's next step (B item 4), so the
-                # editor's own connection to its texture-only undo is replaced.
+                # Not shown: the Mesh Editor's Undo and Redo cover texture edits (B item 4).
+                # Clicked by code all the same, they take the shared history's next step,
+                # so the editor's own connection to its texture-only undo is replaced.
                 if button.receivers("2clicked(bool)") > 0:
                     button.clicked.disconnect()
                 button.clicked.connect(lambda _checked=False, s=step: self._step(s))
-                button.setParent(body)
-                button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-                self.header.addWidget(button)
 
         rail = QWidget()
         rail.setObjectName("MeshEditorTextureRail")
@@ -322,10 +458,7 @@ class MeshEditorTextureTools(QDockWidget):
             form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
             form.setHorizontalSpacing(scaled_px(6, rail))
             form.setVerticalSpacing(scaled_px(3, rail))
-        for name in ("paint_color_edit", "secondary_color_edit"):
-            field = getattr(editor, name, None)
-            if field is not None:  # a whole hex colour stays readable
-                field.setMinimumWidth(field.fontMetrics().horizontalAdvance("#C8C8C8") + scaled_px(14, rail))
+        self._fit_colour_fields()
         for name in _SECTIONS:
             section = getattr(editor, name, None)
             if section is not None:
@@ -380,10 +513,22 @@ def _target_key(path: str) -> str:
     return str(Path(path)).casefold()
 
 
+def _restyle(label: QLabel, name: str) -> None:
+    """Give ``label`` the app stylesheet's look for ``name`` (muted, or a warning)."""
+
+    if label.objectName() == name:
+        return
+    label.setObjectName(name)
+    label.style().unpolish(label)
+    label.style().polish(label)
+
+
 __all__ = [
     "EMPTY_TEXT",
     "LiveTextureTarget",
+    "MESH_STEP_KEYS",
     "MeshEditorTextureTools",
+    "panel_step_keys",
     "rgba_array_image",
     "shared_texture_notice",
     "unseen_texture_notice",
