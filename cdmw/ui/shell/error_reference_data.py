@@ -29048,6 +29048,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "A custom painting has not been tested in the game. Check it there before sharing the mod.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 632
+    }
+  },
+  {
+    "area": "items",
     "message": "A dye mapping must use exact source and target submesh names.",
     "recovery": "input",
     "sources": {
@@ -29252,6 +29260,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/new_item_body_visibility.py": 211
+    }
+  },
+  {
+    "area": "items",
+    "message": "Add at least one painting.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 378
     }
   },
   {
@@ -29711,6 +29727,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/new_item/reward_editor.py": 163
+    }
+  },
+  {
+    "area": "items",
+    "message": "Choose a frame for the painting.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 226
     }
   },
   {
@@ -30466,6 +30490,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/services/new_item_rust_protocol.py": 118
+    }
+  },
+  {
+    "area": "items",
+    "message": "Icon registry: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 585
     }
   },
   {
@@ -33038,6 +33070,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The frame {mesh} is not one CDMW can use.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 226
+    }
+  },
+  {
+    "area": "items",
     "message": "The game archives have no {table} table.",
     "recovery": "internal",
     "sources": {
@@ -33050,6 +33090,70 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 257
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game has no StringInfo table for the icon names.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 574
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game has no file {path}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 142
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game has no icon registry ({ICON_REGISTRY_PATH}).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 579
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game has no {gimmick_path}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 606
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game has no {stem} table.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 455
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game tables have not been read yet. Read the archives first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 122
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game's housing groups have no {PICTURE_GROUP_NAME}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 251
+    }
+  },
+  {
+    "area": "items",
+    "message": "The gimmick names no prefab.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 240
     }
   },
   {
@@ -33242,6 +33346,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/new_item/controller_continue_mixin.py": 131
+    }
+  },
+  {
+    "area": "items",
+    "message": "The picture could not be encoded: CDMW's texture helper is not available.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 700
     }
   },
   {
@@ -33668,6 +33780,30 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/domain/new_item/rules.py": 267
+    }
+  },
+  {
+    "area": "items",
+    "message": "The {language} gimmick texts have no entry for {src.name}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 613
+    }
+  },
+  {
+    "area": "items",
+    "message": "The {language} item texts have no description for {src.name}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 601
+    }
+  },
+  {
+    "area": "items",
+    "message": "The {language} item texts have no entry for {src.name}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 596
     }
   },
   {
@@ -35306,6 +35442,54 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "its gimmick names another housing object",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 266
+    }
+  },
+  {
+    "area": "items",
+    "message": "its icon is not named after the item",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 278
+    }
+  },
+  {
+    "area": "items",
+    "message": "its item names another gimmick",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 271
+    }
+  },
+  {
+    "area": "items",
+    "message": "its material file names no mesh",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 288
+    }
+  },
+  {
+    "area": "items",
+    "message": "its painting {chosen.name} has no icon file",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 340
+    }
+  },
+  {
+    "area": "items",
+    "message": "its prefab names {len(pamis)} material files, not one",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 284
+    }
+  },
+  {
+    "area": "items",
     "message": "larger than 4 MiB",
     "recovery": "internal",
     "sources": {
@@ -36127,6 +36311,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "{label}: give the painting an English name.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 387
+    }
+  },
+  {
+    "area": "items",
+    "message": "{label}: unknown picture fit {request.fit}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 389
+    }
+  },
+  {
+    "area": "items",
     "message": "{launch.title} could not be continued: {exc}",
     "recovery": "internal",
     "sources": {
@@ -36196,6 +36396,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_tables.py": 46
+    }
+  },
+  {
+    "area": "items",
+    "message": "{name} is not a key in this row.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 233
     }
   },
   {
@@ -36304,6 +36512,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "{own.name}: the encoded picture is not {texture_plan.width} x {texture_plan.height}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 532
+    }
+  },
+  {
+    "area": "items",
+    "message": "{own.name}: the frame's prefab could not be copied: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 540
+    }
+  },
+  {
+    "area": "items",
     "message": "{part.name}: cannot prepare the source colour for translucency: {exc}",
     "recovery": "input",
     "sources": {
@@ -36364,6 +36588,14 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/new_item_planning.py": 284
+    }
+  },
+  {
+    "area": "items",
+    "message": "{path} already exists; a new painting must not overwrite it.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 446
     }
   },
   {
@@ -36452,6 +36684,22 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/domain/new_item/package_links.py": 137
+    }
+  },
+  {
+    "area": "items",
+    "message": "{root.name} has lost {path} of {painting.get('internal_name')}. Build the paintings into a new folder.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 681
+    }
+  },
+  {
+    "area": "items",
+    "message": "{root.name} holds another mod, or one CDMW has no record of. Choose an empty folder, or a painting mod CDMW made on this computer.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/services/new_item_painting.py": 674
     }
   },
   {
@@ -103816,6 +104064,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/new_item_effect_planning.py",
     "cdmw/services/new_item_effect_targets.py",
     "cdmw/services/new_item_materials.py",
+    "cdmw/services/new_item_painting.py",
     "cdmw/services/new_item_planning.py",
     "cdmw/services/new_item_rust_runtime.py",
     "cdmw/services/new_item_service.py",
@@ -107099,6 +107348,10 @@ SOURCE_COVERAGE = {
     "raise": 10
   },
   "cdmw/services/new_item_overlay_export.py": {},
+  "cdmw/services/new_item_painting.py": {
+    "diagnostic_field": 1,
+    "raise": 33
+  },
   "cdmw/services/new_item_panel_search.py": {},
   "cdmw/services/new_item_planning.py": {
     "diagnostic_field": 3,
