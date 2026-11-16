@@ -7771,6 +7771,9 @@ class RustMeshAuthoringSession:
         default=None, init=False, repr=False,
     )
     _profile_tree_tainted: bool = field(default=False, repr=False)
+    #: The document's one history for mesh and texture edits (B item 4), set by the tab;
+    #: every state sent to the editor merges it (``history_fields``).
+    shared_history: object | None = field(default=None, init=False, repr=False)
 
 
 

@@ -141,3 +141,16 @@ def test_the_dock_buttons_ask_the_editor_and_fall_back_to_the_texture():
 
 def test_target_keys_match_the_dock():
     assert _target_key(r"C:\t\ub_d.dds") == _target_key(r"C:\t\ub_d.dds")
+
+
+def test_the_real_authoring_session_takes_the_shared_history():
+    # B pass 2 (2026-11-16): the session class is a slotted dataclass, so a history the
+    # class did not declare could not be attached and the editor never opened.
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+
+    session = RustMeshAuthoringSession.__new__(RustMeshAuthoringSession)
+    tab = SimpleNamespace(_texture_tools_panel=lambda: None)
+    history = routing.attach_shared_history(tab, session)
+    assert session.shared_history is history is tab._shared_edit_history
+    view = SimpleNamespace(history_entries=[{"action": "transform", "label": "Move", "state": "applied"}])
+    assert session.history_fields(view)["history_entries"] == [{"action": "transform", "label": "Move"}]
