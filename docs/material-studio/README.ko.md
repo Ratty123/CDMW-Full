@@ -244,6 +244,18 @@
 - Archive Browser 상태에 기대지 않도록 바꿨다. Mesh Editor 세션이 닫힐 때, 검증된 재질 정보(해석된 재질 모델, 패키지 경로, 패키지 lease)를 버리지 않고 한 벌 보관한다(`_stash_reusable_archive_material_context`). 같은 모델(identity와 prepared_sha256이 같음)을 검증되지 않은 정보로 다시 열면 보관해 둔 것을 쓴다(`_take_reusable_archive_material_context`). lease를 쥐고 있으므로 패키지는 디스크에 남는다. 다른 세션이 닫히며 새로 보관하거나 프로그램이 종료될 때 이전 lease를 놓는다.
 - 참고: 두 세션 모두 디테일 높이(레이스) 텍스처가 shader mask로 전달되지 않았다. 정상 세션의 꽃무늬는 합성된 base 색에서 온 것이고, 실 굵기는 주름 맵만 반영했다. 이 부분은 다시 열기 문제가 해결된 뒤 따로 본다.
 
+### 남은 작업 일괄 진행 (2026-11-17 새벽)
+- **레이스 높이 텍스처 전달**: 정상 세션에서도 레이스 텍스처가 shader mask로 넘어가지 않았다. Archive Browser 모델의 텍스처 입력에는 원본 경로(`source_texture_path`)가 비어 있고 추출된 파일 경로만 있었는데, 코드는 원본 경로만 봤다. `source_inputs`가 추출 경로도 쓰도록 하고, 마스크 채널 판정은 해시가 앞에 붙은 이름(`a5793a…_temp_r.dds`)도 인식하게 했다.
+- **변위 배율 슬라이더**: 망사 재질의 필드에 `_screenSpaceDisplacementScale`("실 굵기 배율", ItemID 3)과 `_detailScreenSpaceDisplacementScale`("레이스 강도", ItemID 3900249546424318)를 추가했다. 칸 배치가 바뀌었다: 4 pitch, 5 thread, 6 glow, 7 sheen, 8 uvScale, 9 실 굵기 배율, 10 레이스 강도, 11–13 색, 14 색 알파, 15 레이어 켜짐, 16 opacity × mask, 17–20 Transform, 21 회전, 22 overlay 알파. 디테일 레이어가 있는 망사에서만 두 슬라이더가 보이고 그때만 행을 쓴다. 프리셋 저장도 보이지 않는 필드는 넣지 않는다.
+- **선택 강조 단축키**: Shift+H(키보드 단축키 창에서 변경 가능)로 선택 강조를 언제든 숨기거나 표시한다. 선택 상태는 그대로다.
+- **하지 않은 것과 이유**
+  - Transform(반복·오프셋·회전) 편집: `_dyeingTransformProperty*`와 `_dyeingPropertyBlend`는 채널 세 개가 한 행에 묶인 Byte4라, 기존 필드 구조(32칸, 필드 하나 = 행 하나의 숫자)로는 넣을 수 없다. 별도 편집 구조가 필요하다.
+  - 체커 배경: 뷰포트 배경은 단색 clear라서 렌더 패스를 새로 만들어야 한다.
+  - 선택 외곽선: 렌더러에 외곽선 그리기가 없다. 숨기기와 단축키로 대신한다.
+  - 텍스처 채널 보기: 편집기의 보기 모드(Base Color, Base Alpha, Normal Map, Layer Mask)가 이미 있어 새로 만들지 않았다.
+  - 모델 선택 창 썸네일, 전용 "재질 편집" 화면: 범위가 커서 하지 않았다.
+  - Create New Item 화면의 망사 필드 목록에도 새 슬라이더 두 개가 보인다. 그 화면의 재질에는 디테일 레이어가 없어 저장할 때 쓰이지 않는다.
+
 ## 남긴 결정 사항
 
 1. `_screenSpaceDisplacementScale`은 슬라이더로 추가하지 않았다. 유일한 근거인 Angel Teddy 모드가 이 행에 작은 ItemID 3을 쓰는데, 작은 ID의 규칙이 밝혀지지 않았다. 다만 Glass를 "다시 쓰기"로 만들면 그 모드의 구성대로 이 행(ItemID 3)을 넣는다. 원본에 값이 있으면 그 값을, 없으면 0을 쓴다.
