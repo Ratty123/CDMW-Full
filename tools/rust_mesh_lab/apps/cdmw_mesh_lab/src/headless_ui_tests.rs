@@ -9034,7 +9034,7 @@ fn settled_shader_actions(ui: &mut HeadlessUi) -> Vec<UiAction> {
 }
 
 fn veil_shader_state() -> Value {
-    let base = [11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 0.851, 0.851, 0.851, 1.0];
+    let base = [11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 1.0, 0.0, 0.851, 0.851, 0.851, 1.0];
     let mut preview_base = vec![0.0; 32];
     preview_base[..base.len()].copy_from_slice(&base);
     json!({"available": true, "static": false,
@@ -9045,6 +9045,8 @@ fn veil_shader_state() -> Value {
                 {"name": "_glow", "label": "Backlight glow", "default": [0.65], "minimum": 0.0, "maximum": 1.0, "integer": false},
                 {"name": "_sheen", "label": "Sheen", "default": [0.22], "minimum": 0.0, "maximum": 1.0, "integer": false},
                 {"name": "_uvScale", "label": "Thread map scale", "default": [1.0], "minimum": 0.0, "maximum": 1.0, "integer": false},
+                {"name": "_screenSpaceDisplacementScale", "label": "Thread width scale", "default": [1.0], "minimum": 0.0, "maximum": 4.0, "integer": false},
+                {"name": "_detailScreenSpaceDisplacementScale", "label": "Lace strength", "default": [0.0], "minimum": 0.0, "maximum": 4.0, "integer": false},
                 {"name": "_dyeingColor", "label": "Veil colour RGB", "default": [1.0, 1.0, 1.0], "minimum": 0.0, "maximum": 1.0, "integer": false}],
             "presets": [{"label": "Wedding veil A", "values": {"_netPitch": [0.334], "_netThread": [0.538], "_glow": [0.443], "_sheen": [0.625]}}]}],
         "parts": [{"index": 1, "id": "b", "name": "Part B", "shader_controls": null,
@@ -9257,8 +9259,7 @@ fn shader_panel_shows_a_layered_veils_values_and_hides_the_rows_it_does_not_read
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
     let mut state = veil_shader_state();
     state["parts"][0]["preview_warning"] = json!("layered_veil");
-    state["parts"][0]["veil_layers"] = json!({"channel": "R", "displacement": 1.0, "displacement_authored": false,
-        "detail_displacement": 1.732051, "gain": 1.0, "repeat": [5.667, 5.667], "offset": [0.0, 0.0],
+    state["parts"][0]["veil_layers"] = json!({"channel": "R", "gain": 1.0, "repeat": [5.667, 5.667], "offset": [0.0, 0.0],
         "rotation_degrees": -180.0, "overlay_alpha": 1.0, "detail_texture": "character/texture/cd_phw_00_hel_00_0219_disp.dds"});
     // The patched veil declares neither row.
     for name in ["_uvScale", "_dyeingColor"] {
@@ -9272,10 +9273,10 @@ fn shader_panel_shows_a_layered_veils_values_and_hides_the_rows_it_does_not_read
     assert!(shows(&ui, "This net veil uses detail layers"));
     assert!(shows(&ui, "Net spacing"));
     assert!(!shows(&ui, "Thread map scale") && !shows(&ui, "Veil colour RGB"));
+    // The two displacement scales are sliders on a layered veil only.
+    assert!(shows(&ui, "Thread width scale") && shows(&ui, "Lace strength"));
     ui.click("Detail layer values (read only)")?;
     ui.settle_layout();
-    assert!(shows(&ui, "Displacement scale (no row in this material; 1 is assumed): 1.000"));
-    assert!(shows(&ui, "Detail displacement scale: 1.732"));
     assert!(shows(&ui, "Detail repeat: 5.67 x 5.67"));
     assert!(shows(&ui, "Detail rotation (degrees): -180.0"));
     // The veil before the patch keeps both rows and has no note.
@@ -9283,19 +9284,21 @@ fn shader_panel_shows_a_layered_veils_values_and_hides_the_rows_it_does_not_read
     ui.settle_layout();
     assert!(!shows(&ui, "This net veil uses detail layers"));
     assert!(shows(&ui, "Thread map scale") && shows(&ui, "Veil colour RGB"));
+    assert!(!shows(&ui, "Thread width scale") && !shows(&ui, "Lace strength"));
 
     // A rewrite to the older layout previews without the detail layers.
     let family = json!({"shader": "SkinnedMeshTransparency", "fields": []});
     let mut base = vec![0.0; 32];
     base[0] = 11.0;
-    base[13] = 1.0;
-    base[15] = 1.732;
+    base[10] = 1.732;
+    base[15] = 1.0;
+    base[16] = 1.0;
     let row = json!({"preview_base": {"SkinnedMeshTransparency": base}});
     let kept = crate::cdmw_shader_controls::shader_live_factors(&row, &family, &json!({"shader": "SkinnedMeshTransparency", "values": {}})).unwrap();
-    assert_eq!((kept[13], kept[15]), (1.0, 1.732));
+    assert_eq!((kept[10], kept[15], kept[16]), (1.732, 1.0, 1.0));
     let rebuilt = crate::cdmw_shader_controls::shader_live_factors(&row, &family,
         &json!({"shader": "SkinnedMeshTransparency", "values": {}, "rebuild": true})).unwrap();
-    assert_eq!((rebuilt[13], rebuilt[15]), (0.0, 0.0));
+    assert_eq!((rebuilt[10], rebuilt[15], rebuilt[16]), (1.732, 0.0, 0.0));
     Ok(())
 }
 
@@ -9370,7 +9373,7 @@ fn shader_controls_open_on_the_source_values_preview_live_and_commit_on_release(
     // The viewport follows at once: only the edited lane changes.
     let live = ui.application.cdmw_shader_live_preview.get(&1).copied().ok_or("live preview")?;
     assert_eq!(&live[..9], &[11.0, 1.0, 0.0, 0.0, 0.3, 0.5, 0.516, 0.901, 0.27]);
-    assert_eq!(live[12], 1.0);
+    assert_eq!(live[14], 1.0);
     // After the control rests, the host receives exactly one override.
     let actions = settled_shader_actions(&mut ui);
     assert!(actions.iter().any(|action| matches!(action,
@@ -9422,11 +9425,11 @@ fn shader_live_factors_replace_only_edited_lanes() {
     let state = veil_shader_state();
     let (row, family) = (&state["parts"][0], &state["catalogue"][0]);
     let untouched = crate::cdmw_shader_controls::shader_live_factors(row, family, &json!({"shader": "SkinnedMeshTransparency", "values": {}})).unwrap();
-    assert_eq!(&untouched[..13], &[11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 0.851, 0.851, 0.851, 1.0]);
-    // A three-lane colour starts after the five scalar fields; the alpha lane after it is kept.
+    assert_eq!(&untouched[..15], &[11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 1.0, 0.0, 0.851, 0.851, 0.851, 1.0]);
+    // A three-lane colour starts after the seven scalar fields; the alpha lane after it is kept.
     let dyed = crate::cdmw_shader_controls::shader_live_factors(row, family, &json!({"shader": "SkinnedMeshTransparency",
         "values": {"_dyeingColor": [0.25, 0.5, 0.75], "_netPitch": [7.0]}})).unwrap();
-    assert_eq!(&dyed[4..13], &[1.0, 0.727, 0.516, 0.901, 0.27, 0.25, 0.5, 0.75, 1.0]);
+    assert_eq!(&dyed[4..15], &[1.0, 0.727, 0.516, 0.901, 0.27, 1.0, 0.0, 0.25, 0.5, 0.75, 1.0]);
     // Painted masks and families without a host base cannot be previewed locally.
     assert!(crate::cdmw_shader_controls::shader_live_factors(row, family, &json!({"shader": "SkinnedMeshTransparency", "values": {}, "cutout_mask": {}})).is_none());
     assert!(crate::cdmw_shader_controls::shader_live_factors(&json!({"preview_base": {}}), family, &json!({"shader": "SkinnedMeshTransparency", "values": {}})).is_none());

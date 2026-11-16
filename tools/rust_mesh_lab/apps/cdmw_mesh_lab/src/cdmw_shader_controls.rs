@@ -54,7 +54,7 @@ pub(crate) fn shader_live_factors(row: &Value, family: &Value, value: &Value) ->
     }
     if value["rebuild"].as_bool() == Some(true) && factors[0] == 11.0 {
         // Rewriting a net veil to the older layout drops its detail layers.
-        factors[13..23].fill(0.0);
+        factors[15..23].fill(0.0);
     }
     Some(factors)
 }
@@ -241,8 +241,13 @@ impl LabApplication {
                                 "Saves every value shown below under this name on this computer. A preset of the same name is replaced."))
                             .clicked() {
                             let authored = variants.get(variant).map(|row| &row["fields"][shader.as_str()]);
+                            let layered = veil_reads_detail_layers(rows.first().copied(), &shader, &value);
                             let shown = family["fields"].as_array().into_iter().flatten().filter_map(|field| {
                                 let field_name = field["name"].as_str()?;
+                                if veil_field_unread(&shader, field_name, layered)
+                                    && !authored.is_some_and(|fields| fields[field_name].is_array()) {
+                                    return None; // Not shown, so not part of "every value shown".
+                                }
                                 let numbers = [&value["values"][field_name], authored.map_or(&Value::Null, |fields| &fields[field_name]),
                                     &field["default"]].into_iter().find(|numbers| numbers.is_array())?.clone();
                                 Some((field_name.to_owned(), numbers))
@@ -279,19 +284,12 @@ impl LabApplication {
                     }
                     let authored = variants.get(variant).map(|row| &row["fields"][shader.as_str()]);
                     // A net veil with Ver2 detail layers, unless it is rewritten to the older layout.
-                    let veil_layers = rows.first().map(|row| &row["veil_layers"]).filter(|layers| layers.is_object()
-                        && shader.as_str() == "SkinnedMeshTransparency" && value["rebuild"].as_bool() != Some(true));
+                    let veil_layers = rows.first().map(|row| &row["veil_layers"])
+                        .filter(|_| veil_reads_detail_layers(rows.first().copied(), &shader, &value));
                     if let Some(layers) = veil_layers {
                         let number = |key: &str| layers[key].as_f64().unwrap_or(0.0);
                         let pair = |key: &str| (layers[key][0].as_f64().unwrap_or(0.0), layers[key][1].as_f64().unwrap_or(0.0));
                         crate::localization::collapsing("Detail layer values (read only)").id_salt("shader_veil_layers").show(ui, |ui| {
-                            let displacement = if layers["displacement_authored"].as_bool() == Some(true) {
-                                crate::localization::tr("Displacement scale")
-                            } else {
-                                crate::localization::tr("Displacement scale (no row in this material; 1 is assumed)")
-                            };
-                            ui.small(format!("{displacement}: {:.3}", number("displacement")));
-                            ui.small(format!("{}: {:.3}", crate::localization::tr("Detail displacement scale"), number("detail_displacement")));
                             ui.small(format!("{}: {}", crate::localization::tr("Detail channel"), layers["channel"].as_str().unwrap_or("")));
                             ui.small(format!("{}: {:.2} x {:.2}", crate::localization::tr("Detail repeat"), pair("repeat").0, pair("repeat").1));
                             ui.small(format!("{}: {:.3}, {:.3}", crate::localization::tr("Detail offset"), pair("offset").0, pair("offset").1));
@@ -305,7 +303,7 @@ impl LabApplication {
                         let declared = authored.map(|fields| &fields[name]).filter(|numbers| numbers.is_array());
                         let original = declared.unwrap_or(&field["default"]).clone();
                         let overridden = value["values"][name].is_array();
-                        if veil_layers.is_some() && matches!(name, "_uvScale" | "_dyeingColor") && declared.is_none() {
+                        if veil_field_unread(&shader, name, veil_layers.is_some()) && declared.is_none() {
                             continue;
                         }
                         let mut numbers = if overridden { value["values"][name].clone() } else { original.clone() };
@@ -513,5 +511,21 @@ impl LabApplication {
                 data.insert_temp(variant_key, variant);
             });
         });
+    }
+}
+
+/// A net veil part that draws Ver2 detail layers, unless it is being rewritten to the older layout.
+fn veil_reads_detail_layers(row: Option<&Value>, shader: &str, value: &Value) -> bool {
+    shader == "SkinnedMeshTransparency" && value["rebuild"].as_bool() != Some(true)
+        && row.is_some_and(|row| row["veil_layers"].is_object())
+}
+
+/// A layered veil does not read the map scale or the colour; any other veil
+/// does not read the two displacement scales.
+fn veil_field_unread(shader: &str, name: &str, layered: bool) -> bool {
+    shader == "SkinnedMeshTransparency" && if layered {
+        matches!(name, "_uvScale" | "_dyeingColor")
+    } else {
+        matches!(name, "_screenSpaceDisplacementScale" | "_detailScreenSpaceDisplacementScale")
     }
 }

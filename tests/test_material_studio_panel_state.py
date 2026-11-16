@@ -5,6 +5,7 @@ different numbers) decoded on 2026-11-12.
 """
 from types import SimpleNamespace
 
+from cdmw.domain.mesh.shader_controls import VEIL_LAYER_FIELDS
 from cdmw.domain.mesh.shader_controls import (BLENDED_FAMILIES, ShaderControls, authored_field_numbers,
                                              authored_values_payload, catalogue_payload, family_for,
                                              preview_factors)
@@ -53,8 +54,8 @@ def test_preview_base_is_the_vector_the_viewport_already_draws():
     row = _shader_source_options(session(part))[0]
     assert row["shader_options"]["SkinnedMeshTransparency"] == ""
     assert tuple(row["preview_base"]["SkinnedMeshTransparency"]) == tuple(authored_blended_factors(part))
-    assert row["preview_base"]["SkinnedMeshTransparency"][:13] == [
-        11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 217 / 255, 217 / 255, 217 / 255, 1.0]
+    assert row["preview_base"]["SkinnedMeshTransparency"][:15] == [
+        11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 1.0, 0.0, 217 / 255, 217 / 255, 217 / 255, 1.0]
     # Families the source cannot become have no live-preview base.
     assert "Dissolve" not in row["preview_base"]
 
@@ -62,6 +63,8 @@ def test_preview_base_is_the_vector_the_viewport_already_draws():
 def test_one_parser_feeds_the_panel_and_the_renderer():
     veil = family_for("SkinnedMeshTransparency")
     for field in veil.fields:
+        if field.name in VEIL_LAYER_FIELDS:  # Declared by a veil with detail layers only.
+            continue
         shown = authored_field_numbers(field, VEIL_B.get(field.name))
         assert shown is not None
         offset = 4 + sum(len(other.default) for other in veil.fields[:veil.fields.index(field)])

@@ -43,37 +43,41 @@ def test_the_patched_cloth_lays_out_its_detail_layer_lanes():
     assert veil_layer_texture(layers, CLOTH_TEXTURES).endswith("cd_phw_00_hel_00_0219_disp.dds")
     result = factors(CLOTH_VALUES, CLOTH_TEXTURES)
     assert result[:8] == pytest.approx((11.0, 1.0, 0.0, 0.0, 0.142, 0.275, 0.516, 0.901))
-    # On, displacement 1 (no row), detail displacement, opacity x mask, scale, offset, half turn, overlay alpha.
-    assert result[13:23] == pytest.approx((1.0, 1.0, 1.732051, 1.0, 45 / 255, 45 / 255, 0.0, 0.0, -math.pi, 1.0))
-    assert len(result) == 32 and result[23:30] == (0.0,) * 7
+    # Map scale, displacement 1 (no row), detail displacement, colour and its alpha.
+    assert result[8:15] == pytest.approx((1.0, 1.0, 1.732051, 1.0, 1.0, 1.0, 1.0))
+    # On, opacity x mask, scale, offset, half turn, overlay alpha.
+    assert result[15:23] == pytest.approx((1.0, 1.0, 45 / 255, 45 / 255, 0.0, 0.0, -math.pi, 1.0))
+    assert len(result) == 32 and tuple(result[23:30]) == (0.0,) * 7
 
 
 def test_the_01_part_has_the_layer_but_no_detail_displacement():
     result = factors(PART_01_VALUES, {**CLOTH_TEXTURES, "_detailHeightMaskR": TEXTURE + "cd_phw_00_hel_00_0219_01_disp.dds"})
-    assert result[13:23] == pytest.approx((1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, -math.pi, 1.0))
+    assert result[9:11] == pytest.approx((1.0, 0.0))
+    assert result[15:23] == pytest.approx((1.0, 1.0, 1.0, 1.0, 0.0, 0.0, -math.pi, 1.0))
 
 
 def test_the_veil_before_the_patch_and_other_shaders_are_unchanged():
     assert veil_layer_inputs(VEIL, BEFORE, BEFORE_TEXTURES) == {}
     result = factors(BEFORE, BEFORE_TEXTURES)
-    assert result[:13] == pytest.approx((11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 217 / 255, 217 / 255, 217 / 255, 1.0))
-    assert result[13:] == (0.0,) * 19
+    assert result[:15] == pytest.approx((11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 1.0, 0.0,
+                                         217 / 255, 217 / 255, 217 / 255, 1.0))
+    assert tuple(result[15:]) == (0.0,) * 17
     # The same rows on another shader never switch the veil lanes on.
     assert veil_layer_inputs("SkinnedMeshGlass", CLOTH_VALUES, CLOTH_TEXTURES) == {}
     glass = preview_factors(ShaderControls("SkinnedMeshGlass"), CLOTH_VALUES)
-    assert glass[0] == 10.0 and glass[12:] == (0.0,) * 20
+    assert glass[0] == 10.0 and tuple(glass[12:]) == (0.0,) * 20
 
 
 @pytest.mark.parametrize("values, textures, expected", [
     # Definition defaults for absent rows: opacity 0, rotation byte 128.
     ({"_colorBlendingFlag": "13"}, {"_detailHeightMaskR": "a.dds"},
-     (1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 128 / 255 * 2 * math.pi - math.pi, 1.0)),
+     (1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 128 / 255 * 2 * math.pi - math.pi, 1.0)),
     # The mask texture names the channel; G takes its own transform, opacity byte and rotation byte.
     ({"_dyeingGlobalOpacity": str(128 << 8), "_dyeingTransformProperty1": str(51 | 102 << 8 | 26 << 16 | 13 << 24),
       "_dyeingPropertyBlend": str(191 << 8), "_screenSpaceDisplacementScale": "0.5", "_detailScreenSpaceDisplacementScale": "0.25"},
      {"_colorBlendingMaskTexture": "character/texture/Temp_G.dds", "_detailHeightMaskR": "r.dds", "_detailHeightMaskG": "g.dds",
       "_overlayColorTexture": "texture/nonetexture0x80ffffff.dds"},
-     (1.0, 0.5, 0.25, 128 / 255, 0.2, 0.4, 26 / 255, 13 / 255, 191 / 255 * 2 * math.pi - math.pi, 128 / 255)),
+     (1.0, 128 / 255, 0.2, 0.4, 26 / 255, 13 / 255, 191 / 255 * 2 * math.pi - math.pi, 128 / 255)),
 ])
 def test_rows_are_decoded_per_channel_with_the_definitions_defaults(values, textures, expected):
     layers = veil_layer_inputs(VEIL, values, textures)
@@ -83,8 +87,11 @@ def test_rows_are_decoded_per_channel_with_the_definitions_defaults(values, text
 
 
 def reference_thread(net_thread, base_height, detail_height, lanes, uv=(0.5, 0.5), back=False, spacing=1.0):
-    """The shader's thread width and detail UV, written out from the DXIL."""
-    _, displacement, detail_scale, gain, scale_x, scale_y, offset_x, offset_y, angle, _ = lanes
+    """The shader's thread width and detail UV, written out from the DXIL.
+
+    ``lanes`` are 9-22: the two displacement scales, the colour, then the layer lanes."""
+    displacement, detail_scale = lanes[0], lanes[1]
+    _, gain, scale_x, scale_y, offset_x, offset_y, angle, _ = lanes[6:]
     qx = (uv[0] - 0.5 - offset_x) / scale_x
     qy = (uv[1] - 0.5 + offset_y) / scale_y
     detail_uv = (qx * math.cos(angle) - qy * math.sin(angle) + 0.5, qx * math.sin(angle) + qy * math.cos(angle) + 0.5)
@@ -93,7 +100,7 @@ def reference_thread(net_thread, base_height, detail_height, lanes, uv=(0.5, 0.5
 
 
 def test_the_formula_the_lanes_feed():
-    lanes = factors(CLOTH_VALUES, CLOTH_TEXTURES)[13:23]
+    lanes = factors(CLOTH_VALUES, CLOTH_TEXTURES)[9:23]
     width, detail_uv = reference_thread(0.275, 0.5, 1.0, lanes, uv=(0.6, 0.3))
     assert width == pytest.approx(0.275 * 0.0003 * (0.5 + 1.732051))
     # A half turn at 5.67 repeats: the offset from the centre is mirrored and scaled.
@@ -101,10 +108,10 @@ def test_the_formula_the_lanes_feed():
     assert reference_thread(0.275, 0.5, 1.0, lanes, back=True)[0] == pytest.approx(4 * width)
     assert reference_thread(0.275, 0.5, 1.0, lanes, back=True, spacing=1e-4)[0] == 1e-4
     # No opacity, or no detail displacement, leaves the base height alone.
-    without = veil_layer_factors({"_cdmwVeilLayers": "r", "_detailScreenSpaceDisplacementScale": "1.7"})
+    without = (1.0, 1.7, 1, 1, 1, 1, *veil_layer_factors({"_cdmwVeilLayers": "r"}))
     assert reference_thread(0.275, 0.5, 1.0, without)[0] == pytest.approx(0.275 * 0.0003 * 0.5)
     # A quarter turn and a Y offset follow u' = qx cos - qy sin, v' = qx sin + qy cos with qy = v - 0.5 + Oy.
-    quarter = (1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.25, math.pi / 2, 1.0)
+    quarter = (1.0, 0.0, 1, 1, 1, 1, 1.0, 1.0, 1.0, 1.0, 0.0, 0.25, math.pi / 2, 1.0)
     assert reference_thread(1.0, 0.0, 0.0, quarter, uv=(0.75, 0.5))[1] == pytest.approx((0.25, 0.75))
 
 
@@ -165,6 +172,25 @@ def test_the_writer_does_not_add_the_rows_the_patched_veil_no_longer_reads():
     assert "_uvScale" not in values and "_dyeingColor" not in values
     assert textures["_detailHeightMaskR"].endswith("0219_disp.dds")
     assert veil_layer_inputs(VEIL, values, textures)
+
+
+def test_the_two_displacement_scales_are_written_to_a_layered_veil_only():
+    scales = (("_screenSpaceDisplacementScale", (0.8,)), ("_detailScreenSpaceDisplacementScale", (2.5,)))
+    edited, _ = rewrite_shader_controls(LAYERED_VEIL, (("veil", ShaderControls(VEIL, scales)),))
+    _, values, textures = control_material_sources(edited)["veil"]
+    assert values["_screenSpaceDisplacementScale"].startswith("0.8")
+    assert values["_detailScreenSpaceDisplacementScale"].startswith("2.5")
+    assert 'StringItemID="_screenSpaceDisplacementScale" ItemID="3"' in edited
+    assert 'StringItemID="_detailScreenSpaceDisplacementScale" ItemID="3900249546424318"' in edited
+    result = preview_factors(ShaderControls(VEIL), {**values, **veil_layer_inputs(VEIL, values, textures)})
+    assert result[9:11] == pytest.approx((0.8, 2.5))
+    # An edit previews in the same lanes without being written first.
+    live = preview_factors(ShaderControls(VEIL, scales), {**CLOTH_VALUES, **veil_layer_inputs(VEIL, CLOTH_VALUES, CLOTH_TEXTURES)})
+    assert live[9:11] == pytest.approx((0.8, 2.5))
+    before = LAYERED_VEIL.replace(texture_row("_detailHeightMaskR", "9", 1, "cd_phw_00_hel_00_0219_disp.dds"), "").replace(
+        '<MaterialParameterUint StringItemID="_colorBlendingFlag" ItemID="11" _name="_colorBlendingFlag" _value="13" Index="2"/>', "")
+    edited, _ = rewrite_shader_controls(before, (("veil", ShaderControls(VEIL, (*scales, ("_netPitch", (0.2,))))),))
+    assert "DisplacementScale" not in edited and control_material_sources(edited)["veil"][1]["_netPitch"].startswith("0.2")
 
 
 def test_the_veil_before_the_patch_still_takes_both_rows():
@@ -263,7 +289,7 @@ def test_an_archive_part_bound_by_extracted_files_alone_still_gets_its_detail_te
     height, detail = authored_veil_layer_textures(part)
     assert height.source_dds_path.endswith("_cd_phw_00_hel_00_0219_02_disp.dds")
     assert detail.parameter_name == "_detailHeightMaskR" and detail.source_dds_path.endswith("_0219_disp.dds")
-    assert authored_blended_factors(part)[13:23] == pytest.approx(factors(CLOTH_VALUES, CLOTH_TEXTURES)[13:23])
+    assert authored_blended_factors(part)[9:23] == pytest.approx(factors(CLOTH_VALUES, CLOTH_TEXTURES)[9:23])
     # The hashed mask name still names its channel, and a hashed constant overlay its alpha.
     layers = veil_layer_inputs(VEIL, {"_colorBlendingFlag": "13"}, {
         "_colorBlendingMaskTexture": "C:/cache/11_temp_g.dds", "_detailHeightMaskR": "r.dds", "_detailHeightMaskG": "g.dds",

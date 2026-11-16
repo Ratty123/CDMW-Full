@@ -639,11 +639,11 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             let path = 1.0 + shader_value(5u) * (1.0 / max(abs(layer_ndotv), 0.01) - 1.0);
             material_alpha = clamp(1.0 - exp(path * log(max(1.0 - straight, 1e-6))), 0.0, 1.0);
         } else {
-            // Lane 13 marks the veil with Ver2 detail layers (November 2026 patch).
-            let veil_layers = shader_value(13u) > 0.5;
+            // Lane 15 marks the veil with Ver2 detail layers (November 2026 patch).
+            let veil_layers = shader_value(15u) > 0.5;
             if !veil_layers {
                 // The veil before the patch samples its colour map without sRGB decoding.
-                let dye = srgb_to_linear(vec3<f32>(shader_value(9u), shader_value(10u), shader_value(11u)));
+                let dye = srgb_to_linear(vec3<f32>(shader_value(11u), shader_value(12u), shader_value(13u)));
                 texel = vec4<f32>(linear_to_srgb(texel.rgb) * dye, texel.a);
             }
             let uv_dx = dpdx(sample_uv);
@@ -656,10 +656,10 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
                     thread_scale = textureSample(height_texture, material_sampler, sample_uv).r;
                 }
                 if shader_has_mask {
-                    thread_scale += shader_value(16u) * shader_value(15u)
+                    thread_scale += shader_value(16u) * shader_value(10u)
                         * textureSample(skin_detail_mask_texture, material_sampler, veil_detail_uv(sample_uv)).r;
                 }
-                thread_scale *= shader_value(14u);
+                thread_scale *= shader_value(9u);
             } else if (material.flags & MATERIAL_HEIGHT) != 0u {
                 thread_scale = textureSample(height_texture, material_sampler, sample_uv / max(shader_value(8u), 0.0001)).r;
             }
@@ -681,7 +681,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
                 layered_colour_coverage = clamp(shader_value(22u) * (1.0 - exp(path * log(1.0 - coverage))), 0.0, 1.0);
                 material_alpha = layered_colour_coverage * 0.99;
             } else {
-                layered_colour_coverage = clamp(shader_value(12u) * base_alpha * (1.0 - exp(path * log(1.0 - coverage))), 0.0, 1.0);
+                layered_colour_coverage = clamp(shader_value(14u) * base_alpha * (1.0 - exp(path * log(1.0 - coverage))), 0.0, 1.0);
                 // Colour is premultiplied by coverage, blend alpha by 30% (front) or
                 // 70% (back) of it, so a veil lightens more than it hides.
                 material_alpha = layered_colour_coverage * select(0.2998046875, 0.7001953125, back);
@@ -4567,13 +4567,13 @@ fn validate_material_factor_ownership(
         // Layered glass: opacity, edge, roughness, IOR 1-2.5, RGB and colour alpha.
         || (v[0] == 10.0 && (v[4..7].iter().chain(&v[8..12]).any(|n| !(0.0..=1.0).contains(n))
             || !(1.0..=2.5).contains(&v[7])))
-        // Veil: pitch, thread, glow, sheen, map scale, RGB and colour alpha. With
-        // Ver2 detail layers: on, two displacement scales, opacity x mask, UV
+        // Veil: pitch, thread, glow, sheen, map scale, two displacement scales,
+        // RGB and colour alpha. With Ver2 detail layers: on, opacity x mask, UV
         // scale and offset, rotation, overlay alpha.
-        || (v[0] == 11.0 && (v[4..13].iter().any(|n| !(0.0..=1.0).contains(n))
-            || !matches!(v[13], 0.0 | 1.0)
-            || (v[13] == 1.0 && (v[14..16].iter().any(|n| !(0.0..=64.0).contains(n))
-                || [v[16], v[19], v[20], v[22]].iter().any(|n| !(0.0..=1.0).contains(n))
+        || (v[0] == 11.0 && (v[4..9].iter().chain(&v[11..15]).any(|n| !(0.0..=1.0).contains(n))
+            || v[9..11].iter().any(|n| !(0.0..=4.0).contains(n))
+            || !matches!(v[15], 0.0 | 1.0)
+            || (v[15] == 1.0 && ([v[16], v[19], v[20], v[22]].iter().any(|n| !(0.0..=1.0).contains(n))
                 || v[17..19].iter().any(|n| *n <= 0.0 || *n > 1.0)
                 || v[21].abs() > std::f32::consts::PI + 1e-5))))
         || (v[0] == 7.0 && (!(0.0..=1.0).contains(&v[4])
@@ -9539,8 +9539,8 @@ fn create_material_bind_group(
     let layered = factors.shader_controls.is_some_and(|v| matches!(v[0] as u32, 10 | 11));
     let translucency = material_translucency_uniform(factors);
     let translucent = translucency[2] > 0.5 && !eye_cover;
-    // The veil with Ver2 detail layers (lane 13) reads its detail height from the mask slot.
-    let veil_layers = factors.shader_controls.is_some_and(|v| v[0] == 11.0 && v[13] > 0.5);
+    // The veil with Ver2 detail layers (lane 15) reads its detail height from the mask slot.
+    let veil_layers = factors.shader_controls.is_some_and(|v| v[0] == 11.0 && v[15] > 0.5);
     let skin_detail_mask_view = material_texture_view(textures,
         if effect || veil_layers { indices.shader_mask } else { indices.skin_detail_mask }, &defaults.layer_mask);
     let skin_detail_normal_view =
@@ -11073,7 +11073,7 @@ mod tests {
         let mut glass = [0.0; 32];
         glass[..12].copy_from_slice(&[10.0, 1.0, 0.0, 0.0, 0.267, 0.191, 0.087, 1.68, 0.933, 0.949, 0.937, 0.843]);
         let mut veil = [0.0; 32];
-        veil[..13].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 0.851, 0.851, 0.851, 1.0]);
+        veil[..15].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 1.0, 0.0, 0.851, 0.851, 0.851, 1.0]);
         for controls in [glass, veil] {
             let factors = MaterialPreviewFactors { shader_controls: Some(controls), ..Default::default() };
             assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
@@ -11088,11 +11088,11 @@ mod tests {
         }
         // The veil with Ver2 detail layers, as Python lays out the patched wedding veil.
         let mut layered = [0.0; 32];
-        layered[..23].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.142, 0.275, 0.516, 0.901, 1.0, 1.0, 1.0, 1.0, 1.0,
-            1.0, 1.0, 1.732051, 1.0, 45.0 / 255.0, 45.0 / 255.0, 0.0, 0.0, -std::f32::consts::PI, 1.0]);
+        layered[..23].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.142, 0.275, 0.516, 0.901, 1.0, 1.0, 1.732051,
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 45.0 / 255.0, 45.0 / 255.0, 0.0, 0.0, -std::f32::consts::PI, 1.0]);
         let factors = MaterialPreviewFactors { shader_controls: Some(layered), ..Default::default() };
         assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
-        for (index, value) in [(13, 0.5), (14, 65.0), (15, -0.1), (16, 1.1), (17, 0.0), (18, 1.5), (20, -0.2),
+        for (index, value) in [(15, 0.5), (9, 4.5), (10, -0.1), (16, 1.1), (17, 0.0), (18, 1.5), (20, -0.2),
                                (21, 3.3), (22, 1.2)] {
             let mut invalid = layered;
             invalid[index] = value;
@@ -11100,12 +11100,12 @@ mod tests {
             assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err(), "lane {index}");
         }
         // Without the marker the remaining lanes are not read, as before the patch.
-        assert!(SHADER.contains("let veil_layers = shader_value(13u) > 0.5;"));
+        assert!(SHADER.contains("let veil_layers = shader_value(15u) > 0.5;"));
         assert!(SHADER.contains("fn veil_detail_uv("));
         assert!(SHADER.contains("(uv.y - 0.5 + shader_value(20u))"));
         assert!(SHADER.contains("q.x * c - q.y * s + 0.5, q.x * s + q.y * c + 0.5"));
         assert!(SHADER.contains("material_alpha = layered_colour_coverage * 0.99;"));
-        assert!(SHADER.contains("thread_scale *= shader_value(14u);"));
+        assert!(SHADER.contains("thread_scale *= shader_value(9u);"));
         assert!(SHADER.contains("fn veil_net_coverage("));
     }
 

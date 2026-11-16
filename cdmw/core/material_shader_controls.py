@@ -7,7 +7,7 @@ from xml.sax.saxutils import escape
 
 from cdmw.core.pac_xml_emission import append_emission_parameter
 from cdmw.core.pac_xml_standard_material import find_material_wrappers
-from cdmw.domain.mesh.shader_controls import (NEW_ITEM_FAMILIES, EYE_COVER, EYE_COVER_TEXTURE_FIELDS,
+from cdmw.domain.mesh.shader_controls import (VEIL_LAYER_FIELDS, VEIL_PRE_PATCH_FIELDS, NEW_ITEM_FAMILIES, EYE_COVER, EYE_COVER_TEXTURE_FIELDS,
                                              BLENDED_SHADERS, ShaderControls, family_for, validate_choices)
 
 
@@ -227,9 +227,6 @@ def _write_parameter(block, name, kind, value, item_id, *, static):
     return append_emission_parameter(block, row)
 
 
-VEIL_PRE_PATCH_FIELDS = ("_uvScale", "_dyeingColor")
-
-
 def _has_veil_layers(parameters):
     row = parameters.get("_colorBlendingFlag")
     try:
@@ -247,9 +244,12 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
         raise ValueError("EyeCover requires Create New Item texture preparation.")
     fields = {field.name: field for field in family.fields}
     # A net veil that draws Ver2 detail layers (November 2026 patch) no longer reads
-    # these two rows; they are not added to it. A rebuild writes the older layout.
-    unread = (VEIL_PRE_PATCH_FIELDS if shader == controls.shader == "SkinnedMeshTransparency"
-              and not controls.rebuild and _has_veil_layers(parameters) else ())
+    # _uvScale and _dyeingColor; one without them does not read the two displacement
+    # scales. Neither pair is added where it is not read. A rebuild writes the older layout.
+    unread = ()
+    if controls.shader == "SkinnedMeshTransparency":
+        layered = shader == controls.shader and not controls.rebuild and _has_veil_layers(parameters)
+        unread = VEIL_PRE_PATCH_FIELDS if layered else VEIL_LAYER_FIELDS
     for name, numbers in controls.effective_values().items():
         field = fields[name]
         if name in unread and name not in parameters:

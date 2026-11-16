@@ -229,11 +229,8 @@ def _veil_layers_state(candidates):
         layers = veil_layer_inputs(shader, values, textures)
         if not layers:
             continue
-        _, displacement, detail, gain, scale_x, scale_y, offset_x, offset_y, angle, overlay = veil_layer_factors(
-            {**values, **layers})
-        return {"channel": layers["_cdmwVeilLayers"].upper(), "displacement": displacement,
-                "displacement_authored": "_screenSpaceDisplacementScale" in values,
-                "detail_displacement": detail, "gain": gain,
+        _, gain, scale_x, scale_y, offset_x, offset_y, angle, overlay = veil_layer_factors({**values, **layers})
+        return {"channel": layers["_cdmwVeilLayers"].upper(), "gain": gain,
                 "repeat": [1.0 / scale_x, 1.0 / scale_y], "offset": [offset_x, offset_y],
                 "rotation_degrees": math.degrees(angle), "overlay_alpha": overlay,
                 "detail_texture": veil_layer_texture(layers, textures)}

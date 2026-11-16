@@ -153,6 +153,9 @@ BLENDED_FAMILIES = (
         ShaderField("_glow", "Backlight glow", (.65,), 0, 1, item_id="2839560803319806"),
         ShaderField("_sheen", "Sheen", (.22,), 0, 1, item_id="403124275642366"),
         ShaderField("_uvScale", "Thread map scale", (1.,), 0, 1, item_id="2292528656154622"),
+        # Read only by a veil with Ver2 detail layers (see veil_layer_factors).
+        ShaderField("_screenSpaceDisplacementScale", "Thread width scale", (1.,), 0, 4, item_id="3"),
+        ShaderField("_detailScreenSpaceDisplacementScale", "Lace strength", (0.,), 0, 4, item_id="3900249546424318"),
         ShaderField("_dyeingColor", "Veil colour RGB", (1., 1., 1.), 0, 1, "Color", "2595737222250494"),
     )),
 )
@@ -166,6 +169,8 @@ BLENDED_FIELD_HELP = {
     "_netThread": "Thread width, scaled by the height map's red channel. Back faces use four times this width. Unchecked: retain the authored value, or 0.5.",
     "_glow": "Light from behind the veil scattered toward the viewer. 0 none, 1 strongest. Approximated in the preview. Unchecked: retain the authored value, or 0.65.",
     "_sheen": "Soft highlight at grazing angles. Approximated in the preview. Unchecked: retain the authored value, or 0.22.",
+    "_screenSpaceDisplacementScale": "Multiplies the whole thread width: thread thickness x 0.0003 x (height map + lace) x this value. 0 removes the net. Unchecked: retain the authored value, or 1.",
+    "_detailScreenSpaceDisplacementScale": "How much the repeated lace texture thickens the threads on top of the height map. 0 leaves only the height map. Unchecked: retain the authored value, or 0.",
     "_uvScale": "Tiling of the height map that varies the thread width; smaller values repeat it more often. Unchecked: retain the authored value, or 1.",
     "_dyeingColor": "Multiplies the colour texture. Its alpha, kept from the source, scales coverage. Unchecked: retain the authored colour, or white.",
 }
@@ -457,9 +462,8 @@ VEIL_LAYER_MASK_KEY = "_cdmwVeilLayerMask"    # that channel's mask value, 0-1
 VEIL_OVERLAY_ALPHA_KEY = "_cdmwVeilOverlayAlpha"
 VEIL_LAYER_TRANSFORMS = {"r": "_dyeingTransformProperty0", "g": "_dyeingTransformProperty1",
                          "b": "_dyeingTransformProperty3"}
-# The veil's .material declares this scale as 1 itself and 0 in the shared group;
-# 0 would remove the net, so 1 is assumed when the wrapper has no row.
-VEIL_DISPLACEMENT_DEFAULT = 1.0
+# _screenSpaceDisplacementScale: the veil's .material declares 1 itself and 0 in the
+# shared group; 0 would remove the net, so the field's default is 1.
 
 
 def _authored_number(value, default):
@@ -521,12 +525,18 @@ def veil_layer_texture(values, textures):
     return textures.get(f"_detailHeightMask{channel.upper()}", "") if channel in ("r", "g", "b") else ""
 
 
-def veil_layer_factors(authored):
-    """Lanes 13-22 for the Ver2 veil, or () for the veil before the patch.
+# The two rows only a veil with Ver2 detail layers reads, and the two it no longer reads.
+VEIL_LAYER_FIELDS = ("_screenSpaceDisplacementScale", "_detailScreenSpaceDisplacementScale")
+VEIL_PRE_PATCH_FIELDS = ("_uvScale", "_dyeingColor")
 
-    13 on, 14 _screenSpaceDisplacementScale, 15 _detailScreenSpaceDisplacementScale,
-    16 opacity x mask of the channel, 17-20 scale X, scale Y, offset X, offset Y,
-    21 rotation in radians, 22 overlay alpha.
+
+def veil_layer_factors(authored):
+    """Lanes 15-22 for the Ver2 veil, or () for the veil before the patch.
+
+    The family's own fields come first: 4 pitch, 5 thread, 6 glow, 7 sheen,
+    8 map scale, 9 _screenSpaceDisplacementScale, 10 _detailScreenSpaceDisplacementScale,
+    11-13 colour, 14 colour alpha. Then 15 on, 16 opacity x mask of the channel,
+    17-20 scale X, scale Y, offset X, offset Y, 21 rotation in radians, 22 overlay alpha.
     """
     channel = str(authored.get(VEIL_LAYERS_KEY, "") or "")
     if channel not in ("r", "g", "b"):
@@ -537,13 +547,10 @@ def veil_layer_factors(authored):
     transform = _authored_bytes(authored.get(VEIL_LAYER_TRANSFORMS[channel])) or (1.0, 1.0, 0.0, 0.0)
     rotation = _authored_bytes(authored.get("_dyeingPropertyBlend"))
     # An absent row takes the shader definition's default: opacity 0, scale 1,
-    # offset 0, rotation 0.5 (byte 128) and detail displacement 0.
+    # offset 0 and rotation 0.5 (byte 128).
     gain = (opacity[index] if opacity else 0.0) * clamp(_authored_number(authored.get(VEIL_LAYER_MASK_KEY), 1.0), 1.0)
     angle = (rotation[index] if rotation else 128 / 255) * 2.0 * math.pi - math.pi
-    return (1.0,
-            clamp(_authored_number(authored.get("_screenSpaceDisplacementScale"), VEIL_DISPLACEMENT_DEFAULT), 64.0),
-            clamp(_authored_number(authored.get("_detailScreenSpaceDisplacementScale"), 0.0), 64.0),
-            gain, max(transform[0], 1e-5), max(transform[1], 1e-5), transform[2], transform[3], angle,
+    return (1.0, gain, max(transform[0], 1e-5), max(transform[1], 1e-5), transform[2], transform[3], angle,
             clamp(_authored_number(authored.get(VEIL_OVERLAY_ALPHA_KEY), 1.0), 1.0))
 
 
