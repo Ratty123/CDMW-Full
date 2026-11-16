@@ -29445,7 +29445,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1162
+      "cdmw/ui/new_item/tab.py": 1165
     }
   },
   {
@@ -31723,7 +31723,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 727
+      "cdmw/ui/new_item/tab.py": 730
     }
   },
   {
@@ -36330,7 +36330,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1072
+      "cdmw/ui/new_item/tab.py": 1075
     }
   },
   {
@@ -36338,7 +36338,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1062
+      "cdmw/ui/new_item/tab.py": 1065
     }
   },
   {
@@ -49762,7 +49762,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1202
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1205
     }
   },
   {
@@ -49827,7 +49827,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 795,
+      "cdmw/ui/mesh_editor/shell_bridge.py": 798,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 185
     }
   },
@@ -49991,7 +49991,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1091
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1094
     }
   },
   {
@@ -57096,7 +57096,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1126
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1129
     }
   },
   {
@@ -60207,7 +60207,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture loading failed; the untextured model remains available: {failure_reason}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 574
+      "cdmw/ui/mesh_editor/shell_bridge.py": 577
     }
   },
   {
