@@ -29445,7 +29445,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1131
+      "cdmw/ui/new_item/tab.py": 1162
     }
   },
   {
@@ -29958,7 +29958,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the layers: {message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/panels_model.py": 1531
+      "cdmw/ui/new_item/panels_model.py": 1550
     }
   },
   {
@@ -31723,7 +31723,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 696
+      "cdmw/ui/new_item/tab.py": 727
     }
   },
   {
@@ -36330,7 +36330,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1041
+      "cdmw/ui/new_item/tab.py": 1072
     }
   },
   {
@@ -36338,7 +36338,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1031
+      "cdmw/ui/new_item/tab.py": 1062
     }
   },
   {
@@ -86011,6 +86011,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "an application filter must name the event types it handles",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/app_event_hub.py": 39
+    }
+  },
+  {
+    "area": "other",
     "message": "an attribute without a value",
     "recovery": "internal",
     "sources": {
@@ -107588,6 +107596,9 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/ui/ai_connections/settings_section.py": {},
+  "cdmw/ui/app_event_hub.py": {
+    "raise": 1
+  },
   "cdmw/ui/app_icon.py": {},
   "cdmw/ui/archive_browser/__init__.py": {},
   "cdmw/ui/archive_browser/action_chart_actions.py": {
