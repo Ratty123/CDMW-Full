@@ -75577,6 +75577,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Choose a picture for the painting.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_picture.py": 173
+    }
+  },
+  {
+    "area": "other",
     "message": "Choose a pin height or pins that leave both fixed and moving guides.",
     "recovery": "internal",
     "sources": {
@@ -83383,10 +83391,50 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The frame {Path(str(getattr(mesh, 'path', '') or 'mesh')).name} has {len(found)} canvas surfaces CDMW can map, not one.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_picture.py": 146
+    }
+  },
+  {
+    "area": "other",
+    "message": "The frame's canvas covers too few texels to hold a picture.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_picture.py": 162
+    }
+  },
+  {
+    "area": "other",
     "message": "The frame's material file has {len(blocks)} materials named {wanted}, not one.",
     "recovery": "locked",
     "sources": {
       "cdmw/core/painting_records.py": 331
+    }
+  },
+  {
+    "area": "other",
+    "message": "The frame's picture texture has no size.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_picture.py": 95
+    }
+  },
+  {
+    "area": "other",
+    "message": "The frame's picture texture is not a DDS file.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/painting_picture.py": 92
+    }
+  },
+  {
+    "area": "other",
+    "message": "The frame's picture texture is {width} x {height}; BC1 needs sides that are multiples of 4.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_picture.py": 156
     }
   },
   {
@@ -83731,6 +83779,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/modding/pac_cloth_painted_guides.py": 421
+    }
+  },
+  {
+    "area": "other",
+    "message": "The picture {source.name} does not exist.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/core/painting_picture.py": 176
     }
   },
   {
@@ -84652,6 +84708,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/core/item_layout.py": 251
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown picture fit {fit}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_picture.py": 203
     }
   },
   {
@@ -90038,6 +90102,22 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/action_chart_binary.py": 848
+    }
+  },
+  {
+    "area": "other",
+    "message": "{source.name} could not be read as a picture: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_picture.py": 182
+    }
+  },
+  {
+    "area": "other",
+    "message": "{source.name} has no pixels.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_picture.py": 184
     }
   },
   {
@@ -105123,6 +105203,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/pac_xml_surface_layer.py": {
     "raise": 1
+  },
+  "cdmw/core/painting_picture.py": {
+    "raise": 10
   },
   "cdmw/core/painting_records.py": {
     "raise": 22
