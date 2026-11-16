@@ -198,6 +198,67 @@ def test_commands_run_on_the_ui_thread_and_waits_do_not_block_it(env, tmp_path) 
     window.widget.deleteLater()
 
 
+def test_ui_stack_answers_while_the_ui_thread_is_blocked_and_names_the_blocker(env) -> None:
+    """The stall probe for defect 2: ``ui_stack`` is read on the listener thread, so it
+    answers while a UI-thread command is still running and names what holds the thread."""
+
+    from PySide6.QtWidgets import QApplication
+
+    from cdmw.automation.bridge import AutomationBridge
+    from cdmw.automation.client import AutomationClient
+
+    app = QApplication.instance() or QApplication([])
+    env.setenv(policy.TOKEN_ENV, secrets.token_hex(32))
+    env.setenv(policy.PIPE_ENV, f"test-stack-{os.getpid()}-{secrets.token_hex(4)}")
+    settings = policy.automation_settings()
+    bridge = AutomationBridge(settings)
+    release = threading.Event()
+    entered = threading.Event()
+
+    def blocking_ui_work_for_the_probe(_args):
+        entered.set()
+        release.wait(10)
+        return "done"
+
+    bridge._ui_commands["block"] = blocking_ui_work_for_the_probe
+    window = _Window()
+    bridge.attach(window)
+    results: dict[str, object] = {}
+
+    def blocker():
+        with AutomationClient(settings.address, settings.token) as client:
+            results["block"] = client.call("block")
+
+    def sampler():
+        try:
+            entered.wait(10)
+            with AutomationClient(settings.address, settings.token) as client:
+                started = time.perf_counter()
+                results["stack"] = client.call("ui_stack")
+                results["answer_s"] = time.perf_counter() - started
+        except Exception as exc:  # surfaced below
+            results["error"] = repr(exc)
+        finally:
+            release.set()
+
+    workers = [threading.Thread(target=blocker), threading.Thread(target=sampler)]
+    for worker in workers:
+        worker.start()
+    deadline = time.time() + 20
+    while any(worker.is_alive() for worker in workers) and time.time() < deadline:
+        app.processEvents()
+        time.sleep(0.005)
+    for worker in workers:
+        worker.join(1)
+    bridge.stop()
+    window.widget.deleteLater()
+    assert "error" not in results, results
+    assert results["block"] == "done"
+    assert results["answer_s"] < 2.0
+    assert any("blocking_ui_work_for_the_probe" in line for line in results["stack"]), results["stack"]
+    assert all(isinstance(line, str) and ":" in line for line in results["stack"])
+
+
 def test_windows_are_kept_off_screen_even_when_qt_itself_shows_them() -> None:
     """A plain show() must not reach the screen; patching setVisible in Python missed these."""
 

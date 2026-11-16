@@ -678,6 +678,11 @@ class ArchivePreviewLayoutMixin:
         self.archive_item_set_components.highlightRequested.connect(
             self.archive_d3d11_preview_host.set_highlighted_source_submeshes
         )
+        # Hover a part in the view to highlight it, click it to select it, click empty
+        # space to clear: the Scene panel follows (nothing is selected by default).
+        self.archive_d3d11_preview_host.source_part_hovered.connect(self.archive_item_set_components.hover_part)
+        self.archive_d3d11_preview_host.source_part_selected.connect(self.archive_item_set_components.select_part)
+        self.archive_d3d11_preview_host.set_source_part_picking(True)
         self.archive_item_set_components.prefabComponentToggled.connect(self._archive_scene_prefab_toggled)
         self.archive_item_set_components.openFileRequested.connect(self._archive_scene_open_file)
         preview_with_components.addWidget(self.archive_preview_stack)

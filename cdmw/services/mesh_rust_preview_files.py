@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import tempfile
 import threading
 import time
@@ -138,6 +139,44 @@ def atomic_preview_publication(builder):
     return publish
 
 
+_NAME_SURROGATE = 0x20000000  # a reparse tag that names another file: symbolic links, junctions
+
+
+def _is_link(identity: os.stat_result) -> bool:
+    """A symbolic link, junction or other name surrogate. A reparse point that is not one
+    (a cloud placeholder, a deduplicated file) is the file itself, as resolve() treated it."""
+
+    return stat.S_ISLNK(identity.st_mode) or bool(int(getattr(identity, "st_reparse_tag", 0) or 0) & _NAME_SURROGATE)
+
+
+def _contained_file(root: Path, relative: PurePosixPath, real_dirs: set[Path]) -> tuple[Path, os.stat_result]:
+    """The regular file at ``relative`` inside the resolved ``root``, and its identity.
+
+    Containment is checked without resolving every path (a realpath per file held
+    the UI thread for seconds on a set's preview packages): no directory between
+    the root and the file, and not the file itself, may be a link or junction, so
+    the lexical path is the real one. Each directory is checked once per call.
+    """
+
+    candidate = root.joinpath(*relative.parts)
+    directory = candidate.parent
+    pending = []
+    while directory != root and directory not in real_dirs:
+        if directory.parent == directory:
+            raise ValueError("preview resource path is not contained")
+        pending.append(directory)
+        directory = directory.parent
+    for directory in pending:
+        identity = os.lstat(directory)
+        if _is_link(identity) or not stat.S_ISDIR(identity.st_mode):
+            raise ValueError("preview resource path is not contained")
+        real_dirs.add(directory)
+    identity = os.lstat(candidate)
+    if _is_link(identity) or not stat.S_ISREG(identity.st_mode):
+        raise ValueError("preview resource path is not contained")
+    return candidate, identity
+
+
 def validate_preview_files(package_dir: Path, payload: dict, *, hash_unverified: bool = True) -> None:
     """Reject incomplete, changed, escaping or writable cached preview inputs.
 
@@ -166,6 +205,7 @@ def validate_preview_files(package_dir: Path, payload: dict, *, hash_unverified:
                 raise ValueError(f"preview {group} file reference is missing")
 
     verified = {}
+    real_dirs: set[Path] = set()
 
     def visit(value):
         if isinstance(value, list):
@@ -181,12 +221,10 @@ def validate_preview_files(package_dir: Path, payload: dict, *, hash_unverified:
                 relative = PurePosixPath(name.replace("\\", "/"))
                 if not name or relative.is_absolute() or any(part in {"..", "."} or ":" in part for part in relative.parts):
                     raise ValueError("preview resource path is not contained")
-                candidate = (root / Path(*relative.parts)).resolve(strict=True)
-                candidate.relative_to(root)
+                candidate, stat_result = _contained_file(root, relative, real_dirs)
                 size = int(value["byte_length"])
                 digest = str(value["sha256"]).upper()
                 identity = (size, digest)
-                stat_result = candidate.stat()
                 if size < 0 or size > 512 * 1024 * 1024 or stat_result.st_size != size:
                     raise ValueError("preview resource size does not match")
                 if candidate in verified:

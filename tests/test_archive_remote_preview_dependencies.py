@@ -375,7 +375,23 @@ def test_remote_preview_provider_cancels_and_ignores_obsolete_requests() -> None
     assert provider.snapshot_for(2, 8) is not None
 
 
-def _reusable_provider(tmp_path: Path):
+def _settle_stamps(provider, timeout: float = 10.0) -> None:
+    """Wait for the provider's file stamps, taken on a worker thread, to arrive."""
+
+    import time
+
+    from tests.test_archive_remote_window_bridge import _app
+
+    app = _app()
+    deadline = time.monotonic() + timeout
+    while provider.stamping and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.002)
+    app.processEvents()
+    assert not provider.stamping
+
+
+def _reusable_provider(tmp_path: Path, *, settle: bool = True):
     service = _CatalogueService()
     provider = ArchiveRemotePreviewDependencyProvider(service)
     pamt, paz = tmp_path / "0.pamt", tmp_path / "0.paz"
@@ -399,6 +415,8 @@ def _reusable_provider(tmp_path: Path):
         ArchiveAssociationResult("session-a", 7, (rows[1],), 1, False))
     service.result_ready.emit("prepare-2", "prepare_entry",
         PrepareEntriesResult("session-a", tuple(prepared), 2, 2, sum(item.size for item in prepared)))
+    if settle:
+        _settle_stamps(provider)
     return service, provider, rows[0]
 
 
@@ -434,7 +452,7 @@ def test_texture_followup_reuses_verified_snapshot_without_archive_operations(tm
     assert len(service.requests) == 2
     assert provider.pending_ui_request_id == 2
     assert ready == [], "cached delivery must remain queued"
-    app.processEvents()
+    _settle_stamps(provider)
     assert ready == [(2, original)]
     assert provider.snapshot_for(2, selected.entry_id) is original
     assert provider.snapshot_for(1, selected.entry_id) is None
@@ -460,8 +478,44 @@ def test_texture_followup_rebuilds_changed_or_ineligible_dependencies(tmp_path: 
     else:
         options["reuse_prepared"] = False
     assert provider.request(selected, ui_request_id=2, **options)
+    # A changed file is found by the stamp check on the worker; the lookup then starts.
+    _settle_stamps(provider)
     assert len(service.requests) == 3
     assert provider.snapshot_for(2, selected.entry_id) is None
+
+
+def test_the_set_s_file_stamps_are_taken_off_the_ui_thread(tmp_path: Path, monkeypatch) -> None:
+    """Defect 2: stamping a set's dependencies held the UI thread for 1.9 s."""
+
+    import threading
+
+    threads: list[str] = []
+    original = ArchiveRemotePreviewDependencyProvider._snapshot_file_stamps
+
+    def recording(snapshot):
+        threads.append(threading.current_thread().name)
+        return original(snapshot)
+
+    monkeypatch.setattr(ArchiveRemotePreviewDependencyProvider, "_snapshot_file_stamps", staticmethod(recording))
+    service, provider, selected = _reusable_provider(tmp_path)
+    assert threads == ["preview-dependency-stamps"]
+    assert provider.request(selected, ui_request_id=2, reuse_prepared=True)
+    _settle_stamps(provider)
+    assert threads == ["preview-dependency-stamps"] * 2
+    assert provider.snapshot_for(2, selected.entry_id) is not None
+    assert len(service.requests) == 2
+
+
+def test_a_follow_up_while_stamps_are_taken_reuses_the_snapshot(tmp_path: Path) -> None:
+    """A texture follow-up right after the preview's dependencies arrived must not lose
+    the reuse because their stamps are still being taken."""
+
+    service, provider, selected = _reusable_provider(tmp_path, settle=False)
+    ready = []
+    provider.ready.connect(lambda request_id, payload: ready.append(request_id))
+    assert provider.request(selected, ui_request_id=2, reuse_prepared=True)
+    _settle_stamps(provider)
+    assert ready == [2] and len(service.requests) == 2
 
 
 @pytest.mark.parametrize("supersede", (False, True))

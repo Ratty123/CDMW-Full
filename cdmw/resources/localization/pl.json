@@ -17464,6 +17464,7 @@
     "parent #{value_0} {value_1}": "rodzic #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "rodzic {value_0} | dzieci {value_1}{value_2}",
     "part": "part",
+    "part {number}": "część {number}",
     "partial": "częściowy",
     "particle mesh exceeds the preview geometry budget": "siatka cząsteczek przekracza limit geometrii podglądu",
     "particle mesh has invalid coordinates": "siatka cząsteczek zawiera nieprawidłowe współrzędne",

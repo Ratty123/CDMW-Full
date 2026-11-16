@@ -468,6 +468,9 @@ pub enum HostEvent {
         path: PathBuf,
         revision: u64,
     },
+    /// Select these whole parts, as a click on their rows in the Parts list does
+    /// (CDMW's automated test runs use it to edit two files of a set).
+    SelectParts(Vec<u32>),
     VertexInspection {
         request_id: u64,
         ok: bool,
@@ -1907,6 +1910,19 @@ impl CdmwBridge {
                     .map(|command| HostEvent::RunCommand(command.to_owned()))
                     .ok_or_else(|| {
                         SessionError::Protocol("run_command names no editor command".to_owned())
+                    }),
+                "select_parts" => value
+                    .get("indices")
+                    .and_then(Value::as_array)
+                    .and_then(|indices| {
+                        indices
+                            .iter()
+                            .map(|index| index.as_u64().and_then(|index| u32::try_from(index).ok()))
+                            .collect::<Option<Vec<u32>>>()
+                    })
+                    .map(HostEvent::SelectParts)
+                    .ok_or_else(|| {
+                        SessionError::Protocol("select_parts needs part numbers".to_owned())
                     }),
                 "hair_preset" => {
                     let preset = value.get("preset").and_then(Value::as_str).unwrap_or("");

@@ -17464,6 +17464,7 @@
     "parent #{value_0} {value_1}": "父項 #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "父 {value_0} |兒童{value_1}{value_2}",
     "part": "部件",
+    "part {number}": "部件 {number}",
     "partial": "部分",
     "particle mesh exceeds the preview geometry budget": "粒子網格超出預覽幾何資料上限",
     "particle mesh has invalid coordinates": "粒子網格包含無效座標",

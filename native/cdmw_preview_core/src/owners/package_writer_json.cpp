@@ -281,6 +281,8 @@ static void append_package_batch_json_head(PackageWriteState& state, const Packa
         << ",\"prefab_component\":" << (mesh.source_prefab_component ? "true" : "false")
         << ",\"context_component\":" << (mesh.source_context_component ? "true" : "false")
         << ",\"part_label\":\"" << json_escape(mesh.source_component_label.empty() ? mesh.material : mesh.source_component_label) << "\""
+        // The PAC submesh's own name: the Mesh Editor's Parts list shows the same one.
+        << ",\"part_name\":\"" << json_escape(mesh.name) << "\""
         << ",\"identity_file\":\"" << json_escape(batch.identity_path.lexically_relative(state.package_dir).generic_string()) << "\"},"
         << "\"base_color\":[" << batch.color[0] << "," << batch.color[1] << "," << batch.color[2] << "],"
         << "\"roughness\":" << batch.roughness_hint << ","

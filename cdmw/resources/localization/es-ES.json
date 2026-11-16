@@ -17464,6 +17464,7 @@
     "parent #{value_0} {value_1}": "padre #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "padre {value_0} | niños {value_1}{value_2}",
     "part": "part",
+    "part {number}": "parte {number}",
     "partial": "parcial",
     "particle mesh exceeds the preview geometry budget": "la malla de partículas supera el límite de geometría de la vista previa",
     "particle mesh has invalid coordinates": "la malla de partículas tiene coordenadas no válidas",

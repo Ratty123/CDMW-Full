@@ -17464,6 +17464,7 @@
     "parent #{value_0} {value_1}": "parent #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "parent {value_0} | enfants {value_1}{value_2}",
     "part": "pièce",
+    "part {number}": "partie {number}",
     "partial": "partiel",
     "particle mesh exceeds the preview geometry budget": "le maillage de particules dépasse la limite de géométrie de l’aperçu",
     "particle mesh has invalid coordinates": "le maillage de particules contient des coordonnées non valides",

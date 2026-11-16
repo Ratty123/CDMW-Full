@@ -17464,6 +17464,7 @@
     "parent #{value_0} {value_1}": "parent #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "parent {value_0} | children {value_1}{value_2}",
     "part": "part",
+    "part {number}": "part {number}",
     "partial": "partial",
     "particle mesh exceeds the preview geometry budget": "particle mesh exceeds the preview geometry budget",
     "particle mesh has invalid coordinates": "particle mesh has invalid coordinates",

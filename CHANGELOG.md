@@ -86,6 +86,14 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - The **Scene** panel lists the files and parts of a set shown from the preview cache, so **Open ticked parts in Mesh Editor** opens the set instead of asking to tick a part.
 - Mesh Editor's **Delete unavailable** message names the operation it is waiting for, and gives the Free Edit advice only when the output mode is the reason.
 - Deleting a large selection across a whole worn set in the Mesh Editor no longer ends every open editing session; the delete used to be refused and the set could not be finished.
+- In the Mesh Editor's **Parts** list of a set, the file rows' **View** and **Include** boxes line up with the part rows' and their headers, and the **Physics** column is as wide as its longest value, leaving the part names at least a third of the list. Before, every cell read "Unknown p..." while the names had room to spare. A part whose physics was not inspected, such as every part of a set, now leaves the cell empty; its tooltip says why.
+- **Preview Settings** stays on the page you are on. Changing the Lighting preset, or any other setting on Quality or Lighting, moved the window to Camera Input.
+- Browse Archives no longer shows a model or set with a part selected and drawn in a yellow wire when it is first shown. Hovering a part in the **Scene** panel or the view highlights it, a click selects it, and a click on empty space or Esc clears the selection.
+- The **Scene** panel names a set's parts as the Mesh Editor's **Parts** list does, in the same order, instead of by their material names. Parts that share a name show their material or their number in the list, and a file's part count is no longer cut off.
+- Opening a set in the Mesh Editor, or showing a large model, holds the window far less while CDMW checks the cached preview files. The check resolved every file's full path one by one: about 0.1 s for each of a set's files with warm caches, and over 10 s in all on one first open. It now checks each folder once, taking about a third of the time, and still refuses a file reached through a link or junction out of the cache.
+- The Mesh Editor no longer builds its hidden panels when an edit opens, which paused the window for about 2.5 s the first time a set was opened.
+- Showing a set or a large model in Browse Archives no longer pauses the window while CDMW records its files' dates and sizes for reuse, about 2 s for the Hernandian Honor Guard set; this now runs in the background, and a file changed since is still found before the cached preview is reused.
+- In the Mesh Editor, Esc clears the selection when there is nothing else for it to cancel or close, as a click on empty space in the view does.
 
 ### Docs
 

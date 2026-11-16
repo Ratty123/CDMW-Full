@@ -17464,6 +17464,7 @@
     "parent #{value_0} {value_1}": "родитель #{value_0} {value_1}",
     "parent {value_0} | children {value_1}{value_2}": "родительского {value_0} | дети {value_1}{value_2}",
     "part": "Часть",
+    "part {number}": "часть {number}",
     "partial": "частичный",
     "particle mesh exceeds the preview geometry budget": "сетка частиц превышает лимит геометрии предварительного просмотра",
     "particle mesh has invalid coordinates": "сетка частиц содержит недопустимые координаты",

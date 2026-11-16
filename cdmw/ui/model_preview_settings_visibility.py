@@ -226,7 +226,10 @@ def sync_renderer_specific_controls(dialog: object) -> None:
     controls_index = dialog.tabs.indexOf(dialog._controls_tab)
     if controls_index >= 0:
         dialog.tabs.setTabText(controls_index, "Camera Input" if dotnet else "Controls")
-    if dotnet and dialog.tabs.currentWidget() not in (dialog._controls_tab, dialog._gizmo_tab):
+    # Move away only from a page that is hidden now: a change on a shown page (the
+    # Lighting preset on Quality / Lighting) refreshes this and must leave the page alone.
+    current_index = dialog.tabs.currentIndex()
+    if dotnet and (current_index < 0 or not dialog.tabs.isTabVisible(current_index)):
         dialog.tabs.setCurrentWidget(dialog._controls_tab)
     dialog._set_form_field_visible(dialog.render_diagnostic_mode_combo, legacy)
     dialog._set_form_field_visible(dialog.visible_texture_mode_combo, not dotnet)

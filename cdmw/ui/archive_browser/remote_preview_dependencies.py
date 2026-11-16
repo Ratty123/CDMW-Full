@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from stat import S_ISREG
 from typing import Mapping
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, Signal
 
 from cdmw.domain.archives.catalogue import (
     ArchiveAssociationPurpose,
@@ -129,6 +130,12 @@ class _PendingPreviewDependencies:
     secondary_index_pending: bool = False
 
 
+class _StampRelay(QObject):
+    """Brings a stamp worker's result back to the UI thread."""
+
+    done = Signal(int, object)
+
+
 class ArchiveRemotePreviewDependencyProvider(QObject):
     """Resolve prepared dependency sets without retaining the global catalogue."""
 
@@ -146,6 +153,17 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self._snapshot_reuse_key: tuple[object, ...] | None = None
         self._snapshot_file_identities: dict[Path, tuple[int, ...]] | None = None
         self._queued_snapshot_request_id = -1
+        # A set's dependencies can name thousands of files; their stamps are taken on a
+        # worker thread (defect 2: 1.9 s on the UI thread for the Honor Guard set).
+        # Every callback checks on arrival that its snapshot and request are still
+        # current, so a newer snapshot, request or cancel leaves it without effect.
+        self._stamp_job_id = 0
+        self._stamp_jobs: dict[int, object] = {}
+        # Requests that arrived while the current snapshot's stamps were being taken.
+        self._recording_snapshot: ArchivePreviewDependencySet | None = None
+        self._record_waiters: list[object] = []
+        self._stamp_relay = _StampRelay(self)
+        self._stamp_relay.done.connect(self._stamp_job_done)
         self._snapshots_by_identity: OrderedDict[
             ArchiveEntryIdentity,
             ArchivePreviewDependencySet,
@@ -259,17 +277,45 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             and not snapshot.truncated
             and not snapshot.secondary_index_pending
             and self._snapshot_reuse_key == reuse_key
-            and self._snapshot_file_identities is not None
-            and self._snapshot_file_stamps(snapshot) == self._snapshot_file_identities
+            and (self._snapshot_file_identities is not None or self._recording_snapshot is snapshot)
         ):
             self._snapshot_ui_request_id = int(ui_request_id)
             self._queued_snapshot_request_id = int(ui_request_id)
-            # Keep cached delivery queued just like worker completion. A new
-            # selection or cancellation invalidates it before it can publish.
-            QTimer.singleShot(
-                0, self, lambda: self._publish_reused_snapshot(int(ui_request_id), snapshot)
-            )
+            # Keep cached delivery queued just like worker completion. The files are
+            # compared off the UI thread; unchanged, the snapshot is published, changed,
+            # the lookup starts as if nothing had been reused. A new selection or a
+            # cancellation invalidates the check before it can publish.
+            recorded = self._snapshot_file_identities
+
+            def unchanged_or_lookup(current: object, expected: object) -> None:
+                if self._queued_snapshot_request_id != int(ui_request_id) or self._snapshot is not snapshot:
+                    return
+                if current is not None and current == expected:
+                    self._publish_reused_snapshot(int(ui_request_id), snapshot)
+                    return
+                self._queued_snapshot_request_id = -1
+                self._snapshot_ui_request_id = -1
+                self._snapshot_file_identities = None
+                self._start_lookup(selected, int(ui_request_id), normalized_prefab_stems,
+                                   bounded_scope_entry_ids, components)
+
+            if recorded is None:
+                # Its stamps are being taken now: those are the current ones.
+                self._record_waiters.append(lambda stamps: unchanged_or_lookup(stamps, stamps))
+            else:
+                self._stamp_off_thread(snapshot, lambda current: unchanged_or_lookup(current, recorded))
             return True
+        return self._start_lookup(selected, int(ui_request_id), normalized_prefab_stems,
+                                  bounded_scope_entry_ids, components)
+
+    def _start_lookup(
+        self,
+        selected: ArchiveEntryDto,
+        ui_request_id: int,
+        normalized_prefab_stems: tuple[str, ...],
+        bounded_scope_entry_ids: tuple[int, ...],
+        components: tuple[ArchiveEntryDto, ...],
+    ) -> bool:
         operation = "find_association_candidates"
         try:
             if normalized_prefab_stems and bounded_scope_entry_ids:
@@ -310,6 +356,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         return True
 
     def cancel(self, *, clear_snapshot: bool = False) -> None:
+        self._record_waiters.clear()
         if self._queued_snapshot_request_id >= 0:
             self._snapshot_ui_request_id = -1
         self._queued_snapshot_request_id = -1
@@ -322,6 +369,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                 pass
         if clear_snapshot:
             self._snapshot = None
+            self._recording_snapshot = None
             self._snapshot_ui_request_id = -1
             self._snapshot_reuse_key = None
             self._snapshot_file_identities = None
@@ -392,9 +440,51 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self._snapshot_reuse_key = (
             pending.selected, pending.preferred_prefab_stems, pending.scope_entry_ids, pending.component_entries,
         )
-        self._snapshot_file_identities = self._snapshot_file_stamps(snapshot)
+        self._snapshot_file_identities = None
+        self._recording_snapshot = snapshot
+        self._record_waiters = []
+
+        def record(stamps: object) -> None:
+            if self._recording_snapshot is not snapshot:
+                return
+            self._recording_snapshot = None
+            waiters, self._record_waiters = self._record_waiters, []
+            if self._snapshot is snapshot:
+                self._snapshot_file_identities = stamps
+            for waiter in waiters:
+                waiter(stamps)
+
+        self._stamp_off_thread(snapshot, record)
         self._remember_snapshot(snapshot)
         self.ready.emit(pending.ui_request_id, snapshot)
+
+    @property
+    def stamping(self) -> bool:
+        """Whether a stamp job's answer is still awaited (tests wait on it)."""
+
+        return bool(self._stamp_jobs)
+
+    def _stamp_off_thread(self, snapshot: ArchivePreviewDependencySet, then) -> None:
+        """Take ``snapshot``'s file stamps on a worker; ``then(stamps)`` runs on the UI
+        thread unless a newer snapshot, request or cancel came first."""
+
+        self._stamp_job_id += 1
+        generation, relay = self._stamp_job_id, self._stamp_relay
+        self._stamp_jobs[generation] = then
+
+        def run() -> None:
+            stamps = self._snapshot_file_stamps(snapshot)
+            try:
+                relay.done.emit(generation, stamps)
+            except RuntimeError:
+                pass  # the provider was deleted meanwhile
+
+        threading.Thread(target=run, name="preview-dependency-stamps", daemon=True).start()
+
+    def _stamp_job_done(self, generation: int, stamps: object) -> None:
+        then = self._stamp_jobs.pop(int(generation), None)
+        if then is not None:
+            then(stamps)
 
     @staticmethod
     def _snapshot_file_stamps(snapshot: ArchivePreviewDependencySet) -> dict[Path, tuple[int, ...]] | None:

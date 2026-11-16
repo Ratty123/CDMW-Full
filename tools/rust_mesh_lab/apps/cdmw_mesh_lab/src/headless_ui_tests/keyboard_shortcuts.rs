@@ -530,6 +530,65 @@ fn run_command_must_name_an_editor_command() {
 }
 
 #[test]
+fn select_parts_from_the_host_selects_whole_parts_as_a_row_click_does() -> TestResult {
+    let root = tempfile::tempdir()?;
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "parts", 1, 0);
+    let message = |indices: Value| {
+        json!({"event": "select_parts", "protocol": cdmw_session::PROTOCOL, "session_id": "parts",
+               "process_generation": 1, "indices": indices})
+    };
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message(json!([1, 0]))),
+        HostEvent::SelectParts(indices) if indices == vec![1, 0]
+    ));
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message(json!(["one"]))),
+        HostEvent::Fatal(_)
+    ));
+    let mut ui = HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    // Out-of-range numbers are dropped; the rest are selected as whole parts.
+    ui.application
+        .handle_cdmw_host_event(HostEvent::SelectParts(vec![1, 9, 1]));
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(mesh.selection.submeshes.iter().copied().collect::<Vec<_>>(), vec![1]);
+    // The rows are in the Parts list, so it is shown.
+    assert!(ui.application.egui_context.data_mut(|data| data
+        .get_temp::<bool>(egui::Id::new("cdmw_parts_panel_open"))
+        .unwrap_or(false)));
+    Ok(())
+}
+
+#[test]
+fn escape_clears_the_selection_when_there_is_nothing_to_cancel() -> TestResult {
+    // Fredric (2026-11-15): nothing stays selected unless clicked; Esc clears it.
+    let mut ui = HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    ui.application
+        .handle_actions(vec![UiAction::SetPartSelection(vec![0, 1])]);
+    ui.settle_layout();
+    assert_eq!(ui.application.selected_part_indices(), vec![0, 1]);
+    let centre = ui.application.viewport_rect.ok_or("viewport")?.center();
+    ui.frame(vec![Event::PointerMoved(centre), key_event(egui::Key::Escape, true)]);
+    ui.frame(vec![key_event(egui::Key::Escape, false)]);
+    ui.frame(Vec::new());
+    assert!(ui.application.selected_part_indices().is_empty());
+    Ok(())
+}
+
+#[test]
+fn a_click_on_empty_space_in_the_view_clears_a_part_selection() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    ui.application
+        .handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
+    ui.settle_layout();
+    assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    let view = ui.application.viewport_rect.ok_or("viewport")?;
+    ui.click_at(view.left_top() + egui::vec2(24.0, 24.0));
+    ui.settle_layout();
+    assert!(ui.application.selected_part_indices().is_empty());
+    Ok(())
+}
+
+#[test]
 fn finish_and_late_morph_data_come_from_the_host() {
     // P4 V3: the Finish, Discard, Keep editing prompt finishes as the button does,
     // and an editor that opened before its morph query gets the data afterwards.

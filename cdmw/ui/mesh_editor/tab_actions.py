@@ -365,7 +365,10 @@ class MeshEditorActionsMixin:
             f"Session: {view.session_id} | Mode: {view.mode} | Revision: {view.revision} | Undo: {view.undo_count} | Redo: {view.redo_count}"
         )
     def _sync_standalone_compare_combo(self) -> None:
-        combo = getattr(self.standalone_workspace, "compare_mode_combo", None)
+        # Panels not built yet are not built for this: reading the combo would build
+        # every legacy panel, 2.5 s on the UI thread on a cold Open set (defect 2).
+        # A combo built later starts on "Edited", its first item.
+        combo = getattr(self.standalone_workspace, "__dict__", {}).get("compare_mode_combo")
         if combo is None:
             return
         previous = combo.blockSignals(True)

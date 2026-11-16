@@ -1411,22 +1411,33 @@ fn cdmw_section<R>(
 // Both lists share the same aligned View / Include columns. Names and physics
 // truncate inside their cells; growing text never pushes a checkbox off-screen.
 pub(super) fn cdmw_list_columns(ui: &egui::Ui, detail: &str) -> [f32; 4] {
-    let measure = |text: &str| {
+    cdmw_list_columns_fitting(ui, detail, &[])
+}
+
+/// The list's columns when the detail column holds `values` (drawn small): it is as
+/// wide as its header or its widest value, whichever is wider, but it leaves the name
+/// at least 30 % of the list. A value that still does not fit truncates in its cell,
+/// and its tooltip has the whole text.
+pub(super) fn cdmw_list_columns_fitting(ui: &egui::Ui, detail: &str, values: &[String]) -> [f32; 4] {
+    let measure = |text: String, style: egui::TextStyle| {
         ui.painter()
-            .layout_no_wrap(
-                crate::localization::tr(text),
-                egui::TextStyle::Body.resolve(ui.style()),
-                ui.visuals().text_color(),
-            )
+            .layout_no_wrap(text, style.resolve(ui.style()), ui.visuals().text_color())
             .size()
             .x
             + ui.spacing().button_padding.x * 2.0
     };
-    let view = measure("View").max(ui.spacing().interact_size.y);
-    let include = measure("Include").max(ui.spacing().interact_size.y);
-    let detail = measure(detail).max(58.0);
-    let name = (ui.available_width() - view - include - detail - ui.spacing().item_spacing.x * 3.0)
-        .max(24.0);
+    let header = |text: &str| measure(crate::localization::tr(text), egui::TextStyle::Body);
+    let view = header("View").max(ui.spacing().interact_size.y);
+    let include = header("Include").max(ui.spacing().interact_size.y);
+    let spacing = ui.spacing().item_spacing.x * 3.0;
+    let available = ui.available_width();
+    let wanted = values
+        .iter()
+        .map(|value| measure(value.clone(), egui::TextStyle::Small))
+        .fold(header(detail).max(58.0), f32::max);
+    let room = available - view - include - spacing - available * 0.3;
+    let detail = wanted.min(room).max(header(detail).max(58.0));
+    let name = (available - view - include - detail - spacing).max(24.0);
     [name, detail, view, include]
 }
 
@@ -1549,6 +1560,13 @@ fn cdmw_chrome_fits_one_row(context: &egui::Context, available_width: f32) -> bo
 
 fn cdmw_sidebar_visible(context: &egui::Context, id: &str) -> bool {
     context.data_mut(|data| data.get_temp::<bool>(egui::Id::new(id)).unwrap_or(true))
+}
+
+/// Whether Escape now closes a floating tool panel (the front one that is not pinned).
+/// Closing it comes before clearing the selection.
+pub(super) fn cdmw_escape_closes_a_panel(context: &egui::Context) -> bool {
+    let current = CdmwSidebarSettings::load(context);
+    current.open.iter().any(|page| Some(*page) != current.pinned)
 }
 
 pub(super) fn set_cdmw_sidebar_expanded(context: &egui::Context, id: &str, expanded: bool) {
@@ -5728,7 +5746,15 @@ impl LabApplication {
         ScrollArea::vertical().id_salt("cdmw_parts_list")
             .auto_shrink([false, false]).show(ui, |ui| {
                 self.draw_cdmw_replacement(ui, actions);
-                let widths = cdmw_list_columns(ui, "Physics");
+                // The Physics column fits its header or its widest badge (Fredric's report:
+                // every badge read "Unknown p..." while Part had room to spare).
+                let badges: Vec<String> = parts.iter()
+                    .filter_map(|(index, _, _)| self.cdmw_state["physics"]["parts"].as_array()
+                        .and_then(|rows| rows.iter().find(|part| part["index"].as_u64() == Some(u64::from(*index))))
+                        .filter(|part| crate::cdmw_cloth::physics_badge_shown(part))
+                        .map(crate::cdmw_cloth::physics_badge))
+                    .collect();
+                let widths = cdmw_list_columns_fitting(ui, "Physics", &badges);
                 let headers = cdmw_list_header(ui, widths, "Part", "Physics");
                 let layer_visible = self.cdmw_layer_visible_submeshes();
                 let replacement = self.cdmw_state["replacement"].clone();
@@ -5765,17 +5791,23 @@ impl LabApplication {
                                             .interact(egui::Sense::click())
                                             .context_menu(|ui| cdmw_part_visibility_menu(ui, actions, &indices, &all, any_hidden));
                                     });
+                                    // Centred in their cells exactly as the part rows' boxes are,
+                                    // so every row's checkboxes line up under the headers.
                                     cdmw_list_cell(ui, widths[2], |ui| {
-                                        if ui.checkbox(&mut shown, "").labelled_by(headers[0]).changed() {
-                                            actions.push(UiAction::SetPartVisibility { indices: indices.clone(), visible: shown });
-                                        }
+                                        ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
+                                            if ui.add(egui::Checkbox::without_text(&mut shown)).labelled_by(headers[0]).changed() {
+                                                actions.push(UiAction::SetPartVisibility { indices: indices.clone(), visible: shown });
+                                            }
+                                        });
                                     });
                                     cdmw_list_cell(ui, widths[3], |ui| {
-                                        if ui.checkbox(&mut included, "").labelled_by(headers[1]).changed() {
+                                        ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
+                                        if ui.add(egui::Checkbox::without_text(&mut included)).labelled_by(headers[1]).changed() {
                                             actions.push(UiAction::CdmwCommand { command: "replacement_include",
                                                 arguments: json!({"part_ids": rows.iter().map(|row| &row["id"]).collect::<Vec<_>>(), "included": included}),
                                                 label: "Change output inclusion" });
                                         }
+                                        });
                                     });
                                 });
                             }
@@ -5788,7 +5820,7 @@ impl LabApplication {
                                 .and_then(|rows| rows.iter().find(|part| part["index"].as_u64() == Some(u64::from(*index))));
                             let evidence = physics.map(crate::cdmw_cloth::physics_lines)
                                 .unwrap_or_default().join("\n");
-                            let badge = physics.filter(|part| part["kind"] != "none")
+                            let badge = physics.filter(|part| crate::cdmw_cloth::physics_badge_shown(part))
                                 .map(crate::cdmw_cloth::physics_badge);
                             let mut help = crate::localization::tr(format!("{index}: {name}\nMaterial: {material}"));
                             if !evidence.is_empty() {
