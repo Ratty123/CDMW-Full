@@ -600,7 +600,7 @@ impl LoadedCdmwSessionPackage {
         // consumes geometry from the document, so validate the JSON stream
         // without allocating a second full serde Value tree during startup.
         let _: IgnoredAny =
-            serde_json::from_slice(&read_json_reference(&root, &manifest.channels)?)?;
+            serde_json::from_slice(&read_channels_reference(&root, &manifest.channels)?)?;
         let document: MeshDocument = if expected_schema == PREVIEW_PACKAGE_SCHEMA {
             let document_bytes = read_json_reference(&root, &manifest.document)?;
             if let Some(geometry) = &manifest.preview_core_geometry {
@@ -3124,9 +3124,27 @@ fn read_mesh_document_binary_reference(
 }
 
 fn read_json_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>, SessionError> {
+    read_json_reference_counting(root, reference, false)
+}
+
+/// The manifest's channels reference counts vertices. An edit that deleted every
+/// face keeps each Part as an empty slot (see `validate_document`), so its next
+/// open declares zero; the payload still lists every Part.
+fn read_channels_reference(
+    root: &Path,
+    reference: &FileReference,
+) -> Result<Vec<u8>, SessionError> {
+    read_json_reference_counting(root, reference, true)
+}
+
+fn read_json_reference_counting(
+    root: &Path,
+    reference: &FileReference,
+    allow_zero_count: bool,
+) -> Result<Vec<u8>, SessionError> {
     if reference.content_type != "application/json"
         || !reference.data_type.ends_with("_json")
-        || reference.count == 0
+        || (reference.count == 0 && !allow_zero_count)
     {
         return Err(SessionError::InvalidPayload(
             "file reference type or count is invalid".to_owned(),
@@ -4892,6 +4910,53 @@ pub(crate) mod tests {
         assert!(package.manifest().item_set_files.is_empty());
         // A companion never poses as an item-set member.
         manifest["item_set_files"] = json!(["head.pac", "Companions of head.pac"]);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
+    fn a_finished_edit_that_emptied_every_part_opens_again() {
+        // Deleting every face keeps each Part as an empty slot; Finish accepts it and
+        // the next open writes channels for zero vertices. That open was refused:
+        // "file reference type or count is invalid" (review-warm-a0862).
+        let root = tempdir().unwrap();
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let mut emptied = document();
+        let part = &mut emptied.lods[0].submeshes[0];
+        part.positions.clear();
+        part.normals.clear();
+        part.uvs.clear();
+        part.indices.clear();
+        part.source_vertex_indices.clear();
+        let bytes = mesh_document_binary::encode_test_document(&emptied);
+        fs::write(root.path().join("document.bin"), &bytes).unwrap();
+        fs::remove_file(root.path().join("document.json")).unwrap();
+        manifest["document"] = mesh_binary_reference("document.bin", &bytes);
+        let channels = serde_json::to_vec(&json!({"lods": [{"lod_index": 0,
+            "submeshes": [{"submesh_index": 0, "bone_indices": []}]}]}))
+        .unwrap();
+        fs::write(root.path().join("channels.json"), &channels).unwrap();
+        manifest["channels"] = json!({"path": "channels.json",
+            "data_type": "mesh_channels_compact_json", "content_type": "application/json",
+            "count": 0, "byte_length": channels.len(), "sha256": sha256_upper(&channels)});
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+        let package = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();
+        assert!(package.document().lods[0].submeshes[0].positions.is_empty());
+        let mesh = WorkingMesh::from_document_lod(package.document(), 0).unwrap();
+        assert_eq!(mesh.draw_snapshot().positions.len(), 0);
+
+        // Only the channels reference counts vertices; other JSON references keep
+        // their at-least-one-element rule.
+        let empty_document: FileReference = serde_json::from_value(json!({
+            "path": "channels.json", "data_type": "mesh_document_json",
+            "content_type": "application/json", "count": 0,
+            "byte_length": channels.len(), "sha256": sha256_upper(&channels)}))
+        .unwrap();
+        assert!(read_json_reference(root.path(), &empty_document).is_err());
+        manifest["channels"]["data_type"] = json!("mesh_channels");
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
         assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
     }
