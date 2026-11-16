@@ -120,6 +120,12 @@ class MeshEditorTextureTools(QDockWidget):
         self.notice.setWordWrap(True)
         self.notice.setVisible(False)
         layout.addWidget(self.notice)
+        # Whether the edits are kept in the draft yet (step 8, item 3).
+        self.kept_label = QLabel(body)
+        self.kept_label.setObjectName("MeshEditorTextureKeptState")
+        self.kept_label.setWordWrap(True)
+        self.kept_label.setVisible(False)
+        layout.addWidget(self.kept_label)
         self.split = QSplitter(Qt.Orientation.Horizontal, body)
         self.split.setChildrenCollapsible(False)
         layout.addWidget(self.split, 1)
@@ -166,6 +172,12 @@ class MeshEditorTextureTools(QDockWidget):
         width = max(scaled_px(560, self), int(host.width() * 0.45))
         if self.width() < width:
             resize([self], [width], Qt.Orientation.Horizontal)
+
+    def set_kept_text(self, text: str) -> None:
+        """Say whether this document's texture edits are kept in its draft ("" hides it)."""
+
+        self.kept_label.setText(text)
+        self.kept_label.setVisible(bool(text))
 
     def forget_session(self, session_id: str) -> None:
         """A document went away; its textures no longer reach a model."""

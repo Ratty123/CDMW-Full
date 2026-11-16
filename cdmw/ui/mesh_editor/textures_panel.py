@@ -595,6 +595,11 @@ class MeshEditorTexturesPanel(QDockWidget):
 
         self.thumbnails.shutdown()
 
+    def texture_rows(self) -> tuple[TextureRow, ...]:
+        """Every listed texture row, part by part."""
+
+        return tuple(row for group in self.groups for row in group.rows)
+
     def texture_row(self, texture_id: str) -> TextureRow | None:
         for group in self.groups:
             for row in group.rows:

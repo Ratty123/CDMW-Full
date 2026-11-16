@@ -64,6 +64,9 @@ def has_pending_edit(tab: object) -> bool:
     live_edit = getattr(tab, "live_edit", None)
     if bool(getattr(live_edit, "is_ready", False)) or pending_edit_revision(tab) > 0:
         return True
+    keeper = getattr(tab, "_live_texture_keeping", None)
+    if keeper is not None and keeper.unkept_count() > 0:
+        return True  # texture edits not kept in the draft yet (step 8, item 3)
     if unfinished_editor_steps(tab) > 0 or _preparing_over_recovery(tab):
         return True
     session = getattr(tab, "standalone_rust_authoring_session", None)

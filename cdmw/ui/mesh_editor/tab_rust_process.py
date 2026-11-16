@@ -676,6 +676,36 @@ class MeshEditorRustProcessMixin:
             live = self._live_texture_updates = LiveTextureUpdates(session_root, send, self)
         return live
 
+    def _live_texture_keeper(self):
+        """Keeps this document's texture edits in its draft (step 8, item 3)."""
+
+        keeper = getattr(self, "_live_texture_keeping", None)
+        if keeper is None:
+            from cdmw.ui.mesh_editor.live_texture_keeping import LiveTextureKeeper
+
+            keeper = self._live_texture_keeping = LiveTextureKeeper(
+                self._live_textures(), self._live_texture_draft_root, self)
+            keeper.status.connect(self.status_message_requested.emit)
+            keeper.kept_changed.connect(self._show_live_texture_kept_text)
+        return keeper
+
+    def _live_texture_draft_root(self) -> Path | None:
+        """The document's draft folder, once it exists on disk (a planned draft is not yet)."""
+
+        manifest = getattr(self, "mesh_editor_draft_manifest_path", None)
+        try:
+            return Path(manifest).parent if manifest is not None and Path(manifest).is_file() else None
+        except (OSError, TypeError, ValueError):
+            return None
+
+    def _show_live_texture_kept_text(self, text: str) -> None:
+        from cdmw.ui.mesh_editor.tab_rust_editor import _host_panel
+
+        tools = _host_panel(self, "_texture_tools_panel")
+        show = getattr(tools, "set_kept_text", None)
+        if callable(show):
+            show(text)
+
     def _live_texture_session_id(self) -> str:
         # The document, not one editor session: edits made after Finish still belong to it.
         document_id = getattr(self, "_live_texture_document_id", "")
@@ -715,7 +745,7 @@ class MeshEditorRustProcessMixin:
             QMessageBox.warning(self, "Texture Editor", exc.reason)
             return
         self._live_textures().remember_source(row.source_sha256, LiveTextureSource(
-            game_path=row.game_path, original=original, users=users))
+            game_path=row.game_path, original=original, users=users, role=row.role))
 
         tools.open_target(LiveTextureTarget(
             session_id=session_id,
@@ -731,6 +761,7 @@ class MeshEditorRustProcessMixin:
     def _on_texture_window_edit(self, session_id: str, source_sha256: str, image, changed: bool = True) -> None:
         if session_id and session_id == self._live_texture_session_id():
             self._live_textures().push(source_sha256, image, changed=changed)
+            self._live_texture_keeper().edited()
 
     def _live_texture_plan(self):
         """What Build Mod writes for the textures edited live, or None when none were."""
@@ -746,7 +777,7 @@ class MeshEditorRustProcessMixin:
 
         edits = []
         for source_sha256, image in edited.items():
-            source = live.sources.get(source_sha256)
+            source = live.sources.get(source_sha256) or self._restored_live_texture_source(source_sha256)
             if source is None:
                 continue
             width, height, data = image_rgba8(image)
@@ -758,6 +789,28 @@ class MeshEditorRustProcessMixin:
                 users=source.users,
             ))
         return plan_live_texture_outputs(edits, self._archive_texture_indexes()[0])
+
+    def _restored_live_texture_source(self, source_sha256: str):
+        """What Build Mod needs about an edit restored from the draft whose texture was not
+        opened since: read from the Textures panel's row of the same texture."""
+
+        from cdmw.domain.textures.original_output import TextureOutputRefused, check_texture_editable
+        from cdmw.services.mesh_live_texture_output import LiveTextureSource
+        from cdmw.ui.mesh_editor.tab_rust_editor import _host_textures_panel
+
+        dock = _host_textures_panel(self)
+        rows = getattr(dock, "texture_rows", None)
+        for row in (rows() if callable(rows) else ()):
+            if str(row.source_sha256).lower() == str(source_sha256).lower() and row.decoded_path:
+                try:
+                    original = check_texture_editable(Path(row.decoded_path))
+                except TextureOutputRefused:
+                    return None
+                source = LiveTextureSource(game_path=row.game_path, original=original,
+                                           users=dock.texture_users(row.texture_id), role=row.role)
+                self._live_textures().remember_source(source_sha256, source)
+                return source
+        return None
 
     def push_live_texture(self, source_sha256: str, image) -> int:
         """Show an edited texture on the model now; returns the edit's revision."""
@@ -1228,6 +1281,8 @@ class MeshEditorRustProcessMixin:
                 "Your mesh changes passed validation. Choose how to keep editing, save the result or install it."
             )
         self._publish_rust_protocol_status("Mesh Editor finished and CDMW accepted the validated geometry.")
+        if getattr(self, "_live_texture_updates", None) is not None:
+            self._live_texture_keeper().finished()
 
     def _query_deferred_rust_morph_state(self) -> None:
         """The editor shows before its morph data (P4 V3): ask for it now, send it when it comes."""

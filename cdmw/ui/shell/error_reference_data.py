@@ -44199,7 +44199,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 860
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 913
     }
   },
   {
@@ -49498,7 +49498,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1022
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1075
     }
   },
   {
@@ -49554,7 +49554,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor archive load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 496
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 500
     }
   },
   {
@@ -49562,7 +49562,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 769
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 822
     }
   },
   {
@@ -49570,8 +49570,8 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 976,
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 837
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1029,
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 841
     }
   },
   {
@@ -49579,7 +49579,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 575
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 579
     }
   },
   {
@@ -49662,7 +49662,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1513
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1568
     }
   },
   {
@@ -49678,7 +49678,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1317
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1372
     }
   },
   {
@@ -49686,7 +49686,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1313
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1368
     }
   },
   {
@@ -49718,7 +49718,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor file load failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 722
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 726
     }
   },
   {
@@ -49833,7 +49833,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1343
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1398
     }
   },
   {
@@ -49873,7 +49873,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1026
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1079
     }
   },
   {
@@ -49898,7 +49898,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1101
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1154
     }
   },
   {
@@ -56503,7 +56503,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status parse failed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 950
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 954
     }
   },
   {
@@ -56511,7 +56511,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status read failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 941
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 945
     }
   },
   {
@@ -60375,7 +60375,7 @@ MESSAGE_REFERENCE = [
     "message": "The current Finish must stop before another mesh file can open.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 607
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 611
     }
   },
   {
@@ -60383,7 +60383,7 @@ MESSAGE_REFERENCE = [
     "message": "The current Finish must stop before another mesh session can open.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 577
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 581
     }
   },
   {
@@ -67406,7 +67406,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh must be ParsedMesh",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 571
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 575
     }
   },
   {
@@ -70449,7 +70449,7 @@ MESSAGE_REFERENCE = [
     "message": "preview error: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 992
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 996
     }
   },
   {
@@ -70531,7 +70531,7 @@ MESSAGE_REFERENCE = [
     "message": "preview process error; retry scheduled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1076
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1080
     }
   },
   {
@@ -100862,6 +100862,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Some texture edits could not be kept in the draft: {detail}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_live_texture_drafts.py": 89
+    }
+  },
+  {
+    "area": "textures",
     "message": "Source format is precision-sensitive; PNG intermediates can hide detail loss.",
     "recovery": "internal",
     "sources": {
@@ -101366,6 +101374,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "The edit of {edit.game_path} is not an RGBA image.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_live_texture_drafts.py": 62
+    }
+  },
+  {
+    "area": "textures",
     "message": "The edit of {texture.source_path} has no output path.",
     "recovery": "internal",
     "sources": {
@@ -101385,7 +101401,7 @@ MESSAGE_REFERENCE = [
     "message": "The editor could not show the edit.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/live_texture_updates.py": 173
+      "cdmw/ui/mesh_editor/live_texture_updates.py": 192
     }
   },
   {
@@ -104254,10 +104270,12 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/texture_pipeline/preview.py",
     "cdmw/domain/textures/editor_presets.py",
     "cdmw/domain/textures/policy.py",
+    "cdmw/services/mesh_live_texture_drafts.py",
     "cdmw/services/texture_document_authority.py",
     "cdmw/services/texture_editor_service.py",
     "cdmw/services/texture_workflow_service.py",
     "cdmw/ui/archive_browser/mesh_dds_preview.py",
+    "cdmw/ui/mesh_editor/live_texture_keeping.py",
     "cdmw/ui/mesh_editor/live_texture_updates.py",
     "cdmw/ui/mesh_editor/resident_texture_update_queue.py",
     "cdmw/ui/mesh_editor/tab_textured_view.py",
@@ -106624,6 +106642,10 @@ SOURCE_COVERAGE = {
     "finding": 1,
     "raise": 6
   },
+  "cdmw/services/mesh_live_texture_drafts.py": {
+    "finding": 1,
+    "raise": 2
+  },
   "cdmw/services/mesh_live_texture_output.py": {},
   "cdmw/services/mesh_material_publication.py": {
     "diagnostic_text": 1
@@ -108235,6 +108257,9 @@ SOURCE_COVERAGE = {
     "finding": 2,
     "raise": 2,
     "signal": 4
+  },
+  "cdmw/ui/mesh_editor/live_texture_keeping.py": {
+    "diagnostic_field": 1
   },
   "cdmw/ui/mesh_editor/live_texture_updates.py": {
     "assertion": 2,

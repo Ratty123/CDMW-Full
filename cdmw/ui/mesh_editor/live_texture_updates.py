@@ -84,6 +84,10 @@ class _Texture:
     #: The texture as last edited, and whether it differs from the one it was opened from.
     latest: QImage | None = None
     changed: bool = False
+    #: Edits made (re-showing one after a restart is not an edit), and the last one kept
+    #: in the document's draft (item 3).
+    edits: int = 0
+    kept: int = 0
 
 
 class _WriteSignals(QObject):
@@ -143,12 +147,27 @@ class LiveTextureUpdates(QObject):
         key = str(source_sha256).lower()
         state = self._textures.setdefault(key, _Texture(written={}))
         state.revision += 1
+        state.edits += 1
         state.pending = image.copy()
         state.latest = state.pending
         state.changed = bool(changed)
         if not state.in_flight:
             self._start(key, state)
         return state.revision
+
+    def unkept(self) -> dict[str, tuple[int, QImage | None]]:
+        """Edits not yet kept in the draft, by source hash: (edit count, image), the image
+        None when the texture was undone back to the one it was opened from."""
+
+        return {key: (state.edits, state.latest if state.changed else None)
+                for key, state in self._textures.items() if state.edits != state.kept}
+
+    def mark_kept(self, source_sha256: str, edits: int) -> None:
+        """The draft now holds this texture as it was after ``edits`` edits."""
+
+        state = self._textures.get(str(source_sha256).lower())
+        if state is not None:
+            state.kept = max(state.kept, int(edits))
 
     def flush(self) -> None:
         """Send what waited for the editor (it was not running or not ready)."""

@@ -426,6 +426,10 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         self.mesh_editor_draft_manifest_path = result.draft_manifest_path
         self.mesh_editor_draft_lineage = dict(result.draft_lineage or {})
         refresh_draft_name_controls(self)
+        # Texture edits kept in a draft being continued are shown on the model again (item 3).
+        draft_root = self._live_texture_draft_root()
+        if draft_root is not None:
+            self._live_texture_keeper().restore(draft_root)
         if result.resumed_manifest_path is not None:
             self.status_message_requested.emit(
                 f"Mesh Editor resumed draft for {entry.basename}.",

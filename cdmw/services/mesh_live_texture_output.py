@@ -57,6 +57,8 @@ class LiveTextureSource:
     game_path: str
     original: OriginalTextureOutput
     users: tuple[str, ...] = ()
+    #: The texture's role in its material (base colour, normal...), the draft keeps it by.
+    role: str = ""
 
 
 @dataclass(frozen=True, slots=True)
