@@ -56,6 +56,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- When the **Mesh Editor**'s mesh helper cannot answer a Morph & Refit query, the message now says why, for example "Resident C++ morph_state timed out after 5 s." or the helper's own reason, instead of only "Resident C++ morph_state failed.". CDMW's diagnostics log also names the helper command that failed.
 - The Mesh Editor's Texture Editor panel no longer says that edits to a part's colour file show on the model when the part takes its colour from three layers instead. On armour such as `cd_phm_00_ub_00_0374` the belts' materials do not name a colour file and take their colour from layer files, so painting the colour file CDMW found for them, `cd_phm_00_belt_0008_02.dds`, changed nothing on the model; the panel now warns about this before you paint. Build Mod still writes the edited file, which changes it for the other game models that use it, such as the belt `cd_phm_00_belt_0008_02` itself.
 - The **Mesh Editor** opens a model again after a finished edit that deleted every face. It used to refuse with "CDMW session payload is invalid: file reference type or count is invalid", both inside Browse and in its own window.
 - **Open set in Mesh Editor** opens the whole set when its first file has a saved draft and you answer "Continue where you left off?" with **Start Fresh**. It used to open only that first file.

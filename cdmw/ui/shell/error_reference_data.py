@@ -43077,7 +43077,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot fit excluded islands without valid source face identities.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2094
+      "cdmw/services/mesh_service_morph.py": 2098
     }
   },
   {
@@ -45151,7 +45151,7 @@ MESSAGE_REFERENCE = [
     "message": "Enable and bind a garment before fitting it to the body.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2459
+      "cdmw/services/mesh_service_morph.py": 2463
     }
   },
   {
@@ -52965,7 +52965,7 @@ MESSAGE_REFERENCE = [
     "message": "Native helper failed: %s",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 252
+      "cdmw/modding/mesh_native_dispatch.py": 256
     }
   },
   {
@@ -57833,7 +57833,31 @@ MESSAGE_REFERENCE = [
     "message": "Resident C++ morph report omitted submesh counts.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service_morph.py": 2238
+      "cdmw/services/mesh_service_morph.py": 2242
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Resident C++ {command} failed.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_service_morph.py": 2528
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Resident C++ {command} failed: {reason}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_service_morph.py": 2527
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Resident C++ {command} timed out after {timeout_seconds} s.",
+    "recovery": "timeout",
+    "sources": {
+      "cdmw/services/mesh_service_morph.py": 2525
     }
   },
   {
@@ -69865,7 +69889,7 @@ MESSAGE_REFERENCE = [
     "message": "native status {status or 'missing'} with no message",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 329
+      "cdmw/modding/mesh_native_dispatch.py": 333
     }
   },
   {
@@ -69873,7 +69897,7 @@ MESSAGE_REFERENCE = [
     "message": "native status {status or 'missing'}: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_native_dispatch.py": 329
+      "cdmw/modding/mesh_native_dispatch.py": 333
     }
   },
   {
@@ -107354,7 +107378,8 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/mesh_service_morph.py": {
     "diagnostic_field": 1,
-    "raise": 76
+    "raise": 76,
+    "validation": 3
   },
   "cdmw/services/mesh_service_morph_authoring.py": {
     "raise": 58

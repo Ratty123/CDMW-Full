@@ -2061,9 +2061,13 @@ class MeshMorphServiceMixin(MeshMorphLayerMixin, MeshMorphAuthoringMixin, MeshMo
 
     def _run_morph_query_locked(self, session: _MeshEditSession, command: str) -> Mapping[str, object]:
         self._ensure_native_morph_session_locked(session)
-        report = native_mesh_editor_session_command(command, session.session_id, timeout_seconds=5.0)
+        timeout_seconds = 5.0
+        report = native_mesh_editor_session_command(command, session.session_id, timeout_seconds=timeout_seconds)
         if not isinstance(report, Mapping) or str(report.get("status") or "").lower() != "ok":
-            raise RuntimeError(_report_error(report, f"Resident C++ {command} failed."))
+            # The dispatcher answers None for every failure, the core's own
+            # refusal included, so its reason is only in the job error slot.
+            raise RuntimeError(_report_error(report, _morph_query_failure(
+                command, last_native_mesh_core_job_error() if report is None else "", timeout_seconds)))
         return report
 
     def _refit_output_exclusions_locked(self, session, garments):
@@ -2511,6 +2515,17 @@ def _morph_values_from_report(report: Mapping[str, object]) -> dict[str, float]:
             except (TypeError, ValueError, OverflowError):
                 continue
     return values
+
+
+def _morph_query_failure(command: str, job_error: str, timeout_seconds: float) -> str:
+    """Say why a resident query failed: timed out, or the core's own reason."""
+
+    reason = str(job_error or "").strip()
+    if "ProcessTimeoutExpired" in reason or "timed out" in reason:
+        return f"Resident C++ {command} timed out after {timeout_seconds:g} s."
+    if reason:
+        return f"Resident C++ {command} failed: {reason}"
+    return f"Resident C++ {command} failed."
 
 
 def _report_error(report: object, fallback: str) -> str:

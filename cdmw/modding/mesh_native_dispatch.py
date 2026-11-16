@@ -232,7 +232,11 @@ def _note_native_job_failure(
     payload: Mapping[str, object] | None = None, timeout_seconds: float | None = None,
     stderr: str = "", exc_info: bool = False,
 ) -> None:
-    _LAST_NATIVE_JOB_ERROR[0] = f"{command}: {reason}"
+    # A session job's own command (morph_state, apply, open) says which of
+    # them failed; the diagnostic context alone does not reach the event log.
+    session_command = str((payload or {}).get("command") or "").strip() if command == "mesh-editor-session-json" else ""
+    label = f"{command} {session_command}" if session_command and session_command != command else command
+    _LAST_NATIVE_JOB_ERROR[0] = f"{label}: {reason}"
     # A later successful cleanup may clear the compatibility slot. Retain the
     # failure in the shared diagnostic log with only request metadata, never
     # geometry, textures, or other input payloads.
