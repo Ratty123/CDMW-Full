@@ -213,6 +213,7 @@ class ItemSetComponentsWidget(QWidget):
                 group.setCheckState(0, Qt.Unchecked)
                 self._prefab_groups[path] = group
             self._hidden_keys.intersection_update(self._keys.values())
+            self._order_files_as_the_set(scope)
             self._label_rows()
             self._sync_group_checks()
             self.tree.expandAll()
@@ -221,6 +222,20 @@ class ItemSetComponentsWidget(QWidget):
         self.active = bool(self._parts)
         self.edit_set_button.setEnabled(bool(self._parts))
         self.setVisible(self.active)
+
+    def _order_files_as_the_set(self, scope: tuple[str, ...]) -> None:
+        """Files in the set's own order, the order the Mesh Editor's Parts list uses
+        (Fredric, 2026-11-16: the same parts in the same order in both lists); listed but
+        not loaded prefab components stay after them."""
+
+        if self.tree.topLevelItemCount() < 2:
+            return
+        order = {path: index for index, path in enumerate(scope)}
+        path_of = {id(group): path for path, group in self._groups.items()}
+        groups = [self.tree.takeTopLevelItem(0) for _ in range(self.tree.topLevelItemCount())]
+        groups.sort(key=lambda group: (path_of.get(id(group), "") in self._prefab_groups,
+                                       order.get(path_of.get(id(group), ""), len(order))))
+        self.tree.addTopLevelItems(groups)
 
     def _group(self, path: str, *, label: str = "") -> QTreeWidgetItem:
         group = self._groups.get(path)

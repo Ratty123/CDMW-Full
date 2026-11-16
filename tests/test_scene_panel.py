@@ -298,3 +298,20 @@ def test_nothing_is_selected_until_a_hover_or_a_click() -> None:
     panel.select_part(1)
     panel.select_part(-1)  # empty space clicked in the view
     assert panel.tree.currentItem() is None and highlights[-1] == ()
+
+
+def test_files_are_listed_in_the_set_s_order_as_the_parts_list_lists_them() -> None:
+    """Fredric (2026-11-16 pass): the Scene panel listed the set's files in the preview's
+    order (upper body, lower body, belt...) while the Parts list follows the set."""
+
+    upper, belt, lower = ("character/model/ub.pac", "character/model/lb_belt.pac", "character/model/lb.pac")
+    batches = [{"index": index, "material_name": f"M{index}", "editor_identity": {
+        "source_submesh_index": index, "source_local_submesh_index": 0, "source_model_path": path,
+        "part_name": f"Part {index}"}} for index, path in enumerate((upper, lower, belt))]
+    panel = ScenePanel()
+    panel.set_parts(batches, (upper, belt, lower))
+    shown = [panel.tree.topLevelItem(i).toolTip(0) for i in range(panel.tree.topLevelItemCount())]
+    assert shown == [upper, belt, lower]
+    # Each file keeps its own parts after the move.
+    assert [panel.tree.topLevelItem(i).child(0).text(0) for i in range(3)] == ["Part 0", "Part 2", "Part 1"]
+    assert all(panel.tree.topLevelItem(i).text(1) == "1" for i in range(3))
