@@ -69,3 +69,26 @@ def test_draft_choice_answer_clicks_start_fresh_or_resume() -> None:
     tab._draft_choice_showing = lambda: False
     assert not pass_commands.draft_choice_answer(window, {})
     holder.deleteLater()
+
+
+def test_set_appearance_uses_the_settings_page_controls_and_applies_them() -> None:
+    from PySide6.QtWidgets import QComboBox, QSpinBox
+
+    flushed: list[bool] = []
+    combo, spin = QComboBox(), QSpinBox()
+    combo.addItem("Graphite", "graphite")
+    combo.addItem("Light", "light")
+    spin.setRange(8, 24)
+    spin.setValue(10)
+    settings_tab = SimpleNamespace(theme_combo=combo, ui_font_size_spin=spin,
+                                   flush_settings_save=lambda: flushed.append(True),
+                                   current_theme_key=lambda: combo.currentData(),
+                                   current_ui_font_size=lambda: spin.value())
+    window = SimpleNamespace(shell=SimpleNamespace(settings_tab=settings_tab))
+    assert pass_commands.set_appearance(window, {"theme": "light", "ui_font_size": 15}) == {
+        "theme": "light", "ui_font_size": 15}
+    assert flushed == [True]
+    import pytest
+
+    with pytest.raises(ValueError):
+        pass_commands.set_appearance(window, {"theme": "no-such-theme"})

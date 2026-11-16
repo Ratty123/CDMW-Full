@@ -190,6 +190,7 @@ class AutomationBridge(QObject):
             "preview_settings_page_check": lambda args: pass_commands.preview_settings_page_check(self.window, args),
             "scene_panel_tick": lambda args: pass_commands.scene_panel_tick(self.window, args),
             "draft_choice_answer": lambda args: pass_commands.draft_choice_answer(self.window, args),
+            "set_appearance": lambda args: pass_commands.set_appearance(self.window, args),
         }
 
     # ----- lifecycle -------------------------------------------------------

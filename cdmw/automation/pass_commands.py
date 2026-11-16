@@ -93,3 +93,21 @@ def draft_choice_answer(window, args: dict) -> bool:
     button = tab.draft_resume_button if args.get("answer") == "resume" else tab.draft_start_fresh_button
     button.click()
     return True
+
+
+def set_appearance(window, args: dict) -> dict[str, object]:
+    """Change the theme and the UI font size as the Settings page's controls do, then apply
+    them at once (as leaving the page does). Returns what is now set."""
+
+    settings_tab = window.shell.settings_tab
+    theme = args.get("theme")
+    if theme:
+        index = settings_tab.theme_combo.findData(str(theme))
+        if index < 0:
+            raise ValueError(f"No theme {theme!r}.")
+        settings_tab.theme_combo.setCurrentIndex(index)
+    size = args.get("ui_font_size")
+    if size:
+        settings_tab.ui_font_size_spin.setValue(int(size))
+    settings_tab.flush_settings_save()
+    return {"theme": settings_tab.current_theme_key(), "ui_font_size": settings_tab.current_ui_font_size()}
