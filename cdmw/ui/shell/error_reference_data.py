@@ -49522,7 +49522,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1113
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1179
     }
   },
   {
@@ -49587,7 +49587,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 706,
+      "cdmw/ui/mesh_editor/shell_bridge.py": 772,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 185
     }
   },
@@ -49751,7 +49751,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1002
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1068
     }
   },
   {
@@ -56856,7 +56856,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1037
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1103
     }
   },
   {
@@ -59975,7 +59975,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture loading failed; the untextured model remains available: {failure_reason}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 485
+      "cdmw/ui/mesh_editor/shell_bridge.py": 551
     }
   },
   {

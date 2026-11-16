@@ -16061,6 +16061,7 @@
     "Wait for the selected parts to finish updating": "等待選定部件完成更新",
     "Wait for the texture operation to finish before exporting.": "請等待紋理作業完成後再匯出。",
     "Waiting": "等待",
+    "Waiting for Browse's full preview before Mesh Editor opens...": "正在等待 瀏覽封存 的完整預覽，然後開啟 網格編輯器...",
     "Waiting for Browse's viewport to start again...": "正在等待瀏覽封存的檢視重新啟動...",
     "Waiting for Mesh .NET editor to finish queued edits before saving...": "等待 網格 .NET 編輯器在儲存之前完成排隊的編輯...",
     "Waiting for Steam to start the game...": "正在等待 Steam 啟動遊戲…",

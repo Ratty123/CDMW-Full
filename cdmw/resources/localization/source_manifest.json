@@ -51376,7 +51376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 930,
+          "line": 996,
           "sink": "set_status_message"
         }
       ]
@@ -61726,7 +61726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 611,
+          "line": 677,
           "sink": "set_status_message"
         }
       ]
@@ -82326,12 +82326,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 562,
+          "line": 628,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 569,
+          "line": 635,
           "sink": "set_status_message"
         }
       ]
@@ -90101,7 +90101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1113,
+          "line": 1179,
           "sink": "set_status_message"
         }
       ]
@@ -90161,7 +90161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1111,
+          "line": 1177,
           "sink": "set_status_message"
         }
       ]
@@ -90216,7 +90216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 621,
+          "line": 687,
           "sink": "question"
         }
       ]
@@ -90346,7 +90346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 706,
+          "line": 772,
           "sink": "set_status_message"
         },
         {
@@ -90706,32 +90706,32 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1002,
+          "line": 1068,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1022,
+          "line": 1088,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1029,
+          "line": 1095,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1049,
+          "line": 1115,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1058,
+          "line": 1124,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1072,
+          "line": 1138,
           "sink": "set_status_message"
         }
       ]
@@ -90751,17 +90751,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 599,
+          "line": 665,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 619,
+          "line": 685,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 668,
+          "line": 734,
           "sink": "set_status_message"
         }
       ]
@@ -91396,7 +91396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1115,
+          "line": 1181,
           "sink": "set_status_message"
         }
       ]
@@ -109471,7 +109471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 988,
+          "line": 1054,
           "sink": "set_status_message"
         }
       ]
@@ -109601,7 +109601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 803,
+          "line": 869,
           "sink": "set_status_message"
         }
       ]
@@ -109766,7 +109766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 933,
+          "line": 999,
           "sink": "set_status_message"
         }
       ]
@@ -112536,7 +112536,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1060,
+          "line": 1126,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -120141,7 +120141,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 825,
+          "line": 891,
           "sink": "set_status_message"
         }
       ]
@@ -120621,7 +120621,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1051,
+          "line": 1117,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -124061,7 +124061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 637,
+          "line": 703,
           "sink": "show_empty_state"
         }
       ]
@@ -128716,7 +128716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1039,
+          "line": 1105,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -128771,7 +128771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1037,
+          "line": 1103,
           "sink": "set_status_message"
         }
       ]
@@ -133281,7 +133281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 621,
+          "line": 687,
           "sink": "question"
         }
       ]
@@ -137281,7 +137281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 441,
+          "line": 462,
           "sink": "set_status_message"
         },
         {
@@ -147166,17 +147166,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 124,
+          "line": 136,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 722,
+          "line": 788,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 996,
+          "line": 1062,
           "sink": "set_status_message"
         }
       ]
@@ -147231,7 +147231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 107,
+          "line": 119,
           "sink": "set_status_message"
         }
       ]
@@ -147241,7 +147241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1120,
+          "line": 1186,
           "sink": "set_status_message"
         }
       ]
@@ -164926,7 +164926,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 485,
+          "line": 551,
           "sink": "set_status_message"
         }
       ]
@@ -185828,6 +185828,16 @@
           "path": "cdmw/ui/texture_workflow/progress_panel.py",
           "line": 21,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Waiting for Browse's full preview before Mesh Editor opens...",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
+          "line": 484,
+          "sink": "set_status_message"
         }
       ]
     },
@@ -218946,7 +218956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1039,
+          "line": 1105,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -219501,7 +219511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1039,
+          "line": 1105,
           "sink": "MeshImportSetupSelection"
         }
       ]

@@ -1071,3 +1071,86 @@ def test_open_in_mesh_editor_prepares_a_model_that_only_has_a_borrowed_set(tmp_p
     assert not harness.opened and previews == [clicked]
     assert harness.statuses[-1] == (
         "Preparing clicked.pac and its related files. Open Open in Mesh Editor again when its preview finishes.", False)
+
+
+# Fredric, 2026-11-16: opened while Browse showed its quick preview, the editor got a
+# package without the material graph (grey tunic, blue shiny sleeves on armour 0374).
+
+
+def _interim_harness(tmp_path: Path, monkeypatch, tier: str = "quick"):
+    entry = _entry(tmp_path)
+    geometry = _package(tmp_path / "geometry", entry, textured=True)
+    harness = _LaunchHarness(entry, geometry)
+    harness.current_archive_preview_result = SimpleNamespace(
+        preview_model="quick-model", dotnet_preview_package_path=str(geometry), quality_tier=tier)
+    timers: list[object] = []
+    monkeypatch.setattr("cdmw.ui.mesh_editor.shell_bridge.QTimer.singleShot",
+                        lambda _ms, callback: timers.append(callback))
+    return entry, geometry, harness, timers
+
+
+@pytest.mark.parametrize("tier", ["quick", "fast"])
+def test_an_open_during_the_quick_preview_waits_for_the_full_one(tmp_path, monkeypatch, tier) -> None:
+    from cdmw.ui.mesh_editor.shell_bridge import WAITING_FOR_FULL_PREVIEW_TEXT
+
+    entry, geometry, harness, timers = _interim_harness(tmp_path, monkeypatch, tier)
+    harness._launch_archive_mesh_editor_for_entry(entry)
+
+    # No texture load replaces Browse's full build, and nothing opens on the quick one.
+    assert harness.texture_requests == []
+    assert harness.opened == []
+    assert harness.statuses[-1][0] == WAITING_FOR_FULL_PREVIEW_TEXT
+    harness._launch_archive_mesh_editor_for_entry(entry)  # a second click waits with the first
+    assert len(timers) == 1
+
+    timers.pop()()  # still quick: look again
+    assert harness.opened == [] and len(timers) == 1
+
+    harness.current_archive_preview_result = SimpleNamespace(
+        preview_model="full-model", dotnet_preview_package_path=str(geometry), quality_tier="full")
+    lease = _Lease()
+    with patch("cdmw.ui.mesh_editor.shell_bridge.acquire_dotnet_preview_package_cache_lease_for_path",
+               return_value=lease):
+        timers.pop()()
+    assert len(harness.opened) == 1
+    _opened_entry, kwargs = harness.opened[0]
+    assert kwargs["material_preview_model"] == "full-model"
+    assert harness.texture_requests == []
+
+
+def test_choosing_another_file_while_waiting_drops_the_open(tmp_path, monkeypatch) -> None:
+    entry, _geometry, harness, timers = _interim_harness(tmp_path, monkeypatch)
+    harness._launch_archive_mesh_editor_for_entry(entry)
+    harness.entry = _entry(tmp_path, "other.pac", offset=8)
+    timers.pop()()
+    assert harness.opened == [] and timers == []
+    assert harness._mesh_editor_full_preview_wait is None
+
+
+def test_without_a_full_preview_within_the_minute_it_opens_as_before(tmp_path, monkeypatch) -> None:
+    entry, _geometry, harness, timers = _interim_harness(tmp_path, monkeypatch)
+    harness._launch_archive_mesh_editor_for_entry(entry)
+    harness._mesh_editor_full_preview_wait["deadline"] = 0.0
+    lease = _Lease()
+    with patch("cdmw.ui.mesh_editor.shell_bridge.acquire_dotnet_preview_package_cache_lease_for_path",
+               return_value=lease):
+        timers.pop()()
+    # The old path, once: it opens on the package Browse has; no endless waiting.
+    assert len(harness.opened) == 1 and timers == []
+    assert harness._mesh_editor_full_preview_wait is None
+
+
+def test_an_interim_texture_result_is_never_handed_to_the_editor(tmp_path) -> None:
+    entry = _entry(tmp_path)
+    geometry = _package(tmp_path / "geometry", entry, textured=False)
+    quick = _package(tmp_path / "quick", entry, textured=True)
+    harness = _LaunchHarness(entry, geometry)
+    harness.archive_preview_request_id = 7
+    harness._archive_texture_request_id = 7
+    harness._archive_texture_request_loading = True
+    harness._archive_pending_texture_result = SimpleNamespace(
+        dotnet_preview_package_path=str(quick), quality_tier="quick")
+    assert harness._mesh_editor_active_textured_package_for_entry(entry) is None
+    harness._archive_pending_texture_result = SimpleNamespace(
+        dotnet_preview_package_path=str(quick), quality_tier="full")
+    assert harness._mesh_editor_active_textured_package_for_entry(entry) is not None

@@ -16061,6 +16061,7 @@
     "Wait for the selected parts to finish updating": "선택한 파트의 업데이트가 완료될 때까지 대기",
     "Wait for the texture operation to finish before exporting.": "텍스처 작업이 끝난 후 내보내세요.",
     "Waiting": "대기 중",
+    "Waiting for Browse's full preview before Mesh Editor opens...": "메시 편집기를 열기 전에 아카이브 탐색의 전체 미리 보기를 기다리는 중...",
     "Waiting for Browse's viewport to start again...": "아카이브 탐색 뷰가 다시 시작되기를 기다리는 중...",
     "Waiting for Mesh .NET editor to finish queued edits before saving...": "저장하기 전에 메시 .NET 편집기가 대기 중인 편집을 완료하기를 기다리는 중...",
     "Waiting for Steam to start the game...": "Steam에서 게임을 시작하기를 기다리는 중…",
