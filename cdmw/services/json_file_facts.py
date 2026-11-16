@@ -38,7 +38,7 @@ _COARSE_MIN_AGE_NS = 3_000_000_000
 _lock = threading.Lock()
 _facts: "OrderedDict[tuple, tuple[tuple[int, int, int, int], dict]]" = OrderedDict()
 #: The fact functions asked of each file name, so one parse can answer them all.
-_known_facts: dict[tuple[str, str, int | None], list] = {}
+_known_facts: dict[tuple[str, str], list] = {}
 
 
 def _identity(stat_result: os.stat_result) -> tuple[int, int, int, int]:
@@ -61,20 +61,18 @@ def json_file_fact(
     fact: Callable[[object], T],
     *,
     encoding: str = "utf-8",
-    max_bytes: int | None = None,
 ) -> T:
     """``fact(json.loads(text))`` for the file at ``path``, remembered per file identity.
 
     Raises what reading and parsing the file raise (``OSError``,
-    ``UnicodeError``, ``ValueError``), and ``ValueError`` when the file is
-    larger than ``max_bytes``. ``fact`` itself may raise; nothing is
+    ``UnicodeError``, ``ValueError``). ``fact`` itself may raise; nothing is
     remembered then. ``fact`` must be a module-level function: it is part of
     the memo's key.
     """
 
     text_path = os.fspath(path)
-    key = (os.path.normcase(os.path.abspath(text_path)), encoding, max_bytes)
-    family = (os.path.normcase(os.path.basename(text_path)), encoding, max_bytes)
+    key = (os.path.normcase(os.path.abspath(text_path)), encoding)
+    family = (os.path.normcase(os.path.basename(text_path)), encoding)
     before = os.stat(text_path)
     identity = _identity(before) if stat.S_ISREG(before.st_mode) else None
     memorable = identity is not None and bool(identity[1])
@@ -84,8 +82,6 @@ def json_file_fact(
             if known is not None and known[0] == identity and fact in known[1]:
                 _facts.move_to_end(key)
                 return known[1][fact]  # type: ignore[return-value]
-    if max_bytes is not None and before.st_size > max_bytes:
-        raise ValueError("JSON file exceeds its size limit")
     read_at_ns = time.time_ns()
     with open(text_path, "rb") as stream:
         opened = _identity(os.fstat(stream.fileno()))
