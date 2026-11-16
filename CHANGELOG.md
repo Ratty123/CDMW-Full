@@ -94,6 +94,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - The Mesh Editor no longer builds its hidden panels when an edit opens, which paused the window for about 2.5 s the first time a set was opened.
 - Showing a set or a large model in Browse Archives no longer pauses the window while CDMW records its files' dates and sizes for reuse, about 2 s for the Hernandian Honor Guard set; this now runs in the background, and a file changed since is still found before the cached preview is reused.
 - In the Mesh Editor, Esc clears the selection when there is nothing else for it to cancel or close, as a click on empty space in the view does.
+- Gimmick rows from game 1.0.0.3663 decode again; CDMW had refused every one of them, base and DLC, with "Invalid compact static presence flag." The update added two fields to each gimmick and a new kind of condition, which moved the numbers of most later condition kinds. Condition, interaction, character, inventory and minigame rows that use those conditions decode again too, and rows from earlier game versions are still read. Browse Archives shows these rows' fields again. Not yet checked in game.
 
 ### Docs
 

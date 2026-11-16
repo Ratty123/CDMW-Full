@@ -42,10 +42,42 @@ _DROPSET_3663 = (
     ("field", "DropSetInfo", "_isToVehicle", ("raw", 1)),
     *_DROPSET_BASE[_VEHICLE_INSERT:],
 )
+# 1.0.0.3663 reads two further GimmickInfo members after _lookAtDataList. Every
+# shipped row stores each as one zero byte, so each is read as an absent
+# presence-flagged value; a present value has no qualified shape and is refused.
+# The names are the executable's member labels. No shipped row tells the two
+# apart, so their order follows the order of those labels.
+_GIMMICKINFO_BASE = READERS[TABLE_READERS["gimmickinfo"]]
+_CONSTRAINT_INSERT = next(i + 1 for i, op in enumerate(_GIMMICKINFO_BASE)
+                          if isinstance(op, tuple) and op[:3] == ("field", "GimmickInfo", "_lookAtDataList"))
+_GIMMICKINFO_3663 = (
+    *_GIMMICKINFO_BASE[:_CONSTRAINT_INSERT],
+    ("field", "GimmickInfo", "_autoTargetingConstraintDataList", ("presence", ("unsupported",))),
+    ("field", "GimmickInfo", "_gimmickConstraintDataList", ("presence", ("unsupported",))),
+    *_GIMMICKINFO_BASE[_CONSTRAINT_INSERT:],
+)
+# ConditionData's u16 type switch. 1.0.0.3663 adds type 144, so the older types
+# 144 to 501 arrive as 145 to 502. No shipped row uses the new type, so its
+# payload is not qualified. A row that reads no type from 144 up is the same
+# under both numberings and is walked once.
+_CONDITION_TYPES = 941
+_CONDITION_SWITCH = READERS[_CONDITION_TYPES]
+_NEW_CONDITION_TYPE = 144
+assert _CONDITION_SWITCH[:2] == ("variant", 2) and sorted(_CONDITION_SWITCH[-1]) == list(range(502))
+_CONDITION_SWITCH_3663 = (*_CONDITION_SWITCH[:-1], MappingProxyType({
+    **{tag: case for tag, case in _CONDITION_SWITCH[-1].items() if tag < _NEW_CONDITION_TYPE},
+    _NEW_CONDITION_TYPE: ("unsupported",),
+    **{tag + 1: case for tag, case in _CONDITION_SWITCH[-1].items() if tag >= _NEW_CONDITION_TYPE},
+}))
 
 
 def read_compact_layout(raw, kind="iteminfo"):
-    programs = (("pre-3527", _ITEMINFO_BASE), ("3527", _ITEMINFO_3527)) if kind == "iteminfo" else ((kind, None),)
+    if kind == "iteminfo":
+        programs = (("pre-3527", _ITEMINFO_BASE), ("3527", _ITEMINFO_3527))
+    elif kind == "gimmickinfo":
+        programs = (("pre-3663", _GIMMICKINFO_BASE), ("3663", _GIMMICKINFO_3663))
+    else:
+        programs = ((kind, None),)
     candidates, errors, failures = [], [], []
     for label, program in programs:
         drop_seen = set()
@@ -53,25 +85,32 @@ def read_compact_layout(raw, kind="iteminfo"):
             # A row without DropInfoData has identical layouts. Do not walk it twice.
             if enchant_width == 3 and not drop_seen and kind != "dropsetinfo":
                 break
-            try:
-                selected = _DROPSET_3663 if kind == "dropsetinfo" and enchant_width == 3 else program
-                layout = _read_compact_layout(raw, kind, selected, enchant_width=enchant_width, drop_seen=drop_seen)
-                if layout not in candidates:
-                    candidates.append(layout)
-            except (RecordError, UnicodeError) as exc:
-                errors.append(f"{label}: {exc}")
-                failures.append(exc)
+            condition_seen = set()
+            for conditions_3663 in (False, True):
+                if conditions_3663 and not condition_seen:
+                    break
+                try:
+                    selected = _DROPSET_3663 if kind == "dropsetinfo" and enchant_width == 3 else program
+                    layout = _read_compact_layout(raw, kind, selected, enchant_width=enchant_width, drop_seen=drop_seen,
+                                                  conditions_3663=conditions_3663, condition_seen=condition_seen)
+                    if layout not in candidates:
+                        candidates.append(layout)
+                except (RecordError, UnicodeError) as exc:
+                    errors.append(f"{label}: {exc}")
+                    failures.append(exc)
     if len(candidates) != 1:
         if kind != "iteminfo":
             if not candidates:
-                raise failures[0]
+                # The newest layout tried is the one the current game writes.
+                raise failures[-1]
             raise RecordError("Unsupported or ambiguous compact static layout.")
         detail = "; ".join(errors) if not candidates else "both known layouts match"
         raise RecordError(f"Unsupported or ambiguous compact ItemInfo layout ({detail}).")
     return candidates[0]
 
 
-def _read_compact_layout(raw, kind, program=None, *, enchant_width=2, drop_seen=None):
+def _read_compact_layout(raw, kind, program=None, *, enchant_width=2, drop_seen=None,
+                         conditions_3663=False, condition_seen=None):
     from cdmw.core.item_layout import ItemLayout, Member, Span
 
     size_limit, step_limit = _RECORD_LIMITS.get(kind, _DEFAULT_LIMITS)
@@ -98,7 +137,10 @@ def _read_compact_layout(raw, kind, program=None, *, enchant_width=2, drop_seen=
             for child in op[1:]:
                 walk(child, path, depth + 1)
         elif code == "call":
-            walk(READERS[op[1]], path, depth + 1)
+            if op[1] == _CONDITION_TYPES and conditions_3663:
+                walk(_CONDITION_SWITCH_3663, path, depth + 1)
+            else:
+                walk(READERS[op[1]], path, depth + 1)
         elif code in ("optional", "presence"):
             present = cursor.unpack("B")
             if present not in (0, 1):
@@ -139,6 +181,8 @@ def _read_compact_layout(raw, kind, program=None, *, enchant_width=2, drop_seen=
                 members.append(Member(owner, name, path, span))
         elif code in ("variant", "tagged"):
             tag = int.from_bytes(cursor.take(op[1]), "little")
+            if op is _CONDITION_SWITCH and tag >= _NEW_CONDITION_TYPE and condition_seen is not None:
+                condition_seen.add(True)
             if tag not in op[-1]:
                 raise RecordError("Unsupported compact static discriminant.")
             if code == "tagged":
@@ -167,6 +211,8 @@ def _field_shape(kind, field):
     op = find(READERS[TABLE_READERS[kind]])
     if op is None and kind == "iteminfo":
         op = find(_ITEMINFO_3527)
+    if op is None and kind == "gimmickinfo":
+        op = find(_GIMMICKINFO_3663)
     if op is None:
         raise RecordError("This compact static generation has no such field.")
     while op[0] == "call" or op[0] == "seq" and len(op) == 2:
