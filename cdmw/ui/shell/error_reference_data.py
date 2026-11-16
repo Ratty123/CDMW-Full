@@ -74206,7 +74206,7 @@ MESSAGE_REFERENCE = [
     "message": "A required static field cannot be absent.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 236
+      "cdmw/core/compact_static.py": 240
     }
   },
   {
@@ -74414,7 +74414,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous compact static field.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 177
+      "cdmw/core/compact_static.py": 181
     }
   },
   {
@@ -76413,7 +76413,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static list exceeds the supported bound at {path}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 153
+      "cdmw/core/compact_static.py": 157
     }
   },
   {
@@ -76421,7 +76421,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static record exceeds the layout limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 127
+      "cdmw/core/compact_static.py": 131
     }
   },
   {
@@ -78835,7 +78835,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid compact static presence flag.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 147
+      "cdmw/core/compact_static.py": 151
     }
   },
   {
@@ -79525,7 +79525,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo.{name} at row offset 0x{start}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 170
+      "cdmw/core/compact_static.py": 174
     }
   },
   {
@@ -84067,7 +84067,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static generation has no such field.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/compact_static.py": 217
+      "cdmw/core/compact_static.py": 221
     }
   },
   {
@@ -84075,7 +84075,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static variant has not been qualified.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 130
+      "cdmw/core/compact_static.py": 134
     }
   },
   {
@@ -84451,7 +84451,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown compact static layout operation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 192
+      "cdmw/core/compact_static.py": 196
     }
   },
   {
@@ -84731,7 +84731,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static discriminant.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 187
+      "cdmw/core/compact_static.py": 191
     }
   },
   {
@@ -84739,7 +84739,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static record.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 118
+      "cdmw/core/compact_static.py": 122
     }
   },
   {
@@ -84949,7 +84949,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported or ambiguous compact ItemInfo layout ({detail}).",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 108
+      "cdmw/core/compact_static.py": 112
     }
   },
   {
@@ -84957,7 +84957,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported or ambiguous compact static layout.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 106
+      "cdmw/core/compact_static.py": 110
     }
   },
   {

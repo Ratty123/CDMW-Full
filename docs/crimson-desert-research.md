@@ -295,15 +295,16 @@ reads two further GimmickInfo members after `_lookAtDataList`,
 executable's member labels). Every installed row stores each as one zero byte, so
 both are read as absent presence-flagged values, a present one is refused as not
 qualified, and their order follows the label order because no row tells them apart.
-The same build adds ConditionData type 144; older types 144 to 501 now arrive as
-145 to 502. Evidence from the bytes: the shifted numbering is the only one under
+The same build adds ConditionData type 144; older types 144 to 500 now arrive as
+145 to 501. Evidence from the bytes: the shifted numbering is the only one under
 which every GimmickInfo row decodes and the shipped refusals fall on exactly the
 three unqualified types (9, 367 and 432, now 9, 368 and 433); the executable's type
 name table has `CheckTargetToPushMercenaryInventory` at 144, beside
 `CheckTargetToPushInventory`. No installed row uses type 144, so its payload stays
-unqualified. The reader keeps the earlier member list and numbering, walks the new
-numbering only for rows that read a type from 144 up, and accepts exactly one
-layout. All 14,218 base and 2,376 DLC GimmickInfo rows decode and rebuild byte for
+unqualified. The name table has 504 entries, one more than the move explains, and no
+installed row uses a type above 501, so types 502 and 503 are refused as well. The
+reader keeps the earlier member list and numbering, walks the new numbering only
+for rows that read a type from 144 up, and accepts exactly one layout. All 14,218 base and 2,376 DLC GimmickInfo rows decode and rebuild byte for
 byte through `replace_layout_fields`; a before/after walk of every closed table found
 24,495 rows that now decode (GimmickInfo, and ConditionInfo, InteractionInfo,
 CharacterInfo, Inventory, MinigameDataInfo and GlobalStageSequencerInfo rows that use

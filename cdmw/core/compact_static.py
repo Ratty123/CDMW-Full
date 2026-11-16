@@ -57,9 +57,11 @@ _GIMMICKINFO_3663 = (
     *_GIMMICKINFO_BASE[_CONSTRAINT_INSERT:],
 )
 # ConditionData's u16 type switch. 1.0.0.3663 adds type 144, so the older types
-# 144 to 501 arrive as 145 to 502. No shipped row uses the new type, so its
-# payload is not qualified. A row that reads no type from 144 up is the same
-# under both numberings and is walked once.
+# 144 to 500 arrive as 145 to 501. No shipped row uses the new type, so its
+# payload is not qualified. The executable names 504 types, one more than this
+# move explains, and shipped rows use none above 501, so it is unknown whether
+# 502 or 503 holds the older 501: both are not qualified. A row that reads no
+# type from 144 up is the same under both numberings and is walked once.
 _CONDITION_TYPES = 941
 _CONDITION_SWITCH = READERS[_CONDITION_TYPES]
 _NEW_CONDITION_TYPE = 144
@@ -67,7 +69,9 @@ assert _CONDITION_SWITCH[:2] == ("variant", 2) and sorted(_CONDITION_SWITCH[-1])
 _CONDITION_SWITCH_3663 = (*_CONDITION_SWITCH[:-1], MappingProxyType({
     **{tag: case for tag, case in _CONDITION_SWITCH[-1].items() if tag < _NEW_CONDITION_TYPE},
     _NEW_CONDITION_TYPE: ("unsupported",),
-    **{tag + 1: case for tag, case in _CONDITION_SWITCH[-1].items() if tag >= _NEW_CONDITION_TYPE},
+    **{tag + 1: case for tag, case in _CONDITION_SWITCH[-1].items() if _NEW_CONDITION_TYPE <= tag < 501},
+    502: ("unsupported",),
+    503: ("unsupported",),
 }))
 
 

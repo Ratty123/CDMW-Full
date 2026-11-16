@@ -114,9 +114,11 @@ def test_condition_types_after_the_new_3663_type_read_the_moved_shape(kind):
 
 def test_the_new_condition_type_and_present_new_fields_are_refused_as_unqualified():
     unqualified = 'has not been qualified'
-    tag_144 = gimmick(7006, 'Gimmick_New_Type', fields={'_gimmickInteractionOverrideDataList': interaction_override(condition(144))})
-    with pytest.raises(RecordError, match=unqualified):
-        read_compact_layout(tag_144, 'gimmickinfo')
+    # 144 is the new type; no shipped row tells which of 502 and 503 holds the older 501.
+    for tag in (144, 502, 503):
+        row = gimmick(7006, 'Gimmick_New_Type', fields={'_gimmickInteractionOverrideDataList': interaction_override(condition(tag))})
+        with pytest.raises(RecordError, match=unqualified):
+            read_compact_layout(row, 'gimmickinfo')
     for flags in (b'\1\0', b'\0\1'):
         with pytest.raises(RecordError, match=unqualified):
             read_compact_layout(gimmick(7007, 'Gimmick_Present', new=flags), 'gimmickinfo')
