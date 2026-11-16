@@ -508,6 +508,9 @@ class MeshEditorRustProcessMixin:
         if event == "texture_updated":
             self._live_textures().acknowledge(payload)
             return
+        if event == "live_textures":
+            self._show_live_textures(payload.get("textures"))
+            return
         if event == "preview_settings_changed":
             from cdmw.ui.preview.preview_settings_hub import preview_settings_hub
 
@@ -676,6 +679,23 @@ class MeshEditorRustProcessMixin:
             live = self._live_texture_updates = LiveTextureUpdates(session_root, send, self)
         return live
 
+    def _show_live_textures(self, textures: object) -> None:
+        """The editor said which textures an edit shows on, per part (B item 6): the layers
+        the shader combines count, the ones combined when the model opened do not."""
+
+        from cdmw.ui.mesh_editor.tab_rust_editor import _host_panel, _host_textures_panel
+        from cdmw.ui.mesh_editor.textures_panel import shown_live_by_source
+
+        shown = shown_live_by_source(textures)
+        dock = _host_textures_panel(self)
+        set_shown = getattr(dock, "set_shown_live_textures", None)
+        if callable(set_shown):
+            set_shown(shown)
+        tools = _host_panel(self, "_texture_tools_panel")
+        show = getattr(tools, "set_shown_live_sources", None)
+        if callable(show):
+            show(shown)
+
     def _live_texture_keeper(self):
         """Keeps this document's texture edits in its draft (step 8, item 3)."""
 
@@ -810,12 +830,19 @@ class MeshEditorRustProcessMixin:
             display_name=row.file_name,
             game_path=row.game_path,
             users=users,
-            in_renderer=row.in_renderer,
+            in_renderer=self._texture_shown_live(dock, row),
         ))
         # Which other game files use it, searched in the background (item 5).
         check = self._shared_texture_check()
         check.search_texture_users(row.game_path)
         self._show_shared_texture_result(row.game_path)
+
+    @staticmethod
+    def _texture_shown_live(dock, row) -> bool:
+        # The same file can be a drawn layer on one part and left out on another: an edit
+        # shows when any part draws it.
+        shown = getattr(dock, "texture_shown_live", None)
+        return bool(shown(row.source_sha256)) if callable(shown) else bool(row.in_renderer)
 
     def _on_texture_window_edit(self, session_id: str, source_sha256: str, image, changed: bool = True) -> None:
         if session_id and session_id == self._live_texture_session_id():

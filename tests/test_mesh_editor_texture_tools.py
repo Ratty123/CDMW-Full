@@ -108,7 +108,7 @@ def test_shared_and_shader_layer_textures_say_so(tmp_path: Path) -> None:
     tools = _tools()
     tools.open_target(_target(tmp_path, users=("Upper body", "Belt"), in_renderer=False))
     text = tools.notice.text()
-    assert "Upper body" in text and "Belt" in text and "shader" in text
+    assert "Upper body" in text and "Belt" in text and "not shown" in text
     assert shared_texture_notice(_target(tmp_path, users=("Upper body",))) == ""
     assert unseen_texture_notice(_target(tmp_path)) == ""
     tools.deleteLater()

@@ -4552,20 +4552,63 @@ impl WindowRenderer {
     /// keeping its ownership, and bind the active materials again so the next frame
     /// shows it. Used by the Mesh Editor's live texture editing (step 8).
     pub fn replace_material_texture(&mut self, index: usize, bytes: &[u8]) -> Result<(), RenderError> {
-        let role = self
-            .material_textures
-            .get(index)
-            .map(|texture| texture.role)
-            .ok_or_else(|| RenderError::Texture(format!("no material texture {index} to replace")))?;
-        let uploaded = self.cached_dds_texture(bytes, role, None)?;
-        let texture = &mut self.material_textures[index];
-        texture.texture = uploaded.texture;
-        texture.view_format = uploaded.view_format;
-        texture.single_channel = uploaded.single_channel;
+        self.replace_material_textures(&[index], bytes)
+    }
+
+    /// As `replace_material_texture` for every texture loaded from the same source
+    /// (a base map several layered materials bind is loaded once per material):
+    /// one upload per role and one rebind.
+    pub fn replace_material_textures(
+        &mut self,
+        indices: &[usize],
+        bytes: &[u8],
+    ) -> Result<(), RenderError> {
+        let mut uploads: Vec<(TextureRole, UploadedDdsTexture)> = Vec::new();
+        for &index in indices {
+            let role = self
+                .material_textures
+                .get(index)
+                .map(|texture| texture.role)
+                .ok_or_else(|| {
+                    RenderError::Texture(format!("no material texture {index} to replace"))
+                })?;
+            let uploaded = if let Some((_, uploaded)) = uploads.iter().find(|(r, _)| *r == role) {
+                uploaded.clone()
+            } else {
+                let uploaded = self.cached_dds_texture(bytes, role, None)?;
+                uploads.push((role, uploaded.clone()));
+                uploaded
+            };
+            let texture = &mut self.material_textures[index];
+            texture.texture = uploaded.texture;
+            texture.view_format = uploaded.view_format;
+            texture.single_channel = uploaded.single_channel;
+        }
         if let Some(lod_index) = self.active_material_lod {
             self.set_material_lod(lod_index)?;
         }
         Ok(())
+    }
+
+    /// Bind these layered materials again (their layer textures changed, B item 6)
+    /// and show them in the next frame.
+    pub fn refresh_material_layers<'a>(
+        &mut self,
+        layers: impl IntoIterator<Item = &'a MaterialLayerSet>,
+    ) -> Result<(), RenderError> {
+        for set in layers {
+            self.add_material_layers(set)?;
+        }
+        if let Some(lod_index) = self.active_material_lod {
+            self.set_material_lod(lod_index)?;
+        }
+        Ok(())
+    }
+
+    /// Whether the shader combines this material's layers itself.
+    #[must_use]
+    pub fn material_layers_bound(&self, lod_index: usize, material_index: u32) -> bool {
+        self.material_layers.contains_key(&(lod_index, material_index))
     }
 
     pub fn reset_texture(&mut self) {
@@ -11050,6 +11093,7 @@ fn create_material_bind_group(
     }
 }
 
+#[derive(Clone)]
 struct UploadedDdsTexture {
     texture: Arc<wgpu::Texture>,
     view_format: wgpu::TextureFormat,

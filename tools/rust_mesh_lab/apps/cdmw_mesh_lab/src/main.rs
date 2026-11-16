@@ -17,6 +17,7 @@ mod cdmw_hair;
 mod cdmw_handoff;
 mod cdmw_history;
 mod cdmw_jiggle;
+mod cdmw_live_textures;
 mod cdmw_preview;
 mod cdmw_references;
 mod cdmw_rig;
@@ -114,21 +115,22 @@ const HISTORY_BUDGET_BYTES: usize = 512 * 1024 * 1024;
 fn apply_pending_cdmw_texture_updates(
     renderer: &mut WindowRenderer,
     sources: &[String],
+    layers: &mut [cdmw_render_wgpu::MaterialLayerSet],
+    edits: &mut cdmw_live_textures::LayerTextureEdits,
     pending: &mut std::collections::BTreeMap<String, (PathBuf, u64)>,
     bridge: Option<&CdmwBridge>,
 ) {
     for (source_sha256, (path, revision)) in std::mem::take(pending) {
-        let error = match sources.iter().position(|known| *known == source_sha256) {
-            Some(index) => std::fs::read(&path)
-                .map_err(|error| format!("could not read {}: {error}", path.display()))
-                .and_then(|bytes| {
-                    renderer
-                        .replace_material_texture(index, &bytes)
-                        .map_err(|error| error.to_string())
-                })
-                .err(),
-            None => Some("the session has no texture with that source".to_owned()),
-        };
+        // Layer textures the shader combines are edited live too (B item 6).
+        let error = cdmw_live_textures::apply_texture_update(
+            renderer,
+            sources,
+            layers,
+            edits,
+            &source_sha256,
+            &path,
+        )
+        .err();
         if let Some(bridge) = bridge {
             let _ = bridge.publish_texture_updated(&source_sha256, revision, error.as_deref());
         }
@@ -2359,6 +2361,10 @@ struct LabApplication {
     cdmw_texture_sources: Vec<String>,
     /// Texture edits CDMW sent before the textures were loaded: source hash -> (file, revision).
     cdmw_pending_texture_updates: std::collections::BTreeMap<String, (PathBuf, u64)>,
+    /// Layer textures CDMW edited, put into the layered materials (B item 6).
+    cdmw_layer_texture_edits: cdmw_live_textures::LayerTextureEdits,
+    /// What CDMW was last told an edit shows on (source hash -> LOD 0 parts).
+    cdmw_published_live_textures: Option<BTreeMap<String, BTreeSet<u32>>>,
     cdmw_textured_mode_available: bool,
     cdmw_textured_mode_reason: String,
     cdmw_texture_package_reason: String,
@@ -2609,6 +2615,8 @@ impl LabApplication {
             cdmw_uploaded_texture_count: 0,
             cdmw_texture_sources: Vec::new(),
             cdmw_pending_texture_updates: std::collections::BTreeMap::new(),
+            cdmw_layer_texture_edits: cdmw_live_textures::LayerTextureEdits::default(),
+            cdmw_published_live_textures: None,
             cdmw_textured_mode_available: false,
             cdmw_textured_mode_reason:
                 "Solid (Textured) is unavailable because no usable DDS material texture has been uploaded."
@@ -3601,39 +3609,67 @@ impl LabApplication {
     /// Show an edited texture in place of the loaded one (step 8). Before the textures
     /// are loaded the latest edit per texture waits and is applied once they are.
     fn apply_cdmw_texture_update(&mut self, source_sha256: String, path: PathBuf, revision: u64) {
-        let index = self
-            .cdmw_texture_sources
-            .iter()
-            .position(|known| *known == source_sha256);
+        let known = cdmw_live_textures::known_texture(
+            &self.cdmw_texture_sources,
+            &self.cdmw_material_layers,
+            &self.cdmw_layer_texture_edits,
+            &source_sha256,
+        );
         let Some(renderer) = self.renderer.as_mut() else {
             self.cdmw_pending_texture_updates
                 .insert(source_sha256, (path, revision));
             return;
         };
-        let Some(index) = index else {
-            if self.cdmw_texture_sources.is_empty() {
-                // The textures are still loading; the load applies it.
-                self.cdmw_pending_texture_updates
-                    .insert(source_sha256, (path, revision));
-            } else if let Some(bridge) = &self.cdmw_bridge {
-                let _ = bridge.publish_texture_updated(
-                    &source_sha256,
-                    revision,
-                    Some("the session has no texture with that source"),
-                );
-            }
+        if !known && self.cdmw_texture_sources.is_empty() {
+            // The textures are still loading; the load applies it (or says it is unknown).
+            self.cdmw_pending_texture_updates
+                .insert(source_sha256, (path, revision));
             return;
-        };
-        let error = std::fs::read(&path)
-            .map_err(|error| format!("could not read {}: {error}", path.display()))
-            .and_then(|bytes| {
-                renderer
-                    .replace_material_texture(index, &bytes)
-                    .map_err(|error| error.to_string())
-            })
-            .err();
+        }
+        // A material texture, or a layer the shader combines (B item 6); one answer each.
+        let error = cdmw_live_textures::apply_texture_update(
+            renderer,
+            &self.cdmw_texture_sources,
+            &mut self.cdmw_material_layers,
+            &mut self.cdmw_layer_texture_edits,
+            &source_sha256,
+            &path,
+        )
+        .err();
         if let Some(bridge) = &self.cdmw_bridge {
             let _ = bridge.publish_texture_updated(&source_sha256, revision, error.as_deref());
+        }
+    }
+
+    /// Which textures an edit shows on, per LOD 0 part (B item 6).
+    fn cdmw_live_texture_report(&self, renderer: &WindowRenderer) -> BTreeMap<String, BTreeSet<u32>> {
+        cdmw_live_textures::live_texture_sources(
+            &self.cdmw_texture_resources,
+            &self.cdmw_texture_sources,
+            &self.cdmw_material_layers,
+            &self.cdmw_layer_texture_edits,
+            |lod_index, material_index| renderer.material_layers_bound(lod_index, material_index),
+        )
+    }
+
+    fn publish_cdmw_live_textures(&mut self) {
+        let Some(renderer) = self.renderer.as_ref() else {
+            return;
+        };
+        let shown = self.cdmw_live_texture_report(renderer);
+        self.send_cdmw_live_textures(shown);
+    }
+
+    /// Tell CDMW which textures an edit shows on, when that changed.
+    fn send_cdmw_live_textures(&mut self, shown: BTreeMap<String, BTreeSet<u32>>) {
+        if self.cdmw_published_live_textures.as_ref() == Some(&shown) {
+            return;
+        }
+        let Some(bridge) = self.cdmw_bridge.as_ref().filter(|bridge| !bridge.is_view_only()) else {
+            return;
+        };
+        if bridge.publish_live_textures(&shown).is_ok() {
+            self.cdmw_published_live_textures = Some(shown);
         }
     }
 
@@ -4245,8 +4281,12 @@ impl LabApplication {
             active_lod_index,
         );
         self.cdmw_texture_resources = textures;
+        let mut layers = layers;
+        // Layer edits stay through a material reload or a part reorder (B item 6).
+        self.cdmw_layer_texture_edits.reapply(&mut layers);
         self.cdmw_material_layers = layers;
         self.cdmw_material_presentations = material_presentations;
+        let materials_read_again = material_revision.is_some();
         if let Some((key, reason)) = material_revision {
             self.cdmw_material_key = key;
             self.cdmw_texture_package_reason = reason;
@@ -4272,6 +4312,10 @@ impl LabApplication {
             renderer
                 .set_material_lod(active_lod_index)
                 .context("CDMW material presentation LOD could not be restored")?;
+        }
+        if materials_read_again {
+            // A part reorder keeps CDMW's part numbers; new materials can change what shows.
+            self.publish_cdmw_live_textures();
         }
         self.camera = camera;
         if let Some(mesh) = &self.mesh {
@@ -4797,6 +4841,8 @@ impl LabApplication {
             apply_pending_cdmw_texture_updates(
                 renderer,
                 &self.cdmw_texture_sources,
+                &mut self.cdmw_material_layers,
+                &mut self.cdmw_layer_texture_edits,
                 &mut self.cdmw_pending_texture_updates,
                 self.cdmw_bridge.as_ref(),
             );
@@ -7924,12 +7970,16 @@ impl LabApplication {
             apply_pending_cdmw_texture_updates(
                 renderer,
                 &self.cdmw_texture_sources,
+                &mut self.cdmw_material_layers,
+                &mut self.cdmw_layer_texture_edits,
                 &mut self.cdmw_pending_texture_updates,
                 self.cdmw_bridge.as_ref(),
             );
         } else {
             self.cdmw_texture_sources.clear();
         }
+        let shown = self.cdmw_live_texture_report(renderer);
+        self.send_cdmw_live_textures(shown);
         self.cdmw_texture_upload_failed = texture_warning.is_some();
         if self.cdmw_mode() {
             self.record_cdmw_texture_uploads(
