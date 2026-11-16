@@ -27,20 +27,11 @@ pub fn control_contract() -> Value {
 }
 
 fn sync_host_scale(context: &egui::Context, theme: &Value, window_scale: f32) {
-    let Some(host_scale) = theme["pixels_per_point"]
-        .as_f64()
-        .filter(|scale| scale.is_finite() && *scale > 0.0 && *scale <= 8.0)
-    else {
-        return;
-    };
-    // Embedded child HWNDs can retain winit's original monitor scale. Compensate
-    // before egui-winit maps input as well as before drawing, so text, hit boxes,
-    // IME placement and preview portals all use the Qt host's physical scale.
-    // Apply immediately: set_zoom_factor defers until after input conversion.
-    context.options_mut(|options| {
-        options.zoom_factor = host_scale as f32 / window_scale;
-        options.zoom_with_keyboard = false; // CDMW Appearance owns the UI size.
-    });
+    // Embedded child HWNDs can retain winit's original monitor scale; the Qt host
+    // sends its own, which text, hit boxes, IME placement and portals all follow.
+    if let Some(host_scale) = crate::host_scale::host_scale(theme.get("pixels_per_point")) {
+        crate::host_scale::apply(context, host_scale, window_scale);
+    }
 }
 
 fn enqueue_input(requests: &mut VecDeque<Input>, input: Input) {

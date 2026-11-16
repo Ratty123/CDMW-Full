@@ -1946,6 +1946,7 @@ impl LabApplication {
     }
 
     pub(super) fn apply_cdmw_theme_payload(&self, theme: &Value) {
+        self.remember_cdmw_host_scale(theme);
         crate::localization::configure(&self.egui_context, theme);
         crate::new_item_ui::fonts::configure_editor(&self.egui_context, theme);
         let density = theme
