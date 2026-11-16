@@ -44,15 +44,25 @@ def automation_screen():
     if text.isdigit() and int(text) < len(screens):
         return screens[int(text)]
     primary = QGuiApplication.primaryScreen()
-    return next((screen for screen in screens if screen is not primary), primary)
+    # No secondary screen (one monitor, or one switched off by a game): none, never the
+    # primary, so a test window is never put in front of the user.
+    return next((screen for screen in screens if screen is not primary), None)
 
 
 def place_on_automation_screen(widget) -> None:
+    """On the automation screen, or off every screen when there is no secondary one."""
+
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QGuiApplication
+
     screen = automation_screen()
-    if screen is None:
+    if screen is not None:
+        area = screen.availableGeometry()
+        widget.move(area.topLeft() + QPoint(40, 40))
         return
-    area = screen.availableGeometry()
-    widget.move(area.topLeft() + type(area.topLeft())(40, 40))
+    desktop = QGuiApplication.primaryScreen().virtualGeometry() if QGuiApplication.primaryScreen() else None
+    if desktop is not None:
+        widget.move(desktop.right() + 400, desktop.bottom() + 400)
 
 
 class _WindowPlacement(QObject):
