@@ -74342,7 +74342,7 @@ MESSAGE_REFERENCE = [
     "message": "A QApplication is required for window interaction tracking",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/window_interaction.py": 182
+      "cdmw/ui/window_interaction.py": 183
     }
   },
   {
@@ -74358,7 +74358,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 751
+      "cdmw/automation/bridge.py": 756
     }
   },
   {
@@ -75336,7 +75336,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod output is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 606
+      "cdmw/automation/bridge.py": 611
     }
   },
   {
@@ -75344,7 +75344,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod refuses until validation passes: finish the edit first.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 614
+      "cdmw/automation/bridge.py": 619
     }
   },
   {
@@ -79890,14 +79890,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "JSON file exceeds its size limit",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/services/json_file_facts.py": 88
-    }
-  },
-  {
-    "area": "other",
     "message": "JSON object keys must be strings",
     "recovery": "input",
     "sources": {
@@ -83338,7 +83330,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 553
+      "cdmw/automation/bridge.py": 558
     }
   },
   {
@@ -84058,7 +84050,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 755
+      "cdmw/automation/bridge.py": 760
     }
   },
   {
@@ -84274,7 +84266,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 531
+      "cdmw/automation/bridge.py": 536
     }
   },
   {
@@ -84899,7 +84891,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown automation command: {command or '(none)'}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 301
+      "cdmw/automation/bridge.py": 306
     }
   },
   {
@@ -86007,14 +85999,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/action_chart_binary.py": 801
-    }
-  },
-  {
-    "area": "other",
-    "message": "an application filter must name the event types it handles",
-    "recovery": "input",
-    "sources": {
-      "cdmw/ui/app_event_hub.py": 39
     }
   },
   {
@@ -87944,7 +87928,7 @@ MESSAGE_REFERENCE = [
     "message": "no {name} event within the timeout",
     "recovery": "timeout",
     "sources": {
-      "cdmw/automation/bridge.py": 265
+      "cdmw/automation/bridge.py": 270
     }
   },
   {
@@ -89245,7 +89229,7 @@ MESSAGE_REFERENCE = [
     "message": "{command} did not finish on the UI thread",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 305
+      "cdmw/automation/bridge.py": 310
     }
   },
   {
@@ -98505,7 +98489,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignored duplicate language pack {existing[2].name}; {language_file.name} owns {normalized}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/ui/localization.py": 786
+      "cdmw/ui/localization.py": 792
     }
   },
   {
@@ -98513,7 +98497,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignored duplicate language pack {language_file.name}; {existing[2].name} owns {normalized}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/ui/localization.py": 780
+      "cdmw/ui/localization.py": 786
     }
   },
   {
@@ -99017,7 +99001,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation snapshot exceeds {max_keys} keys.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/localization.py": 1169
+      "cdmw/ui/localization.py": 1175
     }
   },
   {
@@ -99025,7 +99009,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation snapshot is {len(encoded)} bytes; limit is {max_bytes}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/localization.py": 1184
+      "cdmw/ui/localization.py": 1190
     }
   },
   {
@@ -99041,7 +99025,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown GUI startup smoke target: {target}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/app_startup.py": 122
+      "cdmw/ui/shell/app_startup.py": 129
     }
   },
   {
@@ -106943,9 +106927,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/iteminfo_dependency_graph.py": {
     "raise": 12
   },
-  "cdmw/services/json_file_facts.py": {
-    "raise": 1
-  },
+  "cdmw/services/json_file_facts.py": {},
   "cdmw/services/keymap_store.py": {
     "log": 1
   },
@@ -107596,9 +107578,7 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/ui/ai_connections/settings_section.py": {},
-  "cdmw/ui/app_event_hub.py": {
-    "raise": 1
-  },
+  "cdmw/ui/app_event_hub.py": {},
   "cdmw/ui/app_icon.py": {},
   "cdmw/ui/archive_browser/__init__.py": {},
   "cdmw/ui/archive_browser/action_chart_actions.py": {

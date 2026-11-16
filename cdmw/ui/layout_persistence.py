@@ -15,6 +15,7 @@ import weakref
 from PySide6.QtCore import QEvent, QObject, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QHeaderView, QSplitter, QWidget
 from shiboken6 import isValid
+from cdmw.ui.app_event_hub import install_app_event_filter, remove_app_event_filter
 
 from cdmw.ui.widgets import request_settings_sync
 from cdmw.ui.window_interaction import ensure_window_interaction_tracker
@@ -419,16 +420,23 @@ class UiLayoutPersistence(QObject):
         self.settings.sync()
 
 
+#: Every event type UiLayoutPersistence.eventFilter acts on.
+LAYOUT_PERSISTENCE_EVENT_TYPES = (
+    QEvent.Show, QEvent.Resize, QEvent.LayoutRequest, QEvent.Move, QEvent.WindowStateChange,
+    QEvent.Hide, QEvent.Close, QEvent.DeferredDelete,
+)
+
+
 def install_layout_persistence(window, settings) -> UiLayoutPersistence:
     app = QApplication.instance()
     previous = layout_policy()
     if previous is not None:
         previous.flush()
-        app.removeEventFilter(previous)
+        remove_app_event_filter(app, previous)
         previous.deleteLater()
     policy = UiLayoutPersistence(settings, window)
     app._cdmw_layout_persistence = policy
-    app.installEventFilter(policy)
+    install_app_event_filter(app, policy, LAYOUT_PERSISTENCE_EVENT_TYPES)
     # The shell already restores this legacy key before its first show.
     policy.watch_window(window, "window/geometry", restore=False)
     return policy

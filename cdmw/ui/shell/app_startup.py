@@ -7,13 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from PySide6.QtCore import QObject, QSettings, Qt
+from PySide6.QtCore import QEvent, QObject, QSettings, Qt
 from PySide6.QtWidgets import QApplication
 
 from cdmw.app.startup_smoke import gui_startup_smoke_requested, write_gui_startup_smoke_result
 from cdmw.constants import APP_NAME, APP_ORGANIZATION, DEFAULT_UI_THEME
 from cdmw.services.bundled_helper_availability import bundled_helper_resolution_snapshot
 from cdmw.services.settings_service import create_settings
+from cdmw.ui.app_event_hub import install_app_event_filter
 from cdmw.ui.app_icon import load_app_icon
 from cdmw.ui.combo_popup_limiter import ensure_app_combo_popup_limiter
 from cdmw.ui.display_scaling import ensure_app_display_scaling
@@ -63,10 +64,16 @@ def prepare_shell_application(
     if not app_icon.isNull():
         app.setWindowIcon(app_icon)
         app_window_icon_filter = AppWindowIconEventFilter(app_icon, app)
-        app.installEventFilter(app_window_icon_filter)
+        install_app_event_filter(
+            app, app_window_icon_filter, (QEvent.Type.Show, QEvent.Type.WindowActivate)
+        )
 
     tree_column_width_filter = AutoTreeColumnWidthEventFilter(app)
-    app.installEventFilter(tree_column_width_filter)
+    install_app_event_filter(
+        app,
+        tree_column_width_filter,
+        (QEvent.Type.Show, QEvent.Type.Resize, QEvent.Type.LayoutRequest),
+    )
     apply_app_theme(app, startup_settings, startup_theme)
     return ShellApplicationStartup(
         settings=startup_settings,
