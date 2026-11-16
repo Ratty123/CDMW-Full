@@ -425,7 +425,8 @@ impl LabApplication {
             let mut hide_selection = inspection.hide_selection;
             if ui.checkbox(&mut hide_selection, crate::localization::tr("Hide the selection highlight while this panel is open"))
                 .on_hover_text(crate::localization::tr(
-                    "The highlight tints the selected part and hides what a material change does. The part stays selected."))
+                    "The highlight tints the selected part and hides what a material change does. The part stays selected. \
+                     Shift+H (rebindable in Keyboard Shortcuts) hides or shows the highlight at any time."))
                 .changed() {
                 actions.push(UiAction::MaterialInspection(MaterialInspectionChange::HideSelection(hide_selection)));
             }

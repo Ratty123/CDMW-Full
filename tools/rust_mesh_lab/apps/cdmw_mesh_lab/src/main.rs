@@ -2320,6 +2320,8 @@ struct LabApplication {
     selection_domain: SelectionDomain,
     selection_operation: SelectionOperation,
     selection_visible_only: bool,
+    /// The selection tint is not drawn (a shortcut toggles it); the selection stays.
+    selection_highlight_hidden: bool,
     viewport_rect: Option<egui::Rect>,
     viewport_revision: u64,
     camera: OrbitCamera,
@@ -2531,6 +2533,7 @@ impl LabApplication {
             selection_domain: SelectionDomain::Vertex,
             selection_operation: SelectionOperation::Replace,
             selection_visible_only: true,
+            selection_highlight_hidden: false,
             viewport_rect: None,
             viewport_revision: 1,
             camera: OrbitCamera::default(),
@@ -6775,7 +6778,7 @@ impl LabApplication {
     fn refresh_face_selection_overlay(&mut self) {
         // The fill tints the very surface a material edit is judged on.
         let inspecting = self.cdmw_shader_panel_shown.replace(false) && self.material_inspection.hide_selection;
-        if self.cdmw_jiggle.region_colours.is_some() || inspecting {
+        if self.cdmw_jiggle.region_colours.is_some() || inspecting || self.selection_highlight_hidden {
             self.face_selection_overlay = None;
             if let Some(renderer) = &mut self.renderer {
                 let _ = renderer.set_face_selection(&[], [0.0; 4]);

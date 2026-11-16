@@ -56,6 +56,7 @@ fn shortcut_label(action: ShortcutAction) -> &'static str {
         A::SubtractModifier => "Subtract while held",
         A::FrameSelected => "Frame Selected",
         A::FrameAll => "Fit",
+        A::ToggleSelectionHighlight => "Show / hide selection highlight",
         A::ViewFront => "Front",
         A::ViewBack => "Back",
         A::ViewRight => "Right",
@@ -441,6 +442,17 @@ impl LabApplication {
                 },
             ),
             A::FrameAll => actions.push(UiAction::FrameAll),
+            A::ToggleSelectionHighlight => {
+                // The selection itself is untouched; only its tint is drawn or not.
+                self.selection_highlight_hidden = !self.selection_highlight_hidden;
+                self.face_selection_overlay = None;
+                self.status = if self.selection_highlight_hidden {
+                    "Selection highlight hidden"
+                } else {
+                    "Selection highlight shown"
+                }
+                .to_owned();
+            }
             A::ViewFront => actions.push(UiAction::StandardView(StandardView::Front)),
             A::ViewBack => actions.push(UiAction::StandardView(StandardView::Back)),
             A::ViewRight => actions.push(UiAction::StandardView(StandardView::Right)),
