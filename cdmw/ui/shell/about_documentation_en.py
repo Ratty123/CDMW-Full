@@ -83,6 +83,36 @@ CREATE_NEW_ITEM_SECTION = {
     <p>An ItemInfo layout error can follow a game patch that changes item records; small patches do not always need a CDMW update. Check for CDMW and item-mod updates. Copy error report includes the source table and reader details. An unknown layout can also mean an outdated mod or damaged data.</p>
     <p>If an import reports that rest-joint positions do not match the game rig, the model's armature is not the template's skeleton. Choose Transfer from template under Weights on next import, or weight the model to the rig from Export rig GLB… and import it again. Versions before 0.11.0-alpha.25 ignored the armature, so a model that imported then can be refused now.</p>
     <p>If Build plan reports unapplied changes, return to the model or effect step and apply them. For missing textures, inspect the import dependencies. For unavailable outputs, read the selected manager's requirements. Keep the original model, working files, exported package and installation receipt distinct so recovery does not depend on the preview session.</p>
+    <h4>Worked examples</h4>
+    <p><b>First test: a renamed copy of a game sword</b></p>
+    <ol>
+      <li>In Template, search for the sword and select it.</li>
+      <li>In Identity, keep the allocated IDs and enter an English name and description.</li>
+      <li>In Model &amp; Placement, keep the template's own model for this first test.</li>
+      <li>In Distribution, choose one supported shop and set a price.</li>
+      <li>In Output, choose Build plan and read its warnings. Then export a DMM mod folder, or choose Send to DMM.</li>
+      <li>In DMM, enable the mod and its item registrations entry, then mount. Buy the sword at that shop in game.</li>
+    </ol>
+    <p>When this works, make a new package with your own model, so that a later problem is in the model and not in the item setup.</p>
+    <p><b>Your own sword or shield from Blender</b></p>
+    <ol>
+      <li>In Blender, export the model as GLB with its textures. FBX also works, but needs Blender chosen on the Model step. Keep each mesh section under 65,535 vertices.</li>
+      <li>In Template, choose a game item of the same weapon type.</li>
+      <li>In Model &amp; Placement, import your file. Weapons are fitted to the template's grip and heavy end.</li>
+      <li>Use Quick turn, Move, Rotate and Scale, or the placement numbers, until the weapon looks right against the character reference from several angles.</li>
+      <li>Choose Apply placement, then check Appearance and the icon.</li>
+      <li>Choose a shop in Distribution, then Build plan, and export as in the first example.</li>
+    </ol>
+    <p><b>Armour or clothing from Blender</b></p>
+    <ol>
+      <li>In Template, choose a game item for the same body slot. For a garment that should swing, choose one whose cloth roughly matches yours.</li>
+      <li>In Model &amp; Placement, choose Export rig GLB… in the Rig row. It saves the template mesh on the current variant's rig.</li>
+      <li>In Blender, import that GLB. Model your garment standing upright on that body and weight it to that armature. Do not move, rotate or rescale the bones, and do not apply a pose as the rest pose.</li>
+      <li>Export your garment from Blender as GLB, with the armature.</li>
+      <li>Under Weights, choose Keep imported weights, then import your file. If it is refused, the message names the bone that is off the most. Fix that in Blender, or choose Import again with Transfer from template.</li>
+      <li>In Body underneath, keep the body or clothing layers that your garment no longer needs to cut. This needs a DMM mod folder.</li>
+      <li>Choose Apply placement, then Build plan, and export a DMM mod folder. Test it in game on every character that can wear it.</li>
+    </ol>
                 """,
 }
 
@@ -698,7 +728,7 @@ class AboutDocumentationEnglishMixin:
                 <p>If the game has changed the file since the work was saved, CDMW asks before continuing from its saved copy of the earlier file. Undo/Redo history is not saved. A recovered older save may not include the newest edit.</p>
                 <h4>Export Mesh File</h4>
                 <p>Open Output and choose Export…. Select GLB (.glb), FBX (.fbx) or OBJ (.obj), then choose a filename. GLB is listed first for rigged editing; OBJ has no armature or weights. Export saves the current edits and their CDMW companion files without finishing the edit. Keep the files together. To return an edited file with its companion, choose Open Package in CDMW... and select its folder. Separate .gltf export is not available.</p>
-                <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Follow the editable exchange guide for format-specific settings.</p>
+                <p>For external editing, keep the exported GLB, FBX or OBJ with its CDMW companions. Exact return needs stable vertex and joint identity; topology-changing modifiers can invalidate it. In Blender, preserve _CDMW_VERTEX_ID attributes for GLB or the CDMW_VERTEX_ID UV layer for FBX, export the intended meshes and armature, and include all bone influences. Blender round trip, at the end of this topic, lists the Blender steps and export settings.</p>
                 <h4>Export PAC As…</h4>
                 <p>After Finish Edit Mesh, choose Export PAC As… to save just the PAC under a new name or path. The full destination is remembered; existing exports are overwritten. No mod folder or report is created.</p>
                 <p>If the edit needs companion files or multiple meshes, use Build Mod. The original source cannot be overwritten. Renaming the PAC does not change references in other game files.</p>
@@ -726,6 +756,43 @@ class AboutDocumentationEnglishMixin:
                   <li>Escape cancels a gesture, then closes the front floating panel, then returns to Orbit.</li>
                 </ul>
                 <p>To change a key, choose Keyboard Shortcuts... in Viewport or in Hair Tools. Click a shortcut and press the new keys; Escape cancels and Backspace removes it. A key already in use moves to the new command. Reset All restores the defaults. Pages, the other selection shapes, Operation choices and hair tools start without keys. Changes are kept for later sessions.</p>
+                <h4>Blender round trip</h4>
+                <p>These steps bring a game mesh that you moved, sculpted or reshaped in Blender back into the same game file, as long as each Part keeps the same vertices.</p>
+                <ol>
+                  <li>Open the game file in Mesh Editor. Open Output, choose Export… and choose GLB (.glb). Save it in a new, empty folder.</li>
+                  <li>Keep the exported GLB and its .meta.json companion together in that folder, and do not rename them.</li>
+                  <li>In Blender, choose File &gt; Import &gt; glTF 2.0 and open the GLB.</li>
+                  <li>Reshape the mesh by moving, rotating, scaling or sculpting its vertices. Do not add or delete vertices, and do not apply Subdivision, Decimate, Remesh or other modifiers that change the topology.</li>
+                  <li>Select the model meshes and the armature. Leave out the shapes that only display the bones.</li>
+                  <li>Choose File &gt; Export &gt; glTF 2.0. Under Limit to, tick Selected Objects. Under Data &gt; Mesh, tick Attributes and set Use Vertex Color to Active. Tick Include All Bone Influences and keep +Y Up on.</li>
+                  <li>Save over the exported GLB, with the same name in the same folder.</li>
+                  <li>In CDMW, open Output, choose Open Package in CDMW... and select the folder. Check the result, then choose Finish Edit Mesh and Build Mod.</li>
+                </ol>
+                <p>If CDMW refuses the file, the message names the Part whose vertices no longer match. Undo the topology change in Blender, or export again and repeat the edit. Bring a mesh back in the format you exported: GLB as GLB, FBX as FBX. For FBX, keep the CDMW_VERTEX_ID UV layer. Blender can split shared vertices on flat areas; CDMW joins them again when the GLB comes back.</p>
+                <p>To add or remove geometry, or to use a different model, use Import Replacement... instead, as in the second example below.</p>
+                <h4>Worked examples</h4>
+                <p><b>Leave a cape out of an outfit</b></p>
+                <ol>
+                  <li>In Archive Browser, find the outfit's PAC and choose Open in Mesh Editor.</li>
+                  <li>Open Parts and turn on Part colors to see which Part is the cape.</li>
+                  <li>Untick Mod or Include for that Part. Hiding it with View only hides it in the viewport.</li>
+                  <li>Check Output Preview. The cape should be gone.</li>
+                  <li>Choose Finish Edit Mesh, then Build Mod.</li>
+                  <li>In DMM, enable the mod and mount it, then check the outfit in game.</li>
+                </ol>
+                <p>If you cannot untick the Part, hover it to see why; a lower LOD that CDMW cannot map blocks leaving a Part out.</p>
+                <p><b>Put your own model in place of a game mesh</b></p>
+                <ol>
+                  <li>Open the game file you want to replace in Mesh Editor.</li>
+                  <li>For a model that bends with the body, open Parts and choose Export Rig GLB.... In Blender, import that GLB, fit your model to it and weight your model to its armature. Do not move, rotate or rescale the bones.</li>
+                  <li>Export your model from Blender as GLB, with the armature.</li>
+                  <li>In Mesh Editor, choose Import Replacement... and select your file. Map every imported part to a game Part.</li>
+                  <li>Choose Keep Original Materials for the game's look, or Imported Materials &amp; Textures for your own. With your own, raise Roughness if the surface shines like a mirror.</li>
+                  <li>Under Weights, choose Keep Imported Weights if you weighted your model to the exported rig. Otherwise choose Transfer from Original.</li>
+                  <li>Choose Apply Replacement. Check rigid pieces in Rig &amp; Weights, then check Output Preview.</li>
+                  <li>Choose Finish Edit Mesh, then Build Mod, and test the mod in game.</li>
+                </ol>
+                <p>The import keeps the size and position it was exported with; Fit to Original moves it onto the game mesh, and Reset Placement undoes that.</p>
                 """,
             },
         ]
@@ -1080,6 +1147,9 @@ class AboutDocumentationEnglishMixin:
                 <p><b>How do I continue a saved mesh edit?</b><br/>Open Drafts &amp; Mods and choose Continue Editing on the draft or built mod. Finish your changes before closing; edits still open in the editor and Undo/Redo history are not saved.</p>
                 <p><b>Can I edit a model in Blender and bring it back?</b><br/>Use Export… to save GLB, FBX or OBJ with its companion files, then Open Package in CDMW... to return it. Keep the companions together. Exact return needs stable vertex and joint identities; topology edits can prevent it.</p>
                 <p><b>Which Mesh Editor import weight option should I choose?</b><br/>Keep Imported Weights needs the model's matching game rig. Reduce to Six Influences trims compatible weights to the game's limit. Move to Parent Bones keeps weights on bones the original model does not use by moving them to a parent bone. Transfer from Original copies weights from the original surface; check the result in Rig &amp; Weights.</p>
+                <p><b>Which Blender export settings bring a mesh back?</b><br/>Export glTF 2.0 limited to Selected Objects, with Data &gt; Mesh &gt; Attributes ticked, Use Vertex Color set to Active and Include All Bone Influences ticked. Save over the exported GLB beside its .meta.json companion, then choose Open Package in CDMW.... Mesh Editor's Blender round trip has every step.</p>
+                <p><b>Why does CDMW refuse my mesh from Blender?</b><br/>Its vertices no longer match the export: vertices were added or deleted, a modifier changed the topology, the vertex IDs were not exported, or the file came back in another format. The message names the Part. Undo that change, or use Import Replacement... for a new shape.</p>
+                <p><b>Why does my imported model shine like a mirror?</b><br/>With Imported Materials &amp; Textures, Roughness starts at 0% when the model has no roughness map or value. Raise Roughness for a duller finish.</p>
                 <h4><a href="topic:new_item_studio">Create New Item</a></h4>
                 <p><b>How should I choose a new-item template?</b><br/>Start with the same equipment family and test its original model with one shop route first. The template supplies game behaviour and dependencies, not an automatic fit for any imported shape.</p>
                 <p><b>Why are my imported skin weights refused?</b><br/>Keep imported weights needs the template's own skeleton, with unchanged rest bones. Use Export rig GLB… to get that rig, or import with Transfer from template to copy its weights. Check the fit afterward.</p>
@@ -1089,6 +1159,9 @@ class AboutDocumentationEnglishMixin:
                 <p><b>Do Wearable by and fitting references fit my model automatically?</b><br/>No. Wearable by changes who may equip the item. A fitting reference is only a visual guide and is not included in your export. Fit your own model and test it in game; automatic fitting and compatibility are not verified.</p>
                 <p><b>Why is skin missing after I shorten a garment?</b><br/>In Body underneath, keep the body or clothing layers that the selected component no longer needs to cut. Use a DMM mod folder; .cdmw packages cannot carry these changes. Other equipped items can still hide those layers, so check in game.</p>
                 <p><b>Why doesn't painted cloth move in the preview?</b><br/>Create New Item does not simulate cloth movement. Keep Template cloth / physics on for a cloth-painted import, apply placement and review the cloth warnings. Painted cloth and generated guides are experimental and have not been checked in game.</p>
+                <p><b>Why is my imported item tiny, huge or turned the wrong way?</b><br/>Armour and clothing are placed exactly as exported, so export them standing upright in the game's body frame, best on the rig from Export rig GLB…. Fit to template scales, turns and moves the model onto the template, and Reset rotation undoes the turn. For weapons, use Quick turn and the placement numbers. Then choose Apply placement.</p>
+                <p><b>Can I import FBX?</b><br/>Yes. CDMW converts FBX with Blender, so it asks for blender.exe the first time. GLB is the better choice for rigged models.</p>
+                <p><b>What if my model has too many vertices?</b><br/>Each mesh section is limited to 65,535 vertices. Reduce the model in Blender, for example with Decimate, before you import it.</p>
                 <h4><a href="topic:workflow_overview">Textures</a></h4>
                 <p><b>Do I need to install a DDS converter?</b><br/>No. CDMW bundles <b>cd-texture-dx.exe</b> and uses it for all DDS preview and rebuild workflows.</p>
                 <p><b>Should I upscale every texture?</b><br/>No. Start with visible color, UI, or emissive textures. Normals, packed masks, vectors, height maps, and displacement maps should usually stay preserve-first unless you know the family.</p>
