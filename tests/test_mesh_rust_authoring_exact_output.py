@@ -212,6 +212,43 @@ def test_reopened_deleted_geometry_can_finish_without_losing_original_topology_b
         service.close_edit_session(first.authoritative_session_id, force_without_saving=True)
 
 
+def test_reopening_a_finished_edit_that_emptied_every_part_declares_zero_channel_vertices(tmp_path):
+    # Review run a0862: every face deleted, Finish accepted, then Open in Mesh Editor
+    # again. The relaunch keeps each Part as an empty slot and declares channels for
+    # zero vertices; the helper must accept that count (cdmw_session.rs
+    # a_finished_edit_that_emptied_every_part_opens_again).
+    from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+    from cdmw.services.mesh_rust_authoring import read_owned_payload_reference
+
+    _source, service, first = _open_exact_session(tmp_path / "first")
+    reopened = None
+    try:
+        faces = len(first.shadow_service.working_mesh(first.shadow_session_id, clone=False).submeshes[0].faces)
+        deleted = first.shadow_service.apply_command(first.shadow_session_id, MeshEditCommand(
+            "delete", selection=MeshEditSelection.from_maps(faces_by_submesh={0: tuple(range(faces))}),
+            params={"_include_preview_deltas": False}, mode="edit"))
+        assert deleted.ok
+        assert first.finish(_request(first, "finish_request", 1))["status"] == "accepted"
+        reopened = RustMeshAuthoringSession.create(SimpleNamespace(
+            mesh_service=service, active_session_id=first.authoritative_session_id), tmp_path / "reopened",
+            process_generation=12)
+        manifest = json.loads(reopened.manifest_path.read_text(encoding="utf-8"))
+        channels = manifest["channels"]
+        assert (channels["data_type"], channels["content_type"], channels["count"]) == (
+            "mesh_channels_compact_json", "application/json", 0)
+        payload = read_owned_payload_reference(reopened.root, channels)
+        assert [len(lod["submeshes"]) for lod in payload["lods"]] == [1]
+        # The document keeps the emptied Part as its slot.
+        assert manifest["document"]["count"] == 1
+        assert not reopened.shadow_service.working_mesh(reopened.shadow_session_id, clone=False).submeshes[0].vertices
+    finally:
+        if not first.closed:
+            first.cancel()
+        if reopened is not None and not reopened.closed:
+            reopened.cancel()
+        service.close_edit_session(first.authoritative_session_id, force_without_saving=True)
+
+
 def _exact_seed(source: bytes, project: Path | None = None):
     mesh = parse_pac(source, "owned-rust-exact.pac")
     mesh._cdmw_original_data = source
