@@ -18,7 +18,20 @@ def _saved_work_page(window, *, create: bool):
     page = created_tool_widget(holder)
     if page is None and create and isinstance(holder, LazyToolTab):
         window.shell._activate_tool_key("saved_work")
-        page = created_tool_widget(holder)
+        # The tab builds its page on a timer after it is shown; build it now, or let a
+        # load already under way finish.
+        try:
+            page = holder.ensure_widget()
+        except RuntimeError:
+            import time
+
+            from PySide6.QtWidgets import QApplication
+
+            deadline = time.monotonic() + 20.0
+            while page is None and time.monotonic() < deadline:
+                QApplication.processEvents()
+                page = created_tool_widget(holder)
+                time.sleep(0.01)
     return page
 
 

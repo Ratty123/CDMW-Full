@@ -599,6 +599,9 @@ class AutomationBridge(QObject):
         tab = getattr(view, "active", None) or view
         if tab is None:
             return False
+        # Build Mod would refuse with a message box that waits for a click: say so instead.
+        if not tab._standalone_export_validation_ok():
+            raise RuntimeError("Build Mod refuses until validation passes: finish the edit first.")
         original = tab_direct_output.MeshModExportDialog
 
         class _Accepted(original):  # type: ignore[misc, valid-type]

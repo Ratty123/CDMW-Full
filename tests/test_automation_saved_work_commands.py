@@ -106,3 +106,16 @@ def test_select_parts_sends_the_part_numbers_to_the_shown_editor() -> None:
     tab.standalone_rust_ready = False
     assert not saved_work_commands.select_whole_parts(window, {"indices": [1]})
     holder.deleteLater()
+
+
+def test_rows_build_a_drafts_and_mods_tab_that_was_never_opened(combine, monkeypatch):  # noqa: F811
+    from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
+
+    built = []
+    holder = LazyToolTab(lambda: built.append(1) or combine.page)
+    window = SimpleNamespace(shell=SimpleNamespace(saved_work_tab=holder, _activate_tool_key=lambda _key: None))
+    listed = saved_work_commands.saved_work_rows(window, {})
+    assert built == [1]
+    assert sorted(row["display_name"] for row in listed["rows"]) == ["Skirt edit", "Wing piece"]
+    combine.page.setParent(None)  # the fixture closes the page; the holder must not delete it
+    holder.deleteLater()
