@@ -251,3 +251,21 @@ def test_the_editor_gets_the_veils_own_height_map_and_its_detail_height_texture(
     parameters = tuple(SimpleNamespace(parameter_name=key, value=value) for key, value in BEFORE.items())
     rows = payloads(before, {(0, 0, "height"): files["composed"]})
     assert "shader_mask" not in rows and rows["height"]["file"]["sha256"].casefold() == sha("composed")
+
+
+def test_an_archive_part_bound_by_extracted_files_alone_still_gets_its_detail_texture():
+    """The Archive Browser's model can carry only the extracted DDS path of a texture
+    (the first open of the patched veil did): the layer must still be found."""
+    part = veil_part(CLOTH_VALUES, CLOTH_TEXTURES)
+    for item in part.preview_material_texture_inputs:
+        name = item.source_texture_path.rsplit("/", 1)[-1]
+        item.source_dds_path, item.source_texture_path = f"C:/cache/a5793a90c178ccf0_{name}", ""
+    height, detail = authored_veil_layer_textures(part)
+    assert height.source_dds_path.endswith("_cd_phw_00_hel_00_0219_02_disp.dds")
+    assert detail.parameter_name == "_detailHeightMaskR" and detail.source_dds_path.endswith("_0219_disp.dds")
+    assert authored_blended_factors(part)[13:23] == pytest.approx(factors(CLOTH_VALUES, CLOTH_TEXTURES)[13:23])
+    # The hashed mask name still names its channel, and a hashed constant overlay its alpha.
+    layers = veil_layer_inputs(VEIL, {"_colorBlendingFlag": "13"}, {
+        "_colorBlendingMaskTexture": "C:/cache/11_temp_g.dds", "_detailHeightMaskR": "r.dds", "_detailHeightMaskG": "g.dds",
+        "_overlayColorTexture": "C:/cache/22_nonetexture0x40ffffff.dds"})
+    assert layers["_cdmwVeilLayers"] == "g" and float(layers["_cdmwVeilOverlayAlpha"]) == pytest.approx(64 / 255)

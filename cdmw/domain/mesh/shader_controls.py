@@ -500,14 +500,16 @@ def veil_layer_inputs(shader, values, textures):
     if not any(heights.values()) and not flags & 0xFFF:
         return {}
     mask = _texture_name(textures.get("_colorBlendingMaskTexture", ""))
-    channel = next((name for name in "rgb" if mask == f"temp_{name}.dds"), None)
+    # An extracted copy keeps the name behind a hash prefix (a5793a90c178ccf0_temp_r.dds).
+    channel = next((name for name in "rgb" if mask.endswith(f"temp_{name}.dds")), None)
     if channel is None:
         channel = next((name for name in "rgb" if heights[name]), "r")
     result = {VEIL_LAYERS_KEY: channel, VEIL_LAYER_MASK_KEY: "1"}
     overlay = _texture_name(textures.get("_overlayColorTexture", ""))
-    if overlay.startswith("nonetexture0x") and len(overlay) >= 21:
+    constant = overlay[overlay.rfind("nonetexture0x") + 13:] if "nonetexture0x" in overlay else ""
+    if len(constant) >= 8:
         try:
-            result[VEIL_OVERLAY_ALPHA_KEY] = str(int(overlay[13:15], 16) / 255.0)
+            result[VEIL_OVERLAY_ALPHA_KEY] = str(int(constant[:2], 16) / 255.0)
         except ValueError:
             pass
     return result

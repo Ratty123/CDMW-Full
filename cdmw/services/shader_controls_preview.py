@@ -11,7 +11,7 @@ from cdmw.core.temp_cache import session_generated_cache_path
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.shader_controls import (EYE_COVER, BLENDED_FAMILIES, BLENDED_SHADERS, GLASS_FAMILIES,
                                              ShaderControls, family_for, preview_factors, eye_cover_colour_range,
-                                             veil_layer_inputs, veil_layer_texture)
+                                             veil_layer_inputs, veil_layer_texture, VEIL_LAYERS_KEY)
 
 
 EFFECT_MASK_PARAMETERS = frozenset({"_wingFlowTex1", "_tornPatternTexture", "_posterGlowNoiseTex",
@@ -41,7 +41,10 @@ def source_inputs(part, owner=-1):
     textures, values = {}, {}
     for item in inputs:
         parameters.extend(field(item, "material_parameters", ()) or ())
-        textures[field(item, "parameter_name", "")] = field(item, "source_texture_path", "")
+        # An archive preview can bind a texture by its extracted file alone.
+        textures[field(item, "parameter_name", "")] = (
+            field(item, "source_texture_path", "") or field(item, "source_dds_path", "")
+            or field(item, "preview_texture_path", "") or "")
     for parameter in parameters:
         values[field(parameter, "parameter_name", "")] = field(parameter, "value", field(parameter, "numeric_value", ""))
     return values, textures
@@ -123,9 +126,8 @@ def authored_veil_layer_textures(part):
     layers = veil_layer_inputs(shader, values, textures)
     if not layers:
         return None, None
-    detail_path = veil_layer_texture(layers, textures)
-    detail_name = next((name.casefold() for name, path in textures.items()
-                        if detail_path and path == detail_path and name.startswith("_detailHeightMask")), "")
+    detail_name = (f"_detailheightmask{layers[VEIL_LAYERS_KEY]}"
+                   if veil_layer_texture(layers, textures) else "")
     owner = getattr(part, "preview_pac_material_owner_slot_index", -1)
     owned = isinstance(owner, int) and not isinstance(owner, bool) and owner >= 0
     found = {}
