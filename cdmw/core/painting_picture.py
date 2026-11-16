@@ -37,6 +37,7 @@ __all__ = [
     "full_mip_count",
     "load_picture",
     "plan_picture_texture",
+    "shape_picture",
 ]
 
 #: Fill the canvas, cropping the picture's longer side.
@@ -185,7 +186,7 @@ def load_picture(path) -> "object":
     return picture
 
 
-def _shape(picture, aspect: float, fit: str):
+def shape_picture(picture, aspect: float, fit: str):
     """The picture cropped (fill) or padded (whole) to the canvas's physical shape."""
 
     from PIL import Image, ImageStat
@@ -222,7 +223,7 @@ def compose_picture(picture, plan: PicturePlan, *, fit: str = FIT_FILL):
     from PIL import Image
 
     x0, y0, x1, y1 = plan.rect
-    shaped = _shape(picture.convert("RGB"), plan.aspect, fit).resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
+    shaped = shape_picture(picture.convert("RGB"), plan.aspect, fit).resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
     pixels = np.asarray(shaped, dtype=np.uint8)
     full = np.pad(pixels, ((y0, plan.height - y1), (x0, plan.width - x1), (0, 0)), mode="edge")
     alpha = np.full(full.shape[:2] + (1,), 255, dtype=np.uint8)

@@ -72,13 +72,16 @@ __all__ = [
     "FIT_WHOLE",
     "PICTURE_GROUP_NAME",
     "PaintingFrame",
+    "PaintingBuild",
     "PaintingFrameCatalogue",
     "PaintingPlanError",
     "PaintingRequest",
     "PaintingSource",
     "PaintingSourceRow",
+    "build_painting_mod",
     "discover_painting_frames",
     "export_painting_mod",
+    "frame_thumbnails",
     "plan_paintings",
     "read_painting_mod",
 ]
@@ -91,6 +94,9 @@ ICON_REGISTRY_PATH = "ui/xml/texture/cd_item_icon.xml"
 _ICON_FOLDER = "ui/texture/icon"
 _PAMI_REFERENCE = re.compile(rb"object/[\x21-\x7e]*?\.pami")
 _STATIC_MESH = re.compile(r'<StaticMesh\s+Path="([^"]+)"')
+#: `gimmick.paloc` -> `gimmick.dlc_01.paloc`, where the DLC keeps its own texts.
+_DLC_PALOC = re.compile(r"\.paloc$")
+_DLC_PALOC_SUFFIX = ".dlc_01.paloc"
 
 
 class PaintingPlanError(ValueError):
@@ -410,7 +416,7 @@ def _paloc(source: PaintingSource, path: str):
 def _lookup(source: PaintingSource, path: str, key: str) -> Optional[object]:
     """The entry `key` in a base `.paloc` or the DLC's `<name>.dlc_01.paloc` beside it."""
 
-    for candidate in (path, path[: -len(".paloc")] + ".dlc_01.paloc"):
+    for candidate in (path, _DLC_PALOC.sub(_DLC_PALOC_SUFFIX, path)):
         if source.has(candidate):
             entry = _paloc(source, candidate).index().get(key)
             if entry is not None:
@@ -727,3 +733,63 @@ def export_painting_mod(plan, folder: Path, *, title: str, stop_event: Optional[
     )
     return NewItemService().export_loose(plan, Path(folder), manager="DMM", package_info=info,
                                         replace_existing=True, stop_event=stop_event)
+
+
+@dataclass(frozen=True, slots=True)
+class PaintingBuild:
+    """A finished painting mod: the plan it was written from and where it went."""
+
+    plan: object
+    export: object
+    paintings: Tuple[Mapping[str, object], ...]
+
+
+def build_painting_mod(snapshot, requests: Sequence[PaintingRequest], folder: Path, title: str, *,
+                       on_log: Optional[Callable[[str], None]] = None,
+                       stop_event: Optional[threading.Event] = None) -> PaintingBuild:
+    """Read the folder (an earlier painting mod is extended), plan, encode and write the mod."""
+
+    log = on_log or (lambda _message: None)
+    overlay, earlier = read_painting_mod(Path(folder), stop_event=stop_event)
+    if earlier:
+        log(f"Adding to {Path(folder).name}, which holds {len(earlier)} painting(s) already.")
+    source = PaintingSource.from_snapshot(snapshot, overlay=overlay)
+    catalogue = discover_painting_frames(source, stop_event=stop_event)
+    plan = plan_paintings(
+        source, catalogue, requests,
+        encode_texture=lambda image, picture_plan, frame: encode_picture_with_helper(
+            image, picture_plan, frame, stop_event=stop_event),
+        build_icon=lambda picture, entry, payload, icon_string: build_icon_with_helper(
+            picture, entry, payload, icon_string, existing=source.has, stop_event=stop_event),
+        earlier=earlier, on_log=log, stop_event=stop_event)
+    raise_if_cancelled(stop_event, "Painting plan cancelled.")
+    log("Writing the mod folder...")
+    export = export_painting_mod(plan, Path(folder), title=title, stop_event=stop_event)
+    return PaintingBuild(plan=plan, export=export, paintings=tuple(plan.manifest["paintings"]))
+
+
+def frame_thumbnails(source: PaintingSource, catalogue: PaintingFrameCatalogue, *, size: int = 96,
+                     stop_event: Optional[threading.Event] = None) -> Dict[str, bytes]:
+    """`{frame mesh: PNG bytes}` of each frame's source painting icon, for the frame list.
+
+    A frame whose icon Pillow cannot decode simply has no thumbnail.
+    """
+
+    import io
+
+    from PIL import Image
+
+    result = {}
+    for frame in catalogue.frames:
+        raise_if_cancelled(stop_event, "Reading the painting frames was cancelled.")
+        try:
+            with Image.open(io.BytesIO(source.read(frame.source.icon_path))) as image:
+                image.load()
+                picture = image.convert("RGBA")
+        except (OSError, ValueError, PaintingPlanError):
+            continue
+        picture.thumbnail((size, size))
+        buffer = io.BytesIO()
+        picture.save(buffer, "PNG")
+        result[frame.mesh] = buffer.getvalue()
+    return result
