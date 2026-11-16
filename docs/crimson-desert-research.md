@@ -300,7 +300,8 @@ The same build adds ConditionData type 144; older types 144 to 500 now arrive as
 which every GimmickInfo row decodes and the shipped refusals fall on exactly the
 three unqualified types (9, 367 and 432, now 9, 368 and 433); the executable's type
 name table has `CheckTargetToPushMercenaryInventory` at 144, beside
-`CheckTargetToPushInventory`. No installed row uses type 144, so its payload stays
+`CheckTargetToPushInventory`, and `DayOfWeek`, `CheckVoxelType` and
+`NavigationMoveType` at 9, 368 and 433. No installed row uses type 144, so its payload stays
 unqualified. The name table has 504 entries, one more than the move explains, and no
 installed row uses a type above 501, so types 502 and 503 are refused as well. The
 reader keeps the earlier member list and numbering, walks the new numbering only

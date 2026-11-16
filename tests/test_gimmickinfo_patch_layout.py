@@ -161,3 +161,34 @@ def test_a_3663_row_round_trips_and_clones_through_the_layout_writer():
     assert {name for name in layout.fields if again.data(name) != layout.data(name)} == set(edits)
     assert all(again.data(name) == value for name, value in edits.items())
     assert [again.data(name) for name in NEW_FIELDS] == [b'\0', b'\0']
+
+
+def _condition_cases():
+    def unqualified(op, seen=()):
+        if not isinstance(op, tuple) or not op:
+            return False
+        code = op[0]
+        if code == 'unsupported':
+            return True
+        if code in ('call', 'optional'):
+            return op[1] not in seen and unqualified(READERS[op[1]], seen + (op[1],))
+        children = {'seq': op[1:], 'field': op[3:4], 'presence': op[1:2], 'array': op[2:3], 'repeat': op[2:3]}
+        if code in ('variant', 'tagged'):
+            children = {code: (*op[2:-1], *op[-1].values())}
+        return any(unqualified(child, seen) for child in children.get(code, ()))
+
+    cases = READERS[941][-1]
+    return [tag for tag in range(144, 502) if not unqualified(cases[tag])], cases
+
+
+def test_every_older_condition_type_from_144_reads_under_both_numberings():
+    tags, cases = _condition_cases()
+    key = {'_stringKey': text('Condition_Each'), '_key': struct.pack('<I', 7010)}
+    for tag in tags:
+        payload = bytearray()
+        _minimal(cases[tag], payload, {})
+        gate = b'\1' + b'\3' + struct.pack('<H', tag) + bytes(payload) + bytes(3)
+        assert read_compact_layout(record('conditioninfo', {**key, '_gameCondition': gate}), 'conditioninfo')
+        if tag < 501:
+            moved = b'\1' + b'\3' + struct.pack('<H', tag + 1) + bytes(payload) + bytes(3)
+            assert read_compact_layout(record('conditioninfo', {**key, '_gameCondition': moved}), 'conditioninfo')
