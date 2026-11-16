@@ -44199,7 +44199,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 978
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 991
     }
   },
   {
@@ -49498,7 +49498,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1143
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1156
     }
   },
   {
@@ -49562,7 +49562,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 884
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 897
     }
   },
   {
@@ -49570,7 +49570,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1097,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1110,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 841
     }
   },
@@ -49662,7 +49662,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1636
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1649
     }
   },
   {
@@ -49678,7 +49678,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1440
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1453
     }
   },
   {
@@ -49686,7 +49686,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1436
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1449
     }
   },
   {
@@ -49833,7 +49833,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1466
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1479
     }
   },
   {
@@ -49873,7 +49873,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1147
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1160
     }
   },
   {
@@ -49898,7 +49898,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1222
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1235
     }
   },
   {

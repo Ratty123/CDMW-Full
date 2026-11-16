@@ -167,3 +167,33 @@ def test_a_texture_only_build_writes_just_the_textures(tmp_path: Path, monkeypat
     session = next(result.output_path.rglob("mesh-editor-session.json"), None)
     if session is not None:
         assert json.loads(session.read_text(encoding="utf-8"))["contents"] == ["edited_textures"]
+
+
+def test_a_texture_no_part_in_the_build_uses_is_left_out_and_says_so(tmp_path: Path) -> None:
+    # Item 5: its parts were deleted, so writing it would change the game file for nothing.
+    plan = plan_live_texture_outputs([_edit(tmp_path)], {GAME_PATH: (_entry(),)},
+                                     parts_in_build=("Lower body",))
+    assert plan.outputs == () and plan.refusals == ()
+    assert plan.plan_lines == (GAME_PATH + ": left out, no part in this mod uses it (Upper body, Belt)",)
+
+
+def test_one_remaining_part_keeps_the_texture_written(tmp_path: Path) -> None:
+    plan = plan_live_texture_outputs([_edit(tmp_path, users=("Upper body (cd_phm_00_ub_00_0374.pac)",))],
+                                     {GAME_PATH: (_entry(),)},
+                                     parts_in_build=("upper body", "Belt"))
+    assert len(plan.outputs) == 1 and plan.left_out == ()
+    # Not knowing the build's parts writes every edited texture, as before.
+    assert len(plan_live_texture_outputs([_edit(tmp_path)], {GAME_PATH: (_entry(),)}).outputs) == 1
+
+
+def test_the_build_s_parts_are_its_working_mesh_s_parts() -> None:
+    from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
+
+    mesh = SimpleNamespace(submeshes=[SimpleNamespace(name="CD_PHM_00_UB_00_0374"), SimpleNamespace(name="Belt")])
+    service = SimpleNamespace(working_mesh=lambda session_id: mesh if session_id == "s1" else None)
+    host = SimpleNamespace(standalone_controller=SimpleNamespace(mesh_service=service, active_session_id="s1"))
+    assert MeshEditorRustProcessMixin._parts_in_build(host) == ("CD_PHM_00_UB_00_0374", "Belt")
+    # Unknown or unnamed parts: nothing is left out.
+    assert MeshEditorRustProcessMixin._parts_in_build(SimpleNamespace(standalone_controller=None)) is None
+    mesh.submeshes.append(SimpleNamespace(name=""))
+    assert MeshEditorRustProcessMixin._parts_in_build(host) is None

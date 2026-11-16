@@ -81,30 +81,57 @@ class LiveTextureEdit:
     other_files: tuple[str, ...] = ()
 
 
+LEFT_OUT_TEXT = "{path}: left out, no part in this mod uses it ({parts})"
+
+
 @dataclass(frozen=True, slots=True)
 class LiveTexturePlan:
     outputs: tuple[LiveTextureOutput, ...] = ()
     #: One sentence per edited texture that cannot be written, saying why.
     refusals: tuple[str, ...] = ()
+    #: One line per edited texture that is not written because no part in the build
+    #: uses it any more (its parts were deleted or left out), as the native app says.
+    left_out: tuple[str, ...] = ()
 
     @property
     def plan_lines(self) -> tuple[str, ...]:
-        return tuple(output.plan_line for output in self.outputs)
+        return tuple(output.plan_line for output in self.outputs) + self.left_out
 
 
 def _normalized(path: str) -> str:
     return str(path or "").replace("\\", "/").strip().lower()
 
 
+def _part_name(user: str) -> str:
+    """A Textures panel heading without the file it names for a set ("Part (file.pac)")."""
+
+    text = str(user or "").strip()
+    if text.endswith(")") and " (" in text:
+        text = text[: text.rindex(" (")]
+    return text.casefold()
+
+
 def plan_live_texture_outputs(
     edits: Iterable[LiveTextureEdit],
     entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]],
+    *,
+    parts_in_build: Iterable[str] | None = None,
 ) -> LiveTexturePlan:
+    """``parts_in_build``: the names of the parts the mod holds (None: not known, so every
+    edited texture counts as used)."""
+
     outputs: list[LiveTextureOutput] = []
     refusals: list[str] = []
+    left_out: list[str] = []
     seen: set[str] = set()
+    kept = None if parts_in_build is None else {_part_name(name) for name in parts_in_build}
     for edit in edits:
         key = _normalized(edit.game_path)
+        if kept is not None and edit.users and not any(_part_name(user) in kept for user in edit.users):
+            if key not in seen:
+                seen.add(key)
+                left_out.append(LEFT_OUT_TEXT.format(path=edit.game_path, parts=", ".join(edit.users)))
+            continue
         if "/" not in key:
             refusals.append(f"{edit.game_path}: CDMW does not know which game file this texture came from, "
                             "so it cannot write it.")
@@ -130,7 +157,7 @@ def plan_live_texture_outputs(
             continue
         outputs.append(LiveTextureOutput(entry=entry, game_path=edit.game_path, original=original,
                                          rgba=rgba, users=tuple(edit.users), other_files=tuple(edit.other_files)))
-    return LiveTexturePlan(outputs=tuple(outputs), refusals=tuple(refusals))
+    return LiveTexturePlan(outputs=tuple(outputs), refusals=tuple(refusals), left_out=tuple(left_out))
 
 
 def encode_live_texture_outputs(

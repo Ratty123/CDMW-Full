@@ -850,7 +850,20 @@ class MeshEditorRustProcessMixin:
                 rgba=np.frombuffer(data, dtype=np.uint8).reshape(height, width, 4).copy(),
                 users=source.users,
             ))
-        return plan_live_texture_outputs(edits, self._archive_texture_indexes()[0])
+        return plan_live_texture_outputs(edits, self._archive_texture_indexes()[0],
+                                         parts_in_build=self._parts_in_build())
+
+    def _parts_in_build(self) -> tuple[str, ...] | None:
+        """The names of the parts Build Mod writes (deleted parts are gone from the
+        working mesh), or None when they cannot be read: then no texture is left out."""
+
+        controller = getattr(self, "standalone_controller", None)
+        try:
+            mesh = controller.mesh_service.working_mesh(controller.active_session_id)
+            names = tuple(str(getattr(part, "name", "") or "") for part in mesh.submeshes)
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            return None
+        return names if names and all(names) else None
 
     def _restored_live_texture_source(self, source_sha256: str):
         """What Build Mod needs about an edit restored from the draft whose texture was not
