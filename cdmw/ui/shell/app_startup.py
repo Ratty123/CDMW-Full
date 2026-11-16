@@ -22,7 +22,7 @@ from cdmw.ui.shell.icon_controller import AppWindowIconEventFilter
 from cdmw.ui.shell.compact.config import active_shell_theme_key
 from cdmw.ui.shell.responsiveness_controller import AutoTreeColumnWidthEventFilter
 from cdmw.ui.shell.theme_controller import apply_app_theme, apply_window_data_fonts, apply_window_ui_fonts
-from cdmw.ui.shell.timer_resolution import request_fine_timer_resolution
+from cdmw.ui.shell.timer_resolution import request_fine_timer_resolution, request_short_gil_switch_interval
 from cdmw.ui.themes import UI_THEME_SCHEMES
 from cdmw.ui.wheel_guard import ensure_app_wheel_guard
 
@@ -45,6 +45,7 @@ def prepare_shell_application(
 ) -> ShellApplicationStartup:
     ensure_app_garbage_collector(app)
     request_fine_timer_resolution()
+    request_short_gil_switch_interval()
     app.setOrganizationName(APP_ORGANIZATION)
     app.setApplicationName(APP_NAME)
     app.setStyle("Fusion")

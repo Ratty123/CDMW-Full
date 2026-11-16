@@ -59,3 +59,29 @@ def test_other_platforms_load_nothing(monkeypatch):
         raise AssertionError("winmm must not be loaded")
 
     assert not timer_resolution.request_fine_timer_resolution(loader=loader)
+
+
+@pytest.fixture
+def _restore_switch_interval():
+    saved = sys.getswitchinterval()
+    yield
+    sys.setswitchinterval(saved)
+
+
+def test_the_gil_switch_interval_drops_to_one_millisecond(_restore_switch_interval):
+    # Python's default 5 ms is what the GUI thread waited for the GIL behind a busy
+    # worker at every Python event filter call: seconds for a few hundred events.
+    sys.setswitchinterval(0.005)
+    assert timer_resolution.request_short_gil_switch_interval() == pytest.approx(0.001)
+    assert sys.getswitchinterval() == pytest.approx(timer_resolution.GIL_SWITCH_INTERVAL_S)
+    assert timer_resolution.GIL_SWITCH_INTERVAL_S == pytest.approx(0.001)
+
+
+def test_a_shorter_switch_interval_is_kept(_restore_switch_interval):
+    sys.setswitchinterval(0.0005)
+    assert timer_resolution.request_short_gil_switch_interval() == pytest.approx(0.0005)
+
+
+def test_the_switch_interval_is_never_below_a_whole_millisecond():
+    # Below 1 ms CPython's Windows wait rounds to 0 ms and the waiting thread spins.
+    assert timer_resolution.GIL_SWITCH_INTERVAL_S >= 0.001

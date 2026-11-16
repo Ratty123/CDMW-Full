@@ -251,7 +251,9 @@ class ShellAppStartupTests(unittest.TestCase):
 
         with patch("cdmw.ui.shell.app_startup.create_settings", wraps=create_settings) as create_call, patch(
             "cdmw.ui.shell.app_startup.request_fine_timer_resolution"
-        ) as timer_call:
+        ) as timer_call, patch(
+            "cdmw.ui.shell.app_startup.request_short_gil_switch_interval"
+        ) as switch_call:
             startup = prepare_shell_application(app)
             context = AppContext.from_settings(startup.settings)
 
@@ -259,6 +261,7 @@ class ShellAppStartupTests(unittest.TestCase):
         self.assertIs(context.settings, startup.settings)
         create_call.assert_called_once_with()
         timer_call.assert_called_once_with()
+        switch_call.assert_called_once_with()
         self.assertIn(startup.theme_key, UI_THEME_SCHEMES)
         self.assertTrue(app.organizationName())
         self.assertTrue(app.applicationName())
