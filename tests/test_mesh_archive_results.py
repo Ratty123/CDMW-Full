@@ -430,7 +430,7 @@ def test_opening_an_edited_result_continues_the_draft_it_was_made_from(edited, t
     browser._build_archive_edited_results()
     opened = []
     class Shell(MeshEditorShellBridgeMixin):
-        def _prepare_mesh_editor_archive_launch(self, entry):
+        def _prepare_mesh_editor_archive_launch(self, entry, **_options):
             return True
         def _activate_tool_widget(self, tab):
             pass
@@ -494,7 +494,7 @@ def test_browser_results_keep_original_catalogue_and_open_with_explicit_context(
         assert calls[-1] is context.selected_entry
         opened = []
         class Shell(MeshEditorShellBridgeMixin):
-            def _prepare_mesh_editor_archive_launch(self, entry):
+            def _prepare_mesh_editor_archive_launch(self, entry, **_options):
                 return True
             def _activate_tool_widget(self, tab):
                 pass

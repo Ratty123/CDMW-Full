@@ -130,6 +130,20 @@ def _exact_archive_identity_matches(declared_identity: object, entry, normalized
     return False
 
 
+def _open_target_files(entry: object, item_set_contexts: Sequence[object] = ()) -> tuple:
+    """The files an open edits or shows, in order: a set's, or ``entry`` alone.
+
+    Two opens are of one target only when these match: a set whose first file is
+    already open alone is another target, and so is that file over its open set.
+    """
+
+    identities = tuple(getattr(getattr(context, "selected_entry", None), "identity", None)
+                       for context in item_set_contexts or ())
+    if len(identities) > 1 and None not in identities:
+        return identities
+    return (getattr(entry, "identity", None),)
+
+
 class MeshEditorShellBridgeMixin:
     """Route shell/archive actions into Mesh Editor sessions."""
     def _export_current_archive_mesh(self, export_format: str) -> None:
@@ -662,18 +676,21 @@ class MeshEditorShellBridgeMixin:
         launch_selected(controller)
         return True
 
-    def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry, *, replace_same: bool = False) -> bool:
+    def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry, *, replace_same: bool = False,
+                                            item_set_contexts: Sequence[object] = ()) -> bool:
+        """``item_set_contexts``: the open is of these files, ``entry`` first (a set open)."""
         if not isinstance(entry, ArchiveEntry):
             return False
         if not hasattr(self, "mesh_editor_tab"):
             return True
+        wanted = _open_target_files(entry, item_set_contexts)
         active_builder = self._mesh_editor_active_builder()
         has_standalone = bool(self.mesh_editor_tab.has_active_standalone_session())
         # P15: a document already editing this file is shown; another file opens
         # beside an unfinished edit instead of replacing it.
-        if self._show_document_editing(entry, replace_same=replace_same):
+        if self._show_document_editing(entry, replace_same=replace_same, wanted=wanted):
             return False
-        if has_standalone and self._open_in_other_document(entry, replace_same=replace_same):
+        if has_standalone and self._open_in_other_document(entry, replace_same=replace_same, wanted=wanted):
             return True
         has_standalone = bool(self.mesh_editor_tab.has_active_standalone_session())
         if active_builder is None and not has_standalone:
@@ -681,7 +698,11 @@ class MeshEditorShellBridgeMixin:
         if has_standalone:
             current_target = self.mesh_editor_tab._current_target_entry()
             same_source = (isinstance(current_target, ArchiveEntry) and current_target.identity == entry.identity
-                           and current_target.prepared_sha256 == entry.prepared_sha256)
+                           and current_target.prepared_sha256 == entry.prepared_sha256
+                           # A set whose first file is open alone is another target, and so
+                           # is that file over its open set (2026-11-16 review).
+                           and _open_target_files(current_target, getattr(self.mesh_editor_tab, "item_set_contexts", ()))
+                           == wanted)
             if same_source and "Mesh Editor edited result" in (current_target.prepared_note, entry.prepared_note):
                 same_source = current_target.prepared_path == entry.prepared_path
             if not replace_same and same_source:
@@ -741,8 +762,8 @@ class MeshEditorShellBridgeMixin:
             return None
         return view if callable(getattr(view, "open_new_document", None)) else None
 
-    def _show_document_editing(self, entry: ArchiveEntry, *, replace_same: bool) -> bool:
-        """Another document already edits ``entry``: show it (P15)."""
+    def _show_document_editing(self, entry: ArchiveEntry, *, replace_same: bool, wanted: tuple = ()) -> bool:
+        """Another document already edits ``entry`` (with the same set files, ``wanted``): show it (P15)."""
 
         view = self._mesh_documents()
         if view is None or replace_same:
@@ -754,15 +775,17 @@ class MeshEditorShellBridgeMixin:
             current = target() if callable(target) else None
             has = getattr(document, "has_active_standalone_session", None)
             if (callable(has) and has() and isinstance(current, ArchiveEntry)
-                    and current.identity == entry.identity and current.prepared_sha256 == entry.prepared_sha256):
+                    and current.identity == entry.identity and current.prepared_sha256 == entry.prepared_sha256
+                    and _open_target_files(current, getattr(document, "item_set_contexts", ()))
+                    == (wanted or _open_target_files(entry, ()))):
                 view.set_active(view.index_of(document))
                 self._activate_tool_widget(self.mesh_editor_tab)
                 self.set_status_message("Mesh Editor is already open for this target.")
                 return True
         return False
 
-    def _open_in_other_document(self, entry: ArchiveEntry, *, replace_same: bool) -> bool:
-        """The shown document has an unfinished edit of another file: open ``entry`` beside it (P15)."""
+    def _open_in_other_document(self, entry: ArchiveEntry, *, replace_same: bool, wanted: tuple = ()) -> bool:
+        """The shown document has an unfinished edit of another target: open ``entry`` beside it (P15)."""
 
         from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import has_pending_edit
 
@@ -773,7 +796,9 @@ class MeshEditorShellBridgeMixin:
         target = getattr(current, "_current_target_entry", None)
         current_entry = target() if callable(target) else None
         if (not replace_same and isinstance(current_entry, ArchiveEntry)
-                and current_entry.identity == entry.identity):
+                and current_entry.identity == entry.identity
+                and _open_target_files(current_entry, getattr(current, "item_set_contexts", ()))
+                == (wanted or _open_target_files(entry, ()))):
             return False
         if not has_pending_edit(current):
             return False  # nothing to keep: the shown document takes the new mesh
@@ -930,7 +955,8 @@ class MeshEditorShellBridgeMixin:
         **session_options: object,
     ) -> None:
         """Open ``entry`` with the Archive Browser's matching materials, if any."""
-        if not self._prepare_mesh_editor_archive_launch(entry):
+        if not self._prepare_mesh_editor_archive_launch(
+                entry, item_set_contexts=tuple(session_options.get("item_set_contexts") or ())):
             return
         current_preview = getattr(self.archive, "current_archive_preview_result", None)
         prepared_preview = getattr(self.archive, "_archive_pending_texture_result", None)

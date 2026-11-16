@@ -1484,7 +1484,7 @@ def test_archive_browser_handoff_carries_native_package_and_companion(tmp_path: 
         )
 
         @staticmethod
-        def _prepare_mesh_editor_archive_launch(_entry: object) -> bool:
+        def _prepare_mesh_editor_archive_launch(_entry: object, **_options) -> bool:
             return True
 
         @staticmethod
@@ -2772,3 +2772,107 @@ def test_same_target_rust_session_relaunches_only_when_child_is_idle(tmp_path: P
     assert harness.mesh_editor_tab.standalone_controller is controller
     assert not harness.mesh_editor_tab.closed
     assert harness.statuses[-1] == "Mesh Editor is already open for this target."
+
+
+def test_a_set_open_over_its_first_file_open_alone_is_another_target(tmp_path: Path) -> None:
+    """2026-11-16 review: Open set in Mesh Editor, with the set's first file finished and
+    built alone in the shown document, started that file's idle editor again ("Launching
+    Mesh Editor...") instead of opening the set beside it."""
+
+    def entry(name: str, offset: int) -> ArchiveEntry:
+        return ArchiveEntry(path=f"character/model/{name}.pac", pamt_path=tmp_path / "0009" / "0.pamt",
+                            paz_file=tmp_path / "0009" / "0.paz", offset=offset, comp_size=4, orig_size=4,
+                            flags=0, paz_index=0)
+
+    upper, belt = entry("upper", 0), entry("belt", 8)
+    the_set = (SimpleNamespace(selected_entry=upper), SimpleNamespace(selected_entry=belt))
+    controller = SimpleNamespace(active_session_id="finished-upper",
+                                 session_view=lambda: SimpleNamespace(revision=2))
+
+    class TabStub:
+        standalone_controller = controller
+
+        def __init__(self) -> None:
+            self.item_set_contexts = ()
+            self.closed = False
+            self.launched: list[object] = []
+
+        def active_builder(self):
+            return None
+
+        def has_active_standalone_session(self):
+            return True
+
+        def _current_target_entry(self):
+            return upper
+
+        def _selected_mesh_editor_backend(self):
+            return "rust"
+
+        def _rust_editor_task_active(self):
+            return False
+
+        def _start_selected_mesh_editor(self, active_controller):
+            self.launched.append(active_controller)
+
+        def close_standalone_session(self):
+            self.closed = True
+
+    class Documents:
+        def __init__(self, tab) -> None:
+            self.active = tab
+            self.documents = [tab]
+            self.opened = 0
+
+        def open_new_document(self):
+            self.opened += 1
+            return object()
+
+    class Harness(MeshEditorShellBridgeMixin):
+        def __init__(self) -> None:
+            self.archive = self
+            self.shell = self
+            self.mesh_editor_tab = TabStub()
+            self.documents = Documents(self.mesh_editor_tab)
+            self._modeless_alignment_dialogs = {}
+            self.statuses: list[str] = []
+
+        def _mesh_documents(self):
+            return self.documents
+
+        def _activate_tool_widget(self, _widget):
+            pass
+
+        def set_status_message(self, message: str, **_kwargs):
+            self.statuses.append(message)
+
+    harness = Harness()
+    tab = harness.mesh_editor_tab
+    # The set opens beside the finished edit; that edit's editor is not started again.
+    assert harness._prepare_mesh_editor_archive_launch(upper, item_set_contexts=the_set) is True
+    assert tab.launched == [] and harness.documents.opened == 1 and not tab.closed
+    assert "Launching Mesh Editor..." not in harness.statuses
+    # The file alone is still the same target: its idle editor starts again.
+    assert harness._prepare_mesh_editor_archive_launch(upper) is False
+    assert tab.launched == [controller] and harness.documents.opened == 1
+    # And the other way round: the file alone over its open set is another target.
+    tab.item_set_contexts = the_set
+    assert harness._prepare_mesh_editor_archive_launch(upper) is True
+    assert harness.documents.opened == 2 and tab.launched == [controller]
+    assert harness._prepare_mesh_editor_archive_launch(upper, item_set_contexts=the_set) is False
+    assert tab.launched == [controller, controller]
+
+
+def test_a_set_open_names_its_files_to_the_launch_check(tmp_path: Path) -> None:
+    upper = ArchiveEntry(path="character/model/upper.pac", pamt_path=tmp_path / "0.pamt",
+                         paz_file=tmp_path / "0.paz", offset=0, comp_size=4, orig_size=4, flags=0, paz_index=0)
+    the_set = (SimpleNamespace(selected_entry=upper), SimpleNamespace(selected_entry=None))
+    asked: list[dict] = []
+
+    class Harness(MeshEditorShellBridgeMixin):
+        def _prepare_mesh_editor_archive_launch(self, entry, **options):
+            asked.append({"entry": entry, **options})
+            return False
+
+    Harness()._open_archive_mesh_editor_with_dependencies(upper, None, item_set_contexts=the_set)
+    assert asked == [{"entry": upper, "item_set_contexts": the_set}]
