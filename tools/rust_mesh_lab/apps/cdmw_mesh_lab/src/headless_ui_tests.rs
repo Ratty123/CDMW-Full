@@ -19,6 +19,7 @@ mod cloth_preview_tests;
 mod free_edit_destination;
 mod free_edit_replacement_tests;
 mod history_controls_tests;
+mod host_scale_tests;
 mod island_controls_tests;
 mod item_set_references;
 mod keyboard_shortcuts;

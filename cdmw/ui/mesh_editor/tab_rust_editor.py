@@ -625,7 +625,6 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             if localizer is not None else {}
         )
         font = application.font() if application is not None else self.font()
-        screen = application.primaryScreen() if application is not None else None
         theme_key = str(getattr(self, "theme_key", "graphite") or "graphite")
         palette = {
             str(key): str(value)
@@ -652,6 +651,10 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
                 data_font_point_size = float(resolved_data.pointSizeF()) or data_font_point_size
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 pass
+        # The editor draws at this scale: its child window keeps the scale of the
+        # monitor it was created on. Use the screen the editor is on, not the primary.
+        host_frame = getattr(self, "standalone_native_host_frame", None)
+        scale = float((host_frame if host_frame is not None else self).devicePixelRatioF())
         return {
             "schema": "cdmw_ui_theme_v1",
             "language": language,
@@ -676,8 +679,13 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             "density": density,
             # The same spacing the Qt stylesheet uses (P11 step 4).
             "layout_metrics": layout_metrics(density, font_point_size, screen_scale).payload(),
-            "scale": float(screen.devicePixelRatio()) if screen is not None else 1.0,
+            "scale": scale if scale > 0.0 else 1.0,
         }
+
+    def _rust_host_scale_changed(self, _scale: float = 0.0) -> None:
+        """The editor moved to another screen or its DPI changed: send the new scale."""
+
+        self._send_rust_theme_update()
 
     def _send_rust_theme_update(self) -> bool:
         """Apply an app appearance change to the already embedded child."""

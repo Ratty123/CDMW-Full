@@ -39,6 +39,7 @@ mod headless_stress_tests;
 mod headless_tests;
 #[cfg(test)]
 mod headless_ui_tests;
+mod host_scale;
 mod loader;
 mod localization;
 mod new_item_ui;
@@ -2431,6 +2432,8 @@ struct LabApplication {
     projection: Option<ViewportProjection>,
     face_selection_overlay: Option<FaceSelectionOverlay>,
     selected_counts_cache: std::cell::Cell<Option<((u64, u64), cdmw_ui::SelectedCounts)>>,
+    /// The scale of the screen CDMW shows this editor on (see `host_scale`).
+    cdmw_host_scale: std::cell::Cell<Option<f32>>,
     last_selection_ms: Option<f64>,
     last_edit_ms: Option<f64>,
     last_selection_stats: Option<SelectionQueryStats>,
@@ -2683,6 +2686,7 @@ impl LabApplication {
             projection: None,
             face_selection_overlay: None,
             selected_counts_cache: std::cell::Cell::new(None),
+            cdmw_host_scale: std::cell::Cell::new(None),
             last_selection_ms: None,
             last_edit_ms: None,
             last_selection_stats: None,
@@ -8076,6 +8080,7 @@ impl LabApplication {
         let Some(window) = self.window.clone() else {
             return;
         };
+        self.sync_cdmw_host_scale(window.scale_factor() as f32);
         let raw_input = match &mut self.egui_state {
             Some(state) => state.take_egui_input(&window),
             None => return,
@@ -8664,6 +8669,7 @@ impl ApplicationHandler for LabApplication {
         else {
             return;
         };
+        self.sync_cdmw_host_scale(window.scale_factor() as f32);
         let egui_repaint = self
             .egui_state
             .as_mut()
@@ -8671,7 +8677,8 @@ impl ApplicationHandler for LabApplication {
         if egui_event_wants_redraw(egui_repaint, &event) {
             window.request_redraw();
         }
-        if self.capture_viewport_pointer_event(&event, window.scale_factor()) {
+        let pointer_scale = self.egui_pixels_per_point(window.scale_factor());
+        if self.capture_viewport_pointer_event(&event, pointer_scale) {
             window.request_redraw();
         }
         self.capture_shortcut_numpad_event(&event);
