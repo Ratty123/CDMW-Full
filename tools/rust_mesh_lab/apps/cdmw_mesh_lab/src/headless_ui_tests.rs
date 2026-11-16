@@ -9960,11 +9960,14 @@ fn shader_controls_disable_incompatible_and_unknown_selections_but_allow_restore
     ui.reveal("Source shader: SkinnedMeshEmissive_Ver2.")?;
     ui.click("Equipment glass")?;
     ui.click("Patterned reveal")?;
-    // Close the combo. A disabled choice must leave Equipment glass selected.
-    ui.frame(vec![
-        key_event(egui::Key::Escape, true),
-        key_event(egui::Key::Escape, false),
-    ]);
+    // Close the combo if the click left it open. A disabled choice must leave Equipment
+    // glass selected. (An Esc with nothing open clears the selection, Fredric's rule.)
+    if egui::Popup::is_any_open(&ui.application.egui_context) {
+        ui.frame(vec![
+            key_event(egui::Key::Escape, true),
+            key_event(egui::Key::Escape, false),
+        ]);
+    }
     let actions = ui.actions_from_click("Apply shader controls")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_shader_controls", arguments, .. }

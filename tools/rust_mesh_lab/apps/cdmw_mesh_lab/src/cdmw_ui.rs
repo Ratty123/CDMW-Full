@@ -2052,6 +2052,8 @@ impl LabApplication {
 
     pub(super) fn draw_cdmw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
         let _language = crate::localization::enter(&self.egui_context);
+        // Before any widget reads this frame's keys (Esc in a combo closes the combo only).
+        self.popup_open_at_frame_start = egui::Popup::is_any_open(&self.egui_context);
         self.cdmw_hovered_part = None;
         self.cdmw_viewport_hovered_part = None;
         self.cdmw_part_name_rows.clear();

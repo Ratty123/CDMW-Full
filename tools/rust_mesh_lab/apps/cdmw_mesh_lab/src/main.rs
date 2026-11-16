@@ -2447,8 +2447,8 @@ struct LabApplication {
     shortcut_numpad_presses: Vec<(egui::Key, shortcuts::NumpadKey)>,
     /// Editor commands CDMW asked for (its palette), run at the next frame.
     pending_host_commands: Vec<String>,
-    /// A popup was open at the end of the last frame: an Escape now closed it.
-    popup_open_last_frame: bool,
+    /// A popup was open when this frame began: an Escape in it closes the popup only.
+    popup_open_at_frame_start: bool,
     /// A Finish asked for while an edit was in flight: sent once it is done.
     cdmw_finish_waiting: bool,
     /// What the editor last told CDMW about its commands, to send only changes.
@@ -2692,7 +2692,7 @@ impl LabApplication {
             primary_press_modifiers: egui::Modifiers::NONE,
             shortcut_numpad_presses: Vec::new(),
             pending_host_commands: Vec::new(),
-            popup_open_last_frame: false,
+            popup_open_at_frame_start: false,
             cdmw_finish_waiting: false,
             published_commands_state: String::new(),
             cdmw_bridge: None,
@@ -4899,6 +4899,7 @@ impl LabApplication {
 
     fn draw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
         let _language = crate::localization::enter(&self.egui_context);
+        self.popup_open_at_frame_start = egui::Popup::is_any_open(&self.egui_context);
         self.shortcuts_live = false;
         if self.cdmw_mode() {
             return self.draw_cdmw_ui(root_ui);
@@ -6810,14 +6811,10 @@ impl LabApplication {
         if self.handle_hair_input(ui, rectangle) {
             return;
         }
-        let popup_was_open = std::mem::replace(
-            &mut self.popup_open_last_frame,
-            egui::Popup::is_any_open(ui.ctx()),
-        );
         if ui.input(|input| input.key_pressed(egui::Key::Escape))
             && !self.cancel_active_gesture("Gesture cancelled")
             && ui.memory(|memory| memory.focused().is_none())
-            && !popup_was_open
+            && !self.popup_open_at_frame_start
             && !egui::Popup::is_any_open(ui.ctx())
             && !cdmw_ui::cdmw_escape_closes_a_panel(ui.ctx())
             && self.mesh.as_ref().is_some_and(|mesh| {

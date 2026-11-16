@@ -280,6 +280,46 @@ def test_windows_are_kept_off_screen_even_when_qt_itself_shows_them() -> None:
         app.removeEventFilter(placement)
 
 
+def test_with_no_secondary_screen_windows_go_off_screen_not_on_the_primary(monkeypatch) -> None:
+    """A game or a switched-off monitor can leave one screen: the test window must not
+    then be put on the user's main monitor (2026-11-16, a run's window landed at x=8)."""
+
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QGuiApplication
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from cdmw.automation import bridge
+
+    QApplication.instance() or QApplication([])
+
+    class _Screen:
+        def __init__(self, rect):
+            self.rect = rect
+
+        def availableGeometry(self):  # noqa: N802 - Qt API
+            return self.rect
+
+        def virtualGeometry(self):  # noqa: N802 - Qt API
+            return QRect(-1920, 0, 1920 + 2293, 1080)
+
+    primary = _Screen(QRect(0, 0, 2293, 960))
+    secondary = _Screen(QRect(-1920, 0, 1920, 1080))
+    monkeypatch.setattr(QGuiApplication, "primaryScreen", staticmethod(lambda: primary))
+    monkeypatch.delenv(bridge.SCREEN_ENV, raising=False)
+    widget = QWidget()
+    try:
+        monkeypatch.setattr(QGuiApplication, "screens", staticmethod(lambda: [primary]))
+        assert bridge.automation_screen() is None
+        bridge.place_on_automation_screen(widget)
+        assert widget.x() > 2293 and widget.y() > 1080
+        monkeypatch.setattr(QGuiApplication, "screens", staticmethod(lambda: [primary, secondary]))
+        assert bridge.automation_screen() is secondary
+        bridge.place_on_automation_screen(widget)
+        assert (widget.x(), widget.y()) == (-1880, 40)
+    finally:
+        widget.deleteLater()
+
+
 def test_switch_piece_answers_the_prompt_and_restores_it(env, monkeypatch) -> None:
     """The set commands call what the menu and the editor call; the end-edit prompt
     is answered only while the switch runs."""
