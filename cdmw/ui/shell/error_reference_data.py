@@ -9313,7 +9313,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/archive_browser/preview_result.py": 444,
-      "cdmw/ui/archive_browser/workers.py": 884
+      "cdmw/ui/archive_browser/workers.py": 925
     }
   },
   {
@@ -9321,7 +9321,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive preview failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/workers.py": 634
+      "cdmw/ui/archive_browser/workers.py": 674
     }
   },
   {
@@ -11303,7 +11303,7 @@ MESSAGE_REFERENCE = [
     "message": "Full preview failed after {label} preview: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/workers.py": 925
+      "cdmw/ui/archive_browser/workers.py": 966
     }
   },
   {
@@ -15433,7 +15433,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned an invalid preview dependency set.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/workers.py": 546
+      "cdmw/ui/archive_browser/workers.py": 586
     }
   },
   {
@@ -16358,7 +16358,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/ui/archive_browser/item_set_preview.py": 66,
       "cdmw/ui/archive_browser/remote_preview_dependencies.py": 255,
-      "cdmw/ui/archive_browser/workers.py": 552
+      "cdmw/ui/archive_browser/workers.py": 592
     }
   },
   {
@@ -17782,7 +17782,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 275,
-      "cdmw/ui/archive_browser/workers.py": 927,
+      "cdmw/ui/archive_browser/workers.py": 968,
       "cdmw/ui/shell/archive_backend_client.py": 75
     }
   },
@@ -29990,7 +29990,7 @@ MESSAGE_REFERENCE = [
     "message": "DLC ItemInfo identity differs from its directory.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 735
+      "cdmw/services/new_item_snapshot.py": 746
     }
   },
   {
@@ -31201,7 +31201,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo has an inconsistent or duplicate row identity.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 642
+      "cdmw/services/new_item_snapshot.py": 645
     }
   },
   {
@@ -31273,7 +31273,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo row {entry.row_id} did not decode: {exc} Source: {pair.payload_entry.path} ({pair.payload_entry.pamt_path}); row offset 0x{start}, length {end - start} bytes.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 729
+      "cdmw/services/new_item_snapshot.py": 740
     }
   },
   {
@@ -31281,7 +31281,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo row {row.row_id} did not decode: {exc} Source: {iteminfo.payload_entry.path} ({iteminfo.payload_entry.pamt_path}); row offset 0x{start}, length {end - start} bytes.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 645
+      "cdmw/services/new_item_snapshot.py": 648
     }
   },
   {
@@ -32422,7 +32422,7 @@ MESSAGE_REFERENCE = [
     "message": "StoreInfo did not decode: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 685
+      "cdmw/services/new_item_snapshot.py": 691
     }
   },
   {
@@ -35807,7 +35807,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no English localisation table",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 761
+      "cdmw/services/new_item_snapshot.py": 774
     }
   },
   {
@@ -35839,7 +35839,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no {PAPPT_PATH}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 658
+      "cdmw/services/new_item_snapshot.py": 663
     }
   },
   {
@@ -36386,7 +36386,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} has conflicting base/DLC identities for key {entry.row_id}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 718,
+      "cdmw/services/new_item_snapshot.py": 729,
       "cdmw/services/new_item_tables.py": 35
     }
   },
@@ -36395,7 +36395,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} has duplicate row {entry.row_id}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 712
+      "cdmw/services/new_item_snapshot.py": 723
     }
   },
   {
@@ -76629,7 +76629,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact enhancement has no source item ingredient.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/multichangeinfo_table.py": 144
+      "cdmw/core/multichangeinfo_table.py": 153
     }
   },
   {
@@ -78403,7 +78403,7 @@ MESSAGE_REFERENCE = [
     "message": "GUI garbage collection must be installed on the GUI thread",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/garbage_collection.py": 53
+      "cdmw/ui/shell/garbage_collection.py": 141
     }
   },
   {
@@ -80173,7 +80173,7 @@ MESSAGE_REFERENCE = [
     "message": "Lazy tool factory must return QWidget.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/lazy_tool_tab.py": 113
+      "cdmw/ui/shell/lazy_tool_tab.py": 122
     }
   },
   {
@@ -80181,7 +80181,7 @@ MESSAGE_REFERENCE = [
     "message": "Lazy tool widget construction re-entered.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/lazy_tool_tab.py": 107
+      "cdmw/ui/shell/lazy_tool_tab.py": 116
     }
   },
   {
@@ -82930,7 +82930,7 @@ MESSAGE_REFERENCE = [
     "message": "StoreInfo does not round-trip in the selected layout",
     "recovery": "input",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 512
+      "cdmw/core/storeinfo_table.py": 524
     }
   },
   {
@@ -82946,7 +82946,7 @@ MESSAGE_REFERENCE = [
     "message": "StringInfo keys are 4 bytes, this directory has {table.key_width}{where}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 65
+      "cdmw/core/stringinfo_table.py": 70
     }
   },
   {
@@ -85942,7 +85942,7 @@ MESSAGE_REFERENCE = [
     "message": "a stock entry carries five flag bytes",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 144
+      "cdmw/core/storeinfo_table.py": 145
     }
   },
   {
@@ -86414,7 +86414,7 @@ MESSAGE_REFERENCE = [
     "message": "drop data is {_ITEM_B - (_ITEM_A + 4)} bytes",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 146
+      "cdmw/core/storeinfo_table.py": 147
     }
   },
   {
@@ -87832,7 +87832,7 @@ MESSAGE_REFERENCE = [
     "message": "multichange {row.key} ({row.name}) has no item key to repoint",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/multichangeinfo_table.py": 149
+      "cdmw/core/multichangeinfo_table.py": 158
     }
   },
   {
@@ -87840,7 +87840,7 @@ MESSAGE_REFERENCE = [
     "message": "multichange {row_key}: the name is not NUL-terminated where its length says",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/multichangeinfo_table.py": 79
+      "cdmw/core/multichangeinfo_table.py": 80
     }
   },
   {
@@ -87920,7 +87920,7 @@ MESSAGE_REFERENCE = [
     "message": "no {count} free multichange keys in {key_range.start}..{key_range.stop - 1}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/multichangeinfo_table.py": 168
+      "cdmw/core/multichangeinfo_table.py": 177
     }
   },
   {
@@ -87992,7 +87992,7 @@ MESSAGE_REFERENCE = [
     "message": "one new key per transition row",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/multichangeinfo_table.py": 183
+      "cdmw/core/multichangeinfo_table.py": 192
     }
   },
   {
@@ -88016,7 +88016,7 @@ MESSAGE_REFERENCE = [
     "message": "order-count records are {_ORDER_RECORD} bytes",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 152
+      "cdmw/core/storeinfo_table.py": 153
     }
   },
   {
@@ -88096,7 +88096,7 @@ MESSAGE_REFERENCE = [
     "message": "position {position} is outside 0..{len(row.entries)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 466
+      "cdmw/core/storeinfo_table.py": 467
     }
   },
   {
@@ -88247,7 +88247,7 @@ MESSAGE_REFERENCE = [
     "message": "row is too short for a key and a name",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/multichangeinfo_table.py": 74
+      "cdmw/core/multichangeinfo_table.py": 75
     }
   },
   {
@@ -88256,7 +88256,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/itemgroupinfo_table.py": 75,
-      "cdmw/core/storeinfo_table.py": 324
+      "cdmw/core/storeinfo_table.py": 325
     }
   },
   {
@@ -88272,7 +88272,7 @@ MESSAGE_REFERENCE = [
     "message": "row key {own} does not match the directory key {key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/multichangeinfo_table.py": 65
+      "cdmw/core/multichangeinfo_table.py": 66
     }
   },
   {
@@ -88281,8 +88281,8 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/itemgroupinfo_table.py": 78,
-      "cdmw/core/multichangeinfo_table.py": 77,
-      "cdmw/core/storeinfo_table.py": 327
+      "cdmw/core/multichangeinfo_table.py": 78,
+      "cdmw/core/storeinfo_table.py": 328
     }
   },
   {
@@ -88290,7 +88290,7 @@ MESSAGE_REFERENCE = [
     "message": "row {row.index} at 0x{start} carries non-zero padding{where}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 78
+      "cdmw/core/stringinfo_table.py": 84
     }
   },
   {
@@ -88298,7 +88298,7 @@ MESSAGE_REFERENCE = [
     "message": "row {row.index} at 0x{start} does not repeat its directory key{where}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 76
+      "cdmw/core/stringinfo_table.py": 82
     }
   },
   {
@@ -88306,7 +88306,7 @@ MESSAGE_REFERENCE = [
     "message": "row {row.index} at 0x{start} is not UTF-8{where}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 86
+      "cdmw/core/stringinfo_table.py": 92
     }
   },
   {
@@ -88314,7 +88314,7 @@ MESSAGE_REFERENCE = [
     "message": "row {row.index} at 0x{start} is shorter than a row head{where}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 69
+      "cdmw/core/stringinfo_table.py": 75
     }
   },
   {
@@ -88322,7 +88322,7 @@ MESSAGE_REFERENCE = [
     "message": "row {row.index} at 0x{start} spans {end - start} bytes but declares {length}{where}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 80
+      "cdmw/core/stringinfo_table.py": 86
     }
   },
   {
@@ -88330,7 +88330,7 @@ MESSAGE_REFERENCE = [
     "message": "row {row.index} {text} is not keyed by its own hash{where}",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 88
+      "cdmw/core/stringinfo_table.py": 94
     }
   },
   {
@@ -88466,7 +88466,7 @@ MESSAGE_REFERENCE = [
     "message": "stock condition data must be empty (legacy) or eight bytes (current)",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 154
+      "cdmw/core/storeinfo_table.py": 155
     }
   },
   {
@@ -88474,7 +88474,7 @@ MESSAGE_REFERENCE = [
     "message": "stock entry and store use different layouts",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 381
+      "cdmw/core/storeinfo_table.py": 382
     }
   },
   {
@@ -88482,7 +88482,7 @@ MESSAGE_REFERENCE = [
     "message": "store name of {length} bytes runs past the row",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 330
+      "cdmw/core/storeinfo_table.py": 331
     }
   },
   {
@@ -88490,7 +88490,7 @@ MESSAGE_REFERENCE = [
     "message": "store {name} ({row_key}): entry {index} does not repeat its item key",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 359
+      "cdmw/core/storeinfo_table.py": 360
     }
   },
   {
@@ -88498,7 +88498,7 @@ MESSAGE_REFERENCE = [
     "message": "store {name} ({row_key}): entry {index} names store {entry.store_key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 357
+      "cdmw/core/storeinfo_table.py": 358
     }
   },
   {
@@ -88506,7 +88506,7 @@ MESSAGE_REFERENCE = [
     "message": "store {name} ({row_key}): no stock list found",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 342
+      "cdmw/core/storeinfo_table.py": 343
     }
   },
   {
@@ -88514,7 +88514,7 @@ MESSAGE_REFERENCE = [
     "message": "store {name} ({row_key}): stock entry {index} at 0x{pos} does not read",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 354
+      "cdmw/core/storeinfo_table.py": 355
     }
   },
   {
@@ -88522,7 +88522,7 @@ MESSAGE_REFERENCE = [
     "message": "store {name} ({row_key}): unknown store type {store_type}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 347
+      "cdmw/core/storeinfo_table.py": 348
     }
   },
   {
@@ -88530,7 +88530,7 @@ MESSAGE_REFERENCE = [
     "message": "store {row.name} already stocks item {int(item_key)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 461
+      "cdmw/core/storeinfo_table.py": 462
     }
   },
   {
@@ -88538,7 +88538,7 @@ MESSAGE_REFERENCE = [
     "message": "store {row.name} does not stock item {int(item_key)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 489
+      "cdmw/core/storeinfo_table.py": 490
     }
   },
   {
@@ -88546,7 +88546,7 @@ MESSAGE_REFERENCE = [
     "message": "store {row.name} does not stock item {int(old_item_key)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 419
+      "cdmw/core/storeinfo_table.py": 420
     }
   },
   {
@@ -88554,7 +88554,7 @@ MESSAGE_REFERENCE = [
     "message": "store {row.name} has no buyable entry to copy; pass a template",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 458
+      "cdmw/core/storeinfo_table.py": 459
     }
   },
   {
@@ -88562,7 +88562,7 @@ MESSAGE_REFERENCE = [
     "message": "store {row.name} lists item {int(item_key)} {len(matches)} times; expected exactly one",
     "recovery": "input",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 500
+      "cdmw/core/storeinfo_table.py": 501
     }
   },
   {
@@ -88570,7 +88570,7 @@ MESSAGE_REFERENCE = [
     "message": "store {row.name} lists item {int(old_item_key)} {len(matches)} times; pass all_entries=True to retarget every one",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 421
+      "cdmw/core/storeinfo_table.py": 422
     }
   },
   {
@@ -88749,7 +88749,7 @@ MESSAGE_REFERENCE = [
     "message": "the .pabgh directory does not parse{where}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 63
+      "cdmw/core/stringinfo_table.py": 68
     }
   },
   {
@@ -88773,7 +88773,7 @@ MESSAGE_REFERENCE = [
     "message": "the bytes after the second item key are {_OPTION_FLAG - (_ITEM_B + 4)} bytes",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 148
+      "cdmw/core/storeinfo_table.py": 149
     }
   },
   {
@@ -88877,7 +88877,7 @@ MESSAGE_REFERENCE = [
     "message": "the new key must be a positive u32",
     "recovery": "input",
     "sources": {
-      "cdmw/core/multichangeinfo_table.py": 136
+      "cdmw/core/multichangeinfo_table.py": 145
     }
   },
   {
@@ -88885,7 +88885,7 @@ MESSAGE_REFERENCE = [
     "message": "the new name must be 1..255 bytes",
     "recovery": "input",
     "sources": {
-      "cdmw/core/multichangeinfo_table.py": 152
+      "cdmw/core/multichangeinfo_table.py": 161
     }
   },
   {
@@ -88901,7 +88901,7 @@ MESSAGE_REFERENCE = [
     "message": "the option block is {_OPTION} bytes",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 150
+      "cdmw/core/storeinfo_table.py": 151
     }
   },
   {
@@ -89093,7 +89093,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported StoreInfo layout {layout}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 320
+      "cdmw/core/storeinfo_table.py": 321
     }
   },
   {
@@ -90549,7 +90549,7 @@ MESSAGE_REFERENCE = [
     "message": "{text} and {queued} both hash to 0x{key}",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 129
+      "cdmw/core/stringinfo_table.py": 135
     }
   },
   {
@@ -90557,7 +90557,7 @@ MESSAGE_REFERENCE = [
     "message": "{text} hashes to 0x{key}, which already names {held}",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/stringinfo_table.py": 124
+      "cdmw/core/stringinfo_table.py": 130
     }
   },
   {
@@ -90789,7 +90789,7 @@ MESSAGE_REFERENCE = [
     "message": "{what} {value} does not fit a u16",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 207
+      "cdmw/core/storeinfo_table.py": 208
     }
   },
   {
@@ -90797,7 +90797,7 @@ MESSAGE_REFERENCE = [
     "message": "{what} {value} does not fit a u32",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 214
+      "cdmw/core/storeinfo_table.py": 215
     }
   },
   {
@@ -90805,7 +90805,7 @@ MESSAGE_REFERENCE = [
     "message": "{what} {value} does not fit a u64",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 228
+      "cdmw/core/storeinfo_table.py": 229
     }
   },
   {
@@ -90813,7 +90813,7 @@ MESSAGE_REFERENCE = [
     "message": "{what} {value} does not fit an i32",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/storeinfo_table.py": 221
+      "cdmw/core/storeinfo_table.py": 222
     }
   },
   {
