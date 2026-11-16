@@ -16028,6 +16028,7 @@
     "Wait for the selected parts to finish updating": "Aguarde até que as partes selecionadas terminem a atualização",
     "Wait for the texture operation to finish before exporting.": "Aguarde a conclusão da operação de texturas antes de exportar.",
     "Waiting": "Esperando",
+    "Waiting for Browse's full preview before Mesh Editor opens...": "Aguardando a pré-visualização completa de Explorar arquivos antes de abrir o Editor de malha...",
     "Waiting for Browse's viewport to start again...": "Aguardando a visualização de Explorar arquivos iniciar de novo...",
     "Waiting for Mesh .NET editor to finish queued edits before saving...": "Aguardando que o editor de malha .NET termine as edições na fila antes de salvar...",
     "Waiting for Steam to start the game...": "Aguardando o Steam iniciar o jogo…",

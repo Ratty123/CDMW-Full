@@ -16028,6 +16028,7 @@
     "Wait for the selected parts to finish updating": "選択したパーツの更新が完了するのを待ちます",
     "Wait for the texture operation to finish before exporting.": "テクスチャ処理が完了してからエクスポートしてください。",
     "Waiting": "待っています",
+    "Waiting for Browse's full preview before Mesh Editor opens...": "メッシュ エディタ を開く前に、アーカイブ閲覧 の完全なプレビューを待っています...",
     "Waiting for Browse's viewport to start again...": "アーカイブ閲覧のビューが再び起動するのを待っています...",
     "Waiting for Mesh .NET editor to finish queued edits before saving...": "メッシュ .NET エディタがキューに入れられた編集が完了するまで待機します。保存中...",
     "Waiting for Steam to start the game...": "Steamによるゲームの起動を待機中…",

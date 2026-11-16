@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Optional, Sequence
@@ -27,6 +28,17 @@ from cdmw.ui.archive_browser.workflow_dependencies import (
 )
 from cdmw.ui.mesh_editor.replace_from_archive_flow import ReplaceFromArchiveFlowController
 from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
+
+#: Browse's first results for a model: shown at once, without the full material graph.
+_INTERIM_PREVIEW_TIERS = frozenset({"quick", "fast"})
+#: How long an open waits for Browse's full preview, and how often it looks.
+_FULL_PREVIEW_WAIT_S = 60.0
+_FULL_PREVIEW_POLL_MS = 250
+WAITING_FOR_FULL_PREVIEW_TEXT = "Waiting for Browse's full preview before Mesh Editor opens..."
+
+
+def _interim_preview(result: object) -> bool:
+    return str(getattr(result, "quality_tier", "") or "").strip().lower() in _INTERIM_PREVIEW_TIERS
 
 
 def _exact_archive_identity_matches(declared_identity: object, entry, normalized_path, normalized_file_path) -> bool:
@@ -368,7 +380,8 @@ class MeshEditorShellBridgeMixin:
 
             package = native_material_package_for_rust_preview(Path(pending_path)) or Path(pending_path)
             if (
-                self._mesh_editor_package_matches_archive_entry(package, entry)
+                not _interim_preview(pending_result)
+                and self._mesh_editor_package_matches_archive_entry(package, entry)
                 and archive_model_package_has_textures(package)
             ):
                 return package
@@ -402,6 +415,14 @@ class MeshEditorShellBridgeMixin:
         if getattr(self, "_mesh_editor_rust_texture_bypass_identity", None) == identity:
             self._mesh_editor_rust_texture_bypass_identity = None
             return False
+        if getattr(self, "_mesh_editor_full_preview_given_up", None) == identity:
+            self._mesh_editor_full_preview_given_up = None
+        elif self._archive_preview_interim_for(entry):
+            # Browse shows a quick preview and is building the full one. A texture
+            # load now would replace that build and hand the editor a package without
+            # the material graph: grey cloth, the occlusion map taken as colour. Wait.
+            self._wait_for_full_archive_preview(entry, identity)
+            return True
         if self._mesh_editor_active_textured_package_for_entry(entry) is not None:
             return False
 
@@ -442,6 +463,51 @@ class MeshEditorShellBridgeMixin:
             "Resolving this mesh's textures before Mesh Editor opens..."
         )
         return True
+
+    def _archive_preview_interim_for(self, entry: ArchiveEntry) -> bool:
+        """Browse shows ``entry``'s quick or fast preview, not its full one yet."""
+
+        current = getattr(self.archive, "_current_archive_entry", lambda: None)()
+        if not isinstance(current, ArchiveEntry) or archive_entry_identity_key(current) != archive_entry_identity_key(entry):
+            return False
+        return _interim_preview(getattr(self.archive, "current_archive_preview_result", None))
+
+    def _wait_for_full_archive_preview(self, entry: ArchiveEntry, identity: object) -> None:
+        wait = getattr(self, "_mesh_editor_full_preview_wait", None)
+        if isinstance(wait, Mapping) and wait.get("identity") == identity:
+            return  # already waiting for this file (another click on Open)
+        self._mesh_editor_full_preview_wait = {
+            "identity": identity,
+            "entry": copy.deepcopy(entry),
+            "deadline": time.monotonic() + _FULL_PREVIEW_WAIT_S,
+        }
+        self.set_status_message(WAITING_FOR_FULL_PREVIEW_TEXT)
+        QTimer.singleShot(_FULL_PREVIEW_POLL_MS, self._check_full_archive_preview_wait)
+
+    def _check_full_archive_preview_wait(self) -> None:
+        """Open once Browse has the full preview; drop the open if another file was
+        chosen meanwhile; after a minute without it, open on what there is, as before."""
+
+        wait = getattr(self, "_mesh_editor_full_preview_wait", None)
+        if not isinstance(wait, Mapping) or bool(getattr(self, "_shutting_down", False)):
+            return
+        entry = wait.get("entry")
+        current = getattr(self.archive, "_current_archive_entry", lambda: None)()
+        if (
+            not isinstance(entry, ArchiveEntry)
+            or not isinstance(current, ArchiveEntry)
+            or archive_entry_identity_key(current) != wait.get("identity")
+        ):
+            self._mesh_editor_full_preview_wait = None
+            return
+        still_interim = self._archive_preview_interim_for(entry)
+        if still_interim and time.monotonic() < float(wait.get("deadline", 0.0)):
+            QTimer.singleShot(_FULL_PREVIEW_POLL_MS, self._check_full_archive_preview_wait)
+            return
+        self._mesh_editor_full_preview_wait = None
+        if still_interim:
+            self._mesh_editor_full_preview_given_up = wait.get("identity")
+        self._launch_archive_mesh_editor_for_entry(entry)
 
     def _finish_pending_rust_mesh_editor_texture_launch(
         self,
