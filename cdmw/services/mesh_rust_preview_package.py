@@ -683,6 +683,18 @@ def _byte4_unit_channels(value: object) -> tuple[float, ...]:
     return tuple(((integer >> (8 * index)) & 0xFF) / 255.0 for index in range(4))
 
 
+def _preview_core_batch_material_inputs(raw_batch: Mapping[str, object]) -> tuple[object, ...]:
+    """The batch's material inputs: Preview Core packages keep them under
+    ``dds_textures``; a batch can also carry them at its top level."""
+    found: list[object] = []
+    dds_textures = raw_batch.get("dds_textures")
+    for raw_inputs in (raw_batch.get("material_inputs"),
+                       dds_textures.get("material_inputs") if isinstance(dds_textures, Mapping) else None):
+        if isinstance(raw_inputs, Sequence) and not isinstance(raw_inputs, (str, bytes, bytearray)):
+            found.extend(raw_inputs)
+    return tuple(found)
+
+
 def _is_net_veil_wrapper(parameters: Sequence[object]) -> bool:
     return any(isinstance(parameter, Mapping)
                and str(parameter.get("parameter_name", "") or "").strip().casefold() == "_netpitch"
@@ -741,8 +753,7 @@ def _copy_preview_core_material_layers(
         layers: list[dict[str, object]] = []
         # Each wrapper's authored parameters, as the batch's material inputs carry them.
         wrapper_parameters: dict[str, Sequence[object]] = {}
-        raw_inputs = raw_batch.get("material_inputs")
-        for raw_input in raw_inputs if isinstance(raw_inputs, Sequence) and not isinstance(raw_inputs, (str, bytes)) else ():
+        for raw_input in _preview_core_batch_material_inputs(raw_batch):
             if isinstance(raw_input, Mapping):
                 input_owner = str(raw_input.get("owner_wrapper_item_id", "") or "").strip()
                 input_parameters = raw_input.get("material_parameters")

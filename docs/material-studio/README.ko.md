@@ -223,6 +223,11 @@
 - 이 환경에는 GPU가 없어 화면 캡처는 만들지 못했다. WGSL은 naga 검증과 문자열 테스트로, 식은 Python 참조 구현으로 확인했다. 처음 열 때와 다시 열 때가 같아졌는지는 Windows 빌드에서 봐야 한다. 두 경로의 base 색(다시 열 때는 `_detailDiffuseMaskR` 합성)이 다를 수 있다.
 - 변위 배율 두 개의 슬라이더와 Byte4 Transform 편집은 넣지 않았다(행 쓰기 규칙 미확정).
 
+### 다시 열 때 레이스 패턴 문제 (2026-11-16 저녁)
+- 증상: Archive Browser에서 처음 열면 정상, Close 직후 "Open Selected Mesh"로 다시 열면 큰 얼룩 구멍. "Show target in archive" 후 다시 열면 정상.
+- 원인: 다시 열 때는 Archive Browser가 준비한 재질 대신 Preview Core 패키지(manifest의 batch)로 재질을 다시 만든다. 이 패키지는 부위별 입력과 wrapper 파라미터를 `dds_textures.material_inputs` 아래에 쓰는데(`native/cdmw_preview_core/src/owners/package_writer_json.cpp`), 레이어 복사 코드는 batch 최상위 `material_inputs`만 읽었다. 그래서 이 경로에서는 디테일 레이어의 UV 변환(약 5.67회 반복)과 "망사는 디테일 높이를 합성하지 않음"이 둘 다 빠져, 레이스가 반복 없이 주름 맵 위에 덮어씌워진 높이가 실 굵기로 쓰였다.
+- 수정: `_preview_core_batch_material_inputs`가 두 위치를 모두 읽는다. 테스트는 두 형태의 batch를 모두 확인한다.
+
 ## 남긴 결정 사항
 
 1. `_screenSpaceDisplacementScale`은 슬라이더로 추가하지 않았다. 유일한 근거인 Angel Teddy 모드가 이 행에 작은 ItemID 3을 쓰는데, 작은 ID의 규칙이 밝혀지지 않았다. 다만 Glass를 "다시 쓰기"로 만들면 그 모드의 구성대로 이 행(ItemID 3)을 넣는다. 원본에 값이 있으면 그 값을, 없으면 0을 쓴다.

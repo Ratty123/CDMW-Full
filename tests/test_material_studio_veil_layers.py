@@ -187,13 +187,17 @@ def test_the_composed_graph_leaves_a_net_veils_detail_height_to_the_renderer(tmp
              "height_source": "missing_disp.dds", "height_archive_path": "character/texture/missing_disp.dds"}],
             "material_inputs": [{"owner_wrapper_item_id": "848", "material_parameters": parameters}]}]
 
-    materials = []
     veil = [{"parameter_name": "_netPitch", "value": "0.142"}, {"parameter_name": "_dyeingTransformProperty0", "value": "11565",
                                                                  "integer_value": 11565}]
-    _copy_preview_core_material_layers(batch(veil), tmp_path, tmp_path, "metadata", {}, 0, 0, {}, materials, 0, None, None)
-    detail = materials[0]["layers"][1]
-    assert detail["height"] is None and detail["height_declared"] is False
-    assert detail["uv_transform"][0] == pytest.approx(45 / 255)
+    # Preview Core packages keep the inputs under dds_textures (the reopen path); a batch may carry them on top.
+    nested = batch(veil)
+    nested[0]["dds_textures"] = {"material_inputs": nested[0].pop("material_inputs")}
+    for batches in (batch(veil), nested):
+        materials = []
+        _copy_preview_core_material_layers(batches, tmp_path, tmp_path, "metadata", {}, 0, 0, {}, materials, 0, None, None)
+        detail = materials[0]["layers"][1]
+        assert detail["height"] is None and detail["height_declared"] is False
+        assert detail["uv_transform"][0] == pytest.approx(45 / 255)
     # Any other material still resolves its detail height (here: fails on the missing file).
     with pytest.raises(ValueError, match="missing"):
         _copy_preview_core_material_layers(batch([{"parameter_name": "_roughness", "value": "1"}]), tmp_path, tmp_path,
