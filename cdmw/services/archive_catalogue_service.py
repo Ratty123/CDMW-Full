@@ -486,6 +486,12 @@ class ArchiveCatalogueService(QObject):
         return "character_catalog_v1" in getattr(self._client, "capabilities", ())
 
     @property
+    def minimum_ui_generation(self) -> int:
+        """The oldest UI generation still served; older requests are refused."""
+
+        return self._minimum_ui_generation
+
+    @property
     def byte_search_available(self) -> bool:
         return "text_search_bytes_v1" in getattr(self._client, "capabilities", ())
 

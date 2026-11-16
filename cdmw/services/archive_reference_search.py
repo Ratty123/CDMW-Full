@@ -4,6 +4,12 @@ A search reads only the formats measured to store paths of the target's kind
 (`reference_search_plan`). With a worker that offers byte search, the worker
 finds the files holding the target's name natively and Python reads just those;
 otherwise every file of those formats is prepared and read in pages.
+
+Requests go out at the catalogue's current UI generation at least: a rescan in
+Browse raises its minimum, and a request below it is refused before it is sent.
+A refusal can arrive while the request is being submitted, before its id is
+known, so every submission checks for one; otherwise the search would wait for
+a reply that never comes (the Mesh Editor's texture check did, 2026-11-16).
 """
 
 from __future__ import annotations
@@ -89,6 +95,9 @@ class ArchiveReferenceSearchController(QObject):
         self._group_total = 0
         self._scanned_base = 0
         self._counting_scans = False
+        self._wire_generation = 0
+        self._sending = False
+        self._refused = None
         if catalogue is not None:
             catalogue.result_ready.connect(self._result)
             catalogue.batch_ready.connect(self._prepared_batch)
@@ -102,7 +111,12 @@ class ArchiveReferenceSearchController(QObject):
     def busy(self):
         return self._active or self._thread is not None
 
-    def start(self, target, entries=(), *, session_id="", generation=0):
+    def start(self, target, entries=(), *, session_id="", generation=0, formats=None):
+        """Search for the files that name ``target``.
+
+        ``formats`` limits the search to those of the plan's formats, read as one
+        group, so a caller can read the small formats first and the bulky ones later.
+        """
         if self.busy:
             return False
         self._epoch += 1
@@ -119,6 +133,13 @@ class ArchiveReferenceSearchController(QObject):
         self._scanned_base = 0
         self._group_total = 0
         self._plan = reference_search_plan(target)
+        if formats is not None:
+            wanted = {str(extension).casefold() for extension in formats}
+            chosen = tuple(extension for group in self._plan.groups for extension in group if extension in wanted)
+            self._plan = replace(self._plan, groups=(chosen,) if chosen else ())
+        # The state keeps the caller's generation (Browse compares it); the requests
+        # are never below the generation the catalogue still accepts.
+        self._wire_generation = max(int(generation), int(getattr(self.catalogue, "minimum_ui_generation", 0) or 0))
         self._native = bool(session_id) and bool(getattr(self.catalogue, "byte_search_available", False))
         self._extension_groups = iter(self._plan.groups)
         self.state = ReferenceSearchState(
@@ -139,10 +160,10 @@ class ArchiveReferenceSearchController(QObject):
             return
         try:
             if self.state.session_id:
-                self._request = self.catalogue.create_query(
+                self._submit_request(lambda: self.catalogue.create_query(
                     ArchiveQuery(self.state.session_id, extensions=self._source_extensions),
-                    ui_generation=self.state.generation,
-                )
+                    ui_generation=self._wire_generation,
+                ))
             else:
                 QTimer.singleShot(0, self._advance)
         except Exception as exc:
@@ -211,14 +232,14 @@ class ArchiveReferenceSearchController(QObject):
         query, case_sensitive = self._needle_queries.pop(0)
         self._counting_scans = first
         try:
-            self._request = self.catalogue.text_search(
+            self._submit_request(lambda: self.catalogue.text_search(
                 ArchiveTextSearchRequest(
                     self.state.session_id, query, case_sensitive=case_sensitive,
                     extensions=self._source_extensions, maximum_matches=MAX_REFERENCE_CANDIDATES,
                     context_characters=0, match_bytes=True,
                 ),
-                ui_generation=self.state.generation,
-            )
+                ui_generation=self._wire_generation,
+            ))
         except Exception as exc:
             self._finish(error=str(exc))
 
@@ -248,10 +269,10 @@ class ArchiveReferenceSearchController(QObject):
         self._confirm_position += len(chunk)
         self._resolved = []
         try:
-            self._request = self.catalogue.resolve_entries(
+            self._submit_request(lambda: self.catalogue.resolve_entries(
                 ArchiveLookupRequest(self.state.session_id, ArchiveLookupKind.ENTRY_IDS, entry_ids=chunk, limit=len(chunk)),
-                ui_generation=self.state.generation,
-            )
+                ui_generation=self._wire_generation,
+            ))
         except Exception as exc:
             self._finish(error=str(exc))
 
@@ -261,10 +282,10 @@ class ArchiveReferenceSearchController(QObject):
         self._page = tuple(dto for dto in rows if ArchiveCatalogueService.compatibility_entry(dto).identity in identities)
         if self._page:
             self._prepared.clear()
-            self._request = self.catalogue.prepare_entries(
+            self._submit_request(lambda: self.catalogue.prepare_entries(
                 PrepareEntriesRequest(self.state.session_id, tuple(dto.entry_id for dto in self._page)),
-                ui_generation=self.state.generation,
-            )
+                ui_generation=self._wire_generation,
+            ))
         else:
             QTimer.singleShot(0, self._advance)
 
@@ -296,9 +317,9 @@ class ArchiveReferenceSearchController(QObject):
             return
         try:
             if self._query is not None:
-                self._request = self.catalogue.fetch_page(
-                    FetchPageRequest(self._query.query_id, self._position, 16), ui_generation=self.state.generation,
-                )
+                self._submit_request(lambda: self.catalogue.fetch_page(
+                    FetchPageRequest(self._query.query_id, self._position, 16), ui_generation=self._wire_generation,
+                ))
             else:
                 # Keep each UI scheduling slice small even in a large legacy index.
                 page = self._legacy[self._position:self._position + 128]
@@ -460,10 +481,32 @@ class ArchiveReferenceSearchController(QObject):
         if epoch == self._epoch and self._active:
             self._finish(error=message)
 
+    def _submit_request(self, submit):
+        """Submit one catalogue request; a refusal during the call ends the search."""
+
+        self._sending, self._refused = True, None
+        try:
+            request = submit()
+        finally:
+            self._sending = False
+        refused, self._refused = self._refused, None
+        if refused is not None and refused[0] == request:
+            self._request = None
+            if refused[1] is None:
+                self.cancel()
+            else:
+                self._finish(error=refused[1])
+            return
+        self._request = request
+
     def _failure(self, request_id, error):
-        if self._active and request_id == self._request:
+        if self._active and self._sending:
+            self._refused = (request_id, str(getattr(error, "message", error)))
+        elif self._active and request_id == self._request:
             self._finish(error=str(getattr(error, "message", error)))
 
     def _cancelled(self, request_id):
-        if self._active and request_id == self._request:
+        if self._active and self._sending:
+            self._refused = (request_id, None)
+        elif self._active and request_id == self._request:
             self.cancel()

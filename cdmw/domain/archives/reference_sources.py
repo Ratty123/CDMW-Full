@@ -56,8 +56,24 @@ REFERENCE_SOURCES_BY_TARGET: dict[str, tuple[tuple[str, ...], ...]] = {
     ".tga": ((".pat",), (".pamlod", ".pami", ".pam")),
 }
 
+#: The formats a texture search spends most of its time in. On game 1.0.0.3663
+#: (2026-11-16) the worker's byte search over every format `.dds` lists took 90 s;
+#: these five took 65 s of it: `.pam` 29 s (66,572 files, 28.7 GB), `.pamlod` 15 s
+#: (35,622 files, 11.8 GB), `.pami` 9 s (84,389 files), `.palevel` 6.5 s (35,721
+#: files, 7.1 GB) and `.prefab` 5.4 s (52,908 files). The other formats took about
+#: 1 s each, most of it the walk over the catalogue. A caller that wants a first
+#: answer quickly reads the others first and these after.
+BULK_REFERENCE_SOURCES = frozenset({".pam", ".pamlod", ".pami", ".palevel", ".prefab"})
+
+#: The formats that answer first: model property files, where every user of the
+#: character textures measured was (`.pac_xml`, 13,340 files, 555 MB, under 1 s
+#: beyond the walk), and the formats of under 1,000 files and 15 MB, which cost
+#: next to nothing. With the remaining small formats in the same request the
+#: first answer took 7.8 s instead of 3.2 to 4.0 s.
+QUICK_REFERENCE_SOURCES = frozenset({".pac_xml", ".pasg", ".mi", ".paem", ".parg", ".material", ".technique", ".css"})
+
 #: Sounds are found by numeric media ID in banks. A named `.wem` (voice lines such
 #: as `unique_kliff_aidialogstringinfo_..._51013.wem`) has no stored path at all.
 RUNTIME_NAMED_TARGETS = frozenset({".wem"})
 
-__all__ = ["REFERENCE_SOURCES_BY_TARGET", "RUNTIME_NAMED_TARGETS"]
+__all__ = ["BULK_REFERENCE_SOURCES", "QUICK_REFERENCE_SOURCES", "REFERENCE_SOURCES_BY_TARGET", "RUNTIME_NAMED_TARGETS"]

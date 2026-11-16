@@ -8439,7 +8439,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 782
+      "cdmw/services/archive_catalogue_service.py": 788
     }
   },
   {
@@ -8447,7 +8447,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend returned an invalid {kind} payload.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1128
+      "cdmw/services/archive_catalogue_service.py": 1134
     }
   },
   {
@@ -8575,7 +8575,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive catalogue is shutting down.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 624
+      "cdmw/services/archive_catalogue_service.py": 630
     }
   },
   {
@@ -9224,7 +9224,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive page does not match the requested query, range or session.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 762
+      "cdmw/services/archive_catalogue_service.py": 768
     }
   },
   {
@@ -9353,7 +9353,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query could not be retried after worker restart.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1004
+      "cdmw/services/archive_catalogue_service.py": 1010
     }
   },
   {
@@ -9377,7 +9377,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query operation cannot be safely reconstructed.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 997
+      "cdmw/services/archive_catalogue_service.py": 1003
     }
   },
   {
@@ -9385,7 +9385,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query token is not available or has expired.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1147
+      "cdmw/services/archive_catalogue_service.py": 1153
     }
   },
   {
@@ -9457,7 +9457,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session could not be reopened after worker restart.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 873
+      "cdmw/services/archive_catalogue_service.py": 879
     }
   },
   {
@@ -9465,7 +9465,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session fingerprint changed before the request was issued.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1140
+      "cdmw/services/archive_catalogue_service.py": 1146
     }
   },
   {
@@ -9473,7 +9473,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session is not available in the catalogue service.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1138
+      "cdmw/services/archive_catalogue_service.py": 1144
     }
   },
   {
@@ -9489,7 +9489,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session reopen could not be dispatched.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 908
+      "cdmw/services/archive_catalogue_service.py": 914
     }
   },
   {
@@ -9521,7 +9521,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive sources changed while the worker was restarting; stale queries were not retried.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 924
+      "cdmw/services/archive_catalogue_service.py": 930
     }
   },
   {
@@ -9729,7 +9729,7 @@ MESSAGE_REFERENCE = [
     "message": "Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 494
+      "cdmw/services/archive_catalogue_service.py": 500
     }
   },
   {
@@ -11671,7 +11671,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name indexing did not produce an available catalogue.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 767,
+      "cdmw/services/archive_catalogue_service.py": 773,
       "cdmw/ui/archive_browser/remote_finder_warmup.py": 476
     }
   },
@@ -14081,7 +14081,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered page request has no query definition.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1014
+      "cdmw/services/archive_catalogue_service.py": 1020
     }
   },
   {
@@ -14089,7 +14089,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered query could not be dispatched.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1071
+      "cdmw/services/archive_catalogue_service.py": 1077
     }
   },
   {
@@ -14097,7 +14097,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered query target has an unsupported payload.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1060
+      "cdmw/services/archive_catalogue_service.py": 1066
     }
   },
   {
@@ -14121,7 +14121,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovery open did not return an archive session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 739
+      "cdmw/services/archive_catalogue_service.py": 745
     }
   },
   {
@@ -14129,7 +14129,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovery query did not return a query handle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 744
+      "cdmw/services/archive_catalogue_service.py": 750
     }
   },
   {
@@ -14137,7 +14137,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference search preparation omitted a requested file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_reference_search.py": 389
+      "cdmw/services/archive_reference_search.py": 410
     }
   },
   {
@@ -14145,7 +14145,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference search received a mismatched archive lookup.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_reference_search.py": 351
+      "cdmw/services/archive_reference_search.py": 372
     }
   },
   {
@@ -14153,7 +14153,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference search received a mismatched archive page.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_reference_search.py": 332
+      "cdmw/services/archive_reference_search.py": 353
     }
   },
   {
@@ -14161,7 +14161,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference search received a mismatched archive search batch.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_reference_search.py": 227
+      "cdmw/services/archive_reference_search.py": 248
     }
   },
   {
@@ -14169,7 +14169,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference search received an incomplete archive page.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/archive_reference_search.py": 359
+      "cdmw/services/archive_reference_search.py": 380
     }
   },
   {
@@ -14177,7 +14177,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference search received an unexpected archive response.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_reference_search.py": 409
+      "cdmw/services/archive_reference_search.py": 430
     }
   },
   {
@@ -15401,7 +15401,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker exited before this operation could start.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 646
+      "cdmw/services/archive_catalogue_service.py": 652
     }
   },
   {
@@ -17394,7 +17394,7 @@ MESSAGE_REFERENCE = [
     "message": "compatibility_entry requires one bounded ArchiveEntryDto.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 600
+      "cdmw/services/archive_catalogue_service.py": 606
     }
   },
   {
@@ -106375,7 +106375,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/archive_query_service.py": {},
   "cdmw/services/archive_read_service.py": {},
   "cdmw/services/archive_reference_search.py": {
-    "diagnostic_field": 8,
+    "diagnostic_field": 9,
     "raise": 10
   },
   "cdmw/services/archive_service.py": {},

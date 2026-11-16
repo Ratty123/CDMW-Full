@@ -818,3 +818,111 @@ def test_length_prefixed_paths_count_whatever_byte_follows_them(tmp_path):
     assert ref is not None and ref.relation_confidence == "explicit_path" and ref.relation_reason == path
     longer = struct.pack("<I", len(path) + 4) + b"old/" + path.encode() + b"/"
     assert incoming_reference(target, preset, longer)[0] is None
+
+
+class RefusingCatalogue(ByteSearchCatalogue):
+    """Refuses a request below its minimum generation inside the call, as the real
+    catalogue does once a rescan in Browse has raised it (invalidate_before)."""
+
+    minimum_ui_generation = 5
+
+    def __init__(self, entries):
+        super().__init__(entries)
+        self.generations = []
+
+    def _refused(self, kwargs):
+        generation = kwargs.get("ui_generation", 0)
+        self.generations.append(generation)
+        if generation >= self.minimum_ui_generation:
+            return None
+        self.counter += 1
+        request = f"refused-{self.counter}"
+        self.request_cancelled.emit(request)
+        return request
+
+    def create_query(self, query, **kwargs):
+        return self._refused(kwargs) or super().create_query(query, **kwargs)
+
+    def text_search(self, request, **kwargs):
+        return self._refused(kwargs) or super().text_search(request, **kwargs)
+
+    def resolve_entries(self, request, **kwargs):
+        return self._refused(kwargs) or super().resolve_entries(request, **kwargs)
+
+    def prepare_entries(self, request, **kwargs):
+        return self._refused(kwargs) or super().prepare_entries(request, **kwargs)
+
+    def fetch_page(self, request, **kwargs):
+        return self._refused(kwargs) or super().fetch_page(request, **kwargs)
+
+
+def test_a_request_refused_while_it_is_sent_ends_the_search_instead_of_waiting(app, tmp_path):
+    texture = "character/texture/rock_d.dds"
+    files = entries_at(tmp_path, [(texture, b"DDS "), ("object/rock.pami", f'"{texture}"'.encode())])
+
+    class Failing(ByteSearchCatalogue):
+        def create_query(self, query, **_kwargs):
+            self.counter += 1
+            request = f"failed-{self.counter}"
+            self.request_failed.emit(request, SimpleNamespace(message="The archive worker is gone."))
+            return request
+
+    class Cancelling(ByteSearchCatalogue):
+        def create_query(self, query, **_kwargs):
+            self.counter += 1
+            request = f"cancelled-{self.counter}"
+            self.request_cancelled.emit(request)
+            return request
+
+    failed = ArchiveReferenceSearchController(Failing(files[1:]))
+    failed.start(files[0], session_id="session")
+    wait_for(app, lambda: failed.state.finished)
+    assert failed.state.error == "The archive worker is gone." and not failed.busy
+
+    stopped = ArchiveReferenceSearchController(Cancelling(files[1:]))
+    stopped.start(files[0], session_id="session")
+    wait_for(app, lambda: stopped.state.finished)
+    assert stopped.state.cancelled and not stopped.busy
+
+
+def test_requests_go_out_at_the_generation_the_catalogue_still_accepts(app, tmp_path):
+    texture = "character/texture/rock_d.dds"
+    files = entries_at(tmp_path, [(texture, b"DDS "), ("object/rock.pami", f'<Texture path="{texture}"/>'.encode())])
+    catalogue = RefusingCatalogue(files[1:])
+    controller = ArchiveReferenceSearchController(catalogue)
+    try:
+        controller.start(files[0], session_id="session", generation=3)
+        wait_for(app, lambda: controller.state.finished)
+        state = controller.state
+    finally:
+        controller.cancel()
+        wait_for(app, lambda: not controller.busy)
+
+    assert not state.cancelled and not state.error
+    assert [ref.resolved_archive_path for ref in state.references] == ["object/rock.pami"]
+    # Browse compares the state's generation with its own; only the requests are raised.
+    assert state.generation == 3 and catalogue.generations and min(catalogue.generations) == 5
+
+
+def test_formats_limit_a_search_to_those_formats_read_as_one_group(app, tmp_path):
+    texture = "character/texture/rock_d.dds"
+    files = entries_at(tmp_path, [
+        (texture, b"DDS "),
+        ("object/rock.pami", f'"{texture}"'.encode()),
+        ("character/rock.pac_xml", f'"{texture}"'.encode()),
+        ("object/rock.prefab", f'"{texture}"'.encode()),
+    ])
+    catalogue = ByteSearchCatalogue(files[1:])
+    controller = ArchiveReferenceSearchController(catalogue)
+    try:
+        controller.start(files[0], session_id="session", formats=(".prefab", ".pami", ".pac"))
+        wait_for(app, lambda: not controller.busy)
+        state = controller.state
+    finally:
+        controller.cancel()
+        wait_for(app, lambda: not controller.busy)
+
+    # Plan order, one request; .pac is not a format the plan reads for a texture.
+    assert [query.extensions for query in catalogue.queries] == [(".pami", ".prefab")]
+    assert [search.extensions for search in catalogue.searches] == [(".pami", ".prefab")]
+    assert sorted(ref.resolved_archive_path for ref in state.references) == ["object/rock.pami", "object/rock.prefab"]

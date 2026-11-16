@@ -14336,7 +14336,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 782,
+          "line": 788,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14346,7 +14346,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1128,
+          "line": 1134,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -14461,7 +14461,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 624,
+          "line": 630,
           "sink": "RuntimeError"
         }
       ]
@@ -15376,7 +15376,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1004,
+          "line": 1010,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -15401,7 +15401,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 997,
+          "line": 1003,
           "sink": "RuntimeError"
         }
       ]
@@ -15561,7 +15561,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 873,
+          "line": 879,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -15571,7 +15571,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1140,
+          "line": 1146,
           "sink": "RuntimeError"
         }
       ]
@@ -15581,7 +15581,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 908,
+          "line": 914,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -15626,7 +15626,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 924,
+          "line": 930,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -20231,7 +20231,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 494,
+          "line": 500,
           "sink": "ValueError"
         },
         {
@@ -29293,6 +29293,11 @@
     },
     {
       "key": "Checking whether other game files use this texture...",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Checking whether other game files use this texture: none found yet, still searching the rest of the game files...",
       "origins": [],
       "manual": true
     },
@@ -80156,7 +80161,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 767,
+          "line": 773,
           "sink": "ArchiveBackendError"
         },
         {
@@ -111132,6 +111137,16 @@
       "manual": true
     },
     {
+      "key": "Other game files use this texture, and the mod changes it for them too: {files}. Still searching the rest of the game files for more...",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Other game files use this texture, and the mod changes it for them too: {files}. There may be more: {reason}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Other influences redistribute proportionally. Cloth guide weights are preserved.",
       "origins": [
         {
@@ -129761,7 +129776,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1014,
+          "line": 1020,
           "sink": "RuntimeError"
         }
       ]
@@ -129791,7 +129806,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1071,
+          "line": 1077,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -129801,7 +129816,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 1060,
+          "line": 1066,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -129886,7 +129901,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 739,
+          "line": 745,
           "sink": "TypeError"
         }
       ]
@@ -129896,7 +129911,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 744,
+          "line": 750,
           "sink": "TypeError"
         }
       ]
@@ -130371,17 +130386,17 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 373,
+          "line": 394,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 389,
+          "line": 410,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 395,
+          "line": 416,
           "sink": "ValueError"
         }
       ]
@@ -130391,7 +130406,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 351,
+          "line": 372,
           "sink": "ValueError"
         }
       ]
@@ -130401,12 +130416,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 332,
+          "line": 353,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 356,
+          "line": 377,
           "sink": "ValueError"
         }
       ]
@@ -130416,7 +130431,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 227,
+          "line": 248,
           "sink": "ValueError"
         }
       ]
@@ -130426,7 +130441,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 359,
+          "line": 380,
           "sink": "ValueError"
         }
       ]
@@ -130436,12 +130451,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 381,
+          "line": 402,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_reference_search.py",
-          "line": 409,
+          "line": 430,
           "sink": "ValueError"
         }
       ]
@@ -166736,7 +166751,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 646,
+          "line": 652,
           "sink": "ArchiveBackendError"
         }
       ]
@@ -193401,7 +193416,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 715,
+          "line": 721,
           "sink": "_reject_invalid_payload"
         }
       ]
@@ -195516,7 +195531,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 600,
+          "line": 606,
           "sink": "TypeError"
         }
       ]
@@ -207066,7 +207081,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_catalogue_service.py",
-          "line": 686,
+          "line": 692,
           "sink": "_reject_invalid_payload"
         }
       ]
