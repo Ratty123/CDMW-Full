@@ -1562,6 +1562,13 @@ fn cdmw_sidebar_visible(context: &egui::Context, id: &str) -> bool {
     context.data_mut(|data| data.get_temp::<bool>(egui::Id::new(id)).unwrap_or(true))
 }
 
+/// Whether Escape now closes a floating tool panel (the front one that is not pinned).
+/// Closing it comes before clearing the selection.
+pub(super) fn cdmw_escape_closes_a_panel(context: &egui::Context) -> bool {
+    let current = CdmwSidebarSettings::load(context);
+    current.open.iter().any(|page| Some(*page) != current.pinned)
+}
+
 pub(super) fn set_cdmw_sidebar_expanded(context: &egui::Context, id: &str, expanded: bool) {
     context.data_mut(|data| data.insert_temp(egui::Id::new(id), expanded));
     context.request_repaint();

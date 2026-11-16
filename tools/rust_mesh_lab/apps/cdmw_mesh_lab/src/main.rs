@@ -2416,6 +2416,8 @@ struct LabApplication {
     shortcut_numpad_presses: Vec<(egui::Key, shortcuts::NumpadKey)>,
     /// Editor commands CDMW asked for (its palette), run at the next frame.
     pending_host_commands: Vec<String>,
+    /// A popup was open at the end of the last frame: an Escape now closed it.
+    popup_open_last_frame: bool,
     /// A Finish asked for while an edit was in flight: sent once it is done.
     cdmw_finish_waiting: bool,
     /// What the editor last told CDMW about its commands, to send only changes.
@@ -2657,6 +2659,7 @@ impl LabApplication {
             primary_press_modifiers: egui::Modifiers::NONE,
             shortcut_numpad_presses: Vec::new(),
             pending_host_commands: Vec::new(),
+            popup_open_last_frame: false,
             cdmw_finish_waiting: false,
             published_commands_state: String::new(),
             cdmw_bridge: None,
@@ -6714,8 +6717,26 @@ impl LabApplication {
         if self.handle_hair_input(ui, rectangle) {
             return;
         }
-        if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
-            self.cancel_active_gesture("Gesture cancelled");
+        let popup_was_open = std::mem::replace(
+            &mut self.popup_open_last_frame,
+            egui::Popup::is_any_open(ui.ctx()),
+        );
+        if ui.input(|input| input.key_pressed(egui::Key::Escape))
+            && !self.cancel_active_gesture("Gesture cancelled")
+            && ui.memory(|memory| memory.focused().is_none())
+            && !popup_was_open
+            && !egui::Popup::is_any_open(ui.ctx())
+            && !cdmw_ui::cdmw_escape_closes_a_panel(ui.ctx())
+            && self.mesh.as_ref().is_some_and(|mesh| {
+                let selection = &mesh.selection;
+                !(selection.vertices.is_empty() && selection.edges.is_empty()
+                    && selection.faces.is_empty() && selection.submeshes.is_empty())
+            })
+        {
+            // Nothing to cancel: Esc clears the selection, as Clear Selection does
+            // (Fredric's rule for a set: nothing stays selected unless clicked).
+            self.pending_host_commands
+                .push("session.clear_selection".to_owned());
         }
 
         let geometry_before = self.mesh.as_ref().map(|mesh| mesh.geometry_revision);
@@ -7406,7 +7427,8 @@ impl LabApplication {
         }
     }
 
-    fn cancel_active_gesture(&mut self, reason: impl Into<String>) {
+    /// Cancels the drag, stroke or selection gesture in progress; true when there was one.
+    fn cancel_active_gesture(&mut self, reason: impl Into<String>) -> bool {
         self.cancel_weapon_drag();
         self.cdmw_jiggle.preview.manual_drag = None;
         let reason = reason.into();
@@ -7422,7 +7444,7 @@ impl LabApplication {
         {
             if let Err(error) = self.operator.cancel(mesh, gesture.gesture_id) {
                 self.status = format!("Gesture rollback failed: {error}");
-                return;
+                return true;
             }
             cancelled = true;
         }
@@ -7430,6 +7452,7 @@ impl LabApplication {
             self.status = reason;
             self.publish_mesh_snapshot();
         }
+        cancelled
     }
 
     fn refresh_face_selection_overlay(&mut self) {

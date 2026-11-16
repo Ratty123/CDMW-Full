@@ -555,6 +555,36 @@ fn select_parts_from_the_host_selects_whole_parts_as_a_row_click_does() -> TestR
 }
 
 #[test]
+fn escape_clears_the_selection_when_there_is_nothing_to_cancel() -> TestResult {
+    // Fredric (2026-11-15): nothing stays selected unless clicked; Esc clears it.
+    let mut ui = HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    ui.application
+        .handle_actions(vec![UiAction::SetPartSelection(vec![0, 1])]);
+    ui.settle_layout();
+    assert_eq!(ui.application.selected_part_indices(), vec![0, 1]);
+    let centre = ui.application.viewport_rect.ok_or("viewport")?.center();
+    ui.frame(vec![Event::PointerMoved(centre), key_event(egui::Key::Escape, true)]);
+    ui.frame(vec![key_event(egui::Key::Escape, false)]);
+    ui.frame(Vec::new());
+    assert!(ui.application.selected_part_indices().is_empty());
+    Ok(())
+}
+
+#[test]
+fn a_click_on_empty_space_in_the_view_clears_a_part_selection() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    ui.application
+        .handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
+    ui.settle_layout();
+    assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    let view = ui.application.viewport_rect.ok_or("viewport")?;
+    ui.click_at(view.left_top() + egui::vec2(24.0, 24.0));
+    ui.settle_layout();
+    assert!(ui.application.selected_part_indices().is_empty());
+    Ok(())
+}
+
+#[test]
 fn finish_and_late_morph_data_come_from_the_host() {
     // P4 V3: the Finish, Discard, Keep editing prompt finishes as the button does,
     // and an editor that opened before its morph query gets the data afterwards.
