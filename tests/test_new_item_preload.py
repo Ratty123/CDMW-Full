@@ -151,3 +151,57 @@ def test_only_the_new_item_consumer_promotes_its_preload(tmp_path, monkeypatch, 
         tab.workflow.deleteLater()
     tab.deleteLater()
     app.processEvents()
+
+
+@pytest.mark.parametrize("target", [
+    "cdmw.services.new_item_snapshot.parse_iteminfo_row",
+    "cdmw.core.storeinfo_table.parse_store_row",
+    "cdmw.core.multichangeinfo_table.parse_multichange_row",
+])
+def test_snapshot_preload_pauses_between_rows_of_a_table(tmp_path, monkeypatch, target):
+    """A paused preload (a Browse load or a click holds it) stops at the next
+    row, not after the table: on the game's tables a table is seconds of Python
+    that keeps the window thread waiting for the interpreter lock."""
+
+    from cdmw.services.new_item_service import NewItemService
+    from tests.test_new_item_service import synthetic_files
+
+    entries = parse_archive_pamt(build_package(tmp_path, synthetic_files()))
+    module_name, _, name = target.rpartition(".")
+    module = __import__(module_name, fromlist=[name])
+    original = getattr(module, name)
+    gate, stop = NewItemPreloadGate(), threading.Event()
+    calls, paused, finished, result, failures = [], threading.Event(), threading.Event(), [], []
+
+    def counted(*args, **kwargs):
+        calls.append(True)
+        if len(calls) == 1:
+            gate.pause()
+            paused.set()
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(target, counted)
+
+    def run():
+        try:
+            result.append(NewItemService().build_snapshot(entries, stop_event=gate.bind(stop)))
+        except Exception as exc:
+            failures.append(exc)
+        finally:
+            finished.set()
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    try:
+        assert paused.wait(10)
+        assert not finished.wait(0.2)
+        assert len(calls) == 1
+        gate.resume()
+        assert finished.wait(10)
+        assert not failures
+        assert len(calls) > 1 and result[0].rows
+    finally:
+        stop.set()
+        gate.resume()
+        thread.join(10)
+        assert not thread.is_alive()

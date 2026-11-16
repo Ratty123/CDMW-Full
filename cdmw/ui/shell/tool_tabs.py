@@ -439,9 +439,19 @@ class ShellToolTabsMixin:
                 get_original_dds_root=lambda: self.textures.original_dds_edit.text(),
                 get_archive_entries=lambda: self.archive.archive_entries,
                 get_current_config=self.textures.collect_config,
+                # About 0.2 s of widget building, one part per event-loop turn.
+                build_in_steps=True,
             )
-        tab.set_ui_translator(self.ui_localizer.translate)
-        tab.sync_ui_font_from_application()
+
+        def finish_setup() -> None:
+            tab.set_ui_translator(self.ui_localizer.translate)
+            tab.sync_ui_font_from_application()
+
+        after_construction = getattr(tab, "after_construction", None)
+        if callable(after_construction):
+            after_construction(finish_setup)
+        else:
+            finish_setup()
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(
                 message, error=is_error, tool_key="texture_editor"

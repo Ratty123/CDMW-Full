@@ -636,6 +636,9 @@ def build_snapshot(
     keys = {row.row_id for row, _s, _e in spans}
     rows: Dict[int, ItemInfoRow] = {}
     for row, start, end in spans:
+        # Per row: a paused preload (a Browse load, a click) parks here, not
+        # after the table, which is seconds of Python.
+        raise_if_cancelled(stop_event, "New item snapshot cancelled.")
         try:
             parsed = parse_iteminfo_row(iteminfo.payload[start:end], item_keys=keys)
             if parsed.key != row.row_id or row.row_id in rows:
@@ -652,7 +655,9 @@ def build_snapshot(
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     _log_progress(on_log, "Reading StringInfo and the part-prefab table...")
     stringinfo = _table_pair(by_path, read, "stringinfo", sources=sources)
-    texts = stringinfo_index(parse_stringinfo(stringinfo.payload, stringinfo.header, name="stringinfo"))
+    texts = stringinfo_index(parse_stringinfo(stringinfo.payload, stringinfo.header, name="stringinfo",
+                                              stop_event=stop_event))
+    raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     pappt_entry = by_path.get(PAPPT_PATH)
     if pappt_entry is None:
         raise NewItemSnapshotError(f"the archives have no {PAPPT_PATH}")
@@ -680,20 +685,25 @@ def build_snapshot(
     _log_progress(on_log, "Reading StoreInfo, ItemGroupInfo, StatusInfo and EquipTypeInfo...")
     storeinfo = _table_pair(by_path, read, "storeinfo", sources=sources)
     try:
-        stores = parse_store_table(storeinfo.payload, storeinfo.header, layout="current" if sources.static_layout else "legacy")
+        stores = parse_store_table(storeinfo.payload, storeinfo.header,
+                                   layout="current" if sources.static_layout else "legacy", stop_event=stop_event)
     except StoreInfoError as exc:
         raise NewItemSnapshotError(f"StoreInfo did not decode: {exc}") from exc
     itemgroupinfo = _table_pair(by_path, read, "itemgroupinfo", sources=sources)
+    raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     item_groups = parse_item_group_table(itemgroupinfo.payload, itemgroupinfo.header)
+    raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     statusinfo = _table_pair(by_path, read, "statusinfo", sources=sources)
     status_names = parse_status_names(statusinfo.payload, statusinfo.header)
+    raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     equiptypeinfo = _table_pair(by_path, read, "equiptypeinfo", sources=sources)
     equip_type_names = _parse_names_by_key(equiptypeinfo)
     multichange: Optional[TablePair] = None
     multichange_rows: Dict[int, MultiChangeRow] = {}
     if "multichangeinfo" in sources.tables:
         multichange = _table_pair(by_path, read, "multichangeinfo", sources=sources)
-        multichange_rows = {row.key: row for row in parse_multichange_table(multichange.payload, multichange.header)}
+        multichange_rows = {row.key: row for row in parse_multichange_table(
+            multichange.payload, multichange.header, stop_event=stop_event)}
 
     metadata_pairs, row_sources = {}, {}
     primary = {'iteminfo':iteminfo,'stringinfo':stringinfo,'storeinfo':storeinfo,'itemgroupinfo':itemgroupinfo,
@@ -708,6 +718,7 @@ def build_snapshot(
             directory = parse_pabgh_table(pair.header,payload=pair.payload)
             seen = set()
             for entry,_start,_end in directory.row_spans(len(pair.payload)):
+                raise_if_cancelled(stop_event)
                 if entry.row_id in seen:
                     raise NewItemSnapshotError(f'{name} has duplicate row {entry.row_id}.')
                 seen.add(entry.row_id)
@@ -735,10 +746,11 @@ def build_snapshot(
                         raise NewItemSnapshotError('DLC ItemInfo identity differs from its directory.')
                     rows[entry.row_id] = parsed
             elif name == 'stringinfo':
-                texts = {**texts, **stringinfo_index(parse_stringinfo(pair.payload,pair.header))}
+                texts = {**texts, **stringinfo_index(parse_stringinfo(pair.payload,pair.header,stop_event=stop_event))}
             elif name == 'storeinfo':
                 merged = {row.key:row for row in stores}
-                merged.update({row.key:row for row in parse_store_table(pair.payload,pair.header,layout='current' if sources.static_layout else 'legacy')})
+                merged.update({row.key:row for row in parse_store_table(
+                    pair.payload,pair.header,layout='current' if sources.static_layout else 'legacy',stop_event=stop_event)})
                 stores = tuple(merged.values())
             elif name == 'itemgroupinfo':
                 merged = {row.key:row for row in item_groups}
@@ -749,7 +761,8 @@ def build_snapshot(
             elif name == 'equiptypeinfo':
                 equip_type_names = {**equip_type_names, **_parse_names_by_key(pair)}
             elif name == 'multichangeinfo':
-                multichange_rows.update({row.key:row for row in parse_multichange_table(pair.payload,pair.header)})
+                multichange_rows.update({row.key:row for row in parse_multichange_table(
+                    pair.payload,pair.header,stop_event=stop_event)})
         row_sources[name] = origins
     keys_by_name = {row.string_key:key for key,row in rows.items()}
 
@@ -814,6 +827,7 @@ def build_snapshot(
         for path in effect_paths
         if path.startswith(EFFECT_DIR) and path.endswith(".pae") and "/" not in path[len(EFFECT_DIR):]
     )
+    raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     pathc: Optional[PathcTable] = None
     pathc_source_digest = ''
     pathc_path = Path(iteminfo.payload_entry.pamt_path).parent.parent / PATHC_RELATIVE_PATH
@@ -828,6 +842,7 @@ def build_snapshot(
     dlc_pathcs, dlc_pathc_names = [], []
     dlc_folder = pathc_path.parent.parent / "dlc"
     for dlc_pathc_path in sorted(dlc_folder.glob("dlc_*/meta/0.pathc")) if dlc_folder.is_dir() else ():
+        raise_if_cancelled(stop_event, "New item snapshot cancelled.")
         provenance.pin_file(dlc_pathc_path)
         try:
             dlc_pathcs.append(parse_pathc(dlc_pathc_path.read_bytes()))
@@ -877,7 +892,9 @@ def build_snapshot(
     # Measure on the snapshot worker rather than the first time a stat is offered. Keep
     # the median implementation local: importing ``statistics`` after PySide starts was
     # most of this otherwise small cold path on current Python builds.
+    raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     snapshot.status_value_ranges()
+    raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     snapshot._template_search_catalogue = build_template_search_catalogue(snapshot, stop_event=stop_event)
     paths = (set(resident_catalogue.source_paths) if resident_catalogue is not None
              else {entry.pamt_path for entry in entries} | {entry.paz_file for entry in entries})

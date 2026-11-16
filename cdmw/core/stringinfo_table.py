@@ -23,6 +23,7 @@ from typing import Iterable, Mapping, Sequence, Tuple
 
 from cdmw.core.archive_format import hashlittle
 from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table
+from cdmw.domain.cancellation import raise_if_cancelled
 
 STRINGINFO_HASH_INIT = 0xC5EDE
 # Compact texture fields use this absent dictionary key for an unset texture.
@@ -52,8 +53,12 @@ def build_stringinfo_row(text: str) -> bytes:
     return struct.pack("<I5sI", stringinfo_key(text), b"\x00" * 5, len(raw)) + raw
 
 
-def parse_stringinfo(payload: bytes, header: bytes, *, name: str = "") -> Tuple[StringInfoRow, ...]:
-    """Every row, in payload order, checked against the layout above."""
+def parse_stringinfo(
+    payload: bytes, header: bytes, *, name: str = "", stop_event: object | None = None,
+) -> Tuple[StringInfoRow, ...]:
+    """Every row, in payload order, checked against the layout above.
+
+    `stop_event` is asked before each row (a paused background read waits there)."""
 
     where = f" ({name})" if name else ""
     payload_bytes = bytes(payload or b"")
@@ -65,6 +70,7 @@ def parse_stringinfo(payload: bytes, header: bytes, *, name: str = "") -> Tuple[
         raise StringInfoFormatError(f"StringInfo keys are 4 bytes, this directory has {table.key_width}{where}")
     rows: list[StringInfoRow] = []
     for row, start, end in table.row_spans(len(payload_bytes)):
+        raise_if_cancelled(stop_event)
         if end - start < _ROW_HEAD:
             raise StringInfoFormatError(f"row {row.index} at 0x{start:X} is shorter than a row head{where}")
         key, zeros, length = struct.unpack_from("<I5sI", payload_bytes, start)

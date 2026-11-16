@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 import time
-import traceback
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QThread, QTimer
+from PySide6.QtCore import QObject, QThread, QTimer
 
 from cdmw.models import ArchiveEntry, ArchivePreviewResult
 from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
@@ -23,6 +23,13 @@ ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS = 2500
 ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_LIMIT = 3
 ARCHIVE_PREVIEW_SELECTION_RETRY_MS = 60
 ARCHIVE_PREVIEW_SELECTION_RETRY_LIMIT = 4
+# Finder thumbnails and Create New Item's table preload pause while a preview
+# worker runs (quick, fast and full tiers). They run Python in this process, so
+# the worker and the window thread waited behind them for Python's lock: the
+# review saw pauses of one to two seconds after selecting a model. A worker
+# that never ends releases them after the limit.
+ARCHIVE_PREVIEW_WARMUP_HOLD = object()
+ARCHIVE_PREVIEW_WARMUP_HOLD_LIMIT_MS = 120_000
 
 
 def _archive_preview_debounce_ms(entry: Optional[ArchiveEntry]) -> int:
@@ -42,6 +49,35 @@ def _record_archive_worker_lifecycle(target: object, event: str, **fields: objec
             recorder(str(event), **fields)
         except Exception:
             return
+
+
+def _hold_warmups_for_archive_preview(archive: object) -> None:
+    hold = getattr(archive, "hold_background_warmups", None)
+    if not callable(hold):
+        return
+    hold(ARCHIVE_PREVIEW_WARMUP_HOLD)
+    token = object()
+    archive._archive_preview_warmup_hold_token = token
+
+    def release_after_limit() -> None:
+        if getattr(archive, "_archive_preview_warmup_hold_token", None) is token:
+            _release_warmups_for_archive_preview(archive)
+
+    if isinstance(archive, QObject):
+        # The context drops the call if Browse is deleted first.
+        QTimer.singleShot(ARCHIVE_PREVIEW_WARMUP_HOLD_LIMIT_MS, archive, release_after_limit)
+    else:
+        QTimer.singleShot(ARCHIVE_PREVIEW_WARMUP_HOLD_LIMIT_MS, release_after_limit)
+
+
+def _release_warmups_for_archive_preview(archive: object) -> None:
+    archive._archive_preview_warmup_hold_token = None
+    release = getattr(archive, "release_background_warmups", None)
+    if callable(release):
+        try:
+            release(ARCHIVE_PREVIEW_WARMUP_HOLD)
+        except RuntimeError:  # the window closed first
+            pass
 
 
 class ArchiveWorkerLifecycleMixin:
@@ -64,24 +100,28 @@ def _preview_request_origin(depth: int = 6) -> str:
     Rebuilding a preview is expensive, there are a dozen places that ask for
     one, and ``archive_preview_request_sources`` records the literal string
     "worker" for every single one of them, so a captured session could show the
-    same asset being previewed three times without saying who asked. Reading the
-    stack costs nothing here -- this runs once per preview request, not per
-    frame -- and it is the difference between knowing and guessing.
+    same asset being previewed three times without saying who asked.
+
+    Only the frames' names and line numbers are read, from the caller of the
+    preview request outwards. ``traceback.extract_stack`` also looked up the
+    source line of every frame of the whole stack; in the built app the
+    modules have no source files, so each lookup asked the frozen importer
+    again (part of a 537 ms pause on a Browse reselect in the review).
     """
 
     try:
-        frames = traceback.extract_stack()[:-2]
-    except Exception:
+        # 0: this function, 1: the preview request, 2: who asked for it.
+        frame = sys._getframe(2)
+    except (AttributeError, ValueError):
         return "unknown"
     interesting: list[str] = []
-    for frame in reversed(frames):
-        name = str(frame.name or "")
-        if name.startswith("_preview_request_origin"):
-            continue
-        module = Path(str(frame.filename or "")).stem
-        interesting.append(f"{module}.{name}:{frame.lineno}")
-        if len(interesting) >= depth:
-            break
+    while frame is not None and len(interesting) < depth:
+        code = frame.f_code
+        name = str(code.co_name or "")
+        if not name.startswith("_preview_request_origin"):
+            module = Path(str(code.co_filename or "")).stem
+            interesting.append(f"{module}.{name}:{frame.f_lineno}")
+        frame = frame.f_back
     return " <- ".join(interesting) if interesting else "unknown"
 
 
@@ -758,6 +798,7 @@ class ArchivePreviewWorkerMixin:
 
         self.archive_preview_worker = worker
         self.archive_preview_thread = thread
+        _hold_warmups_for_archive_preview(self)
         thread.start()
 
     def _handle_archive_preview_ready(self, request_id: int, payload: object) -> None:
@@ -968,6 +1009,13 @@ class ArchivePreviewWorkerMixin:
                 thread.deleteLater()
             except RuntimeError:
                 pass
+        try:
+            self._start_pending_archive_preview_request()
+        finally:
+            if self.archive_preview_thread is None:
+                _release_warmups_for_archive_preview(self)
+
+    def _start_pending_archive_preview_request(self) -> None:
         if self.shell._shutting_down:
             _record_archive_worker_lifecycle(
                 self,

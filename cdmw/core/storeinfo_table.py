@@ -41,6 +41,7 @@ from dataclasses import dataclass, replace
 from typing import Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.structured_binary_editor import parse_pabgh_table, replace_table_row
+from cdmw.domain.cancellation import raise_if_cancelled
 
 STOREINFO_PAYLOAD_PATH = "gamedata/binary__/client/bin/storeinfo.pabgb"
 STOREINFO_HEADER_PATH = "gamedata/binary__/client/bin/storeinfo.pabgh"
@@ -501,16 +502,27 @@ def remove_stock_entry(row: StoreRow, item_key: int) -> StoreRow:
     return _renumbered(row, [entry for entry in row.entries if entry.item_key != int(item_key)])
 
 
-def parse_store_table(payload: bytes, header: bytes, *, layout: str = "legacy") -> Tuple[StoreRow, ...]:
-    """Every row of `storeinfo.pabgb`, in payload order."""
+def parse_store_table(
+    payload: bytes, header: bytes, *, layout: str = "legacy", stop_event: object | None = None,
+) -> Tuple[StoreRow, ...]:
+    """Every row of `storeinfo.pabgb`, in payload order.
+
+    `stop_event` is asked before each row is parsed and checked: a paused
+    background read waits there instead of after the whole table (seconds).
+    """
 
     table = parse_pabgh_table(header, payload=payload)
     if table.key_layout == 'named':
         layout = 'compact'
-    rows = tuple(parse_store_row(payload[start:end], key=row.row_id, layout=layout) for row, start, end in table.row_spans(len(payload)))
-    if any(encode_store_row(row) != row.raw for row in rows):
-        raise StoreInfoError("StoreInfo does not round-trip in the selected layout")
-    return rows
+    rows = []
+    for row, start, end in table.row_spans(len(payload)):
+        raise_if_cancelled(stop_event)
+        rows.append(parse_store_row(payload[start:end], key=row.row_id, layout=layout))
+    for row in rows:
+        raise_if_cancelled(stop_event)
+        if encode_store_row(row) != row.raw:
+            raise StoreInfoError("StoreInfo does not round-trip in the selected layout")
+    return tuple(rows)
 
 
 def store_index(rows: Iterable[StoreRow]) -> Mapping[str, StoreRow]:
