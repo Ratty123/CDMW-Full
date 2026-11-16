@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 import numpy as np
 from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSettings, QSize, Qt, QThread, QTimer, Signal
@@ -183,8 +183,67 @@ class TextureEditorTab(
         get_current_config=None,
         workspace_job: TextureJob | None = None,
         parent: Optional[QWidget] = None,
+        build_in_steps: bool = False,
     ) -> None:
+        """Build the editor. With `build_in_steps` only the first part is built
+        here; each `continue_construction()` call builds the next (the shell's
+        lazy tab runs one per event-loop turn), and `after_construction`
+        callbacks run once the editor is complete."""
+
         super().__init__(parent)
+        self._after_construction_callbacks: List[Callable[[], None]] = []
+        self._construction_steps: Optional[Iterator[None]] = self._construct_editor(
+            settings=settings,
+            base_dir=base_dir,
+            get_png_root=get_png_root,
+            get_original_dds_root=get_original_dds_root,
+            get_archive_entries=get_archive_entries,
+            get_current_config=get_current_config,
+            workspace_job=workspace_job,
+        )
+        self.continue_construction()
+        if not build_in_steps:
+            while self.continue_construction():
+                pass
+
+    def continue_construction(self) -> bool:
+        """Build the next part of the editor; False once it is complete."""
+
+        steps = self._construction_steps
+        if steps is None:
+            return False
+        try:
+            next(steps)
+            return True
+        except StopIteration:
+            self._construction_steps = None
+        callbacks, self._after_construction_callbacks = self._after_construction_callbacks, []
+        for callback in callbacks:
+            callback()
+        return False
+
+    @property
+    def construction_complete(self) -> bool:
+        return self._construction_steps is None
+
+    def after_construction(self, callback: Callable[[], None]) -> None:
+        """Run `callback` once the editor is complete (at once if it is)."""
+
+        if self._construction_steps is None:
+            callback()
+        else:
+            self._after_construction_callbacks.append(callback)
+
+    def _construct_editor(
+        self, *,
+        settings: QSettings,
+        base_dir: Path,
+        get_png_root,
+        get_original_dds_root,
+        get_archive_entries,
+        get_current_config,
+        workspace_job: TextureJob | None,
+    ) -> Iterator[None]:
         self.settings = settings
         self.base_dir = base_dir
         self.get_png_root = get_png_root
@@ -484,6 +543,7 @@ class TextureEditorTab(
         if not self.workspace_embedded:
             self.main_splitter.addWidget(self.left_scroll)
 
+        yield  # one construction step ends here (build_in_steps)
         self.canvas_panel = QWidget()
         self.canvas_panel.setObjectName("EditorCanvasPane")
         self.canvas_panel.setMinimumWidth(480)
@@ -618,6 +678,7 @@ class TextureEditorTab(
         canvas_layout.addWidget(self.canvas_status_strip)
         self.main_splitter.addWidget(self.canvas_panel)
 
+        yield  # one construction step ends here (build_in_steps)
         self.right_panel = QWidget()
         self.right_panel.setObjectName("EditorInspectorSidebar")
         self.right_panel.setMinimumWidth(210)
@@ -673,6 +734,7 @@ class TextureEditorTab(
         self.navigator_section = CollapsibleSection("Navigator", navigator_body, expanded=True)
         right_layout.addWidget(self.navigator_section)
 
+        yield  # one construction step ends here (build_in_steps)
         tool_settings_body = QFrame()
         tool_settings_body.setObjectName("EditorSectionBody")
         self.tool_settings_layout = QFormLayout(tool_settings_body)
@@ -905,6 +967,7 @@ class TextureEditorTab(
         self.tool_settings_section = CollapsibleSection("Tool Settings", tool_settings_body, expanded=True)
         right_layout.addWidget(self.tool_settings_section)
 
+        yield  # one construction step ends here (build_in_steps)
         selection_body = QFrame()
         selection_body.setObjectName("EditorSectionBody")
         selection_layout = QVBoxLayout(selection_body)
@@ -1096,6 +1159,7 @@ class TextureEditorTab(
         self.channels_section = CollapsibleSection("Channels", channels_body, expanded=False)
         right_layout.addWidget(self.channels_section)
 
+        yield  # one construction step ends here (build_in_steps)
         transform_body = QFrame()
         transform_body.setObjectName("EditorSectionBody")
         transform_layout = QVBoxLayout(transform_body)
@@ -1224,6 +1288,7 @@ class TextureEditorTab(
         self.atlas_section = CollapsibleSection("Atlas", atlas_body, expanded=False)
         right_layout.addWidget(self.atlas_section)
 
+        yield  # one construction step ends here (build_in_steps)
         layers_body = QFrame()
         layers_body.setObjectName("EditorSectionBody")
         layers_layout = QVBoxLayout(layers_body)
@@ -1305,6 +1370,7 @@ class TextureEditorTab(
         self.layers_section = CollapsibleSection("Layers", layers_body, expanded=False)
         right_layout.addWidget(self.layers_section)
 
+        yield  # one construction step ends here (build_in_steps)
         adjustments_body = QFrame()
         adjustments_body.setObjectName("EditorSectionBody")
         adjustments_layout = QVBoxLayout(adjustments_body)
@@ -1434,6 +1500,7 @@ class TextureEditorTab(
         self.right_scroll.setMaximumWidth(editor_inspector_max)
         self.right_scroll.setWidget(self.right_panel)
         self.main_splitter.addWidget(self.right_scroll)
+        yield  # one construction step ends here (build_in_steps)
         self._finish_editor_setup()
 
     def _finish_editor_setup(self) -> None:
