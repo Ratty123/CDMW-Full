@@ -40,11 +40,11 @@ pub struct MaterialLayerSet {
 }
 
 impl MaterialLayerSet {
-    /// Whether `evaluate_material_layers` leaves the base colour map's colour, and its
-    /// packed response map, off the surface. Outside the masked-overlay (2) and eye (3)
-    /// modes each channel's colour is its layer when it has one, and the base only where
-    /// a channel has none; with a layer on R, G and B the base colour never shows. Its
-    /// alpha and the base normal map still do.
+    /// Whether `evaluate_material_layers` leaves the base colour map's colour off the
+    /// surface. Outside the masked-overlay (2) and eye (3) modes each channel's colour is
+    /// its layer when it has one, and the base only where a channel has none; with a
+    /// layer on R, G and B the base colour never shows. Its alpha and the base normal
+    /// map still do.
     #[must_use]
     pub fn hides_base_colour(&self) -> bool {
         !matches!(self.uniform.control[0], 2 | 3)

@@ -202,9 +202,9 @@ pub fn known_texture(
 
 /// The textures an edit shows on, by source hash: the LOD 0 parts that sample each.
 ///
-/// A base colour or packed response map bound to a material whose layers cover all
-/// three channels is left out: the shader takes that material's colour from the layers
-/// alone (`MaterialLayerSet::hides_base_colour`), so a colour edit of the map changes
+/// A base colour map bound to a material whose layers cover all three channels is
+/// left out: the shader takes that material's colour from the layers alone
+/// (`MaterialLayerSet::hides_base_colour`), so a colour edit of the map changes
 /// nothing on the model.
 #[must_use]
 pub fn live_texture_sources(
@@ -227,10 +227,7 @@ pub fn live_texture_sources(
     for resource in resources {
         let source = resource.metadata.source_sha256.to_ascii_lowercase();
         if sources.contains(&source) {
-            let hidden = matches!(
-                resource.role,
-                TextureRole::BaseColor | TextureRole::Material
-            );
+            let hidden = resource.role == TextureRole::BaseColor;
             shown.entry(source).or_default().extend(
                 resource
                     .material_indices_by_lod
@@ -489,9 +486,10 @@ mod tests {
             BTreeSet::from([4]),
             "the base normal map still shows"
         );
-        assert!(
-            !shown.contains_key(&sources[2]),
-            "nor does the base response map under three layers"
+        assert_eq!(
+            shown[&sources[2]],
+            BTreeSet::from([4]),
+            "the response map is still read (EyeCover alpha)"
         );
         assert_eq!(
             shown[&layer.source_sha256.to_ascii_lowercase()],
