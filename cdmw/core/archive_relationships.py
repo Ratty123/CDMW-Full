@@ -117,8 +117,26 @@ def _trim_index_cache(cache: Dict[Tuple[int, int, str, str], object]) -> None:
             break
 
 
+# An archive set has a few dozen .pamt files and thousands of entries: resolve
+# each .pamt path once per process, not once per entry (a realpath per entry
+# held the UI thread for 192 ms selecting one model in Browse).
+_RESOLVED_PAMT_PATHS: Dict[str, str] = {}
+_RESOLVED_PAMT_LIMIT = 4096
+
+
+def _resolved_pamt_text(pamt_path) -> str:
+    key = str(pamt_path)
+    resolved = _RESOLVED_PAMT_PATHS.get(key)
+    if resolved is None:
+        resolved = str(pamt_path.resolve())
+        if len(_RESOLVED_PAMT_PATHS) >= _RESOLVED_PAMT_LIMIT:
+            _RESOLVED_PAMT_PATHS.clear()
+        _RESOLVED_PAMT_PATHS[key] = resolved
+    return resolved
+
+
 def _entry_key(entry: ArchiveEntry) -> str:
-    return f"{entry.pamt_path.resolve()}::{_normalized_archive_path(entry.path)}"
+    return f"{_resolved_pamt_text(entry.pamt_path)}::{_normalized_archive_path(entry.path)}"
 
 
 def _build_path_index(archive_entries: Sequence[ArchiveEntry]) -> Dict[str, List[ArchiveEntry]]:

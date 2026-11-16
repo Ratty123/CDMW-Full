@@ -9994,7 +9994,7 @@ MESSAGE_REFERENCE = [
     "message": "Character appearance XML could not be resolved for the selected source/target pair.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_relationships.py": 1165
+      "cdmw/core/archive_relationships.py": 1183
     }
   },
   {
@@ -12578,7 +12578,7 @@ MESSAGE_REFERENCE = [
     "message": "No target appearance XML patch was produced for the selected source/target pair.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_relationships.py": 1160
+      "cdmw/core/archive_relationships.py": 1178
     }
   },
   {
@@ -14529,7 +14529,7 @@ MESSAGE_REFERENCE = [
     "message": "Skipped {app_entry.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_relationships.py": 1283
+      "cdmw/core/archive_relationships.py": 1301
     }
   },
   {
@@ -14649,7 +14649,7 @@ MESSAGE_REFERENCE = [
     "message": "Source and target material sidecar submesh wrappers differ; generated/retargeted sidecar patching is preferred over copying source sidecar bytes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_relationships.py": 1173
+      "cdmw/core/archive_relationships.py": 1191
     }
   },
   {
