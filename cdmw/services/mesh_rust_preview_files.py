@@ -139,11 +139,14 @@ def atomic_preview_publication(builder):
     return publish
 
 
-_REPARSE_POINT = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT: a symbolic link or junction
+_NAME_SURROGATE = 0x20000000  # a reparse tag that names another file: symbolic links, junctions
 
 
 def _is_link(identity: os.stat_result) -> bool:
-    return stat.S_ISLNK(identity.st_mode) or bool(getattr(identity, "st_file_attributes", 0) & _REPARSE_POINT)
+    """A symbolic link, junction or other name surrogate. A reparse point that is not one
+    (a cloud placeholder, a deduplicated file) is the file itself, as resolve() treated it."""
+
+    return stat.S_ISLNK(identity.st_mode) or bool(int(getattr(identity, "st_reparse_tag", 0) or 0) & _NAME_SURROGATE)
 
 
 def _contained_file(root: Path, relative: PurePosixPath, real_dirs: set[Path]) -> tuple[Path, os.stat_result]:

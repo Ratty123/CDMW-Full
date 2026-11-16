@@ -93,3 +93,21 @@ def test_the_ui_thread_check_resolves_only_the_package_root(tmp_path: Path, monk
     assert validate_resident_rust_preview_package(package_dir) == (True, ())
     resolved_inside = [call for call in calls if Path(call) != package_dir and package_dir in Path(call).parents]
     assert resolved_inside == []
+
+
+def test_a_reparse_point_that_names_no_other_file_is_the_file_itself() -> None:
+    """OneDrive placeholders and deduplicated files are reparse points but not links;
+    the old resolve() accepted them and so does the check now."""
+
+    cloud = os.stat_result((0o100644, 0, 0, 1, 0, 0, 10, 0, 0, 0))
+    assert not files._is_link(cloud)
+
+    class _Identity:
+        st_mode = 0o100644
+        st_reparse_tag = 0x9000001A  # IO_REPARSE_TAG_CLOUD_6: not a name surrogate
+
+    assert not files._is_link(_Identity())
+    _Identity.st_reparse_tag = 0xA0000003  # IO_REPARSE_TAG_MOUNT_POINT: a junction
+    assert files._is_link(_Identity())
+    _Identity.st_reparse_tag = 0xA000000C  # IO_REPARSE_TAG_SYMLINK
+    assert files._is_link(_Identity())
