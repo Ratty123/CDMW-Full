@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QPushButton,
     QSplitter,
     QTreeWidget,
     QTreeWidgetItem,
@@ -81,6 +82,13 @@ class TemplatePanel(QGroupBox):
         self.worn_by_label.setBuddy(self.worn_by)
         row.addWidget(self.worn_by_label)
         row.addWidget(self.worn_by)
+        # Paintings are not cloned through the equipment steps; they have a template of their own.
+        self.painting_button = QPushButton("New painting...")
+        self.painting_button.setObjectName("new_item_new_painting")
+        self.painting_button.setToolTip("Add your own pictures as new paintings in a DMM mod, each in a frame of the game.")
+        self.painting_button.clicked.connect(self._open_painting_dialog)
+        self._painting_dialog = None
+        row.addWidget(self.painting_button)
         selection_layout.addLayout(row)
         self.compatibility = QLabel()
         self.compatibility.setWordWrap(True)
@@ -152,6 +160,15 @@ class TemplatePanel(QGroupBox):
         controller.template_changed.connect(self._show_template)
         controller.snapshot_ready.connect(self._refresh_categories)
         self._refresh_categories()
+
+    def _open_painting_dialog(self) -> None:
+        from cdmw.ui.new_item.painting_dialog import PaintingDialog
+
+        if self._painting_dialog is None:
+            self._painting_dialog = PaintingDialog(self._controller, self)
+        else:
+            self._painting_dialog.reload_frames()
+        self._painting_dialog.open()
 
     def _refresh_categories(self):
         snapshot = self._controller.snapshot

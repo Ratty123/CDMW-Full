@@ -420,6 +420,40 @@ class NewItemTaskControllerMixin:
         return self._run("export",task,self.export_finished.emit,
                          lambda message:self.status_message.emit(message,True),publishes_result=True)
 
+    def start_painting_frames(self, on_done: Callable[[object], None], on_error: Callable[[str], None]) -> bool:
+        """Read the frames the shipped paintings use, and their thumbnails, for the painting template."""
+        snapshot = self.snapshot
+        if snapshot is None:
+            on_error("Read the archives first.")
+            return False
+        def task(_log, stop):
+            from cdmw.services.new_item_painting import PaintingSource, discover_painting_frames, frame_thumbnails
+            source = PaintingSource.from_snapshot(snapshot)
+            catalogue = discover_painting_frames(source, stop_event=stop)
+            return catalogue, frame_thumbnails(source, catalogue, stop_event=stop)
+        return self._run("paintings", task, on_done, on_error)
+
+    def start_painting_build(self, requests, folder, title: str, on_done: Callable[[object], None],
+                             on_error: Callable[[str], None]) -> bool:
+        """Build the requested paintings into a DMM mod folder (an earlier painting mod is extended)."""
+        snapshot = self.snapshot
+        if snapshot is None:
+            on_error("Read the archives first.")
+            return False
+        requests = tuple(requests)
+        # Numbers handed to other mods this computer wrote, so a painting never reuses them.
+        reserved = tuple(self.issued_keys)
+        def task(log, stop):
+            from cdmw.services.new_item_painting import build_painting_mod
+            return build_painting_mod(snapshot, requests, Path(folder), title, reserved_keys=reserved,
+                                      on_log=log, stop_event=stop)
+        def done(result):
+            for painting in result.paintings:
+                for name in ("item_key", "gimmick_key", "housing_key"):
+                    self.remember_issued_identity(int(painting.get(name) or 0))
+            on_done(result)
+        return self._run("paintings", task, done, on_error, publishes_result=True)
+
     def _run(
         self,
         lane: str,
