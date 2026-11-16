@@ -39,6 +39,23 @@ pub struct MaterialLayerSet {
     pub textures: [Option<LayerTexture>; 10],
 }
 
+impl MaterialLayerSet {
+    /// Whether `evaluate_material_layers` leaves the base colour map's colour, and its
+    /// packed response map, off the surface. Outside the masked-overlay (2) and eye (3)
+    /// modes each channel's colour is its layer when it has one, and the base only where
+    /// a channel has none; with a layer on R, G and B the base colour never shows. Its
+    /// alpha and the base normal map still do.
+    #[must_use]
+    pub fn hides_base_colour(&self) -> bool {
+        !matches!(self.uniform.control[0], 2 | 3)
+            && self
+                .uniform
+                .layers
+                .iter()
+                .all(|layer| layer.properties[2] > 0.5)
+    }
+}
+
 pub(super) struct GpuLayers {
     pub bind_group: wgpu::BindGroup,
     _uniform: wgpu::Buffer,
@@ -235,5 +252,37 @@ mod tests {
             assert!(shader.contains(&format!("@group(2) @binding({binding})")));
         }
         assert!(shader.contains("textureSampleBias"));
+    }
+
+    #[test]
+    fn the_base_colour_is_hidden_only_under_three_summed_layers() {
+        let mut set = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                control: [1, 0, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        for layer in &mut set.uniform.layers {
+            layer.properties[2] = 1.0;
+        }
+        assert!(set.hides_base_colour(), "layers on R, G and B");
+        set.uniform.control[0] = 2;
+        assert!(
+            !set.hides_base_colour(),
+            "masked overlays start from the base"
+        );
+        set.uniform.control[0] = 3;
+        assert!(!set.hides_base_colour(), "the eye starts from the base");
+        set.uniform.control[0] = 1;
+        set.uniform.layers[2].properties[2] = 0.0;
+        assert!(!set.hides_base_colour(), "channel B shows the base");
+        set.uniform.seeds[2] = [1.0, 0.0, 0.0, 1.0];
+        assert!(
+            !set.hides_base_colour(),
+            "a colour seed dyes the base, which still shows"
+        );
     }
 }

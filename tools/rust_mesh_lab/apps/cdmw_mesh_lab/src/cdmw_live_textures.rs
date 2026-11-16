@@ -10,11 +10,12 @@
 //!
 //! Materials composed on the CPU when the model opened sample a colour made from
 //! their layers, not the layers, so an edit of one of those layers is not shown;
-//! `live_texture_sources` tells CDMW which textures are shown, per part.
+//! nor is a colour edit of a base map whose material takes its colour from three
+//! layers. `live_texture_sources` tells CDMW which textures are shown, per part.
 
 use crate::loader::LoadedTexture;
 use cdmw_render_wgpu::{MaterialLayerSet, WindowRenderer};
-use cdmw_texture::dds_mean_luminance_of_any_size;
+use cdmw_texture::{TextureRole, dds_mean_luminance_of_any_size};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -200,6 +201,11 @@ pub fn known_texture(
 }
 
 /// The textures an edit shows on, by source hash: the LOD 0 parts that sample each.
+///
+/// A base colour or packed response map bound to a material whose layers cover all
+/// three channels is left out: the shader takes that material's colour from the layers
+/// alone (`MaterialLayerSet::hides_base_colour`), so a colour edit of the map changes
+/// nothing on the model.
 #[must_use]
 pub fn live_texture_sources(
     resources: &[LoadedTexture],
@@ -208,16 +214,30 @@ pub fn live_texture_sources(
     edits: &LayerTextureEdits,
     bound: impl Fn(usize, u32) -> bool,
 ) -> BTreeMap<String, BTreeSet<u32>> {
+    let hidden_base = layers
+        .iter()
+        .filter(|set| {
+            set.lod_index == 0
+                && bound(set.lod_index, set.material_index)
+                && set.hides_base_colour()
+        })
+        .map(|set| set.material_index)
+        .collect::<BTreeSet<_>>();
     let mut shown = BTreeMap::<String, BTreeSet<u32>>::new();
     for resource in resources {
         let source = resource.metadata.source_sha256.to_ascii_lowercase();
         if sources.contains(&source) {
+            let hidden = matches!(
+                resource.role,
+                TextureRole::BaseColor | TextureRole::Material
+            );
             shown.entry(source).or_default().extend(
                 resource
                     .material_indices_by_lod
                     .first()
                     .into_iter()
-                    .flatten(),
+                    .flatten()
+                    .filter(|material| !(hidden && hidden_base.contains(material))),
             );
         }
     }
@@ -405,6 +425,78 @@ mod tests {
         assert_eq!(
             shown[&mask.source_sha256.to_ascii_lowercase()],
             BTreeSet::from([4])
+        );
+    }
+
+    fn loaded(texture: &LayerTexture, materials: Vec<u32>) -> LoadedTexture {
+        LoadedTexture {
+            label: "base.dds".to_owned(),
+            metadata: inspect_dds(&texture.bytes, texture.role).expect("inspect"),
+            bytes: Arc::clone(&texture.bytes),
+            role: texture.role,
+            requested_reference: "base.dds".to_owned(),
+            parameter_name: None,
+            sidecar_label: None,
+            resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
+            archive_compression: None,
+            material_indices_by_lod: vec![materials],
+        }
+    }
+
+    #[test]
+    fn a_base_colour_under_layers_on_every_channel_is_not_shown() {
+        // Armour 0374's belts (B pass 8): their base colour map is bound, but the
+        // shader takes their colour from detail layers on R, G and B, so a magenta
+        // cross painted on the map changed no pixel of the model.
+        let mask = texture([255, 0, 0, 255], TextureRole::LayerMask);
+        let layer = texture([128, 128, 128, 255], TextureRole::BaseColor);
+        let base = texture([200, 100, 50, 255], TextureRole::BaseColor);
+        let normal = texture([128, 128, 255, 255], TextureRole::Normal);
+        let response = texture([255, 160, 0, 255], TextureRole::Material);
+        let three = |material: u32, mode: u32| {
+            let mut three = set(material, &mask, &layer);
+            three.textures[7] = Some(layer.clone());
+            three.uniform.layers[2].properties = [1.0, 0.5, 1.0, 0.0];
+            three.uniform.control[0] = mode;
+            three
+        };
+        // 4: layers on R, G and B. 5: none on B, so the base shows there. 6: masked
+        // overlays over the base. 7: not bound, so the base is drawn as it is. 8: no layers.
+        let layers = vec![three(4, 1), set(5, &mask, &layer), three(6, 2), three(7, 1)];
+        let resources = vec![
+            loaded(&base, vec![4, 5, 6, 7, 8]),
+            loaded(&normal, vec![4]),
+            loaded(&response, vec![4]),
+        ];
+        let sources = resources
+            .iter()
+            .map(|resource| resource.metadata.source_sha256.to_ascii_lowercase())
+            .collect::<Vec<_>>();
+        let shown = live_texture_sources(
+            &resources,
+            &sources,
+            &layers,
+            &LayerTextureEdits::default(),
+            |_, material| material != 7,
+        );
+        assert_eq!(
+            shown[&sources[0]],
+            BTreeSet::from([5, 6, 7, 8]),
+            "the base colour is not shown on material 4"
+        );
+        assert_eq!(
+            shown[&sources[1]],
+            BTreeSet::from([4]),
+            "the base normal map still shows"
+        );
+        assert!(
+            !shown.contains_key(&sources[2]),
+            "nor does the base response map under three layers"
+        );
+        assert_eq!(
+            shown[&layer.source_sha256.to_ascii_lowercase()],
+            BTreeSet::from([4, 5, 6]),
+            "the layers themselves are shown"
         );
     }
 
