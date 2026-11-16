@@ -352,6 +352,26 @@ pub fn dds_mean_luminance_with_verified_sha256(
     mean_luminance_from_plan(bytes, &plan)
 }
 
+/// The same mean for any DDS, such as a live texture edit, which has one mip (B item 6):
+/// from its first mip at most 64px when it has one, else from up to 65,536 evenly
+/// spread pixels of its first mip.
+pub fn dds_mean_luminance_of_any_size(bytes: &[u8]) -> Result<f32, TextureError> {
+    let plan = plan_2d_upload(bytes, TextureRole::BaseColor)?;
+    if plan
+        .levels
+        .iter()
+        .any(|level| level.width.max(level.height) <= 64)
+    {
+        return mean_luminance_from_plan(bytes, &plan);
+    }
+    let level = plan.levels.first().ok_or(TextureError::TruncatedPayload)?;
+    let image = decode_planned_mip(bytes, &plan.metadata, level)?;
+    let step = (image.pixels.len() / 4).div_ceil(65_536).max(1);
+    Ok(mean_luminance_of_pixels(
+        image.pixels.chunks_exact(4).step_by(step),
+    ))
+}
+
 fn mean_luminance_from_plan(bytes: &[u8], plan: &DdsUploadPlan) -> Result<f32, TextureError> {
     let level = plan
         .levels
@@ -359,9 +379,13 @@ fn mean_luminance_from_plan(bytes: &[u8], plan: &DdsUploadPlan) -> Result<f32, T
         .find(|level| level.width.max(level.height) <= 64)
         .ok_or(TextureError::UnsupportedDecode)?;
     let image = decode_planned_mip(bytes, &plan.metadata, level)?;
+    Ok(mean_luminance_of_pixels(image.pixels.chunks_exact(4)))
+}
+
+fn mean_luminance_of_pixels<'a>(pixels: impl Iterator<Item = &'a [u8]>) -> f32 {
     let mut luminance = 0.0_f64;
     let mut alpha = 0.0_f64;
-    for pixel in image.pixels.chunks_exact(4) {
+    for pixel in pixels {
         let linear = |value: u8| {
             let value = f64::from(value) / 255.0;
             if value <= 0.04045 {
@@ -376,11 +400,11 @@ fn mean_luminance_from_plan(bytes: &[u8], plan: &DdsUploadPlan) -> Result<f32, T
                 * weight;
         alpha += weight;
     }
-    Ok(if alpha > 0.0 {
+    if alpha > 0.0 {
         (luminance / alpha) as f32
     } else {
         1.0
-    })
+    }
 }
 
 fn decode_planned_mip(
@@ -1644,6 +1668,29 @@ mod tests {
         assert!((dds_mean_luminance(&bytes)? - 0.2126).abs() < 1e-6);
         let bytes = encode_rgba8_dds(1, 1, &[0, 0, 0, 0], TextureRole::BaseColor)?;
         assert_eq!(dds_mean_luminance(&bytes)?, 1.0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_single_mip_edit_larger_than_64_pixels_still_has_a_mean() -> Result<(), TextureError> {
+        // A live texture edit is one uncompressed mip (B item 6).
+        let mut pixels = vec![0_u8; 128 * 128 * 4];
+        for pixel in pixels.chunks_exact_mut(4).step_by(2) {
+            pixel.copy_from_slice(&[255, 255, 255, 255]);
+        }
+        for pixel in pixels.chunks_exact_mut(4).skip(1).step_by(2) {
+            pixel.copy_from_slice(&[0, 0, 0, 255]);
+        }
+        let bytes = encode_rgba8_dds(128, 128, &pixels, TextureRole::BaseColor)?;
+        assert!(dds_mean_luminance(&bytes).is_err(), "no mip of 64px or less");
+        assert!((dds_mean_luminance_of_any_size(&bytes)? - 0.5).abs() < 1e-3);
+        // A texture with a small mip keeps the existing mean.
+        let bytes =
+            encode_rgba8_mipmapped_dds(128, 64, &vec![255; 128 * 64 * 4], TextureRole::BaseColor)?;
+        assert_eq!(
+            dds_mean_luminance_of_any_size(&bytes)?,
+            dds_mean_luminance(&bytes)?
+        );
         Ok(())
     }
 
