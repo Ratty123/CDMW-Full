@@ -3705,6 +3705,10 @@ impl LabApplication {
                     .collect();
                 indices.sort_unstable();
                 indices.dedup();
+                // The rows are in the Parts list: show it, as the Inspector's Parts button does.
+                cdmw_ui::set_cdmw_sidebar_expanded(&self.egui_context, cdmw_ui::CDMW_INSPECTOR_SIDEBAR, true);
+                self.egui_context
+                    .data_mut(|data| data.insert_temp(egui::Id::new("cdmw_parts_panel_open"), true));
                 self.handle_actions(vec![UiAction::SetPartSelection(indices)]);
             }
             HostEvent::VertexInspection {

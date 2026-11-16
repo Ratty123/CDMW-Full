@@ -37,6 +37,8 @@ def test_rows_list_the_table_and_the_game_file_text_the_column_draws(combine, wi
     assert "Game file" in listed["header"]
     assert sorted(row["display_name"] for row in listed["rows"]) == ["Skirt edit", "Wing piece"]
     assert all(row["built"] and row["mod_root"] for row in listed["rows"])
+    assert sorted(row["mod_root"] for row in listed["shown"]) == sorted(row["mod_root"] for row in listed["rows"])
+    assert sorted(row["mod_root"] for row in listed["shown"]) == sorted([str(combine.skirt), str(combine.wing)])
     # Whatever the column's width, the drawn text keeps each file name whole.
     for path, row in zip(sorted([UPPER, SHOULDER], key=lambda p: p.rsplit("/", 1)[1]),
                          sorted(listed["shown"], key=lambda r: r["game_file_drawn"].rsplit("/", 1)[-1])):

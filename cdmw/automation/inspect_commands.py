@@ -40,6 +40,8 @@ def scene_panel_rows(window, _args: dict) -> dict[str, object]:
             "parts": [{
                 "label": group.child(row).text(0),
                 "index": group.child(row).data(0, Qt.ItemDataRole.UserRole),
+                # The part's number inside its own file, as ticks and the Parts list key it.
+                "local": panel._keys.get(group.child(row).data(0, Qt.ItemDataRole.UserRole), ("", -1))[1],
                 "ticked": group.child(row).checkState(0) == Qt.CheckState.Checked,
             } for row in range(group.childCount())],
         })
@@ -68,9 +70,20 @@ def mesh_editor_parts(window, _args: dict) -> dict[str, object]:
     service, session_id = session.shadow_service, session.shadow_session_id
     mesh = service.working_mesh(session_id)
     selection = service.session_view(session_id).selection
+    # A set's parts belong to its files: each file's part numbers in the session.
+    owners: dict[int, tuple[str, int]] = {}
+    try:
+        context = service._session(session_id).archive_refit_context
+    except Exception:
+        context = None
+    for asset in getattr(context, "assets", ()) or ():
+        path = str(getattr(getattr(asset, "entry", None), "path", "") or "")
+        for local, index in enumerate(getattr(asset, "part_indices", ()) or ()):
+            owners[int(index)] = (path, local)
     return {
         "available": True,
-        "parts": [{"index": index, "name": str(getattr(part, "name", "") or "")}
+        "parts": [{"index": index, "name": str(getattr(part, "name", "") or ""),
+                   "file": owners.get(index, ("", index))[0], "local": owners.get(index, ("", index))[1]}
                   for index, part in enumerate(getattr(mesh, "submeshes", ()) or ())],
         "selected_parts": sorted(int(i) for i in getattr(selection, "source_indices", ()) or ()),
         "selected_faces": sum(len(v) for v in (selection.face_map() or {}).values()) if selection else 0,

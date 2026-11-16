@@ -551,6 +551,10 @@ fn select_parts_from_the_host_selects_whole_parts_as_a_row_click_does() -> TestR
         .handle_cdmw_host_event(HostEvent::SelectParts(vec![1, 9, 1]));
     let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
     assert_eq!(mesh.selection.submeshes.iter().copied().collect::<Vec<_>>(), vec![1]);
+    // The rows are in the Parts list, so it is shown.
+    assert!(ui.application.egui_context.data_mut(|data| data
+        .get_temp::<bool>(egui::Id::new("cdmw_parts_panel_open"))
+        .unwrap_or(false)));
     Ok(())
 }
 

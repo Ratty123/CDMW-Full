@@ -36,11 +36,15 @@ def saved_work_rows(window, args: dict) -> dict[str, object]:
     table = page.table
     header = [table.horizontalHeaderItem(column).text() for column in range(table.columnCount())]
     game_column = header.index("Game file")
+    from cdmw.ui.mesh_editor.saved_work_page import _ROW_KEY_ROLE, _row_key
+
+    roots = {_row_key(row): str(row.mod_root or "") for row in page.rows()}
     shown = []
     for index in range(table.rowCount()):
         cells = [table.item(index, column) for column in range(table.columnCount())]
         game = cells[game_column]
         shown.append({
+            "mod_root": roots.get(cells[0].data(_ROW_KEY_ROLE), "") if cells[0] is not None else "",
             "cells": [cell.text() if cell is not None else "" for cell in cells],
             "game_file_tooltip": game.toolTip() if game is not None else "",
             "game_files": list(game.data(_GAME_FILES_ROLE) or ()) if game is not None else [],
