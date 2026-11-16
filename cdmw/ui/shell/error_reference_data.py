@@ -9994,7 +9994,7 @@ MESSAGE_REFERENCE = [
     "message": "Character appearance XML could not be resolved for the selected source/target pair.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_relationships.py": 1165
+      "cdmw/core/archive_relationships.py": 1183
     }
   },
   {
@@ -12578,7 +12578,7 @@ MESSAGE_REFERENCE = [
     "message": "No target appearance XML patch was produced for the selected source/target pair.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_relationships.py": 1160
+      "cdmw/core/archive_relationships.py": 1178
     }
   },
   {
@@ -14529,7 +14529,7 @@ MESSAGE_REFERENCE = [
     "message": "Skipped {app_entry.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_relationships.py": 1283
+      "cdmw/core/archive_relationships.py": 1301
     }
   },
   {
@@ -14649,7 +14649,7 @@ MESSAGE_REFERENCE = [
     "message": "Source and target material sidecar submesh wrappers differ; generated/retargeted sidecar patching is preferred over copying source sidecar bytes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_relationships.py": 1173
+      "cdmw/core/archive_relationships.py": 1191
     }
   },
   {
@@ -29445,7 +29445,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1131
+      "cdmw/ui/new_item/tab.py": 1165
     }
   },
   {
@@ -29958,7 +29958,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the layers: {message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/panels_model.py": 1531
+      "cdmw/ui/new_item/panels_model.py": 1550
     }
   },
   {
@@ -31723,7 +31723,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 696
+      "cdmw/ui/new_item/tab.py": 730
     }
   },
   {
@@ -36330,7 +36330,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1041
+      "cdmw/ui/new_item/tab.py": 1075
     }
   },
   {
@@ -36338,7 +36338,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1031
+      "cdmw/ui/new_item/tab.py": 1065
     }
   },
   {
@@ -40862,7 +40862,7 @@ MESSAGE_REFERENCE = [
     "message": "A direct preview package cannot request another fast tier.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 833
+      "cdmw/services/mesh_rust_preview_cache.py": 834
     }
   },
   {
@@ -44063,7 +44063,7 @@ MESSAGE_REFERENCE = [
     "message": "Combined preview exceeds the bounded material graph limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1609
+      "cdmw/services/mesh_rust_preview_package.py": 1611
     }
   },
   {
@@ -44735,7 +44735,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct preview requires Preview Core material graph v4 or v5 and semantics v10.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1348
+      "cdmw/services/mesh_rust_preview_package.py": 1350
     }
   },
   {
@@ -44743,7 +44743,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct preview requires Preview Core schema 8 or newer.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1343
+      "cdmw/services/mesh_rust_preview_package.py": 1345
     }
   },
   {
@@ -44751,7 +44751,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct preview requires a conserved Preview Core material graph.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1355
+      "cdmw/services/mesh_rust_preview_package.py": 1357
     }
   },
   {
@@ -45087,7 +45087,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect preview contains too many sprite textures.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 91
+      "cdmw/services/mesh_rust_preview_package.py": 93
     }
   },
   {
@@ -45095,7 +45095,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect preview sprite textures exceed the aggregate size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 121
+      "cdmw/services/mesh_rust_preview_package.py": 123
     }
   },
   {
@@ -45103,7 +45103,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect preview texture archive path is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 110
+      "cdmw/services/mesh_rust_preview_package.py": 112
     }
   },
   {
@@ -45111,7 +45111,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect preview texture is not a bounded DDS resource: {archive_path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 117
+      "cdmw/services/mesh_rust_preview_package.py": 119
     }
   },
   {
@@ -49121,7 +49121,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD {lod['level']} part '{part['name']}': {count} source UVs are not finite numbers and are drawn at 0.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1660
+      "cdmw/services/mesh_rust_preview_package.py": 1662
     }
   },
   {
@@ -49762,7 +49762,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1179
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1205
     }
   },
   {
@@ -49827,7 +49827,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 772,
+      "cdmw/ui/mesh_editor/shell_bridge.py": 798,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 185
     }
   },
@@ -49991,7 +49991,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1068
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1094
     }
   },
   {
@@ -55883,7 +55883,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core batch identity or vertex count is invalid.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1224
+      "cdmw/services/mesh_rust_preview_package.py": 1226
     }
   },
   {
@@ -55891,7 +55891,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core batch is missing its material-layer graph.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 744
+      "cdmw/services/mesh_rust_preview_package.py": 746
     }
   },
   {
@@ -55899,7 +55899,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core batch list is invalid or exceeds the package limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1368
+      "cdmw/services/mesh_rust_preview_package.py": 1370
     }
   },
   {
@@ -55907,7 +55907,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core binary payload changed while it was copied.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 506
+      "cdmw/services/mesh_rust_preview_package.py": 508
     }
   },
   {
@@ -55915,7 +55915,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core binary payload is empty.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 468
+      "cdmw/services/mesh_rust_preview_package.py": 470
     }
   },
   {
@@ -55923,7 +55923,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core binary payload is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 472
+      "cdmw/services/mesh_rust_preview_package.py": 474
     }
   },
   {
@@ -55931,7 +55931,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core binary payload size does not match its manifest.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 474
+      "cdmw/services/mesh_rust_preview_package.py": 476
     }
   },
   {
@@ -55963,7 +55963,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core geometry is missing or escaped its package.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1239
+      "cdmw/services/mesh_rust_preview_package.py": 1241
     }
   },
   {
@@ -55995,7 +55995,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core manifest is missing or invalid.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1326
+      "cdmw/services/mesh_rust_preview_package.py": 1328
     }
   },
   {
@@ -56003,7 +56003,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core manifest is not an object.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1328
+      "cdmw/services/mesh_rust_preview_package.py": 1330
     }
   },
   {
@@ -56011,7 +56011,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS changed while it was copied.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 661
+      "cdmw/services/mesh_rust_preview_package.py": 663
     }
   },
   {
@@ -56019,7 +56019,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS changed while its graph was built.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 846
+      "cdmw/services/mesh_rust_preview_package.py": 848
     }
   },
   {
@@ -56027,7 +56027,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 596
+      "cdmw/services/mesh_rust_preview_package.py": 598
     }
   },
   {
@@ -56035,7 +56035,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS is outside the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 598
+      "cdmw/services/mesh_rust_preview_package.py": 600
     }
   },
   {
@@ -56059,7 +56059,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS resources exceed the 512 MiB package limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 623
+      "cdmw/services/mesh_rust_preview_package.py": 625
     }
   },
   {
@@ -56083,7 +56083,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph DDS is missing: {archive_path or source_text}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 834
+      "cdmw/services/mesh_rust_preview_package.py": 836
     }
   },
   {
@@ -56091,7 +56091,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph contains an invalid batch.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 739
+      "cdmw/services/mesh_rust_preview_package.py": 741
     }
   },
   {
@@ -56099,7 +56099,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph contains an invalid layer.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 750
+      "cdmw/services/mesh_rust_preview_package.py": 752
     }
   },
   {
@@ -56107,7 +56107,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph contains too many unique DDS resources.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 667
+      "cdmw/services/mesh_rust_preview_package.py": 669
     }
   },
   {
@@ -56147,7 +56147,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material layer identity is invalid.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 782
+      "cdmw/services/mesh_rust_preview_package.py": 784
     }
   },
   {
@@ -56163,7 +56163,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material layer lost its wrapper owner identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 871
+      "cdmw/services/mesh_rust_preview_package.py": 873
     }
   },
   {
@@ -56211,7 +56211,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material-layer graph exceeds the bounded layer limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 746
+      "cdmw/services/mesh_rust_preview_package.py": 748
     }
   },
   {
@@ -56219,7 +56219,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core normalization is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1359
+      "cdmw/services/mesh_rust_preview_package.py": 1361
     }
   },
   {
@@ -56227,7 +56227,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core package contains an invalid batch.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1213
+      "cdmw/services/mesh_rust_preview_package.py": 1215
     }
   },
   {
@@ -56251,7 +56251,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core source format is not supported by Preview.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1361
+      "cdmw/services/mesh_rust_preview_package.py": 1363
     }
   },
   {
@@ -56379,7 +56379,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core visible layer lost its source parameter identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 873
+      "cdmw/services/mesh_rust_preview_package.py": 875
     }
   },
   {
@@ -56687,7 +56687,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview refused: LOD {lod['level']} part '{part['name']}' has a vertex {channel[:-1]} that is not a finite number, so its geometry was not read correctly.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1652
+      "cdmw/services/mesh_rust_preview_package.py": 1654
     }
   },
   {
@@ -56775,7 +56775,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core cloth constraint count is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 188
+      "cdmw/services/mesh_rust_preview_cache.py": 189
     }
   },
   {
@@ -56783,7 +56783,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core cloth constraint resources are incomplete or corrupt.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 210
+      "cdmw/services/mesh_rust_preview_cache.py": 211
     }
   },
   {
@@ -56791,7 +56791,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core cloth particle count is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 186
+      "cdmw/services/mesh_rust_preview_cache.py": 187
     }
   },
   {
@@ -56799,7 +56799,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core cloth particle resources are incomplete or corrupt.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 208
+      "cdmw/services/mesh_rust_preview_cache.py": 209
     }
   },
   {
@@ -56807,7 +56807,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core overlay manifest is missing or invalid.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 159
+      "cdmw/services/mesh_rust_preview_cache.py": 160
     }
   },
   {
@@ -56815,7 +56815,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core overlay manifest is not a JSON object.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 161
+      "cdmw/services/mesh_rust_preview_cache.py": 162
     }
   },
   {
@@ -56823,7 +56823,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core overlay normalization is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 165
+      "cdmw/services/mesh_rust_preview_cache.py": 166
     }
   },
   {
@@ -56880,7 +56880,7 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/mesh_dotnet_reference_composite.py": 265,
-      "cdmw/services/mesh_rust_preview_cache.py": 830
+      "cdmw/services/mesh_rust_preview_cache.py": 831
     }
   },
   {
@@ -57000,7 +57000,7 @@ MESSAGE_REFERENCE = [
     "message": "Python preview decoder produced no canonical mesh geometry.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 313
+      "cdmw/services/mesh_rust_preview_cache.py": 314
     }
   },
   {
@@ -57096,7 +57096,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1103
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1129
     }
   },
   {
@@ -60207,7 +60207,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture loading failed; the untextured model remains available: {failure_reason}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 551
+      "cdmw/ui/mesh_editor/shell_bridge.py": 577
     }
   },
   {
@@ -62433,7 +62433,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Preview Core binary role.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 466
+      "cdmw/services/mesh_rust_preview_package.py": 468
     }
   },
   {
@@ -62649,7 +62649,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported preview interaction mode: {mode}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1781
+      "cdmw/services/mesh_rust_preview_package.py": 1783
     }
   },
   {
@@ -62657,8 +62657,8 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported preview interaction profile: {profile}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 1055,
-      "cdmw/services/mesh_rust_preview_package.py": 1775
+      "cdmw/services/mesh_rust_preview_cache.py": 1056,
+      "cdmw/services/mesh_rust_preview_package.py": 1777
     }
   },
   {
@@ -62666,7 +62666,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported preview material quality: {quality}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 222
+      "cdmw/services/mesh_rust_preview_package.py": 224
     }
   },
   {
@@ -70593,7 +70593,7 @@ MESSAGE_REFERENCE = [
     "message": "preview JSON resource is not an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 256
+      "cdmw/services/mesh_rust_preview_files.py": 264
     }
   },
   {
@@ -70601,7 +70601,7 @@ MESSAGE_REFERENCE = [
     "message": "preview cache publication failed.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 696
+      "cdmw/services/mesh_rust_preview_cache.py": 697
     }
   },
   {
@@ -70689,7 +70689,7 @@ MESSAGE_REFERENCE = [
     "message": "preview manifest exceeds its size limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1890
+      "cdmw/services/mesh_rust_preview_package.py": 1892
     }
   },
   {
@@ -70697,7 +70697,7 @@ MESSAGE_REFERENCE = [
     "message": "preview manifest is not an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1915
+      "cdmw/services/mesh_rust_preview_package.py": 1920
     }
   },
   {
@@ -70705,7 +70705,7 @@ MESSAGE_REFERENCE = [
     "message": "preview manifest {key} does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1924
+      "cdmw/services/mesh_rust_preview_package.py": 1929
     }
   },
   {
@@ -70713,7 +70713,7 @@ MESSAGE_REFERENCE = [
     "message": "preview output policy must be read-only",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 194
+      "cdmw/services/mesh_rust_preview_files.py": 202
     }
   },
   {
@@ -70721,7 +70721,7 @@ MESSAGE_REFERENCE = [
     "message": "preview package cache publication failed.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 542
+      "cdmw/services/mesh_rust_preview_cache.py": 543
     }
   },
   {
@@ -70737,9 +70737,9 @@ MESSAGE_REFERENCE = [
     "message": "preview package preparation cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 88,
+      "cdmw/services/mesh_rust_preview_cache.py": 89,
       "cdmw/services/mesh_rust_preview_files.py": 122,
-      "cdmw/services/mesh_rust_preview_package.py": 407
+      "cdmw/services/mesh_rust_preview_package.py": 409
     }
   },
   {
@@ -70755,7 +70755,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 235
+      "cdmw/services/mesh_rust_preview_files.py": 243
     }
   },
   {
@@ -70763,7 +70763,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource count is invalid",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 219
+      "cdmw/services/mesh_rust_preview_files.py": 227
     }
   },
   {
@@ -70771,7 +70771,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource has conflicting identities",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 232
+      "cdmw/services/mesh_rust_preview_files.py": 240
     }
   },
   {
@@ -70787,7 +70787,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource reference is incomplete",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 217
+      "cdmw/services/mesh_rust_preview_files.py": 225
     }
   },
   {
@@ -70795,7 +70795,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource size does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 229
+      "cdmw/services/mesh_rust_preview_files.py": 237
     }
   },
   {
@@ -70803,7 +70803,7 @@ MESSAGE_REFERENCE = [
     "message": "preview session identity is missing",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 191
+      "cdmw/services/mesh_rust_preview_files.py": 199
     }
   },
   {
@@ -70819,7 +70819,7 @@ MESSAGE_REFERENCE = [
     "message": "preview {group} file reference is missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 205
+      "cdmw/services/mesh_rust_preview_files.py": 213
     }
   },
   {
@@ -70827,7 +70827,7 @@ MESSAGE_REFERENCE = [
     "message": "preview {name} reference is missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 199
+      "cdmw/services/mesh_rust_preview_files.py": 207
     }
   },
   {
@@ -71777,7 +71777,7 @@ MESSAGE_REFERENCE = [
     "message": "rust_model_preview_direct_tier_failed identity=%s; continuing with full quality",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 995
+      "cdmw/services/mesh_rust_preview_cache.py": 996
     }
   },
   {
@@ -71785,7 +71785,7 @@ MESSAGE_REFERENCE = [
     "message": "rust_preview_direct_tier_failed source=%s; continuing with full quality",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 740
+      "cdmw/services/mesh_rust_preview_cache.py": 741
     }
   },
   {
@@ -71793,7 +71793,7 @@ MESSAGE_REFERENCE = [
     "message": "rust_preview_material_synthesis_budget source=%s parts=%d",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1839
+      "cdmw/services/mesh_rust_preview_package.py": 1841
     }
   },
   {
@@ -74342,7 +74342,7 @@ MESSAGE_REFERENCE = [
     "message": "A QApplication is required for window interaction tracking",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/window_interaction.py": 182
+      "cdmw/ui/window_interaction.py": 183
     }
   },
   {
@@ -74358,7 +74358,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 781
+      "cdmw/automation/bridge.py": 786
     }
   },
   {
@@ -75336,7 +75336,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod output is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 636
+      "cdmw/automation/bridge.py": 641
     }
   },
   {
@@ -75344,7 +75344,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod refuses until validation passes: finish the edit first.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 644
+      "cdmw/automation/bridge.py": 649
     }
   },
   {
@@ -83330,7 +83330,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 583
+      "cdmw/automation/bridge.py": 588
     }
   },
   {
@@ -84050,7 +84050,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 785
+      "cdmw/automation/bridge.py": 790
     }
   },
   {
@@ -84266,7 +84266,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 561
+      "cdmw/automation/bridge.py": 566
     }
   },
   {
@@ -84891,7 +84891,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown automation command: {command or '(none)'}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 303
+      "cdmw/automation/bridge.py": 308
     }
   },
   {
@@ -87928,7 +87928,7 @@ MESSAGE_REFERENCE = [
     "message": "no {name} event within the timeout",
     "recovery": "timeout",
     "sources": {
-      "cdmw/automation/bridge.py": 265
+      "cdmw/automation/bridge.py": 270
     }
   },
   {
@@ -89229,7 +89229,7 @@ MESSAGE_REFERENCE = [
     "message": "{command} did not finish on the UI thread",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 307
+      "cdmw/automation/bridge.py": 312
     }
   },
   {
@@ -98489,7 +98489,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignored duplicate language pack {existing[2].name}; {language_file.name} owns {normalized}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/ui/localization.py": 786
+      "cdmw/ui/localization.py": 792
     }
   },
   {
@@ -98497,7 +98497,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignored duplicate language pack {language_file.name}; {existing[2].name} owns {normalized}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/ui/localization.py": 780
+      "cdmw/ui/localization.py": 786
     }
   },
   {
@@ -99001,7 +99001,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation snapshot exceeds {max_keys} keys.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/localization.py": 1169
+      "cdmw/ui/localization.py": 1175
     }
   },
   {
@@ -99009,7 +99009,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation snapshot is {len(encoded)} bytes; limit is {max_bytes}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/localization.py": 1184
+      "cdmw/ui/localization.py": 1190
     }
   },
   {
@@ -99025,7 +99025,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown GUI startup smoke target: {target}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/app_startup.py": 123
+      "cdmw/ui/shell/app_startup.py": 130
     }
   },
   {
@@ -106927,6 +106927,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/iteminfo_dependency_graph.py": {
     "raise": 12
   },
+  "cdmw/services/json_file_facts.py": {},
   "cdmw/services/keymap_store.py": {
     "log": 1
   },
@@ -107577,6 +107578,7 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/ui/ai_connections/settings_section.py": {},
+  "cdmw/ui/app_event_hub.py": {},
   "cdmw/ui/app_icon.py": {},
   "cdmw/ui/archive_browser/__init__.py": {},
   "cdmw/ui/archive_browser/action_chart_actions.py": {

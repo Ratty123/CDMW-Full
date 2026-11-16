@@ -55,6 +55,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from shiboken6 import isValid as qt_object_is_valid
+from cdmw.ui.app_event_hub import install_app_event_filter, remove_app_event_filter
 
 from cdmw.services.active_ui_translation import (
     active_ui_localizer,
@@ -713,6 +714,11 @@ class _TemplateRule(NamedTuple):
 
 _TEMPLATE_INDEX_KEY_LENGTH = 3
 _RENDERED_CACHE_LIMIT = 4_096
+#: Every event type UiLocalizer._dispatch_filtered_event acts on.
+LOCALIZER_EVENT_TYPES = (
+    QEvent.Type.ChildAdded, QEvent.Type.Show, QEvent.Type.Polish, QEvent.Type.ToolTipChange,
+    QEvent.Type.WindowTitleChange, QEvent.Type.ActionChanged,
+)
 
 
 class UiLocalizer(QObject):
@@ -1521,11 +1527,11 @@ class UiLocalizer(QObject):
         ):
             if self._application is not None:
                 try:
-                    self._application.removeEventFilter(self)
+                    remove_app_event_filter(self._application, self)
                 except RuntimeError:
                     pass
             self._application = app
-            app.installEventFilter(self)
+            install_app_event_filter(app, self, LOCALIZER_EVENT_TYPES)
             app.setProperty("_cdmw_ui_localizer", self)
             _install_file_dialog_wrappers()
             _install_static_dialog_wrappers()
@@ -1572,7 +1578,7 @@ class UiLocalizer(QObject):
                 if qt_object_is_valid(self._application):
                     if self._application.property("_cdmw_ui_localizer") is self:
                         self._application.setProperty("_cdmw_ui_localizer", None)
-                    self._application.removeEventFilter(self)
+                    remove_app_event_filter(self._application, self)
             except RuntimeError:
                 pass
         self._application = None

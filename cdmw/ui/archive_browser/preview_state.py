@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Optional
@@ -10,6 +9,7 @@ from typing import Optional
 from PySide6.QtWidgets import QTreeWidgetItem
 
 from cdmw.services.archive_read_service import format_byte_size
+from cdmw.services.json_file_facts import json_file_fact, register_json_file_fact
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 
 
@@ -61,11 +61,12 @@ def _archive_model_uses_overhead_camera(source_path: object) -> bool:
 
 def archive_model_manifest_source_path(package_dir: Path | str) -> str:
     try:
-        payload = json.loads(
-            (Path(package_dir) / "manifest.json").read_text(encoding="utf-8-sig")
-        )
+        return json_file_fact(Path(package_dir) / "manifest.json", _manifest_source_path, encoding="utf-8-sig")
     except (OSError, TypeError, ValueError):
         return ""
+
+
+def _manifest_source_path(payload: object) -> str:
     if not isinstance(payload, Mapping):
         return ""
     source = payload.get("source")
@@ -82,11 +83,12 @@ def archive_model_manifest_source_identity(
     """Return a stable source identity across direct/full Rust package tiers."""
 
     try:
-        payload = json.loads(
-            (Path(package_dir) / "manifest.json").read_text(encoding="utf-8-sig")
-        )
+        return json_file_fact(Path(package_dir) / "manifest.json", _manifest_source_identity, encoding="utf-8-sig")
     except (OSError, TypeError, ValueError):
         return "", ""
+
+
+def _manifest_source_identity(payload: object) -> tuple[str, str]:
     if not isinstance(payload, Mapping):
         return "", ""
     source = payload.get("source")
@@ -110,27 +112,50 @@ def archive_model_packages_share_source(
     return bool(any(first) and any(second) and first == second)
 
 
+def _lists_resources(payload: object, resources_key: str) -> bool:
+    resources = payload.get(resources_key, ()) if isinstance(payload, Mapping) else ()
+    return bool(
+        isinstance(resources, Sequence)
+        and not isinstance(resources, (str, bytes, bytearray))
+        and bool(resources)
+    )
+
+
+def _manifest_lists_textures(payload: object) -> bool:
+    return _lists_resources(payload, "textures")
+
+
+def _net_materials_list_resources(payload: object) -> bool:
+    return _lists_resources(payload, "resources")
+
+
+# One parse of a new package's manifest answers every question Browse and
+# the Mesh Editor launch ask of it.
+register_json_file_fact("manifest.json", _manifest_source_path, encoding="utf-8-sig")
+register_json_file_fact("manifest.json", _manifest_source_identity, encoding="utf-8-sig")
+register_json_file_fact("manifest.json", _manifest_lists_textures, encoding="utf-8-sig")
+register_json_file_fact("net_materials.json", _net_materials_list_resources, encoding="utf-8-sig")
+
+
 def archive_model_package_has_textures(package_dir: Path | str | None) -> bool:
-    """Recognize Rust manifest textures and the older net-material resource list."""
+    """Recognize Rust manifest textures and the older net-material resource list.
+
+    Each file is parsed once while it is unchanged: the UI thread asks this on
+    every toolbar refresh and Mesh Editor launch, and a manifest is megabytes.
+    """
 
     if package_dir is None:
         return False
     root = Path(package_dir)
-    for manifest_name, resources_key in (
-        ("manifest.json", "textures"),
-        ("net_materials.json", "resources"),
+    for manifest_name, fact in (
+        ("manifest.json", _manifest_lists_textures),
+        ("net_materials.json", _net_materials_list_resources),
     ):
         try:
-            payload = json.loads((root / manifest_name).read_text(encoding="utf-8-sig"))
+            if json_file_fact(root / manifest_name, fact, encoding="utf-8-sig"):
+                return True
         except (OSError, TypeError, ValueError):
             continue
-        resources = payload.get(resources_key, ()) if isinstance(payload, Mapping) else ()
-        if (
-            isinstance(resources, Sequence)
-            and not isinstance(resources, (str, bytes, bytearray))
-            and bool(resources)
-        ):
-            return True
     return False
 
 

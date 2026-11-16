@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from cdmw.ui.window_interaction import ensure_window_interaction_tracker
+from cdmw.ui.app_event_hub import install_app_event_filter
 
 
 def protect_control_text(widget: QWidget) -> None:
@@ -351,6 +352,14 @@ class DisplayScalingPolicy(QObject):
             self._arm_window_timer()
 
 
+#: Every event type DisplayScalingPolicy.eventFilter acts on.
+DISPLAY_SCALING_EVENT_TYPES = (
+    QEvent.Polish, QEvent.Show, QEvent.FontChange, QEvent.StyleChange, QEvent.Paint,
+    QEvent.LayoutRequest, QEvent.Move, QEvent.Resize, QEvent.WindowStateChange,
+    QEvent.ScreenChangeInternal, QEvent.DevicePixelRatioChange, QEvent.Hide,
+)
+
+
 def ensure_app_display_scaling(app: QApplication | None = None) -> DisplayScalingPolicy | None:
     app = app or QApplication.instance()
     if app is None:
@@ -363,5 +372,5 @@ def ensure_app_display_scaling(app: QApplication | None = None) -> DisplayScalin
     if policy is None:
         policy = DisplayScalingPolicy(app)
         app._cdmw_display_scaling = policy
-        app.installEventFilter(policy)
+        install_app_event_filter(app, policy, DISPLAY_SCALING_EVENT_TYPES)
     return policy

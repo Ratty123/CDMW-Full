@@ -28,6 +28,7 @@ from cdmw.rendering.dotnet_preview_package_cache import (
     release_dotnet_preview_package_staging_dir,
     store_dotnet_preview_package_cache,
 )
+from cdmw.services.json_file_facts import json_file_fact, register_json_file_fact
 from cdmw.services.mesh_dotnet_reference_composite import (
     decode_dotnet_native_preview_package,
 )
@@ -1166,6 +1167,22 @@ def build_rust_preview_cache_prewarm_package(cache_root: Path) -> RustPreviewPac
     return build_rust_preview_prewarm_package(cache_root)
 
 
+def _rust_manifest_source_fact(payload: object) -> tuple[object, str]:
+    manifest = payload if isinstance(payload, Mapping) else {}
+    source = manifest.get("source")
+    path = source.get("path") if isinstance(source, Mapping) else None
+    return manifest.get("schema"), (path if path else "")
+
+
+def _native_manifest_source_fact(payload: object) -> tuple[object, bool]:
+    manifest = payload if isinstance(payload, Mapping) else {}
+    return manifest.get("source_path"), isinstance(manifest.get("batches"), list)
+
+
+register_json_file_fact("manifest.json", _rust_manifest_source_fact, encoding="utf-8-sig")
+register_json_file_fact("manifest.json", _native_manifest_source_fact, encoding="utf-8-sig")
+
+
 def native_material_package_for_rust_preview(package_dir: Path) -> Path | None:
     """Find the conserved native material graph behind a cached Rust preview.
 
@@ -1181,13 +1198,19 @@ def native_material_package_for_rust_preview(package_dir: Path) -> Path | None:
         value = json.loads(path.read_text(encoding="utf-8-sig"))
         return value if isinstance(value, Mapping) else {}
 
+    def read_fact(path: Path, fact):
+        # The manifests are megabytes and this runs on the UI thread before a
+        # Mesh Editor launch: each is parsed once while it is unchanged.
+        if path.stat().st_size > 8 * 1024 * 1024:
+            return fact({})
+        return json_file_fact(path, fact, encoding="utf-8-sig")
+
     try:
         package = Path(package_dir).resolve()
-        manifest = read_mapping(package / "manifest.json")
-        if manifest.get("schema") != RUST_PREVIEW_PACKAGE:
+        schema, source_path = read_fact(package / "manifest.json", _rust_manifest_source_fact)
+        if schema != RUST_PREVIEW_PACKAGE:
             return None
-        source = manifest.get("source")
-        if not isinstance(source, Mapping) or not source.get("path"):
+        if not source_path:
             return None
         metadata = read_mapping(package.parent / "cache_entry.json")
         source_text = str(metadata.get("source_package", "") or "").strip()
@@ -1200,13 +1223,15 @@ def native_material_package_for_rust_preview(package_dir: Path) -> Path | None:
         native_key = str(native_metadata.get("cache_key", "") or "")
         if not native_key or metadata.get("archive_identity") != native_key:
             return None
-        native_manifest = read_mapping(native_package / "manifest.json")
+        native_source_path, native_has_batches = read_fact(
+            native_package / "manifest.json", _native_manifest_source_fact,
+        )
         def normalized(value: object) -> str:
             return str(value or "").replace("\\", "/").strip().strip("/").casefold()
 
-        if normalized(source["path"]) != normalized(native_manifest.get("source_path")):
+        if normalized(source_path) != normalized(native_source_path):
             return None
-        if not isinstance(native_manifest.get("batches"), list):
+        if not native_has_batches:
             return None
         return native_package
     except (OSError, RuntimeError, ValueError, TypeError):

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from PySide6.QtCore import QAbstractNativeEventFilter, QEvent, QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QWidget
 from shiboken6 import isValid
+from cdmw.ui.app_event_hub import install_app_event_filter
 
 
 _WM_CANCELMODE = 0x001F
@@ -82,7 +83,7 @@ class WindowInteractionTracker(QObject):
         self._windows: dict[int, _WindowState] = {}
         self._generation = 0
         self._native_filter = _NativeWindowInteractionFilter(self)
-        app.installEventFilter(self)
+        install_app_event_filter(app, self, (QEvent.Type.Hide, QEvent.Type.WinIdChange))
         if sys.platform == "win32":
             app.installNativeEventFilter(self._native_filter)
 
