@@ -6,6 +6,7 @@ from typing import Optional
 
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtWidgets import QApplication, QAbstractSpinBox, QComboBox, QSlider
+from cdmw.ui.app_event_hub import install_app_event_filter
 
 try:
     import shiboken6
@@ -76,7 +77,7 @@ def ensure_app_wheel_guard(app: Optional[QApplication]) -> None:
     if app is None or _wheel_guard is not None:
         return
     _wheel_guard = NonIntrusiveWheelGuard(app)
-    app.installEventFilter(_wheel_guard)
+    install_app_event_filter(app, _wheel_guard, (QEvent.Type.Wheel,))
 
 
 __all__ = ["NonIntrusiveWheelGuard", "ensure_app_wheel_guard"]

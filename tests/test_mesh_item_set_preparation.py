@@ -131,7 +131,7 @@ def test_switch_uses_captured_context_and_existing_close_confirmation(tmp_path):
         mesh_editor_tab = tab
         _shutting_down = False
         _open_archive_mesh_editor_with_dependencies = MeshEditorShellBridgeMixin._open_archive_mesh_editor_with_dependencies
-        def _prepare_mesh_editor_archive_launch(self, entry):
+        def _prepare_mesh_editor_archive_launch(self, entry, **_options):
             confirmations.append(entry)
             return False
     switch_item_piece(Shell(), 1)

@@ -240,7 +240,7 @@ class _LaunchHarness(MeshEditorShellBridgeMixin):
         return True
 
     @staticmethod
-    def _prepare_mesh_editor_archive_launch(_entry: ArchiveEntry) -> bool:
+    def _prepare_mesh_editor_archive_launch(_entry: ArchiveEntry, **_options) -> bool:
         return True
 
     @staticmethod

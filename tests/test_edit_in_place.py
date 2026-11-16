@@ -94,11 +94,29 @@ def test_the_helper_leaving_edit_mode_ends_the_edit(tmp_path: Path) -> None:
         channel = controller.borrow_for_edit()
         finished = []
         channel.finished.connect(lambda code, status: finished.append(code))
+        _emit_stdout(process, _line({"event": "hello", "edit_slot": "view", "protocol": RUST_MESH_EDITOR_PROTOCOL}))
         _emit_stdout(process, _line({"event": "edit_left", "edit_slot": "view", "protocol": RUST_MESH_EDITOR_PROTOCOL}))
         QApplication.processEvents()
-        assert finished == [0] and not controller.editing_in_place
+        assert finished == [0] and not controller.editing_in_place and not channel.refusal
         # The helper said it left: nothing is sent back.
         assert not any(write.get("event") == "leave_edit" for write in process.writes)
+    finally:
+        controller.shutdown()
+
+
+def test_an_edit_that_leaves_before_its_hello_was_refused(tmp_path: Path) -> None:
+    """Its session never opened in the helper (2026-11-16 review): a refusal, not exit 0."""
+
+    controller, process, _package = _ready_controller(tmp_path)
+    try:
+        channel = controller.borrow_for_edit()
+        reasons, finished = [], []
+        channel.refused.connect(reasons.append)
+        channel.finished.connect(lambda code, status: finished.append(code))
+        _emit_stdout(process, _line({"event": "edit_left", "edit_slot": "view", "protocol": RUST_MESH_EDITOR_PROTOCOL}))
+        QApplication.processEvents()
+        assert reasons == ["the edit ended before its CDMW handshake"]
+        assert channel.refusal == reasons[0] and finished == [1] and not controller.editing_in_place
     finally:
         controller.shutdown()
 

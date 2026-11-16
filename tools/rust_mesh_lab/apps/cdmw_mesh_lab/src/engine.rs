@@ -684,6 +684,7 @@ impl EngineApplication {
             return;
         }
         let mut edit = self.edits.remove(index);
+        let left = leave_line(edit.app.engine_open_failure());
         if !edit.app.engine_finished()
             && let Some(path) = edit.app.engine_source_path()
         {
@@ -695,7 +696,7 @@ impl EngineApplication {
             // Its own window and renderer close with it; Browse's view was never lent.
             let id = edit.id.clone();
             drop(edit);
-            write_edit_line(&id, &json!({"event": "edit_left"}));
+            write_edit_line(&id, &left);
             return;
         }
         let (renderer, camera, kept) = edit.app.give_back_view();
@@ -714,7 +715,7 @@ impl EngineApplication {
             self.preview.follow(revision, mesh, &path, one_file);
         }
         drop(edit);
-        write_edit_line(&id, &json!({"event": "edit_left"}));
+        write_edit_line(&id, &left);
     }
 
     fn leave_if_requested(&mut self) {
@@ -878,6 +879,17 @@ impl ApplicationHandler for EngineApplication {
         self.trace.wait("chosen", flow);
         self.trace.flush_if_due();
         self.leave_if_requested();
+    }
+}
+
+/// The line that ends an edit: `edit_left`, or `edit_refused` with the reason when
+/// its session never opened. Its stderr is the Preview's, which the host does not
+/// read for the edit, so this line is the only place the reason reaches CDMW and
+/// the host opens the session elsewhere instead of reporting an exit 0.
+fn leave_line(open_failure: Option<&str>) -> Value {
+    match open_failure {
+        Some(reason) => json!({"event": "edit_refused", "reason": reason}),
+        None => json!({"event": "edit_left"}),
     }
 }
 
@@ -1254,6 +1266,15 @@ fn write_editor_line(value: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_edit_whose_session_never_opened_leaves_refused_with_the_reason() {
+        assert_eq!(leave_line(None), json!({"event": "edit_left"}));
+        assert_eq!(
+            leave_line(Some("failed to open CDMW session: bad manifest")),
+            json!({"event": "edit_refused", "reason": "failed to open CDMW session: bad manifest"})
+        );
+    }
 
     #[test]
     fn a_preview_line_goes_to_the_viewport_it_names() {

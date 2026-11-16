@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QObject, QTimer, Qt
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QWidget
+from cdmw.ui.app_event_hub import install_app_event_filter
 
 
 class ComboPopupLimiter(QObject):
@@ -62,7 +63,7 @@ def ensure_app_combo_popup_limiter(app: QApplication) -> ComboPopupLimiter:
     if isinstance(existing, ComboPopupLimiter):
         return existing
     limiter = ComboPopupLimiter(app)
-    app.installEventFilter(limiter)
+    install_app_event_filter(app, limiter, (QEvent.Type.Show,))
     app._cdmw_combo_popup_limiter = limiter
     return limiter
 

@@ -234,10 +234,25 @@ class LazyToolTab(QWidget):
             self._pending_widget = widget
             self._factory = None
             widget.hide()
-            self._layout.addWidget(widget)
         finally:
             self._creating = False
+        # Moving the finished widget into this container restyles its whole
+        # subtree; on its own event-loop turn, not in the constructor's (Model
+        # Library held the UI thread 367 ms here in the review).
+        self._schedule_load_step(self._attach_requested_widget)
+
+    @Slot()
+    def _attach_requested_widget(self) -> None:
+        widget = self._pending_widget
+        if widget is None:
+            return
+        self._attach_pending_widget(widget)
         self._schedule_load_step(self._finish_requested_widget)
+
+    def _attach_pending_widget(self, widget: QWidget) -> None:
+        if widget.parentWidget() is not self:
+            widget.hide()
+            self._layout.addWidget(widget)
 
     @Slot()
     def _finish_requested_widget(self) -> None:
@@ -249,6 +264,7 @@ class LazyToolTab(QWidget):
         widget = self._pending_widget
         if widget is None:
             raise RuntimeError("Lazy tool widget construction re-entered.")
+        self._attach_pending_widget(widget)
         self._pending_widget = None
         self._widget = widget
         self._load_timer.stop()

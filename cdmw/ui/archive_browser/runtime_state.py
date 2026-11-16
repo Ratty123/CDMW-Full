@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication
 
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
+from cdmw.ui.app_event_hub import install_app_event_filter
 
 
 _user32 = None
@@ -61,6 +62,15 @@ def _native_input_state() -> tuple[int, bool, bool] | None:
     return info.dwTime, process_id.value == os.getpid(), mouse_held
 
 
+#: The input events that count as the user working in the window.
+ARCHIVE_UI_ACTIVITY_EVENT_TYPES = (
+    QEvent.Type.KeyPress, QEvent.Type.KeyRelease, QEvent.Type.MouseButtonPress,
+    QEvent.Type.MouseButtonRelease, QEvent.Type.MouseButtonDblClick,
+    QEvent.Type.MouseMove, QEvent.Type.Wheel, QEvent.Type.FocusIn,
+    QEvent.Type.TabletMove, QEvent.Type.TouchUpdate,
+)
+
+
 class _ArchiveUiActivityFilter(QObject):
     """Let archive warmups yield to input anywhere in the application."""
 
@@ -88,12 +98,7 @@ class _ArchiveUiActivityFilter(QObject):
             archive._note_archive_ui_activity()
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if event.type() in (
-            QEvent.Type.KeyPress, QEvent.Type.KeyRelease, QEvent.Type.MouseButtonPress,
-            QEvent.Type.MouseButtonRelease, QEvent.Type.MouseButtonDblClick,
-            QEvent.Type.MouseMove, QEvent.Type.Wheel, QEvent.Type.FocusIn,
-            QEvent.Type.TabletMove, QEvent.Type.TouchUpdate,
-        ):
+        if event.type() in ARCHIVE_UI_ACTIVITY_EVENT_TYPES:
             archive = self.parent()
             if not archive.shell._shutting_down:
                 archive._note_archive_ui_activity()
@@ -323,7 +328,9 @@ class ArchiveRuntimeStateMixin:
         self.archive_ui_activity_timer.setSingleShot(True)
         self.archive_ui_activity_timer.timeout.connect(self._clear_archive_ui_activity)
         self.archive_ui_activity_filter = _ArchiveUiActivityFilter(self)
-        QApplication.instance().installEventFilter(self.archive_ui_activity_filter)
+        install_app_event_filter(
+            QApplication.instance(), self.archive_ui_activity_filter, ARCHIVE_UI_ACTIVITY_EVENT_TYPES
+        )
         self.archive_preview_debounce_timer = QTimer(self)
         self.archive_preview_debounce_timer.setSingleShot(True)
         self.archive_preview_debounce_timer.setInterval(90)

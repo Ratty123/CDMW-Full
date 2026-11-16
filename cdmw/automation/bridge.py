@@ -102,8 +102,13 @@ def hide_top_level_windows(hidden: bool = True) -> None:
     app = QApplication.instance()
     if app is None or getattr(app, "_cdmw_window_placement", None) is not None:
         return
+    from PySide6.QtCore import QEvent
+
+    from cdmw.ui.app_event_hub import install_app_event_filter
+
     placement = _WindowPlacement(hidden)
-    app.installEventFilter(placement)
+    # Through the hub: asked only for Polish, not for every event of an automated run.
+    install_app_event_filter(app, placement, (QEvent.Type.Polish,))
     app._cdmw_window_placement = placement
 
 

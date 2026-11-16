@@ -94,13 +94,34 @@ _DATA_FONT_CLASS_NAMES = (
     "QHeaderView",
 )
 
+_INSTALLED_CLASS_FONTS_ATTRIBUTE = "_cdmw_installed_class_fonts"
+
+
+def _install_class_font(app: QApplication, font: QFont, class_name: str) -> None:
+    # Each QApplication.setFont(font, class) sends a font-change event to every
+    # widget of that class, the whole window for "QWidget", even when the font
+    # is the one already set. Every tool that opens re-applies the fonts: skip
+    # a class whose font this function set and that still has it.
+    installed = getattr(app, _INSTALLED_CLASS_FONTS_ATTRIBUTE, None)
+    if not isinstance(installed, dict):
+        installed = {}
+        setattr(app, _INSTALLED_CLASS_FONTS_ATTRIBUTE, installed)
+    wanted = QFont(font).toString()
+    if installed.get(class_name) == wanted and _same_font(QApplication.font(class_name), font):
+        return
+    app.setFont(font, class_name)
+    installed[class_name] = wanted
+
+
 def _install_app_fonts(app: QApplication, app_font: QFont, data_font: QFont) -> None:
     if not _same_font(app.font(), app_font):
         app.setFont(app_font)
+        # Setting the application font clears every per-class font.
+        setattr(app, _INSTALLED_CLASS_FONTS_ATTRIBUTE, {})
     for class_name in _UI_FONT_CLASS_NAMES:
-        app.setFont(app_font, class_name)
+        _install_class_font(app, app_font, class_name)
     for class_name in _DATA_FONT_CLASS_NAMES:
-        app.setFont(data_font, class_name)
+        _install_class_font(app, data_font, class_name)
 
 def _apply_ui_fonts_to_widget_tree(root: QWidget, ui_font: QFont) -> None:
     for widget in (root, *root.findChildren(QWidget)):

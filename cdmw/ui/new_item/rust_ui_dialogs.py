@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtWidgets import QApplication, QColorDialog, QDialog, QFileDialog, QMenu, QWidget
 from shiboken6 import isValid
+from cdmw.ui.app_event_hub import install_app_event_filter, remove_app_event_filter
 
 
 class PresentationDialogs(QObject):
@@ -17,7 +18,9 @@ class PresentationDialogs(QObject):
         self.active = False
         self._dialogs = []
         self._native = []
-        QApplication.instance().installEventFilter(self)
+        install_app_event_filter(
+            QApplication.instance(), self, (QEvent.Polish, QEvent.Show, QEvent.Hide, QEvent.Close)
+        )
 
     def owns(self, widget):
         current = widget
@@ -71,4 +74,4 @@ class PresentationDialogs(QObject):
                 dialog.close()
         self._dialogs.clear()
         self._native.clear()
-        QApplication.instance().removeEventFilter(self)
+        remove_app_event_filter(QApplication.instance(), self)

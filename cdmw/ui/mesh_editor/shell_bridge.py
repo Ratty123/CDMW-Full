@@ -17,6 +17,7 @@ from cdmw.domain.archives.filters import archive_entry_identity_key
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
+from cdmw.services.json_file_facts import json_file_fact, register_json_file_fact
 from cdmw.services.mesh_workflow_service import SceneImportResult
 from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
 from cdmw.services.preview_rendering_service import (
@@ -35,6 +36,24 @@ _INTERIM_PREVIEW_TIERS = frozenset({"quick", "fast"})
 _FULL_PREVIEW_WAIT_S = 60.0
 _FULL_PREVIEW_POLL_MS = 250
 WAITING_FOR_FULL_PREVIEW_TEXT = "Waiting for Browse's full preview before Mesh Editor opens..."
+
+
+def _manifest_match_facts(payload: object) -> tuple[object, bool, object] | None:
+    """What the archive-entry match reads from a preview manifest, and nothing more.
+
+    A manifest can be megabytes; only these fields are kept between calls.
+    """
+
+    if not isinstance(payload, Mapping):
+        return None
+    return (
+        payload.get("source_path", ""),
+        "source_identity" in payload,
+        copy.deepcopy(payload.get("source_identity")),
+    )
+
+
+register_json_file_fact("manifest.json", _manifest_match_facts, encoding="utf-8-sig")
 
 
 def _interim_preview(result: object) -> bool:
@@ -109,6 +128,20 @@ def _exact_archive_identity_matches(declared_identity: object, entry, normalized
         except (TypeError, ValueError, OverflowError):
             return False
     return False
+
+
+def _open_target_files(entry: object, item_set_contexts: Sequence[object] = ()) -> tuple:
+    """The files an open edits or shows, in order: a set's, or ``entry`` alone.
+
+    Two opens are of one target only when these match: a set whose first file is
+    already open alone is another target, and so is that file over its open set.
+    """
+
+    identities = tuple(getattr(getattr(context, "selected_entry", None), "identity", None)
+                       for context in item_set_contexts or ())
+    if len(identities) > 1 and None not in identities:
+        return identities
+    return (getattr(entry, "identity", None),)
 
 
 class MeshEditorShellBridgeMixin:
@@ -313,13 +346,20 @@ class MeshEditorShellBridgeMixin:
 
         manifest_path = package / "manifest.json"
         if manifest_path.is_file():
-            manifest = load_mapping("manifest.json")
-            if manifest is None:
+            # Parsed once per unchanged manifest: the launch asks this several
+            # times, and a set piece's manifest is megabytes (281 ms on the UI
+            # thread in the review).
+            try:
+                facts = json_file_fact(manifest_path, _manifest_match_facts, encoding="utf-8-sig")
+            except (OSError, TypeError, ValueError):
                 return False
-            if normalized_path(manifest.get("source_path", "")) != expected_path:
+            if facts is None:
                 return False
-            if "source_identity" in manifest:
-                return declared_identity_matches(manifest.get("source_identity"))
+            source_path, has_source_identity, source_identity = facts
+            if normalized_path(source_path) != expected_path:
+                return False
+            if has_source_identity:
+                return declared_identity_matches(source_identity)
             return cache_dependency_identity_matches(
                 load_path_mapping(package.parent / "cache_entry.json")
             )
@@ -636,18 +676,21 @@ class MeshEditorShellBridgeMixin:
         launch_selected(controller)
         return True
 
-    def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry, *, replace_same: bool = False) -> bool:
+    def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry, *, replace_same: bool = False,
+                                            item_set_contexts: Sequence[object] = ()) -> bool:
+        """``item_set_contexts``: the open is of these files, ``entry`` first (a set open)."""
         if not isinstance(entry, ArchiveEntry):
             return False
         if not hasattr(self, "mesh_editor_tab"):
             return True
+        wanted = _open_target_files(entry, item_set_contexts)
         active_builder = self._mesh_editor_active_builder()
         has_standalone = bool(self.mesh_editor_tab.has_active_standalone_session())
         # P15: a document already editing this file is shown; another file opens
         # beside an unfinished edit instead of replacing it.
-        if self._show_document_editing(entry, replace_same=replace_same):
+        if self._show_document_editing(entry, replace_same=replace_same, wanted=wanted):
             return False
-        if has_standalone and self._open_in_other_document(entry, replace_same=replace_same):
+        if has_standalone and self._open_in_other_document(entry, replace_same=replace_same, wanted=wanted):
             return True
         has_standalone = bool(self.mesh_editor_tab.has_active_standalone_session())
         if active_builder is None and not has_standalone:
@@ -655,7 +698,11 @@ class MeshEditorShellBridgeMixin:
         if has_standalone:
             current_target = self.mesh_editor_tab._current_target_entry()
             same_source = (isinstance(current_target, ArchiveEntry) and current_target.identity == entry.identity
-                           and current_target.prepared_sha256 == entry.prepared_sha256)
+                           and current_target.prepared_sha256 == entry.prepared_sha256
+                           # A set whose first file is open alone is another target, and so
+                           # is that file over its open set (2026-11-16 review).
+                           and _open_target_files(current_target, getattr(self.mesh_editor_tab, "item_set_contexts", ()))
+                           == wanted)
             if same_source and "Mesh Editor edited result" in (current_target.prepared_note, entry.prepared_note):
                 same_source = current_target.prepared_path == entry.prepared_path
             if not replace_same and same_source:
@@ -715,8 +762,8 @@ class MeshEditorShellBridgeMixin:
             return None
         return view if callable(getattr(view, "open_new_document", None)) else None
 
-    def _show_document_editing(self, entry: ArchiveEntry, *, replace_same: bool) -> bool:
-        """Another document already edits ``entry``: show it (P15)."""
+    def _show_document_editing(self, entry: ArchiveEntry, *, replace_same: bool, wanted: tuple = ()) -> bool:
+        """Another document already edits ``entry`` (with the same set files, ``wanted``): show it (P15)."""
 
         view = self._mesh_documents()
         if view is None or replace_same:
@@ -728,15 +775,17 @@ class MeshEditorShellBridgeMixin:
             current = target() if callable(target) else None
             has = getattr(document, "has_active_standalone_session", None)
             if (callable(has) and has() and isinstance(current, ArchiveEntry)
-                    and current.identity == entry.identity and current.prepared_sha256 == entry.prepared_sha256):
+                    and current.identity == entry.identity and current.prepared_sha256 == entry.prepared_sha256
+                    and _open_target_files(current, getattr(document, "item_set_contexts", ()))
+                    == (wanted or _open_target_files(entry, ()))):
                 view.set_active(view.index_of(document))
                 self._activate_tool_widget(self.mesh_editor_tab)
                 self.set_status_message("Mesh Editor is already open for this target.")
                 return True
         return False
 
-    def _open_in_other_document(self, entry: ArchiveEntry, *, replace_same: bool) -> bool:
-        """The shown document has an unfinished edit of another file: open ``entry`` beside it (P15)."""
+    def _open_in_other_document(self, entry: ArchiveEntry, *, replace_same: bool, wanted: tuple = ()) -> bool:
+        """The shown document has an unfinished edit of another target: open ``entry`` beside it (P15)."""
 
         from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import has_pending_edit
 
@@ -747,7 +796,9 @@ class MeshEditorShellBridgeMixin:
         target = getattr(current, "_current_target_entry", None)
         current_entry = target() if callable(target) else None
         if (not replace_same and isinstance(current_entry, ArchiveEntry)
-                and current_entry.identity == entry.identity):
+                and current_entry.identity == entry.identity
+                and _open_target_files(current_entry, getattr(current, "item_set_contexts", ()))
+                == (wanted or _open_target_files(entry, ()))):
             return False
         if not has_pending_edit(current):
             return False  # nothing to keep: the shown document takes the new mesh
@@ -904,7 +955,8 @@ class MeshEditorShellBridgeMixin:
         **session_options: object,
     ) -> None:
         """Open ``entry`` with the Archive Browser's matching materials, if any."""
-        if not self._prepare_mesh_editor_archive_launch(entry):
+        if not self._prepare_mesh_editor_archive_launch(
+                entry, item_set_contexts=tuple(session_options.get("item_set_contexts") or ())):
             return
         current_preview = getattr(self.archive, "current_archive_preview_result", None)
         prepared_preview = getattr(self.archive, "_archive_pending_texture_result", None)

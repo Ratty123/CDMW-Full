@@ -177,13 +177,21 @@ def _contained_file(root: Path, relative: PurePosixPath, real_dirs: set[Path]) -
     return candidate, identity
 
 
-def validate_preview_files(package_dir: Path, payload: dict, *, hash_unverified: bool = True) -> None:
+def validate_preview_files(
+    package_dir: Path,
+    payload: dict,
+    *,
+    hash_unverified: bool = True,
+    checked_dirs: set[Path] | None = None,
+) -> None:
     """Reject incomplete, changed, escaping or writable cached preview inputs.
 
     With ``hash_unverified=False`` (the checks that run on the UI thread) no
     file content is read: a file this process has not verified is accepted on
     structure, size and containment, since the worker that produced or found
     the package and the helper that loads it both verify every digest.
+    ``checked_dirs``, when given, receives the resolved root and every folder
+    that holds a referenced file, once the whole check has passed.
     """
 
     root = package_dir.resolve(strict=True)
@@ -260,3 +268,6 @@ def validate_preview_files(package_dir: Path, payload: dict, *, hash_unverified:
                     visit(item)
 
     visit(payload)
+    if checked_dirs is not None:
+        checked_dirs.add(root)
+        checked_dirs.update(real_dirs)
