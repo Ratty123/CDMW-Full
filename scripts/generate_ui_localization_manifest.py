@@ -68,6 +68,11 @@ MANUAL_SOURCE_KEYS = frozenset(
         # (cdmw/ui/commands/shortcuts_page.py); {name} is the command's label.
         "The Mesh Editor command {name} uses this key.",
         "Open an image first.",
+        # The Texture Editor panel's line on which other game files use the opened texture
+        # (cdmw/ui/mesh_editor/shared_texture_check.py, step 8 item 5); set at run time.
+        "Checking whether other game files use this texture...",
+        "Whether other game files use this texture is not known: {reason}",
+        "Other game files use this texture, and the mod changes it for them too: {files}.",
         # The close guard's status line (cdmw/ui/shell/close_controller.py, P4 V3).
         "Finishing the edit. Close CDMW again when it has finished.",
         # Settings > Shortcuts: a context name and the conflict line, both translated at run time.

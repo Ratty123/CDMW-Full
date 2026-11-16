@@ -689,6 +689,61 @@ class MeshEditorRustProcessMixin:
             keeper.kept_changed.connect(self._show_live_texture_kept_text)
         return keeper
 
+    def _shared_texture_check(self):
+        check = getattr(self, "_shared_texture_checking", None)
+        if check is None:
+            from cdmw.ui.mesh_editor.shared_texture_check import SharedTextureCheck
+
+            check = self._shared_texture_checking = SharedTextureCheck(
+                self._new_texture_reference_search, self._texture_archive_entry,
+                self._texture_reference_session_id, self._own_model_stems, self)
+            check.changed.connect(self._show_shared_texture_result)
+        return check
+
+    def _browse_archives(self):
+        window = self.window() if callable(getattr(self, "window", None)) else None
+        return getattr(window, "archive", None)
+
+    def _new_texture_reference_search(self):
+        from cdmw.services.archive_reference_search import ArchiveReferenceSearchController
+
+        archive = self._browse_archives()
+        return ArchiveReferenceSearchController(getattr(archive, "archive_catalogue_service", None), self)
+
+    def _texture_reference_session_id(self) -> str:
+        bridge = getattr(self._browse_archives(), "archive_remote_bridge", None)
+        session = getattr(bridge, "current_session", None)
+        return str(getattr(session, "session_id", "") or "") if bool(getattr(bridge, "displays_v2", False)) else ""
+
+    def _texture_archive_entry(self, game_path: str):
+        from cdmw.domain.archives.filters import active_archive_entry_for_virtual_path
+
+        key = str(game_path or "").replace("\\", "/").strip().lower()
+        candidates = self._archive_texture_indexes()[0].get(key, ())
+        return active_archive_entry_for_virtual_path(list(candidates)) if candidates else None
+
+    def _own_model_stems(self) -> tuple[str, ...]:
+        """The opened model's files by name: their own sidecars are not "other" files."""
+
+        paths = []
+        target = self._current_target_entry()
+        if target is not None:
+            paths.append(str(getattr(target, "path", "") or ""))
+        for context in tuple(getattr(self, "item_set_contexts", ()) or ()):
+            for asset in tuple(getattr(context, "assets", ()) or ()):
+                paths.append(str(getattr(getattr(asset, "entry", None), "path", "") or ""))
+        return tuple(dict.fromkeys(Path(path.replace("\\", "/")).name.split(".", 1)[0].casefold()
+                                   for path in paths if path))
+
+    def _show_shared_texture_result(self, game_path: str) -> None:
+        from cdmw.ui.mesh_editor.tab_rust_editor import _host_panel
+
+        tools = _host_panel(self, "_texture_tools_panel")
+        result = self._shared_texture_check().texture_users_found(game_path)
+        show = getattr(tools, "set_sharing_text", None)
+        if callable(show) and result is not None:
+            show(game_path, result.sharing_notice)
+
     def _live_texture_draft_root(self) -> Path | None:
         """The document's draft folder, once it exists on disk (a planned draft is not yet)."""
 
@@ -757,6 +812,10 @@ class MeshEditorRustProcessMixin:
             users=users,
             in_renderer=row.in_renderer,
         ))
+        # Which other game files use it, searched in the background (item 5).
+        check = self._shared_texture_check()
+        check.search_texture_users(row.game_path)
+        self._show_shared_texture_result(row.game_path)
 
     def _on_texture_window_edit(self, session_id: str, source_sha256: str, image, changed: bool = True) -> None:
         if session_id and session_id == self._live_texture_session_id():
@@ -781,9 +840,12 @@ class MeshEditorRustProcessMixin:
             if source is None:
                 continue
             width, height, data = image_rgba8(image)
+            check = getattr(self, "_shared_texture_checking", None)
+            shared = check.texture_users_found(source.game_path) if check is not None else None
             edits.append(LiveTextureEdit(
                 source_sha256=source_sha256,
                 game_path=source.game_path,
+                other_files=shared.other_files if shared is not None else (),
                 original=source.original,
                 rgba=np.frombuffer(data, dtype=np.uint8).reshape(height, width, 4).copy(),
                 users=source.users,

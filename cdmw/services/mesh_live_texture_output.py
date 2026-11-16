@@ -38,6 +38,8 @@ class LiveTextureOutput:
     original: OriginalTextureOutput
     rgba: np.ndarray
     users: tuple[str, ...] = ()
+    #: Other game files that use the texture, as the reference search found them.
+    other_files: tuple[str, ...] = ()
 
     @property
     def plan_line(self) -> str:
@@ -45,6 +47,10 @@ class LiveTextureOutput:
                 f"{self.original.mip_count} mips")
         if len(self.users) > 1:
             line += " (shared by " + ", ".join(self.users) + ")"
+        if self.other_files:
+            from cdmw.ui.mesh_editor.shared_texture_check import joined_file_names
+
+            line += " (also used by " + joined_file_names(self.other_files) + ")"
         return line
 
 
@@ -72,6 +78,7 @@ class LiveTextureEdit:
     #: The original's output settings, or the file to read them from.
     original: OriginalTextureOutput | None = None
     original_path: str = ""
+    other_files: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,7 +129,7 @@ def plan_live_texture_outputs(
             refusals.append(f"{edit.game_path}: the edit is not the original's size.")
             continue
         outputs.append(LiveTextureOutput(entry=entry, game_path=edit.game_path, original=original,
-                                         rgba=rgba, users=tuple(edit.users)))
+                                         rgba=rgba, users=tuple(edit.users), other_files=tuple(edit.other_files)))
     return LiveTexturePlan(outputs=tuple(outputs), refusals=tuple(refusals))
 
 

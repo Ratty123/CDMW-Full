@@ -41,7 +41,7 @@ STATE_NAMES = (
     "_pending_hair_start",
     "_rust_last_crash_at",
     "_rust_follows_keymap", "_rust_keymap_echo", "_shared_preview_settings_connected",
-    "_live_texture_document_id", "_live_texture_updates", "_live_texture_keeping",
+    "_live_texture_document_id", "_live_texture_updates", "_live_texture_keeping", "_shared_texture_checking",
     "_engine_window_refused_session",
     "mesh_editor_backend",
     "standalone_export_validation_revision", "standalone_last_export_validation_report",

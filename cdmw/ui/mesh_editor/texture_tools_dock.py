@@ -120,6 +120,12 @@ class MeshEditorTextureTools(QDockWidget):
         self.notice.setWordWrap(True)
         self.notice.setVisible(False)
         layout.addWidget(self.notice)
+        # Which other game files use the opened texture (step 8, item 5).
+        self.sharing_label = QLabel(body)
+        self.sharing_label.setObjectName("WarningText")
+        self.sharing_label.setWordWrap(True)
+        self.sharing_label.setVisible(False)
+        layout.addWidget(self.sharing_label)
         # Whether the edits are kept in the draft yet (step 8, item 3).
         self.kept_label = QLabel(body)
         self.kept_label.setObjectName("MeshEditorTextureKeptState")
@@ -172,6 +178,14 @@ class MeshEditorTextureTools(QDockWidget):
         width = max(scaled_px(560, self), int(host.width() * 0.45))
         if self.width() < width:
             resize([self], [width], Qt.Orientation.Horizontal)
+
+    def set_sharing_text(self, game_path: str, text: str) -> None:
+        """Say which other game files use ``game_path``, when it is the texture shown."""
+
+        if self.target is None or self.target.game_path.casefold() != str(game_path).casefold():
+            return
+        self.sharing_label.setText(text)
+        self.sharing_label.setVisible(bool(text))
 
     def set_kept_text(self, text: str) -> None:
         """Say whether this document's texture edits are kept in its draft ("" hides it)."""

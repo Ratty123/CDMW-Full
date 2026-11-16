@@ -12396,7 +12396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 906,
+          "line": 968,
           "sink": "getOpenFileName"
         }
       ]
@@ -13021,7 +13021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 997,
+          "line": 1059,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -25901,12 +25901,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1748,
+          "line": 1810,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1768,
+          "line": 1830,
           "sink": "_set_rust_status"
         }
       ]
@@ -25916,7 +25916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 995,
+          "line": 1057,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -29275,6 +29275,11 @@
           "sink": "_set_status"
         }
       ]
+    },
+    {
+      "key": "Checking whether other game files use this texture...",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Checking whether the item depends on {value_0}...",
@@ -43301,7 +43306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 906,
+          "line": 968,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -43316,7 +43321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 906,
+          "line": 968,
           "sink": "getOpenFileName"
         },
         {
@@ -46666,7 +46671,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1611,
+          "line": 1673,
           "sink": "addButton"
         },
         {
@@ -61261,7 +61266,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1610,
+          "line": 1672,
           "sink": "addButton"
         }
       ]
@@ -89881,12 +89886,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1748,
+          "line": 1810,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1768,
+          "line": 1830,
           "sink": "_set_rust_status"
         }
       ]
@@ -89896,7 +89901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1075,
+          "line": 1137,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -89956,7 +89961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1605,
+          "line": 1667,
           "sink": "setWindowTitle"
         }
       ]
@@ -90286,7 +90291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 822,
+          "line": 884,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -90296,7 +90301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1029,
+          "line": 1091,
           "sink": "_publish_rust_protocol_status"
         },
         {
@@ -90411,7 +90416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1481,
+          "line": 1543,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90421,7 +90426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1487,
+          "line": 1549,
           "sink": "show_error"
         }
       ]
@@ -90431,7 +90436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1465,
+          "line": 1527,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90441,7 +90446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1049,
+          "line": 1111,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90511,7 +90516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1568,
+          "line": 1630,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -90531,7 +90536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1372,
+          "line": 1434,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -90541,7 +90546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1368,
+          "line": 1430,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -90611,17 +90616,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1283,
+          "line": 1345,
           "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1379,
+          "line": 1441,
           "sink": "_stop_rust_editor_process"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1459,
+          "line": 1521,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90831,7 +90836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 866,
+          "line": 928,
           "sink": "_set_rust_status"
         }
       ]
@@ -90841,7 +90846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 860,
+          "line": 922,
           "sink": "_set_rust_status"
         }
       ]
@@ -91071,7 +91076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1398,
+          "line": 1460,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91121,7 +91126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1079,
+          "line": 1141,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91481,7 +91486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 854,
+          "line": 916,
           "sink": "_set_rust_status"
         }
       ]
@@ -92536,7 +92541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_live_texture_output.py",
-          "line": 149,
+          "line": 156,
           "sink": "raise_if_cancelled"
         },
         {
@@ -109691,12 +109696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1695,
+          "line": 1757,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1699,
+          "line": 1761,
           "sink": "_set_rust_status"
         }
       ]
@@ -111065,6 +111070,11 @@
           "sink": "python-data:MESSAGE_AREAS"
         }
       ]
+    },
+    {
+      "key": "Other game files use this texture, and the mod changes it for them too: {files}.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Other influences redistribute proportionally. Cloth guide weights are preserved.",
@@ -128046,7 +128056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1042,
+          "line": 1104,
           "sink": "setText"
         }
       ]
@@ -129461,7 +129471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 993,
+          "line": 1055,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -164211,7 +164221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 745,
+          "line": 800,
           "sink": "warning"
         }
       ]
@@ -165736,7 +165746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1606,
+          "line": 1668,
           "sink": "setText"
         }
       ]
@@ -165746,22 +165756,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1529,
+          "line": 1591,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1530,
+          "line": 1592,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1537,
+          "line": 1599,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1538,
+          "line": 1600,
           "sink": "_set_rust_status"
         }
       ]
@@ -165771,22 +165781,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1529,
+          "line": 1591,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1530,
+          "line": 1592,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1537,
+          "line": 1599,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1538,
+          "line": 1600,
           "sink": "_set_rust_status"
         }
       ]
@@ -165796,7 +165806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1606,
+          "line": 1668,
           "sink": "setText"
         }
       ]
@@ -173561,7 +173571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1451,
+          "line": 1513,
           "sink": "_set_rust_status"
         }
       ]
@@ -183691,7 +183701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 991,
+          "line": 1053,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -187787,6 +187797,11 @@
       ]
     },
     {
+      "key": "Whether other game files use this texture is not known: {reason}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Which Blender export settings bring a mesh back?",
       "origins": [
         {
@@ -191016,7 +191031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1608,
+          "line": 1670,
           "sink": "setInformativeText"
         }
       ]
@@ -191046,12 +191061,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1280,
+          "line": 1342,
           "sink": "show_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1456,
+          "line": 1518,
           "sink": "show_result"
         }
       ]
@@ -221821,7 +221836,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1557,
+          "line": 1619,
           "sink": "emit"
         },
         {
