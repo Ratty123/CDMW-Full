@@ -239,6 +239,11 @@
 - 수정(`shell_bridge.py`의 `_mesh_editor_retained_textured_package_for_entry`): Archive Browser가 같은 모델의 미리보기 결과(해석된 재질 모델과 패키지)를 아직 들고 있고 그 패키지가 디스크에 있으면, 그것으로 첫 번째 열기와 똑같이 연다. 현재 미리보기 결과가 참조하는 패키지는 정리 대상에서 빠지므로 남아 있다.
 - 남은 것: 미리보기 결과가 없을 때(다른 모델을 보다가 Mesh Editor에서 여는 경우 등)는 여전히 네이티브 batch 경로를 탄다. 그 경로의 짝짓기 오류는 원작자 네이티브 코어(`package_writer_json.cpp`의 batch `shader_family` = 첫 binding의 family) 쪽 문제라 고치지 않았다.
 
+### 다시 열 때 문제, 세 번째 수정 (2026-11-17 새벽)
+- `e3516e8` 빌드에서도 그대로였다. 두 세션 폴더를 다시 읽어 보니, 정상 세션의 텍스처 패키지는 Archive Browser의 "현재 미리보기 결과"가 아니라 렌더러가 쓰던 활성 패키지(텍스처 단계 결과)에서 왔다. 현재 미리보기 결과에는 텍스처 없는 패키지가 남을 수 있어서, `e3516e8`의 재사용 조건이 맞지 않았던 것으로 본다.
+- Archive Browser 상태에 기대지 않도록 바꿨다. Mesh Editor 세션이 닫힐 때, 검증된 재질 정보(해석된 재질 모델, 패키지 경로, 패키지 lease)를 버리지 않고 한 벌 보관한다(`_stash_reusable_archive_material_context`). 같은 모델(identity와 prepared_sha256이 같음)을 검증되지 않은 정보로 다시 열면 보관해 둔 것을 쓴다(`_take_reusable_archive_material_context`). lease를 쥐고 있으므로 패키지는 디스크에 남는다. 다른 세션이 닫히며 새로 보관하거나 프로그램이 종료될 때 이전 lease를 놓는다.
+- 참고: 두 세션 모두 디테일 높이(레이스) 텍스처가 shader mask로 전달되지 않았다. 정상 세션의 꽃무늬는 합성된 base 색에서 온 것이고, 실 굵기는 주름 맵만 반영했다. 이 부분은 다시 열기 문제가 해결된 뒤 따로 본다.
+
 ## 남긴 결정 사항
 
 1. `_screenSpaceDisplacementScale`은 슬라이더로 추가하지 않았다. 유일한 근거인 Angel Teddy 모드가 이 행에 작은 ItemID 3을 쓰는데, 작은 ID의 규칙이 밝혀지지 않았다. 다만 Glass를 "다시 쓰기"로 만들면 그 모드의 구성대로 이 행(ItemID 3)을 넣는다. 원본에 값이 있으면 그 값을, 없으면 0을 쓴다.
