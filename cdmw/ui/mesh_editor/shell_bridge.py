@@ -17,6 +17,7 @@ from cdmw.domain.archives.filters import archive_entry_identity_key
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
+from cdmw.services.json_file_facts import json_file_fact
 from cdmw.services.mesh_workflow_service import SceneImportResult
 from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
 from cdmw.services.preview_rendering_service import (
@@ -35,6 +36,21 @@ _INTERIM_PREVIEW_TIERS = frozenset({"quick", "fast"})
 _FULL_PREVIEW_WAIT_S = 60.0
 _FULL_PREVIEW_POLL_MS = 250
 WAITING_FOR_FULL_PREVIEW_TEXT = "Waiting for Browse's full preview before Mesh Editor opens..."
+
+
+def _manifest_match_facts(payload: object) -> tuple[object, bool, object] | None:
+    """What the archive-entry match reads from a preview manifest, and nothing more.
+
+    A manifest can be megabytes; only these fields are kept between calls.
+    """
+
+    if not isinstance(payload, Mapping):
+        return None
+    return (
+        payload.get("source_path", ""),
+        "source_identity" in payload,
+        copy.deepcopy(payload.get("source_identity")),
+    )
 
 
 def _interim_preview(result: object) -> bool:
@@ -313,13 +329,20 @@ class MeshEditorShellBridgeMixin:
 
         manifest_path = package / "manifest.json"
         if manifest_path.is_file():
-            manifest = load_mapping("manifest.json")
-            if manifest is None:
+            # Parsed once per unchanged manifest: the launch asks this several
+            # times, and a set piece's manifest is megabytes (281 ms on the UI
+            # thread in the review).
+            try:
+                facts = json_file_fact(manifest_path, _manifest_match_facts, encoding="utf-8-sig")
+            except (OSError, TypeError, ValueError):
                 return False
-            if normalized_path(manifest.get("source_path", "")) != expected_path:
+            if facts is None:
                 return False
-            if "source_identity" in manifest:
-                return declared_identity_matches(manifest.get("source_identity"))
+            source_path, has_source_identity, source_identity = facts
+            if normalized_path(source_path) != expected_path:
+                return False
+            if has_source_identity:
+                return declared_identity_matches(source_identity)
             return cache_dependency_identity_matches(
                 load_path_mapping(package.parent / "cache_entry.json")
             )

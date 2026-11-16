@@ -40862,7 +40862,7 @@ MESSAGE_REFERENCE = [
     "message": "A direct preview package cannot request another fast tier.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 833
+      "cdmw/services/mesh_rust_preview_cache.py": 834
     }
   },
   {
@@ -49762,7 +49762,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1179
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1202
     }
   },
   {
@@ -49827,7 +49827,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 772,
+      "cdmw/ui/mesh_editor/shell_bridge.py": 795,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 185
     }
   },
@@ -49991,7 +49991,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1068
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1091
     }
   },
   {
@@ -56775,7 +56775,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core cloth constraint count is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 188
+      "cdmw/services/mesh_rust_preview_cache.py": 189
     }
   },
   {
@@ -56783,7 +56783,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core cloth constraint resources are incomplete or corrupt.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 210
+      "cdmw/services/mesh_rust_preview_cache.py": 211
     }
   },
   {
@@ -56791,7 +56791,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core cloth particle count is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 186
+      "cdmw/services/mesh_rust_preview_cache.py": 187
     }
   },
   {
@@ -56799,7 +56799,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core cloth particle resources are incomplete or corrupt.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 208
+      "cdmw/services/mesh_rust_preview_cache.py": 209
     }
   },
   {
@@ -56807,7 +56807,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core overlay manifest is missing or invalid.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 159
+      "cdmw/services/mesh_rust_preview_cache.py": 160
     }
   },
   {
@@ -56815,7 +56815,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core overlay manifest is not a JSON object.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 161
+      "cdmw/services/mesh_rust_preview_cache.py": 162
     }
   },
   {
@@ -56823,7 +56823,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview-core overlay normalization is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 165
+      "cdmw/services/mesh_rust_preview_cache.py": 166
     }
   },
   {
@@ -56880,7 +56880,7 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/mesh_dotnet_reference_composite.py": 265,
-      "cdmw/services/mesh_rust_preview_cache.py": 830
+      "cdmw/services/mesh_rust_preview_cache.py": 831
     }
   },
   {
@@ -57000,7 +57000,7 @@ MESSAGE_REFERENCE = [
     "message": "Python preview decoder produced no canonical mesh geometry.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 313
+      "cdmw/services/mesh_rust_preview_cache.py": 314
     }
   },
   {
@@ -57096,7 +57096,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1103
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1126
     }
   },
   {
@@ -60207,7 +60207,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture loading failed; the untextured model remains available: {failure_reason}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 551
+      "cdmw/ui/mesh_editor/shell_bridge.py": 574
     }
   },
   {
@@ -62657,7 +62657,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported preview interaction profile: {profile}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 1055,
+      "cdmw/services/mesh_rust_preview_cache.py": 1056,
       "cdmw/services/mesh_rust_preview_package.py": 1775
     }
   },
@@ -70601,7 +70601,7 @@ MESSAGE_REFERENCE = [
     "message": "preview cache publication failed.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 696
+      "cdmw/services/mesh_rust_preview_cache.py": 697
     }
   },
   {
@@ -70721,7 +70721,7 @@ MESSAGE_REFERENCE = [
     "message": "preview package cache publication failed.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 542
+      "cdmw/services/mesh_rust_preview_cache.py": 543
     }
   },
   {
@@ -70737,7 +70737,7 @@ MESSAGE_REFERENCE = [
     "message": "preview package preparation cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 88,
+      "cdmw/services/mesh_rust_preview_cache.py": 89,
       "cdmw/services/mesh_rust_preview_files.py": 122,
       "cdmw/services/mesh_rust_preview_package.py": 407
     }
@@ -71777,7 +71777,7 @@ MESSAGE_REFERENCE = [
     "message": "rust_model_preview_direct_tier_failed identity=%s; continuing with full quality",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 995
+      "cdmw/services/mesh_rust_preview_cache.py": 996
     }
   },
   {
@@ -71785,7 +71785,7 @@ MESSAGE_REFERENCE = [
     "message": "rust_preview_direct_tier_failed source=%s; continuing with full quality",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_cache.py": 740
+      "cdmw/services/mesh_rust_preview_cache.py": 741
     }
   },
   {
@@ -79886,6 +79886,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/core/streaming_json.py": 57
+    }
+  },
+  {
+    "area": "other",
+    "message": "JSON file exceeds its size limit",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/services/json_file_facts.py": 88
     }
   },
   {
@@ -106926,6 +106934,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/iteminfo_dependency_graph.py": {
     "raise": 12
+  },
+  "cdmw/services/json_file_facts.py": {
+    "raise": 1
   },
   "cdmw/services/keymap_store.py": {
     "log": 1

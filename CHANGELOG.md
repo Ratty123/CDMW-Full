@@ -97,6 +97,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - In the Mesh Editor, Esc clears the selection when there is nothing else for it to cancel or close, as a click on empty space in the view does.
 - Gimmick rows from game 1.0.0.3663 decode again; CDMW had refused every one of them, base and DLC, with "Invalid compact static presence flag." The update added two fields to each gimmick and a new kind of condition, which moved the numbers of most later condition kinds. Condition, interaction, character, inventory and minigame rows that use those conditions decode again too, and rows from earlier game versions are still read. Browse Archives shows these rows' fields again. Not yet checked in game.
 - Selecting a model in **Browse Archives** no longer pauses the window while CDMW lists the model's related files. It looked up the full path of the archive file once for every related entry, about 0.2 s for one armour piece; it now looks each archive file up once.
+- **Open in Mesh Editor** no longer pauses the window while CDMW checks that Browse's preview belongs to the chosen model. The check read the whole preview description, megabytes for an armour piece, several times per open; each file is now read once while it is unchanged, and read again when it changes.
 
 ### Docs
 
