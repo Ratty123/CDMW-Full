@@ -1983,8 +1983,17 @@ def _package_stamp(manifest_path: Path, folders) -> tuple | None:
     return tuple(stamps)
 
 
+# Volumes whose times are whole 10 ms steps (FAT, exFAT) do not reliably
+# change a folder's time when a file in it goes: nothing is remembered there.
+_VALID_PACKAGE_COARSE_STEP_NS = 10_000_000
+
+
 def _stamp_older_than(stamp: tuple, started_ns: int) -> bool:
-    return all(started_ns - int(item[-1]) >= _VALID_PACKAGE_MIN_AGE_NS for item in stamp)
+    return all(
+        started_ns - int(item[-1]) >= _VALID_PACKAGE_MIN_AGE_NS
+        and int(item[-1]) % _VALID_PACKAGE_COARSE_STEP_NS != 0
+        for item in stamp
+    )
 
 
 def _known_valid_package(package_dir: Path) -> bool:

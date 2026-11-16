@@ -115,3 +115,30 @@ def test_full_checks_always_run_in_full(package, walks):
     walked = len(walks)
     assert preview_package.validate_rust_preview_package(package, hash_unverified=True) == ()
     assert len(walks) > walked
+
+
+def test_the_workers_full_check_primes_the_ui_check(package, walks):
+    from cdmw.services.mesh_rust_preview_cache import validate_rust_preview_cache_package
+
+    assert validate_rust_preview_cache_package(package) == (True, ())
+    walked = len(walks)
+    assert validate_resident_rust_preview_package(package) == (True, ())
+    assert len(walks) == walked, "the UI check walked a package the worker had just checked"
+
+
+def test_a_package_written_just_now_is_not_remembered(tmp_path, walks):
+    fresh = preview_package.build_rust_preview_prewarm_package(tmp_path / "fresh-cache")
+    assert validate_resident_rust_preview_package(fresh.package_dir) == (True, ())
+    walked = len(walks)
+    assert validate_resident_rust_preview_package(fresh.package_dir) == (True, ())
+    assert len(walks) > walked
+
+
+def test_coarse_volume_times_are_not_trusted(package, walks):
+    whole = (int(time.time()) - 60) * 1_000_000_000
+    for path in [*package.rglob("*"), package]:
+        os.utime(path, ns=(whole, whole))
+    assert validate_resident_rust_preview_package(package) == (True, ())
+    walked = len(walks)
+    assert validate_resident_rust_preview_package(package) == (True, ())
+    assert len(walks) > walked
