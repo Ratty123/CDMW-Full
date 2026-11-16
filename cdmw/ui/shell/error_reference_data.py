@@ -69216,7 +69216,7 @@ MESSAGE_REFERENCE = [
     "message": "native history normal recompute failed and Python fallback was blocked",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service_native_session.py": 942
+      "cdmw/services/mesh_service_native_session.py": 944
     }
   },
   {
@@ -69873,7 +69873,7 @@ MESSAGE_REFERENCE = [
     "message": "native sparse history restore failed and Python fallback was blocked",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_service_native_session.py": 919
+      "cdmw/services/mesh_service_native_session.py": 921
     }
   },
   {
