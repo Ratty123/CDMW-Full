@@ -74190,7 +74190,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 932
+      "cdmw/automation/bridge.py": 941
     }
   },
   {
@@ -83706,7 +83706,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 936
+      "cdmw/automation/bridge.py": 945
     }
   },
   {

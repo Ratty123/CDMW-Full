@@ -787,9 +787,10 @@ class AutomationBridge(QObject):
 
     @staticmethod
     def _texture_marker(editor, args: dict) -> bool:
-        """A test edit that reads as one at a glance: a short solid bar in one colour
-        (magenta unless ``color`` says otherwise) across the texture's centre, painted with
-        the Paint tool and committed as the canvas commits a stroke."""
+        """A test edit that reads as one at a glance: a solid cross in one colour (magenta
+        unless ``color`` says otherwise) through the whole texture, so it lands on a part the
+        model shows wherever the texture is mapped. One Paint stroke traced along the cross's
+        own lines (one history entry), committed as the canvas commits a stroke."""
 
         document = editor.document
         width = int(getattr(document, "width", 0) or 0)
@@ -798,14 +799,22 @@ class AutomationBridge(QObject):
             return False
         editor._set_active_tool("paint")
         editor.paint_color_edit.setText(str(args.get("color", "#FF00FF")))
-        size = min(editor.brush_size_slider.maximum(), max(8, width // 16))
+        size = min(editor.brush_size_slider.maximum(), max(8, min(width, height) // 24))
         editor.brush_size_slider.setValue(size)
         for slider in (editor.hardness_slider, editor.opacity_slider, editor.flow_slider):
             slider.setValue(slider.maximum())
         editor._handle_tool_settings_changed()
-        y = height // 2
-        start = width // 2 - size
-        points = [(x, y) for x in range(start, start + 2 * size + 1, max(1, size // 4))]
+        cx, cy, step = width // 2, height // 2, max(1, size // 4)
+
+        def line(a, b):
+            (x0, y0), (x1, y1) = a, b
+            count = max(1, max(abs(x1 - x0), abs(y1 - y0)) // step)
+            return [(x0 + (x1 - x0) * i // count, y0 + (y1 - y0) * i // count) for i in range(count + 1)]
+
+        corners = [(0, cy), (width - 1, cy), (cx, cy), (cx, 0), (cx, height - 1)]
+        points = [corners[0]]
+        for a, b in zip(corners, corners[1:]):
+            points.extend(line(a, b)[1:])
         editor.canvas.stroke_committed.emit({"tool": "paint", "points": points})
         return True
 

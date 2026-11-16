@@ -31,7 +31,7 @@ class _Slider:
         return self._value
 
 
-def test_the_marker_is_one_solid_paint_stroke_across_the_centre():
+def test_the_marker_is_one_solid_stroke_crossing_the_whole_texture():
     strokes, tools, synced = [], [], []
     color = SimpleNamespace(text="", setText=lambda value: setattr(color, "text", value))
     editor = SimpleNamespace(
@@ -42,12 +42,15 @@ def test_the_marker_is_one_solid_paint_stroke_across_the_centre():
         canvas=SimpleNamespace(stroke_committed=SimpleNamespace(emit=strokes.append)))
     assert bridge_module.AutomationBridge._texture_marker(editor, {}) is True
     assert tools == ["paint"] and color.text == "#FF00FF" and synced == [True]
-    assert editor.brush_size_slider.value() == 64
+    assert editor.brush_size_slider.value() == 512 // 24
     assert editor.hardness_slider.value() == editor.opacity_slider.value() == editor.flow_slider.value() == 100
     (stroke,) = strokes
     assert stroke["tool"] == "paint"
-    assert {y for _x, y in stroke["points"]} == {256}
-    assert stroke["points"][0][0] == 512 - 64 and stroke["points"][-1][0] == 512 + 64
+    points = stroke["points"]
+    # A cross through the whole texture, in one stroke along its own lines.
+    assert all(x == 512 or y == 256 for x, y in points)
+    assert (0, 256) in points and (1023, 256) in points
+    assert (512, 0) in points and (512, 511) in points
     editor.document = SimpleNamespace(width=0, height=0)
     assert bridge_module.AutomationBridge._texture_marker(editor, {}) is False
 
