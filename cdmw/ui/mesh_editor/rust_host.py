@@ -86,6 +86,8 @@ class RustMeshEditorHostFrame(QFrame):
     continue_modified_mesh_requested = Signal()
     reopen_edit_requested = Signal()
     close_session_requested = Signal()
+    # The device pixel ratio of the screen this frame is on, when it changes.
+    scale_changed = Signal(float)
 
     def __init__(
         self,
@@ -108,6 +110,7 @@ class RustMeshEditorHostFrame(QFrame):
         self._child_process_id = 0
         self._launch_parent_hwnd = 0
         self._editor_visible = False
+        self._reported_scale: float | None = None
         self._focus_request_supported = False
         self._focus_timer = QTimer(self)
         self._focus_timer.setSingleShot(True)
@@ -487,6 +490,11 @@ class RustMeshEditorHostFrame(QFrame):
             "DevicePixelRatioChange",
             None,
         )
+        if event_type in {QEvent.Type.Show, QEvent.Type.ScreenChangeInternal} or (
+            device_pixel_ratio_change is not None
+            and event_type == device_pixel_ratio_change
+        ):
+            self._report_scale()
         if event_type == QEvent.Type.WinIdChange and self._child_hwnd > 0:
             self._reparent_child()
         elif event_type in {
@@ -514,6 +522,14 @@ class RustMeshEditorHostFrame(QFrame):
         elif event_type == QEvent.Type.FocusOut:
             self._focus_timer.stop()
         return super().event(event)
+
+    def _report_scale(self) -> None:
+        # The embedded editor's child window keeps the scale of the monitor it was
+        # created on, so it draws at the scale CDMW sends: that of this frame's screen.
+        scale = float(self.devicePixelRatioF())
+        if scale != self._reported_scale:
+            self._reported_scale = scale
+            self.scale_changed.emit(scale)
 
     def _request_child_focus(self) -> None:
         if self._focus_request_supported and self._editor_visible and self.isVisible() and self.hasFocus():

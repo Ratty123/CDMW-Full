@@ -100,6 +100,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Showing a set or a large model in Browse Archives no longer pauses the window while CDMW records its files' dates and sizes for reuse, about 2 s for the Hernandian Honor Guard set; this now runs in the background, and a file changed since is still found before the cached preview is reused.
 - In the Mesh Editor, Esc clears the selection when there is nothing else for it to cancel or close, as a click on empty space in the view does.
 - The Mesh Editor's check for other game files that use an opened texture no longer stays on "Checking whether other game files use this texture..." for good once Browse Archives has scanned the archives: the catalogue turned its search away before it started. The Texture Editor panel now names the files found so far within a few seconds (about 3 s for an armour texture on the current game), says it is still searching the rest, and finishes in about a minute. The answer is kept while the archives stay open, so opening the texture again, also in another Mesh Editor tab, answers at once. When the search stops at its limit, the panel says there may be more.
+- With monitors at different scales, such as 150 % and 100 %, the Mesh Editor's text no longer comes out 1.5 times larger or smaller than the docked Texture Editor panel and the rest of CDMW. The editor kept the scale of the monitor it was first opened on; it now uses the scale of the screen CDMW is on, and follows when the window moves to another monitor.
 
 ### Docs
 

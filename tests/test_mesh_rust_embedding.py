@@ -143,6 +143,46 @@ def test_live_theme_change_is_sent_to_the_ready_embedded_child(tmp_path: Path) -
     assert sent[-1]["payload"]["variant"] == "dark"
 
 
+def test_host_sends_its_own_screen_scale_again_after_a_screen_or_dpi_change(tmp_path: Path) -> None:
+    # The embedded editor draws at the scale the host sends (its child window keeps
+    # the scale of the monitor it was created on), so the host sends the scale of
+    # the screen its frame is on now, not the primary screen's, and sends it again
+    # when the frame moves to another screen or that screen's DPI changes.
+    tab = _tab(tmp_path)
+    sent: list[dict[str, object]] = []
+    tab.standalone_rust_ready = True
+    tab._send_rust_message = lambda payload: sent.append(dict(payload)) or True  # type: ignore[method-assign]
+    frame = tab.standalone_native_host_frame
+    ratio = {"value": 1.0}
+    frame.devicePixelRatioF = lambda: ratio["value"]  # type: ignore[method-assign]
+    application = QApplication.instance()
+    assert application is not None
+    try:
+        assert tab._send_rust_theme_update() is True
+        assert sent[-1]["payload"]["scale"] == 1.0
+
+        for event_type, value in (
+            (QEvent.Type.DevicePixelRatioChange, 1.5),  # this screen's DPI changed
+            (QEvent.Type.ScreenChangeInternal, 1.0),  # moved to a 96 dpi screen
+            (QEvent.Type.ScreenChangeInternal, 1.5),  # and back to the 150 % one
+        ):
+            sent.clear()
+            ratio["value"] = value
+            QApplication.sendEvent(frame, QEvent(event_type))
+            application.processEvents()
+            updates = [message for message in sent if message["event"] == "theme_update"]
+            assert updates, f"no theme_update after {event_type!r} to {value}"
+            assert updates[-1]["payload"]["scale"] == value
+
+        # The scale the editor already holds is not sent again.
+        sent.clear()
+        QApplication.sendEvent(frame, QEvent(QEvent.Type.DevicePixelRatioChange))
+        application.processEvents()
+        assert sent == []
+    finally:
+        tab.deleteLater()
+
+
 def test_native_theme_palette_fixture_matches_the_application_themes() -> None:
     # The Rust editor's theme readability test runs on this copy of every palette.
     from cdmw.ui.theme_schemes import UI_THEME_SCHEMES
