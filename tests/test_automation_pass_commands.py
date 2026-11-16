@@ -49,3 +49,23 @@ def test_scene_panel_tick_unticks_every_part_of_that_file_only() -> None:
     assert panel.hidden_indices == (2,)
     assert dict(panel.ticked_files()) == {SWORD: ()}
     assert not pass_commands.scene_panel_tick(window, {"path": "missing.pac", "ticked": False})
+
+
+def test_draft_choice_answer_clicks_start_fresh_or_resume() -> None:
+    from PySide6.QtWidgets import QPushButton, QWidget
+
+    clicks: list[str] = []
+    holder = QWidget()
+    tab = SimpleNamespace(_draft_choice_showing=lambda: True,
+                          draft_start_fresh_button=QPushButton(), draft_resume_button=QPushButton())
+    tab.draft_start_fresh_button.clicked.connect(lambda: clicks.append("fresh"))
+    tab.draft_resume_button.clicked.connect(lambda: clicks.append("resume"))
+    holder.active = tab
+    window = SimpleNamespace(shell=SimpleNamespace(mesh_editor_tab=holder))
+    assert pass_commands.draft_choice_showing(window)
+    assert pass_commands.draft_choice_answer(window, {})
+    assert pass_commands.draft_choice_answer(window, {"answer": "resume"})
+    assert clicks == ["fresh", "resume"]
+    tab._draft_choice_showing = lambda: False
+    assert not pass_commands.draft_choice_answer(window, {})
+    holder.deleteLater()

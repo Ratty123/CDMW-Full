@@ -172,6 +172,7 @@ class AutomationBridge(QObject):
             # Click-like checks for the built exe's pass (pass_commands.py).
             "preview_settings_page_check": lambda args: pass_commands.preview_settings_page_check(self.window, args),
             "scene_panel_tick": lambda args: pass_commands.scene_panel_tick(self.window, args),
+            "draft_choice_answer": lambda args: pass_commands.draft_choice_answer(self.window, args),
         }
 
     # ----- lifecycle -------------------------------------------------------
@@ -366,6 +367,8 @@ class AutomationBridge(QObject):
                 "in_browse": getattr(getattr(tab, "live_edit", None), "viewport_binding", None) is not None,
                 "process_id": self._editor_process_id(tab),
                 "texture_unavailable_reason": str(getattr(tab, "standalone_rust_texture_unavailable_reason", "") or ""),
+                # "Continue where you left off?" is shown and waits for an answer.
+                "draft_choice": pass_commands.draft_choice_showing(self.window),
                 **({} if args.get("light") else {
                     "revision": self._editor_revision(tab),
                     # Editor steps no Finish has taken (journey 3).

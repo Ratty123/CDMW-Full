@@ -66,3 +66,30 @@ def scene_panel_tick(window, args: dict) -> bool:
             group.setCheckState(0, Qt.CheckState.Checked if args.get("ticked", True) else Qt.CheckState.Unchecked)
             return True
     return False
+
+
+def _shown_document(window):
+    from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+    view = created_tool_widget(window.shell.mesh_editor_tab)
+    return getattr(view, "active", None) or view
+
+
+def draft_choice_showing(window) -> bool:
+    """Whether the shown Mesh Editor document asks "Continue where you left off?"."""
+
+    tab = _shown_document(window)
+    showing = getattr(tab, "_draft_choice_showing", None)
+    return bool(callable(showing) and showing())
+
+
+def draft_choice_answer(window, args: dict) -> bool:
+    """Answer "Continue where you left off?" as a click does: ``fresh`` (Start Fresh,
+    the default) or ``resume`` (Resume the newest draft)."""
+
+    tab = _shown_document(window)
+    if not draft_choice_showing(window):
+        return False
+    button = tab.draft_resume_button if args.get("answer") == "resume" else tab.draft_start_fresh_button
+    button.click()
+    return True
