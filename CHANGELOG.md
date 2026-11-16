@@ -91,6 +91,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - The **Scene** panel names a set's parts as the Mesh Editor's **Parts** list does, in the same order, instead of by their material names. Parts that share a name show their material or their number in the list, and a file's part count is no longer cut off.
 - Opening a set in the Mesh Editor, or showing a large model, no longer holds the window while CDMW checks the cached preview files. The check resolved every file's full path one by one, about 0.1 s for each of a set's files with warm caches and over 10 s in all on a first open; it now checks each folder once and still refuses a file reached through a link out of the cache.
 - The Mesh Editor no longer builds its hidden panels when an edit opens, which paused the window for about 2.5 s the first time a set was opened.
+- Showing a set or a large model in Browse Archives no longer pauses the window while CDMW records its files' dates and sizes for reuse, about 2 s for the Hernandian Honor Guard set; this now runs in the background, and a file changed since is still found before the cached preview is reused.
 
 ### Docs
 
