@@ -78216,6 +78216,46 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "GimmickInfo row {source_key} carries another key.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 214
+    }
+  },
+  {
+    "area": "other",
+    "message": "GimmickInfo {source_key} does not name housing object {source_housing}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 218
+    }
+  },
+  {
+    "area": "other",
+    "message": "GimmickInfo {source_key} does not turn into item {source_item}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 216
+    }
+  },
+  {
+    "area": "other",
+    "message": "GimmickInfo {source_key} has no name of the shipped painting shape.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 222
+    }
+  },
+  {
+    "area": "other",
+    "message": "GimmickInfo {source_key} names no prefab.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 225
+    }
+  },
+  {
+    "area": "other",
     "message": "Give an extension or a path",
     "recovery": "internal",
     "sources": {
@@ -78620,6 +78660,30 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/services/hair_registration.py": 46
+    }
+  },
+  {
+    "area": "other",
+    "message": "Housing object {housing_key} is already in this group.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 272
+    }
+  },
+  {
+    "area": "other",
+    "message": "HousingObjectInfo row {source_key} carries another key.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 245
+    }
+  },
+  {
+    "area": "other",
+    "message": "HousingObjectInfo {source_key} does not name gimmick {source_gimmick}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 247
     }
   },
   {
@@ -79458,6 +79522,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Item {source_key} cannot be cloned: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/painting_records.py": 305
+    }
+  },
+  {
+    "area": "other",
+    "message": "Item {source_key} does not name gimmick {source_gimmick}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 307
+    }
+  },
+  {
+    "area": "other",
     "message": "Item-name search: iteminfo.pabgh was not found beside iteminfo.pabgb; falling back to the marker scan, which finds fewer items.",
     "recovery": "missing",
     "sources": {
@@ -79502,6 +79582,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/item_use_reward.py": 61
+    }
+  },
+  {
+    "area": "other",
+    "message": "ItemInfo row {source_key} carries another key.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 300
     }
   },
   {
@@ -80010,6 +80098,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Material {wanted} has {len(found)} base colour textures, not one.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 335
+    }
+  },
+  {
+    "area": "other",
     "message": "Mesh coordinate transform is invalid.",
     "recovery": "input",
     "sources": {
@@ -80495,6 +80591,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/final_package_builder.py": 603
+    }
+  },
+  {
+    "area": "other",
+    "message": "No free {what} key is left.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 109
     }
   },
   {
@@ -83279,6 +83383,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The frame's material file has {len(blocks)} materials named {wanted}, not one.",
+    "recovery": "locked",
+    "sources": {
+      "cdmw/core/painting_records.py": 331
+    }
+  },
+  {
+    "area": "other",
     "message": "The game archives have no {table} table.",
     "recovery": "internal",
     "sources": {
@@ -83403,6 +83515,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/character_finder/dialog.py": 873
+    }
+  },
+  {
+    "area": "other",
+    "message": "The housing group's member list cannot be read: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/painting_records.py": 263
     }
   },
   {
@@ -83547,6 +83667,14 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/hair_registration.py": 121
+    }
+  },
+  {
+    "area": "other",
+    "message": "The new prefab path must keep the source path's leading slash.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/painting_records.py": 227
     }
   },
   {
@@ -83871,6 +83999,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The source painting's prefab or material path has no folder.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 157
+    }
+  },
+  {
+    "area": "other",
+    "message": "The source {kind} row cannot be read: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/painting_records.py": 185
+    }
+  },
+  {
+    "area": "other",
     "message": "The standalone archive session is unavailable.",
     "recovery": "missing",
     "sources": {
@@ -83988,6 +84132,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/game_table_edits.py": 367
+    }
+  },
+  {
+    "area": "other",
+    "message": "The {layout.kind} clone could not be written: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/painting_records.py": 192
     }
   },
   {
@@ -89010,6 +89162,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{field} is not a text value in this row.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/painting_records.py": 177
+    }
+  },
+  {
+    "area": "other",
+    "message": "{field} is not a {width * 8}-bit key in this row.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/painting_records.py": 171
+    }
+  },
+  {
+    "area": "other",
     "message": "{folder.name} has no {group}/0.pamt.",
     "recovery": "internal",
     "sources": {
@@ -90182,6 +90350,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/itemgroupinfo_table.py": 148
+    }
+  },
+  {
+    "area": "other",
+    "message": "{value} is not a gimmick prefab path of the shipped shape.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/painting_records.py": 146
     }
   },
   {
@@ -104947,6 +105123,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/pac_xml_surface_layer.py": {
     "raise": 1
+  },
+  "cdmw/core/painting_records.py": {
+    "raise": 22
   },
   "cdmw/core/paloc_format.py": {
     "raise": 19
