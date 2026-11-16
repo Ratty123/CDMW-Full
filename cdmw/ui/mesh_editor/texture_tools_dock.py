@@ -29,6 +29,7 @@ import numpy as np
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, Signal
 from PySide6.QtGui import QFont, QImage, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QDockWidget,
     QFrame,
     QGridLayout,
@@ -383,12 +384,23 @@ class MeshEditorTextureTools(QDockWidget):
         font = self._ui_font
         if font is None:
             return
-        for widget in (self, *self.findChildren(QWidget)):
-            if widget.font() != font or not widget.testAttribute(Qt.WidgetAttribute.WA_SetFont):
-                widget.setFont(font)
         sync = getattr(self.editor, "sync_ui_font", None)
         if callable(sync):
             sync(QFont(font))  # its sizes that follow the font
+        for widget in (self, *self.findChildren(QWidget)):
+            # The size and family only: a bold title or section header stays bold.
+            own = QFont(widget.font())
+            own.setFamilies(font.families() or [font.family()])
+            own.setPointSizeF(font.pointSizeF())
+            if widget is self and own == QApplication.font("QDockWidget"):
+                # Qt paints a dock's title in the title font it read when the dock was
+                # made unless the dock's font differs from its class font; a style hint
+                # (used only when the family is missing) makes it differ, so the title
+                # follows the size too.
+                own.setStyleHint(QFont.StyleHint.System if own.styleHint() != QFont.StyleHint.System
+                                 else QFont.StyleHint.AnyStyle)
+            if own != widget.font() or not widget.testAttribute(Qt.WidgetAttribute.WA_SetFont):
+                widget.setFont(own)
         self._fit_colour_fields()
         self._draw_warning_marker()
 

@@ -102847,7 +102847,7 @@ MESSAGE_REFERENCE = [
     "message": "texture pixels must be RGBA",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/texture_tools_dock.py": 80
+      "cdmw/ui/mesh_editor/texture_tools_dock.py": 81
     }
   },
   {

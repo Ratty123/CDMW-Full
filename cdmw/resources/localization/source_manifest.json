@@ -47446,7 +47446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/texture_tools_dock.py",
-          "line": 175,
+          "line": 176,
           "sink": "QLabel"
         }
       ]
@@ -165861,7 +165861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/texture_tools_dock.py",
-          "line": 122,
+          "line": 123,
           "sink": "python-return:unseen_texture_notice"
         }
       ]
@@ -175066,7 +175066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/texture_tools_dock.py",
-          "line": 116,
+          "line": 117,
           "sink": "python-return:shared_texture_notice"
         }
       ]
@@ -211831,7 +211831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/texture_tools_dock.py",
-          "line": 80,
+          "line": 81,
           "sink": "ValueError"
         }
       ]

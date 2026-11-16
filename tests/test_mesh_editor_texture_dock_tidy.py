@@ -272,3 +272,92 @@ def test_the_panel_uses_the_mesh_editors_font_size_and_follows_a_change(tmp_path
     finally:
         page.deleteLater()
         _install_app_fonts(_APP, before, before)
+
+
+def _title_ink_height(tools: MeshEditorTextureTools) -> int:
+    """How tall the dock title's text is drawn, in pixels."""
+
+    image = tools.grab().toImage()
+    top = tools.widget().geometry().top()
+    rows = [y for y in range(top) if any(image.pixelColor(x, y).lightness() > 110 for x in range(2, 120))]
+    return rows[-1] - rows[0] + 1 if rows else 0
+
+
+def test_the_dock_title_follows_the_size_and_bold_text_stays_bold(tmp_path: Path) -> None:
+    from PySide6.QtGui import QPalette
+
+    tools = MeshEditorTextureTools(editor_factory=_Editor)
+    host = _shown(tools)
+    palette = tools.palette()
+    palette.setColor(QPalette.ColorRole.Window, Qt.GlobalColor.black)
+    palette.setColor(QPalette.ColorRole.WindowText, Qt.GlobalColor.white)
+    tools.setPalette(palette)
+    try:
+        tools.open_target(_target(tmp_path))
+        bold = QFont(tools.title_label.font())
+        bold.setWeight(QFont.Weight.DemiBold)
+        tools.title_label.setFont(bold)  # as the app stylesheet's section title is
+        heights = {}
+        for points in (8, 16):
+            tools.sync_ui_font(QFont(_APP.font().family(), points))
+            _settle()
+            heights[points] = _title_ink_height(tools)
+            assert tools.title_label.font().pointSizeF() == points
+            assert tools.title_label.font().weight() == QFont.Weight.DemiBold
+        # Qt draws a dock title in the font it read when the dock was made, unless told.
+        assert heights[16] > heights[8] > 0
+    finally:
+        host.deleteLater()
+
+
+def test_the_real_texture_editor_follows_the_font_and_takes_the_keys(tmp_path: Path) -> None:
+    from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
+    from cdmw.ui.shell.theme_controller import (
+        _apply_data_fonts_to_widget_tree,
+        _apply_ui_fonts_to_widget_tree,
+        _install_app_fonts,
+        apply_app_fonts,
+    )
+
+    before = QFont(_APP.font())
+    settings = QSettings(str(tmp_path / "app.ini"), QSettings.Format.IniFormat)
+    page = MeshEditorWorkspace(theme_key="graphite", defer_legacy_panels=True)
+    tools = page.texture_tools_dock
+    tools.settings = settings
+    tools.base_dir = tmp_path
+
+    def change_in_settings(ui_points: int, data_points: int) -> None:
+        settings.setValue("appearance/ui_font_size", ui_points)
+        settings.setValue("appearance/data_font_size", data_points)
+        ui_font, data_font = apply_app_fonts(_APP, settings)
+        _apply_ui_fonts_to_widget_tree(page, ui_font)
+        _apply_data_fonts_to_widget_tree(page, data_font)
+        page.sync_ui_font(ui_font, data_font)
+        _settle()
+
+    try:
+        page.resize(1400, 900)
+        page.show()
+        editor = tools._ensure_editor()  # the real Texture Editor
+        tools.show()
+        change_in_settings(9, 8)
+        small = editor.tool_buttons["paint"].height()
+        change_in_settings(14, 9)
+        assert _sizes(tools) == {14}
+        assert editor.layers_list.font().pointSizeF() == 14 and editor.history_list.font().pointSizeF() == 14
+        assert editor.tool_buttons["paint"].height() > small  # its own sizes follow the font
+        asked = []
+        tools.step_handler = lambda step: asked.append(step) or True
+        page.activateWindow()
+        # The tools and the canvas stay disabled until a texture has loaded; the rail
+        # around them takes focus, as after a click between its controls.
+        rail = tools.split.widget(0)
+        rail.setFocus()
+        _settle()
+        assert QApplication.focusWidget() is rail
+        _press(rail, Qt.Key.Key_Z)
+        _press(rail, Qt.Key.Key_Y)
+        assert asked == ["undo", "redo"]
+    finally:
+        page.deleteLater()
+        _install_app_fonts(_APP, before, before)
