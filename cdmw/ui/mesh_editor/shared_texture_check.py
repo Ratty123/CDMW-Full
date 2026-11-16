@@ -200,7 +200,9 @@ class SharedTextureCheck(QObject):
         key = _key(game_path)
         result = self._results.get(key)
         if result is not None:
-            return result
+            answer = _ANSWERS.get((result.session_id, key)) if result.finished else None
+            # The opened model can change in the tab: its own files are taken out on every read.
+            return self._texture_users_answer(game_path, result.session_id, answer) if answer is not None else result
         session_id = self._session_id()
         answer = _ANSWERS.get((session_id, key)) if session_id else None
         return self._texture_users_answer(game_path, session_id, answer) if answer is not None else None

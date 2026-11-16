@@ -255,3 +255,17 @@ def test_the_check_finds_confirmed_users_through_the_real_search_after_a_rescan(
     assert ".pac_xml" in quick.extensions and set(bulky.extensions) == BULK_REFERENCE_SOURCES
     assert ".pac" not in (*quick.extensions, *middle.extensions, *bulky.extensions)
     assert min(catalogue.generations) == catalogue.minimum_ui_generation
+
+
+def test_another_model_opened_in_the_same_tab_gets_its_own_files_left_out():
+    controllers = _Controllers()
+    own = ["cd_phm_00_ub_00_0374"]
+    check = SharedTextureCheck(controllers, lambda path: _entry(TEXTURE), lambda: "session-a", lambda: list(own))
+    check.search_texture_users(TEXTURE)
+    controllers.made[0].finish(references=(_ref(OWN), _ref(OTHER)))
+    controllers.made[1].finish(references=())
+    controllers.made[1].finish(references=())
+    assert check.texture_users_found(TEXTURE).other_files == (OTHER,)
+    own[:] = ["cd_nhm_00_so_ub_10109"]  # the tab now shows the other model
+    check.search_texture_users(TEXTURE)
+    assert check.texture_users_found(TEXTURE).other_files == (OWN,)
