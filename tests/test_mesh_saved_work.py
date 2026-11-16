@@ -806,6 +806,43 @@ def test_opening_a_file_with_drafts_asks_before_loading_and_each_answer_loads_on
         app.processEvents()
 
 
+@pytest.mark.parametrize("edit_set", [True, False], ids=["set", "member"])
+def test_start_fresh_on_a_set_whose_first_file_has_a_draft_still_opens_the_set(game, tmp_path, edit_set):
+    from unittest.mock import patch
+
+    from PySide6.QtCore import QSettings
+
+    from cdmw.ui.mesh_editor.tab import MeshEditorTab
+
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings(str(tmp_path / "ui.ini"), QSettings.IniFormat))
+    # Drafts are found by the first file's bytes, so a draft of that file alone is offered.
+    manifest = _draft_on_disk(tab.mesh_editor_draft_root, game.entry, game.source, "Upper body", now=time.time())
+    lower = _prepared(tmp_path / "prepared", "character/model/saved-work-lower.pac", game.source, game=game.root)
+    contexts = (game.context, _context(lower, (lower, *game.context.entries[1:])))
+    try:
+        with patch("cdmw.workers.mesh_editor_aux_workers.MeshService", side_effect=AssertionError("loaded")):
+            tab.open_archive_session(game.entry, archive_dependencies=game.context,
+                                     item_set_contexts=contexts, edit_item_set=edit_set)
+            _wait(app, lambda: tab._draft_choice_showing() and tab.archive_session_load_thread is None)
+        assert [draft.manifest_path for draft in tab.mesh_editor_matching_drafts] == [manifest]
+
+        with patch.object(tab, "_start_archive_session_load_worker") as start:
+            tab.draft_start_fresh_button.click()
+            start.assert_called_once()
+            assert start.call_args.kwargs["resume_manifest_path"] is None
+        assert tab.archive_session_offers_drafts is False
+        # The editor launches from these, so the set opens with every file.
+        assert tab.item_set_contexts == contexts
+        assert tab.edit_item_set is edit_set
+        assert tab.archive_session_retry_request["item_set_contexts"] == contexts
+        assert tab.archive_session_retry_request["edit_item_set"] is edit_set
+    finally:
+        tab.close_standalone_session()
+        tab.deleteLater()
+        app.processEvents()
+
+
 def test_explicit_opens_load_with_the_drafts_listed_and_the_top_bar_keeps_its_order(game, tmp_path):
     from PySide6.QtCore import QSettings
 

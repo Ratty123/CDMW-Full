@@ -51,6 +51,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Open set in Mesh Editor** opens the whole set when its first file has a saved draft and you answer "Continue where you left off?" with **Start Fresh**. It used to open only that first file.
 - **Open set in Mesh Editor** opens the set even when its first file is already open alone in the Mesh Editor, for example after you finished and built that piece; it opens beside that edit. It used to start that one file's editor again, which then closed at once with "Mesh Editor closed (exit 0); its shadow changes were discarded." An editor that cannot start inside the running 3D preview now starts on its own, and CDMW's diagnostics log keeps the reason, instead of being reported as a crash with no reason.
 - The window pauses much less while CDMW works in the background, for example while Character Finder's thumbnails are prepared. The window's thread now waits at most about 1 ms, instead of 5 ms, each time it needs Python's lock while such work runs. It needs that lock several times for every click, repaint and timer, so the waits had added up to pauses of a second or more.
 - Opening a model in the **Mesh Editor** while Browse Archives still showed its quick preview could give it the wrong materials: grey cloth, shiny blue sleeves and a noisy surface on armour such as `cd_phm_00_ub_00_0374`. The open now waits for Browse's full preview (the status bar says so) and then opens with the model's real materials.

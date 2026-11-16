@@ -171,9 +171,13 @@ class MeshEditorDraftChoiceMixin:
         if not isinstance(entry, ArchiveEntry):
             self.show_empty_state()
             return
-        # Naming the request is what keeps the new open from asking again.
+        # Naming the request is what keeps the new open from asking again. Drafts
+        # are found by the first file's bytes, so a set open can be asked about a
+        # draft of that file alone; starting fresh still opens the whole set.
         self._reopen_offered_archive_entry(
             draft_request=default_session_draft_request(entry, self.archive_session_dependencies),
+            item_set_contexts=tuple(self.item_set_contexts),
+            edit_item_set=bool(self.edit_item_set),
         )
 
     def _choose_archive_draft(self, _checked: bool = False) -> None:
