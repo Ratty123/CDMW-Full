@@ -2,9 +2,10 @@
 use super::*;
 
 impl LabApplication {
-    pub(super) fn draw_cdmw_shader_controls(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+    /// Draws the section and says whether it is (still partly) open.
+    pub(super) fn draw_cdmw_shader_controls(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) -> bool {
         let Some(state) = self.cdmw_state.get("shader_controls") else {
-            return;
+            return false;
         };
         crate::localization::collapsing("Shader experiments").id_salt("shader_controls").show(ui, |ui| {
             let selected = self.selected_part_indices();
@@ -112,6 +113,8 @@ impl LabApplication {
                 });
             });
             ui.ctx().data_mut(|data| data.insert_temp(key, value));
-        });
+        })
+        .openness
+            > 0.0
     }
 }

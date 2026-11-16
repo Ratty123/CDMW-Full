@@ -2,9 +2,10 @@
 use super::*;
 
 impl LabApplication {
-    pub(super) fn draw_cdmw_emission(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+    /// Draws the section and says whether it is (still partly) open.
+    pub(super) fn draw_cdmw_emission(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) -> bool {
         let Some(state) = self.cdmw_state.get("emission") else {
-            return;
+            return false;
         };
         crate::localization::collapsing("Glow (experimental)").id_salt("part_emission").show(ui, |ui| {
             let selected = self.selected_part_indices();
@@ -92,6 +93,8 @@ impl LabApplication {
                 });
             });
             ui.ctx().data_mut(|data| data.insert_temp(key, values));
-        });
+        })
+        .openness
+            > 0.0
     }
 }

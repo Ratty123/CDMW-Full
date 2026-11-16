@@ -1408,6 +1408,92 @@ fn cdmw_section<R>(
     .inner
 }
 
+fn cdmw_text_width(ui: &egui::Ui, text: String, style: egui::TextStyle) -> f32 {
+    ui.painter()
+        .layout_no_wrap(text, style.resolve(ui.style()), ui.visuals().text_color())
+        .size()
+        .x
+}
+
+/// The width a collapsed section header needs: the chevron's indent, the
+/// translated title in the button font and the padding after it.
+fn cdmw_collapsed_header_width(ui: &egui::Ui, title: &str) -> f32 {
+    (ui.spacing().indent
+        + cdmw_text_width(ui, crate::localization::tr(title), egui::TextStyle::Button)
+        + ui.spacing().button_padding.x)
+        .max(ui.spacing().interact_size.x)
+}
+
+/// The width of a side panel's top row: its collapse chevron and its title.
+fn cdmw_panel_title_width(ui: &egui::Ui, title: &str) -> f32 {
+    ui.spacing().interact_size.y.max(24.0)
+        + ui.spacing().item_spacing.x
+        + cdmw_text_width(ui, crate::localization::tr(title), egui::TextStyle::Body)
+}
+
+/// The outer width a side panel needs to show rows of these content widths
+/// whole: the panel's frame margin, its separator line and a scroll bar's room.
+fn cdmw_side_panel_fit(ui: &egui::Ui, rows: impl IntoIterator<Item = f32>) -> f32 {
+    let scroll = &ui.spacing().scroll;
+    let content = rows.into_iter().fold(0.0, f32::max);
+    (content
+        + egui::Frame::side_top_panel(ui.style()).total_margin().sum().x
+        + ui.visuals().widgets.noninteractive.bg_stroke.width.round()
+        + scroll.bar_inner_margin
+        + scroll.bar_width
+        + scroll.bar_outer_margin)
+        .ceil()
+}
+
+/// Shows a side panel that is only as wide as its content needs. While nothing
+/// in it is open the panel is exactly `compact` wide and cannot be dragged; the
+/// width the user gave it is kept and comes back as soon as a section needs the
+/// room. `needs_room` is what the caller knows before drawing (an active tool,
+/// an open list). The contents report a section they show open through the
+/// `&mut bool`, and the next frame sizes the panel by it. `panel` carries the
+/// sizing rules for the open panel.
+fn cdmw_show_fitted_side_panel<R>(
+    root_ui: &mut egui::Ui,
+    panel: egui::Panel,
+    id: egui::Id,
+    compact: f32,
+    needs_room: bool,
+    add_contents: impl FnOnce(&mut egui::Ui, &mut bool) -> R,
+) -> R {
+    use egui::containers::panel::PanelState;
+    let context = root_ui.ctx().clone();
+    let open_id = id.with("cdmw-fit-open");
+    let was_open = context.data(|data| data.get_temp::<bool>(open_id).unwrap_or(false));
+    let fitted = !needs_room && !was_open;
+    let mut open = needs_room;
+    let response = if fitted {
+        let remembered = PanelState::load(&context, id);
+        let response = panel
+            .exact_size(compact)
+            .resizable(false)
+            .show(root_ui, |ui| add_contents(ui, &mut open));
+        // egui stores the compact width as the panel's own; put back the
+        // user's width (or none, so the first open gets the default).
+        context.data_mut(|data| match remembered {
+            Some(state) => data.insert_persisted(id, state),
+            None => {
+                data.remove::<PanelState>(id);
+            }
+        });
+        response
+    } else {
+        panel.show(root_ui, |ui| add_contents(ui, &mut open))
+    };
+    if open != was_open {
+        context.data_mut(|data| data.insert_temp(open_id, open));
+    }
+    if open == fitted {
+        // A section opened or closed in this frame: size the panel for it.
+        context.request_repaint();
+    }
+    response.inner
+}
+
 // Both lists share the same aligned View / Include columns. Names and physics
 // truncate inside their cells; growing text never pushes a checkbox off-screen.
 pub(super) fn cdmw_list_columns(ui: &egui::Ui, detail: &str) -> [f32; 4] {
@@ -2896,12 +2982,44 @@ impl LabApplication {
         let policy_reason = state_str(&self.cdmw_state, "output_policy_reason")
             .unwrap_or("Authoring is unavailable under the current output policy")
             .to_owned();
-        egui::Panel::left("cdmw_tool_rail")
-            .default_size(264.0)
-            .min_size(220.0)
-            .max_size(340.0)
-            .resizable(true)
-            .show(root_ui, |ui| {
+        // Collapsed, the rail is as wide as its widest header; an open section
+        // gets the rail's usual width.
+        let compact = cdmw_side_panel_fit(
+            root_ui,
+            std::iter::once(cdmw_panel_title_width(root_ui, "Tools")).chain(
+                [
+                    "Viewport",
+                    "Output",
+                    "Selection",
+                    "Transform",
+                    "Sculpt",
+                    "Mesh Data",
+                    "Rig",
+                    "Morph & Refit",
+                ]
+                .map(|title| cdmw_collapsed_header_width(root_ui, title)),
+            ),
+        );
+        let reveal_pending = [keyboard::CDMW_REVEAL_VIEWPORT, CDMW_REVEAL_OUTPUT]
+            .iter()
+            .any(|key| {
+                root_ui
+                    .ctx()
+                    .data(|data| data.get_temp::<bool>(egui::Id::new(*key)))
+                    .unwrap_or(false)
+            });
+        let panel = egui::Panel::left("cdmw_tool_rail")
+            .default_size(264.0_f32.max(compact))
+            .min_size(220.0_f32.max(compact))
+            .max_size(340.0_f32.max(compact))
+            .resizable(true);
+        cdmw_show_fitted_side_panel(
+            root_ui,
+            panel,
+            egui::Id::new("cdmw_tool_rail"),
+            compact,
+            self.cdmw_rail_page.is_some() || reveal_pending,
+            |ui, open| {
                 ui.horizontal(|ui| {
                     if cdmw_sidebar_button(
                         ui,
@@ -2951,6 +3069,7 @@ impl LabApplication {
                                             actions,
                                         )
                                     });
+                                *open |= section.openness > 0.0;
                                 if reveal {
                                     section.header_response.scroll_to_me(Some(egui::Align::Min));
                                 }
@@ -2974,13 +3093,14 @@ impl LabApplication {
                                             actions,
                                         )
                                     });
+                                *open |= section.openness > 0.0;
                                 if reveal {
                                     section.header_response.scroll_to_me(Some(egui::Align::Min));
                                 }
                             });
                         });
                         ui.separator();
-                        self.draw_cdmw_tool_group(
+                        *open |= self.draw_cdmw_tool_group(
                             ui,
                             actions,
                             "Selection",
@@ -2989,7 +3109,7 @@ impl LabApplication {
                             authoring,
                             &policy_reason,
                         );
-                        self.draw_cdmw_tool_group(
+                        *open |= self.draw_cdmw_tool_group(
                             ui,
                             actions,
                             "Transform",
@@ -2998,7 +3118,7 @@ impl LabApplication {
                             authoring,
                             &policy_reason,
                         );
-                        self.draw_cdmw_tool_group(
+                        *open |= self.draw_cdmw_tool_group(
                             ui,
                             actions,
                             "Sculpt",
@@ -3007,7 +3127,7 @@ impl LabApplication {
                             authoring,
                             &policy_reason,
                         );
-                        self.draw_cdmw_tool_group(
+                        *open |= self.draw_cdmw_tool_group(
                             ui,
                             actions,
                             "Mesh Data",
@@ -3016,7 +3136,7 @@ impl LabApplication {
                             authoring,
                             &policy_reason,
                         );
-                        self.draw_cdmw_tool_group(
+                        *open |= self.draw_cdmw_tool_group(
                             ui,
                             actions,
                             "Rig",
@@ -3044,6 +3164,7 @@ impl LabApplication {
                                     })
                             })
                             .inner;
+                        *open |= morph.openness > 0.0;
                         if morph
                             .header_response
                             .on_disabled_hover_text(crate::localization::tr(&policy_reason))
@@ -3061,9 +3182,11 @@ impl LabApplication {
                 if morph_active {
                     self.draw_cdmw_morph_footer(ui, actions);
                 }
-            });
+            },
+        );
     }
 
+    /// Draws a tool group and says whether it is (still partly) open.
     #[allow(clippy::too_many_arguments)]
     fn draw_cdmw_tool_group(
         &mut self,
@@ -3074,7 +3197,7 @@ impl LabApplication {
         busy: bool,
         authoring: bool,
         policy_reason: &str,
-    ) {
+    ) -> bool {
         ui.add_space(3.0);
         let active = tools
             .iter()
@@ -3134,6 +3257,7 @@ impl LabApplication {
         } else if group.header_response.clicked() && direct_selection && !busy {
             self.activate_cdmw_rail_page(CdmwRailPage::Select, Some(ViewportTool::Select));
         }
+        group.openness > 0.0
     }
 
     fn draw_cdmw_tool_tab(
@@ -5234,16 +5358,30 @@ impl LabApplication {
                 .ctx()
                 .data_mut(|data| data.get_temp::<bool>(panel_id).unwrap_or(false));
         let columns = cdmw_list_columns(root_ui, "Physics");
+        // Collapsed, the Inspector is as wide as its widest header; the Parts
+        // list and open sections get its usual width.
+        let compact = self.cdmw_inspector_compact_width(root_ui);
         let min_width =
             (columns[1..].iter().sum::<f32>() + root_ui.spacing().item_spacing.x * 3.0 + 140.0)
                 .max(260.0)
-                .min((root_ui.available_width() - 120.0).max(260.0));
-        egui::Panel::right("cdmw_right_panels")
-            .default_size(340.0)
+                .min((root_ui.available_width() - 120.0).max(260.0))
+                .max(compact);
+        let hair_controls = self.cdmw_state["hair"]["available"]
+            .as_bool()
+            .unwrap_or(false)
+            || self.hair.state.is_some();
+        let panel = egui::Panel::right("cdmw_right_panels")
+            .default_size(340.0_f32.max(min_width))
             .min_size(min_width)
             .max_size(640.0_f32.max(min_width))
-            .resizable(true)
-            .show(root_ui, |ui| {
+            .resizable(true);
+        cdmw_show_fitted_side_panel(
+            root_ui,
+            panel,
+            egui::Id::new("cdmw_right_panels"),
+            compact,
+            parts_open || hair_controls || self.hair.active(),
+            |ui, open| {
                 ui.horizontal(|ui| {
                     if cdmw_sidebar_button(
                         ui,
@@ -5305,7 +5443,9 @@ impl LabApplication {
                 }
                 ScrollArea::vertical().show(ui, |ui| {
                     self.draw_hair_controls(ui, actions);
-                    ui.add_enabled_ui(!busy, |ui| self.draw_item_set_references(ui, actions));
+                    *open |= ui
+                        .add_enabled_ui(!busy, |ui| self.draw_item_set_references(ui, actions))
+                        .inner;
                     if self.hair.active() {
                         crate::localization::collapsing("Parts")
                             .show(ui, |ui| self.draw_hair_parts(ui, actions));
@@ -5331,31 +5471,77 @@ impl LabApplication {
                             ui.push_id("cdmw-materials", |ui| {
                                 egui::Frame::group(ui.style()).show(ui, |ui| {
                                     ui.set_width(ui.available_width());
-                                    self.draw_cdmw_translucency(ui, actions);
-                                    self.draw_cdmw_emission(ui, actions);
-                                    self.draw_cdmw_shader_controls(ui, actions);
+                                    *open |= self.draw_cdmw_translucency(ui, actions);
+                                    *open |= self.draw_cdmw_emission(ui, actions);
+                                    *open |= self.draw_cdmw_shader_controls(ui, actions);
                                 });
                             });
                         }
                         ui.add_space(6.0);
                         egui::Frame::group(ui.style()).show(ui, |ui| {
                             ui.set_width(ui.available_width());
-                            cdmw_section(ui, "cdmw-layers", "Geometry Layers", None, |ui| {
+                            let layers = cdmw_section(ui, "cdmw-layers", "Geometry Layers", None, |ui| {
                                 ui.add_enabled_ui(!self.cdmw_morph_comparison_active(), |ui| {
                                     self.draw_cdmw_layers(ui, actions);
                                 });
                             });
+                            *open |= layers.openness > 0.0;
                         });
                         ui.add_space(6.0);
                         egui::Frame::group(ui.style()).show(ui, |ui| {
                             ui.set_width(ui.available_width());
-                            cdmw_section(ui, "cdmw-history", "Action History", None, |ui| {
+                            let history = cdmw_section(ui, "cdmw-history", "Action History", None, |ui| {
                                 self.draw_cdmw_history(ui, actions);
                             });
+                            *open |= history.openness > 0.0;
                         });
                     });
                 });
-            });
+            },
+        );
+    }
+
+    /// The Inspector's width with every section collapsed: its widest header,
+    /// the Parts button and the reference piece controls, with their frames.
+    fn cdmw_inspector_compact_width(&self, ui: &egui::Ui) -> f32 {
+        let group = egui::Frame::group(ui.style()).total_margin().sum().x;
+        let padding = ui.spacing().button_padding.x * 2.0;
+        let parts = group
+            + padding
+            + cdmw_text_width(ui, crate::localization::tr("Parts"), egui::TextStyle::Button)
+            + ui.spacing().icon_spacing * 2.0
+            + cdmw_text_width(ui, "\u{203a}".to_owned(), egui::TextStyle::Button);
+        let mut rows = vec![cdmw_panel_title_width(ui, "Inspector"), parts];
+        for (key, title) in [
+            ("translucency", "Translucency (experimental)"),
+            ("emission", "Glow (experimental)"),
+            ("shader_controls", "Shader experiments"),
+        ] {
+            if self.cdmw_state.get(key).is_some() {
+                rows.push(group + cdmw_collapsed_header_width(ui, title));
+            }
+        }
+        for title in ["Geometry Layers", "Action History"] {
+            rows.push(group + cdmw_collapsed_header_width(ui, title));
+        }
+        if !self.cdmw_reference_pieces.is_empty() {
+            rows.push(cdmw_collapsed_header_width(ui, "Reference pieces"));
+            if self
+                .cdmw_bridge
+                .as_ref()
+                .is_some_and(|bridge| !bridge.manifest().item_set_files.is_empty())
+            {
+                rows.push(
+                    padding
+                        + cdmw_text_width(
+                            ui,
+                            crate::localization::tr("Switch editable piece"),
+                            egui::TextStyle::Button,
+                        ),
+                );
+            }
+        }
+        cdmw_side_panel_fit(ui, rows)
     }
 
     fn draw_cdmw_replacement(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -6460,9 +6646,10 @@ fn pair_number_list(state: &Value, key: &str) -> Vec<(String, f64)> {
 }
 
 impl LabApplication {
-    pub(super) fn draw_cdmw_translucency(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+    /// Draws the Translucency section and says whether it is (still partly) open.
+    pub(super) fn draw_cdmw_translucency(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) -> bool {
         let Some(state) = self.cdmw_state.get("translucency") else {
-            return;
+            return false;
         };
         crate::localization::collapsing("Translucency (experimental)")
             .id_salt("part_translucency").show(ui, |ui| {
@@ -6569,7 +6756,9 @@ impl LabApplication {
                 });
                 ui.ctx().data_mut(|data| data.insert_temp(key, values));
                 ui.ctx().data_mut(|data| data.insert_temp(surface_key, surface));
-            });
+            })
+            .openness
+            > 0.0
     }
 }
 

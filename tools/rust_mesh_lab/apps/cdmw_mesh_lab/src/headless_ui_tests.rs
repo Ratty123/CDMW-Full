@@ -30,6 +30,7 @@ mod new_item_handoff;
 mod parts_output_tests;
 mod refit_diagnostics;
 mod replacement_weights_tests;
+mod side_panel_widths;
 mod precision_controls {
     use super::*;
     use crate::cdmw_ui::numeric;

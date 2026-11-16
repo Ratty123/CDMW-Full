@@ -158,13 +158,14 @@ impl LabApplication {
         }
     }
 
+    /// Draws the reference piece controls and says whether their list is (still partly) open.
     pub(crate) fn draw_item_set_references(
         &mut self,
         ui: &mut egui::Ui,
         actions: &mut Vec<UiAction>,
-    ) {
+    ) -> bool {
         if self.cdmw_reference_pieces.is_empty() {
-            return;
+            return false;
         }
         let set_files = self
             .cdmw_bridge
@@ -185,7 +186,7 @@ impl LabApplication {
             });
         }
         let mut changed = false;
-        crate::localization::collapsing("Reference pieces").show(ui, |ui| {
+        let pieces = crate::localization::collapsing("Reference pieces").show(ui, |ui| {
             for piece in &mut self.cdmw_reference_pieces {
                 ui.horizontal(|ui| {
                     changed |= ui
@@ -200,5 +201,6 @@ impl LabApplication {
             self.refresh_cdmw_mesh_display();
         }
         ui.separator();
+        pieces.openness > 0.0
     }
 }
