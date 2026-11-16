@@ -77,6 +77,11 @@ def test_keys_avoid_every_used_number_and_two_paintings_get_different_keys():
     assert first.name == "Collection_Prop_Picture_CDMW_1990001"
 
 
+def test_reserved_numbers_are_taken_by_no_key():
+    (keys,) = allocate_painting_keys(1, item_keys=(), gimmick_keys=(), housing_keys=(), reserved={1990000, 1990001, 20000})
+    assert keys == PaintingKeys(item=1990002, gimmick=1990003, housing=20001)
+
+
 def test_new_paths_sit_beside_the_source_files_and_map_the_prefab_to_bin():
     paths = painting_paths(NEW, prefab_value=PREFAB, pami="object/00_common/interior/decopropw/cd_in_dpw_picture_01_painting_01.pami")
     assert paths.prefab_value == "/object/cd_gimmick/00_common/interior/dpw/gimmick_in_dpw_picture_cdmw_1990000.prefab"

@@ -472,13 +472,15 @@ def plan_paintings(
     encode_texture: TextureEncoder,
     build_icon: IconBuilder,
     earlier: Sequence[Mapping[str, object]] = (),
+    reserved_keys: Sequence[int] = (),
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ):
     """A Create New Item plan (:class:`NewItemPlan`) that adds every requested painting.
 
     `earlier` lists the paintings a mod being extended already holds (its record); their
-    rows are already in `source`'s tables and their files stay in the mod.
+    rows are already in `source`'s tables and their files stay in the mod. `reserved_keys`
+    are numbers CDMW handed out to other mods (Create New Item's issued identities).
     """
 
     from cdmw.core.item_icon_registry import IconRegistryError, add_icon_texture
@@ -497,6 +499,7 @@ def plan_paintings(
         item_keys=_keys_of(source, "iteminfo"),
         gimmick_keys=_keys_of(source, "gimmickinfo"),
         housing_keys=_keys_of(source, "housingobjectinfo"),
+        reserved=reserved_keys,
     )
     plan = _Plan(source)
     housing = source.rows("housingobjectinfo")
@@ -745,6 +748,7 @@ class PaintingBuild:
 
 
 def build_painting_mod(snapshot, requests: Sequence[PaintingRequest], folder: Path, title: str, *,
+                       reserved_keys: Sequence[int] = (),
                        on_log: Optional[Callable[[str], None]] = None,
                        stop_event: Optional[threading.Event] = None) -> PaintingBuild:
     """Read the folder (an earlier painting mod is extended), plan, encode and write the mod."""
@@ -761,7 +765,7 @@ def build_painting_mod(snapshot, requests: Sequence[PaintingRequest], folder: Pa
             image, picture_plan, frame, stop_event=stop_event),
         build_icon=lambda picture, entry, payload, icon_string: build_icon_with_helper(
             picture, entry, payload, icon_string, existing=source.has, stop_event=stop_event),
-        earlier=earlier, on_log=log, stop_event=stop_event)
+        earlier=earlier, reserved_keys=reserved_keys, on_log=log, stop_event=stop_event)
     raise_if_cancelled(stop_event, "Painting plan cancelled.")
     log("Writing the mod folder...")
     export = export_painting_mod(plan, Path(folder), title=title, stop_event=stop_event)

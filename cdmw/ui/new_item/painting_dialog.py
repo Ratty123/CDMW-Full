@@ -399,6 +399,11 @@ class PaintingDialog(QDialog):
 
     def _built(self, result) -> None:
         self._set_building(False)
+        # Built paintings are in the mod now; building again must not write them twice.
+        self._paintings = [_new_painting()]
+        self._current = 0
+        self._refresh_list()
+        self._show_painting()
         for line in result.plan.summary_lines:
             self.log.appendPlainText(line)
         names = ", ".join(str(p.get("names", {}).get("eng") or p.get("internal_name")) for p in result.paintings)

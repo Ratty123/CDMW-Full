@@ -29051,7 +29051,7 @@ MESSAGE_REFERENCE = [
     "message": "A custom painting has not been tested in the game. Check it there before sharing the mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 638
+      "cdmw/services/new_item_painting.py": 641
     }
   },
   {
@@ -30497,7 +30497,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 591
+      "cdmw/services/new_item_painting.py": 594
     }
   },
   {
@@ -33097,7 +33097,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no StringInfo table for the icon names.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 580
+      "cdmw/services/new_item_painting.py": 583
     }
   },
   {
@@ -33113,7 +33113,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no icon registry ({ICON_REGISTRY_PATH}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 585
+      "cdmw/services/new_item_painting.py": 588
     }
   },
   {
@@ -33121,7 +33121,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no {gimmick_path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 612
+      "cdmw/services/new_item_painting.py": 615
     }
   },
   {
@@ -33353,7 +33353,7 @@ MESSAGE_REFERENCE = [
     "message": "The picture could not be encoded: CDMW's texture helper is not available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 706
+      "cdmw/services/new_item_painting.py": 709
     }
   },
   {
@@ -33787,7 +33787,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} gimmick texts have no entry for {src.name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 619
+      "cdmw/services/new_item_painting.py": 622
     }
   },
   {
@@ -33795,7 +33795,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} item texts have no description for {src.name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 607
+      "cdmw/services/new_item_painting.py": 610
     }
   },
   {
@@ -33803,7 +33803,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} item texts have no entry for {src.name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 602
+      "cdmw/services/new_item_painting.py": 605
     }
   },
   {
@@ -36523,7 +36523,7 @@ MESSAGE_REFERENCE = [
     "message": "{own.name}: the encoded picture is not {texture_plan.width} x {texture_plan.height}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 538
+      "cdmw/services/new_item_painting.py": 541
     }
   },
   {
@@ -36531,7 +36531,7 @@ MESSAGE_REFERENCE = [
     "message": "{own.name}: the frame's prefab could not be copied: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 546
+      "cdmw/services/new_item_painting.py": 549
     }
   },
   {
@@ -36699,7 +36699,7 @@ MESSAGE_REFERENCE = [
     "message": "{root.name} has lost {path} of {painting.get('internal_name')}. Build the paintings into a new folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 687
+      "cdmw/services/new_item_painting.py": 690
     }
   },
   {
@@ -36707,7 +36707,7 @@ MESSAGE_REFERENCE = [
     "message": "{root.name} holds another mod, or one CDMW has no record of. Choose an empty folder, or a painting mod CDMW made on this computer.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/new_item_painting.py": 680
+      "cdmw/services/new_item_painting.py": 683
     }
   },
   {
@@ -78483,7 +78483,7 @@ MESSAGE_REFERENCE = [
     "message": "GimmickInfo row {source_key} carries another key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 214
+      "cdmw/core/painting_records.py": 218
     }
   },
   {
@@ -78491,7 +78491,7 @@ MESSAGE_REFERENCE = [
     "message": "GimmickInfo {source_key} does not name housing object {source_housing}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 218
+      "cdmw/core/painting_records.py": 222
     }
   },
   {
@@ -78499,7 +78499,7 @@ MESSAGE_REFERENCE = [
     "message": "GimmickInfo {source_key} does not turn into item {source_item}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 216
+      "cdmw/core/painting_records.py": 220
     }
   },
   {
@@ -78507,7 +78507,7 @@ MESSAGE_REFERENCE = [
     "message": "GimmickInfo {source_key} has no name of the shipped painting shape.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 222
+      "cdmw/core/painting_records.py": 226
     }
   },
   {
@@ -78515,7 +78515,7 @@ MESSAGE_REFERENCE = [
     "message": "GimmickInfo {source_key} names no prefab.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 225
+      "cdmw/core/painting_records.py": 229
     }
   },
   {
@@ -78931,7 +78931,7 @@ MESSAGE_REFERENCE = [
     "message": "Housing object {housing_key} is already in this group.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 272
+      "cdmw/core/painting_records.py": 276
     }
   },
   {
@@ -78939,7 +78939,7 @@ MESSAGE_REFERENCE = [
     "message": "HousingObjectInfo row {source_key} carries another key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 245
+      "cdmw/core/painting_records.py": 249
     }
   },
   {
@@ -78947,7 +78947,7 @@ MESSAGE_REFERENCE = [
     "message": "HousingObjectInfo {source_key} does not name gimmick {source_gimmick}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 247
+      "cdmw/core/painting_records.py": 251
     }
   },
   {
@@ -79789,7 +79789,7 @@ MESSAGE_REFERENCE = [
     "message": "Item {source_key} cannot be cloned: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/painting_records.py": 305
+      "cdmw/core/painting_records.py": 309
     }
   },
   {
@@ -79797,7 +79797,7 @@ MESSAGE_REFERENCE = [
     "message": "Item {source_key} does not name gimmick {source_gimmick}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 307
+      "cdmw/core/painting_records.py": 311
     }
   },
   {
@@ -79853,7 +79853,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo row {source_key} carries another key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 300
+      "cdmw/core/painting_records.py": 304
     }
   },
   {
@@ -80365,7 +80365,7 @@ MESSAGE_REFERENCE = [
     "message": "Material {wanted} has {len(found)} base colour textures, not one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 335
+      "cdmw/core/painting_records.py": 339
     }
   },
   {
@@ -83666,7 +83666,7 @@ MESSAGE_REFERENCE = [
     "message": "The frame's material file has {len(blocks)} materials named {wanted}, not one.",
     "recovery": "locked",
     "sources": {
-      "cdmw/core/painting_records.py": 331
+      "cdmw/core/painting_records.py": 335
     }
   },
   {
@@ -83826,7 +83826,7 @@ MESSAGE_REFERENCE = [
     "message": "The housing group's member list cannot be read: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/painting_records.py": 263
+      "cdmw/core/painting_records.py": 267
     }
   },
   {
@@ -83978,7 +83978,7 @@ MESSAGE_REFERENCE = [
     "message": "The new prefab path must keep the source path's leading slash.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/painting_records.py": 227
+      "cdmw/core/painting_records.py": 231
     }
   },
   {
@@ -84314,7 +84314,7 @@ MESSAGE_REFERENCE = [
     "message": "The source painting's prefab or material path has no folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 157
+      "cdmw/core/painting_records.py": 161
     }
   },
   {
@@ -84322,7 +84322,7 @@ MESSAGE_REFERENCE = [
     "message": "The source {kind} row cannot be read: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/painting_records.py": 185
+      "cdmw/core/painting_records.py": 189
     }
   },
   {
@@ -84451,7 +84451,7 @@ MESSAGE_REFERENCE = [
     "message": "The {layout.kind} clone could not be written: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/painting_records.py": 192
+      "cdmw/core/painting_records.py": 196
     }
   },
   {
@@ -89485,7 +89485,7 @@ MESSAGE_REFERENCE = [
     "message": "{field} is not a text value in this row.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/painting_records.py": 177
+      "cdmw/core/painting_records.py": 181
     }
   },
   {
@@ -89493,7 +89493,7 @@ MESSAGE_REFERENCE = [
     "message": "{field} is not a {width * 8}-bit key in this row.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/painting_records.py": 171
+      "cdmw/core/painting_records.py": 175
     }
   },
   {
@@ -90693,7 +90693,7 @@ MESSAGE_REFERENCE = [
     "message": "{value} is not a gimmick prefab path of the shipped shape.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/painting_records.py": 146
+      "cdmw/core/painting_records.py": 150
     }
   },
   {

@@ -47,6 +47,7 @@ class Controller(QObject):
 
     def start_painting_build(self, requests, folder, title, on_done, on_error):
         self.builds.append((requests, folder, title))
+        self.finish = on_done
         return True
 
     def cancel_operation(self, lane=""):
@@ -97,6 +98,12 @@ def test_two_paintings_become_two_requests_with_their_own_texts(dialog, tmp_path
     view.build_button.click()
     requests, folder, title = controller.builds[-1]
     assert len(requests) == 2 and str(folder) == str(tmp_path / "mod") and title == "Custom paintings"
+    # Once written, the paintings leave the list, so a second Build mod cannot write them twice.
+    controller.finish(SimpleNamespace(plan=SimpleNamespace(summary_lines=("ItemInfo: 2 painting item(s) appended",)),
+                                      export=SimpleNamespace(package_root=tmp_path / "mod"),
+                                      paintings=({"names": {"eng": "First"}}, {"names": {"eng": "Second"}})))
+    assert view.painting_list.count() == 1 and view.painting_requests()[0].names == {}
+    assert "Wrote 2 painting(s)" in view.status.text()
 
 
 def test_a_build_without_a_folder_is_refused_and_close_cancels_a_running_build(dialog):

@@ -8206,7 +8206,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 755,
+          "line": 759,
           "sink": "log"
         }
       ]
@@ -10841,7 +10841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 472,
+          "line": 480,
           "sink": "on_error"
         }
       ]
@@ -26066,7 +26066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 545,
+          "line": 553,
           "sink": "emit"
         },
         {
@@ -43536,7 +43536,7 @@
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 734,
+          "line": 737,
           "sink": "export_loose"
         }
       ]
@@ -72146,7 +72146,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 550,
+          "line": 553,
           "sink": "add"
         }
       ]
@@ -88846,7 +88846,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 542,
+          "line": 545,
           "sink": "add"
         },
         {
@@ -109986,7 +109986,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 561,
+          "line": 569,
           "sink": "emit"
         },
         {
@@ -113491,22 +113491,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 511,
+          "line": 514,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 564,
+          "line": 567,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 594,
+          "line": 597,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 765,
+          "line": 769,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -116406,7 +116406,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 539,
+          "line": 542,
           "sink": "add"
         }
       ]
@@ -117676,7 +117676,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 515,
+          "line": 518,
           "sink": "log"
         }
       ]
@@ -118771,7 +118771,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 547,
+          "line": 550,
           "sink": "add"
         }
       ]
@@ -127811,7 +127811,7 @@
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 784,
+          "line": 788,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -160901,7 +160901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 464,
+          "line": 472,
           "sink": "emit"
         }
       ]
@@ -190106,7 +190106,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 766,
+          "line": 770,
           "sink": "log"
         },
         {
@@ -190741,7 +190741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/painting_dialog.py",
-          "line": 405,
+          "line": 410,
           "sink": "_say"
         }
       ]
@@ -205701,7 +205701,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 447,
+          "line": 455,
           "sink": "_run"
         }
       ]

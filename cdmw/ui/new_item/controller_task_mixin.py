@@ -441,10 +441,18 @@ class NewItemTaskControllerMixin:
             on_error("Read the archives first.")
             return False
         requests = tuple(requests)
+        # Numbers handed to other mods this computer wrote, so a painting never reuses them.
+        reserved = tuple(self.issued_keys)
         def task(log, stop):
             from cdmw.services.new_item_painting import build_painting_mod
-            return build_painting_mod(snapshot, requests, Path(folder), title, on_log=log, stop_event=stop)
-        return self._run("paintings", task, on_done, on_error, publishes_result=True)
+            return build_painting_mod(snapshot, requests, Path(folder), title, reserved_keys=reserved,
+                                      on_log=log, stop_event=stop)
+        def done(result):
+            for painting in result.paintings:
+                for name in ("item_key", "gimmick_key", "housing_key"):
+                    self.remember_issued_identity(int(painting.get(name) or 0))
+            on_done(result)
+        return self._run("paintings", task, done, on_error, publishes_result=True)
 
     def _run(
         self,

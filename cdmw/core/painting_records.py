@@ -115,16 +115,20 @@ def allocate_painting_keys(
     item_keys: Iterable[int],
     gimmick_keys: Iterable[int],
     housing_keys: Iterable[int],
+    reserved: Iterable[int] = (),
 ) -> Tuple[PaintingKeys, ...]:
     """`count` sets of free keys, lowest first.
 
     Item and gimmick keys come from Create New Item's range (1990000 up) and never repeat
     a number used in either table, so one number never names two things. Callers pass
-    every key of the base and DLC layers and of the mod being extended.
+    every key of the base and DLC layers and of the mod being extended, and in `reserved`
+    the numbers CDMW already handed to mods the game does not have installed (Create New
+    Item's issued identities); a reserved number is taken by no key of any kind.
     """
 
-    numbers = {int(value) for value in item_keys} | {int(value) for value in gimmick_keys}
-    housing = {int(value) for value in housing_keys}
+    taken = {int(value) for value in reserved}
+    numbers = {int(value) for value in item_keys} | {int(value) for value in gimmick_keys} | taken
+    housing = {int(value) for value in housing_keys} | taken
     result = []
     for _ in range(int(count)):
         item = _free(DEFAULT_ITEM_KEY_RANGE, numbers, "item")

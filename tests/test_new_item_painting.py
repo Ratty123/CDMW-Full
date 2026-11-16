@@ -197,7 +197,7 @@ def test_a_painting_adds_its_rows_group_entry_texts_and_files_to_the_base_tables
     assert field_payload(housing_row, "_gimmickInfo") == struct.pack("<I", gimmick_key)
     assert set(rows(plan, "iteminfo")) == {ITEM, item_key}
     assert housing_group_members(rows(plan, "housingobjectgroupinfo")[GROUP]) == (HOUSING, housing_key)
-    assert rows(plan, "housingobjectgroupinfo")[16969] == rows(plan, "housingobjectgroupinfo")[16969]
+    assert rows(plan, "housingobjectgroupinfo")[16969] == src.rows("housingobjectgroupinfo")[16969]
     # Texts: the user's in English, English again where a language has none; the gimmick keeps its frame text.
     for language, frame_text in (("eng", "Picture Frame"), ("kor", "액자")):
         items = parse_paloc(plan.loose_files[f"gamedata/stringtable/binary__/{language}/item.paloc"]).index()
@@ -232,6 +232,14 @@ def test_two_paintings_get_their_own_keys_and_both_join_the_group(picture):
     items = parse_paloc(plan.loose_files["gamedata/stringtable/binary__/eng/item.paloc"]).index()
     # No description given: the name stands in for it.
     assert items[str(second["item_key"] << 32 | 0x71)].text == "Painting 2"
+
+
+def test_numbers_handed_to_other_mods_are_not_reused(picture):
+    src = source()
+    plan = plan_paintings(src, discover_painting_frames(src), [PaintingRequest(frame=MESH, picture=picture, names={"eng": "A"})],
+                          encode_texture=encode, build_icon=icon, reserved_keys=(1990002, 1990003, 20000))
+    painting = plan.manifest["paintings"][0]
+    assert (painting["item_key"], painting["gimmick_key"], painting["housing_key"]) == (1990004, 1990005, 20001)
 
 
 def test_a_second_build_into_the_same_mod_keeps_the_first_painting(picture):
