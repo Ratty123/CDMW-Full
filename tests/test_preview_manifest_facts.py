@@ -159,3 +159,23 @@ def test_one_parse_answers_every_known_question_of_a_new_file(tmp_path, parses):
     assert json_file_fact(second, _first_key) == "a"
     assert json_file_fact(second, _key_count) == 2
     assert len(parses) == 3
+
+
+def test_the_first_launch_on_a_new_package_parses_its_manifest_once(tmp_path, parses):
+    from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
+    from cdmw.ui.archive_browser.preview_state import (
+        archive_model_manifest_source_identity,
+        archive_model_package_has_textures,
+    )
+    from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
+
+    entry = _entry(tmp_path)
+    package = tmp_path / "package"
+    package.mkdir()
+    _write_old(package / "manifest.json", _manifest_for(entry))
+    assert archive_model_package_has_textures(package) is True
+    manifest_parses = len(parses)
+    assert MeshEditorShellBridgeMixin._mesh_editor_package_matches_archive_entry(package, entry) is True
+    archive_model_manifest_source_identity(package)
+    native_material_package_for_rust_preview(package)
+    assert len(parses) == manifest_parses, "a registered question parsed the manifest again"

@@ -28,7 +28,7 @@ from cdmw.rendering.dotnet_preview_package_cache import (
     release_dotnet_preview_package_staging_dir,
     store_dotnet_preview_package_cache,
 )
-from cdmw.services.json_file_facts import json_file_fact
+from cdmw.services.json_file_facts import json_file_fact, register_json_file_fact
 from cdmw.services.mesh_dotnet_reference_composite import (
     decode_dotnet_native_preview_package,
 )
@@ -1177,6 +1177,10 @@ def _rust_manifest_source_fact(payload: object) -> tuple[object, str]:
 def _native_manifest_source_fact(payload: object) -> tuple[object, bool]:
     manifest = payload if isinstance(payload, Mapping) else {}
     return manifest.get("source_path"), isinstance(manifest.get("batches"), list)
+
+
+register_json_file_fact("manifest.json", _rust_manifest_source_fact, encoding="utf-8-sig")
+register_json_file_fact("manifest.json", _native_manifest_source_fact, encoding="utf-8-sig")
 
 
 def native_material_package_for_rust_preview(package_dir: Path) -> Path | None:

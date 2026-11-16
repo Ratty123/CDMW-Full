@@ -9,7 +9,7 @@ from typing import Optional
 from PySide6.QtWidgets import QTreeWidgetItem
 
 from cdmw.services.archive_read_service import format_byte_size
-from cdmw.services.json_file_facts import json_file_fact
+from cdmw.services.json_file_facts import json_file_fact, register_json_file_fact
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 
 
@@ -127,6 +127,14 @@ def _manifest_lists_textures(payload: object) -> bool:
 
 def _net_materials_list_resources(payload: object) -> bool:
     return _lists_resources(payload, "resources")
+
+
+# One parse of a new package's manifest answers every question Browse and
+# the Mesh Editor launch ask of it.
+register_json_file_fact("manifest.json", _manifest_source_path, encoding="utf-8-sig")
+register_json_file_fact("manifest.json", _manifest_source_identity, encoding="utf-8-sig")
+register_json_file_fact("manifest.json", _manifest_lists_textures, encoding="utf-8-sig")
+register_json_file_fact("net_materials.json", _net_materials_list_resources, encoding="utf-8-sig")
 
 
 def archive_model_package_has_textures(package_dir: Path | str | None) -> bool:

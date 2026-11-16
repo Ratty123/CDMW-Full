@@ -17,7 +17,7 @@ from cdmw.domain.archives.filters import archive_entry_identity_key
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
-from cdmw.services.json_file_facts import json_file_fact
+from cdmw.services.json_file_facts import json_file_fact, register_json_file_fact
 from cdmw.services.mesh_workflow_service import SceneImportResult
 from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
 from cdmw.services.preview_rendering_service import (
@@ -51,6 +51,9 @@ def _manifest_match_facts(payload: object) -> tuple[object, bool, object] | None
         "source_identity" in payload,
         copy.deepcopy(payload.get("source_identity")),
     )
+
+
+register_json_file_fact("manifest.json", _manifest_match_facts, encoding="utf-8-sig")
 
 
 def _interim_preview(result: object) -> bool:

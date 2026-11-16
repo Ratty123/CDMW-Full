@@ -39,6 +39,8 @@ _lock = threading.Lock()
 _facts: "OrderedDict[tuple, tuple[tuple[int, int, int, int], dict]]" = OrderedDict()
 #: The fact functions asked of each file name, so one parse can answer them all.
 _known_facts: dict[tuple[str, str], list] = {}
+#: Facts their modules declare up front, so even the first parse answers them.
+_registered_facts: dict[tuple[str, str], list] = {}
 
 
 def _identity(stat_result: os.stat_result) -> tuple[int, int, int, int]:
@@ -91,9 +93,13 @@ def json_file_fact(
     if not (memorable and opened == identity and _old_enough(identity, read_at_ns)):
         return value
     with _lock:
-        others = [other for other in _known_facts.setdefault(family, []) if other is not fact]
-        if fact not in _known_facts[family]:
-            _known_facts[family].append(fact)
+        learned = _known_facts.setdefault(family, [])
+        if fact not in learned:
+            learned.append(fact)
+        others = [
+            other for other in (*_registered_facts.get(family, ()), *learned)
+            if other is not fact
+        ]
     answers = {fact: value}
     for other in others:
         try:
@@ -112,6 +118,16 @@ def json_file_fact(
     return value
 
 
+def register_json_file_fact(file_name: str, fact: Callable[[object], object], *, encoding: str = "utf-8") -> None:
+    """Answer ``fact`` from every parse of a file called ``file_name``, the first included."""
+
+    family = (os.path.normcase(file_name), encoding)
+    with _lock:
+        registered = _registered_facts.setdefault(family, [])
+        if fact not in registered:
+            registered.append(fact)
+
+
 def forget_json_file_facts() -> None:
     """Start from an empty memo (tests)."""
 
@@ -120,4 +136,4 @@ def forget_json_file_facts() -> None:
         _known_facts.clear()
 
 
-__all__ = ["forget_json_file_facts", "json_file_fact"]
+__all__ = ["forget_json_file_facts", "json_file_fact", "register_json_file_fact"]
