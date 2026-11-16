@@ -8340,3 +8340,32 @@ def test_companion_reference_payload_names_are_owned_binary_names(tmp_path):
     assert authoring._REFERENCE_FILE_RE.fullmatch("reference-32.bin")
     assert not authoring._REFERENCE_FILE_RE.fullmatch("companion-00.bin")
     assert not authoring._REFERENCE_FILE_RE.fullmatch("companion-01.json")
+
+
+
+def test_the_session_tree_accepts_live_texture_edits_and_nothing_else_beside_them(tmp_path: Path) -> None:
+    import pytest
+
+    from cdmw.ui.mesh_editor.live_texture_updates import EDITS_DIRNAME
+
+    session = tmp_path / "session"
+    edits = session / EDITS_DIRNAME
+    edits.mkdir(parents=True)
+    (session / "manifest.json").write_text("{}", encoding="utf-8")
+    (edits / "4092a553b170619f-r3.dds").write_bytes(b"DDS ")
+    (edits / "4092a553b170619f-r4.partial").write_bytes(b"DDS ")
+    entries, _bytes = rust_authoring_module._validate_owned_session_tree(session)
+    assert entries == 4
+
+    (edits / "notes.txt").write_text("x", encoding="utf-8")
+    with pytest.raises(rust_authoring_module.RustMeshProtocolError, match="live texture edit entry"):
+        rust_authoring_module._validate_owned_session_tree(session)
+    (edits / "notes.txt").unlink()
+    (edits / "nested").mkdir()
+    with pytest.raises(rust_authoring_module.RustMeshProtocolError, match="live texture edit entry"):
+        rust_authoring_module._validate_owned_session_tree(session)
+    (edits / "nested").rmdir()
+    # A folder of another name is still refused.
+    (session / "texture_edit").mkdir()
+    with pytest.raises(rust_authoring_module.RustMeshProtocolError, match="Unexpected Mesh session entry"):
+        rust_authoring_module._validate_owned_session_tree(session)

@@ -131,6 +131,12 @@ _CANDIDATE_FILE_RE = re.compile(r"candidate-[0-9]+-[A-Za-z0-9_-]+\.json\Z")
 _STATE_FILE_RE = re.compile(r"state-[0-9]+-[0-9a-f]{10}\.(?:json|bin)\Z")
 _MATERIAL_STATE_FILE_RE = re.compile(r"material-state-(?:base|[0-9a-f]{32})\.json\Z")
 _TEXTURE_FILE_RE = re.compile(r"texture-[0-9]{4}-[0-9a-f]{12}\.dds\Z")
+#: Textures edited live in the Mesh Editor (live_texture_updates.EDITS_DIRNAME): one file
+#: per edited texture, its newest revision, written as ``.partial`` then renamed.
+_LIVE_TEXTURE_EDITS_DIR = "texture_edits"
+_LIVE_TEXTURE_EDIT_RE = re.compile(r"[0-9a-f]{16}-r[0-9]{1,9}\.(?:dds|partial)\Z")
+_LIVE_TEXTURE_EDITS_MAX_ENTRIES = 512
+_LIVE_TEXTURE_EDIT_MAX_FILE_BYTES = 8192 * 8192 * 4 + 4096
 _LOGGER = logging.getLogger(__name__)
 _REFERENCE_FILE_RE = re.compile(r"(?:reference-(?:0[1-9]|[12][0-9]|3[0-2])|companion-(?:0[1-9]|[12][0-9]|3[0-3]))\.bin\Z")
 _PREVIEW_GEOMETRY_FILE_RE = re.compile(
@@ -1822,6 +1828,28 @@ def _cleanup_failed_session_root(
         raise
 
 
+def _validate_owned_texture_edits_tree(root: Path, session_root: Path) -> int:
+    """The live texture edits folder: plain files named as the editor writes them, and
+    nothing else. Their bytes do not count toward the mesh session's limit (an edited 4K
+    texture alone is 64 MiB); they have limits of their own."""
+
+    entry_count = 0
+    for item in root.iterdir():
+        entry_count += 1
+        if entry_count > _LIVE_TEXTURE_EDITS_MAX_ENTRIES:
+            raise RustMeshProtocolError("Live texture edits contain too many entries")
+        _require_owned_path(item, session_root)
+        if (
+            item.is_symlink()
+            or not item.is_file()
+            or _LIVE_TEXTURE_EDIT_RE.fullmatch(item.name) is None
+        ):
+            raise RustMeshProtocolError(f"Unexpected live texture edit entry: {item.name}")
+        if item.stat().st_size > _LIVE_TEXTURE_EDIT_MAX_FILE_BYTES:
+            raise RustMeshProtocolError(f"Live texture edit is too large: {item.name}")
+    return entry_count
+
+
 def _validate_owned_session_tree(
     root: Path,
     expected_root_identity: tuple[int, int] | None = None,
@@ -1865,6 +1893,11 @@ def _validate_owned_session_tree(
             child_entries, child_bytes = _validate_owned_generated_tree(item, owned_root)
             entry_count += child_entries
             total_bytes += child_bytes
+            continue
+        if item.is_dir() and not item.is_symlink() and name == _LIVE_TEXTURE_EDITS_DIR:
+            # Live texture edits (B): without this, any reply carrying the document after a
+            # texture edit was refused and the editor closed (B pass 4, 2026-11-16).
+            entry_count += _validate_owned_texture_edits_tree(item, owned_root)
             continue
         raise RustMeshProtocolError(f"Unexpected Mesh session entry: {name}")
     if entry_count > _SESSION_MAX_ENTRIES:
