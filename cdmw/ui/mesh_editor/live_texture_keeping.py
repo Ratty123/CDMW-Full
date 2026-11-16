@@ -61,6 +61,14 @@ class LiveTextureKeeper(QObject):
         #: Role and game path of edits restored from the draft, until their texture is opened.
         self.restored_info: dict[str, tuple[str, str]] = {}
 
+    def forget(self) -> None:
+        """A new session starts (live_texture_reset): nothing pending is kept for the last one."""
+
+        self._timer.stop()
+        self._again = False
+        self._wait_tries = 0
+        self.restored_info.clear()
+
     # ----- state ------------------------------------------------------------
     def unkept_count(self) -> int:
         return len(self._live.unkept())

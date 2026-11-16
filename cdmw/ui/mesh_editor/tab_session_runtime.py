@@ -426,7 +426,11 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         self.mesh_editor_draft_manifest_path = result.draft_manifest_path
         self.mesh_editor_draft_lineage = dict(result.draft_lineage or {})
         refresh_draft_name_controls(self)
-        # Texture edits kept in a draft being continued are shown on the model again (item 3).
+        # The last session's texture edits are not this one's (Start Fresh begins without
+        # them); a draft being continued shows what it kept on the model again (item 3).
+        from cdmw.ui.mesh_editor.live_texture_reset import start_texture_edits_afresh
+
+        start_texture_edits_afresh(self)
         draft_root = self._live_texture_draft_root()
         if draft_root is not None:
             self._live_texture_keeper().restore(draft_root)
