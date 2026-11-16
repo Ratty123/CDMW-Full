@@ -40,6 +40,12 @@ class _LazyToolPrepareWorker(QObject):
         current_thread.quit()
 
 
+def _has_construction_steps(widget: QWidget) -> bool:
+    return callable(getattr(widget, "continue_construction", None)) and not getattr(
+        widget, "construction_complete", True
+    )
+
+
 class LazyToolTab(QWidget):
     """Construct one optional tool widget when its tab first becomes visible or used."""
 
@@ -103,6 +109,9 @@ class LazyToolTab(QWidget):
     def ensure_widget(self) -> QWidget:
         if self._widget is not None:
             return self._widget
+        if self._pending_widget is not None and not self._creating:
+            # Built in steps and not published yet: finish it now.
+            return self._publish_pending_widget()
         if self._creating or self._pending_widget is not None or self._factory is None:
             raise RuntimeError("Lazy tool widget construction re-entered.")
         self._load_requested = True
@@ -236,9 +245,25 @@ class LazyToolTab(QWidget):
             widget.hide()
         finally:
             self._creating = False
+        if _has_construction_steps(widget):
+            self._schedule_load_step(self._continue_requested_construction)
+            return
         # Moving the finished widget into this container restyles its whole
         # subtree; on its own event-loop turn, not in the constructor's (Model
         # Library held the UI thread 367 ms here in the review).
+        self._schedule_load_step(self._attach_requested_widget)
+
+    @Slot()
+    def _continue_requested_construction(self) -> None:
+        """A tool that builds in steps (`continue_construction()`) gets one
+        event-loop turn per step, then the attach step."""
+
+        widget = self._pending_widget
+        if widget is None:
+            return
+        if widget.continue_construction():
+            self._schedule_load_step(self._continue_requested_construction)
+            return
         self._schedule_load_step(self._attach_requested_widget)
 
     @Slot()
@@ -264,6 +289,9 @@ class LazyToolTab(QWidget):
         widget = self._pending_widget
         if widget is None:
             raise RuntimeError("Lazy tool widget construction re-entered.")
+        # Published early (shutdown, a direct request): build what is left first.
+        while _has_construction_steps(widget) and widget.continue_construction():
+            pass
         self._attach_pending_widget(widget)
         self._pending_widget = None
         self._widget = widget

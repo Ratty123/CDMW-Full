@@ -4511,7 +4511,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 987,
+          "line": 1050,
           "sink": "QCheckBox"
         }
       ]
@@ -6401,7 +6401,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 372,
+          "line": 431,
           "sink": "setText"
         },
         {
@@ -6991,17 +6991,17 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 924,
+          "line": 987,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1245,
+          "line": 1310,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1329,
+          "line": 1395,
           "sink": "QPushButton"
         },
         {
@@ -7301,7 +7301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1296,
+          "line": 1361,
           "sink": "QPushButton"
         }
       ]
@@ -8431,7 +8431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1362,
+          "line": 1428,
           "sink": "QLabel"
         }
       ]
@@ -8441,7 +8441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1407,
+          "line": 1473,
           "sink": "CollapsibleSection"
         }
       ]
@@ -9376,7 +9376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 799,
+          "line": 861,
           "sink": "QCheckBox"
         }
       ]
@@ -9446,7 +9446,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1000,
+          "line": 1063,
           "sink": "QPushButton"
         },
         {
@@ -10191,12 +10191,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 521,
+          "line": 581,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1059,
+          "line": 1122,
           "sink": "addItem"
         },
         {
@@ -10211,7 +10211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1002,
+          "line": 1065,
           "sink": "QPushButton"
         }
       ]
@@ -11171,7 +11171,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 875,
+          "line": 937,
           "sink": "_add_tool_setting_row"
         },
         {
@@ -12441,12 +12441,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1028,
+          "line": 1091,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1117,
+          "line": 1181,
           "sink": "QPushButton"
         },
         {
@@ -12511,7 +12511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 666,
+          "line": 727,
           "sink": "QPushButton"
         }
       ]
@@ -12521,7 +12521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 849,
+          "line": 911,
           "sink": "QPushButton"
         }
       ]
@@ -13446,7 +13446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 158,
+          "line": 198,
           "sink": "append_archive_log"
         }
       ]
@@ -15296,7 +15296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 874,
+          "line": 915,
           "sink": "_write_crash_report"
         }
       ]
@@ -15356,7 +15356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 916,
+          "line": 957,
           "sink": "_write_crash_report"
         }
       ]
@@ -15381,12 +15381,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 634,
+          "line": 674,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 884,
+          "line": 925,
           "sink": "set_status_message"
         },
         {
@@ -16686,7 +16686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1224,
+          "line": 1288,
           "sink": "CollapsibleSection"
         }
       ]
@@ -18361,7 +18361,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 986,
+          "line": 1049,
           "sink": "QCheckBox"
         }
       ]
@@ -19846,7 +19846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1374,
+          "line": 1440,
           "sink": "addItem"
         }
       ]
@@ -19866,12 +19866,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 880,
+          "line": 942,
           "sink": "_add_tool_setting_row"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1286,
+          "line": 1351,
           "sink": "QLabel"
         }
       ]
@@ -20146,12 +20146,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 520,
+          "line": 580,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1058,
+          "line": 1121,
           "sink": "addItem"
         }
       ]
@@ -20211,7 +20211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1368,
+          "line": 1434,
           "sink": "addItem"
         }
       ]
@@ -21041,7 +21041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 748,
+          "line": 810,
           "sink": "addItem"
         }
       ]
@@ -21471,7 +21471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1322,
+          "line": 1388,
           "sink": "addItem"
         }
       ]
@@ -21686,12 +21686,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 306,
+          "line": 365,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 379,
+          "line": 438,
           "sink": "QAction"
         }
       ]
@@ -22086,7 +22086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 871,
+          "line": 933,
           "sink": "_add_tool_setting_row"
         },
         {
@@ -22121,7 +22121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 865,
+          "line": 927,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -23731,7 +23731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 821,
+          "line": 883,
           "sink": "addItem"
         }
       ]
@@ -23741,7 +23741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 820,
+          "line": 882,
           "sink": "addItem"
         }
       ]
@@ -23751,7 +23751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 822,
+          "line": 884,
           "sink": "addItem"
         }
       ]
@@ -25001,7 +25001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 512,
+          "line": 552,
           "sink": "set_status_message"
         }
       ]
@@ -25736,7 +25736,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1123,
+          "line": 1187,
           "sink": "QPushButton"
         },
         {
@@ -26376,7 +26376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1154,
+          "line": 1218,
           "sink": "QPushButton"
         }
       ]
@@ -27771,7 +27771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1096,
+          "line": 1159,
           "sink": "CollapsibleSection"
         }
       ]
@@ -33221,7 +33221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 978,
+          "line": 1041,
           "sink": "QLabel"
         }
       ]
@@ -33806,7 +33806,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 736,
+          "line": 798,
           "sink": "QPushButton"
         },
         {
@@ -33871,7 +33871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 667,
+          "line": 728,
           "sink": "QPushButton"
         }
       ]
@@ -33881,7 +33881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1420,
+          "line": 1486,
           "sink": "QPushButton"
         }
       ]
@@ -33906,7 +33906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1396,
+          "line": 1462,
           "sink": "QPushButton"
         }
       ]
@@ -34021,7 +34021,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 946,
+          "line": 1009,
           "sink": "QPushButton"
         },
         {
@@ -34046,7 +34046,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 801,
+          "line": 863,
           "sink": "QPushButton"
         }
       ]
@@ -35006,12 +35006,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         }
       ]
@@ -35021,7 +35021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 897,
+          "line": 959,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -36196,7 +36196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 869,
+          "line": 931,
           "sink": "_add_tool_setting_row"
         },
         {
@@ -36261,7 +36261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1325,
+          "line": 1391,
           "sink": "addItem"
         }
       ]
@@ -36721,7 +36721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1122,
+          "line": 1186,
           "sink": "QPushButton"
         }
       ]
@@ -38551,7 +38551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 779,
+          "line": 841,
           "sink": "QCheckBox"
         }
       ]
@@ -39076,7 +39076,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 805,
+          "line": 815,
           "sink": "setToolTip"
         }
       ]
@@ -39346,7 +39346,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1046,
+          "line": 1109,
           "sink": "QPushButton"
         },
         {
@@ -39366,7 +39366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1045,
+          "line": 1108,
           "sink": "addItem"
         }
       ]
@@ -39376,7 +39376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1044,
+          "line": 1107,
           "sink": "addItem"
         }
       ]
@@ -39411,7 +39411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1043,
+          "line": 1106,
           "sink": "addItem"
         }
       ]
@@ -39456,7 +39456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1042,
+          "line": 1105,
           "sink": "addItem"
         }
       ]
@@ -39516,7 +39516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 944,
+          "line": 1007,
           "sink": "QPushButton"
         }
       ]
@@ -41996,7 +41996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1151,
+          "line": 1215,
           "sink": "QPushButton"
         },
         {
@@ -42011,7 +42011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1145,
+          "line": 1209,
           "sink": "QLabel"
         }
       ]
@@ -42041,7 +42041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 730,
+          "line": 792,
           "sink": "addItem"
         }
       ]
@@ -42106,7 +42106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 811,
+          "line": 873,
           "sink": "QLabel"
         }
       ]
@@ -42631,7 +42631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1328,
+          "line": 1394,
           "sink": "addItem"
         }
       ]
@@ -43056,7 +43056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1369,
+          "line": 1435,
           "sink": "addItem"
         }
       ]
@@ -43191,7 +43191,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 422,
+          "line": 481,
           "sink": "QLabel"
         },
         {
@@ -44776,7 +44776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1298,
+          "line": 1363,
           "sink": "QPushButton"
         }
       ]
@@ -46221,7 +46221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 723,
+          "line": 785,
           "sink": "addItem"
         }
       ]
@@ -47321,7 +47321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 641,
+          "line": 702,
           "sink": "CollapsibleSection"
         }
       ]
@@ -47416,7 +47416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 818,
+          "line": 880,
           "sink": "addItem"
         }
       ]
@@ -47426,7 +47426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 817,
+          "line": 879,
           "sink": "addItem"
         }
       ]
@@ -47436,7 +47436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 819,
+          "line": 881,
           "sink": "addItem"
         }
       ]
@@ -47801,12 +47801,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1250,
+          "line": 1315,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1334,
+          "line": 1400,
           "sink": "QPushButton"
         },
         {
@@ -48946,12 +48946,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1246,
+          "line": 1311,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1330,
+          "line": 1396,
           "sink": "QPushButton"
         },
         {
@@ -49906,7 +49906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 896,
+          "line": 958,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -49951,7 +49951,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 410,
+          "line": 469,
           "sink": "QLabel"
         },
         {
@@ -50666,7 +50666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1275,
+          "line": 1340,
           "sink": "QCheckBox"
         }
       ]
@@ -51176,7 +51176,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 515,
+          "line": 575,
           "sink": "addItem"
         }
       ]
@@ -52561,7 +52561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1274,
+          "line": 1339,
           "sink": "QCheckBox"
         }
       ]
@@ -52721,7 +52721,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1357,
+          "line": 1423,
           "sink": "QCheckBox"
         },
         {
@@ -53506,12 +53506,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         },
         {
@@ -55601,12 +55601,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 311,
+          "line": 370,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 383,
+          "line": 442,
           "sink": "QAction"
         },
         {
@@ -55906,7 +55906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1217,
+          "line": 1281,
           "sink": "QPushButton"
         }
       ]
@@ -56156,12 +56156,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 310,
+          "line": 369,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 382,
+          "line": 441,
           "sink": "QAction"
         },
         {
@@ -56336,7 +56336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1216,
+          "line": 1280,
           "sink": "QPushButton"
         }
       ]
@@ -58031,12 +58031,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 886,
+          "line": 948,
           "sink": "_add_tool_setting_row"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1323,
+          "line": 1389,
           "sink": "addItem"
         },
         {
@@ -58276,7 +58276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1021,
+          "line": 1084,
           "sink": "addItem"
         }
       ]
@@ -58286,7 +58286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1020,
+          "line": 1083,
           "sink": "addItem"
         }
       ]
@@ -58336,7 +58336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1019,
+          "line": 1082,
           "sink": "addItem"
         }
       ]
@@ -58346,7 +58346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1018,
+          "line": 1081,
           "sink": "addItem"
         }
       ]
@@ -58396,7 +58396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1022,
+          "line": 1085,
           "sink": "QPushButton"
         }
       ]
@@ -59331,7 +59331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 869,
+          "line": 910,
           "sink": "set_status_message"
         }
       ]
@@ -59476,7 +59476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 931,
+          "line": 994,
           "sink": "addRow"
         }
       ]
@@ -60001,12 +60001,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         },
         {
@@ -60096,7 +60096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 881,
+          "line": 943,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -61461,7 +61461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 754,
+          "line": 816,
           "sink": "addItem"
         }
       ]
@@ -62121,12 +62121,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 507,
+          "line": 567,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 510,
+          "line": 570,
           "sink": "QLabel"
         },
         {
@@ -62666,7 +62666,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 724,
+          "line": 786,
           "sink": "addItem"
         }
       ]
@@ -62766,12 +62766,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1118,
+          "line": 1182,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1155,
+          "line": 1219,
           "sink": "QPushButton"
         }
       ]
@@ -62846,12 +62846,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1119,
+          "line": 1183,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1156,
+          "line": 1220,
           "sink": "QPushButton"
         },
         {
@@ -62911,7 +62911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1116,
+          "line": 1180,
           "sink": "QPushButton"
         }
       ]
@@ -62926,7 +62926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1104,
+          "line": 1168,
           "sink": "QLabel"
         }
       ]
@@ -62951,7 +62951,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 878,
+          "line": 940,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -64841,7 +64841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1034,
+          "line": 1097,
           "sink": "QPushButton"
         }
       ]
@@ -64971,7 +64971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 347,
+          "line": 406,
           "sink": "addItem"
         }
       ]
@@ -65071,7 +65071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 928,
+          "line": 969,
           "sink": "set_status_message"
         }
       ]
@@ -65181,7 +65181,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 985,
+          "line": 1048,
           "sink": "QCheckBox"
         }
       ]
@@ -65321,7 +65321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/garbage_collection.py",
-          "line": 53,
+          "line": 141,
           "sink": "RuntimeError"
         }
       ]
@@ -65946,7 +65946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 794,
+          "line": 856,
           "sink": "addItem"
         }
       ]
@@ -67196,17 +67196,17 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 888,
+          "line": 950,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -67231,7 +67231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 731,
+          "line": 793,
           "sink": "addItem"
         }
       ]
@@ -67296,12 +67296,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 519,
+          "line": 579,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1057,
+          "line": 1120,
           "sink": "addItem"
         }
       ]
@@ -67326,7 +67326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1367,
+          "line": 1433,
           "sink": "addItem"
         }
       ]
@@ -67356,7 +67356,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 531,
+          "line": 591,
           "sink": "QCheckBox"
         }
       ]
@@ -67376,7 +67376,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 540,
+          "line": 600,
           "sink": "setToolTip"
         }
       ]
@@ -67401,7 +67401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 546,
+          "line": 606,
           "sink": "setToolTip"
         }
       ]
@@ -67571,7 +67571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 947,
+          "line": 1010,
           "sink": "QPushButton"
         }
       ]
@@ -69616,7 +69616,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 873,
+          "line": 935,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -69666,7 +69666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 729,
+          "line": 791,
           "sink": "addItem"
         }
       ]
@@ -70036,12 +70036,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         }
       ]
@@ -70706,7 +70706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 792,
+          "line": 854,
           "sink": "addItem"
         }
       ]
@@ -71256,7 +71256,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1425,
+          "line": 1491,
           "sink": "CollapsibleSection"
         },
         {
@@ -71456,7 +71456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 661,
+          "line": 722,
           "sink": "QLabel"
         }
       ]
@@ -71466,7 +71466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 746,
+          "line": 808,
           "sink": "addItem"
         }
       ]
@@ -71971,7 +71971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1321,
+          "line": 1387,
           "sink": "addItem"
         }
       ]
@@ -72766,7 +72766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1186,
+          "line": 1250,
           "sink": "CollapsibleSection"
         }
       ]
@@ -72786,7 +72786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1153,
+          "line": 1217,
           "sink": "QPushButton"
         }
       ]
@@ -72796,7 +72796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 725,
+          "line": 787,
           "sink": "addItem"
         }
       ]
@@ -77501,7 +77501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 926,
+          "line": 989,
           "sink": "addItem"
         }
       ]
@@ -78701,7 +78701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1297,
+          "line": 1362,
           "sink": "QPushButton"
         }
       ]
@@ -78711,7 +78711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 937,
+          "line": 1000,
           "sink": "QCheckBox"
         }
       ]
@@ -82511,12 +82511,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         },
         {
@@ -82641,7 +82641,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 599,
+          "line": 659,
           "sink": "QLabel"
         },
         {
@@ -82696,7 +82696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1284,
+          "line": 1349,
           "sink": "QLabel"
         },
         {
@@ -82721,7 +82721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1303,
+          "line": 1368,
           "sink": "QLabel"
         }
       ]
@@ -82831,7 +82831,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1305,
+          "line": 1370,
           "sink": "CollapsibleSection"
         }
       ]
@@ -82881,12 +82881,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/lazy_tool_tab.py",
-          "line": 113,
+          "line": 122,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/ui/shell/lazy_tool_tab.py",
-          "line": 233,
+          "line": 242,
           "sink": "TypeError"
         }
       ]
@@ -82896,12 +82896,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/lazy_tool_tab.py",
-          "line": 107,
+          "line": 116,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/shell/lazy_tool_tab.py",
-          "line": 266,
+          "line": 291,
           "sink": "RuntimeError"
         }
       ]
@@ -83446,7 +83446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1327,
+          "line": 1393,
           "sink": "addItem"
         }
       ]
@@ -83886,7 +83886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 830,
+          "line": 892,
           "sink": "addItem"
         },
         {
@@ -84431,7 +84431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1033,
+          "line": 1096,
           "sink": "addItem"
         }
       ]
@@ -84471,7 +84471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1032,
+          "line": 1095,
           "sink": "addItem"
         }
       ]
@@ -84501,7 +84501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1031,
+          "line": 1094,
           "sink": "addItem"
         }
       ]
@@ -84551,7 +84551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1030,
+          "line": 1093,
           "sink": "addItem"
         }
       ]
@@ -85181,7 +85181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 735,
+          "line": 797,
           "sink": "QPushButton"
         }
       ]
@@ -85986,7 +85986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 791,
+          "line": 853,
           "sink": "addItem"
         }
       ]
@@ -86276,7 +86276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1273,
+          "line": 1338,
           "sink": "QCheckBox"
         }
       ]
@@ -86286,7 +86286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1272,
+          "line": 1337,
           "sink": "QCheckBox"
         }
       ]
@@ -87146,7 +87146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1370,
+          "line": 1436,
           "sink": "addItem"
         }
       ]
@@ -87586,7 +87586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1395,
+          "line": 1461,
           "sink": "QPushButton"
         }
       ]
@@ -87636,7 +87636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 950,
+          "line": 1013,
           "sink": "QPushButton"
         }
       ]
@@ -89421,7 +89421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 795,
+          "line": 857,
           "sink": "addItem"
         }
       ]
@@ -89531,7 +89531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1248,
+          "line": 1313,
           "sink": "QPushButton"
         }
       ]
@@ -94866,7 +94866,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 927,
+          "line": 990,
           "sink": "addRow"
         }
       ]
@@ -96686,12 +96686,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         },
         {
@@ -97451,12 +97451,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 786,
+          "line": 848,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1278,
+          "line": 1343,
           "sink": "addItem"
         }
       ]
@@ -98826,7 +98826,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 433,
+          "line": 435,
           "sink": "raise_if_cancelled"
         },
         {
@@ -99016,7 +99016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 673,
+          "line": 734,
           "sink": "CollapsibleSection"
         },
         {
@@ -99311,7 +99311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1372,
+          "line": 1438,
           "sink": "addItem"
         }
       ]
@@ -99666,22 +99666,67 @@
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 652,
+          "line": 641,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 679,
+          "line": 655,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 756,
+          "line": 660,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 809,
+          "line": 684,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 693,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 695,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 698,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 769,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 822,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 830,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 845,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 895,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 897,
           "sink": "raise_if_cancelled"
         },
         {
@@ -101221,7 +101266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 602,
+          "line": 662,
           "sink": "QLabel"
         }
       ]
@@ -101856,7 +101901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 734,
+          "line": 796,
           "sink": "setPlaceholderText"
         }
       ]
@@ -103671,7 +103716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 600,
+          "line": 660,
           "sink": "QLabel"
         }
       ]
@@ -104836,17 +104881,17 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 753,
+          "line": 815,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 785,
+          "line": 847,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1277,
+          "line": 1342,
           "sink": "addItem"
         },
         {
@@ -106391,7 +106436,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 745,
+          "line": 807,
           "sink": "addItem"
         },
         {
@@ -107181,7 +107226,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 877,
+          "line": 939,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -107631,12 +107676,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 305,
+          "line": 364,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 378,
+          "line": 437,
           "sink": "QAction"
         }
       ]
@@ -107656,7 +107701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 307,
+          "line": 366,
           "sink": "QPushButton"
         }
       ]
@@ -108021,12 +108066,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 308,
+          "line": 367,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 380,
+          "line": 439,
           "sink": "QAction"
         }
       ]
@@ -108196,7 +108241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 336,
+          "line": 395,
           "sink": "QLabel"
         }
       ]
@@ -110091,7 +110136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/lazy_tool_tab.py",
-          "line": 78,
+          "line": 84,
           "sink": "QLabel"
         }
       ]
@@ -110866,7 +110911,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 516,
+          "line": 576,
           "sink": "addItem"
         },
         {
@@ -111876,12 +111921,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 788,
+          "line": 850,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1280,
+          "line": 1345,
           "sink": "addItem"
         }
       ]
@@ -112801,7 +112846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1027,
+          "line": 1090,
           "sink": "addItem"
         }
       ]
@@ -112811,7 +112856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1026,
+          "line": 1089,
           "sink": "addItem"
         }
       ]
@@ -112821,7 +112866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1025,
+          "line": 1088,
           "sink": "addItem"
         }
       ]
@@ -112831,7 +112876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1024,
+          "line": 1087,
           "sink": "addItem"
         }
       ]
@@ -113421,7 +113466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1206,
+          "line": 1270,
           "sink": "addRow"
         }
       ]
@@ -113516,17 +113561,17 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 598,
+          "line": 658,
           "sink": "QLabel"
         }
       ]
@@ -113886,7 +113931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1377,
+          "line": 1443,
           "sink": "QLabel"
         }
       ]
@@ -113896,7 +113941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1380,
+          "line": 1446,
           "sink": "QLabel"
         }
       ]
@@ -113906,7 +113951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1383,
+          "line": 1449,
           "sink": "QLabel"
         }
       ]
@@ -114851,7 +114896,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1052,
+          "line": 1115,
           "sink": "QPushButton"
         }
       ]
@@ -114871,7 +114916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1051,
+          "line": 1114,
           "sink": "addItem"
         }
       ]
@@ -114881,7 +114926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1050,
+          "line": 1113,
           "sink": "addItem"
         }
       ]
@@ -114891,7 +114936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1049,
+          "line": 1112,
           "sink": "addItem"
         }
       ]
@@ -114901,7 +114946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1048,
+          "line": 1111,
           "sink": "addItem"
         }
       ]
@@ -114986,12 +115031,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         }
       ]
@@ -115036,7 +115081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 887,
+          "line": 949,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -115586,7 +115631,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 867,
+          "line": 929,
           "sink": "_add_tool_setting_row"
         },
         {
@@ -116406,22 +116451,22 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 686,
+          "line": 748,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 696,
+          "line": 758,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 836,
+          "line": 898,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 839,
+          "line": 901,
           "sink": "QPushButton"
         }
       ]
@@ -120406,7 +120451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 729,
+          "line": 739,
           "sink": "pump_startup_splash"
         }
       ]
@@ -120816,7 +120861,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 847,
+          "line": 909,
           "sink": "QCheckBox"
         }
       ]
@@ -120931,7 +120976,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 864,
+          "line": 926,
           "sink": "_add_tool_setting_row"
         },
         {
@@ -120951,7 +120996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 346,
+          "line": 405,
           "sink": "addItem"
         }
       ]
@@ -121286,12 +121331,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 312,
+          "line": 371,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 384,
+          "line": 443,
           "sink": "QAction"
         }
       ]
@@ -122211,7 +122256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 633,
+          "line": 673,
           "sink": "_clear_archive_preview"
         }
       ]
@@ -122441,12 +122486,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 883,
+          "line": 924,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 933,
+          "line": 974,
           "sink": "_clear_archive_preview"
         },
         {
@@ -126401,7 +126446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 938,
+          "line": 1001,
           "sink": "QCheckBox"
         }
       ]
@@ -126421,7 +126466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 866,
+          "line": 907,
           "sink": "set_status_message"
         }
       ]
@@ -126481,7 +126526,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 984,
+          "line": 1047,
           "sink": "QCheckBox"
         }
       ]
@@ -126576,7 +126621,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1001,
+          "line": 1064,
           "sink": "QPushButton"
         },
         {
@@ -126651,7 +126696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 831,
+          "line": 893,
           "sink": "addItem"
         }
       ]
@@ -127551,7 +127596,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 680,
+          "line": 685,
           "sink": "_log_progress"
         }
       ]
@@ -127561,7 +127606,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 653,
+          "line": 656,
           "sink": "_log_progress"
         }
       ]
@@ -127936,7 +127981,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 757,
+          "line": 770,
           "sink": "_log_progress"
         }
       ]
@@ -128216,7 +128261,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 821,
+          "line": 835,
           "sink": "_log_progress"
         }
       ]
@@ -128486,7 +128531,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 601,
+          "line": 661,
           "sink": "QLabel"
         },
         {
@@ -129156,7 +129201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 503,
+          "line": 543,
           "sink": "_set_archive_preview_health_message"
         }
       ]
@@ -129201,7 +129246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 502,
+          "line": 542,
           "sink": "setText"
         }
       ]
@@ -129606,12 +129651,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         },
         {
@@ -129676,7 +129721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 898,
+          "line": 960,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -129746,7 +129791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 899,
+          "line": 961,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -129756,7 +129801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 902,
+          "line": 964,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -129766,7 +129811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 900,
+          "line": 962,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -129851,7 +129896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 901,
+          "line": 963,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -130436,12 +130481,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         }
       ]
@@ -130471,12 +130516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 518,
+          "line": 578,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1056,
+          "line": 1119,
           "sink": "addItem"
         }
       ]
@@ -130531,7 +130576,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 317,
+          "line": 376,
           "sink": "QPushButton"
         },
         {
@@ -130621,7 +130666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1366,
+          "line": 1432,
           "sink": "addItem"
         }
       ]
@@ -131926,7 +131971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 764,
+          "line": 774,
           "sink": "pump_startup_splash"
         }
       ]
@@ -132551,12 +132596,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1247,
+          "line": 1312,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1331,
+          "line": 1397,
           "sink": "QPushButton"
         },
         {
@@ -133771,7 +133816,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 923,
+          "line": 986,
           "sink": "addItem"
         },
         {
@@ -134211,7 +134256,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 834,
+          "line": 896,
           "sink": "addItem"
         }
       ]
@@ -135811,7 +135856,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1332,
+          "line": 1398,
           "sink": "QPushButton"
         },
         {
@@ -137716,7 +137761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 330,
+          "line": 370,
           "sink": "set_status_message"
         }
       ]
@@ -138061,7 +138106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1419,
+          "line": 1485,
           "sink": "QPushButton"
         }
       ]
@@ -140971,12 +141016,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1121,
+          "line": 1185,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1158,
+          "line": 1222,
           "sink": "QPushButton"
         }
       ]
@@ -140986,12 +141031,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1120,
+          "line": 1184,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1157,
+          "line": 1221,
           "sink": "QPushButton"
         }
       ]
@@ -141111,7 +141156,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1126,
+          "line": 1190,
           "sink": "QLabel"
         }
       ]
@@ -141351,7 +141396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 721,
+          "line": 783,
           "sink": "addItem"
         }
       ]
@@ -141416,7 +141461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 874,
+          "line": 936,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -142206,22 +142251,22 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 687,
+          "line": 749,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 697,
+          "line": 759,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 837,
+          "line": 899,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 840,
+          "line": 902,
           "sink": "QPushButton"
         }
       ]
@@ -142241,7 +142286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 797,
+          "line": 859,
           "sink": "QCheckBox"
         }
       ]
@@ -142326,7 +142371,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 712,
+          "line": 774,
           "sink": "QPushButton"
         }
       ]
@@ -142531,12 +142576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 309,
+          "line": 368,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 381,
+          "line": 440,
           "sink": "QAction"
         },
         {
@@ -143836,7 +143881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1124,
+          "line": 1188,
           "sink": "QLabel"
         }
       ]
@@ -144631,12 +144676,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 787,
+          "line": 849,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1279,
+          "line": 1344,
           "sink": "addItem"
         }
       ]
@@ -145716,7 +145761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 870,
+          "line": 932,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -145886,7 +145931,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 945,
+          "line": 1008,
           "sink": "QPushButton"
         },
         {
@@ -148321,7 +148366,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 357,
+          "line": 397,
           "sink": "_clear_archive_preview"
         },
         {
@@ -150996,7 +151041,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 970,
+          "line": 1033,
           "sink": "CollapsibleSection"
         },
         {
@@ -151051,7 +151096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 949,
+          "line": 1012,
           "sink": "QPushButton"
         }
       ]
@@ -151256,7 +151301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 913,
+          "line": 976,
           "sink": "QLabel"
         }
       ]
@@ -151266,7 +151311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1326,
+          "line": 1392,
           "sink": "addItem"
         }
       ]
@@ -151561,7 +151606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 387,
+          "line": 446,
           "sink": "QAction"
         }
       ]
@@ -151571,7 +151616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 385,
+          "line": 444,
           "sink": "QAction"
         }
       ]
@@ -151581,7 +151626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 386,
+          "line": 445,
           "sink": "QAction"
         }
       ]
@@ -152506,7 +152551,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 627,
+          "line": 688,
           "sink": "QLabel"
         },
         {
@@ -153181,12 +153226,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         }
       ]
@@ -153211,7 +153256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 889,
+          "line": 951,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -153521,7 +153566,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 318,
+          "line": 377,
           "sink": "QPushButton"
         }
       ]
@@ -154331,7 +154376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 653,
+          "line": 714,
           "sink": "QCheckBox"
         }
       ]
@@ -154706,7 +154751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 651,
+          "line": 712,
           "sink": "QCheckBox"
         }
       ]
@@ -155431,7 +155476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 948,
+          "line": 1011,
           "sink": "QPushButton"
         }
       ]
@@ -155956,7 +156001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 348,
+          "line": 407,
           "sink": "addItem"
         },
         {
@@ -156201,7 +156246,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 872,
+          "line": 934,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -156836,7 +156881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1209,
+          "line": 1273,
           "sink": "QCheckBox"
         }
       ]
@@ -157206,7 +157251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 876,
+          "line": 938,
           "sink": "_add_tool_setting_row"
         },
         {
@@ -157221,17 +157266,17 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 884,
+          "line": 946,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -157306,7 +157351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 803,
+          "line": 865,
           "sink": "QCheckBox"
         }
       ]
@@ -157316,7 +157361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 895,
+          "line": 957,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -157356,7 +157401,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 890,
+          "line": 907,
           "sink": "_log_progress"
         }
       ]
@@ -157851,12 +157896,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 460,
+          "line": 519,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 469,
+          "line": 528,
           "sink": "setToolTip"
         }
       ]
@@ -157881,7 +157926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 890,
+          "line": 952,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -157926,7 +157971,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 727,
+          "line": 789,
           "sink": "addItem"
         },
         {
@@ -158026,7 +158071,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1335,
+          "line": 1401,
           "sink": "QPushButton"
         }
       ]
@@ -159201,7 +159246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 879,
+          "line": 941,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -159361,7 +159406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 728,
+          "line": 790,
           "sink": "addItem"
         },
         {
@@ -159636,7 +159681,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 517,
+          "line": 577,
           "sink": "addItem"
         },
         {
@@ -159731,7 +159776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 722,
+          "line": 784,
           "sink": "addItem"
         }
       ]
@@ -159891,7 +159936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 866,
+          "line": 928,
           "sink": "_add_tool_setting_row"
         },
         {
@@ -161716,7 +161761,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 883,
+          "line": 945,
           "sink": "_add_tool_setting_row"
         },
         {
@@ -162131,7 +162176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 925,
+          "line": 988,
           "sink": "addItem"
         },
         {
@@ -162411,7 +162456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 796,
+          "line": 858,
           "sink": "addItem"
         }
       ]
@@ -162566,7 +162611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1061,
+          "line": 1124,
           "sink": "QPushButton"
         }
       ]
@@ -162871,7 +162916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 868,
+          "line": 930,
           "sink": "_add_tool_setting_row"
         },
         {
@@ -163346,7 +163391,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1364,
+          "line": 1430,
           "sink": "QLabel"
         },
         {
@@ -167366,7 +167411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 546,
+          "line": 586,
           "sink": "_handle_archive_remote_preview_dependencies_failed"
         }
       ]
@@ -172761,7 +172806,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 827,
+          "line": 841,
           "sink": "_log_progress"
         }
       ]
@@ -174166,7 +174211,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 552,
+          "line": 592,
           "sink": "_handle_archive_remote_preview_dependencies_failed"
         },
         {
@@ -176301,7 +176346,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 833,
+          "line": 895,
           "sink": "addItem"
         }
       ]
@@ -176406,7 +176451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1040,
+          "line": 1103,
           "sink": "QPushButton"
         }
       ]
@@ -176416,7 +176461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 315,
+          "line": 374,
           "sink": "QPushButton"
         }
       ]
@@ -176426,7 +176471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 313,
+          "line": 372,
           "sink": "QPushButton"
         }
       ]
@@ -176436,7 +176481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 314,
+          "line": 373,
           "sink": "QPushButton"
         }
       ]
@@ -176906,7 +176951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 885,
+          "line": 947,
           "sink": "_add_tool_setting_row"
         }
       ]
@@ -176986,7 +177031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 905,
+          "line": 967,
           "sink": "CollapsibleSection"
         }
       ]
@@ -177111,7 +177156,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 437,
+          "line": 496,
           "sink": "QGroupBox"
         },
         {
@@ -177586,7 +177631,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1137,
+          "line": 1201,
           "sink": "CollapsibleSection"
         },
         {
@@ -178121,7 +178166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1152,
+          "line": 1216,
           "sink": "QPushButton"
         },
         {
@@ -178136,7 +178181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1208,
+          "line": 1272,
           "sink": "QCheckBox"
         }
       ]
@@ -179641,7 +179686,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 316,
+          "line": 375,
           "sink": "QPushButton"
         },
         {
@@ -180601,7 +180646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 790,
+          "line": 852,
           "sink": "addItem"
         }
       ]
@@ -181341,12 +181386,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1249,
+          "line": 1314,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1333,
+          "line": 1399,
           "sink": "QPushButton"
         },
         {
@@ -183571,7 +183616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1194,
+          "line": 1258,
           "sink": "QLabel"
         }
       ]
@@ -185336,7 +185381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 657,
+          "line": 718,
           "sink": "QLabel"
         }
       ]
@@ -185346,7 +185391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 747,
+          "line": 809,
           "sink": "addItem"
         }
       ]
@@ -185436,7 +185481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1324,
+          "line": 1390,
           "sink": "addItem"
         },
         {
@@ -185491,7 +185536,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 523,
+          "line": 583,
           "sink": "QLabel"
         },
         {
@@ -185736,7 +185781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1270,
+          "line": 1335,
           "sink": "QCheckBox"
         },
         {
@@ -188676,7 +188721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1373,
+          "line": 1439,
           "sink": "addItem"
         }
       ]
@@ -190011,7 +190056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1039,
+          "line": 1102,
           "sink": "addItem"
         }
       ]
@@ -190021,7 +190066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1038,
+          "line": 1101,
           "sink": "addItem"
         }
       ]
@@ -190031,7 +190076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1037,
+          "line": 1100,
           "sink": "addItem"
         }
       ]
@@ -190041,7 +190086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1036,
+          "line": 1099,
           "sink": "addItem"
         }
       ]
@@ -191566,7 +191611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 603,
+          "line": 663,
           "sink": "QLabel"
         }
       ]
@@ -191661,7 +191706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1371,
+          "line": 1437,
           "sink": "addItem"
         }
       ]
@@ -192786,7 +192831,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 924,
+          "line": 987,
           "sink": "addItem"
         }
       ]
@@ -192886,42 +192931,42 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 521,
+          "line": 581,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1021,
+          "line": 1084,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1027,
+          "line": 1090,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1033,
+          "line": 1096,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1039,
+          "line": 1102,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1045,
+          "line": 1108,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1051,
+          "line": 1114,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1059,
+          "line": 1122,
           "sink": "addItem"
         }
       ]
@@ -194056,7 +194101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1374,
+          "line": 1440,
           "sink": "addItem"
         }
       ]
@@ -194116,42 +194161,42 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 520,
+          "line": 580,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1020,
+          "line": 1083,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1026,
+          "line": 1089,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1032,
+          "line": 1095,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1038,
+          "line": 1101,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1044,
+          "line": 1107,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1050,
+          "line": 1113,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1058,
+          "line": 1121,
           "sink": "addItem"
         }
       ]
@@ -194161,7 +194206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1368,
+          "line": 1434,
           "sink": "addItem"
         }
       ]
@@ -194351,7 +194396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 748,
+          "line": 810,
           "sink": "addItem"
         }
       ]
@@ -196731,7 +196776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 730,
+          "line": 792,
           "sink": "addItem"
         }
       ]
@@ -196751,7 +196796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1328,
+          "line": 1394,
           "sink": "addItem"
         }
       ]
@@ -196781,7 +196826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1369,
+          "line": 1435,
           "sink": "addItem"
         }
       ]
@@ -197136,7 +197181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 723,
+          "line": 785,
           "sink": "addItem"
         }
       ]
@@ -197446,7 +197491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 659,
+          "line": 720,
           "sink": "setPlaceholderText"
         }
       ]
@@ -197456,7 +197501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 663,
+          "line": 724,
           "sink": "setPlaceholderText"
         }
       ]
@@ -197881,7 +197926,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 515,
+          "line": 575,
           "sink": "addItem"
         },
         {
@@ -198741,7 +198786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1323,
+          "line": 1389,
           "sink": "addItem"
         }
       ]
@@ -199466,7 +199511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 754,
+          "line": 816,
           "sink": "addItem"
         }
       ]
@@ -199561,7 +199606,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 724,
+          "line": 786,
           "sink": "addItem"
         }
       ]
@@ -199826,7 +199871,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 347,
+          "line": 406,
           "sink": "addItem"
         },
         {
@@ -199866,7 +199911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 794,
+          "line": 856,
           "sink": "addItem"
         }
       ]
@@ -200141,7 +200186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 731,
+          "line": 793,
           "sink": "addItem"
         }
       ]
@@ -200181,42 +200226,42 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 519,
+          "line": 579,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1019,
+          "line": 1082,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1025,
+          "line": 1088,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1031,
+          "line": 1094,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1037,
+          "line": 1100,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1043,
+          "line": 1106,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1049,
+          "line": 1112,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1057,
+          "line": 1120,
           "sink": "addItem"
         }
       ]
@@ -200226,7 +200271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1367,
+          "line": 1433,
           "sink": "addItem"
         }
       ]
@@ -200376,7 +200421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 729,
+          "line": 791,
           "sink": "addItem"
         }
       ]
@@ -200746,7 +200791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 746,
+          "line": 808,
           "sink": "addItem"
         }
       ]
@@ -201221,7 +201266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 926,
+          "line": 989,
           "sink": "addItem"
         }
       ]
@@ -201846,7 +201891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1327,
+          "line": 1393,
           "sink": "addItem"
         }
       ]
@@ -201876,7 +201921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 830,
+          "line": 892,
           "sink": "addItem"
         },
         {
@@ -202066,7 +202111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1370,
+          "line": 1436,
           "sink": "addItem"
         }
       ]
@@ -203006,7 +203051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 795,
+          "line": 857,
           "sink": "addItem"
         }
       ]
@@ -204211,12 +204256,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 786,
+          "line": 848,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1278,
+          "line": 1343,
           "sink": "addItem"
         }
       ]
@@ -204401,7 +204446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 942,
+          "line": 944,
           "sink": "RuntimeError"
         }
       ]
@@ -204806,7 +204851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 919,
+          "line": 921,
           "sink": "RuntimeError"
         }
       ]
@@ -204886,7 +204931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1372,
+          "line": 1438,
           "sink": "addItem"
         }
       ]
@@ -205291,17 +205336,17 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 753,
+          "line": 815,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 785,
+          "line": 847,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1277,
+          "line": 1342,
           "sink": "addItem"
         }
       ]
@@ -205706,7 +205751,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 745,
+          "line": 807,
           "sink": "addItem"
         },
         {
@@ -206141,7 +206186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 516,
+          "line": 576,
           "sink": "addItem"
         }
       ]
@@ -206176,12 +206221,12 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 788,
+          "line": 850,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1280,
+          "line": 1345,
           "sink": "addItem"
         }
       ]
@@ -206286,7 +206331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1459,
+          "line": 1526,
           "sink": "_set_active_tool"
         },
         {
@@ -208011,7 +208056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 831,
+          "line": 893,
           "sink": "addItem"
         }
       ]
@@ -208526,42 +208571,42 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 518,
+          "line": 578,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1018,
+          "line": 1081,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1024,
+          "line": 1087,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1030,
+          "line": 1093,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1036,
+          "line": 1099,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1042,
+          "line": 1105,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1048,
+          "line": 1111,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1056,
+          "line": 1119,
           "sink": "addItem"
         }
       ]
@@ -208591,7 +208636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1366,
+          "line": 1432,
           "sink": "addItem"
         }
       ]
@@ -208816,7 +208861,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 923,
+          "line": 986,
           "sink": "addItem"
         }
       ]
@@ -208941,7 +208986,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 840,
+          "line": 850,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -209676,7 +209721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 721,
+          "line": 783,
           "sink": "addItem"
         }
       ]
@@ -210001,12 +210046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 787,
+          "line": 849,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1279,
+          "line": 1344,
           "sink": "addItem"
         }
       ]
@@ -210521,7 +210566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 846,
+          "line": 856,
           "sink": "_register_detachable_tool"
         },
         {
@@ -211021,7 +211066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 348,
+          "line": 407,
           "sink": "addItem"
         }
       ]
@@ -211271,7 +211316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 727,
+          "line": 789,
           "sink": "addItem"
         }
       ]
@@ -211471,7 +211516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 728,
+          "line": 790,
           "sink": "addItem"
         }
       ]
@@ -211526,7 +211571,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 517,
+          "line": 577,
           "sink": "addItem"
         }
       ]
@@ -211551,7 +211596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 722,
+          "line": 784,
           "sink": "addItem"
         }
       ]
@@ -211951,7 +211996,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 925,
+          "line": 988,
           "sink": "addItem"
         }
       ]
@@ -211981,7 +212026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 796,
+          "line": 858,
           "sink": "addItem"
         }
       ]
@@ -212521,7 +212566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 835,
+          "line": 845,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -212911,7 +212956,7 @@
         },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 833,
+          "line": 895,
           "sink": "addItem"
         }
       ]
@@ -214291,7 +214336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 747,
+          "line": 809,
           "sink": "addItem"
         }
       ]
@@ -214316,7 +214361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1324,
+          "line": 1390,
           "sink": "addItem"
         }
       ]
@@ -214816,7 +214861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1373,
+          "line": 1439,
           "sink": "addItem"
         }
       ]
@@ -215141,7 +215186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_editor_tab.py",
-          "line": 1371,
+          "line": 1437,
           "sink": "addItem"
         }
       ]

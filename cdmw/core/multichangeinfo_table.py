@@ -23,6 +23,7 @@ from typing import Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.iteminfo_row import ItemInfoRow
 from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table
+from cdmw.domain.cancellation import raise_if_cancelled
 
 MULTICHANGEINFO_PAYLOAD_PATH = "gamedata/binary__/client/bin/multichangeinfo.pabgb"
 MULTICHANGEINFO_HEADER_PATH = "gamedata/binary__/client/bin/multichangeinfo.pabgh"
@@ -83,9 +84,17 @@ def parse_multichange_row(raw: bytes, *, key: Optional[int] = None) -> MultiChan
     return MultiChangeRow(raw=data, key=row_key, name=name, item_key=item)
 
 
-def parse_multichange_table(payload: bytes, header: bytes) -> Tuple[MultiChangeRow, ...]:
+def parse_multichange_table(
+    payload: bytes, header: bytes, *, stop_event: object | None = None,
+) -> Tuple[MultiChangeRow, ...]:
+    """Every row; `stop_event` is asked before each one (a paused read waits there)."""
+
     table = parse_pabgh_table(header, payload=payload)
-    return tuple(parse_multichange_row(payload[s:e], key=row.row_id) for row, s, e in table.row_spans(len(payload)))
+    rows = []
+    for row, s, e in table.row_spans(len(payload)):
+        raise_if_cancelled(stop_event)
+        rows.append(parse_multichange_row(payload[s:e], key=row.row_id))
+    return tuple(rows)
 
 
 def find_multichange_keys(row: ItemInfoRow, known_keys: Iterable[int]) -> Tuple[int, ...]:
