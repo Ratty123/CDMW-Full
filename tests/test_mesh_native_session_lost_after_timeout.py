@@ -127,6 +127,37 @@ def test_finish_after_a_timed_out_morph_query_opens_the_session_again(open_exact
     assert shadow.native_editor_lost_recoveries == 1
 
 
+def test_a_mesh_edit_made_before_the_timeout_is_kept_by_finish(open_exact) -> None:
+    from tests.test_mesh_rust_authoring_exact_output import _apply_position_edit, _request
+
+    service, session = open_exact(defer_morph_state=False)
+    edited_x = _apply_position_edit(session)
+    _later_query_times_out(session)
+
+    result = session.finish(_request(session, "finish_request", 2))
+
+    assert result["status"] == "accepted"
+    committed = service.working_mesh(session.authoritative_session_id, clone=True)
+    assert committed.submeshes[0].vertices[0][0] == pytest.approx(edited_x)
+
+
+def test_an_edit_the_lost_core_never_exported_refuses_finish_instead_of_dropping_it(open_exact) -> None:
+    from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+    from tests.test_mesh_rust_authoring_exact_output import _request
+
+    service, session = open_exact(defer_morph_state=False)
+    shadow = session.shadow_service
+    moved = shadow.apply_command(session.shadow_session_id, MeshEditCommand(
+        "transform", selection=MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)}),
+        params={"delta": (0.25, 0.0, 0.0), "_include_preview_deltas": False}, mode="edit"))
+    assert moved.ok and shadow._session(session.shadow_session_id).native_editor_mesh_dirty
+    _later_query_times_out(session)
+
+    with pytest.raises(RuntimeError, match="cannot be reopened from stale Python geometry"):
+        session.finish(_request(session, "finish_request", 2))
+    assert service.session_view(session.authoritative_session_id).revision == 0
+
+
 def test_a_core_that_started_again_reopens_the_session_it_lost(open_exact) -> None:
     from tests.test_mesh_rust_authoring_exact_output import _request
 

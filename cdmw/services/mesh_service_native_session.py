@@ -131,18 +131,20 @@ def _forget_lost_native_editor_session(session: _MeshEditSession) -> None:
     session closed in the core, and a core that started again holds no session
     at all. This side kept the session marked open, so every later use got
     "missing mesh editor session" and Finish failed at once (built-app passes 9
-    and 11, 2026-11-16). Geometry exported to this side is reopened from; edits
-    the core held and never exported are gone with it, as for any lost session.
+    and 11, 2026-11-16). Geometry exported to this side is reopened from.
+
+    Edits the core held and never exported are gone with it. The session then
+    stays dirty, as after a timed-out stroke, so Finish refuses ("cannot be
+    reopened from stale Python geometry") instead of finishing without them.
     """
 
     session.native_editor_runtime_lost = True
-    if session.native_editor_mesh_dirty:
-        _abandon_lost_native_editor_session(session)
-        return
     session.native_editor_session_ready = False
     session.native_editor_selection_signature = ()
     session.native_editor_active_stroke_id = ""
     session.native_editor_mesh_signature = ()
+    if session.native_editor_mesh_dirty:
+        return
     session.native_editor_mesh_dirty_counts = ()
     session.native_history_undo_count = 0
     session.native_history_redo_count = 0
