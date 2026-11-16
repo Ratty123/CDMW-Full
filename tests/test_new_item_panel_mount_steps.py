@@ -117,3 +117,36 @@ def test_the_model_panel_is_built_a_section_per_step(make_tab):
     assert whole._workspace_ready and hasattr(whole, "components")
     whole.deleteLater()
     panel.deleteLater()
+
+
+def test_the_mount_survives_event_loop_turns_between_every_step(make_tab):
+    tab = make_tab()
+    tab.show()
+    app = QApplication.instance()
+    steps = tab._build_panels()
+    count = 0
+    for _ in steps:
+        count += 1
+        for _turn in range(3):
+            app.processEvents()
+    assert count >= 10
+    assert tab._panels_built and tab._model_panel_in_build is None
+    tab._panels_ready()
+    app.processEvents()
+    assert tab.pages.currentIndex() == 0
+
+
+def test_a_shutdown_while_the_model_panel_is_half_built_reaches_its_preview(make_tab):
+    tab = make_tab()
+    tab.show()
+    steps = tab._build_panels()
+    tab._panel_mount_steps = steps
+    while getattr(tab, "_model_panel_in_build", None) is None or not hasattr(tab._model_panel_in_build, "preview"):
+        next(steps)
+    preview = tab._model_panel_in_build.preview
+    calls = []
+    with patch.object(type(preview), "request_shutdown", lambda self: calls.append("request")), \
+            patch.object(type(preview), "shutdown", lambda self: calls.append("shutdown")):
+        tab.shutdown()
+    assert "request" in calls and "shutdown" in calls
+    assert not hasattr(tab, "model_panel") or tab.model_panel is None

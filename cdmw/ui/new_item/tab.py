@@ -607,8 +607,11 @@ class NewItemStudioTab(QWidget):
             build_in_steps=True,
         )
         model_panel.hide()
+        # Until it is complete, a shutdown reaches its preview through this.
+        self._model_panel_in_build = model_panel
         for _section in model_panel.remaining_build_steps:
             yield
+        self._model_panel_in_build = None
         self.model_panel = model_panel
         if self._model_status_host is not None:
             self.model_panel.set_operation_status_host(self._model_status_host)
@@ -1350,10 +1353,22 @@ class NewItemStudioTab(QWidget):
 
     # ------------------------------------------------------------------ lifecycle
 
+    def _preview_of_model_panel_in_build(self):
+        """The preview of a Model panel still being built a section at a time, if any."""
+
+        building = getattr(self, "_model_panel_in_build", None)
+        return getattr(building, "preview", None) if building is not None else None
+
     def iter_shutdown_workers(self):
         workers = list(self.controller.iter_shutdown_workers())
         if getattr(self, "model_panel", None) is not None:
             workers.extend(self.model_panel.iter_shutdown_workers())
+        building_preview = self._preview_of_model_panel_in_build()
+        if building_preview is not None:
+            try:
+                workers.extend(building_preview.iter_shutdown_workers())
+            except Exception:  # noqa: BLE001 - as ModelPanel.iter_shutdown_workers
+                pass
         if self._perks_panel is not None:
             workers.extend(self._perks_panel.iter_shutdown_workers())
         return tuple(workers)
@@ -1366,6 +1381,12 @@ class NewItemStudioTab(QWidget):
         self.controller.request_shutdown()
         if getattr(self, "model_panel", None) is not None:
             self.model_panel.request_shutdown_preview()
+        building_preview = self._preview_of_model_panel_in_build()
+        if building_preview is not None:
+            try:
+                building_preview.request_shutdown()
+            except Exception:  # noqa: BLE001 - as ModelPanel.request_shutdown_preview
+                pass
         if self._perks_panel is not None:
             self._perks_panel.request_shutdown()
 
@@ -1373,6 +1394,12 @@ class NewItemStudioTab(QWidget):
         self.request_shutdown()
         if getattr(self, "model_panel", None) is not None:
             self.model_panel.shutdown_preview()
+        building_preview = self._preview_of_model_panel_in_build()
+        if building_preview is not None:
+            try:
+                building_preview.shutdown()
+            except Exception:  # noqa: BLE001 - as ModelPanel.shutdown_preview
+                pass
         self.controller.shutdown()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt virtual
