@@ -74358,7 +74358,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 751
+      "cdmw/automation/bridge.py": 781
     }
   },
   {
@@ -75336,7 +75336,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod output is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 606
+      "cdmw/automation/bridge.py": 636
     }
   },
   {
@@ -75344,7 +75344,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod refuses until validation passes: finish the edit first.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 614
+      "cdmw/automation/bridge.py": 644
     }
   },
   {
@@ -83330,7 +83330,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 553
+      "cdmw/automation/bridge.py": 583
     }
   },
   {
@@ -84050,7 +84050,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 755
+      "cdmw/automation/bridge.py": 785
     }
   },
   {
@@ -84266,7 +84266,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 531
+      "cdmw/automation/bridge.py": 561
     }
   },
   {
@@ -84891,7 +84891,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown automation command: {command or '(none)'}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 301
+      "cdmw/automation/bridge.py": 303
     }
   },
   {
@@ -89229,7 +89229,7 @@ MESSAGE_REFERENCE = [
     "message": "{command} did not finish on the UI thread",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 305
+      "cdmw/automation/bridge.py": 307
     }
   },
   {

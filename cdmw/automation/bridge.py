@@ -297,6 +297,8 @@ class AutomationBridge(QObject):
             return self._processes()
         if command == "ui_stack":
             return self._ui_stack()
+        if command == "thread_stacks":
+            return self._thread_stacks()
         if command not in self._ui_commands:
             raise ValueError(f"Unknown automation command: {command or '(none)'}")
         request = _Request(command, args)
@@ -319,6 +321,34 @@ class AutomationBridge(QObject):
         if frame is None:
             return []
         return [f"{Path(item.filename).name}:{item.lineno} {item.name}" for item in traceback.extract_stack(frame)]
+
+    @staticmethod
+    def _thread_stacks() -> list[dict[str, object]]:
+        """Every other thread's Python stack right now, read on the listener thread.
+
+        A UI stall whose ``ui_stack`` is only the event loop can be the window
+        thread waiting for the GIL; this names the worker that held it. The
+        listener only runs once the GIL is free, so a sample shows where the
+        holder let go: a busy worker appears inside its Python code.
+        """
+
+        import sys
+        import traceback
+
+        own = threading.get_ident()
+        main = threading.main_thread().ident
+        names = {thread.ident: thread.name for thread in threading.enumerate()}
+        rows = []
+        for ident, frame in sys._current_frames().items():
+            if ident == own:
+                continue
+            rows.append({
+                "ident": int(ident), "name": names.get(ident, ""), "main": ident == main,
+                "frames": [f"{Path(item.filename).name}:{item.lineno} {item.name}"
+                           for item in traceback.extract_stack(frame)],
+            })
+        rows.sort(key=lambda row: (not row["main"], row["name"], row["ident"]))
+        return rows
 
     def _processes(self) -> dict[str, object]:
         from cdmw.core.common import _windows_descendant_pids

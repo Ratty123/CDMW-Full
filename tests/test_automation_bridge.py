@@ -353,3 +353,61 @@ def test_build_mod_writes_inside_the_run_profile_only(env, tmp_path) -> None:
     assert "build_mod" in bridge._ui_commands
     with pytest.raises(ValueError, match="inside the run's own profile"):
         bridge._build_mod({"output_dir": str(tmp_path / "elsewhere")})
+
+
+def test_thread_stacks_name_a_busy_worker_while_the_ui_thread_waits(env) -> None:
+    """A stall whose ``ui_stack`` is only the event loop can be the window thread waiting
+    for the GIL; ``thread_stacks`` names the worker holding it, read on the listener thread."""
+
+    from PySide6.QtWidgets import QApplication
+
+    from cdmw.automation.bridge import AutomationBridge
+    from cdmw.automation.client import AutomationClient
+
+    app = QApplication.instance() or QApplication([])
+    env.setenv(policy.TOKEN_ENV, secrets.token_hex(32))
+    env.setenv(policy.PIPE_ENV, f"test-threads-{os.getpid()}-{secrets.token_hex(4)}")
+    settings = policy.automation_settings()
+    bridge = AutomationBridge(settings)
+    window = _Window()
+    bridge.attach(window)
+    stop = threading.Event()
+    running = threading.Event()
+
+    def busy_python_worker_for_the_probe():
+        running.set()
+        total = 0
+        while not stop.is_set():
+            for value in range(5000):
+                total += value * value
+
+    worker = threading.Thread(target=busy_python_worker_for_the_probe, name="busy-probe-worker")
+    worker.start()
+    results: dict[str, object] = {}
+
+    def sampler():
+        try:
+            running.wait(10)
+            with AutomationClient(settings.address, settings.token) as client:
+                results["threads"] = client.call("thread_stacks")
+        except Exception as exc:  # surfaced below
+            results["error"] = repr(exc)
+
+    probe = threading.Thread(target=sampler)
+    probe.start()
+    deadline = time.time() + 20
+    while probe.is_alive() and time.time() < deadline:
+        app.processEvents()
+        time.sleep(0.005)
+    probe.join(1)
+    stop.set()
+    worker.join(5)
+    bridge.stop()
+    window.widget.deleteLater()
+    assert "error" not in results, results
+    rows = results["threads"]
+    busy = [row for row in rows if row["name"] == "busy-probe-worker"]
+    assert busy and not busy[0]["main"], rows
+    assert any("busy_python_worker_for_the_probe" in line for line in busy[0]["frames"]), busy
+    assert sum(1 for row in rows if row["main"]) == 1
+    assert all(isinstance(line, str) and ":" in line for row in rows for line in row["frames"])
