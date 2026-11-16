@@ -3214,6 +3214,9 @@ impl LabApplication {
     }
 
     fn install_cdmw(&mut self, mut bridge: CdmwBridge, document: MeshDocument) -> Result<()> {
+        // A session's layer edits, and what CDMW was told shows live, are its own (B item 6).
+        self.cdmw_layer_texture_edits = cdmw_live_textures::LayerTextureEdits::default();
+        self.cdmw_published_live_textures = None;
         let source_lod_index = bridge.source_lod_index();
         let source_path = bridge
             .manifest()

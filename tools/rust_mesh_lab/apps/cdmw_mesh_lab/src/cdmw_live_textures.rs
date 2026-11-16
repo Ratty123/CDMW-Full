@@ -40,6 +40,12 @@ pub struct LayerTextureEdits {
 }
 
 impl LayerTextureEdits {
+    #[cfg(test)]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.edits.is_empty()
+    }
+
     /// The source hash (lower case) CDMW knows a layer texture by.
     #[must_use]
     pub fn source_of(&self, key: &str) -> String {
@@ -399,6 +405,43 @@ mod tests {
         assert_eq!(
             shown[&mask.source_sha256.to_ascii_lowercase()],
             BTreeSet::from([4])
+        );
+    }
+
+    #[test]
+    fn a_new_session_starts_without_the_last_one_s_layer_edits() {
+        // The same process can take another session (a helper that showed Browse's model).
+        let root = tempfile::tempdir().expect("temporary directory");
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("body_base.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .expect("triangle");
+        let bridge = |id: &str| {
+            crate::cdmw_session::CdmwBridge::for_test(root.path().to_path_buf(), id, 1, 0)
+        };
+        let mut application =
+            crate::LabApplication::new_cdmw(bridge("first"), document.clone(), None)
+                .expect("first session");
+        let mask = texture([255, 0, 0, 255], TextureRole::LayerMask);
+        let colour = texture([128, 128, 128, 255], TextureRole::BaseColor);
+        let mut layers = vec![set(0, &mask, &colour)];
+        let source = colour.source_sha256.to_ascii_lowercase();
+        application.cdmw_layer_texture_edits.record(
+            &mut layers,
+            &source,
+            edit_bytes([1, 1, 1, 255]),
+        );
+        application.cdmw_published_live_textures = Some(BTreeMap::new());
+        assert!(!application.cdmw_layer_texture_edits.is_empty());
+
+        application
+            .install_cdmw(bridge("second"), document)
+            .expect("second session");
+        assert!(application.cdmw_layer_texture_edits.is_empty());
+        assert!(
+            application.cdmw_published_live_textures.is_none(),
+            "CDMW is told again what shows live"
         );
     }
 }
