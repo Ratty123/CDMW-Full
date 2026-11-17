@@ -61,6 +61,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- A **Hue / Saturation** or **Vibrance** adjustment with its sliders at 0 no longer changes the texture. Its colour maths worked in 8-bit steps, so adding one moved most coloured pixels by a few levels, and the texture counted as edited for **Build Mod**.
 - The Texture Editor's brush **Opacity** is now the most one stroke covers: a stroke at 30 % stays at 30 % where its stamps overlap, and **Flow** is how much each stamp adds as they build up. Opacity used to act as a second Flow, so a 30 % stroke built up to nearly full colour along its length. It applies to Paint, Erase, Smudge, Dodge/Burn, Clone, Heal, Sharpen and Soften, and to Create New Item's transparency brush. A pen's pressure now scales the opacity where each stamp lands, so a lighter press paints a lighter stroke.
 - An adjustment changed with the keyboard, the mouse wheel, a click beside a slider's handle or **Selective Color**'s colour list is now an Undo step of its own and shows on the model at once, as a drag does when you release it. Until some later edit it showed only in the Texture Editor panel, and Undo took it back together with that edit.
 - Texture edits in the Mesh Editor's **Texture Editor** panel that the model did not show now show there too: **Move**, hiding, showing or removing a layer, and **Undo**, **Redo** or a **History** restore of a layer or adjustment change. The panel showed the change but the model kept the texture as it was until the next brush stroke.

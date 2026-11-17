@@ -352,3 +352,32 @@ def test_an_opacity_drag_in_the_dock_stays_at_its_opacity(dock) -> None:
     expected = round(int(before[48, 32, 1]) + 0.3 * (255 - int(before[48, 32, 1])))
     assert abs(green - expected) <= 1, (green, expected)
     assert _shows_on_the_model(dock)
+
+
+def test_hue_saturation_and_vibrance_at_zero_leave_the_texture_alone() -> None:
+    from cdmw.domain.textures.editor_composite import _apply_adjustment_to_rgba
+    from cdmw.models import TextureEditorAdjustmentLayer
+
+    rgba = np.random.default_rng(3).integers(0, 256, (64, 64, 4), dtype=np.uint8)
+    rgba[..., 3] = 255
+    for kind in ("hue_saturation", "vibrance"):
+        out = _apply_adjustment_to_rgba(rgba, TextureEditorAdjustmentLayer("a", kind, kind))
+        assert np.array_equal(out, rgba), kind
+    # And a hue turn of 180 degrees takes red to cyan, keeping brightness and saturation.
+    red = np.zeros((1, 1, 4), dtype=np.uint8)
+    red[..., :] = (200, 40, 40, 255)
+    turned = _apply_adjustment_to_rgba(red, TextureEditorAdjustmentLayer(
+        "a", "h", "hue_saturation", parameters={"hue": 180.0}))
+    assert tuple(int(v) for v in turned[0, 0]) == (40, 200, 200, 255)
+
+
+def test_adding_an_adjustment_at_its_defaults_changes_nothing_on_the_model(dock) -> None:
+    editor = dock.editor
+    rgba = np.random.default_rng(5).integers(0, 256, (64, 64, 4), dtype=np.uint8)
+    rgba[..., 3] = 255
+    dock.open("random.png", "ef" * 32, rgba)
+    opened = dock.composite()
+    for kind in ("hue_saturation", "vibrance", "brightness_contrast", "exposure", "color_balance",
+                 "selective_color", "levels", "curves"):
+        _add_adjustment(editor, kind)
+        assert np.array_equal(dock.composite(), opened), kind

@@ -194,6 +194,40 @@ def _trim_rgba_transparent_bounds(pixels: np.ndarray) -> np.ndarray:
     y1 = int(ys.max()) + 1
     return rgba[y0:y1, x0:x1].copy()
 
+def _rgb_to_hsv_float(rgb: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Hue in degrees, saturation 0 to 1 and value 0 to 255, kept in float. The 8-bit
+    HSV of OpenCV (hue in 2-degree steps) moved colours by up to 6 levels even with
+    every slider at 0."""
+
+    rgb_f = rgb.astype(np.float32)
+    red, green, blue = rgb_f[..., 0], rgb_f[..., 1], rgb_f[..., 2]
+    value = rgb_f.max(axis=2)
+    chroma = value - rgb_f.min(axis=2)
+    safe = np.where(chroma > 0.0, chroma, 1.0)
+    hue = np.where(
+        value == red,
+        np.mod((green - blue) / safe, 6.0),
+        np.where(value == green, (blue - red) / safe + 2.0, (red - green) / safe + 4.0),
+    ) * 60.0
+    hue = np.where(chroma > 0.0, hue, 0.0)
+    sat = np.where(value > 0.0, chroma / np.where(value > 0.0, value, 1.0), 0.0)
+    return hue.astype(np.float32), sat.astype(np.float32), value
+
+
+def _hsv_float_to_rgb(hue: np.ndarray, sat: np.ndarray, value: np.ndarray) -> np.ndarray:
+    sector = np.mod(hue, 360.0) / 60.0
+    chroma = value * sat
+    second = chroma * (1.0 - np.abs(np.mod(sector, 2.0) - 1.0))
+    index = np.floor(sector).astype(np.int8) % 6
+    zero = np.zeros_like(chroma)
+    red = np.choose(index, (chroma, second, zero, zero, second, chroma))
+    green = np.choose(index, (second, chroma, chroma, second, zero, zero))
+    blue = np.choose(index, (zero, zero, second, chroma, chroma, second))
+    lift = value - chroma
+    rgb = np.stack((red + lift, green + lift, blue + lift), axis=-1)
+    return np.clip(np.round(rgb), 0.0, 255.0).astype(np.uint8)
+
+
 def _apply_adjustment_to_rgba(
     rgba: np.ndarray,
     adjustment: TextureEditorAdjustmentLayer,
@@ -210,14 +244,14 @@ def _apply_adjustment_to_rgba(
     rgb = source[..., :3]
     alpha = source[..., 3:4]
     if adj_type == "hue_saturation":
-        hsv = image_ops.rgb_to_hsv(rgb).astype(np.float32)
+        hue, sat, value = _rgb_to_hsv_float(rgb)
         hue_shift = float(params.get("hue", 0.0))
         sat_shift = float(params.get("saturation", 0.0))
         light_shift = float(params.get("lightness", 0.0))
-        hsv[..., 0] = np.mod(hsv[..., 0] + (hue_shift / 2.0), 180.0)
-        hsv[..., 1] = np.clip(hsv[..., 1] * (1.0 + (sat_shift / 100.0)), 0.0, 255.0)
-        hsv[..., 2] = np.clip(hsv[..., 2] * (1.0 + (light_shift / 100.0)), 0.0, 255.0)
-        adjusted_rgb = image_ops.hsv_to_rgb(hsv.astype(np.uint8))
+        hue = np.mod(hue + hue_shift, 360.0)
+        sat = np.clip(sat * (1.0 + (sat_shift / 100.0)), 0.0, 1.0)
+        value = np.clip(value * (1.0 + (light_shift / 100.0)), 0.0, 255.0)
+        adjusted_rgb = _hsv_float_to_rgb(hue, sat, value)
     elif adj_type == "brightness_contrast":
         brightness = max(-1.0, min(1.0, float(params.get("brightness", 0.0)) / 100.0))
         contrast = max(-1.0, min(1.0, float(params.get("contrast", 0.0)) / 100.0))
@@ -248,13 +282,12 @@ def _apply_adjustment_to_rgba(
         vibrance = max(-100.0, min(100.0, float(params.get("vibrance", 0.0)))) / 100.0
         saturation = max(-100.0, min(100.0, float(params.get("saturation", 0.0)))) / 100.0
         lightness = max(-100.0, min(100.0, float(params.get("lightness", 0.0)))) / 100.0
-        hsv = image_ops.rgb_to_hsv(rgb).astype(np.float32)
-        sat_norm = hsv[..., 1] / 255.0
-        vib_weight = np.where(vibrance >= 0.0, 1.0 - sat_norm, sat_norm)
-        hsv[..., 1] = np.clip(hsv[..., 1] * (1.0 + (vibrance * vib_weight)), 0.0, 255.0)
-        hsv[..., 1] = np.clip(hsv[..., 1] * (1.0 + saturation), 0.0, 255.0)
-        hsv[..., 2] = np.clip(hsv[..., 2] * (1.0 + lightness), 0.0, 255.0)
-        adjusted_rgb = image_ops.hsv_to_rgb(hsv.astype(np.uint8))
+        hue, sat, value = _rgb_to_hsv_float(rgb)
+        vib_weight = np.where(vibrance >= 0.0, 1.0 - sat, sat)
+        sat = np.clip(sat * (1.0 + (vibrance * vib_weight)), 0.0, 1.0)
+        sat = np.clip(sat * (1.0 + saturation), 0.0, 1.0)
+        value = np.clip(value * (1.0 + lightness), 0.0, 255.0)
+        adjusted_rgb = _hsv_float_to_rgb(hue, sat, value)
     elif adj_type == "selective_color":
         target_range = str(params.get("target_range", "neutrals") or "neutrals")
         red_cyan = max(-100.0, min(100.0, float(params.get("red_cyan", 0.0))))
