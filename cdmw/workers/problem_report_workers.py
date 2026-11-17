@@ -29,7 +29,8 @@ class ProblemReportCollection(QObject):
         self.worker_thread.started.connect(self.worker.run)
         self.worker.completed.connect(self._completed)
         self.worker.error.connect(self._failed)
-        self.worker.finished.connect(self.worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(self.worker_thread, self.worker)
         # quit() is thread-safe: don't require a live UI event loop during application exit.
         self.worker.finished.connect(self.worker_thread.quit, Qt.ConnectionType.DirectConnection)
         self.worker_thread.finished.connect(self._stopped)

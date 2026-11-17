@@ -216,7 +216,8 @@ class RustNewItemStudioTab(QWidget):
         worker.completed.connect(self._launch_ready)
         worker.error.connect(self._prepare_failed)
         worker.finished.connect(thread.quit, Qt.DirectConnection)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._prepare_finished)
         thread.finished.connect(thread.deleteLater)
         self._prepare_thread, self._prepare_worker = thread, worker

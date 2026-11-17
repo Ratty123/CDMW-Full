@@ -128,7 +128,8 @@ def _start_archive_picker_preview_worker(
     worker.completed.connect(self._handle_archive_picker_preview_ready)
     worker.error.connect(self._handle_archive_picker_preview_error)
     worker.finished.connect(thread.quit)
-    worker.finished.connect(worker.deleteLater)
+    from cdmw.workers.thread_lifetime import release_worker_after_thread
+    release_worker_after_thread(thread, worker)
     thread.finished.connect(thread.deleteLater)
     thread.finished.connect(self._cleanup_archive_picker_preview_refs)
     self.archive_picker_preview_worker = worker
@@ -283,7 +284,8 @@ def _start_unknown_preview_worker(
     worker.completed.connect(self._handle_unknown_preview_ready)
     worker.error.connect(self._handle_unknown_preview_error)
     worker.finished.connect(thread.quit)
-    worker.finished.connect(worker.deleteLater)
+    from cdmw.workers.thread_lifetime import release_worker_after_thread
+    release_worker_after_thread(thread, worker)
     thread.finished.connect(thread.deleteLater)
     thread.finished.connect(self._cleanup_unknown_preview_refs)
     self.unknown_preview_worker = worker

@@ -85,7 +85,8 @@ class ModPackageRetrofitTaskController(QObject):
         worker.cancelled.connect(self._handle_cancelled)
         worker.progress.connect(self._handle_progress)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._handle_thread_finished)
         thread.finished.connect(thread.deleteLater)
         self._jobs[int(getattr(request, "request_id"))] = (kind, worker, thread)

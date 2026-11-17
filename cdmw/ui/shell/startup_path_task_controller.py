@@ -92,7 +92,8 @@ class StartupPathTaskControllerMixin:
         thread.started.connect(worker.run)
         worker.completed.connect(self._handle_path_task_completed)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._handle_path_task_finished)
         self._path_task_worker = worker
         self._path_task_thread = thread

@@ -242,7 +242,8 @@ class _LatestWorkerController(QObject):
         worker.completed.connect(self._handle_completed, Qt.QueuedConnection)
         worker.error.connect(self._handle_error, Qt.QueuedConnection)
         worker.finished.connect(thread.quit, Qt.DirectConnection)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(
             lambda rid=request_id: self._handle_thread_finished(rid),

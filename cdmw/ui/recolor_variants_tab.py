@@ -683,7 +683,8 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
         worker.completed.connect(self._handle_operation_completed, Qt.ConnectionType.QueuedConnection)
         worker.failed.connect(self._handle_operation_failed, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(self._request_recolor_thread_quit, Qt.ConnectionType.QueuedConnection)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._handle_worker_finished, Qt.ConnectionType.QueuedConnection)
         self.worker_thread = thread
         self.build_worker = worker
@@ -1185,7 +1186,8 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
         self.build_worker.log_message.connect(self._append_log, Qt.ConnectionType.QueuedConnection)
         self.build_worker.progress_changed.connect(self._handle_progress, Qt.ConnectionType.QueuedConnection)
         self.build_worker.finished.connect(self._request_recolor_thread_quit, Qt.ConnectionType.QueuedConnection)
-        self.build_worker.finished.connect(self.build_worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(self.worker_thread, self.build_worker)
         self.worker_thread.finished.connect(self._handle_worker_finished)
         self.worker_thread.start()
 

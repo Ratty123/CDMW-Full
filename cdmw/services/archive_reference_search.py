@@ -425,7 +425,8 @@ class ArchiveReferenceSearchController(QObject):
         worker.completed.connect(self._batch)
         worker.failed.connect(self._worker_failed)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._thread_finished)
         self._worker, self._thread = worker, thread
         thread.start()

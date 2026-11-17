@@ -353,7 +353,8 @@ class ArchiveSourcePickerDialogMixin:
             worker.completed.connect(_handle_source_preview_ready)
             worker.error.connect(_handle_source_preview_error)
             worker.finished.connect(thread.quit)
-            worker.finished.connect(worker.deleteLater)
+            from cdmw.workers.thread_lifetime import release_worker_after_thread
+            release_worker_after_thread(thread, worker)
             thread.finished.connect(thread.deleteLater)
             thread.finished.connect(lambda rid=request_id: _clear_source_preview_worker(rid))
             preview_state["worker"] = worker

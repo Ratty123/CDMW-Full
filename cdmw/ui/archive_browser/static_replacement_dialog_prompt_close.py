@@ -73,7 +73,8 @@ class _MeshEditorSaveAwareDialog(QDialog):
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.result.connect(self._record_mesh_editor_close_result)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._finish_mesh_editor_close)
         thread.finished.connect(thread.deleteLater)
         self._mesh_editor_close_thread = thread

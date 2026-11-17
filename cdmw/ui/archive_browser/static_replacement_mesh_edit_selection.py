@@ -278,7 +278,8 @@ def _mesh_edit_start_selection_worker(_state, _callbacks, operation: str, action
     worker.cancelled.connect(_callbacks._mesh_edit_selection_worker_cancelled)
     worker.error.connect(_callbacks._mesh_edit_selection_worker_failed)
     worker.finished.connect(thread.quit)
-    worker.finished.connect(worker.deleteLater)
+    from cdmw.workers.thread_lifetime import release_worker_after_thread
+    release_worker_after_thread(thread, worker)
     thread.finished.connect(thread.deleteLater)
     thread.finished.connect(lambda finished_request_id=request_id: _callbacks._mesh_edit_finish_selection_worker(finished_request_id))
     _state.mesh_edit_selection_worker_state.update(

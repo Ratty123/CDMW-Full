@@ -51,6 +51,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- CDMW no longer risks closing with an access violation when a background search or job ends while the window thread lets go of its worker (for example **Finish** in the **Mesh Editor** while another search was still running): each worker is now released on the window thread once its thread has ended.
 - The **Mesh Editor** opens a model again after a finished edit that deleted every face. It used to refuse with "CDMW session payload is invalid: file reference type or count is invalid", both inside Browse and in its own window.
 - **Open set in Mesh Editor** opens the whole set when its first file has a saved draft and you answer "Continue where you left off?" with **Start Fresh**. It used to open only that first file.
 - **Open set in Mesh Editor** opens the set even when its first file is already open alone in the Mesh Editor, for example after you finished and built that piece; it opens beside that edit. It used to start that one file's editor again, which then closed at once with "Mesh Editor closed (exit 0); its shadow changes were discarded." An editor that cannot start inside the running 3D preview now starts on its own, and CDMW's diagnostics log keeps the reason, instead of being reported as a crash with no reason.

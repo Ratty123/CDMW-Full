@@ -159,7 +159,8 @@ class ReplaceAssistantReviewDialog(QDialog):
         worker.completed.connect(self._handle_payload_ready)
         worker.error.connect(self._handle_payload_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(partial(self._cleanup_worker_refs, thread))
         self.worker = worker

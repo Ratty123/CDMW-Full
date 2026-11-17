@@ -570,7 +570,8 @@ class RemoteItemFinderWarmupController(QObject):
         worker.icon_ready.connect(self._handle_icon_ready)
         worker.icon_failed.connect(self._handle_icon_failed)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._handle_thread_finished, Qt.QueuedConnection)
         try:
             thread.start(QThread.LowPriority)

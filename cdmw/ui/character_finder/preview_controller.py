@@ -259,7 +259,8 @@ class _CharacterPreviewLane(QObject):
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         # Bind the thread instead of asking sender(): QObject.sender() takes
         # Qt's connection lock while holding the GIL, which deadlocked against
         # a worker thread holding that lock and waiting for the GIL.
@@ -582,7 +583,8 @@ class CharacterFinderPreviewController(QObject):
         thread.started.connect(worker.run)
         worker.completed.connect(self._page_cache_ready)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._page_cache_finished)
         thread.start(QThread.LowPriority if self._background else QThread.InheritPriority)
 

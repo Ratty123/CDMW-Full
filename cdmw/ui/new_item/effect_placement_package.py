@@ -203,7 +203,8 @@ class EffectPlacementPackageMixin:
         # QObject back through the application filters leaves PySide's wrapper
         # lifetime dependent on GUI event timing during rapid preview changes.
         worker.finished.connect(thread.quit, Qt.ConnectionType.DirectConnection)
-        thread.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._build_finished, Qt.ConnectionType.QueuedConnection)
         thread.started.connect(worker.run)
         self._show_preparation(self._preparation_message())

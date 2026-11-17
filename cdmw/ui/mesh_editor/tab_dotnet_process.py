@@ -258,7 +258,8 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         worker.cancelled.connect(self._handle_standalone_action_cancelled)
         worker.error.connect(self._handle_standalone_action_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_action_worker(target_thread, target_worker))
         self.standalone_action_thread = thread
@@ -307,7 +308,8 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         worker.cancelled.connect(self._handle_standalone_action_cancelled)
         worker.error.connect(self._handle_standalone_action_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(
             lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_action_worker(

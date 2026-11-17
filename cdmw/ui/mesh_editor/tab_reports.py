@@ -77,7 +77,8 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         worker.completed.connect(self._handle_standalone_export_validation_completed)
         worker.error.connect(self._handle_standalone_export_validation_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(
             lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_export_validation_worker(
@@ -253,7 +254,8 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         worker.cancelled.connect(self._handle_standalone_rebuild_report_cancelled)
         worker.error.connect(self._handle_standalone_rebuild_report_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(
             lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_rebuild_report_worker(
@@ -659,7 +661,8 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         worker.completed.connect(self._handle_standalone_report_write_completed)
         worker.error.connect(self._handle_standalone_report_write_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(
             lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_report_write_worker(

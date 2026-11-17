@@ -155,7 +155,8 @@ class ArchiveMeshComparisonPreview(QFrame):
         worker.completed.connect(self._completed)
         worker.error.connect(self._failed)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._thread_finished)
         thread.finished.connect(thread.deleteLater)
         self._active = generation, worker, thread

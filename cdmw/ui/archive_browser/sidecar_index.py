@@ -71,7 +71,8 @@ class ArchiveSidecarIndexMixin:
         worker.completed.connect(self._handle_archive_sidecar_complete)
         worker.error.connect(self._handle_archive_sidecar_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._cleanup_archive_sidecar_refs)
 

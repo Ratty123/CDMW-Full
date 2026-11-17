@@ -1146,7 +1146,8 @@ class RemoteArchiveFinderDialog(QDialog):
         thread.started.connect(worker.run)
         worker.icon_ready.connect(self._handle_decoded_icon)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._handle_icon_thread_finished_signal, Qt.QueuedConnection)
         thread.start()
 
