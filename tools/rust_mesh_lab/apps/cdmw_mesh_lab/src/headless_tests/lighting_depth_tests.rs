@@ -464,7 +464,7 @@ fn offscreen_fixed_studio_polished_steel_reflects_a_lit_room() -> TestResult {
         i32::from(image[centre + 2]),
     );
     // Reflectance 0.216 of a room at about 0.66 radiance, at the preset's 0.7
-    // environment scale: about (85, 86, 88) on screen. It was (54, 57, 61).
+    // environment scale: about (85, 86, 88) on screen. It was (55, 58, 62).
     for channel in [red, green, blue] {
         assert!(
             (76..=100).contains(&channel),
