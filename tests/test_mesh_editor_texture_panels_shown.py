@@ -367,3 +367,64 @@ def test_the_textures_button_hides_the_list_only_and_close_still_hides_both(tmp_
     finally:
         tab.deleteLater()
         _APP.processEvents()
+
+
+def test_the_texture_editors_own_close_hides_it_and_keeps_the_edits(tmp_path: Path, monkeypatch) -> None:
+    """The Texture Editor panel has its own clear close, apart from the list's and the
+    Mesh Editor's Close: it hides the panel, the edits stay, and Close still asks."""
+
+    from types import SimpleNamespace
+
+    from PySide6.QtGui import QColor, QImage
+    from PySide6.QtWidgets import QMessageBox
+
+    from tests.test_mesh_rust_embedding import _tab
+
+    tab = _tab(tmp_path)
+    try:
+        workspace = tab.standalone_workspace
+        textures, tools = workspace.textures_dock, workspace.texture_tools_dock
+        tools._editor_factory = _FakeEditor
+        tab.resize(1400, 800)
+        tab.show()
+        # With no mesh loaded the tab disables its workspace; a loaded mesh enables it.
+        workspace.setEnabled(True)
+        tab.textures_toggle_button.click()
+        textures.set_manifest(_manifest(), session_root=tmp_path)
+        session =tab.live_edit._live_texture_session_id()
+        tools.open_target(LiveTextureTarget(session_id=session, source_path=str(tmp_path / "a.dds"),
+                                            source_sha256="ab" * 32, channel="base_color", display_name="a.dds"))
+        image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+        image.fill(QColor("#336699"))
+        tab.live_edit._on_texture_window_edit(session, "ab" * 32, image, True)
+        keeper = tab.live_edit._live_texture_keeping
+        tools.set_kept_text("Texture edits are not kept yet: Finish keeps them in the draft.")
+        _settle()
+        assert keeper.unkept_count() == 1 and textures.isVisible() and tools.isVisible()
+        target = tools.target
+
+        button = tools.close_button
+        assert button.text() == "Close Editor" and button.toolTip() and button.isVisibleTo(tools)
+        questions: list[str] = []
+        monkeypatch.setattr(QMessageBox, "question",
+                            staticmethod(lambda _parent, title, *_args: questions.append(title)
+                                         or QMessageBox.StandardButton.No))
+        button.click()
+        _settle()
+        # Only the Texture Editor goes, without asking: nothing is lost by hiding it.
+        assert not tools.isVisible() and textures.isVisible() and not questions
+        assert tools.target is target and tools.kept_text.startswith("Texture edits are not kept yet")
+        assert keeper.unkept_count() == 1 and tab.live_edit._live_texture_updates.edited_textures()
+        # A double-click (as open_texture_in_window does) opens it again with the texture.
+        tools.open_target(target)
+        _settle()
+        assert tools.isVisible() and tools.target is target
+        # Close in the Mesh Editor still asks about the edits that are not kept.
+        tab.standalone_controller = SimpleNamespace(active_session_id="session", closing_loses_work=lambda: False)
+        monkeypatch.setattr(tab, "show_empty_state", lambda *_args: None)
+        tab._close_standalone_session_requested()
+        assert questions and "Texture Edits" in questions[0] and keeper.unkept_count() == 1
+    finally:
+        tab.standalone_controller = None
+        tab.deleteLater()
+        _APP.processEvents()
