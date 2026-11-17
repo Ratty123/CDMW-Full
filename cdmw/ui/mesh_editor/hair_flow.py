@@ -89,17 +89,36 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
                 dialog.prepared_result = None
             tab.hair_entry_status.setText("Hair setup cancelled. The current scene is unchanged.")
             return
-        tab._pending_hair_start = (target.identity, chosen_mode)
-        tab._pending_hair_preset = chosen_preset
-        tab._pending_hair_character = dialog.context.character
-        tab._pending_hair_context = dialog.context
-        tab.open_archive_session(target, archive_dependencies=dialog.selected_dependencies, prepared_result=dialog.prepared_result)
+        # The shell may have opened another document for the hairstyle, so that the one
+        # this setup started in keeps its edit: the hairstyle opens in the shown one.
+        document, tool = _launch_document(owner.shell, tab)
+        document._pending_hair_start = (target.identity, chosen_mode)
+        document._pending_hair_preset = chosen_preset
+        document._pending_hair_character = dialog.context.character
+        document._pending_hair_context = dialog.context
+        document.open_archive_session(target, archive_dependencies=dialog.selected_dependencies,
+                                      prepared_result=dialog.prepared_result)
         dialog.prepared_result = None
-        owner.shell._activate_tool_widget(tab)
-        tab.hair_entry_status.setText("Loading character…")
+        owner.shell._activate_tool_widget(tool)
+        document.hair_entry_status.setText("Loading character…")
     dialog.finished.connect(selected)
     dialog.open()
     return dialog
+
+
+def _launch_document(shell, tab):
+    """The document an open prepared by the shell lands in, and the widget the shell raises for it.
+
+    ``tab`` is where Hair Tools was started: one Mesh Editor document, or the Mesh Editor
+    as the shell knows it (Character Finder). Preparing the launch may have opened and
+    shown another document; without a documents view, ``tab`` is the editor itself.
+    """
+    find = getattr(shell, "_mesh_documents", None)
+    view = find() if callable(find) else None
+    tool = getattr(shell, "mesh_editor_tab", None)
+    if view is None or (tab is not view and tab is not tool and tab not in view.documents):
+        return tab, tab
+    return view.active, tool if tool is not None else view
 
 
 def hair_character_for_target(tab, target):

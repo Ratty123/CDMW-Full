@@ -53921,7 +53921,7 @@ MESSAGE_REFERENCE = [
     "message": "Open a registered hairstyle before changing references.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_flow.py": 181
+      "cdmw/ui/mesh_editor/hair_flow.py": 200
     }
   },
   {
@@ -53929,7 +53929,7 @@ MESSAGE_REFERENCE = [
     "message": "Open a registered hairstyle before entering Hair.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_flow.py": 127
+      "cdmw/ui/mesh_editor/hair_flow.py": 146
     }
   },
   {
@@ -57307,7 +57307,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference selection cancelled; the current hairstyle is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_flow.py": 191
+      "cdmw/ui/mesh_editor/hair_flow.py": 210
     }
   },
   {
@@ -60882,7 +60882,7 @@ MESSAGE_REFERENCE = [
     "message": "The editor or archive changed during reference selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_flow.py": 195
+      "cdmw/ui/mesh_editor/hair_flow.py": 214
     }
   },
   {
