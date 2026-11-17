@@ -6263,7 +6263,7 @@ fn integrated_replacement_mapping_warns_about_helper_material_targets() -> TestR
     Ok(())
 }
 
-const REPLACEMENT_SURFACE_HINT: &str = "Roughness and Metallic set the whole imported surface. At 0% roughness it shines like a mirror.";
+const REPLACEMENT_SURFACE_HINT: &str = "Roughness and Metallic start from the imported model's own maps or values, or from the game part's surface. Move one to set a single surface for the whole import.";
 
 #[test]
 fn integrated_replacement_imported_materials_send_roughness_and_metallic() -> TestResult {
@@ -6273,15 +6273,26 @@ fn integrated_replacement_imported_materials_send_roughness_and_metallic() -> Te
     );
     ui.application.cdmw_state["replacement"] = replacement_pending_with_materials(json!({
         "error": "", "textures": 1,
-        "surface": {"roughness": 0.62, "metallic": null, "reason": ""},
+        "surface": {"roughness": 0.62, "metallic": 0.22, "reason": ""},
     }));
     ui.settle_layout();
     // Only Imported Materials & Textures owns the surface of the import.
     assert!(ui.label_rect("Roughness").is_none());
     ui.click("Imported Materials & Textures")?;
     ui.reveal(REPLACEMENT_SURFACE_HINT)?;
-    // Starting values come from the model; a missing value starts at 0%.
-    ui.type_number_in_row("Metallic", 0.0, "40")?;
+    // Untouched sliders send nothing: Apply keeps the import's own maps, or the
+    // game part's surface, instead of flattening them to their mean.
+    let untouched = ui.actions_from_click("Apply Replacement")?;
+    assert!(
+        untouched.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                if arguments["materials"] == "imported" && arguments.get("roughness").is_none()
+                    && arguments.get("metallic").is_none()
+        )),
+        "{untouched:?}"
+    );
+    // A moved slider sends both as one surface; they start where Apply's default is.
+    ui.type_number_in_row("Metallic", 22.0, "40")?;
     let apply = ui.actions_from_click("Apply Replacement")?;
     assert!(
         apply.iter().any(|action| matches!(action,

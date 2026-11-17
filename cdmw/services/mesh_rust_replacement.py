@@ -126,8 +126,8 @@ def imported_material_status(pending):
                  for _role, texture in getattr(binding, "texture_slots", ()) or ())
     status = {"error": pending.material_error, "textures": len(files)}
     if not pending.material_error:
-        from cdmw.services.mesh_replacement_materials import helper_material_targets, imported_surface_defaults
-        status["surface"] = {**imported_surface_defaults(pending), "reason": imported_surface_support(pending)}
+        from cdmw.services.mesh_replacement_materials import helper_material_targets, imported_surface_start
+        status["surface"] = {**imported_surface_start(pending), "reason": imported_surface_support(pending)}
         # The mapping step warns before Apply when a part goes to one of these.
         status["helper_targets"] = sorted(helper_material_targets(pending))
     return status
@@ -166,7 +166,11 @@ def check_imported_surface_support(pending):
 
 
 def _surface_argument(args):
-    """Optional (roughness, metallic) for Imported Materials & Textures, each 0..1."""
+    """Optional (roughness, metallic) for Imported Materials & Textures, each 0..1.
+
+    Absent, Apply writes the default surface (the imported maps or values, else
+    the game part's own); present, both are one uniform surface, 0 included.
+    """
     if "roughness" not in args and "metallic" not in args:
         return None
     values = []
@@ -244,7 +248,7 @@ def run_replacement_command(authoring, command, args, stop_event):
         if choice == "imported":
             from cdmw.services.mesh_replacement_materials import prepare_imported_materials
             surface = _surface_argument(args)
-            if surface is not None and any(surface):
+            if surface is not None:
                 check_imported_surface_support(pending)
             files = prepare_imported_materials(pending, targets, authoring.root, stop_event, surface=surface,
                                                skin_policy=weights)

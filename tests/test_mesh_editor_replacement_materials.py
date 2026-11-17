@@ -33,7 +33,8 @@ def entry(root, path, data):
     return ArchiveEntry(path, root / "0009/0.pamt", source, 0, len(data), len(data), 0, 0)
 
 
-def material_fixture(root, snapshot, *, layered=False, normal=False, shader=""):
+def material_fixture(root, snapshot, *, layered=False, normal=False, shader="", surface=None,
+                     surface_parameter="_materialTexture"):
     source = root / "color.dds"
     Image.new("RGBA", (4, 4), (210, 30, 60, 255)).save(source)
     original = root / "original.dds"
@@ -45,6 +46,16 @@ def material_fixture(root, snapshot, *, layered=False, normal=False, shader=""):
         # Its normal map is sculpted for that layout too (Kairos Plate Helm).
         layer = (lambda i: f'<MaterialParameterTexture _name="_normalTexture" Index="1"><ResourceReferencePath_ITexture '
                  f'_path="character/texture/original{i}_n.dds"/></MaterialParameterTexture>')
+    surface_dds = root / "original_sp.dds"
+    if surface is not None:
+        # The game part's own surface map (an `_sp`: G roughness, B metal), in
+        # two halves so only its mean is a single value.
+        image = Image.new("RGBA", (4, 4), (255, surface[0] - 20, surface[1], 255))
+        image.paste((255, surface[0] + 20, surface[1], 255), (0, 2, 4, 4))
+        image.save(surface_dds)
+        layer = (lambda i: f'<MaterialParameterTexture StringItemID="{surface_parameter}" ItemID="6" _name="{surface_parameter}" '
+                 f'Index="1"><ResourceReferencePath_ITexture Name="_value" _path="character/texture/original{i}_sp.dds"/>'
+                 '</MaterialParameterTexture>')
     xml = ('<Root>' + ''.join(
         f'<SkinnedMeshMaterialWrapper _subMeshName="target{i}">'
         + (f'<Material Name="_resourceMaterial" _materialName="{shader}">' if shader else '<Material>')
@@ -55,7 +66,9 @@ def material_fixture(root, snapshot, *, layered=False, normal=False, shader=""):
     entries = [target, entry(root, str(Path(target.path).with_suffix(".pac_xml")), xml.encode()),
                *(entry(root, f"character/texture/original{i}.dds", original.read_bytes()) for i in range(2)),
                *((entry(root, f"character/texture/detail{i}.dds", original.read_bytes()) for i in range(2)) if layered else ()),
-               *((entry(root, f"character/texture/original{i}_n.dds", original.read_bytes()) for i in range(2)) if normal else ())]
+               *((entry(root, f"character/texture/original{i}_n.dds", original.read_bytes()) for i in range(2)) if normal else ()),
+               *((entry(root, f"character/texture/original{i}_sp.dds", surface_dds.read_bytes()) for i in range(2))
+                 if surface is not None else ())]
     context = SimpleNamespace(entries_by_basename={Path(item.path).name.casefold(): [item] for item in entries},
                               entries_by_normalized_path={item.path.casefold(): [item] for item in entries})
     model = root / "import.obj"
@@ -185,10 +198,12 @@ def test_imported_materials_replace_the_targets_normal_map(editor, tmp_path, own
     assert all(file.path.casefold() in bound for file in files if file.path.endswith(".dds"))
 
 
-def _surface_pending(editor, tmp_path, shader="SkinnedMeshCloth_Ver2"):
+def _surface_pending(editor, tmp_path, shader="SkinnedMeshCloth_Ver2", mtl="", **fixture):
     service, session_id = editor
     snapshot = service.capture_export_snapshot(session_id)
-    target, context, model = material_fixture(tmp_path, snapshot, shader=shader)
+    target, context, model = material_fixture(tmp_path, snapshot, shader=shader, **fixture)
+    if mtl:
+        model.with_suffix(".mtl").write_text("newmtl imported\nKd 1 1 1\nmap_Kd color.dds\n" + mtl)
     dependencies = capture_replacement_dependencies(target, context)
     key = initial_replacement_state(snapshot).parts[0].part_id
     return prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies), key
@@ -256,12 +271,90 @@ def test_one_surface_reaches_ver2_and_standard_wrappers_by_their_own_paths():
     assert '_name="_materialTexture"' in body and "layer.dds" not in body and "_colorBlendingFlag" not in body
 
 
+def _surface_binding(files, parameter):
+    """The replaced wrapper's texture for ``parameter`` and its first pixel."""
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    replaced, untouched = text.split('_subMeshName="target1"')
+    match = re.search(rf'_name="{parameter}"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_path="([^"]+)"', replaced)
+    assert match, replaced
+    assert "_cdmw_surface_" not in untouched
+    texture = next(file for file in files if file.path == match.group(1))
+    with Image.open(io.BytesIO(texture.data)) as image:
+        return match.group(1), image.size, image.convert("RGBA").getpixel((0, 0))
+
+
+@pytest.mark.parametrize("shader", ["SkinnedMeshBlendHeight", "SkinnedMeshStandard", "SkinnedMeshFur"])
+def test_imported_materials_take_the_game_parts_surface_by_default(editor, tmp_path, shader):
+    """A wyvern import with the sliders left alone came out wet: the import drops
+    _materialTexture and the shader then reads roughness 0. Without a surface of
+    its own the import now takes the mean of the game part's _sp texture (the
+    wyvern body's averages G 0.47, B 0.22), not the texture itself, whose layout
+    follows the original UVs."""
+    pending, key = _surface_pending(editor, tmp_path, shader=shader, surface=(120, 57))
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    path, size, pixel = _surface_binding(files, "_materialTexture")
+    assert path.endswith("_cdmw_surface_120_057_sp.dds") and "original0_sp" not in path
+    assert size == (4, 4) and pixel == (255, 120, 57, 255)
+
+
+def test_imported_materials_without_any_surface_are_matte_not_a_mirror(editor, tmp_path):
+    pending, key = _surface_pending(editor, tmp_path, shader="SkinnedMeshBlendHeight")
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    assert _surface_binding(files, "_materialTexture")[2] == (255, 128, 0, 255)
+
+
+def test_imported_values_outrank_the_game_parts_surface(editor, tmp_path):
+    pending, key = _surface_pending(editor, tmp_path, shader="SkinnedMeshBlendHeight", surface=(120, 57), mtl="Pr 0.8\n")
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    # Roughness from the MTL, metal from the game part: the import states none.
+    assert _surface_binding(files, "_materialTexture")[2] == (255, 204, 57, 255)
+
+
+def test_imported_roughness_and_metallic_maps_become_the_material_texture(editor, tmp_path):
+    """map_Pr/map_Pm were reported as "not auto-bound". On a Standard-technique
+    wrapper they share the import's UVs with its colour map, so they are packed
+    per pixel (R 255, G roughness, B metal) in the game _sp's own BC1 format."""
+    rough = Image.new("L", (8, 8), 40)
+    rough.paste(200, (0, 4, 8, 8))
+    rough.save(tmp_path / "rough.png")
+    Image.new("L", (4, 4), 160).save(tmp_path / "metal.png")
+    pending, key = _surface_pending(editor, tmp_path, shader="SkinnedMeshBlendHeight", surface=(120, 57),
+                                    mtl="map_Pr rough.png\nmap_Pm metal.png\n")
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    path, size, pixel = _surface_binding(files, "_materialTexture")
+    texture = next(file for file in files if file.path == path)
+    assert re.search(r"_cdmw_surface_[0-9a-f]{12}_sp\.dds$", path)
+    assert texture.data[84:88] == b"DXT1" and struct.unpack_from("<I", texture.data, 28)[0] == 4
+    with Image.open(io.BytesIO(texture.data)) as image:
+        rgba = image.convert("RGBA")
+        top, bottom = rgba.getpixel((0, 0)), rgba.getpixel((0, 7))
+    assert size == (8, 8)
+    assert top[0] >= 250 and abs(top[1] - 40) <= 4 and abs(top[2] - 160) <= 8
+    assert abs(bottom[1] - 200) <= 4 and abs(bottom[2] - 160) <= 8
+
+
+@pytest.mark.parametrize("fixture, mtl, expected", [
+    ({"surface": (120, 57), "surface_parameter": "_detailMaterialMaskR"}, "", (0, 120, 57, 255)),
+    ({}, "Pr 0.8\nPm 0.25\n", (0, 204, 64, 255)),
+    ({}, "", (0, 128, 0, 255)),
+])
+def test_ver2_imports_get_a_default_layer_r(editor, tmp_path, fixture, mtl, expected):
+    """Ver2 layer UVs are rotated, so the default is uniform: the import's own
+    values, else the game part's layer R mean, else matte."""
+    pending, key = _surface_pending(editor, tmp_path, shader="SkinnedMeshCloth_Ver2", mtl=mtl, **fixture)
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    assert _surface_binding(files, "_detailMaterialMaskR")[2] == expected
+
+
 @pytest.mark.parametrize("shader", ["SkinnedMeshCloth_Ver2", "SkinnedMeshBlendHeight"])
-def test_zero_roughness_and_metallic_leave_imported_materials_unchanged(editor, tmp_path, shader):
-    pending, key = _surface_pending(editor, tmp_path, shader=shader)
-    plain = prepare_imported_materials(pending, (key,), tmp_path)
+def test_a_chosen_surface_replaces_the_default_and_zero_is_kept(editor, tmp_path, shader):
+    """Moving a slider sets one uniform surface, 0% included: that is a choice now,
+    not the default it used to fall back to."""
+    parameter = "_materialTexture" if shader == "SkinnedMeshBlendHeight" else "_detailMaterialMaskR"
+    pending, key = _surface_pending(editor, tmp_path, shader=shader, surface=(120, 57), surface_parameter=parameter)
     zero = prepare_imported_materials(pending, (key,), tmp_path, surface=(0.0, 0.0))
-    assert [(file.path, file.data) for file in plain] == [(file.path, file.data) for file in zero]
+    assert _surface_binding(zero, parameter)[2][1:3] == (0, 0)
+    assert _surface_binding(prepare_imported_materials(pending, (key,), tmp_path), parameter)[2][1:3] == (120, 57)
 
 
 # AmplifiedGlare reads _materialTexture too, but no shipped wrapper of it declares one.

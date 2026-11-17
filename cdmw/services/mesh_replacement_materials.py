@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from collections import defaultdict
 import hashlib
+import io
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -211,8 +212,9 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
 
     Only explicitly mapped target materials enter the retained generator.
     Global donor resets and pruning are disabled, including selected-part use.
-    ``surface`` is an optional (roughness, metallic) pair in 0..1; when either
-    is above 0 the replaced wrappers get it as a uniform layer R.
+    ``surface`` is an optional (roughness, metallic) pair in 0..1 that the
+    replaced wrappers get as one uniform surface. Without it each gets its
+    default surface (see ``_apply_default_surface``), never roughness 0.
     ``skin_policy`` is the weights choice Apply will use. The materials are built
     over the same composed model, and a rig that cannot be kept has no default.
     """
@@ -339,9 +341,17 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
                 merged_keys.append(str(payload.target_path).casefold())
         if not merged:
             raise ValueError("Imported materials have no proven target sidecar wrapper mapping.")
-        if surface is not None and any(float(value) > 0 for value in surface):
+        if surface is not None:
             _apply_imported_surface(files, merged_keys, names, pending.state.target_path, surface)
+        else:
+            _apply_default_surface(pending, targets, files, merged_keys, names, directory)
         return _prune_unreferenced_generated_files(files)
+
+
+def _surface_folder(target_path):
+    model = target_path.replace("\\", "/")
+    folder = "character/texture" if "/character/" in f"/{model}" else str(Path(model).parent).replace("\\", "/")
+    return folder, Path(model).stem
 
 
 def _apply_imported_surface(files, sidecar_keys, names, target_path, surface):
@@ -354,10 +364,9 @@ def _apply_imported_surface(files, sidecar_keys, names, target_path, surface):
         apply_surface_layer, surface_byte, surface_layer_dds, surface_material_dds)
 
     roughness, metallic = (surface_byte(value) for value in surface)
-    model = target_path.replace("\\", "/")
-    folder = "character/texture" if "/character/" in f"/{model}" else str(Path(model).parent).replace("\\", "/")
-    path = f"{folder}/{Path(model).stem}_cdmw_surface_{roughness:03d}_{metallic:03d}.dds"
-    material_path = f"{folder}/{Path(model).stem}_cdmw_surface_{roughness:03d}_{metallic:03d}_sp.dds"
+    folder, stem = _surface_folder(target_path)
+    path = f"{folder}/{stem}_cdmw_surface_{roughness:03d}_{metallic:03d}.dds"
+    material_path = f"{folder}/{stem}_cdmw_surface_{roughness:03d}_{metallic:03d}_sp.dds"
     applied = 0
     for key in sidecar_keys:
         if not key.endswith(".pac_xml"):
@@ -373,6 +382,182 @@ def _apply_imported_surface(files, sidecar_keys, names, target_path, surface):
     files[material_path.casefold()] = ReplacementFile(material_path, surface_material_dds(roughness / 255, metallic / 255))
 
 
+#: Used when neither the import nor the game part states a surface: matte, not metal.
+_FALLBACK_SURFACE = {"roughness": 0.5, "metallic": 0.0}
+
+
+def _apply_default_surface(pending, targets, files, sidecar_keys, names, directory):
+    """Give every replaced wrapper a surface when the sliders were left alone.
+
+    The import drops the game part's layers and ``_materialTexture``, which left
+    roughness at 0: a mirror, the "wet" creature. Each wrapper on a traced
+    shader now gets, channel by channel, the imported model's own roughness or
+    metallic map, else its ``Pr``/``Pm`` value, else the mean of the game part's
+    own surface texture, else 0.5 roughness and no metal.
+
+    The game part's texture itself is not kept: it is painted for the original
+    UV layout, which the imported model does not share. Standard-technique
+    wrappers take the maps per pixel as their ``_materialTexture`` (the import's
+    UVs, as its colour map); Ver2 wrappers rotate their layer UVs, so they get
+    the maps' mean as a uniform layer R.
+    """
+    from cdmw.core.pac_xml_surface_layer import (
+        MATERIAL_TEXTURE_SURFACE_SHADERS, SURFACE_SHADERS, apply_surface_layer, surface_byte,
+        surface_layer_dds, surface_material_dds, wrapper_shaders)
+
+    sources = _wrapper_source_materials(pending, targets)
+    inputs = _source_surface_inputs(pending)
+    originals = _original_surface_means(pending, names)
+    folder, stem = _surface_folder(pending.state.target_path)
+    for key in sidecar_keys:
+        if not key.endswith(".pac_xml"):
+            continue
+        file = files[key]
+        text = _sidecar_text(file.data)
+        for name, shader in sorted(wrapper_shaders(text, names).items()):
+            if shader not in SURFACE_SHADERS:
+                continue
+            channels = _merged_surface_inputs(inputs, sources.get(name, ()))
+            material = shader in MATERIAL_TEXTURE_SURFACE_SHADERS
+            original = originals.get(name, {}).get("_materialTexture" if material else "_detailMaterialMaskR", {})
+            values = {}
+            for kind in ("roughness", "metallic"):
+                value = channels[kind]
+                if value is None:
+                    value = ("value", original.get(kind, _FALLBACK_SURFACE[kind]))
+                elif value[0] == "map" and not material:
+                    value = ("value", _map_mean(value))
+                values[kind] = value
+            if material and any(value[0] == "map" for value in values.values()):
+                data = _packed_material_dds(values, original.get("format", ""), directory)
+                path = f"{folder}/{stem}_cdmw_surface_{hashlib.sha256(data).hexdigest()[:12]}_sp.dds"
+            else:
+                roughness, metallic = (surface_byte(values[kind][1]) for kind in ("roughness", "metallic"))
+                path = f"{folder}/{stem}_cdmw_surface_{roughness:03d}_{metallic:03d}{'_sp' if material else ''}.dds"
+                data = (surface_material_dds if material else surface_layer_dds)(roughness / 255, metallic / 255)
+            text, _ = apply_surface_layer(text, {name}, "" if material else path, path if material else "")
+            files[path.casefold()] = ReplacementFile(path, data)
+        files[key] = replace(file, data=text.encode("utf-8"))
+
+
+def _wrapper_source_materials(pending, targets):
+    """Folded source material names mapped onto each target wrapper."""
+    from cdmw.modding.mesh_parser import parse_mesh
+    original = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
+    bindings = material_binding_names(pending.state)
+    rows = {part.part_id: part for part in pending.state.parts}
+    result = defaultdict(set)
+    for index, key in enumerate(targets):
+        if key not in rows or index >= len(pending.source.mesh.submeshes):
+            continue
+        source = pending.source.mesh.submeshes[index]
+        wrapper = material_binding_name(original.submeshes[rows[key].target_index], bindings)
+        result[wrapper].add(str(source.material or source.name or "").casefold())
+    return result
+
+
+def _merged_surface_inputs(inputs, materials):
+    """One material's inputs as they are; several only agree on a mean value."""
+    found = [inputs[material] for material in sorted(materials) if material in inputs]
+    if len(found) == 1:
+        return found[0]
+    merged = {}
+    for kind in ("roughness", "metallic"):
+        values = [entry[kind] for entry in found if entry[kind] is not None]
+        merged[kind] = ("value", sum(_map_mean(value) for value in values) / len(values)) if values else None
+    return merged
+
+
+def _map_mean(value):
+    if value[0] == "value":
+        return float(value[1])
+    return _image_channel_means(value[1], value[2])[0]
+
+
+def _original_surface_means(pending, names):
+    """Per replaced wrapper: the game part's own surface textures, averaged.
+
+    Read from the captured game files, never from an earlier edit, as
+    {parameter: {"roughness": G, "metallic": B, "format": DXGI format}}.
+    """
+    from PIL import Image
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+
+    files = {file.path.replace("\\", "/").casefold(): file for file in pending.state.dependencies}
+    sidecar = target_sidecar(pending)
+    if sidecar is None:
+        return {}
+    result = {}
+    for wrapper in find_material_wrappers(_sidecar_text(sidecar.data)):
+        name = wrapper.submesh_name.casefold()
+        if name not in names or name in result:
+            continue
+        means = {}
+        for parameter in wrapper.parameters:
+            if parameter.name not in {"_materialTexture", "_detailMaterialMaskR"} or not parameter.texture_path:
+                continue
+            texture = files.get(parameter.texture_path.replace("\\", "/").casefold())
+            if texture is None:
+                continue
+            try:
+                with Image.open(io.BytesIO(texture.data)) as image:
+                    image.thumbnail((256, 256))
+                    rgb = image.convert("RGB")
+            except (OSError, ValueError):
+                continue
+            green, blue = (sum(value * count for value, count in enumerate(rgb.getchannel(c).histogram()))
+                           / max(1, rgb.width * rgb.height) / 255 for c in "GB")
+            means[parameter.name] = {"roughness": green, "metallic": blue, "format": _dds_format(texture.data)}
+        result[name] = means
+    return result
+
+
+def _dds_format(data):
+    """DXGI name of a DDS header's format, for the formats the game's ``_sp`` maps use."""
+    if data[:4] != b"DDS " or len(data) < 128:
+        return ""
+    fourcc = data[84:88]
+    if fourcc == b"DX10" and len(data) >= 148:
+        return {71: "BC1_UNORM", 74: "BC2_UNORM", 77: "BC3_UNORM", 98: "BC7_UNORM", 28: "R8G8B8A8_UNORM",
+                87: "B8G8R8A8_UNORM"}.get(int.from_bytes(data[128:132], "little"), "")
+    return {b"DXT1": "BC1_UNORM", b"DXT3": "BC2_UNORM", b"DXT5": "BC3_UNORM"}.get(fourcc, "")
+
+
+def _packed_material_dds(values, dds_format, directory):
+    """The imported roughness/metallic maps as a game ``_sp`` texture.
+
+    G roughness, B metalness; R is 255 as in every shipped ``_sp`` (the
+    G-buffer shaders do not read it) and alpha opaque. A channel without a map
+    is its constant. Encoded in the game texture's own format (BC1 for _sp).
+    """
+    from PIL import Image
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    from cdmw.domain.textures.output import max_mips_for_size
+
+    images = {}
+    for kind, value in values.items():
+        if value[0] == "map":
+            with Image.open(value[1]) as image:
+                images[kind] = image.convert("RGB").getchannel(value[2])
+    size = max((image.size for image in images.values()), key=lambda size: size[0] * size[1])
+    channels = []
+    for kind in ("roughness", "metallic"):
+        image = images.get(kind)
+        if image is None:
+            image = Image.new("L", size, max(0, min(255, round(float(values[kind][1]) * 255))))
+        elif image.size != size:
+            image = image.resize(size, Image.Resampling.BILINEAR)
+        channels.append(image)
+    packed = Image.merge("RGBA", (Image.new("L", size, 255), *channels, Image.new("L", size, 255)))
+    source = directory / "cdmw_surface_sp.png"
+    output = directory / "cdmw_surface_sp.dds"
+    packed.save(source)
+    if not encode_dds_with_directxtex(source, output, dds_format=dds_format or "BC1_UNORM", width=size[0],
+                                      height=size[1], mip_count=max_mips_for_size(*size)) or not output.is_file():
+        raise ValueError("The imported roughness and metallic maps could not be encoded as a game texture.")
+    return output.read_bytes()
+
+
 def _image_channel_means(path, channels):
     from PIL import Image
     with Image.open(path) as image:
@@ -383,41 +568,105 @@ def _image_channel_means(path, channels):
     return tuple(stats["RGB".index(c)] / 255 for c in channels)
 
 
+def _source_surface_inputs(pending):
+    """Each used source material's own roughness and metalness, by folded name.
+
+    A channel is ``("map", path, "R"|"G"|"B")`` for an OBJ map_Pr/map_Pm or a
+    glTF roughness/metalness map (R), or a packed metallic-roughness map (G
+    roughness, B metal); ``("value", v)`` for OBJ Pr/Pm; or None.
+    """
+    used = {str(part.material or part.name or "").casefold() for part in pending.source.mesh.submeshes}
+    result = {}
+    source = Path(pending.source_path)
+    if source.suffix.lower() == ".obj":
+        from cdmw.modding.scene_texture_discovery import _obj_material_parameters, _obj_material_texture_slots
+        slots = {name.casefold(): value for name, value in _obj_material_texture_slots(source).items()}
+        factors = {name.casefold(): value for name, value in _obj_material_parameters(source).items()}
+        materials = {material: ({slot.slot_kind: slot.path for slot in slots.get(material, ())},
+                                {parameter.parameter_name: parameter.numeric_value for parameter in factors.get(material, ())})
+                     for material in used}
+    else:
+        materials = {str(binding.material_name or "").casefold(): (
+            {str(role).casefold(): texture for role, texture in binding.texture_slots}, {})
+            for binding in getattr(pending.source, "material_bindings", ()) or ()
+            if str(binding.material_name or "").casefold() in used}
+    for material, (kinds, values) in materials.items():
+        entry = {}
+        for key, kind, factor, channel in (("roughness", "roughness", "_roughnessFactor", "G"),
+                                           ("metallic", "metalness", "_metallicFactor", "B")):
+            if kind in kinds and Path(kinds[kind]).is_file():
+                entry[key] = ("map", Path(kinds[kind]), "R")
+            elif "material" in kinds and Path(kinds["material"]).is_file():
+                entry[key] = ("map", Path(kinds["material"]), channel)
+            elif values.get(factor) is not None:
+                entry[key] = ("value", float(values[factor]))
+            else:
+                entry[key] = None
+        result[material] = entry
+    return result
+
+
 def imported_surface_defaults(pending):
     """The imported model's own roughness and metalness, averaged, as slider starting values.
 
     Uses OBJ map_Pr/map_Pm (or Pr/Pm) and glTF roughness/metalness or packed
-    metallic-roughness maps. Missing values stay None (the slider starts at 0).
+    metallic-roughness maps. Missing values stay None.
     """
-    used = {str(part.material or part.name or "").casefold() for part in pending.source.mesh.submeshes}
     found = {"roughness": [], "metallic": []}
-    source = Path(pending.source_path)
     try:
-        if source.suffix.lower() == ".obj":
-            from cdmw.modding.scene_texture_discovery import _obj_material_parameters, _obj_material_texture_slots
-            slots = {name.casefold(): value for name, value in _obj_material_texture_slots(source).items()}
-            factors = {name.casefold(): value for name, value in _obj_material_parameters(source).items()}
-            for material in used:
-                kinds = {slot.slot_kind: slot.path for slot in slots.get(material, ())}
-                values = {parameter.parameter_name: parameter.numeric_value for parameter in factors.get(material, ())}
-                for key, kind, factor, channel in (("roughness", "roughness", "_roughnessFactor", "G"),
-                                                   ("metallic", "metalness", "_metallicFactor", "B")):
-                    if kind in kinds and Path(kinds[kind]).is_file():
-                        found[key].append(_image_channel_means(kinds[kind], "R")[0])
-                    elif "material" in kinds and Path(kinds["material"]).is_file():
-                        found[key].append(_image_channel_means(kinds["material"], channel)[0])
-                    elif values.get(factor) is not None:
-                        found[key].append(float(values[factor]))
-        else:
-            for binding in getattr(pending.source, "material_bindings", ()) or ():
-                if str(binding.material_name or "").casefold() not in used:
-                    continue
-                kinds = {str(role).casefold(): texture for role, texture in binding.texture_slots}
-                for key, kind, channel in (("roughness", "roughness", "G"), ("metallic", "metalness", "B")):
-                    if kind in kinds and Path(kinds[kind]).is_file():
-                        found[key].append(_image_channel_means(kinds[kind], "R")[0])
-                    elif "material" in kinds and Path(kinds["material"]).is_file():
-                        found[key].append(_image_channel_means(kinds["material"], channel)[0])
+        for entry in _source_surface_inputs(pending).values():
+            for key in found:
+                if entry[key] is not None:
+                    found[key].append(_map_mean(entry[key]))
     except (OSError, ValueError):
         return {"roughness": None, "metallic": None}
     return {key: (round(sum(values) / len(values), 3) if values else None) for key, values in found.items()}
+
+
+def imported_surface_start(pending):
+    """Where Roughness and Metallic start: the surface Apply writes when they are left alone.
+
+    The imported model's own values (``imported_surface_defaults``), else the
+    mean of the target parts' own game surface, else 0.5 and 0. Leaving the
+    sliders there keeps per-pixel maps; moving one sets a uniform surface.
+    """
+    from cdmw.core.pac_xml_surface_layer import MATERIAL_TEXTURE_SURFACE_SHADERS, SURFACE_SHADERS
+    from cdmw.modding.mesh_parser import parse_mesh
+
+    start = imported_surface_defaults(pending)
+    if all(value is not None for value in start.values()):
+        return start
+    original = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
+    bindings = material_binding_names(pending.state)
+    names = {material_binding_name(original.submeshes[part.target_index], bindings)
+             for part in pending.state.parts if part.part_id in pending.target_part_ids}
+    shaders = _target_wrapper_shaders(pending, names)
+    try:
+        originals = _original_surface_means(pending, names)
+    except (OSError, ValueError):
+        originals = {}
+    for kind, value in start.items():
+        if value is not None:
+            continue
+        found = [originals.get(name, {}).get(
+                     "_materialTexture" if shader in MATERIAL_TEXTURE_SURFACE_SHADERS else "_detailMaterialMaskR",
+                     {}).get(kind, _FALLBACK_SURFACE[kind])
+                 for name, shader in shaders.items() if shader in SURFACE_SHADERS]
+        start[kind] = round(sum(found) / len(found), 3) if found else _FALLBACK_SURFACE[kind]
+    return start
+
+
+def target_sidecar(pending):
+    """The target's captured game ``.pac_xml``, or None."""
+    target = pending.state.target_path.replace("\\", "/").casefold()
+    pac_xml = target.replace("/model/", "/modelproperty/", 1) + "_xml"
+    sidecars = [file for file in pending.state.dependencies if file.path.casefold().endswith(".pac_xml")]
+    return next((file for file in sidecars if file.path.replace("\\", "/").casefold() == pac_xml),
+                sidecars[0] if len(sidecars) == 1 else None)
+
+
+def _target_wrapper_shaders(pending, names):
+    """Shader of each named wrapper in the target's captured ``.pac_xml``."""
+    from cdmw.core.pac_xml_surface_layer import wrapper_shaders
+    sidecar = target_sidecar(pending)
+    return wrapper_shaders(_sidecar_text(sidecar.data), names) if sidecar is not None else {}

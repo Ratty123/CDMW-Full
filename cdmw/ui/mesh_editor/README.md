@@ -1116,7 +1116,7 @@ and **Metallic** under **Imported Materials & Textures** restore a surface: Appl
 binds a generated 4x4 B8G8R8A8 texture as `_detailMaterialMaskR` (layer R has no
 mask), sets `_colorBlendingFlag` bit 2 and `_dyeingGlobalOpacity` byte 0 to 255
 (`cdmw/core/pac_xml_surface_layer.py`). The value is uniform because layer UVs are
-always rotated by at least 0.7 degrees. Both at 0% leaves the output unchanged.
+always rotated by at least 0.7 degrees.
 
 The older SkinnedMeshStandard-technique shaders that most creatures use
 (`SkinnedMeshStandard`, `Cloth`, `Emissive`, `Fur`, `BlendHeight` and
@@ -1126,16 +1126,32 @@ materials drop that texture too, and its declared default is
 `NoneTexture0x00000000`, so these also land at roughness 0. For their wrappers
 Apply writes a uniform `_materialTexture` (`ItemID="6"`, red 255 as in the game's
 `_sp` textures) instead of layer R; one import can use both paths, and a texture
-no wrapper names is pruned.
+no wrapper names is pruned. The BlendHeight shaders take that texture alone once
+every layer weight is 0: their G-buffer shader branches on the largest layer
+weight being above 0, so the removed `_heightTexture` does not matter.
 
-`pending.materials.surface` carries the starting values (`roughness`, `metallic`,
-from OBJ `map_Pr`/`map_Pm`/`Pr`/`Pm` or glTF metallic-roughness maps, else null)
-and `reason`, which disables the sliders when any target wrapper is outside the
+Without a slider choice Apply still writes a surface, so an import is never a
+mirror by default (`_apply_default_surface`). Per wrapper and per channel it uses
+the import's own map (OBJ `map_Pr`/`map_Pm`, glTF roughness, metalness or packed
+metallic-roughness), else its `Pr`/`Pm` value, else the mean of the game part's
+own `_materialTexture` (Ver2: `_detailMaterialMaskR`) read from the captured game
+files, else 0.5 roughness and no metal. The game texture itself is not kept: it is
+painted for the original UVs. Standard-technique wrappers take the maps per pixel,
+packed as R 255, G roughness, B metal in the game `_sp` format (BC1, full mips);
+Ver2 wrappers take their mean as layer R. The stock wyvern body `_sp` averages
+G 0.47 and B 0.22 (B is a flat 57 on body, head and wings).
+
+`pending.materials.surface` carries the sliders' starting values (`roughness`,
+`metallic`): the import's own values, else the target wrappers' game surface mean,
+else 0.5 and 0. The sliders send nothing until one is moved; a moved slider sends
+both as one uniform surface, 0% included, which replaces the default and any maps.
+`reason` disables the sliders when any target wrapper is outside the
 traced shader families (`SURFACE_SHADERS`); eyes, hair, skin,
 `SkinnedMeshAnisotropy` and `SkinnedMeshAmplifiedGlare` (whose shipped wrappers
 never declare `_materialTexture`) stay refused, so an import that also covers a
 creature's eye keeps the sliders off. `replacement_apply` takes `roughness` and
-`metallic` in 0..1. In-game appearance is not yet verified.
+`metallic` in 0..1; without them it writes the default surface. In-game appearance
+is not yet verified.
 
 Imported materials follow the selected part's exact sidecar binding, even when its
 embedded material label differs from the part name or uses different letter case.
