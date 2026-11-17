@@ -348,7 +348,7 @@ def test_ver2_imports_get_a_default_layer_r(editor, tmp_path, fixture, mtl, expe
 
 
 def _two_shader_variant_pending(editor, tmp_path, layer_shader="SkinnedMeshStandard_Ver2",
-                                material_shader="SkinnedMeshStandard"):
+                                material_shader="SkinnedMeshStandard", layer_parameter="_detailMaterialMaskR"):
     """target0 is Standard_Ver2 in variant 0 and SkinnedMeshStandard in variant 1,
     each with its own game surface texture, as ``cd_phm_00_ub_belt_0010_02`` is in
     the stock ``cd_m0001_00_so_phm_ub_33005`` armour."""
@@ -364,7 +364,7 @@ def _two_shader_variant_pending(editor, tmp_path, layer_shader="SkinnedMeshStand
         body = file.data.decode().removeprefix("<Root>").removesuffix("</Root>")
         first, rest = body.split('<SkinnedMeshMaterialWrapper _subMeshName="target1"')
         ver2 = (first.replace(f'_materialName="{material_shader}"', f'_materialName="{layer_shader}"')
-                .replace("_materialTexture", "_detailMaterialMaskR").replace("original0_sp.dds", "layer0_sp.dds"))
+                .replace("_materialTexture", layer_parameter).replace("original0_sp.dds", "layer0_sp.dds"))
         variants = (ver2 + '<SkinnedMeshMaterialWrapper _subMeshName="target1"' + rest, body)
         dependencies[index] = replace(file, data=('<ModelPropertyList>' + ''.join(
             f'<ModelProperty Index="{i}">{text}</ModelProperty>' for i, text in enumerate(variants)
@@ -411,6 +411,19 @@ def test_a_chosen_surface_reaches_each_variant_by_its_own_shader(editor, tmp_pat
     files = prepare_imported_materials(pending, (key,), tmp_path, surface=(0.8, 0.25))
     assert _variant_surface(files, 0, "_detailMaterialMaskR") == (0, 204, 64, 255)
     assert _variant_surface(files, 1, "_materialTexture") == (255, 204, 64, 255)
+
+
+@pytest.mark.parametrize("own_shader", ["SkinnedMeshHair", "SkinnedMeshAnimalHair", "SkinnedMeshEye"])
+def test_an_untraced_variant_keeps_its_own_surface_beside_a_standard_one(editor, tmp_path, own_shader):
+    """131 game files mix an untraced shader (hair, animal hair, an eye) and a
+    traced one on the same part across variants, such as the mangalica pig. The
+    untraced variant gets its own game _sp mean back; the other its own default."""
+    pending, key = _two_shader_variant_pending(editor, tmp_path, own_shader, "SkinnedMeshStandard", "_materialTexture")
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    assert "_detailMaterialMaskR" not in text and "_colorBlendingFlag" not in text
+    assert _variant_surface(files, 0, "_materialTexture") == (255, 60, 250, 255)
+    assert _variant_surface(files, 1, "_materialTexture") == (255, 120, 57, 255)
 
 
 def test_dependencies_include_the_textures_of_every_variant(editor, tmp_path):
