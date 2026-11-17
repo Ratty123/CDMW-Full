@@ -197,3 +197,93 @@ def test_the_build_s_parts_are_its_working_mesh_s_parts() -> None:
     assert MeshEditorRustProcessMixin._parts_in_build(SimpleNamespace(standalone_controller=None)) is None
     mesh.submeshes.append(SimpleNamespace(name=""))
     assert MeshEditorRustProcessMixin._parts_in_build(host) is None
+
+
+def _set_host(excluded: frozenset[str] = frozenset()):
+    """A Mesh Editor tab with a set of two files open: a.pac (Upper body, Belt), b.pac (Belt)."""
+
+    import threading
+
+    from cdmw.services.mesh_asset_context import ASSET_ATTRIBUTE, PART_ATTRIBUTE, MeshAssetContext
+
+    def part(name: str, asset: str, index: int):
+        return SimpleNamespace(name=name, **{ASSET_ATTRIBUTE: asset, PART_ATTRIBUTE: f"{asset}:{index}"})
+
+    assets = tuple(SimpleNamespace(asset_id=key, entry=_entry(f"character/model/{key}.pac"), part_indices=indices)
+                   for key, indices in (("a", (0, 1)), ("b", (2,))))
+    context = MeshAssetContext(assets=assets, workflow="item_set", excluded_part_ids=excluded)
+    mesh = SimpleNamespace(submeshes=[part("Upper body", "a", 0), part("Belt", "a", 1), part("Belt", "b", 0)])
+    session = SimpleNamespace(export_lock=threading.RLock(), archive_refit_context=context, replacement_state=None)
+    service = SimpleNamespace(working_mesh=lambda session_id: mesh, _session=lambda session_id: session)
+    return SimpleNamespace(standalone_controller=SimpleNamespace(mesh_service=service, active_session_id="s1"))
+
+
+def test_a_set_part_whose_include_is_off_is_not_in_the_build() -> None:
+    from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
+
+    assert MeshEditorRustProcessMixin._parts_in_build(_set_host()) == (
+        "Upper body (a.pac)", "Belt (a.pac)", "Belt (b.pac)")
+    # Include off for b.pac's Belt (or the whole of b.pac): its part stays in the
+    # working mesh but the mod does not hold it.
+    assert MeshEditorRustProcessMixin._parts_in_build(_set_host(frozenset({"b:0"}))) == (
+        "Upper body (a.pac)", "Belt (a.pac)")
+
+
+def test_a_texture_only_an_excluded_set_part_uses_is_left_out_not_kept_by_a_namesake(tmp_path: Path) -> None:
+    from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
+
+    kept = MeshEditorRustProcessMixin._parts_in_build(_set_host(frozenset({"b:0"})))
+    # b.pac's Belt is left out; a.pac also has a part called Belt, which must not keep it.
+    plan = plan_live_texture_outputs([_edit(tmp_path, users=("Belt (b.pac)",))], {GAME_PATH: (_entry(),)},
+                                     parts_in_build=kept)
+    assert plan.outputs == () and plan.refusals == ()
+    assert plan.plan_lines == (GAME_PATH + ": left out, no part in this mod uses it (Belt (b.pac))",)
+    shared = plan_live_texture_outputs([_edit(tmp_path, users=("Belt (a.pac)", "Belt (b.pac)"))],
+                                       {GAME_PATH: (_entry(),)}, parts_in_build=kept)
+    assert len(shared.outputs) == 1 and shared.left_out == ()
+
+
+def test_a_single_file_part_whose_include_is_off_is_not_in_the_build() -> None:
+    import threading
+
+    from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE, MeshReplacementState, ReplacementPart
+    from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
+
+    mesh = SimpleNamespace(submeshes=[SimpleNamespace(name="Upper body", **{PART_ID_ATTRIBUTE: "p0"}),
+                                      SimpleNamespace(name="Belt", **{PART_ID_ATTRIBUTE: "p1"})])
+    state = MeshReplacementState(target_path="character/model/a.pac", target_sha256="0" * 64,
+                                 parts=(ReplacementPart("p0", 0), ReplacementPart("p1", 1, included=False)))
+    session = SimpleNamespace(export_lock=threading.RLock(), archive_refit_context=None, replacement_state=state)
+    service = SimpleNamespace(working_mesh=lambda session_id: mesh, _session=lambda session_id: session)
+    host = SimpleNamespace(standalone_controller=SimpleNamespace(mesh_service=service, active_session_id="s1"))
+    assert MeshEditorRustProcessMixin._parts_in_build(host) == ("Upper body",)
+    # Part identities that no longer match the replacement: not known, nothing left out.
+    mesh.submeshes.pop()
+    assert MeshEditorRustProcessMixin._parts_in_build(host) is None
+
+
+def test_build_mod_writes_no_texture_only_an_excluded_part_uses(tmp_path: Path, monkeypatch) -> None:
+    import cdmw.services.mesh_live_texture_output as output
+    from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
+    from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
+
+    other = "character/texture/cd_phm_00_belt_0001_d.dds"
+    plan = plan_live_texture_outputs(
+        [_edit(tmp_path, users=("Upper body (a.pac)",)), _edit(tmp_path, game_path=other, users=("Belt (b.pac)",))],
+        {GAME_PATH: (_entry(),), other: (_entry(other),)},
+        parts_in_build=MeshEditorRustProcessMixin._parts_in_build(_set_host(frozenset({"b:0"}))))
+    real = output.encode_live_texture_outputs
+    monkeypatch.setattr(output, "encode_live_texture_outputs", lambda outputs, root, *, stop_event=None: real(
+        outputs, root, stop_event=stop_event,
+        encoder=lambda rgba, original, target, *, temp_root: Path(target).write_bytes(b"DDS edited")))
+    worker = MeshDirectOutputWorker(1, None, "s", _entry("character/model/a.pac"), kind="loose_mod",
+                                    output_path=tmp_path / "mods" / "Edited", texture_outputs=plan.outputs,
+                                    texture_work_root=tmp_path / "work", textures_only=True)
+    done = []
+    worker.completed.connect(lambda _id, result: done.append(result))
+    worker.error.connect(lambda _id, message: done.append(message))
+    worker.run()
+    (result,) = done
+    assert not isinstance(result, str), result
+    written = sorted(p.name for p in result.output_path.rglob("*.dds"))
+    assert written == ["cd_phm_00_ub_00_0374_d.dds"], written

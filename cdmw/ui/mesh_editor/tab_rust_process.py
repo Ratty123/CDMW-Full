@@ -881,16 +881,27 @@ class MeshEditorRustProcessMixin:
                                          parts_in_build=self._parts_in_build())
 
     def _parts_in_build(self) -> tuple[str, ...] | None:
-        """The names of the parts Build Mod writes (deleted parts are gone from the
-        working mesh), or None when they cannot be read: then no texture is left out."""
+        """The parts Build Mod writes (deleted parts are gone from the working mesh, parts
+        whose Include is off are left out), or None when they cannot be read: then no
+        texture is left out."""
+
+        from contextlib import nullcontext
+
+        from cdmw.services.mesh_live_texture_output import parts_in_build
 
         controller = getattr(self, "standalone_controller", None)
         try:
-            mesh = controller.mesh_service.working_mesh(controller.active_session_id)
-            names = tuple(str(getattr(part, "name", "") or "") for part in mesh.submeshes)
+            service, session_id = controller.mesh_service, controller.active_session_id
+            mesh = service.working_mesh(session_id)
+            session_of = getattr(service, "_session", None)
+            session = session_of(session_id) if callable(session_of) else None
+            lock = getattr(session, "export_lock", None)
+            with lock if lock is not None else nullcontext():
+                context = getattr(session, "archive_refit_context", None)
+                replacement = getattr(session, "replacement_state", None)
+            return parts_in_build(mesh, context, replacement)
         except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
             return None
-        return names if names and all(names) else None
 
     def _restored_live_texture_source(self, source_sha256: str):
         """What Build Mod needs about an edit restored from the draft whose texture was not

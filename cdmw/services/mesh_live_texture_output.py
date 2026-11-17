@@ -111,23 +111,84 @@ def _part_name(user: str) -> str:
     return text.casefold()
 
 
+def _part_in_build(user: str, kept: set[str]) -> bool:
+    """A Textures panel heading names a part the mod holds. A set's part is compared with
+    its file ("Belt (b.pac)"), so a part left out of one file is not kept by a part of
+    the same name in another; a heading with a file also matches a build part named
+    without one (a single file, whose panel still names the file of a Refit's body)."""
+
+    return str(user or "").strip().casefold() in kept or _part_name(user) in kept
+
+
+def parts_in_build(mesh, archive_refit_context=None, replacement_state=None) -> tuple[str, ...] | None:
+    """The parts Build Mod writes, named as the Textures panel names them, or None when
+    they cannot be read (then no edited texture is left out).
+
+    Deleted parts are gone from ``mesh`` (the working mesh). A part whose Include is off
+    stays in it and is not written: a set's part by its id in ``excluded_part_ids``, a
+    single file's part by its replacement binding. With two or more files open the panel
+    names each part with its file, and so does this."""
+
+    from cdmw.services.mesh_asset_context import ASSET_ATTRIBUTE, PART_ATTRIBUTE, is_item_set
+
+    parts = list(getattr(mesh, "submeshes", None) or ())
+    names = [str(getattr(part, "name", "") or "") for part in parts]
+    if not names or not all(names):
+        return None
+    kept = [True] * len(parts)
+    assets = tuple(getattr(archive_refit_context, "assets", ()) or ())
+    files: dict[int, str] = {}
+    if is_item_set(archive_refit_context):
+        excluded = frozenset(archive_refit_context.excluded_part_ids)
+        by_asset = {asset.asset_id: asset for asset in assets}
+        for index, part in enumerate(parts):
+            if str(getattr(part, PART_ATTRIBUTE, "")) in excluded:
+                kept[index] = False
+            asset = by_asset.get(str(getattr(part, ASSET_ATTRIBUTE, "")))
+            if asset is None:
+                return None
+            files[index] = _file_name(asset.entry)
+    else:
+        for asset in assets:
+            for index in asset.part_indices:
+                files.setdefault(int(index), _file_name(asset.entry))
+        if replacement_state is not None:
+            from cdmw.domain.mesh.replacement import bound_part_indices
+
+            try:
+                indices = bound_part_indices(mesh, replacement_state)
+            except ValueError:
+                return None
+            for binding in replacement_state.parts:
+                if not binding.included:
+                    kept[indices[binding.part_id]] = False
+    if len(assets) < 2:
+        files = {}
+    return tuple(names[index] + (f" ({files[index]})" if files.get(index) else "")
+                 for index in range(len(parts)) if kept[index])
+
+
+def _file_name(entry) -> str:
+    return str(getattr(entry, "path", "") or "").replace("\\", "/").rsplit("/", 1)[-1]
+
+
 def plan_live_texture_outputs(
     edits: Iterable[LiveTextureEdit],
     entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]],
     *,
     parts_in_build: Iterable[str] | None = None,
 ) -> LiveTexturePlan:
-    """``parts_in_build``: the names of the parts the mod holds (None: not known, so every
-    edited texture counts as used)."""
+    """``parts_in_build``: the parts the mod holds, as ``parts_in_build()`` names them
+    (None: not known, so every edited texture counts as used)."""
 
     outputs: list[LiveTextureOutput] = []
     refusals: list[str] = []
     left_out: list[str] = []
     seen: set[str] = set()
-    kept = None if parts_in_build is None else {_part_name(name) for name in parts_in_build}
+    kept = None if parts_in_build is None else {str(name).strip().casefold() for name in parts_in_build}
     for edit in edits:
         key = _normalized(edit.game_path)
-        if kept is not None and edit.users and not any(_part_name(user) in kept for user in edit.users):
+        if kept is not None and edit.users and not any(_part_in_build(user, kept) for user in edit.users):
             if key not in seen:
                 seen.add(key)
                 left_out.append(LEFT_OUT_TEXT.format(path=edit.game_path, parts=", ".join(edit.users)))
@@ -210,5 +271,6 @@ __all__ = [
     "LiveTextureSource",
     "encode_live_texture_outputs",
     "live_texture_metadata",
+    "parts_in_build",
     "plan_live_texture_outputs",
 ]
