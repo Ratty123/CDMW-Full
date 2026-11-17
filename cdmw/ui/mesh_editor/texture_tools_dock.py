@@ -238,7 +238,6 @@ class MeshEditorTextureTools(QDockWidget):
         self.show()
         self.raise_()
         self.texture_opened.emit()
-        self._widen_for_the_canvas()
 
     def show_empty(self) -> None:
         """The mesh closed, or another one loads: nothing of the last one stays in view.
@@ -299,18 +298,6 @@ class MeshEditorTextureTools(QDockWidget):
         if self.target is not None:
             self.target = dataclasses.replace(self.target, in_renderer=self.target.source_sha256.lower() in shown)
             self._show_warning_marker()
-
-    def _widen_for_the_canvas(self) -> None:
-        """Docked beside the model, the tools take about 45 % of the editor's width (once)."""
-
-        host = self.parentWidget()
-        resize = getattr(host, "resizeDocks", None)
-        if self.isFloating() or not callable(resize) or getattr(self, "_widened", False):
-            return
-        self._widened = True
-        width = max(scaled_px(560, self), int(host.width() * 0.45))
-        if self.width() < width:
-            resize([self], [width], Qt.Orientation.Horizontal)
 
     def set_sharing_text(self, game_path: str, text: str) -> None:
         """Say which other game files use ``game_path``, when it is the texture shown."""
@@ -527,6 +514,8 @@ class MeshEditorTextureTools(QDockWidget):
         self.split.setStretchFactor(0, 0)
         self.split.setStretchFactor(self.split.count() - 1, 1)
         self.split.setSizes([rail_scroll.minimumWidth(), scaled_px(420, rail)])
+        # Never crushed: room for the tools and a canvas worth painting on.
+        self.widget().setMinimumHeight(scaled_px(260, rail))
         fit = getattr(editor, "_set_fit_mode", None)
         if callable(fit):
             fit(True)  # the whole texture in view; zoom with the wheel

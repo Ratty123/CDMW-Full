@@ -18,10 +18,11 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, Signal
+from PySide6.QtCore import QEvent, QObject, QRunnable, QSize, Qt, QThreadPool, Signal
 from PySide6.QtGui import QFont, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QDockWidget,
     QHeaderView,
     QLabel,
@@ -603,6 +604,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._opened_parts: set[int] = set()
         self._opened_parts_root: str | None = None
         self._has_session = False
+        self._ui_font: QFont | None = None
 
         body = QWidget(self)
         self._body = body
@@ -643,18 +645,66 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._fit_to_font()
         self.clear()
 
-    # ----- sizes: logical pixels that follow the font --------------------------
+    # ----- sizes: logical pixels that follow the font and the screen ---------
     def thumbnail_side(self) -> int:
         """A thumbnail's side in logical pixels, following the panel's font."""
 
         return scaled_px(THUMBNAIL_SIZE, self.tree)
 
+    def _device_pixel_ratio(self) -> float:
+        """The scale of the screen the panel is on (1.5 at 150 %)."""
+
+        try:
+            return max(1.0, float(self.devicePixelRatioF()))
+        except RuntimeError:
+            return 1.0
+
+    def _thumbnail_device_side(self) -> int:
+        # Decoded for the screen's scale: sharp at 150 %, not oversized at 100 %.
+        return max(1, int(round(self.thumbnail_side() * self._device_pixel_ratio())))
+
     def _fit_to_font(self) -> None:
-        """Icon size and indentation from the font in use."""
+        """Icon size, indentation and the least usable size, from the font in use."""
 
         side = self.thumbnail_side()
         self.tree.setIconSize(QSize(side, side))
         self.tree.setIndentation(scaled_px(12, self.tree))
+        metrics = self.tree.fontMetrics()
+        # Never crushed: room for the role, about eighteen characters of a file name
+        # and the state, and for the header and five rows.
+        width = (side + metrics.horizontalAdvance("Base colour") + metrics.horizontalAdvance("Not one file")
+                 + metrics.averageCharWidth() * 18 + scaled_px(56, self.tree))
+        row = max(side, metrics.height()) + scaled_px(4, self.tree)
+        self._body.setMinimumSize(width, row * 6 + scaled_px(12, self.tree))
+
+    def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
+        """The Mesh Editor's UI font on the title, the list and its header, as on the
+        Texture Editor panel under it; the sizes that follow the font are fitted again."""
+
+        _ = data_font
+        self._ui_font = QFont(font)
+        for widget in (self, self._body, self.placeholder_label, self.tree, self.tree.header()):
+            own = QFont(widget.font())
+            own.setFamilies(font.families() or [font.family()])
+            own.setPointSizeF(font.pointSizeF())
+            if widget is self and own == QApplication.font("QDockWidget"):
+                # Qt paints a dock's title in the font it read when the dock was made
+                # unless the dock's own font differs from its class font.
+                own.setStyleHint(QFont.StyleHint.System if own.styleHint() != QFont.StyleHint.System
+                                 else QFont.StyleHint.AnyStyle)
+            if own != widget.font() or not widget.testAttribute(Qt.WidgetAttribute.WA_SetFont):
+                widget.setFont(own)
+        before = self.thumbnail_side()
+        self._fit_to_font()
+        self._restyle_headers()
+        if self.thumbnail_side() != before:
+            self._request_thumbnails()
+
+    def event(self, event: QEvent) -> bool:
+        # Moved to a screen with another scale: the thumbnails are decoded for it.
+        if event.type() == getattr(QEvent.Type, "DevicePixelRatioChange", None) and hasattr(self, "thumbnails"):
+            self._request_thumbnails()
+        return super().event(event)
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
         # The host decides: it hides the panel and remembers that the user closed it.
@@ -752,6 +802,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._set_has_session(True)
 
     def _request_thumbnails(self) -> None:
+        self.thumbnails.size = self._thumbnail_device_side()
         for path, role in self._roles_by_path.items():
             self.thumbnails.queue_texture_thumbnail(self._generation, path, role)
 
@@ -885,7 +936,9 @@ class MeshEditorTexturesPanel(QDockWidget):
         items = self._items_by_path.get(path, ())
         if not items:
             return
-        icon = QIcon(QPixmap.fromImage(image))
+        pixmap = QPixmap.fromImage(image)
+        pixmap.setDevicePixelRatio(self._device_pixel_ratio())  # device pixels in, logical size out
+        icon = QIcon(pixmap)
         for item in items:
             item.setIcon(COLUMN_THUMBNAIL, icon)
 
