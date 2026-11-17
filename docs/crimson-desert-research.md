@@ -569,6 +569,8 @@ the metalness byte (the low byte of `SV_Target0.y`, packed as in Ver2):
   `SkinnedMeshStandard_Ver2` or `SkinnedMeshStaticStandard`, matching the Ver2
   result above.
 
+No shipped AmplifiedGlare wrapper declares `_materialTexture` (all 39,349 rows of
+the other six use `ItemID="6"`), so Mesh Editor writes it only for the other six.
 The dragon and wyvern bodies use BlendHeight. Hair, eye, skin and
 `SkinnedMeshAnisotropy` (horse coats) also read `_materialTexture` G for
 roughness but shade differently and were not traced further.

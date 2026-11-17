@@ -82400,7 +82400,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 140
+      "cdmw/core/pac_xml_surface_layer.py": 139
     }
   },
   {
@@ -82408,7 +82408,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no material texture to write.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 142
+      "cdmw/core/pac_xml_surface_layer.py": 141
     }
   },
   {

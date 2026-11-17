@@ -16,8 +16,7 @@ Imported materials drop the target's layers, which leaves roughness 0. Writing
 layer R alone restores a chosen surface without changing colour or normals.
 
 The older SkinnedMeshStandard technique (Standard, Cloth, Emissive, Fur,
-AmplifiedGlare, BlendHeight and StaticBlendHeight; most creatures use these) is
-different. Decoded from every G-buffer permutation of each:
+BlendHeight and StaticBlendHeight; most creatures use these) is different. Decoded from every G-buffer permutation of each:
 
 * roughness is ``_materialTexture`` green and metalness its blue (the low byte of
   ``SV_Target0.y``, packed as in Ver2), with the colour-blend or height-blend
@@ -29,7 +28,8 @@ different. Decoded from every G-buffer permutation of each:
 
 For these, a uniform ``_materialTexture`` sets the surface. Its red channel is
 not read by the G-buffer shaders; it is written as 255, as every shipped ``_sp``
-texture has it.
+texture has it. SkinnedMeshAmplifiedGlare reads ``_materialTexture`` the same way,
+but no shipped wrapper of it declares one, so it stays refused.
 """
 from __future__ import annotations
 
@@ -56,14 +56,13 @@ MATERIAL_TEXTURE_SURFACE_SHADERS = frozenset({
     "SkinnedMeshCloth",
     "SkinnedMeshEmissive",
     "SkinnedMeshFur",
-    "SkinnedMeshAmplifiedGlare",
     "SkinnedMeshBlendHeight",
     "SkinnedMeshStaticBlendHeight",
 })
 SURFACE_SHADERS = SURFACE_LAYER_SHADERS | MATERIAL_TEXTURE_SURFACE_SHADERS
 
 LAYER_TEXTURE = ("_detailMaterialMaskR", "Texture", "3806852434362366")
-#: Every shipped wrapper of these shaders gives _materialTexture ItemID 6.
+#: Every shipped _materialTexture row of these shaders (39,349 in 13,338 .pac_xml files) has ItemID 6.
 MATERIAL_TEXTURE = ("_materialTexture", "Texture", "6")
 LAYER_FLAG = ("_colorBlendingFlag", "BitFlag32", "1263404788482046")
 LAYER_OPACITY = ("_dyeingGlobalOpacity", "Byte4", "685773182468094")

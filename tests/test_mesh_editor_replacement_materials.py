@@ -264,9 +264,11 @@ def test_zero_roughness_and_metallic_leave_imported_materials_unchanged(editor, 
     assert [(file.path, file.data) for file in plain] == [(file.path, file.data) for file in zero]
 
 
-def test_roughness_and_metallic_refuse_materials_outside_the_traced_shaders(editor, tmp_path):
+# AmplifiedGlare reads _materialTexture too, but no shipped wrapper of it declares one.
+@pytest.mark.parametrize("shader", ["SkinnedMeshHair", "SkinnedMeshAmplifiedGlare"])
+def test_roughness_and_metallic_refuse_materials_outside_the_traced_shaders(editor, tmp_path, shader):
     from cdmw.services.mesh_rust_replacement import imported_surface_support
-    pending, key = _surface_pending(editor, tmp_path, shader="SkinnedMeshHair")
+    pending, key = _surface_pending(editor, tmp_path, shader=shader)
     assert "not available for this item's material shader" in imported_surface_support(pending)
     with pytest.raises(ValueError, match="not available for this item's material shader"):
         prepare_imported_materials(pending, (key,), tmp_path, surface=(0.5, 0.0))
