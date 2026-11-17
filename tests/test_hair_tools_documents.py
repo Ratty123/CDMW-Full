@@ -121,10 +121,10 @@ def rig(tmp_path, monkeypatch):
         document.standalone_rust_session_root = root
         return entry, session
 
-    def start_hair(tab, path: str, mode: str = "generated"):
+    def start_hair(tab, path: str, mode: str = "generated", *, offset: int = 64):
         """Hair Tools started from ``tab``; Start in its setup with ``path`` chosen."""
 
-        chosen.update(entry=_entry(tmp_path, path, 64), mode=mode)
+        chosen.update(entry=_entry(tmp_path, path, offset), mode=mode)
         hair_flow.start_hair_workflow(tab).accept()
         _settle()
         return chosen["entry"]
@@ -243,3 +243,33 @@ def test_hair_tools_from_character_finder_reaches_the_document_that_opens(rig) -
     assert first._current_target_entry().identity == sword.identity
     assert first.standalone_rust_authoring_session is session and not session.closed
     assert rig.shell.activated == [lazy]
+
+
+def test_setting_up_the_open_hairstyle_again_asks_before_replacing_it(rig, monkeypatch) -> None:
+    """Setup run again on the hairstyle that is open (another mode or character) replaces
+    it, so it asks Finish, Discard or Keep editing. It opened the same file a second
+    time in a new document instead, beside its own unfinished edit."""
+
+    view = rig.view
+    first = view.active
+    hair, session = rig.open_mesh(first, HAIR, edited=True)
+    asked: list[str] = []
+    answer = [end_edit_prompt.KEEP]
+    monkeypatch.setattr(end_edit_prompt, "prompt_override", lambda _parent, label: asked.append(label) or answer[0])
+
+    rig.start_hair(first, HAIR, mode="edit", offset=0)
+
+    assert len(asked) == 1
+    assert view.documents == (first,)
+    assert first.standalone_rust_authoring_session is session and not session.closed
+    assert session.unfinished_steps() == 1
+    assert first.hair_entry_status.text() == "Hair setup cancelled. The current scene is unchanged."
+
+    answer[0] = end_edit_prompt.DISCARD
+    rig.start_hair(first, HAIR, mode="edit", offset=0)
+
+    assert len(asked) == 2
+    assert view.documents == (first,)  # replaced where it is: no second document of the same file
+    assert session.closed
+    assert first._current_target_entry().identity == hair.identity
+    assert first._pending_hair_start == (hair.identity, "edit")
