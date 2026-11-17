@@ -91,7 +91,7 @@ class _SteppedWidget(QWidget):
         return True
 
 
-def test_the_lazy_tab_runs_one_construction_step_per_turn_before_attaching():
+def test_the_lazy_tab_runs_one_construction_step_per_turn_before_publishing():
     _app()
     widget = _SteppedWidget(3)
     container = LazyToolTab(lambda: widget)
@@ -102,7 +102,8 @@ def test_the_lazy_tab_runs_one_construction_step_per_turn_before_attaching():
         for expected_calls in (1, 2, 3):
             assert container._next_load_step == container._continue_requested_construction
             container._run_load_step()
-            assert widget.calls == expected_calls and widget.parentWidget() is None and not created
+            # In its container from the start (see test_lazy_tool_attach_step), not published yet.
+            assert widget.calls == expected_calls and widget.parentWidget() is container and not created
         container._run_load_step()  # the last check finds it complete
         assert container._next_load_step == container._attach_requested_widget
         container._run_load_step()

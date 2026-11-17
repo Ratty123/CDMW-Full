@@ -246,6 +246,11 @@ class LazyToolTab(QWidget):
         finally:
             self._creating = False
         if _has_construction_steps(widget):
+            # Into this container now, while little of it exists: moving it in
+            # restyles every widget it holds, so after its last step the move
+            # cost its own turn (60 to 160 ms for Textures). What each step
+            # builds afterwards is styled as it is made.
+            self._attach_pending_widget(widget)
             self._schedule_load_step(self._continue_requested_construction)
             return
         # Moving the finished widget into this container restyles its whole
