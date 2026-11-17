@@ -99634,7 +99634,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not know which game file this texture came from, so it cannot write it.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_live_texture_output.py": 279
+      "cdmw/services/mesh_live_texture_output.py": 294
     }
   },
   {
@@ -102041,7 +102041,7 @@ MESSAGE_REFERENCE = [
     "message": "The game file was not found in the archives.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_live_texture_output.py": 287
+      "cdmw/services/mesh_live_texture_output.py": 302
     }
   },
   {

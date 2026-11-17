@@ -9,6 +9,7 @@ dialog opens so the dialog can show it; the encode runs on the build worker.
 
 from __future__ import annotations
 
+import re
 import threading
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -188,9 +189,22 @@ def _part_in_build(user: str, kept: set[str]) -> bool:
     """A Textures panel heading names a part the mod holds. A set's part is compared with
     its file ("Belt (b.pac)"), so a part left out of one file is not kept by a part of
     the same name in another; a heading with a file also matches a build part named
-    without one (a single file, whose panel still names the file of a Refit's body)."""
+    without one (a single file, whose panel still names the file of a Refit's body), and
+    a heading without a file (the texture was opened before a second file was) matches
+    a build part of that name in any file."""
 
-    return str(user or "").strip().casefold() in kept or _part_name(user) in kept
+    full = str(user or "").strip().casefold()
+    name = _part_name(user)
+    if full in kept or name in kept:
+        return True
+    return full == name and any(_part_name(part) == name for part in kept)
+
+
+def _unnamed_part(user: str) -> bool:
+    """The Textures panel's "Part N" for a part whose name it was not given: the build's
+    parts cannot be told by that name, so such a texture is never left out."""
+
+    return re.fullmatch(r"part \d+", _part_name(user)) is not None
 
 
 def parts_in_build(mesh, archive_refit_context=None, replacement_state=None, *,
@@ -270,7 +284,8 @@ def plan_live_texture_outputs(
         key = _normalized(edit.game_path)
         # Left out comes first: a texture no part in the mod uses is not written, so
         # whether it could be does not stop Build Mod.
-        if kept is not None and edit.users and not any(_part_in_build(user, kept) for user in edit.users):
+        if (kept is not None and edit.users and not any(_part_in_build(user, kept) for user in edit.users)
+                and not any(_unnamed_part(user) for user in edit.users)):
             if key not in seen:
                 seen.add(key)
                 statuses.append(LiveTextureStatus(edit.game_path, LEFT_OUT, parts=tuple(edit.users)))

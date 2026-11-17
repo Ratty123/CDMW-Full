@@ -384,3 +384,23 @@ def test_the_build_mod_list_follows_include_the_body() -> None:
         dialog.deleteLater()
         parent.deleteLater()
         QApplication.processEvents()
+
+
+def test_a_part_named_without_its_file_is_kept_by_that_part_in_any_file(tmp_path: Path) -> None:
+    # The texture was opened while one file was open, then a body was loaded: the build
+    # names its parts with their files, the edit's users do not.
+    kept = ("Coat (coat.pac)", "Body (body.pac)")
+    plan = plan_live_texture_outputs([_edit(tmp_path, users=("Coat",))], {GAME_PATH: (_entry(),)},
+                                     parts_in_build=kept)
+    assert len(plan.outputs) == 1 and plan.left_out == ()
+    gone = plan_live_texture_outputs([_edit(tmp_path, users=("Belt",))], {GAME_PATH: (_entry(),)},
+                                     parts_in_build=kept)
+    assert gone.outputs == () and len(gone.left_out) == 1
+
+
+def test_a_part_the_panel_could_not_name_never_leaves_its_texture_out(tmp_path: Path) -> None:
+    # Without the editor's part names the Textures panel says "Part 1": that says nothing
+    # about which build part it is, so the texture is written as before.
+    plan = plan_live_texture_outputs([_edit(tmp_path, users=("Part 1 (coat.pac)",))], {GAME_PATH: (_entry(),)},
+                                     parts_in_build=("Coat (coat.pac)",))
+    assert len(plan.outputs) == 1 and plan.left_out == ()
