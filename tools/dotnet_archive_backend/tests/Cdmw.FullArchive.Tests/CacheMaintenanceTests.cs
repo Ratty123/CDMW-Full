@@ -140,7 +140,9 @@ internal static class CacheMaintenanceTests
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         Require(cancelledMarker is not null, "refresh never exercised publication cancellation");
-        using (var released = new FileStream(cancelledMarker!, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+        // The cancelled generation was never published, so nothing will ever retire it:
+        // its lease file must go with its staging folder, not stay behind for good.
+        Require(!File.Exists(cancelledMarker!), "a cancelled publication left its lease file behind");
         var reopened = await sessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
         Require(reopened.CacheHit, "a cancelled publication broke the previous current generation");
     }

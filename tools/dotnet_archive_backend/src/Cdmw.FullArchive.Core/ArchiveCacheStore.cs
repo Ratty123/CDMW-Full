@@ -244,6 +244,16 @@ public sealed partial class ArchiveCacheStore
             catch
             {
                 TryDeleteDirectory(stagingPath);
+                // A cancelled or failed build never published its generation, so no
+                // maintenance pass will ever retire it: release its lease and delete the
+                // lease file too, or it stays behind for good.
+                generationUse?.Dispose();
+                generationUse = null;
+                if (!Directory.Exists(generationPath))
+                {
+                    try { File.Delete(GenerationUsePath(generationPath)); }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+                }
                 throw;
             }
             finally
