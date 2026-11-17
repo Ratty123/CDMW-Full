@@ -2891,7 +2891,8 @@ ERROR_REFERENCE = [
     "messages": [
       "The archive worker did not answer in time.",
       "The interface did not answer in time; try again when CDMW is idle.",
-      "The reference search did not finish in time."
+      "The reference search did not finish in time.",
+      "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}"
     ],
     "sources": [
       "cdmw/mcp/jobs.py",
@@ -2902,7 +2903,7 @@ ERROR_REFERENCE = [
       "cdmw/ui/ai_connections/executor.py"
     ],
     "severity": [],
-    "recovery": "internal"
+    "recovery": "format"
   },
   {
     "group": "mesh_validation",
@@ -3386,6 +3387,7 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "not_found",
     "messages": [
+      "Help has no topic {wanted}. Call app_manual without a topic for the list.",
       "That page is gone: it was already read or is more than 15 minutes old. Run the search again.",
       "The Format Explorer has no row for {extension}.",
       "The archives have no {wanted}.",
@@ -3395,6 +3397,7 @@ ERROR_REFERENCE = [
       "{table} has no row {key if key is not None else name}."
     ],
     "sources": [
+      "cdmw/mcp/app_read_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/read_tools.py",
@@ -75214,7 +75217,7 @@ MESSAGE_REFERENCE = [
     "message": "At most {MAX_BYTES} bytes a call; read the rest with a higher offset.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 307
+      "cdmw/mcp/read_tools.py": 336
     }
   },
   {
@@ -75409,6 +75412,14 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/acquisition_compact.py": 91,
       "cdmw/core/item_reward_table.py": 61
+    }
+  },
+  {
+    "area": "other",
+    "message": "Body & Face Finder needs an updated archive helper.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/read_tools.py": 188
     }
   },
   {
@@ -75640,7 +75651,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not decode {table}. It decodes: {', '.join(sorted(DECODED_TABLES))}",
     "recovery": "format",
     "sources": {
-      "cdmw/mcp/read_tools.py": 424
+      "cdmw/mcp/read_tools.py": 453
     }
   },
   {
@@ -75761,7 +75772,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/mcp/jobs.py": 104,
-      "cdmw/mcp/read_tools.py": 484,
+      "cdmw/mcp/read_tools.py": 523,
       "cdmw/mcp/server.py": 77,
       "cdmw/ui/ai_connections/catalogue_calls.py": 101,
       "cdmw/ui/ai_connections/context.py": 149
@@ -78787,7 +78798,7 @@ MESSAGE_REFERENCE = [
     "message": "Give an extension or a path",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 397
+      "cdmw/mcp/read_tools.py": 426
     }
   },
   {
@@ -78795,7 +78806,7 @@ MESSAGE_REFERENCE = [
     "message": "Give key or name",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 436
+      "cdmw/mcp/read_tools.py": 465
     }
   },
   {
@@ -78803,7 +78814,7 @@ MESSAGE_REFERENCE = [
     "message": "Give key, keys or search",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 492
+      "cdmw/mcp/read_tools.py": 531
     }
   },
   {
@@ -79204,6 +79215,14 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/services/hair_registration.py": 46
+    }
+  },
+  {
+    "area": "other",
+    "message": "Help has no topic {wanted}. Call app_manual without a topic for the list.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/app_read_tools.py": 99
     }
   },
   {
@@ -81499,6 +81518,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Open a mesh in the Mesh Editor first: the Textures panel lists the textures of the shown tab.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/app_read_tools.py": 140
+    }
+  },
+  {
+    "area": "other",
     "message": "OpenImageIO fail_percent must be between 0 and 100.",
     "recovery": "input",
     "sources": {
@@ -83041,7 +83068,7 @@ MESSAGE_REFERENCE = [
     "message": "Set the game folder in Settings > Paths first.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/read_tools.py": 412
+      "cdmw/mcp/read_tools.py": 441
     }
   },
   {
@@ -83607,14 +83634,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The Character Finder needs an updated archive helper.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/mcp/read_tools.py": 171
-    }
-  },
-  {
-    "area": "other",
     "message": "The DMM library changed while it was being read. Refresh it.",
     "recovery": "internal",
     "sources": {
@@ -83626,7 +83645,7 @@ MESSAGE_REFERENCE = [
     "message": "The Format Explorer has no row for {extension}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 401
+      "cdmw/mcp/read_tools.py": 430
     }
   },
   {
@@ -83647,10 +83666,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The Mesh Editor is still preparing this mesh; try again in a moment.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/app_read_tools.py": 144
+    }
+  },
+  {
+    "area": "other",
     "message": "The Model Library has no catalogue yet: index one in Model Library first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 231
+      "cdmw/mcp/read_tools.py": 260
     }
   },
   {
@@ -83778,7 +83805,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives have no {wanted}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 270
+      "cdmw/mcp/read_tools.py": 299
     }
   },
   {
@@ -83938,7 +83965,7 @@ MESSAGE_REFERENCE = [
     "message": "The connection to CDMW closed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/bridge.py": 219
+      "cdmw/mcp/bridge.py": 238
     }
   },
   {
@@ -84506,7 +84533,7 @@ MESSAGE_REFERENCE = [
     "message": "The reference search could not start.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 381
+      "cdmw/mcp/read_tools.py": 410
     }
   },
   {
@@ -88472,7 +88499,7 @@ MESSAGE_REFERENCE = [
     "message": "offset is past the end ({len(data)} bytes)",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 309
+      "cdmw/mcp/read_tools.py": 338
     }
   },
   {
@@ -88576,7 +88603,7 @@ MESSAGE_REFERENCE = [
     "message": "path is required",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/read_tools.py": 256
+      "cdmw/mcp/read_tools.py": 285
     }
   },
   {
@@ -88688,7 +88715,8 @@ MESSAGE_REFERENCE = [
       "cdmw/core/structured_binary_editor.py": 117,
       "cdmw/core/text_search.py": 173,
       "cdmw/domain/xml_text.py": 211,
-      "cdmw/mcp/read_tools.py": 334,
+      "cdmw/mcp/bridge.py": 68,
+      "cdmw/mcp/read_tools.py": 363,
       "cdmw/modding/working_mod_recipe.py": 123,
       "cdmw/services/diagnostic_bundle_service.py": 107,
       "cdmw/services/diagnostics_service.py": 233,
@@ -89837,7 +89865,7 @@ MESSAGE_REFERENCE = [
     "message": "{error}. The archives have: {languages}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 486
+      "cdmw/mcp/read_tools.py": 525
     }
   },
   {
@@ -91029,7 +91057,15 @@ MESSAGE_REFERENCE = [
     "message": "{table} has no row {key if key is not None else name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/read_tools.py": 446
+      "cdmw/mcp/read_tools.py": 485
+    }
+  },
+  {
+    "area": "other",
+    "message": "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/mcp/read_tools.py": 482
     }
   },
   {
@@ -106854,6 +106890,10 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/mcp/__init__.py": {},
+  "cdmw/mcp/app_read_tools.py": {
+    "code": 1,
+    "raise": 4
+  },
   "cdmw/mcp/app_tools.py": {},
   "cdmw/mcp/approvals.py": {
     "code": 3,
@@ -106862,6 +106902,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/audit.py": {},
   "cdmw/mcp/bridge.py": {
+    "diagnostic_field": 1,
     "failure": 3,
     "report": 2
   },
@@ -106889,10 +106930,10 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/mcp/read_tools.py": {
-    "code": 13,
-    "diagnostic_field": 2,
-    "raise": 18,
-    "report": 6
+    "code": 14,
+    "diagnostic_field": 3,
+    "raise": 19,
+    "report": 7
   },
   "cdmw/mcp/schema.py": {
     "code": 14,
