@@ -739,19 +739,29 @@ def classify_pac_xml_profile(path: str | Path, xml_text: str | None = None) -> P
         confidence = 0.95
         evidence.append("armor path")
         slot = _armor_slot_from_path(key)
-    elif any(token in key for token in ("/monster/", "/mon/", "/npcmonster/", "/boss/", "/creature/")):
+    # The game files creatures under character/model(property)/2_mon/ and mounts and
+    # vehicles under 4_riding/; the other tokens cover loose and renamed layouts.
+    elif any(token in key for token in ("/2_mon/", "/monster/", "/mon/", "/npcmonster/", "/boss/", "/creature/")):
         family = "monster"
         confidence = 0.9
         evidence.append("monster path")
-        if any(token in key for token in ("machine", "mechanic", "mecha", "golem", "construct", "vehicle")):
+        if any(token in key for token in (
+            "machine", "mechanic", "mecha", "golem", "construct", "vehicle", "robot", "tank", "drone", "droid",
+            "tower", "cannon",
+        )):
             slot = "mechanical"
         else:
             slot = "organic"
-    elif any(token in key for token in ("/riding/", "/mount/", "/vehicle/", "/wagon/", "/horse/", "/camel/")):
+    # 4_riding/cd_r0013_00_object holds loose objects (a barrel, a table), not mounts.
+    elif "_object/" not in key and any(token in key for token in ("/4_riding/", "/riding/", "/mount/", "/vehicle/", "/wagon/", "/horse/", "/camel/")):
         family = "riding"
         confidence = 0.85
         evidence.append("riding/mount path")
-        if any(token in key for token in ("wagon", "vehicle", "boat", "ship", "cart", "carriage", "sled")):
+        if any(token in key for token in (
+            "wagon", "vehicle", "boat", "ship", "cart", "carriage", "sled", "cannon", "ballista", "crossbow",
+            "catapult", "batteringram", "flamethrower", "airballoon", "airplane", "submarine", "singijeon",
+            "train", "robot", "machine", "scooter", "wheelbarrow", "broom",
+        )):
             slot = "vehicle"
         else:
             slot = "animal"
