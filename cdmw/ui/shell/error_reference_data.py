@@ -77109,7 +77109,7 @@ MESSAGE_REFERENCE = [
     "message": "Create New Item is not open yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 681
+      "cdmw/automation/review_commands.py": 706
     }
   },
   {
@@ -80822,7 +80822,7 @@ MESSAGE_REFERENCE = [
     "message": "No Scene panel is shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 497
+      "cdmw/automation/review_commands.py": 522
     }
   },
   {
@@ -80830,7 +80830,7 @@ MESSAGE_REFERENCE = [
     "message": "No Scene panel row for {wanted or 'any file'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 510
+      "cdmw/automation/review_commands.py": 535
     }
   },
   {
@@ -83690,7 +83690,7 @@ MESSAGE_REFERENCE = [
     "message": "The finder is not shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 429
+      "cdmw/automation/review_commands.py": 454
     }
   },
   {
@@ -86030,7 +86030,7 @@ MESSAGE_REFERENCE = [
     "message": "action is show_all or isolate",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 517
+      "cdmw/automation/review_commands.py": 542
     }
   },
   {
@@ -90573,7 +90573,7 @@ MESSAGE_REFERENCE = [
     "message": "{source} is not a file.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/review_commands.py": 729
+      "cdmw/automation/review_commands.py": 754
     }
   },
   {

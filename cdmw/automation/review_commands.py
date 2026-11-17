@@ -244,24 +244,43 @@ def _scan_progress(archive) -> dict[str, object]:
 _SCROLL: dict[str, object] = {}
 
 
-def _tree_rows_loading(tree) -> tuple[int, int]:
-    """(visible rows, visible rows still "Loading...") of Browse's list."""
+def browse_list(window):
+    """(the view that shows Browse's list, its model, "flat" or "tree"). The flat view of a
+    large catalogue is a table laid over the tree (the tree then holds a placeholder model)."""
 
-    model = tree.model()
-    viewport = tree.viewport()
-    top = tree.indexAt(viewport.rect().topLeft())
+    tree = window.archive.archive_tree
+    model = getattr(tree, "_remote_archive_model", None)
+    flat = getattr(tree, "_flat_table", None)
+    if getattr(tree, "_flat_remote_active", False) and flat is not None:
+        return flat, model or flat.model(), "flat"
+    return tree, model or tree.model(), "tree"
+
+
+def _rows_loading(view, model) -> tuple[int, int]:
+    """(rows shown, rows shown still "Loading...", which the model marks "loading")."""
+
+    from PySide6.QtCore import Qt
+
+    viewport = view.viewport()
+    top = view.indexAt(viewport.rect().topLeft())
     if model is None or not top.isValid():
         return 0, 0
+    bottom = viewport.rect().bottom()
     shown = loading = 0
     index = top
-    bottom = viewport.rect().bottom()
-    while index.isValid() and tree.visualRect(index).top() <= bottom and shown < 400:
+    below = getattr(view, "indexBelow", None)
+    while index.isValid() and view.visualRect(index).top() <= bottom and shown < 400:
         shown += 1
-        entry_for_index = getattr(model, "entry_for_index", None)
-        if callable(entry_for_index) and entry_for_index(index) is None:
+        if str(model.data(index, Qt.ItemDataRole.UserRole)) == "loading":
             loading += 1
-        index = tree.indexBelow(index)
+        index = below(index) if callable(below) else model.index(index.row() + 1, 0, index.parent())
     return shown, loading
+
+
+def _row_pixels(view) -> int:
+    top = view.indexAt(view.viewport().rect().topLeft())
+    height = view.visualRect(top).height() if top.isValid() else 0
+    return max(1, int(height or 20))
 
 
 def scroll_start(window, args: dict) -> dict[str, object]:
@@ -270,34 +289,39 @@ def scroll_start(window, args: dict) -> dict[str, object]:
     loop runs between them as it does between mouse moves. Read with ``scroll_state``."""
 
     from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QAbstractItemView
 
-    tree = window.archive.archive_tree
-    bar = tree.verticalScrollBar()
-    model = tree.model()
+    view, model, mode = browse_list(window)
+    bar = view.verticalScrollBar()
     previous = _SCROLL.get("timer")
     if previous is not None:
         previous.stop()
     steps = max(1, int(args.get("steps", 40)))
-    rows = int(args.get("rows", 0) or 0) or max(1, bar.pageStep())
+    per_pixel = view.verticalScrollMode() == QAbstractItemView.ScrollMode.ScrollPerPixel
+    rows = int(args.get("rows", 0) or 0)
+    move = rows * _row_pixels(view) if rows and per_pixel else rows or max(1, bar.pageStep())
     direction = -1 if str(args.get("direction", "down")) == "up" else 1
-    state = {"steps": steps, "done_steps": 0, "rows_per_step": rows, "started": time.perf_counter(),
-             "finished": None, "loaded": None, "tick_ms": [], "pages_requested": 0,
-             "start_value": bar.value(), "maximum": bar.maximum()}
+    state = {"steps": steps, "done_steps": 0, "rows_per_step": rows or None, "move": move, "view": mode,
+             "started": time.perf_counter(), "finished": None, "loaded": None, "tick_ms": [],
+             "pages_requested": 0, "start_value": bar.value(), "maximum": bar.maximum()}
     requested = getattr(model, "pageRequested", None)
+    activity = getattr(window.archive, "_note_archive_ui_activity", None)
 
     def count(_fetch) -> None:
         state["pages_requested"] += 1
 
     if requested is not None:
         requested.connect(count)
-    timer = QTimer(tree)
+    timer = QTimer(view)
     timer.setInterval(max(1, int(args.get("interval_ms", 16))))
-    settle = QTimer(tree)
+    settle = QTimer(view)
     settle.setInterval(20)
 
     def tick() -> None:
         began = time.perf_counter()
-        bar.setValue(bar.value() + direction * rows)
+        if callable(activity):
+            activity()  # what the list's own input events report while the user scrolls
+        bar.setValue(bar.value() + direction * move)
         state["tick_ms"].append((time.perf_counter() - began) * 1000.0)
         state["done_steps"] += 1
         if state["done_steps"] >= steps or bar.value() in (bar.minimum(), bar.maximum()):
@@ -306,7 +330,7 @@ def scroll_start(window, args: dict) -> dict[str, object]:
             settle.start()
 
     def settled() -> None:
-        _shown, loading = _tree_rows_loading(tree)
+        _shown, loading = _rows_loading(view, model)
         if not loading:
             state["loaded"] = time.perf_counter()
             settle.stop()
@@ -320,23 +344,23 @@ def scroll_start(window, args: dict) -> dict[str, object]:
 
     timer.timeout.connect(tick)
     settle.timeout.connect(settled)
-    _SCROLL.update(timer=timer, settle=settle, state=state, tree=tree)
+    _SCROLL.update(timer=timer, settle=settle, state=state)
     timer.start()
-    return {"steps": steps, "rows_per_step": rows, "maximum": bar.maximum(), "value": bar.value()}
+    return {"steps": steps, "rows_per_step": rows or None, "move": move, "view": mode, "maximum": bar.maximum(),
+            "value": bar.value()}
 
 
 def scroll_state(window, _args: dict) -> dict[str, object]:
     state = dict(_SCROLL.get("state") or {})
     if not state:
         return {"started": False}
-    tree = window.archive.archive_tree
-    shown, loading = _tree_rows_loading(tree)
-    model = tree.model()
+    view, model, mode = browse_list(window)
+    shown, loading = _rows_loading(view, model)
     ticks = list(state.get("tick_ms") or [])
     started = state["started"]
     return {
         "started": True, "done": state["finished"] is not None, "loaded": state["loaded"] is not None,
-        "done_steps": state["done_steps"], "steps": state["steps"],
+        "done_steps": state["done_steps"], "steps": state["steps"], "view": mode,
         "scroll_s": None if state["finished"] is None else round(state["finished"] - started, 3),
         "loaded_after_scroll_s": (None if state["loaded"] is None
                                   else round(state["loaded"] - state["finished"], 3)),
@@ -344,7 +368,7 @@ def scroll_state(window, _args: dict) -> dict[str, object]:
         "pages_requested": state["pages_requested"],
         "pages_in_flight": len(getattr(model, "inflight_page_starts", ()) or ()),
         "visible_rows": shown, "visible_loading": loading,
-        "value": tree.verticalScrollBar().value(), "maximum": tree.verticalScrollBar().maximum(),
+        "value": view.verticalScrollBar().value(), "maximum": view.verticalScrollBar().maximum(),
     }
 
 
@@ -386,7 +410,8 @@ def finder_state(window, args: dict) -> dict[str, object]:
         return {"shown": False}
     if which == "character":
         grid = dialog._grid
-        busy = bool(getattr(dialog, "_requests", None))
+        # The dialog keeps one look-ahead request for the next page outstanding: not busy.
+        busy = any(kind != "prefetch" for kind in (getattr(dialog, "_requests", None) or {}))
         scene = getattr(getattr(dialog, "_scene_panel", None), "panel", None)
         extra = {
             "preview_status": _text(getattr(dialog, "_preview_status", None)),

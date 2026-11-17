@@ -169,6 +169,41 @@ def test_scroll_runs_from_a_timer_and_reports_when_the_shown_rows_loaded() -> No
         _pump(seconds=0.05)
 
 
+def test_scroll_moves_the_flat_table_browse_shows_over_its_tree() -> None:
+    from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
+
+    total = 20000
+    tree = ArchiveBrowserTreeView()
+    tree.resize(500, 320)
+    model = RemoteArchiveBrowserModel(page_size=128, parent=tree)
+
+    def serve(fetch) -> None:
+        rows = tuple(_entry(i) for i in range(fetch.page_start, min(total, fetch.page_start + fetch.page_size)))
+        QTimer.singleShot(3, lambda: model.accept_page(ArchivePage("s1", "q1", 1, total, fetch.page_start, rows)))
+
+    model.pageRequested.connect(serve)
+    tree.use_remote_model(model)
+    model.publish_query(ArchiveQueryHandle("s1", "q1", 1, total), view_mode=ArchiveViewMode.FLAT)
+    tree.show()
+    _pump(seconds=0.2)
+    noted: list[int] = []
+    window = SimpleNamespace(archive=SimpleNamespace(archive_tree=tree, _note_archive_ui_activity=lambda: noted.append(1)))
+    try:
+        view, shown_model, mode = review_commands.browse_list(window)
+        assert mode == "flat" and view is tree._flat_table and shown_model is model
+        started = review_commands.scroll_start(window, {"steps": 10, "rows": 500, "interval_ms": 2})
+        assert started["view"] == "flat" and started["move"] >= 500  # pixels: the table scrolls per pixel
+        _pump(lambda: review_commands.scroll_state(window, {})["loaded"])
+        state = review_commands.scroll_state(window, {})
+        assert state["loaded"] and state["done_steps"] == 10 and state["visible_loading"] == 0
+        first = view.indexAt(view.viewport().rect().topLeft()).row()
+        assert first >= 4000 and str(model.data(model.index(first, 0))).endswith(f"file_{first}.pac")
+        assert state["pages_requested"] > 0 and len(noted) == 10
+    finally:
+        tree.deleteLater()
+        _pump(seconds=0.05)
+
+
 # ----- 3. the finders and the Scene panel ---------------------------------------------------
 
 
