@@ -14,9 +14,9 @@ and the build log folds away under one status line.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -113,6 +114,25 @@ def _frame_text(frame) -> str:
     return f"{width:.2f} x {height:.2f} m\npicture {canvas_w:.2f} x {canvas_h:.2f} m"
 
 
+def _default_viewport(parent: QWidget):
+    """Create New Item's own viewport frame: it builds the package on its worker and
+    starts the resident 3D preview only once it is on screen."""
+
+    from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+    return ItemPreviewFrame(parent)
+
+
+def _picture_stamp(path: str):
+    """The picture file's change time and size, so a picture saved again is shown again."""
+
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
 def _square_icon(image: QImage) -> QIcon:
     """The icon centred on a transparent square, so every frame's text starts at one edge."""
 
@@ -128,9 +148,16 @@ def _square_icon(image: QImage) -> QIcon:
 class PaintingDialog(QDialog):
     """Add pictures as new paintings: frame, picture, name and description, then Build mod."""
 
-    def __init__(self, controller, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, controller, parent: Optional[QWidget] = None, *,
+                 viewport_factory: Optional[Callable[[QWidget], object]] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("New painting")
+        #: Makes the 3D view's viewport frame (an ItemPreviewFrame) when the 3D tab is first shown.
+        self._viewport_factory = viewport_factory or _default_viewport
+        self._viewport = None
+        #: Viewport frames closed with the dialog; kept until their workers have ended.
+        self._retired_viewports: List[object] = []
+        self._viewport_token = None
         self.setObjectName("new_item_painting_dialog")
         self.setSizeGripEnabled(True)
         self._controller = controller
@@ -246,6 +273,30 @@ class PaintingDialog(QDialog):
         self.preview = PaintingFrameView()
         self.preview.clear_frame("Reading the frames...")
         self.preview_tabs.addTab(self.preview, "Front view")
+        self.viewport_page = QWidget()
+        self.viewport_page.setObjectName("new_item_painting_3d")
+        viewport_layout = QVBoxLayout(self.viewport_page)
+        viewport_layout.setContentsMargins(4, 4, 4, 4)
+        viewport_row = QHBoxLayout()
+        self.viewport_status = QLabel("The frame's mesh with your picture on its canvas, as the game's files will have it.")
+        self.viewport_status.setObjectName("HintLabel")
+        self.viewport_status.setWordWrap(True)
+        viewport_row.addWidget(self.viewport_status, 1)
+        self.reset_view_button = QPushButton("Reset view")
+        self.reset_view_button.clicked.connect(self._reset_view)
+        self.reset_view_button.setEnabled(False)
+        viewport_row.addWidget(self.reset_view_button, 0, Qt.AlignmentFlag.AlignTop)
+        viewport_layout.addLayout(viewport_row)
+        self.viewport_busy = QProgressBar()
+        self.viewport_busy.setRange(0, 0)
+        self.viewport_busy.setTextVisible(False)
+        self.viewport_busy.setFixedHeight(6)
+        self.viewport_busy.hide()
+        viewport_layout.addWidget(self.viewport_busy)
+        self._viewport_slot = QVBoxLayout()
+        viewport_layout.addLayout(self._viewport_slot, 1)
+        self.preview_tabs.addTab(self.viewport_page, "3D view")
+        self.preview_tabs.currentChanged.connect(self._preview_tab_changed)
         middle.addWidget(self.preview_tabs, 1)
         self.frame_info = QLabel("Reading the frames...")
         self.frame_info.setObjectName("HintLabel")
@@ -496,6 +547,10 @@ class PaintingDialog(QDialog):
     # ------------------------------------------------------------------ preview
 
     def _request_preview(self) -> None:
+        self._request_front_view()
+        self._request_viewport()
+
+    def _request_front_view(self) -> None:
         painting = self._paintings[self._current]
         frame = self._frame_of(str(painting["frame"]))
         self._preview_token += 1
@@ -517,6 +572,121 @@ class PaintingDialog(QDialog):
             self.preview.clear_picture(message)
             return
         self.preview.set_picture(image)
+
+    # ------------------------------------------------------------------ 3D view
+
+    def _viewport_shown(self) -> bool:
+        return self.isVisible() and self.preview_tabs.currentWidget() is self.viewport_page
+
+    def _preview_tab_changed(self, _index: int) -> None:
+        self._request_viewport()
+
+    def _ensure_viewport(self):
+        if self._viewport is not None:
+            return self._viewport
+        try:
+            viewport = self._viewport_factory(self.viewport_page)
+        except Exception as exc:  # noqa: BLE001 - the 3D view is optional; the rest of the dialog works
+            self._viewport_failed(None, f"The 3D view is not available here: {exc}")
+            return None
+        gizmo = getattr(viewport, "gizmo_visible", None)
+        if gizmo is not None:
+            gizmo.hide()  # nothing here is placed or moved
+        viewport.ready.connect(lambda shown=viewport: self._viewport_ready(shown))
+        viewport.failed.connect(lambda message, shown=viewport: self._viewport_failed(shown, message))
+        viewport.status_changed.connect(lambda message, shown=viewport: self._viewport_progress(shown, message))
+        self._viewport_slot.addWidget(viewport, 1)
+        self._viewport = viewport
+        return viewport
+
+    def _request_viewport(self) -> None:
+        """Show the current painting in the 3D view. Only while the 3D tab is on screen:
+        the package is built on the viewport frame's worker, so nothing heavy runs here."""
+
+        if not self._viewport_shown():
+            return
+        painting = self._paintings[self._current]
+        frame = self._frame_of(str(painting["frame"]))
+        if frame is None:
+            self._viewport_token = None
+            if self._viewport is not None:
+                self._viewport.show(None)
+            self._set_viewport_busy(False, "Choose a frame to see it in 3D." if self._frames else "Reading the frames...")
+            return
+        make_source = getattr(self._controller, "painting_preview_source", None)
+        picture = str(painting["picture"] or "")
+        source = make_source(frame, picture, str(painting["fit"])) if callable(make_source) else None
+        if source is None:
+            self._set_viewport_busy(False, "The 3D view needs the game's archives; read them in Create New Item first.")
+            return
+        viewport = self._ensure_viewport()
+        if viewport is None:
+            return
+        token = ("painting", frame.mesh, picture, _picture_stamp(picture) if picture else None, str(painting["fit"]))
+        self._viewport_token = token
+        self._set_viewport_busy(True, "Preparing the 3D view...")
+        # The camera stays put while only the picture or its fit changes.
+        viewport.show(source, token=token, framing_key=("painting", frame.mesh))
+        # The viewport already shows this very package: it loads nothing and says nothing.
+        showing = getattr(viewport, "showing", None)
+        if callable(showing) and showing(token):
+            self._viewport_ready(viewport)
+
+    def _viewport_ready(self, viewport) -> None:
+        if viewport is not self._viewport:
+            return
+        picture = str(self._paintings[self._current]["picture"] or "")
+        self.reset_view_button.setEnabled(True)
+        self._set_viewport_busy(False, "Drag to turn the painting, scroll to zoom." if picture else
+                                "The frame with the game's own picture; choose a picture to see yours on it.")
+
+    def _viewport_failed(self, viewport, message: str) -> None:
+        if viewport is not None and viewport is not self._viewport:
+            return
+        self._set_viewport_busy(False, str(message or "The 3D view could not be shown."))
+        self.viewport_status.setProperty("severity", "error")
+
+    def _viewport_progress(self, viewport, message: str) -> None:
+        if viewport is self._viewport and message and not self.viewport_busy.isHidden():
+            self.viewport_status.setText(message)
+
+    def _set_viewport_busy(self, busy: bool, message: str) -> None:
+        self.viewport_busy.setVisible(bool(busy))
+        self.viewport_status.setText(message)
+        self.viewport_status.setProperty("severity", "")
+
+    def _reset_view(self) -> None:
+        if self._viewport is not None:
+            self._viewport.fit_view()
+
+    def viewport_busy_now(self) -> bool:
+        """Whether the 3D view is still being prepared."""
+        return not self.viewport_busy.isHidden()
+
+    def _retire_viewport(self) -> None:
+        """Stop the 3D view with the dialog; the next opening starts a new one."""
+        viewport, self._viewport = self._viewport, None
+        self._viewport_token = None
+        if viewport is None:
+            return
+        try:
+            viewport.request_shutdown()
+        except Exception:  # noqa: BLE001 - a frame already gone has nothing to stop
+            pass
+        viewport.hide()
+        self._viewport_slot.removeWidget(viewport)
+        self._retired_viewports.append(viewport)
+        self.reset_view_button.setEnabled(False)
+        self._set_viewport_busy(False, "")
+
+    def iter_shutdown_workers(self):
+        """The 3D view's package builds and package clean-ups, for CDMW's exit."""
+        for viewport in (self._viewport, *self._retired_viewports):
+            if viewport is not None:
+                yield from viewport.iter_shutdown_workers()
+
+    def request_shutdown(self) -> None:
+        self._retire_viewport()
 
     # ------------------------------------------------------------------ build
 
@@ -586,8 +756,11 @@ class PaintingDialog(QDialog):
             self._sized = True
             self._fit_to_screen()
         super().showEvent(event)
+        # Opened again on the 3D tab: show the painting once the dialog is laid out.
+        QTimer.singleShot(0, self._request_viewport)
 
     def done(self, result: int) -> None:
+        self._retire_viewport()
         if self._building:
             self._controller.cancel_operation("paintings")
         if self._log_connected:

@@ -30433,7 +30433,7 @@ MESSAGE_REFERENCE = [
     "message": "Fast textures remain visible; full textures failed to load: {failure}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 1329
+      "cdmw/ui/new_item/item_preview.py": 1336
     }
   },
   {
@@ -32587,6 +32587,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The 3D view could not be shown.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/painting_dialog.py": 646
+    }
+  },
+  {
+    "area": "items",
+    "message": "The 3D view is not available here: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/painting_dialog.py": 590
+    }
+  },
+  {
+    "area": "items",
     "message": "The DDS encoder produced no RGB glow map for {path.name}.",
     "recovery": "internal",
     "sources": {
@@ -33070,6 +33086,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The frame {frame.stem} could not be read for the 3D view.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting_preview.py": 103
+    }
+  },
+  {
+    "area": "items",
+    "message": "The frame {frame.stem} has no canvas part to show the picture on.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting_preview.py": 111
+    }
+  },
+  {
+    "area": "items",
     "message": "The frame {mesh} is not one CDMW can use.",
     "recovery": "internal",
     "sources": {
@@ -33098,6 +33130,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_painting.py": 600
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game has no file {frame.mesh}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting_preview.py": 93
     }
   },
   {
@@ -33358,6 +33398,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The picture {source.name} cannot be read: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/new_item_painting_preview.py": 67
+    }
+  },
+  {
+    "area": "items",
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
@@ -33386,6 +33434,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/ui/new_item/rust_ui_document.py": 202
+    }
+  },
+  {
+    "area": "items",
+    "message": "The preview could not be built: {message}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/item_preview.py": 1161
     }
   },
   {
@@ -33425,7 +33481,7 @@ MESSAGE_REFERENCE = [
     "message": "The resident viewport is not available here.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 694
+      "cdmw/ui/new_item/item_preview.py": 698
     }
   },
   {
@@ -33433,7 +33489,15 @@ MESSAGE_REFERENCE = [
     "message": "The resident viewport is not available here. ({self._host_error})",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 694
+      "cdmw/ui/new_item/item_preview.py": 698
+    }
+  },
+  {
+    "area": "items",
+    "message": "The resident viewport rejected the preview package.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/new_item/item_preview.py": 1296
     }
   },
   {
@@ -33748,6 +33812,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/services/new_item_variants.py": 157
+    }
+  },
+  {
+    "area": "items",
+    "message": "The viewport reported an error.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/item_preview.py": 1339
     }
   },
   {
@@ -34396,7 +34468,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/new_item/panels_template.py": 317
+      "cdmw/ui/new_item/panels_template.py": 326
     }
   },
   {
@@ -36346,7 +36418,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(self._frames)} frames found; {left_out} left out because CDMW cannot map their canvas.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/painting_dialog.py": 365
+      "cdmw/ui/new_item/painting_dialog.py": 416
     }
   },
   {
@@ -78611,7 +78683,7 @@ MESSAGE_REFERENCE = [
     "message": "Give the full path of an existing picture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 363
+      "cdmw/automation/authoring_commands.py": 366
     }
   },
   {
@@ -80998,7 +81070,7 @@ MESSAGE_REFERENCE = [
     "message": "No frame {wanted} is offered.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 358
+      "cdmw/automation/authoring_commands.py": 361
     }
   },
   {
@@ -81038,7 +81110,7 @@ MESSAGE_REFERENCE = [
     "message": "No language {language}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 379
+      "cdmw/automation/authoring_commands.py": 382
     }
   },
   {
@@ -83834,7 +83906,7 @@ MESSAGE_REFERENCE = [
     "message": "The fit is fill or whole.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 374
+      "cdmw/automation/authoring_commands.py": 377
     }
   },
   {
@@ -83898,7 +83970,7 @@ MESSAGE_REFERENCE = [
     "message": "The frames are not read yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 347
+      "cdmw/automation/authoring_commands.py": 350
     }
   },
   {
@@ -84258,7 +84330,7 @@ MESSAGE_REFERENCE = [
     "message": "The painting dialog is busy (reading the frames or building).",
     "recovery": "locked",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 345
+      "cdmw/automation/authoring_commands.py": 348
     }
   },
   {
@@ -84668,6 +84740,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/hair_registration.py": 152
+    }
+  },
+  {
+    "area": "other",
+    "message": "The view is front or 3d.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/authoring_commands.py": 399
     }
   },
   {
@@ -104489,6 +104569,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/new_item/item_preview.py",
     "cdmw/ui/new_item/mod_update_dialog.py",
     "cdmw/ui/new_item/model_import.py",
+    "cdmw/ui/new_item/painting_dialog.py",
     "cdmw/ui/new_item/panels_output.py",
     "cdmw/ui/new_item/read_failure.py",
     "cdmw/ui/new_item/rust_ui_tab.py",
@@ -105127,7 +105208,7 @@ SOURCE_COVERAGE = {
   "cdmw/app/startup_splash.py": {},
   "cdmw/automation/__init__.py": {},
   "cdmw/automation/authoring_commands.py": {
-    "raise": 19,
+    "raise": 20,
     "report": 4
   },
   "cdmw/automation/bridge.py": {
@@ -107763,6 +107844,9 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 1,
     "raise": 33
   },
+  "cdmw/services/new_item_painting_preview.py": {
+    "raise": 4
+  },
   "cdmw/services/new_item_panel_search.py": {},
   "cdmw/services/new_item_planning.py": {
     "diagnostic_field": 3,
@@ -109456,7 +109540,8 @@ SOURCE_COVERAGE = {
     "display": 2,
     "finding": 1,
     "log": 1,
-    "raise": 12
+    "raise": 12,
+    "signal": 6
   },
   "cdmw/ui/new_item/item_preview_materials.py": {
     "raise": 4
@@ -109481,7 +109566,8 @@ SOURCE_COVERAGE = {
     "raise": 8
   },
   "cdmw/ui/new_item/painting_dialog.py": {
-    "report": 1
+    "failure": 2,
+    "report": 4
   },
   "cdmw/ui/new_item/painting_preview.py": {},
   "cdmw/ui/new_item/panels_identity.py": {},

@@ -327,6 +327,11 @@ def test_painting_commands_fill_the_dialog_as_a_user_would_and_build(studio, pro
     assert painting["descriptions"] == {"eng": "A test picture."}
     assert state["listed"] == ["1. Blue Field (cd_in_dpw_picture_07)"] and state["folder"] == str(folder)
     _wait(lambda: authoring_commands.painting_state(window, {})["preview_shown"])
+    assert state["view"] == "front"
+    # The test controller has no archives: the 3D view says so instead of waiting.
+    state = authoring_commands.painting_set(window, {"view": "3d"})
+    assert state["view"] == "3d" and not state["viewport_busy"] and "archives" in state["viewport_status"]
+    state = authoring_commands.painting_set(window, {"view": "front"})
     # A second painting, by its frame's full mesh path, the name taken from the picture.
     state = authoring_commands.painting_set(window, {"add": True, "frame": state["frames"][0]["mesh"],
                                                      "picture": str(picture)})

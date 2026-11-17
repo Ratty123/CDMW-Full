@@ -313,6 +313,9 @@ def painting_state(window, _args: dict) -> dict[str, object]:
         "frame_info": dialog.frame_info.text(),
         "preview": dialog.preview.message.text(),
         "preview_shown": dialog.preview.has_picture(),
+        "view": "3d" if dialog.preview_tabs.currentWidget() is dialog.viewport_page else "front",
+        "viewport_busy": dialog.viewport_busy_now(),
+        "viewport_status": dialog.viewport_status.text(),
         "mod_name": dialog.mod_name.text(),
         "folder": dialog.folder.text(),
         "status": dialog.status.text(),
@@ -335,8 +338,8 @@ class _ChosenPicture:
 def painting_set(window, args: dict) -> dict[str, object]:
     """Fill the shown painting as a user would: ``add`` (Add painting first), ``frame``
     (its mesh path or file stem), ``picture`` (the file Choose picture... answers with),
-    ``fit`` (fill or whole), ``texts`` ({language: {name, description}}), ``mod_name``
-    and ``folder`` (inside the run's profile)."""
+    ``fit`` (fill or whole), ``texts`` ({language: {name, description}}), ``mod_name``,
+    ``folder`` (inside the run's profile) and ``view`` (front or 3d: the preview tab)."""
 
     from cdmw.ui.new_item import painting_dialog
 
@@ -390,6 +393,11 @@ def painting_set(window, args: dict) -> dict[str, object]:
         dialog.mod_name.setText(str(args["mod_name"]))
     if folder is not None:
         dialog.folder.setText(str(folder))
+    if "view" in args:
+        views = {"front": dialog.preview, "3d": dialog.viewport_page}
+        if str(args["view"]) not in views:
+            raise ValueError("The view is front or 3d.")
+        dialog.preview_tabs.setCurrentWidget(views[str(args["view"])])
     return painting_state(window, {})
 
 
