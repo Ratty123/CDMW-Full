@@ -161,7 +161,8 @@ def stage_archive_refit_materials(authoring, mesh, context, stop_event):
     retained_layers = [
         {"file": layer[role]}
         for material in (retained.get("preview_core_material_graph") or {}).get("materials", ())
-        for layer in material["layers"] for role in ("diffuse", "normal", "material", "height", "mask")
+        for layer in material["layers"]
+        for role in ("diffuse", "normal", "material", "height", "mask", "detail_mask")
         if layer.get(role)
     ]
     candidate["preview_core_material_graph"] = _composite_preview_core_material_graph(

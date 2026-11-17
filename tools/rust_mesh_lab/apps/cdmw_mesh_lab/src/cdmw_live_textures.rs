@@ -14,7 +14,7 @@
 //! layers. `live_texture_sources` tells CDMW which textures are shown, per part.
 
 use crate::loader::LoadedTexture;
-use cdmw_render_wgpu::{MaterialLayerSet, WindowRenderer};
+use cdmw_render_wgpu::{DETAIL_MASK_SLOT, GRIME_SLOT, MaterialLayerSet, WindowRenderer};
 use cdmw_texture::{TextureRole, dds_mean_luminance_of_any_size};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -132,7 +132,16 @@ fn put_edit(
         texture.bytes = Arc::clone(&edit.bytes);
         texture.source_sha256.clone_from(&edit.key);
         changed = true;
-        if slot == 0 {
+        if slot == 0 || slot == DETAIL_MASK_SLOT {
+            continue;
+        }
+        if slot >= GRIME_SLOT {
+            // Grime colour, normal and response per channel, after the detail mask.
+            let entry = &mut set.uniform.layers[(slot - GRIME_SLOT) / 3];
+            // An edit is unsigned RGBA8: a signed BC5 normal reads as unsigned RG now.
+            if (slot - GRIME_SLOT) % 3 == 1 && entry.grime[2] == 2.0 {
+                entry.grime[2] = 1.0;
+            }
             continue;
         }
         // Slots after the mask are colour, normal and response per channel.
@@ -292,6 +301,49 @@ mod tests {
     fn edit_bytes(pixel: [u8; 4]) -> Vec<u8> {
         // As CDMW writes a live edit: one uncompressed mip larger than 64px.
         encode_rgba8_dds(128, 128, &pixel.repeat(128 * 128), TextureRole::BaseColor).expect("dds")
+    }
+
+    #[test]
+    fn an_edited_detail_mask_or_grime_map_reaches_its_slot() {
+        let mask = texture([255, 0, 0, 255], TextureRole::LayerMask);
+        let colour = texture([128, 128, 128, 255], TextureRole::BaseColor);
+        let detail = texture([0, 200, 0, 255], TextureRole::LayerMask);
+        let grime = texture([90, 60, 30, 255], TextureRole::BaseColor);
+        let mut one = set(4, &mask, &colour);
+        one.textures[DETAIL_MASK_SLOT] = Some(detail.clone());
+        // Channel B's grime colour and normal, the normal as signed BC5 (2).
+        one.textures[GRIME_SLOT + 6] = Some(grime.clone());
+        one.textures[GRIME_SLOT + 7] = Some(grime.clone());
+        one.uniform.layers[2].grime = [1.0, 1.0, 2.0, 0.0];
+        let mut layers = vec![one];
+        let mut edits = LayerTextureEdits::default();
+        for source in [&detail, &grime] {
+            let name = source.source_sha256.to_ascii_lowercase();
+            assert!(edits.uses(&layers, &name));
+            let changed = edits.record(&mut layers, &name, edit_bytes([255, 255, 255, 255]));
+            assert_eq!(changed, vec![0]);
+        }
+        let set = &layers[0];
+        assert_ne!(
+            set.textures[DETAIL_MASK_SLOT]
+                .as_ref()
+                .unwrap()
+                .source_sha256,
+            detail.source_sha256
+        );
+        assert_ne!(
+            set.textures[GRIME_SLOT + 6].as_ref().unwrap().source_sha256,
+            grime.source_sha256
+        );
+        assert_eq!(
+            set.uniform.layers[2].grime[2], 1.0,
+            "an edited grime normal reads as unsigned"
+        );
+        assert_eq!(
+            set.uniform.layers[0].properties,
+            [1.0, 0.5, 1.0, 0.0],
+            "the colour layers are untouched"
+        );
     }
 
     #[test]

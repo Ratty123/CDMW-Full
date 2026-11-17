@@ -32,18 +32,33 @@ packages carry the corresponding six-float affine to Rust. Transforms are scoped
 to the exact component and material wrapper; old graph-v4 packages retain
 identity sampling when the optional field is absent.
 
-Full preview packages bind up to three RGB detail channels sharing a mask,
-plus colour seeds, directly on the GPU. Authored DDS mips stay compressed; dye uses linear
-luminance measured from a mip no larger than 64 pixels. The shader applies the
-affine, blends normals and reads layer occlusion, roughness and metal directly.
-Colour seeds can supply channels without a detail layer. Technical detail masks
+Full preview packages bind up to three RGB detail channels sharing a mask
+directly on the GPU. Authored DDS mips stay compressed. The shader applies the
+affine and, for the colour-blend (Ver2) families, mixes as the game does: colour
+and normal come from the one layer with the largest mask channel; roughness and
+metal start from layer R times its opacity and move to G and then B by mask
+channel times opacity, each gated by its `_colorBlendingFlag` bits. A channel
+without a layer shows the surface beneath. `_dyeingColorMask*` colour seeds stay
+in the graph but are not drawn there: no Ver2 shader of the game reads them.
+Technical detail masks
 use sequential overlays with authored channel flags and opacity, preserving base
 colour when only normals are enabled. An absent dye has zero strength; an
-explicit white dye remains white. Older packages lacking these sequential controls
+explicit white dye remains white. Colour-blend (Ver2) layers take the game's dye
+rule on both routes: desaturate the texel 80%, overlay the sRGB dye, mix by the
+dye's alpha; the layer opacity byte does not scale colour. Older packages lacking these sequential controls
 keep their CPU route until regenerated. Unsupported graphs or
 adapters retain CPU composition, including repeat-wrapped affine sampling.
-Grime remains in the conserved graph but is hidden on both preview routes;
-`CDMW_PREVIEW_DRAW_GRIME=1` restores it for internal comparisons.
+Grime of the Ver2 colour-blend families is drawn as the game's shader does: the
+package step states each grime layer's ramp bytes (`grime_blend`), its own tiling,
+its `_tintColor` and the wrapper's `_detailMaskTexture` (`detail_mask`), and both
+preview routes show the grime of the largest blend-mask channel where the detail
+mask's green passes that ramp. Scratches follow the same route: a colour layer
+states its `_scratchRoughness` and `_scratchMetallic` bytes (`scratch`) and its
+`_scratchTintColor` (`scratch_tint`), and where the detail mask's red is set the
+drawn layer's roughness moves through its remaining range, its metal by the plain
+step, and the tint is overlaid. Grime without those authored inputs stays in the
+conserved graph but hidden; `CDMW_PREVIEW_DRAW_GRIME=1` draws it at a constant
+weight for internal comparisons.
 
 Verified, unchanged source materials in Mesh Editor and Create New Item's
 ParsedMesh preview carry the same graph and owned DDS resources as Browse.

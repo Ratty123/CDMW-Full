@@ -32,7 +32,13 @@ if TYPE_CHECKING:
 
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.domain.material_layer_uv import pac_layer_uv_transform
+from cdmw.domain.material_layer_uv import (
+    pac_color_bytes,
+    pac_grime_blend_bytes,
+    pac_grime_uv_transform,
+    pac_layer_uv_transform,
+    pac_scratch_bytes,
+)
 from cdmw.services import mesh_rust_preview_files as _preview_files
 from cdmw.services.mesh_rust_preview_files import atomic_preview_publication, validate_preview_files
 from cdmw.services.json_file_facts import json_file_fact
@@ -718,6 +724,11 @@ def _preview_core_layer_parameter_index(parameters):
             "colorblendingflag", "dyeingglobalopacity",
             "dyeingdetaillayercolormaskr", "dyeingdetaillayercolormaskg",
             "dyeingdetaillayercolormaskb",
+            "grimeblendingparameterr", "grimeblendingparameterg", "grimeblendingparameterb",
+            "grimeblendingopacityparameter", "grimeblendingopacityparameter1",
+            "tintcolorr", "tintcolorg", "tintcolorb", "detailmasktexture",
+            "scratchroughness", "scratchmetallic",
+            "scratchtintcolorr", "scratchtintcolorg", "scratchtintcolorb",
         }:
             continue
         key = (
@@ -728,8 +739,73 @@ def _preview_core_layer_parameter_index(parameters):
         value = parameter.get("integer_value")
         if value is None:
             value = parameter.get("value", "")
+        if name.casefold().lstrip("_") == "detailmasktexture":
+            # A texture parameter: the layer rule needs the file, not a number.
+            value = {
+                "source": str(parameter.get("resolved_source_path", "") or "").strip(),
+                "archive_path": str(parameter.get("resolved_archive_path", "") or "").strip(),
+            }
         result.setdefault(key, []).append((name, value))
     return result
+
+
+def _preview_core_detail_mask(values, source_package):
+    """The wrapper's `_detailMaskTexture` as (source, archive path), when its file is there.
+
+    The map is optional: without it the layer keeps its plain form, so a pruned
+    or unresolved mask costs the wear, not the preview.
+    """
+    mask = values.get("detailmasktexture")
+    if not isinstance(mask, Mapping) or not mask.get("source") or not mask.get("archive_path"):
+        return None
+    if _preview_core_material_source(source_package, mask["source"]) is None:
+        return None
+    return str(mask["source"]), str(mask["archive_path"]).replace("\\", "/")
+
+
+def _preview_core_ver2_grime(layer, role, channel, mask_parameter, parameters, source_package):
+    """State the game's grime rule on a Ver2 grime layer; return its detail mask.
+
+    The game draws grime where `_detailMaskTexture` green passes a ramp, sampled
+    with the grime layer's own tiling and tinted by `_tintColor{R,G,B}`. A layer
+    gets these fields only when every input is authored and resolved; without
+    them the renderer keeps the layer hidden, as before.
+    """
+    if role != "grime" or mask_parameter != "_colorBlendingMaskTexture" or not parameters:
+        return None
+    values = {str(name).casefold().lstrip("_"): value for name, value in parameters}
+    blend = pac_grime_blend_bytes(parameters, channel)
+    transform = pac_grime_uv_transform(values.get(f"grimeblendingparameter{channel}"))
+    mask = _preview_core_detail_mask(values, source_package)
+    if blend is None or transform is None or mask is None:
+        return None
+    layer["uv_transform"] = list(transform)
+    layer["grime_blend"] = list(blend)
+    tint = pac_color_bytes(values.get(f"tintcolor{channel}"))
+    # No authored `_tintColor` leaves the grime texture's own colour.
+    layer["tint"] = list(tint) if tint is not None else [1.0, 1.0, 1.0, 0.0]
+    return mask
+
+
+def _preview_core_ver2_scratch(layer, role, channel, mask_parameter, parameters, source_package):
+    """State the game's scratch rule on a Ver2 colour layer; return its detail mask.
+
+    Where `_detailMaskTexture` red marks a scratch, the game moves the layer's
+    roughness and metal by signed bytes and overlays `_scratchTintColor{R,G,B}`.
+    """
+    if role != "detail" or mask_parameter != "_colorBlendingMaskTexture" or not parameters:
+        return None
+    values = {str(name).casefold().lstrip("_"): value for name, value in parameters}
+    scratch = pac_scratch_bytes(parameters, channel)
+    tint = pac_color_bytes(values.get(f"scratchtintcolor{channel}"))
+    mask = _preview_core_detail_mask(values, source_package)
+    if (scratch is None and tint is None) or mask is None:
+        return None
+    if scratch is not None:
+        layer["scratch"] = list(scratch)
+    if tint is not None:
+        layer["scratch_tint"] = list(tint)
+    return mask
 
 
 def _copy_preview_core_material_layers(
@@ -818,13 +894,26 @@ def _copy_preview_core_material_layers(
                     if f"_dyeingdetaillayercolormask{channel}" not in values:
                         # A native default white is not an authored white dye.
                         layer["tint"][3] = 0.0
+                detail_mask = _preview_core_ver2_grime(
+                    layer, role, channel, mask_parameter, parameters, source_package,
+                ) or _preview_core_ver2_scratch(
+                    layer, role, channel, mask_parameter, parameters, source_package,
+                )
+            else:
+                detail_mask = None
             layer_has_source = False
-            for resource_role in ("diffuse", "normal", "material", "height", "mask"):
+            for resource_role in ("diffuse", "normal", "material", "height", "mask", "detail_mask"):
                 _cancelled(cancelled)
                 source_key = f"{resource_role}_source"
                 archive_key = f"{resource_role}_archive_path"
                 source_text = str(raw_layer.get(source_key, "") or "").strip()
                 archive_path = str(raw_layer.get(archive_key, "") or "").strip().replace("\\", "/")
+                if resource_role == "detail_mask":
+                    if detail_mask is None:
+                        # Only layers drawn by the game's Ver2 rule carry this map,
+                        # so every other layer keeps its five-resource shape.
+                        continue
+                    source_text, archive_path = detail_mask
                 layer[f"{resource_role}_archive_path"] = archive_path
                 reference: dict[str, object] | None = None
                 layer[f"{resource_role}_declared"] = bool(source_text)

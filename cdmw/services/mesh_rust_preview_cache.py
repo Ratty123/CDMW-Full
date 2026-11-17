@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.domain.material_layer_uv import detail_mask_sources
 from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.mesh_totals import refresh_mesh_totals
@@ -75,9 +76,9 @@ _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
 _MAX_CLOTH_PARTICLES = 2_000_000
 _MAX_CLOTH_CONSTRAINTS = 4_000_000
 _LOGGER = logging.getLogger(__name__)
-# Rebuild previews that omitted authored layer UV and sequential blend controls.
+# Rebuild previews whose layer graph lacks the game's Ver2 grime, scratch and dye rules.
 # Source DDS caches stay reusable; only derived renderer packages change.
-RUST_PREVIEW_CACHE_SCHEMA = 10
+RUST_PREVIEW_CACHE_SCHEMA = 11
 
 
 def _cancelled(callback: Callable[[], bool] | None) -> bool:
@@ -802,6 +803,10 @@ class _PreviewCorePackageRequest:
                         return False
                     if source and _preview_core_material_source(self.source_package, source) is None:
                         return False
+        # The Ver2 grime and scratch rules read `_detailMaskTexture`, which no layer row names.
+        for source in detail_mask_sources(self.source_manifest):
+            if _preview_core_material_source(self.source_package, source) is None:
+                return False
         return True
 
 

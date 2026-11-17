@@ -151,7 +151,14 @@ mod work {
                 } else {
                     None
                 };
-                [reference, mask].into_iter().flatten()
+                // Ver2 grime and scratches are placed by the detail mask as well.
+                let detail =
+                    if reference.is_some() && (layer.is_ver2_grime() || layer.is_ver2_scratch()) {
+                        layer.detail_mask.as_ref()
+                    } else {
+                        None
+                    };
+                [reference, mask, detail].into_iter().flatten()
             })
             .collect()
     }
@@ -869,6 +876,7 @@ impl ImageCache {
                     layer.material.as_ref(),
                     layer.height.as_ref(),
                     layer.mask.as_ref(),
+                    layer.detail_mask.as_ref(),
                 ]
                 .into_iter()
                 .flatten()
@@ -1467,13 +1475,97 @@ fn rgb_layer_dye(color: [f32; 3], dye: [f32; 4], mean: f32, opacity: f32) -> [f3
     })
 }
 
+/// Photoshop overlay on display-space values (`layer_overlay` in material_layers.wgsl).
+fn overlay_blend(base: f32, blend: f32) -> f32 {
+    if base < 0.5 {
+        2.0 * base * blend
+    } else {
+        1.0 - 2.0 * (1.0 - base) * (1.0 - blend)
+    }
+}
+
+/// `layer_tint` in material_layers.wgsl: desaturate 80%, overlay the sRGB tint,
+/// mix in by its alpha. Linear colour in and out.
+fn ver2_tint(color: [f32; 3], tint: [f32; 4]) -> [f32; 3] {
+    let luma = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
+    std::array::from_fn(|k| {
+        let grey = mix(color[k], luma, 0.8).clamp(0.0, 1.0);
+        let tinted = srgb_to_linear(overlay_blend(linear_to_srgb(grey), tint[k]));
+        mix(color[k], tinted, tint[3].clamp(0.0, 1.0))
+    })
+}
+
+/// The mask channel whose layer the game draws at a pixel: the largest.
+fn ver2_slot(mask: [f32; 3]) -> usize {
+    if mask[0] >= mask[1] && mask[0] >= mask[2] {
+        0
+    } else if mask[1] >= mask[2] {
+        1
+    } else {
+        2
+    }
+}
+
+/// `grime_weight` in material_layers.wgsl, from the layer's ramp bytes.
+fn ver2_grime_ramp(blend: [u32; 3], detail_green: f32) -> f32 {
+    let low = blend[0] as f32 / 255.0;
+    let high = (blend[1] as f32 / 255.0).max(low + 0.005).min(1.0);
+    let x = ((detail_green - low) / (high - low)).clamp(0.0, 1.0);
+    (x * x * (3.0 - 2.0 * x) * (blend[2] as f32 * 2.0 / 255.0)).clamp(0.0, 1.0)
+}
+
+/// Where a Ver2 grime layer shows at one pixel: its ramp over the detail mask's
+/// green, on the pixels whose largest blend-mask channel is the layer's own.
+fn ver2_grime_coverage(
+    layer: &PreviewCoreMaterialLayer,
+    mask: Option<&[u8]>,
+    detail: Option<&[u8]>,
+    offset: usize,
+) -> f32 {
+    let (Some(blend), Some(detail)) = (layer.grime_blend, detail) else {
+        return 0.0;
+    };
+    let weights: [f32; 3] = match mask {
+        Some(pixels) => std::array::from_fn(|k| unit(pixels[offset + k])),
+        None => [1.0, 0.0, 0.0],
+    };
+    let weights = if weights.iter().sum::<f32>() < 0.00001 {
+        [1.0, 0.0, 0.0]
+    } else {
+        weights
+    };
+    let channel = channel_index(&layer.mask_channel).min(2);
+    if ver2_slot(weights) != channel || weights[channel] <= 0.0 {
+        return 0.0;
+    }
+    ver2_grime_ramp(blend, unit(detail[offset + 1]))
+}
+
+/// The detail mask of a Ver2 grime layer at the target size, or None for any other layer.
+fn ver2_grime_detail(
+    layer: &PreviewCoreMaterialLayer,
+    cache: &mut ImageCache,
+    width: u32,
+    height: u32,
+) -> Result<Option<ImagePixels>, SessionError> {
+    if !layer.is_ver2_grime() {
+        return Ok(None);
+    }
+    layer
+        .detail_mask
+        .as_ref()
+        .map(|reference| cache.resized(reference, width, height))
+        .transpose()
+}
+
 struct RgbLayerChannel {
     pixels: Option<ImagePixels>,
+    /// The authored sRGB dye and strength, for the game's overlay rule.
+    tint: [f32; 4],
     dye: [f32; 4],
     opacity: f32,
     mean: f32,
     flags: u32,
-    seed: [f32; 4],
 }
 
 fn linear_pixel(pixels: &[u8], offset: usize) -> [f32; 3] {
@@ -1506,13 +1598,16 @@ fn compose_rgb_layer_base_color(
         .map(|reference| cache.resized(reference, width, height))
         .transpose()?;
     let mut mask = None;
+    let mut grime: [Option<(&PreviewCoreMaterialLayer, ImagePixels, Option<ImagePixels>)>; 3] =
+        [None, None, None];
+    let mut scratch: [Option<([f32; 4], ImagePixels)>; 3] = [None, None, None];
     let mut channels: [RgbLayerChannel; 3] = std::array::from_fn(|_| RgbLayerChannel {
         pixels: None,
+        tint: [0.0; 4],
         dye: [0.0; 4],
         opacity: 0.0,
         mean: 1.0,
         flags: 15,
-        seed: [0.0; 4],
     });
     for layer in material.layers.iter().skip(1) {
         let k = channel_index(&layer.mask_channel).min(2);
@@ -1528,17 +1623,35 @@ fn compose_rgb_layer_base_color(
             layer.tint[3],
         ];
         if layer.layer_role == "color_seed" {
-            channels[k].seed = [dye[0], dye[1], dye[2], dye[3] * layer.weight];
+            // `_dyeingColorMask*` is read by no Ver2 shader of the game.
             continue;
         }
         let Some(reference) = layer.diffuse.as_ref() else {
             continue;
         };
+        if layer.is_ver2_grime() {
+            let detail = ver2_grime_detail(layer, cache, width, height)?;
+            grime[k] = Some((
+                layer,
+                cache.transformed(reference, width, height, layer)?,
+                detail,
+            ));
+            continue;
+        }
         channels[k].mean = mean_linear_luminance(cache.image(reference)?);
         channels[k].pixels = Some(cache.transformed(reference, width, height, layer)?);
         channels[k].dye = dye;
+        channels[k].tint = layer.tint;
         channels[k].opacity = layer.blend_opacity.unwrap_or(layer.weight);
         channels[k].flags = layer.blend_flags.unwrap_or(15);
+        if layer.is_ver2_scratch() {
+            let detail = layer
+                .detail_mask
+                .as_ref()
+                .map(|reference| cache.resized(reference, width, height))
+                .transpose()?;
+            scratch[k] = detail.map(|pixels| (layer.scratch_tint.unwrap_or([0.0; 4]), pixels));
+        }
     }
     let tint = material.base_color;
     let mut target = Vec::with_capacity(pixel_count.saturating_mul(4));
@@ -1576,23 +1689,34 @@ fn compose_rgb_layer_base_color(
             } else {
                 weights.map(|value| value / sum)
             };
-            let mut color = [0.0_f32; 3];
-            for (k, channel) in channels.iter().enumerate() {
-                let c = if let Some(pixels) = channel.pixels.as_deref() {
-                    rgb_layer_dye(
-                        linear_pixel(pixels, offset),
-                        channel.dye,
-                        channel.mean,
-                        channel.opacity,
-                    )
-                } else if channel.seed[3] > 0.0 {
-                    rgb_layer_dye(base_rgb, channel.seed, base_mean, 1.0)
-                } else {
-                    base_rgb
-                };
-                for (sum, value) in color.iter_mut().zip(c) {
-                    *sum += value * weights[k];
+            // The game draws one colour layer per pixel: the largest mask channel.
+            let channel = &channels[ver2_slot(weights)];
+            let mut color = if let Some(pixels) = channel.pixels.as_deref() {
+                // The game's dye rule; the opacity byte does not scale colour.
+                ver2_tint(linear_pixel(pixels, offset), channel.tint)
+            } else {
+                base_rgb
+            };
+            // Grime of the layer with the largest mask channel, as on the GPU.
+            if let Some((layer, pixels, detail)) = grime[ver2_slot(weights)].as_ref() {
+                let coverage =
+                    ver2_grime_coverage(layer, mask.as_deref(), detail.as_deref(), offset);
+                if coverage > 0.0 {
+                    let soiled = ver2_tint(linear_pixel(pixels, offset), layer.tint);
+                    color = std::array::from_fn(|c| mix(color[c], soiled[c], coverage));
                 }
+            }
+            // Its scratch tint, where the detail mask's red marks a scratch.
+            if let Some((scratch_tint, detail)) = scratch[ver2_slot(weights)].as_ref() {
+                let wear = unit(detail[offset]);
+                let amount = (scratch_tint[3] * wear).clamp(0.0, 1.0);
+                color = std::array::from_fn(|c| {
+                    mix(
+                        color[c],
+                        srgb_to_linear(overlay_blend(wear, scratch_tint[c])),
+                        amount,
+                    )
+                });
             }
             std::array::from_fn(|k| color[k] * tint[k])
         };
@@ -1790,9 +1914,14 @@ fn compose_material_response(
             .transpose()?;
         let channel = channel_index(&layer.mask_channel);
         let response_decoder = MaterialResponseDecoder::new(layer);
+        let grime_detail = ver2_grime_detail(layer, cache, width, height)?;
         for pixel in 0..pixel_count {
             let offset = pixel * 4;
-            let coverage = layer_coverage(layer, mask.as_deref(), offset, channel);
+            let coverage = if grime_detail.is_some() {
+                ver2_grime_coverage(layer, mask.as_deref(), grime_detail.as_deref(), offset)
+            } else {
+                layer_coverage(layer, mask.as_deref(), offset, channel)
+            };
             if coverage <= 0.0 {
                 continue;
             }
@@ -1803,11 +1932,57 @@ fn compose_material_response(
             target[offset + 3] = unit_byte(mix(unit(target[offset + 3]), decoded[2], coverage));
         }
     }
+    apply_ver2_scratch_response(material, cache, width, height, &mut target)?;
     Ok(Some(DecodedRgba8 {
         width,
         height,
         pixels: target,
     }))
+}
+
+/// The game's scratch rule on a composed response map (green roughness, blue
+/// metal): the layer with the largest blend-mask channel moves both where the
+/// detail mask's red marks a scratch, as `evaluate_material_layers` does.
+fn apply_ver2_scratch_response(
+    material: &PreviewCoreMaterial,
+    cache: &mut ImageCache,
+    width: u32,
+    height: u32,
+    target: &mut [u8],
+) -> Result<(), SessionError> {
+    let mut steps: [Option<[f32; 2]>; 3] = [None; 3];
+    let mut mask = None;
+    let mut detail = None;
+    for layer in material
+        .layers
+        .iter()
+        .filter(|layer| layer.is_ver2_scratch())
+    {
+        steps[channel_index(&layer.mask_channel).min(2)] = Some(layer.scratch_steps());
+        mask = layer.mask.as_ref();
+        detail = layer.detail_mask.as_ref();
+    }
+    let Some(detail) = detail else {
+        return Ok(());
+    };
+    let detail = cache.resized(detail, width, height)?;
+    let mask = mask
+        .map(|reference| cache.resized(reference, width, height))
+        .transpose()?;
+    for offset in (0..target.len()).step_by(4) {
+        let weights: [f32; 3] = match mask.as_deref() {
+            Some(pixels) => std::array::from_fn(|k| unit(pixels[offset + k])),
+            None => [1.0, 0.0, 0.0],
+        };
+        let Some([roughness, metal]) = steps[ver2_slot(weights)] else {
+            continue;
+        };
+        let wear = unit(detail[offset]);
+        let rough = unit(target[offset + 1]);
+        target[offset + 1] = unit_byte((rough + (1.0 - rough) * roughness * wear).clamp(0.0, 1.0));
+        target[offset + 2] = unit_byte((unit(target[offset + 2]) + metal * wear).clamp(0.0, 1.0));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -1929,9 +2104,14 @@ fn compose_normal(
             .map(|reference| cache.resized(reference, width, height))
             .transpose()?;
         let channel = channel_index(&layer.mask_channel);
+        let grime_detail = ver2_grime_detail(layer, cache, width, height)?;
         for pixel in 0..pixel_count {
             let offset = pixel * 4;
-            let coverage = layer_coverage(layer, mask.as_deref(), offset, channel);
+            let coverage = if grime_detail.is_some() {
+                ver2_grime_coverage(layer, mask.as_deref(), grime_detail.as_deref(), offset)
+            } else {
+                layer_coverage(layer, mask.as_deref(), offset, channel)
+            };
             if coverage <= 0.0 {
                 continue;
             }
@@ -2462,6 +2642,12 @@ mod tests {
             mask_declared: false,
             mask_archive_path: String::new(),
             mask: None,
+            grime_blend: None,
+            scratch: None,
+            scratch_tint: None,
+            detail_mask_declared: false,
+            detail_mask_archive_path: String::new(),
+            detail_mask: None,
         }
     }
 

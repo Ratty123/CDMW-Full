@@ -5,7 +5,14 @@ import math
 
 import pytest
 
-from cdmw.domain.material_layer_uv import IDENTITY_UV_TRANSFORM, pac_layer_uv_transform
+from cdmw.domain.material_layer_uv import (
+    IDENTITY_UV_TRANSFORM,
+    pac_color_bytes,
+    pac_grime_blend_bytes,
+    pac_grime_uv_transform,
+    pac_layer_uv_transform,
+    pac_scratch_bytes,
+)
 
 
 PARAMETERS = (
@@ -60,3 +67,67 @@ def test_existing_combiner_bytes_are_unchanged(monkeypatch, numpy_enabled, chann
     output = images._apply_pac_layer_sampling_transform(source, item)
     # Recorded from the pre-extraction compositor, including alpha and repeat seams.
     assert hashlib.sha256(bytes(output.constBits())).hexdigest() == expected
+
+
+# The plate of cd_phm_00_vest_0047_04, as the game's Ver2 shader reads its bytes.
+PLATE_GRIME = (
+    ("_grimeBlendingParameterR", 0x8E003333),
+    ("_grimeBlendingParameterG", 0x41001010),
+    ("_grimeBlendingParameterB", 0x1B003333),
+    ("_grimeBlendingOpacityParameter", 0xA7E0FF93),
+    ("_grimeBlendingOpacityParameter1", 0xFF7E),
+)
+
+
+@pytest.mark.parametrize("channel,expected", (
+    ("r", (0x93, 0xFF, 0x8E)),  # ramp 0.576 to 1.0, intensity 1.114
+    ("g", (0xE0, 0xA7, 0x41)),  # ramp 0.878 to 0.655 (the shader lifts the high edge)
+    ("b", (0x7E, 0xFF, 0x1B)),  # blue reads the second range parameter
+))
+def test_plate_grime_ramp_and_intensity_bytes(channel, expected):
+    assert pac_grime_blend_bytes(PLATE_GRIME, channel) == expected
+
+
+def test_grime_ramp_needs_both_authored_parameters():
+    assert pac_grime_blend_bytes(PLATE_GRIME[:3], "r") is None
+    assert pac_grime_blend_bytes(PLATE_GRIME[3:], "r") is None
+    assert pac_grime_blend_bytes(PLATE_GRIME, "a") is None
+    assert pac_grime_blend_bytes((*PLATE_GRIME[:4],), "b") is None
+
+
+def test_grime_samples_with_its_own_tiling_not_the_colour_layer_transform():
+    # 0x8E003333: scale 0x33/255 = 0.2 (five tiles), angle byte 0 = -pi, no offset.
+    affine = pac_grime_uv_transform(0x8E003333)
+    for u, v in ((0, 0), (0.5, 0.5), (0.13, 0.89), (1, 1)):
+        x, y = (u - 0.5) / 0.2, (v - 0.5) / 0.2
+        expected = (x * math.cos(-math.pi) - y * math.sin(-math.pi) + 0.5,
+                    x * math.sin(-math.pi) + y * math.cos(-math.pi) + 0.5)
+        assert (affine[0] * u + affine[2] * v + affine[4],
+                affine[1] * u + affine[3] * v + affine[5]) == pytest.approx(expected)
+    assert pac_grime_uv_transform("invalid") is None
+    assert pac_grime_uv_transform(None) is None
+
+
+def test_pac_colour_text_is_red_green_blue_alpha():
+    assert pac_color_bytes("#b2a4a4ff") == pytest.approx((0xB2 / 255, 0xA4 / 255, 0xA4 / 255, 1.0))
+    assert pac_color_bytes("#c8b9b42d")[3] == pytest.approx(0x2D / 255)
+    assert pac_color_bytes("") is None
+    assert pac_color_bytes("#fff") is None
+
+
+@pytest.mark.parametrize("channel,expected", (
+    ("r", (0x9B, 0xFF)),  # roughness +0.216 of the remaining range, metal +1.0
+    ("g", (0x7F, 0x7F)),  # no change
+    ("b", (0x59, 0x7F)),  # roughness -0.302
+))
+def test_plate_scratch_bytes_are_one_per_layer(channel, expected):
+    parameters = (("_scratchRoughness", 0x597F9B), ("_scratchMetallic", 0x7F7FFF))
+    assert pac_scratch_bytes(parameters, channel) == expected
+
+
+def test_scratch_needs_an_authored_parameter_and_fills_the_other_with_no_change():
+    assert pac_scratch_bytes((), "r") is None
+    assert pac_scratch_bytes((("_scratchRoughness", "invalid"),), "r") is None
+    assert pac_scratch_bytes((("_scratchRoughness", 0x9B),), "r") == (0x9B, 127)
+    assert pac_scratch_bytes((("_scratchMetallic", 0xFF),), "r") == (127, 0xFF)
+    assert pac_scratch_bytes((("_scratchRoughness", 0x9B),), "a") is None

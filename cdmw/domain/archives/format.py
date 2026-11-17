@@ -53,11 +53,19 @@ def normalize_archive_extension_filter(extension_filter: str) -> str:
     return normalized_extension if normalized_extension.startswith(".") else f".{normalized_extension}"
 
 
-def try_decode_text_like_archive_data(data: bytes) -> Optional[str]:
+def try_decode_text_like_archive_data(
+    data: bytes, *, limit: Optional[int] = ARCHIVE_TEXT_PREVIEW_LIMIT,
+) -> Optional[str]:
+    """Decode archive bytes that look like text.
+
+    The default cuts the text at the preview limit, which suits a text pane.
+    A caller that parses the file, such as a material sidecar reader, passes
+    ``limit=None``: a cut sidecar silently loses the materials past the cut.
+    """
     if not data:
         return None
 
-    preview_bytes = data[:ARCHIVE_TEXT_PREVIEW_LIMIT]
+    preview_bytes = data if limit is None else data[:limit]
     for bom, encoding in (
         (b"\xef\xbb\xbf", "utf-8-sig"),
         (b"\xff\xfe", "utf-16-le"),

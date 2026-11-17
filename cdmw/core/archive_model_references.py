@@ -1860,7 +1860,8 @@ def _extract_model_sidecar_entry_bindings_cached(
             return cached
 
     sidecar_data, _decompressed, _note = read_archive_entry_data(sidecar_entry, stop_event=stop_event)
-    text = try_decode_text_like_archive_data(sidecar_data)
+    # The whole sidecar: an armour with several material sets passes the preview limit.
+    text = try_decode_text_like_archive_data(sidecar_data, limit=None)
     if text is None:
         parsed_result = ((), (), {}, {})
     else:

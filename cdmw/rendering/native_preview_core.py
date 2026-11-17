@@ -21,6 +21,7 @@ from cdmw.core.common import (
     start_bounded_text_stream_drain,
 )
 from cdmw.domain.character_context import NativePreviewContextComponent
+from cdmw.domain.material_layer_uv import detail_mask_sources
 from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
 from cdmw.rendering.native_preview_package_cache import (
     mark_native_preview_package_path_recent,
@@ -176,6 +177,11 @@ def _native_preview_core_manifest_dds_paths(package_path: str | Path) -> tuple[P
             if source_path and Path(source_path).suffix.casefold() == ".dds":
                 path = Path(source_path)
                 paths.append(path if path.is_absolute() else Path(package_path) / path)
+    # The Ver2 grime and scratch rules read `_detailMaskTexture`, which no layer row names.
+    for source_path in detail_mask_sources(manifest):
+        if Path(source_path).suffix.casefold() == ".dds":
+            path = Path(source_path)
+            paths.append(path if path.is_absolute() else Path(package_path) / path)
     return tuple(dict.fromkeys(paths))
 
 
