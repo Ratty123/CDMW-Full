@@ -8,6 +8,7 @@ from pathlib import Path
 
 from PySide6.QtGui import QImage
 
+from cdmw.ui.preview.child_window_mover import child_window_mover
 from cdmw.ui.preview.dotnet_host_values import _indices, _triple
 
 #: Helper states that say nothing about content a caller is still building, so a held
@@ -89,6 +90,10 @@ class DotNetPreviewHostProtocolMixin:
         part worth debouncing, and the helper still debounces that on its own.
         Coalesce Qt layout notifications and request the move without waiting
         for a busy child window's queue. The helper retains its own size poll.
+
+        The move itself is sent from another thread (see child_window_mover):
+        this thread shares the helper's input queue, so its SetWindowPos waits
+        for the helper even with SWP_ASYNCWINDOWPOS.
         """
 
         hwnd = getattr(self, "_embedded_child_hwnd", 0)
@@ -138,8 +143,8 @@ class DotNetPreviewHostProtocolMixin:
             flags = 0x0004 | 0x0010 | 0x0200 | 0x4000
             if force_frame_refresh:
                 flags |= 0x0020  # SWP_FRAMECHANGED: settle a child resized while hidden.
-            user32.SetWindowPos(
-                wintypes.HWND(hwnd), None, 0, 0, width, height, flags
+            child_window_mover(lambda: _typed_user32()).move(
+                hwnd, int(owner_pid.value), width, height, flags
             )
         except (OSError, AttributeError, ValueError):
             # Never let a geometry sync take the preview down; the helper's own

@@ -61000,7 +61000,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview window could not be placed in its viewport (Windows error {code}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview/dotnet_host_protocol.py": 19
+      "cdmw/ui/preview/dotnet_host_protocol.py": 20
     }
   },
   {
@@ -109475,6 +109475,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/policy_preview_dialog.py": {},
   "cdmw/ui/preview/__init__.py": {},
+  "cdmw/ui/preview/child_window_mover.py": {},
   "cdmw/ui/preview/dotnet_host.py": {
     "diagnostic_field": 1,
     "raise": 2,
