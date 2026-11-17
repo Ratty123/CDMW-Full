@@ -41335,7 +41335,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit saves the original game assets; undo the archive loads before switching output format",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2164
+      "cdmw/services/mesh_service.py": 2175
     }
   },
   {
@@ -45473,7 +45473,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact output keeps the source file's Parts. Delete the added geometry layers or undo the Part changes before choosing Exact.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2182
+      "cdmw/services/mesh_service.py": 2193
     }
   },
   {
@@ -46580,7 +46580,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output folder must be new",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2210
+      "cdmw/services/mesh_service.py": 2221
     }
   },
   {
@@ -46605,7 +46605,7 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/mesh_free_edit_output.py": 51,
-      "cdmw/services/mesh_service.py": 2206
+      "cdmw/services/mesh_service.py": 2217
     }
   },
   {
@@ -46629,7 +46629,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output parent folder does not exist",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2208
+      "cdmw/services/mesh_service.py": 2219
     }
   },
   {
@@ -46653,7 +46653,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit requires a new output folder",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2197
+      "cdmw/services/mesh_service.py": 2208
     }
   },
   {
@@ -47721,7 +47721,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement or change part inclusion before choosing replacement output.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2168
+      "cdmw/services/mesh_service.py": 2179
     }
   },
   {
@@ -62030,7 +62030,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn outfit corrections back on before editing the mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2422
+      "cdmw/services/mesh_service.py": 2433
     }
   },
   {
@@ -62110,7 +62110,7 @@ MESSAGE_REFERENCE = [
     "message": "Undo the replacement operations before switching output policy.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2166
+      "cdmw/services/mesh_service.py": 2177
     }
   },
   {
@@ -62207,7 +62207,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown mesh edit session: {session_id}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2405,
+      "cdmw/services/mesh_service.py": 2416,
       "cdmw/services/mesh_service_history.py": 783
     }
   },
@@ -62369,7 +62369,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor output policy: {output_policy}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2162
+      "cdmw/services/mesh_service.py": 2173
     }
   },
   {
@@ -62505,7 +62505,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh edit action: {edit_command.action}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2426
+      "cdmw/services/mesh_service.py": 2437
     }
   },
   {
@@ -62513,7 +62513,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh edit action: {name}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2398
+      "cdmw/services/mesh_service.py": 2409
     }
   },
   {
@@ -69184,7 +69184,7 @@ MESSAGE_REFERENCE = [
     "message": "native live edit did not provide undo history delta",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2992
+      "cdmw/services/mesh_service.py": 3003
     }
   },
   {
@@ -69240,7 +69240,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor history is unavailable for this session",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 3281
+      "cdmw/services/mesh_service.py": 3292
     }
   },
   {
@@ -69248,7 +69248,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor pose preview normals unavailable; Python pose preview fallback is disabled",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2350
+      "cdmw/services/mesh_service.py": 2361
     }
   },
   {
@@ -69256,7 +69256,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor pose preview unavailable; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 2327
+      "cdmw/services/mesh_service.py": 2338
     }
   },
   {
@@ -69264,7 +69264,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor pose preview unavailable; Python pose preview fallback is disabled",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2339
+      "cdmw/services/mesh_service.py": 2350
     }
   },
   {
@@ -69288,7 +69288,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session export failed; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 2307,
+      "cdmw/services/mesh_service.py": 2318,
       "cdmw/services/mesh_service_rebuild.py": 579
     }
   },
@@ -69297,7 +69297,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session failed for {execution.action}; Python mesh-edit fallback is disabled",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2871
+      "cdmw/services/mesh_service.py": 2882
     }
   },
   {
@@ -69305,7 +69305,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor session view requires native submesh counts; Python mesh state is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_service.py": 2235
+      "cdmw/services/mesh_service.py": 2246
     }
   },
   {
@@ -69353,7 +69353,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor unavailable for {action}; Python mesh-edit fallback is disabled",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_service.py": 2653
+      "cdmw/services/mesh_service.py": 2664
     }
   },
   {
@@ -69377,7 +69377,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor {command} did not return dirty submesh counts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 3328
+      "cdmw/services/mesh_service.py": 3339
     }
   },
   {
@@ -69385,7 +69385,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh editor {command} failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 3307
+      "cdmw/services/mesh_service.py": 3318
     }
   },
   {
@@ -69401,7 +69401,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh history snapshot capture failed and Python fallback was blocked",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 3182
+      "cdmw/services/mesh_service.py": 3193
     }
   },
   {
@@ -69409,7 +69409,7 @@ MESSAGE_REFERENCE = [
     "message": "native mesh history snapshot restore failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 3463
+      "cdmw/services/mesh_service.py": 3474
     }
   },
   {
@@ -73241,7 +73241,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported non-native mesh edit action: {execution.action}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_service.py": 2836
+      "cdmw/services/mesh_service.py": 2847
     }
   },
   {
@@ -73475,7 +73475,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} cannot run while native mesh state is dirty; export/read the native mesh first",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2455
+      "cdmw/services/mesh_service.py": 2466
     }
   },
   {
@@ -73492,7 +73492,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} is legacy display-shape cleanup; pass allow_legacy_display_cleanup=True from an explicit legacy/archive path",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_service.py": 2449
+      "cdmw/services/mesh_service.py": 2460
     }
   },
   {
@@ -74158,7 +74158,7 @@ MESSAGE_REFERENCE = [
     "message": "{session.mesh_format or 'unknown'} cannot use {requested.value}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_service.py": 2221
+      "cdmw/services/mesh_service.py": 2232
     }
   },
   {
@@ -74478,7 +74478,7 @@ MESSAGE_REFERENCE = [
     "message": "A required static field cannot be absent.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 240
+      "cdmw/core/compact_static.py": 257
     }
   },
   {
@@ -74686,7 +74686,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous compact static field.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 181
+      "cdmw/core/compact_static.py": 191
     }
   },
   {
@@ -76709,7 +76709,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static list exceeds the supported bound at {path}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 157
+      "cdmw/core/compact_static.py": 167
     }
   },
   {
@@ -76717,7 +76717,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static record exceeds the layout limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 131
+      "cdmw/core/compact_static.py": 141
     }
   },
   {
@@ -79227,7 +79227,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid compact static presence flag.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 151
+      "cdmw/core/compact_static.py": 161
     }
   },
   {
@@ -79941,7 +79941,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo.{name} at row offset 0x{start}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 174
+      "cdmw/core/compact_static.py": 184
     }
   },
   {
@@ -84755,7 +84755,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static generation has no such field.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/compact_static.py": 221
+      "cdmw/core/compact_static.py": 238
     }
   },
   {
@@ -84763,7 +84763,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static variant has not been qualified.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 134
+      "cdmw/core/compact_static.py": 144
     }
   },
   {
@@ -85139,7 +85139,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown compact static layout operation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 196
+      "cdmw/core/compact_static.py": 206
     }
   },
   {
@@ -85427,7 +85427,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static discriminant.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 191
+      "cdmw/core/compact_static.py": 201
     }
   },
   {
@@ -85435,7 +85435,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static record.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 122
+      "cdmw/core/compact_static.py": 132
     }
   },
   {
@@ -85645,7 +85645,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported or ambiguous compact ItemInfo layout ({detail}).",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 112
+      "cdmw/core/compact_static.py": 122
     }
   },
   {
@@ -85653,7 +85653,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported or ambiguous compact static layout.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 110
+      "cdmw/core/compact_static.py": 120
     }
   },
   {
@@ -105509,6 +105509,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/compact_static.py": {
     "assertion": 1,
+    "diagnostic_field": 1,
     "finding": 2,
     "raise": 15
   },
