@@ -165,6 +165,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Docs
 
+- Help's **Profile & Settings** topic, and so the Wiki manual, explains **Settings > AI connections**: which AI apps can use CDMW's read-only tools, how to turn them on and add CDMW to an app, and that no tool writes into the game or changes these settings. The Claude Code line on that page now adds CDMW for every folder (`--scope user`), and a packaged CDMW.exe that cannot reach the app writes why to the AI app's MCP log.
 - Help and the prepared Wiki manuals explain worn-set previews and editing, lighting controls, layered materials and GPU texture inspection in all 14 interface languages. The expanded Mesh Editor and Create New Item FAQ is retained.
 - Help and the Wiki have worked examples in every language. Mesh Editor gains **Blender round trip**, the Blender export settings that bring an edited game mesh back (Selected Objects, Attributes, Use Vertex Color > Active, Include All Bone Influences), plus examples for leaving a part out of an outfit and replacing a game mesh with your own model. Create New Item gains a first renamed-sword test, a weapon from Blender and armour or clothing from Blender. The FAQ answers why a returned mesh is refused, a mirror-like imported surface, wrong size or turn, FBX import and the vertex limit.
 
