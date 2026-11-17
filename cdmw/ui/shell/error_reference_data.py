@@ -19895,7 +19895,7 @@ MESSAGE_REFERENCE = [
     "message": "No preview host is running.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/engine_capture.py": 201
+      "cdmw/services/engine_capture.py": 207
     }
   },
   {
@@ -20079,7 +20079,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview process could not capture the thumbnail.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/engine_capture.py": 121
+      "cdmw/services/engine_capture.py": 127
     }
   },
   {
@@ -20087,7 +20087,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview process did not answer the thumbnail capture in time.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/engine_capture.py": 117
+      "cdmw/services/engine_capture.py": 123
     }
   },
   {
@@ -30865,7 +30865,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid presentation state acknowledgement.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 305
+      "cdmw/ui/new_item/rust_ui_tab.py": 328
     }
   },
   {
@@ -30977,7 +30977,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid viewport rectangle.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_portals.py": 106
+      "cdmw/ui/new_item/rust_ui_portals.py": 121
     }
   },
   {
@@ -32656,7 +32656,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface could not prepare this page: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 381
+      "cdmw/ui/new_item/rust_ui_tab.py": 404
     }
   },
   {
@@ -32664,7 +32664,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface could not start: {self._process.errorString()}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 394
+      "cdmw/ui/new_item/rust_ui_tab.py": 417
     }
   },
   {
@@ -32680,7 +32680,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface is not consuming state updates.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 388
+      "cdmw/ui/new_item/rust_ui_tab.py": 411
     }
   },
   {
@@ -32688,7 +32688,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface reported a different session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 287
+      "cdmw/ui/new_item/rust_ui_tab.py": 310
     }
   },
   {
@@ -32696,7 +32696,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust interface stopped acknowledging updates. Use Retry to reopen the same workspace.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 358
+      "cdmw/ui/new_item/rust_ui_tab.py": 381
     }
   },
   {
@@ -34300,7 +34300,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown Rust presentation message.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_tab.py": 336
+      "cdmw/ui/new_item/rust_ui_tab.py": 359
     }
   },
   {
@@ -35695,7 +35695,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/services/new_item_materials.py": 681,
       "cdmw/ui/new_item/model_import.py": 1282,
-      "cdmw/ui/new_item/rust_ui_tab.py": 273
+      "cdmw/ui/new_item/rust_ui_tab.py": 296
     }
   },
   {

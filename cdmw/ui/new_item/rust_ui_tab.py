@@ -151,8 +151,30 @@ class RustNewItemStudioTab(QWidget):
         self._prewarming = True
         self.use_rust()
 
+    def _finder_warmup(self):
+        archive = getattr(self._window, "archive", None)
+        return getattr(archive, "archive_character_finder_warmup_controller", None)
+
+    def _hold_finder_warmup(self, hold):
+        """Body & Face Finder's background thumbnails pause while this page is in front.
+
+        They prepare hundreds of models through the same archive worker and render in
+        the same preview process as this page's own preview, which then waited behind
+        them for minutes after a template was picked."""
+        warmup = self._finder_warmup()
+        if warmup is None:
+            return
+        try:
+            if hold:
+                warmup.pause(self, cancel_active=True)
+            else:
+                warmup.resume(self)
+        except RuntimeError:
+            pass  # torn down with the archive browser
+
     def showEvent(self, event):  # noqa: N802
         super().showEvent(event)
+        self._hold_finder_warmup(True)
         if self._bridge is None and not self._closed:
             self.use_rust()
         elif self._rust_mode and not self._closed:
@@ -168,6 +190,7 @@ class RustNewItemStudioTab(QWidget):
 
     def hideEvent(self, event):  # noqa: N802
         super().hideEvent(event)
+        self._hold_finder_warmup(False)
         if self._rust_mode:
             # A hidden child does not render its first frame. Resume its startup
             # and acknowledgement budgets when this workspace is shown again.

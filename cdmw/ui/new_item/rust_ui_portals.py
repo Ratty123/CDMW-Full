@@ -6,7 +6,7 @@ import math
 
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QRegion
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QSplitter, QWidget
 from shiboken6 import delete, isValid
 
 from cdmw.services.new_item_rust_protocol import PresentationProtocolError
@@ -65,13 +65,28 @@ class PreviewPortals:
                 region -= QRegion(self._rectangle(exclusion, ratio))
             if identifier not in self._attached:
                 parent = viewport.parentWidget()
-                layout = parent.layout() if parent is not None else None
-                position = layout.indexOf(viewport) if layout else -1
-                if layout and position >= 0:
-                    placeholder = _PreviewPlaceholder(viewport, parent)
-                    self._replace_widget(layout, viewport, placeholder)
-                    placeholder.show()
-                    self._placeholders[identifier] = placeholder
+                if isinstance(parent, QSplitter):
+                    # A preview with a Scene panel sits in a splitter row, which has no
+                    # layout. Without a placeholder in its slot the viewport left the
+                    # page's control tree once moved here, so the next layout no longer
+                    # had its slot, the viewport was hidden, and its preview never
+                    # loaded (Create New Item stayed on "Loading model textures").
+                    layout, position = None, parent.indexOf(viewport)
+                    if position >= 0:
+                        # Made without a parent: a splitter appends any child given to
+                        # it, and replaceWidget then cannot put that child in the slot.
+                        placeholder = _PreviewPlaceholder(viewport, None)
+                        parent.replaceWidget(position, placeholder)
+                        placeholder.show()
+                        self._placeholders[identifier] = placeholder
+                else:
+                    layout = parent.layout() if parent is not None else None
+                    position = layout.indexOf(viewport) if layout else -1
+                    if layout and position >= 0:
+                        placeholder = _PreviewPlaceholder(viewport, parent)
+                        self._replace_widget(layout, viewport, placeholder)
+                        placeholder.show()
+                        self._placeholders[identifier] = placeholder
                 self._attached[identifier] = (viewport, parent, layout, position)
                 viewport.setParent(self.host)
             viewport.setGeometry(rect)
@@ -111,6 +126,16 @@ class PreviewPortals:
             if not isValid(viewport):
                 continue
             viewport.clearMask()
+            placeholder = self._placeholders.get(identifier)
+            if isinstance(parent, QSplitter) and isValid(parent):
+                # Put the viewport back into its splitter slot (the splitter reparents it).
+                slot = parent.indexOf(placeholder) if placeholder is not None and isValid(placeholder) else -1
+                if slot >= 0:
+                    parent.replaceWidget(slot, viewport)
+                else:
+                    parent.insertWidget(max(0, position), viewport)
+                viewport.show()
+                continue
             if parent is not None and isValid(parent):
                 viewport.setParent(parent)
                 if layout is not None and isValid(layout):

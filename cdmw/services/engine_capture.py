@@ -1,8 +1,9 @@
 """Off-screen package captures in a running preview process (P4 V5).
 
-Character Finder's thumbnails used to start a renderer process each. A preview
-process that offers ``package_capture_v1`` renders them instead, one at a time
-on its own device, so the thumbnails add no process. Workers call
+Character Finder's thumbnails used to start a renderer process each. The resident
+preview process (Browse's), when it offers ``package_capture_v1``, renders them
+instead, one at a time on its own device, so the thumbnails add no process. A
+tool's or dialog's own viewport never takes them. Workers call
 ``capture_in_engine`` from their own thread; this module sends the request from
 the UI thread and hands the result back. With no such process it raises
 ``CaptureUnavailable`` at once and the caller keeps its own capture process.
@@ -84,8 +85,13 @@ class EngineCaptureRouter(QObject):
         return None
 
     def _capable(self) -> list[QObject]:
+        # Only the resident engine (Browse's process) takes captures. Every other
+        # registered controller is the viewport of a tool the user may be looking at
+        # (Create New Item, Model Library, a dialog): the newest of them used to win,
+        # so Finder thumbnails ran in Create New Item's own preview window while it
+        # was loading the picked template.
         live = []
-        for ref in reversed(self._controllers):
+        for ref in reversed(self._resident):
             controller = ref()
             if controller is None:
                 continue
