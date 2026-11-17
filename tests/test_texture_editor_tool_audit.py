@@ -86,9 +86,17 @@ class _Dock:
                 and time.monotonic() < deadline:
             _pump(0.02)
         assert self.editor.document is not None and self.editor.document.source_binding.mesh_resource_id == sha
+        self._wait_for_the_worker()
         _pump(0.05)
         self.edits.clear()
         self.edited_shas.clear()
+
+    def _wait_for_the_worker(self) -> None:
+        # The open runs on a worker thread; a dock deleted while it still winds down
+        # corrupts the next test's heap (a crash in a later QListWidget.clear()).
+        deadline = time.monotonic() + 30
+        while getattr(self.editor, "_task_thread", None) is not None and time.monotonic() < deadline:
+            _pump(0.01)
 
     def composite(self) -> np.ndarray:
         return np.array(self.editor._current_composite_rgba(), copy=True)
@@ -102,6 +110,7 @@ class _Dock:
     def close(self) -> None:
         from PySide6.QtCore import QEvent
 
+        self._wait_for_the_worker()
         self.editor.request_shutdown()
         self.tools.deleteLater()
         _app().sendPostedEvents(None, QEvent.Type.DeferredDelete)
