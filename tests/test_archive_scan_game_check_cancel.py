@@ -61,6 +61,12 @@ def test_refresh_reads_cancel_while_the_game_version_is_checked(window):
     button = archive.archive_refresh_scan_button
     assert button.text() == "Cancel" and button.isEnabled()
     assert not archive.archive_scan_button.isEnabled()
+    assert not archive.archive_package_root_edit.isEnabled()
+    # The review bridge reads the same: busy, checking the game version, Cancel shown.
+    from cdmw.automation import review_commands
+
+    state = review_commands.job_state(window, {"job": "scan"})
+    assert state["busy"] and state["checking_game_version"] and state["cancel_button"]["text"] == "Cancel"
 
 
 def test_cancel_during_the_game_check_stops_it_and_restores_refresh(window):
@@ -90,7 +96,14 @@ def test_a_root_change_during_the_game_check_restores_refresh(window):
     assert archive.archive_refresh_scan_button.text() == "Refresh"
 
 
-def test_closing_the_window_during_the_game_check_stops_it(window):
+def test_closing_the_window_during_the_game_check_stops_it(window, tmp_path, monkeypatch):
+    import cdmw.app.app_folder as app_folder
+    from cdmw.automation import review_commands
+
+    monkeypatch.setattr(app_folder, "cdmw_folder", lambda: tmp_path.resolve())
+    log = review_commands._record_close_events(window, tmp_path / "close.jsonl")
     task = _start_held_refresh(window)
     window._finalize_close()
     assert task.stop_event.is_set()
+    # The review's close hook sees the real window's close phases.
+    assert "close_finalize" in log.read_text(encoding="utf-8")

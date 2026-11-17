@@ -414,6 +414,7 @@ def test_new_item_commands_search_pick_and_read_the_preview() -> None:
 
 class _HostController(QObject):
     state_changed = Signal(str, str)
+    protocol_event = Signal(object)
 
     def __init__(self) -> None:
         super().__init__()
@@ -456,6 +457,7 @@ def test_new_item_state_says_where_the_preview_viewport_is_and_what_it_last_said
         assert controller["package_generation"] == 2 and controller["applied_package_generation"] == 1
         assert controller["desired_package"] == "materials" and controller["applied_package"] == "geometry"
         assert [entry[1:] for entry in controller["states"]] == [["inactive", "Preview paused while hidden."]]
+        assert controller["first_states"] == controller["states"] and controller["events"] == []
         tab._portals._attached = {"viewport": (host, workflow, None, 0)}
         assert review_commands.new_item_state(window, {})["preview_host"]["portal_attached"]
         assert review_commands.new_item_state(window, {"measure_publish": True})["publish"] == {"bridge": False}
@@ -467,6 +469,40 @@ def test_new_item_state_says_where_the_preview_viewport_is_and_what_it_last_said
     finally:
         workflow.deleteLater()
         page.deleteLater()
+
+
+def test_new_item_state_records_a_preview_host_from_its_creation() -> None:
+    made: list[QWidget] = []
+
+    def factory(parent):
+        host = QWidget(parent)
+        host.controller = _HostController()
+        made.append(host)
+        return host
+
+    preview = _Preview()
+    preview.host = None
+    preview._host_factory = factory
+    holder = QWidget()
+    panel = SimpleNamespace(filter_edit=QLineEdit(holder), matches=QTreeWidget(holder), _match_options=())
+    tab = QWidget(holder)
+    tab.workflow = SimpleNamespace(template_panel=panel, model_panel=SimpleNamespace(preview=preview))
+    tab.controller = SimpleNamespace(ready=True, busy=False)
+    window = SimpleNamespace(shell=SimpleNamespace(new_item_studio_tab=tab))
+    try:
+        assert review_commands.new_item_state(window, {})["preview_host"] == {"host": False, "host_error": ""}
+        preview.host = preview._host_factory(holder)  # as _ensure_host does
+        controller = preview.host.controller
+        controller.state_changed.emit("preparing", "Preview is preparing the selected model…")
+        controller.protocol_event.emit({"event": "package_load_applied"})
+        controller.protocol_event.emit({"event": "view_state_changed"})
+        controller.state_changed.emit("inactive", "Preview paused while hidden.")
+        shown = review_commands.new_item_state(window, {})["preview_host"]["controller"]
+        assert [entry[1] for entry in shown["first_states"]] == ["preparing", "inactive"]
+        assert [entry[1] for entry in shown["events"]] == ["package_load_applied"]
+        assert made == [preview.host]
+    finally:
+        holder.deleteLater()
 
 
 def test_model_library_and_textures_states(profile) -> None:

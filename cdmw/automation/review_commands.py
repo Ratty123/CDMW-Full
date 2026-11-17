@@ -697,31 +697,73 @@ def _record_close_events(window, requested: object) -> Path | None:
 # ----- 6. Create New Item, Model Library, Textures --------------------------------------------
 
 _PREVIEW_STATUS: dict[int, list[str]] = {}
-#: id(controller) -> the viewport controller's states, oldest first (the last 24)
-_PREVIEW_HOST_STATES: dict[int, list[list[object]]] = {}
+#: id(controller) -> what the viewport controller said: its first and last states and
+#: the names of its last protocol events, each with the monotonic time it came
+_PREVIEW_HOST_LOG: dict[int, dict[str, list[list[object]]]] = {}
+
+
+def _watch_preview_host(host) -> dict[str, list[list[object]]] | None:
+    """Record ``host``'s controller from now on (once per controller)."""
+
+    controller = getattr(host, "controller", None)
+    if controller is None:
+        return None
+    log = _PREVIEW_HOST_LOG.get(id(controller))
+    if log is not None:
+        return log
+    log = _PREVIEW_HOST_LOG[id(controller)] = {"first_states": [], "states": [], "events": []}
+
+    def state(value, message, log=log) -> None:
+        entry = [round(time.monotonic(), 2), str(value), str(message)[:160]]
+        if len(log["first_states"]) < 12:
+            log["first_states"].append(entry)
+        log["states"].append(entry)
+        del log["states"][:-24]
+
+    def event(payload, log=log) -> None:
+        name = str((payload or {}).get("event", "") if isinstance(payload, dict) else "")
+        if name and name != "view_state_changed":
+            log["events"].append([round(time.monotonic(), 2), name])
+            del log["events"][:-40]
+
+    controller.state_changed.connect(state)
+    signal = getattr(controller, "protocol_event", None)
+    if signal is not None:
+        signal.connect(event)
+    return log
+
+
+def _watch_preview_host_creation(preview) -> None:
+    """Start recording a preview's viewport the moment it is made, not at the next poll:
+    its first hide and show (a portal moving it) happen within a poll interval."""
+
+    factory = getattr(preview, "_host_factory", None)
+    if not callable(factory) or getattr(factory, "_review_watched", False):
+        return
+
+    def make(parent, factory=factory):
+        host = factory(parent)
+        _watch_preview_host(host)
+        return host
+
+    make._review_watched = True
+    preview._host_factory = make
 
 
 def _preview_host_state(tab, preview) -> dict[str, object] | None:
     """Where the preview's viewport is and what its controller last said: whether the
     host exists and is shown, which widget holds it (the off-screen workflow or the
     Rust page's host), whether the Rust page has attached it, and the controller's
-    handshake gates, package generations and recent states."""
+    handshake gates, package generations, recent states and protocol events."""
 
     from PySide6.QtCore import Qt
 
+    _watch_preview_host_creation(preview)
     host = getattr(preview, "host", None)
     if host is None:
         return {"host": False, "host_error": str(getattr(preview, "_host_error", "") or "")}
     controller = getattr(host, "controller", None)
-    states = _PREVIEW_HOST_STATES.get(id(controller))
-    if controller is not None and states is None:
-        states = _PREVIEW_HOST_STATES[id(controller)] = []
-
-        def kept(state, message, states=states) -> None:
-            states.append([round(time.monotonic(), 2), str(state), str(message)[:160]])
-            del states[:-24]
-
-        controller.state_changed.connect(kept)
+    log = _watch_preview_host(host) or {}
     try:
         parent = host.parentWidget()
         shown = {"visible": bool(host.isVisible()), "hidden": bool(host.isHidden()),
@@ -765,7 +807,8 @@ def _preview_host_state(tab, preview) -> dict[str, object] | None:
             "desired_package": Path(str(getattr(controller, "desired_package_path", "") or "")).name,
             "applied_package": Path(str(getattr(controller, "applied_package_path", "") or "")).name,
             "retry_attempt": number("_retry_attempt"),
-            "states": list(states or ()),
+            "first_states": list(log.get("first_states", ())), "states": list(log.get("states", ())),
+            "events": list(log.get("events", ())),
         },
         "frame": {"loaded_stage": str(getattr(preview, "_loaded_stage", "") or ""),
                   "loaded_is_pending": (getattr(preview, "_pending", None) or (None,))[0]
