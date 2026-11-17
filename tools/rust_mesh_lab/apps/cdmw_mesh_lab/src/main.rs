@@ -4037,6 +4037,10 @@ impl LabApplication {
         }
         if !ok {
             self.status = format!("{label} rejected: {}", error.trim());
+            if self.hair.active() {
+                // The Hair panel's own line would otherwise still say the edit was prepared.
+                self.hair.feedback = self.status.clone();
+            }
             if matches!(
                 label.as_str(),
                 "Delete part" | "Delete selection" | "Delete Selection"

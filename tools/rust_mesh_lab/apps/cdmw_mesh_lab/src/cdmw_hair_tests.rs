@@ -5094,3 +5094,19 @@ fn hair_command_waits_for_the_edit_being_prepared() {
     }]);
     assert!(app.hair.feedback.is_empty());
 }
+
+#[test]
+fn hair_draw_beside_the_head_says_where_to_start() {
+    let (mut app, rect) = ready_hair_app();
+    app.hair.tool = Some(HairTool::Guide);
+    app.dispatch_hair_pointer(
+        ViewportPointerEvent::PrimaryPressed(Vec2::new(3.0, 3.0)),
+        rect,
+        false,
+        false,
+        false,
+    );
+    assert_eq!(app.hair.feedback, "Start the stroke on the scalp");
+    assert!(app.hair.drawing.is_empty());
+    assert!(app.cancel_hair_stroke());
+}

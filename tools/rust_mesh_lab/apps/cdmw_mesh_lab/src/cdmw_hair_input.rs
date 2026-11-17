@@ -876,7 +876,7 @@ impl LabApplication {
                         .screen_ray(pointer, rect)
                         .ok_or("Point at the scalp to draw")?;
                     let Some(root) = self.pick_hair_scalp(ray.0, ray.1) else {
-                        return Ok(());
+                        return Err("Start the stroke on the scalp".into());
                     };
                     let position = state.scalp.point(&root).map_err(|e| e.to_string())?;
                     let normal = self
