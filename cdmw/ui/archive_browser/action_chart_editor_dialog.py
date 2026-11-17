@@ -1221,7 +1221,8 @@ class ActionChartEditorDialog(QDialog):
         thread.started.connect(worker.run)
         worker.outcome.connect(self._task_outcome)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._task_finished)
         self._worker, self._thread = worker, thread

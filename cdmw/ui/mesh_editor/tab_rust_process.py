@@ -1076,7 +1076,8 @@ class MeshEditorRustProcessMixin:
         worker.completed.connect(self._handle_rust_protocol_completed)
         worker.error.connect(self._handle_rust_protocol_worker_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(
             lambda current=thread: self._handle_rust_protocol_thread_finished(current)
         )

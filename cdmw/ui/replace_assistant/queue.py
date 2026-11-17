@@ -124,7 +124,8 @@ class ReplaceAssistantQueueMixin:
         worker.completed.connect(lambda payload: self._import_event_on_ui.emit(request, QueueWorkerEvent.COMPLETE, payload))
         worker.error.connect(lambda message: self._import_event_on_ui.emit(request, QueueWorkerEvent.ERROR, message))
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._cleanup_import_refs)
         self.import_worker = worker
@@ -566,7 +567,8 @@ class ReplaceAssistantQueueMixin:
             worker.completed.connect(lambda payload: self._match_event_on_ui.emit(QueueWorkerEvent.COMPLETE, payload))
             worker.error.connect(lambda message: self._match_event_on_ui.emit(QueueWorkerEvent.ERROR, message))
             worker.finished.connect(thread.quit)
-            worker.finished.connect(worker.deleteLater)
+            from cdmw.workers.thread_lifetime import release_worker_after_thread
+            release_worker_after_thread(thread, worker)
             thread.finished.connect(thread.deleteLater)
             thread.finished.connect(self._cleanup_match_refs)
             self.match_worker = worker

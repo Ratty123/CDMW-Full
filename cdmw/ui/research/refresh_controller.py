@@ -104,7 +104,8 @@ def refresh_research(self) -> None:
     worker.completed.connect(self._handle_refresh_complete)
     worker.error.connect(self._handle_refresh_error)
     worker.finished.connect(thread.quit)
-    worker.finished.connect(worker.deleteLater)
+    from cdmw.workers.thread_lifetime import release_worker_after_thread
+    release_worker_after_thread(thread, worker)
     thread.finished.connect(thread.deleteLater)
     thread.finished.connect(self._cleanup_refresh_refs)
     self.refresh_worker = worker
@@ -144,7 +145,8 @@ def refresh_ui_constraints(self) -> None:
     worker.completed.connect(self._handle_ui_constraint_complete)
     worker.error.connect(self._handle_ui_constraint_error)
     worker.finished.connect(thread.quit)
-    worker.finished.connect(worker.deleteLater)
+    from cdmw.workers.thread_lifetime import release_worker_after_thread
+    release_worker_after_thread(thread, worker)
     thread.finished.connect(thread.deleteLater)
     thread.finished.connect(self._cleanup_ui_constraint_refs)
     self.ui_constraint_worker = worker

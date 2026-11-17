@@ -769,7 +769,8 @@ class CharacterFinderDialog(QDialog):
         worker.failed.connect(self._export_failed)
         worker.progress.connect(self._export_progress)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._export_thread_finished)
         self._status.setText("Exporting FBX…")
         thread.start()

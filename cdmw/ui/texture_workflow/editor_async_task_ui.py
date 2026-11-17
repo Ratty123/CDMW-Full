@@ -36,7 +36,8 @@ class TextureEditorAsyncTaskUiMixin:
         worker.error.connect(self._task_error_on_ui, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(self._task_finished_on_ui, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.started.connect(worker.run)
         self._task_thread = thread

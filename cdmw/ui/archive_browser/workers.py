@@ -793,7 +793,8 @@ class ArchivePreviewWorkerMixin:
         worker.completed.connect(self._handle_archive_preview_ready)
         worker.error.connect(self._handle_archive_preview_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._cleanup_archive_preview_refs)
 
         self.archive_preview_worker = worker

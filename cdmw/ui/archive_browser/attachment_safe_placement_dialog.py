@@ -587,7 +587,8 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             worker.completed.connect(_handle_placement_d3d11_package_ready)
             worker.error.connect(_handle_placement_d3d11_package_error)
             worker.finished.connect(thread.quit)
-            worker.finished.connect(worker.deleteLater)
+            from cdmw.workers.thread_lifetime import release_worker_after_thread
+            release_worker_after_thread(thread, worker)
             thread.finished.connect(thread.deleteLater)
             thread.finished.connect(_cleanup_placement_d3d11_package_refs)
             d3d11_state["package_worker"] = worker
@@ -637,7 +638,8 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             worker.completed.connect(_handle_placement_d3d11_models_loaded)
             worker.error.connect(_handle_placement_d3d11_models_error)
             worker.finished.connect(thread.quit)
-            worker.finished.connect(worker.deleteLater)
+            from cdmw.workers.thread_lifetime import release_worker_after_thread
+            release_worker_after_thread(thread, worker)
             thread.finished.connect(thread.deleteLater)
             thread.finished.connect(_cleanup_placement_d3d11_model_refs)
             d3d11_state["model_worker"] = worker

@@ -89,7 +89,8 @@ class TextSearchPreviewMixin:
         worker.completed.connect(self._handle_preview_ready)
         worker.error.connect(self._handle_preview_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._cleanup_preview_refs)
         self.preview_worker = worker

@@ -145,7 +145,8 @@ class ResearchAnalysisTaskController(QObject):
             worker.completed.connect(self._handle_export_completed, Qt.QueuedConnection)
             worker.error.connect(self._handle_export_error, Qt.QueuedConnection)
         worker.finished.connect(thread.quit, Qt.DirectConnection)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(
             partial(self._handle_thread_finished, lane, request_id),

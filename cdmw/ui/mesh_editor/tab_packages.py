@@ -69,7 +69,8 @@ class MeshEditorPackageMixin:
         worker.completed.connect(self._handle_standalone_editable_package_exported)
         worker.error.connect(self._handle_standalone_editable_package_export_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_editable_package_export_worker(target_thread, target_worker))
         self.standalone_editable_export_thread = thread
@@ -155,7 +156,8 @@ class MeshEditorPackageMixin:
         worker.completed.connect(self._handle_standalone_edited_package_imported)
         worker.error.connect(self._handle_standalone_edited_package_import_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_edited_package_import_worker(target_thread, target_worker))
         self.standalone_editable_import_thread = thread

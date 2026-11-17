@@ -1106,7 +1106,8 @@ class ItemPreviewFrame(QWidget):
         worker.completed.connect(self._package_ready)
         worker.error.connect(self._package_failed)
         worker.finished.connect(thread.quit, Qt.DirectConnection)
-        thread.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(self._build_finished, Qt.QueuedConnection)
         thread.started.connect(worker.run)
         thread.start()

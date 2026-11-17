@@ -76,7 +76,8 @@ class TextSearchExportMixin:
         worker.cancelled.connect(self._handle_export_cancelled)
         worker.error.connect(self._handle_export_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._cleanup_export_refs)
         self.export_worker = worker

@@ -518,7 +518,8 @@ def _texture_original_texture_material_step_009(_state):
             worker.completed.connect(_state.original_texture_worker_receiver.handle_completed, _state.Qt.QueuedConnection)
             worker.error.connect(_state.original_texture_worker_receiver.handle_error, _state.Qt.QueuedConnection)
             worker.finished.connect(thread.quit)
-            worker.finished.connect(worker.deleteLater)
+            from cdmw.workers.thread_lifetime import release_worker_after_thread
+            release_worker_after_thread(thread, worker)
             _state.original_texture_worker_receiver.watch_thread(
                 thread,
                 worker,

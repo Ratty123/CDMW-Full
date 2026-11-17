@@ -535,7 +535,8 @@ class ArchiveIconPipelineMixin:
         thread.started.connect(worker.run)
         worker.icon_prepared.connect(self._handle_archive_item_icon_prepared)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(receiver.handle_thread_finished, Qt.QueuedConnection)
         self.archive_item_icon_priority_thread = thread
         self.archive_item_icon_priority_worker = worker
@@ -587,7 +588,8 @@ class ArchiveIconPipelineMixin:
         thread.started.connect(worker.run)
         worker.icon_prepared.connect(self._handle_archive_item_icon_prepared)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(receiver.handle_thread_finished, Qt.QueuedConnection)
         self.archive_item_icon_warmup_thread = thread
         self.archive_item_icon_warmup_worker = worker

@@ -52,7 +52,8 @@ def resolve_references(self) -> None:
     worker.completed.connect(self._handle_reference_complete)
     worker.error.connect(self._handle_reference_error)
     worker.finished.connect(thread.quit)
-    worker.finished.connect(worker.deleteLater)
+    from cdmw.workers.thread_lifetime import release_worker_after_thread
+    release_worker_after_thread(thread, worker)
     thread.finished.connect(thread.deleteLater)
     thread.finished.connect(self._cleanup_reference_refs)
     self.resolve_worker = worker

@@ -431,7 +431,8 @@ class TextSearchControllerMixin:
         worker.cancelled.connect(self._handle_search_cancelled)
         worker.error.connect(self._handle_search_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._cleanup_search_refs)
         self.search_worker = worker

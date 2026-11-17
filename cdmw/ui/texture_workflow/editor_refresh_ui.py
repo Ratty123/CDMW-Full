@@ -173,7 +173,8 @@ class TextureEditorRefreshUiMixin:
         thread.started.connect(worker.run)
         worker.completed.connect(self._ui_constraint_ready_on_ui, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         worker.finished.connect(self._ui_constraint_finished_on_ui, Qt.ConnectionType.QueuedConnection)
         self._ui_constraint_worker = worker

@@ -60,7 +60,8 @@ class ModelLibraryTaskMixin:
         worker.completed.connect(bridge.handle_completed, Qt.ConnectionType.QueuedConnection)
         worker.error.connect(bridge.handle_error, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(bridge.handle_finished, Qt.ConnectionType.QueuedConnection)
         self._task_thread = thread

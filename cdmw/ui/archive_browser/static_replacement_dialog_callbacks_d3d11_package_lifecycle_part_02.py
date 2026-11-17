@@ -158,7 +158,8 @@ def _d3d11_package_lifecycle_step_050(_state):
         worker.completed.connect(_state.alignment_d3d11_package_worker_receiver.handle_completed, _state.Qt.QueuedConnection)
         worker.error.connect(_state.alignment_d3d11_package_worker_receiver.handle_error, _state.Qt.QueuedConnection)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(
             _state.alignment_d3d11_package_worker_receiver.handle_thread_finished,
             _state.Qt.QueuedConnection,

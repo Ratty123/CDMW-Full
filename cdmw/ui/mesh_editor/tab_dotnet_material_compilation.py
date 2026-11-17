@@ -162,7 +162,8 @@ class MeshEditorDotNetMaterialCompilationMixin(
         worker.completed.connect(self._handle_dotnet_material_compile_completed)
         worker.error.connect(self._handle_dotnet_material_compile_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(
             lambda target_thread=thread, target_worker=worker: self._cleanup_dotnet_material_compile(

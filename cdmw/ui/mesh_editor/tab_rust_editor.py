@@ -875,7 +875,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         worker.progress.connect(self._handle_rust_session_prepare_progress)
         worker.error.connect(self._handle_rust_session_prepare_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(
             lambda current=thread: self._handle_rust_prepare_thread_finished(current)
         )
@@ -1151,7 +1152,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             )
         )
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(
             lambda current=thread: self._handle_rust_dispose_thread_finished(current)
         )

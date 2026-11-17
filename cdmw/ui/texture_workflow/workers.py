@@ -43,7 +43,8 @@ class TextureWorkflowWorkerMixin:
         worker.assets_ready.connect(self._handle_scanned_assets)
         worker.error.connect(self.shell._handle_worker_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self.shell._cleanup_worker_refs)
 
@@ -151,7 +152,8 @@ class TextureWorkflowWorkerMixin:
         worker.cancelled.connect(self._handle_build_cancelled)
         worker.error.connect(self.shell._handle_worker_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self.shell._cleanup_worker_refs)
 
@@ -209,7 +211,8 @@ class TextureWorkflowWorkerMixin:
         worker.cancelled.connect(self._handle_build_cancelled)
         worker.error.connect(self.shell._handle_worker_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self.shell._cleanup_worker_refs)
 

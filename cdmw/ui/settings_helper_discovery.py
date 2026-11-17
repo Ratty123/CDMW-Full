@@ -120,7 +120,8 @@ class SettingsHelperDiscoveryMixin:
         worker.completed.connect(self._handle_asset_authoring_helper_report, Qt.ConnectionType.QueuedConnection)
         worker.error.connect(self._handle_asset_authoring_helper_error, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(lambda: self._finish_asset_authoring_helper_version_refresh(thread, worker))
         self._asset_authoring_helper_thread = thread

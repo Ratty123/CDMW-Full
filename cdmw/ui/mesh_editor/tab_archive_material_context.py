@@ -449,7 +449,8 @@ class MeshEditorArchiveMaterialContextMixin:
         worker.resolved.connect(self._handle_archive_texture_source_resolved)
         worker.error.connect(self._handle_archive_texture_source_error)
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+        release_worker_after_thread(thread, worker)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_archive_texture_source_worker(target_thread, target_worker))
         self.standalone_texture_source_thread = thread
