@@ -87,16 +87,31 @@ def _commands_list(call) -> dict[str, object]:
         return {"commands": []}
     wanted = str(call.arguments.get("context") or "")
     query = str(call.arguments.get("query") or "").casefold()
+    # A command's own ``keys`` are its defaults; Settings > Shortcuts and the palette
+    # show the keymap's, with the user's changes.
+    keymap = {row.command_id: row for row in _keymap_rows(registry, call.context)}
     rows = []
     for command in registry.commands(*((wanted,) if wanted else ())):
         if query and query not in command.label.casefold() and query not in command.id.casefold():
             continue
         reason = registry.reason(command.id)
         tool = None if command.id in USER_ONLY_COMMANDS else command_tool(command)
-        rows.append({"id": command.id, "label": command.label, "context": command.context, "keys": list(command.keys),
+        bound = keymap.get(command.id)
+        rows.append({"id": command.id, "label": command.label, "context": command.context,
+                     "keys": list(bound.keys if bound is not None else command.keys),
+                     "default_keys": list(bound.defaults if bound is not None else command.keys),
                      "effect": command.effect, "available": not reason, "reason": reason,
                      "tool": tool.wire if tool is not None and tool.built else None})
     return {"commands": rows}
+
+
+def _keymap_rows(registry, context) -> list:
+    """Settings > Shortcuts' rows (on the UI thread), or none when there is no settings file."""
+
+    from cdmw.ui.commands.keymap import keymap_rows
+
+    settings = getattr(context, "settings", None)
+    return keymap_rows(registry, settings) if settings is not None else []
 
 
 # ----- search -----------------------------------------------------------------------
@@ -527,7 +542,8 @@ def read_tools() -> list[Tool]:
 
     return [
         tool("commands.list", "Commands",
-             "Every command of the interface with its id, label, context, keys and class, whether it can run now "
+             "Every command of the interface with its id, label, context, keys (as Settings > Shortcuts has them "
+             "now, and the defaults) and class, whether it can run now "
              "and, when not, the interface's reason. 'tool' names the AI tool that runs it, when one is built.",
              {"context": {"type": "string", "enum": ["", *_contexts()]}, "query": _TEXT}, [], _commands_list,
              "registry:CommandRegistry.commands", paged="commands", runs_on=ON_UI),

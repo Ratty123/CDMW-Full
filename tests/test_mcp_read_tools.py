@@ -234,8 +234,14 @@ def test_the_command_list_reads_the_registry_with_reasons(world) -> None:
     try:
         listed = world.call("commands_list", {"query": "probe the ai"})["structuredContent"]["commands"]
         assert listed == [{"id": "shell.mcp_probe", "label": "Probe the AI connection", "context": "shell",
-                           "keys": ["Ctrl+Alt+F12"], "effect": "edit", "available": False,
-                           "reason": "Wait for the probe.", "tool": None}]
+                           "keys": ["Ctrl+Alt+F12"], "default_keys": ["Ctrl+Alt+F12"], "effect": "edit",
+                           "available": False, "reason": "Wait for the probe.", "tool": None}]
+        # A key changed in Settings > Shortcuts is the key the command has now.
+        from cdmw.services import keymap_store
+
+        keymap_store.set_override(world.settings, "shell.mcp_probe", ["Ctrl+Alt+F11"])
+        rebound = world.call("commands_list", {"query": "probe the ai"})["structuredContent"]["commands"][0]
+        assert rebound["keys"] == ["Ctrl+Alt+F11"] and rebound["default_keys"] == ["Ctrl+Alt+F12"]
         refused = world.call("shell_mcp_probe")
         assert refused["structuredContent"]["error"]["code"] == "not_built"
     finally:
