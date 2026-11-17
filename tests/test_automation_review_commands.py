@@ -338,7 +338,7 @@ def test_scan_start_and_cancel_use_refresh_and_its_cancel_text() -> None:
 # ----- 5. closing during a job --------------------------------------------------------------
 
 
-def test_close_during_job_reports_the_app_s_processes_and_closes_without_a_question(monkeypatch) -> None:
+def test_close_during_job_reports_the_app_s_processes_and_closes_without_a_question(monkeypatch, profile) -> None:
     import cdmw.core.common as common
     from cdmw.ui.mesh_editor.live_edit import end_edit_prompt
 
@@ -349,8 +349,18 @@ def test_close_during_job_reports_the_app_s_processes_and_closes_without_a_quest
     window.archive = SimpleNamespace(archive_remote_query_pending=True, archive_game_fingerprint_task=None,
                                      archive_refresh_scan_button=None)
     window.shell = SimpleNamespace(mesh_editor_tab=None)
+    recorded: list[str] = []
+    window._record_runtime_event = lambda event, **_fields: recorded.append(event)
+    close_log = profile / "logs" / "close.jsonl"
     try:
-        reply = review_commands.close_during_job(window, {})
+        reply = review_commands.close_during_job(window, {"close_log": str(close_log)})
+        assert reply["close_log"] == str(close_log.resolve())
+        window._record_runtime_event("close_waiting_for_workers", workers=("archive_preview_thread",))
+        window._record_runtime_event("archive_preview_request")
+        assert recorded == ["close_waiting_for_workers", "archive_preview_request"]
+        lines = [json.loads(line) for line in close_log.read_text(encoding="utf-8").splitlines()]
+        assert [line["event"] for line in lines] == ["close_waiting_for_workers"]
+        assert lines[0]["workers"] == ["archive_preview_thread"]
         assert reply["pids"] == [os.getpid(), 4242] and reply["running"] == {"build_mod": False, "scan": True}
         assert window.isVisible()  # closed from the event loop, after the reply
         _pump(lambda: not window.isVisible())

@@ -654,8 +654,44 @@ def close_during_job(window, args: dict) -> dict[str, object]:
                "scan": job_state(window, {"job": "scan"}).get("busy", False)}
     pids = [os.getpid(), *_windows_descendant_pids(os.getpid())]
     end_edit_prompt.prompt_override = lambda *_args: end_edit_prompt.DISCARD
+    log = _record_close_events(window, args.get("close_log"))
     QTimer.singleShot(int(args.get("delay_ms", 0) or 0), window.close)
-    return {"running": running, "pids": pids}
+    return {"running": running, "pids": pids, "close_log": "" if log is None else str(log)}
+
+
+def _record_close_events(window, requested: object) -> Path | None:
+    """Append each close phase the window records (waiting for which workers and
+    processes, force stop, finalize) to a JSON-lines file in the run's profile, so a
+    close the watchdog ends can still be read after the app is gone."""
+
+    from cdmw.app.app_folder import cdmw_folder
+
+    recorder = getattr(window, "_record_runtime_event", None)
+    if not callable(recorder) or getattr(recorder, "_review_close_log", None) is not None:
+        return getattr(recorder, "_review_close_log", None)
+    try:
+        log = inside_profile(requested or (cdmw_folder() / "logs" / "review-close-events.jsonl"))
+        log.parent.mkdir(parents=True, exist_ok=True)
+    except (OSError, ValueError):
+        return None
+    started = time.monotonic()
+
+    def record(event: str, **fields: object):
+        if str(event).startswith("close"):
+            try:
+                with log.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps({"s": round(time.monotonic() - started, 3), "event": str(event),
+                                             **fields}, default=str) + "\n")
+            except OSError:
+                pass
+        return recorder(event, **fields)
+
+    record._review_close_log = log
+    window._record_runtime_event = record
+    shell = getattr(window, "shell", None)
+    if shell is not None and shell is not window and getattr(shell, "_record_runtime_event", None) is recorder:
+        shell._record_runtime_event = record
+    return log
 
 
 # ----- 6. Create New Item, Model Library, Textures --------------------------------------------
