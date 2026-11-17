@@ -136,7 +136,13 @@ def test_opening_a_texture_flattens_it_on_the_worker_and_not_again_on_the_window
             _app().processEvents()
             time.sleep(0.005)
         assert editor.document is not None and editor.document.width == 64
-        assert editor._current_composite_rgba() is not None
+        composite = editor._current_composite_rgba()
         assert on_window_thread == []
+        assert np.array_equal(composite, np.full((64, 64, 4), 180, dtype=np.uint8))
+        # The editor's composite is its own copy: painting into it leaves the opened original alone.
+        original = editor._sessions[0].original_flattened
+        assert composite is not original and not original.flags.writeable
+        composite[0, 0] = (1, 2, 3, 4)
+        assert tuple(original[0, 0]) == (180, 180, 180, 180)
     finally:
         _close(editor)

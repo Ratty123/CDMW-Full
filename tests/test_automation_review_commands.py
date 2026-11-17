@@ -416,3 +416,96 @@ def test_every_review_command_is_registered_in_the_bridge() -> None:
         assert review_commands.READ_ONLY <= {run.__name__ for run in review_commands.COMMANDS.values()}
     finally:
         bridge.deleteLater()
+
+
+# ----- the same commands against the real dialogs and editor --------------------------------
+
+
+def test_finder_commands_drive_the_real_item_finder_dialog() -> None:
+    from tests.test_archive_remote_finder_dialog import _drain, _row, _Window
+
+    from cdmw.domain.archives.item_catalogue import ItemCatalogSearchResult
+    from cdmw.ui.archive_browser.remote_finder_dialog import RemoteArchiveFinderDialog
+
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    window._remote_archive_finder_dialogs = {dialog}
+    dialog.show()
+    try:
+        _drain()
+        service = window.archive_catalogue_service
+        busy = review_commands.finder_state(window, {})
+        assert busy["shown"] and busy["busy"] and busy["cancel_button"]["text"] == "Cancel Loading"
+        rows = (_row(1), _row(2))
+        service.result_ready.emit(dialog._search_request_id, "search_item_catalog",
+                                  ItemCatalogSearchResult("session-a", 2, 0, 72, rows, ()))
+        shown = review_commands.finder_state(window, {})
+        assert not shown["busy"] and shown["results"] == 2 and shown["first_results"] == ["Item 1", "Item 2"]
+        assert review_commands.finder_search(window, {"text": "Item 2"})["search"] == "Item 2"
+        _pump(lambda: dialog._search_request_id is not None and service.searches[-1].query == "Item 2", 2.0)
+        assert review_commands.finder_state(window, {})["busy"]
+        service.result_ready.emit(dialog._search_request_id, "search_item_catalog",
+                                  ItemCatalogSearchResult("session-a", 2, 0, 72, rows, ()))
+        assert review_commands.finder_select(window, {"match": "item 2"})["row"] == 1
+        state = review_commands.finder_state(window, {})
+        assert state["selected"] == "Item 2" and state["exact"]["enabled"]
+        assert review_commands.finder_scope(window, {})["clicked"]
+        assert service.scopes and service.scopes[-1].item_ids == (2,)
+        assert review_commands.finder_close(window, {})
+    finally:
+        dialog.close()
+        window.close()
+        dialog.deleteLater()
+        window.deleteLater()
+        _drain()
+
+
+from tests.test_character_finder_dialog import finder, publish_rows, row  # noqa: E402,F401 - the fixture
+
+
+def test_finder_commands_drive_the_real_body_and_face_finder(finder) -> None:
+    dialog, service, scopes = finder
+    window = dialog._window
+    window._character_finder_dialogs = {dialog}
+    publish_rows(dialog, service, [row(1), row(2, label="Face 2", key="asset:2")])
+    shown = review_commands.finder_state(window, {"finder": "character"})
+    assert shown["shown"] and shown["results"] == 2 and shown["cancel_button"] is None
+    assert review_commands.finder_select(window, {"finder": "character", "match": "face 2"})["row"] == 1
+    assert review_commands.finder_state(window, {"finder": "character"})["selected"] == "Face 2"
+    scope = review_commands.finder_scope(window, {"finder": "character"})
+    assert scope["button"]["text"] == "Show exact files"
+    if scope["clicked"]:
+        assert any(kind.startswith("scope") for kind, _request, _kw in service.calls)
+    assert review_commands.finder_search(window, {"finder": "character", "text": "face"})["search"] == "face"
+    panel = getattr(getattr(dialog, "_scene_panel", None), "panel", None)
+    if panel is not None:
+        batches = [{"index": index, "material_name": f"M{index}", "editor_identity": {
+            "source_submesh_index": index, "source_local_submesh_index": local, "source_model_path": path}}
+            for index, (path, local) in enumerate(((SWORD, 0), (SCABBARD, 0)))]
+        panel.set_parts(batches)
+        isolated = review_commands.scene_action(window, {"where": "character", "action": "isolate", "path": SWORD})
+        assert isolated["clicked"] and isolated["hidden"] == [1] and isolated["sent_to_view"] is None
+        assert review_commands.scene_action(window, {"where": "character", "action": "show_all"})["hidden"] == []
+    assert review_commands.finder_close(window, {"finder": "character"})
+
+
+def test_textures_state_reads_the_real_editor_after_an_open(tmp_path) -> None:
+    from PIL import Image
+
+    from tests.test_texture_editor_open_cost import _close, _editor
+
+    editor = _editor(tmp_path)
+    source = tmp_path / "small.png"
+    Image.fromarray(__import__("numpy").full((16, 24, 4), 90, dtype="uint8"), "RGBA").save(source)
+    window = SimpleNamespace(shell=SimpleNamespace(textures=SimpleNamespace(editor_container=editor,
+                                                                            _pending_texture_sources=())))
+    try:
+        editor.open_source_path(source)
+        assert review_commands.textures_state(window, {})["task_running"]
+        _pump(lambda: editor.document is not None and editor._task_thread is None, seconds=20)
+        state = review_commands.textures_state(window, {})
+        assert not state["busy"] and state["sessions"] == 1
+        assert (state["document"]["width"], state["document"]["height"]) == (24, 16)
+        assert state["document"]["source"].endswith("small.png")
+    finally:
+        _close(editor)
