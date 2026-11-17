@@ -39,6 +39,15 @@ LIST_WIDTH_SHARE = 0.26
 EDITOR_WIDTH_SHARE = 0.45
 #: The list's share of the panels' height while the Texture Editor is under it.
 LIST_HEIGHT_SHARE = 0.3
+#: The Texture Editor's share of the editor's width while the list is hidden: the canvas
+#: is narrower than it is tall then, so the width is what draws the texture larger.
+WIDE_WIDTH_SHARE = 0.5
+#: The least width the 3D view keeps beside the wide Texture Editor (logical pixels).
+VIEW_MIN_WIDTH = 480
+#: The share of the editor's width the user dragged the wide Texture Editor to.
+WIDE_KEY = "mesh_editor/texture_editor_wide_share"
+#: How far the width may move by itself (layout rounding) before it counts as a drag.
+DRAG_SLACK = 4
 
 
 def _as_bool(value: object, default: bool) -> bool:
@@ -67,6 +76,16 @@ class TexturePanels(QObject):
         self._list_sized = False
         self._editor_sized = False
         self._split_sized = False
+        #: Which panels show: "both", "editor" (the list hidden), "list" or "".
+        self._mode = ""
+        #: The width fit the layout still owes for the mode just entered.
+        self._pending_width = ""
+        #: The side's width beside the list, given back when the list shows again.
+        self._narrow_width = 0
+        #: The wide width last set, to tell the user's drag from it.
+        self._applied_wide = 0
+        #: The share of the width the user dragged the wide side to (0: not dragged).
+        self._wide_share = 0.0
         session_shown = getattr(textures, "session_shown", None)
         if session_shown is not None:
             session_shown.connect(lambda _shown: self.apply())
@@ -92,6 +111,11 @@ class TexturePanels(QObject):
         self.settings = settings
         value = settings.value(SHOWN_KEY, None) if settings is not None else None
         self._wanted = _as_bool(value, False)
+        try:
+            share = float(settings.value(WIDE_KEY, 0) or 0) if settings is not None else 0.0
+        except (TypeError, ValueError):
+            share = 0.0
+        self._wide_share = share if 0.1 <= share <= 0.9 else 0.0
         self.wanted_changed.emit(self._wanted)
         self.apply()
 
@@ -126,6 +150,8 @@ class TexturePanels(QObject):
 
         show_list = self._wanted and self.session_open
         show_editor = self.session_open and self._texture_open and self.tools is not None
+        mode = "both" if show_list and show_editor else "editor" if show_editor else "list" if show_list else ""
+        self._enter_mode(mode)
         if self.tools is not None and self.tools.isHidden() == show_editor:
             self.tools.setVisible(show_editor)
         if self.textures.isHidden() == show_list:
@@ -162,8 +188,83 @@ class TexturePanels(QObject):
         try:
             self._fit_list()
             self._fit_editor()
+            self._fit_width()
         except RuntimeError:
             pass  # the page went away before the timer ran
+
+    # ----- the side's width with the list hidden --------------------------------
+    def _docked_width(self) -> int:
+        tools = self.tools
+        if tools is None or tools.isHidden() or tools.isFloating():
+            return 0
+        return tools.width()
+
+    def _enter_mode(self, mode: str) -> None:
+        """Note what the side's width must do when the panels shown change; the width
+        itself is set once the layout has placed them (``_fit_width``)."""
+
+        previous = self._mode
+        if mode == previous:
+            return
+        self._mode = mode
+        if previous == "editor":
+            self._remember_drag()
+            self._applied_wide = 0
+            if mode != "both":
+                self._narrow_width = 0  # nothing to give back to; the next run starts afresh
+        if previous == "both" and mode == "editor":
+            # The width beside the list, before the side widens.
+            self._narrow_width = self._docked_width()
+        if mode in ("editor", "both"):
+            self._pending_width = mode
+
+    def _remember_drag(self) -> None:
+        """The user dragged the wide side to a width of their own: keep it, as a share of
+        the editor's width so it suits another window size, here and after a restart."""
+
+        width, host_width = self._docked_width(), self.host.width()
+        if not self._applied_wide or not width or host_width <= 0 or self._pending_width:
+            return
+        if abs(width - self._applied_wide) <= DRAG_SLACK:
+            return
+        self._wide_share = width / host_width
+        if self.settings is not None:
+            try:
+                self.settings.setValue(WIDE_KEY, round(self._wide_share, 4))
+            except RuntimeError:
+                pass
+
+    def _wide_width(self) -> int:
+        """Half the editor's width (or the user's own), never narrower than the side
+        already is unless the user chose so, and leaving the 3D view a usable width."""
+
+        tools, host_width = self.tools, self.host.width()
+        if self._wide_share:
+            width = int(host_width * self._wide_share)
+        else:
+            width = max(int(host_width * WIDE_WIDTH_SHARE), tools.width())
+        return max(1, min(width, host_width - scaled_px(VIEW_MIN_WIDTH, self.host)))
+
+    def _fit_width(self) -> None:
+        """With the list hidden the side widens so the texture is drawn larger; with the
+        list back it has the width it had beside it."""
+
+        pending, self._pending_width = self._pending_width, ""
+        tools, host = self.tools, self.host
+        if not pending or pending != self._mode or not self._docked_width() or host.width() <= 0:
+            return
+        if pending == "editor":
+            if not self._narrow_width:
+                # A texture opened with the list hidden: the list, when it shows, gets
+                # the side as it was before it widened.
+                self._narrow_width = tools.width()
+            width = self._wide_width()
+            host.resizeDocks([tools], [width], Qt.Orientation.Horizontal)
+            self._applied_wide = width
+        elif self._narrow_width:
+            width, self._narrow_width = self._narrow_width, 0
+            if not self.textures.isFloating():
+                host.resizeDocks([tools], [width], Qt.Orientation.Horizontal)
 
     def _fit_list(self) -> None:
         """The first time the list shows (or after a layout saved before the panels had
