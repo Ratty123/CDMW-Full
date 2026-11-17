@@ -28,6 +28,8 @@ from cdmw.mcp.tools import ON_UI, ON_WORKER, Tool, object_schema
 MAX_BYTES = 1024 * 1024
 MAX_SEARCH_ROWS = 5000
 FETCH_PAGE = 500
+#: The archive worker's largest Body & Face Finder page (ArchiveCharacterCatalog.cs clamps to it).
+CHARACTER_PAGE = 72
 TEXT_EXTENSIONS = frozenset({
     ".xml", ".json", ".txt", ".ini", ".cfg", ".lua", ".csv", ".html", ".htm", ".css", ".js", ".yaml", ".yml",
     ".md", ".log", ".hlsl", ".fx",
@@ -183,15 +185,27 @@ def _search_characters(call) -> dict[str, object]:
     session = context.archive_session()
     service = context.catalogue_service()
     if not context.ui_call(lambda: service.character_catalog_available):
-        raise ToolError(UNAVAILABLE, "The Character Finder needs an updated archive helper.")
+        raise ToolError(UNAVAILABLE, "Body & Face Finder needs an updated archive helper.")
     context.catalogue_call("build_character_catalog", session.session_id, cancel=call.cancel_event)
-    result = context.catalogue_call("search_character_catalog", CharacterCatalogSearchRequest(
-        session.session_id, query=str(a.get("query") or ""), view=str(a.get("view") or "assets"),
-        tab=str(a.get("tab") or "bodies"), page_size=min(int(a.get("max_results") or 200), 1000)),
-        cancel=call.cancel_event)
-    rows = [to_data(row) for row in getattr(result, "rows", ())]
-    return {"characters": rows, "total_matches": int(getattr(result, "total_matches", len(rows)) or len(rows)),
-            "warnings": list(getattr(result, "warnings", ()) or ())}
+    wanted = min(int(a.get("max_results") or 200), 1000)
+    rows: list[object] = []
+    total = 0
+    warnings: list[str] = []
+    # The worker answers at most CHARACTER_PAGE rows a request, as the finder's pages.
+    while len(rows) < wanted:
+        call.check_cancelled()
+        result = context.catalogue_call("search_character_catalog", CharacterCatalogSearchRequest(
+            session.session_id, query=str(a.get("query") or ""), view=str(a.get("view") or "assets"),
+            tab=str(a.get("tab") or "bodies"), page_start=len(rows),
+            page_size=min(CHARACTER_PAGE, wanted - len(rows))), cancel=call.cancel_event)
+        total = int(result.total_matches)
+        warnings = list(result.warnings or ())
+        if not result.rows:
+            break
+        rows.extend(to_data(row) for row in result.rows)
+        if len(rows) >= total:
+            break
+    return {"characters": rows, "total_matches": total, "truncated": total > len(rows), "warnings": warnings}
 
 
 def _search_text(call) -> dict[str, object]:
@@ -562,9 +576,11 @@ def read_tools() -> list[Tool]:
              {"query": _TEXT, "category": _TEXT, "only_dlc": {"type": "boolean"},
               "max_results": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 200}},
              [], _search_items, "service:ArchiveCatalogueService.search_item_catalog", paged="items"),
-        tool("search.characters", "Character Finder",
-             "Finds bodies, faces, hair and other character parts, as the Character Finder does.",
-             {"query": _TEXT, "view": _TEXT, "tab": _TEXT,
+        tool("search.characters", "Body & Face Finder",
+             "Finds bodies, faces, hair and other character parts, as Body & Face Finder does: its assets or "
+             "appearances view, on its Bodies or Faces tab.",
+             {"query": _TEXT, "view": {"type": "string", "enum": ["assets", "appearances"], "default": "assets"},
+              "tab": {"type": "string", "enum": ["bodies", "faces"], "default": "bodies"},
               "max_results": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 200}},
              [], _search_characters, "service:ArchiveCatalogueService.search_character_catalog",
              paged="characters"),
