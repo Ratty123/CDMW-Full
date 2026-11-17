@@ -102,6 +102,20 @@ def begin_hair_context(tab, session, event):
     from cdmw.ui.mesh_editor.hair_context_preparation import HairContextPreparation
     owner = tab.window()
     if isinstance(owner, DetachedToolWindow):
+def hair_character_for_target(tab, target):
+    """The character whose head and body a hairstyle opened without a setup choice is fitted to.
+
+    The character of the last Hair Tools setup is remembered on the tab, but a hairstyle opened
+    another way (Character Finder) may belong to someone else; its folder decides then.
+    """
+    from cdmw.domain.hair_characters import HAIR_CHARACTERS
+    remembered = getattr(tab, "_pending_hair_character", None)
+    owners = [profile.name for profile in HAIR_CHARACTERS if profile.accepts_hair(target.path)]
+    if remembered in owners or not owners:
+        return remembered or "Damiane"
+    return owners[0]
+
+
         owner = owner.owner
     target = tab._current_target_entry()
     if target is None:
@@ -136,11 +150,13 @@ def begin_hair_context(tab, session, event):
     previous.failed.connect(lambda message: resume(error=message))
     context = getattr(tab, "_pending_hair_context", None)
     tab._pending_hair_context = None
-    if context is not None:
+    state = session.shadow_service._session(session.shadow_session_id).hair_state
+    character = state.payload["template"]["character"] if state else hair_character_for_target(tab, target)
+    # A context left by a setup that never reached this point belongs to another hairstyle.
+    if context is not None and context.character == character:
         resume(context)
     else:
-        state = session.shadow_service._session(session.shadow_session_id).hair_state
-        previous.start(state.payload["template"]["character"] if state else getattr(tab, "_pending_hair_character", "Damiane"))
+        previous.start(character)
 
 
 def open_hair_texture_source(tab, path):

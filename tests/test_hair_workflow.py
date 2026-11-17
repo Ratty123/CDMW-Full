@@ -827,6 +827,18 @@ def test_setup_names_an_unreadable_barber_list_and_retry_asks_the_catalogue_agai
     dialog.reject()
 
 
+def test_a_hairstyle_opened_without_setup_is_fitted_to_its_own_character():
+    from cdmw.ui.mesh_editor.hair_flow import hair_character_for_target
+    damiane = SimpleNamespace(path="character/model/1_pc/2_phw/head/hair/phw_00_hair_00_0008_01_player.pac")
+    shared = SimpleNamespace(path="character/model/1_pc/1_phm/head/hair/phm_00_hair_00_0022_player.pac")
+    # Kliff was the last setup; Character Finder then opens one of Damiane's hairstyles.
+    assert hair_character_for_target(SimpleNamespace(_pending_hair_character="Kliff"), damiane) == "Damiane"
+    assert hair_character_for_target(SimpleNamespace(_pending_hair_character="Damiane"), shared) == "Kliff"
+    # Kliff and Oongka share a hair folder: the remembered one of the two is kept.
+    assert hair_character_for_target(SimpleNamespace(_pending_hair_character="Oongka"), shared) == "Oongka"
+    assert hair_character_for_target(SimpleNamespace(), damiane) == "Damiane"
+
+
 def test_setup_says_when_no_listed_hairstyle_can_be_opened(owner, monkeypatch):
     from tests.test_hair_registration import game_table, shown
     dialog, tasks = _setup_with_remembered_character(owner, monkeypatch, game_table(shown(0, "not a file")))
@@ -836,3 +848,29 @@ def test_setup_says_when_no_listed_hairstyle_can_be_opened(owner, monkeypatch):
     assert dialog.status.text() == ("None of Damiane's 1 barber hairstyles can be opened in Hair Tools. "
                                     "Choose another character.")
     dialog.reject()
+
+
+def test_a_character_left_by_an_unstarted_setup_is_not_used_for_another_hairstyle(owner):
+    from cdmw.ui.mesh_editor import hair_flow
+    started, resumed = [], []
+    signal = SimpleNamespace(connect=lambda _slot: None, disconnect=lambda: None)
+    session = SimpleNamespace(shadow_session_id="shadow",
+        shadow_service=SimpleNamespace(_session=lambda _id: SimpleNamespace(hair_state=None)))
+    target = SimpleNamespace(identity="hair", path="character/model/1_pc/2_phw/head/hair/phw_00_hair_00_0008_01_player.pac")
+    tab = QWidget(owner)
+    tab._current_target_entry = lambda: target
+    tab.archive_session_dependencies = object()
+    tab.standalone_rust_authoring_session, tab.standalone_rust_closing = session, False
+    tab.standalone_rust_protocol_queue = []
+    tab._start_next_rust_protocol_worker = lambda: resumed.append(tab.standalone_rust_protocol_queue[0])
+    tab._hair_context_preparation = SimpleNamespace(cancel=lambda: None, ready=signal, failed=signal,
+                                                    start=started.append)
+    # Kliff's setup was confirmed but its scene never opened; Damiane's hairstyle opens next.
+    tab._pending_hair_character = "Kliff"
+    tab._pending_hair_context = SimpleNamespace(character="Kliff", arguments=lambda: {"character": "Kliff"})
+    hair_flow.begin_hair_context(tab, session, {"command": "hair_begin", "arguments": {}})
+    assert started == ["Damiane"] and not resumed and tab._pending_hair_context is None
+    # The context of the setup that did open this hairstyle is used as it is.
+    tab._pending_hair_context = SimpleNamespace(character="Damiane", arguments=lambda: {"character": "Damiane"})
+    hair_flow.begin_hair_context(tab, session, {"command": "hair_begin", "arguments": {}})
+    assert started == ["Damiane"] and resumed[0]["arguments"]["character"] == "Damiane"
