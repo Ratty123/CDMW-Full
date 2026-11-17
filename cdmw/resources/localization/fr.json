@@ -7951,6 +7951,7 @@
     "Mesh Editor is preparing its renderer and textures...": "L’éditeur de maillage prépare son moteur de rendu et ses textures...",
     "Mesh Editor is ready.": "L’Éditeur de maillage est prêt.",
     "Mesh Editor is ready. Changes remain isolated until Finish Edit Mesh.": "Éditeur de maillage est prêt. Les modifications restent isolées jusqu’à la fin de la modification du maillage.",
+    "Mesh Editor is ready. {value_0} of {value_1} parts have no readable textures and use an untextured neutral surface: {value_2}": "Éditeur de maillage est prêt. {value_0} pièces sur {value_1} n'ont aucune texture lisible et utilisent une surface neutre sans texture : {value_2}",
     "Mesh Editor is ready. {value_0} of {value_1} parts use simplified materials to stay within the 768 MiB texture limit.": "Éditeur de maillage est prêt. {value_0} pièces sur {value_1} utilisent des matériaux simplifiés pour rester sous la limite de textures de 768 MiB.",
     "Mesh Editor is still open for this model. Choose Finish and return to Create New Item there.": "L’Éditeur de maillage est toujours ouvert pour ce modèle. Choisissez-y « Terminer et revenir à Créer un nouvel objet ».",
     "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Éditeur de maillage se synchronise avec le moteur de rendu. La modification est temporairement indisponible.",

@@ -7951,6 +7951,7 @@
     "Mesh Editor is preparing its renderer and textures...": "Mesh Düzenleyici, işleyicisini ve dokularını hazırlıyor...",
     "Mesh Editor is ready.": "Mesh Düzenleyici hazır.",
     "Mesh Editor is ready. Changes remain isolated until Finish Edit Mesh.": "Mesh Düzenleyici hazır. Mesh düzenleme bitirilene kadar değişiklikler yalıtılmış kalır.",
+    "Mesh Editor is ready. {value_0} of {value_1} parts have no readable textures and use an untextured neutral surface: {value_2}": "Mesh Düzenleyici hazır. {value_1} parçadan {value_0} tanesinin okunabilir dokusu yok ve dokusuz nötr bir yüzey kullanıyor: {value_2}",
     "Mesh Editor is ready. {value_0} of {value_1} parts use simplified materials to stay within the 768 MiB texture limit.": "Mesh Düzenleyici hazır. 768 MiB doku sınırının içinde kalmak için {value_1} parçadan {value_0} tanesi basitleştirilmiş malzemeler kullanıyor.",
     "Mesh Editor is still open for this model. Choose Finish and return to Create New Item there.": "Mesh Düzenleyici bu model için hâlâ açık. Orada «Bitir ve Yeni Öğe Oluştur ekranına dön» seçeneğini seçin.",
     "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Mesh Düzenleyici işleyiciyle eşitleniyor. Düzenleme geçici olarak kullanılamıyor.",

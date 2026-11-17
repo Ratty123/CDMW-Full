@@ -7951,6 +7951,7 @@
     "Mesh Editor is preparing its renderer and textures...": "O Editor de Malha está preparando o renderizador e as texturas...",
     "Mesh Editor is ready.": "O Editor de malha está pronto.",
     "Mesh Editor is ready. Changes remain isolated until Finish Edit Mesh.": "O Editor de malha está pronto. As alterações permanecerão isoladas até a conclusão da edição de malha.",
+    "Mesh Editor is ready. {value_0} of {value_1} parts have no readable textures and use an untextured neutral surface: {value_2}": "O Editor de malha está pronto. {value_0} de {value_1} partes não têm texturas legíveis e usam uma superfície neutra sem textura: {value_2}",
     "Mesh Editor is ready. {value_0} of {value_1} parts use simplified materials to stay within the 768 MiB texture limit.": "O Editor de malha está pronto. {value_0} de {value_1} partes usam materiais simplificados para ficar dentro do limite de texturas de 768 MiB.",
     "Mesh Editor is still open for this model. Choose Finish and return to Create New Item there.": "O Editor de malha ainda está aberto para este modelo. Escolha lá «Concluir e voltar para Criar novo item».",
     "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "O Editor de malha está sincronizando com o renderizador. A edição está temporariamente indisponível.",

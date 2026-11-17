@@ -7951,6 +7951,7 @@
     "Mesh Editor is preparing its renderer and textures...": "网格编辑器正在准备渲染器和纹理...",
     "Mesh Editor is ready.": "网格编辑器已就绪。",
     "Mesh Editor is ready. Changes remain isolated until Finish Edit Mesh.": "网格编辑器 已就绪。在完成编辑网格前，更改将保持隔离。",
+    "Mesh Editor is ready. {value_0} of {value_1} parts have no readable textures and use an untextured neutral surface: {value_2}": "网格编辑器 已就绪。{value_1} 个部件中有 {value_0} 个没有可读取的纹理，将使用无纹理的中性表面: {value_2}",
     "Mesh Editor is ready. {value_0} of {value_1} parts use simplified materials to stay within the 768 MiB texture limit.": "网格编辑器 已就绪。为保持在 768 MiB 纹理限制以内，{value_1} 个部件中有 {value_0} 个使用简化材质。",
     "Mesh Editor is still open for this model. Choose Finish and return to Create New Item there.": "网格编辑器中仍打开着此模型。请在其中选择“完成并返回创建新物品”。",
     "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "网格编辑器 正在与渲染器同步。编辑暂时不可用。",

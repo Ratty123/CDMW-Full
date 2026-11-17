@@ -7951,6 +7951,7 @@
     "Mesh Editor is preparing its renderer and textures...": "메시 편집기가 렌더러와 텍스처를 준비하고 있습니다...",
     "Mesh Editor is ready.": "메시 편집기가 준비되었습니다.",
     "Mesh Editor is ready. Changes remain isolated until Finish Edit Mesh.": "메시 편집기가 준비되었습니다. 메시 편집을 완료할 때까지 변경 사항은 격리된 상태로 유지됩니다.",
+    "Mesh Editor is ready. {value_0} of {value_1} parts have no readable textures and use an untextured neutral surface: {value_2}": "메시 편집기가 준비되었습니다. {value_1}개 파트 중 {value_0}개에 읽을 수 있는 텍스처가 없어 텍스처가 없는 중립 표면을 사용합니다: {value_2}",
     "Mesh Editor is ready. {value_0} of {value_1} parts use simplified materials to stay within the 768 MiB texture limit.": "메시 편집기가 준비되었습니다. 768 MiB 텍스처 한도를 넘지 않도록 {value_1}개 파트 중 {value_0}개가 단순화된 머티리얼을 사용합니다.",
     "Mesh Editor is still open for this model. Choose Finish and return to Create New Item there.": "이 모델이 메시 편집기에서 아직 열려 있습니다. 메시 편집기에서 ‘완료하고 새 아이템 만들기로 돌아가기’를 선택하세요.",
     "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "메시 편집기가 렌더러와 동기화 중입니다. 편집을 일시적으로 사용할 수 없습니다.",

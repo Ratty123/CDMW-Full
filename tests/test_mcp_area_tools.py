@@ -139,6 +139,37 @@ def test_mesh_state_and_geometry_are_the_sessions_parts_counts_and_selection(mes
         session.hair_state = None
 
 
+def test_mesh_state_reports_textures_from_the_materials_the_view_draws(mesh) -> None:
+    """Preview Core layers texture a part with no DDS payload; mesh_state said
+    "unavailable" over a textured view, and named no part (2026-11-17)."""
+
+    host, mcp = mesh.host, mesh.mcp
+    model = host.shadow_service.working_mesh(host.shadow_session_id)
+    reason = "Resolved Archive Browser material bindings did not contain readable DDS texture payloads."
+    saved = (dict(host.archive_refit_material_cache), host.active_material_key, host.texture_unavailable_reason)
+    host.archive_refit_material_cache["layers-only"] = {
+        "textures": [], "preview_core_material_graph": {"materials": [
+            {"lod_index": 0, "material_index": 0, "layers": [{"diffuse": {"file": {"path": "a.dds"}}}]}]}}
+    host.active_material_key = "layers-only"
+    host.texture_unavailable_reason = reason
+    try:
+        state = mcp.ok("mesh_state")
+        textures = state["textures"]
+        assert textures["available"] and textures["textured_parts"] == 1
+        assert textures["from_material_layers"] == 1 and textures["from_dds"] == 0
+        assert textures["parts"] == len(model.submeshes) == 1 and textures["untextured_parts"] == []
+        assert "textures_unavailable" not in state and textures["warning"] == reason
+        # Really untextured: said so, with the part named.
+        host.archive_refit_material_cache["layers-only"]["preview_core_material_graph"] = None
+        state = mcp.ok("mesh_state")
+        assert not state["textures"]["available"] and state["textures_unavailable"] == reason
+        assert state["textures"]["untextured_parts"] == [{"index": 0, "name": model.submeshes[0].name}]
+    finally:
+        host.archive_refit_material_cache.clear()
+        host.archive_refit_material_cache.update(saved[0])
+        host.active_material_key, host.texture_unavailable_reason = saved[1], saved[2]
+
+
 def test_parts_are_selected_and_highlighted_with_the_parts_lists_own_messages(mesh) -> None:
     mcp = mesh.mcp
     assert mcp.ok("mesh_select_parts", {"parts": [1, 0, 1]})["selected_parts"] == [0, 1]
