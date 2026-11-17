@@ -828,7 +828,10 @@ def new_item_state(window, args: dict) -> dict[str, object]:
     if workflow is None:
         return {"created": tab is not None}
     controller = getattr(tab, "controller", None) or getattr(workflow, "controller", None)
-    panel = workflow.template_panel
+    panel = getattr(workflow, "template_panel", None)
+    if panel is None:
+        # The tab builds its pages in steps after it is shown.
+        return {"created": True, "pages_built": False}
     preview = getattr(getattr(workflow, "model_panel", None), "preview", None)
     if preview is not None and id(preview) not in _PREVIEW_STATUS:
         texts: list[str] = []

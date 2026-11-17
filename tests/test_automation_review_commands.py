@@ -383,6 +383,16 @@ class _Preview(QObject):
         self._deferred_package = None
 
 
+def test_new_item_state_while_the_tab_still_builds_its_pages() -> None:
+    # The tab builds its pages in steps after it is shown; reading it then raised
+    # "no attribute 'template_panel'", which ended the review's wait (2026-11-17).
+    holder = QWidget()
+    tab = QWidget(holder)
+    tab.workflow = SimpleNamespace(model_panel=None)
+    window = SimpleNamespace(shell=SimpleNamespace(new_item_studio_tab=tab))
+    assert review_commands.new_item_state(window, {}) == {"created": True, "pages_built": False}
+
+
 def test_new_item_commands_search_pick_and_read_the_preview() -> None:
     holder = QWidget()
     matches = QTreeWidget(holder)
