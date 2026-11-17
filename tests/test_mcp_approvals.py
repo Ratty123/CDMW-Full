@@ -46,7 +46,7 @@ def settings(tmp_path):
 
 @pytest.fixture
 def every_class_built(monkeypatch):
-    """This part builds read tools only; the approval path is the same for every class."""
+    """Every class is built now; kept so these tests say what they rely on."""
     monkeypatch.setattr(tool_module, "BUILT_EFFECTS", frozenset(EFFECT_CLASSES))
 
 

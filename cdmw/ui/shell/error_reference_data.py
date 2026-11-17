@@ -2889,15 +2889,23 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "failed",
     "messages": [
+      "The Mesh Editor did not take the command.",
+      "The Mesh Editor did not take the export.",
+      "The Mesh Editor did not take the selection.",
       "The archive worker did not answer in time.",
+      "The call's safety class could not be worked out.",
       "The interface did not answer in time; try again when CDMW is idle.",
+      "The preview did not deliver the picture in time.",
       "The reference search did not finish in time.",
       "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}"
     ],
     "sources": [
       "cdmw/mcp/jobs.py",
+      "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/server.py",
+      "cdmw/mcp/ui_actions.py",
+      "cdmw/mcp/view_tools.py",
       "cdmw/ui/ai_connections/catalogue_calls.py",
       "cdmw/ui/ai_connections/context.py",
       "cdmw/ui/ai_connections/executor.py"
@@ -2933,15 +2941,24 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "invalid_arguments",
     "messages": [
+      "A point lies outside the texture ({width} x {height}).",
       "CDMW does not decode {table}. It decodes: {', '.join(sorted(DECODED_TABLES))}",
+      "Export an .obj or .glb file (FBX needs Blender: use the Export Mesh File button through app_ui_act).",
       "Give an extension or a path",
       "Give key or name",
       "Give key, keys or search",
+      "Name the control: widget (its id from app_ui) or text (what it says).",
+      "Name the template: match (text in its row) or row (its number).",
       "That page token belongs to another tool.",
+      "The action is one of {', '.join(ACTIONS)}.",
       "Unknown argument {extra[0]}",
       "arguments must be an object",
       "offset is past the end ({len(data)} bytes)",
       "path is required",
+      "row is needed: a row's number or its text.",
+      "value must be a number.",
+      "{action} does not apply to a {kind_of(widget) or 'widget'}.",
+      "{len(found)} controls have the text {text}; name one by its widget id.",
       "{name} is required",
       "{where} has an unknown field {extra[0]}",
       "{where} must be at least {schema['minimum']}",
@@ -2956,9 +2973,14 @@ ERROR_REFERENCE = [
       "{where}.{name} is required"
     ],
     "sources": [
+      "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/mesh_tools.py",
+      "cdmw/mcp/new_item_tools.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/read_tools.py",
-      "cdmw/mcp/schema.py"
+      "cdmw/mcp/schema.py",
+      "cdmw/mcp/texture_tools.py",
+      "cdmw/mcp/ui_tree.py"
     ],
     "severity": [],
     "recovery": "configuration"
@@ -3375,36 +3397,61 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "not_built",
     "messages": [
-      "{tool.wire} is not built yet: its {tool.effect} tools come with a later part of the AI connection work."
+      "{tool.wire} is a command, not a tool of its own: run it with app_run_command, command {tool.command_id}.",
+      "{tool.wire} is not built yet."
     ],
     "sources": [
       "cdmw/mcp/server.py"
     ],
     "severity": [],
-    "recovery": "internal"
+    "recovery": "input"
   },
   {
     "group": "mesh_validation",
     "code": "not_found",
     "messages": [
+      "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
+      "Browse Archives did not show {wanted}. search_archive finds a file's path.",
       "Help has no topic {wanted}. Call app_manual without a topic for the list.",
+      "No control shown has the text {text}. Call app_ui for the controls shown.",
+      "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
       "That page is gone: it was already read or is more than 15 minutes old. Run the search again.",
       "The Format Explorer has no row for {extension}.",
+      "The Mesh Editor has no command {call.arguments['command']}. commands_list with context mesh_editor lists them.",
+      "The Mesh Editor has {len(rows)} open documents.",
+      "The Scene panel has no file {a['file']}.",
+      "The Scene panel has no part {a['part']}.",
+      "The Texture Editor has no tool {tool}.",
+      "The Texture Editor has no tool {tool}. textures_state lists them.",
+      "The Textures panel has no texture {wanted}. textures_list lists them.",
+      "The adjustments are: {', '.join(kinds)}.",
       "The archives have no {wanted}.",
       "The command {call.tool.command_id} is not registered now.",
+      "The list has no item {row}.",
+      "The list has no row {wanted}.",
+      "The list is empty.",
+      "The mesh has parts 0 to {len(parts) - 1}.",
+      "There is no command {command_id} now. commands_list lists them; the Mesh Editor's and the Texture Editor's exist while their tool is open.",
+      "There is no control {text} now. Call app_ui for the controls shown.",
       "There is no job {job_id}.",
+      "There is no tab {row}.",
       "{error}. The archives have: {languages}.",
       "{table} has no row {key if key is not None else name}."
     ],
     "sources": [
       "cdmw/mcp/app_read_tools.py",
+      "cdmw/mcp/control_tools.py",
       "cdmw/mcp/jobs.py",
+      "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/read_tools.py",
-      "cdmw/mcp/tools.py"
+      "cdmw/mcp/texture_tools.py",
+      "cdmw/mcp/tools.py",
+      "cdmw/mcp/ui_tree.py",
+      "cdmw/mcp/view_tools.py"
     ],
     "severity": [],
-    "recovery": "missing"
+    "recovery": "empty"
   },
   {
     "group": "mesh_validation",
@@ -3550,12 +3597,18 @@ ERROR_REFERENCE = [
       "CDMW cannot ask you now, so the call was declined.",
       "CDMW is not running or AI connections are off.",
       "Declined in CDMW.",
-      "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool."
+      "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool.",
+      "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool. It was put back.",
+      "Only you can run this command in CDMW: it can change the AI connection settings or the game folder, or it writes into the game."
     ],
     "sources": [
       "cdmw/mcp/approvals.py",
+      "cdmw/mcp/control_tools.py",
       "cdmw/mcp/jobs.py",
-      "cdmw/mcp/server.py"
+      "cdmw/mcp/new_item_tools.py",
+      "cdmw/mcp/server.py",
+      "cdmw/mcp/ui_actions.py",
+      "cdmw/mcp/ui_tree.py"
     ],
     "severity": [],
     "recovery": "configuration"
@@ -29966,6 +30019,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Create New Item is not open yet: app_open_tool new_item_studio shows it; ask again when it is built.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_tools.py": 94
+    }
+  },
+  {
+    "area": "items",
     "message": "Curves require 2 to 128 finite samples in range.",
     "recovery": "input",
     "sources": {
@@ -31627,6 +31688,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Name the template: match (text in its row) or row (its number).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_tools.py": 114
+    }
+  },
+  {
+    "area": "items",
     "message": "New Item UI GPU validation failed: {error}",
     "recovery": "gpu",
     "sources": {
@@ -31703,6 +31772,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 457
+    }
+  },
+  {
+    "area": "items",
+    "message": "New painting is not open: new_item_painting_open opens it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_tools.py": 163
     }
   },
   {
@@ -31799,6 +31876,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/ui/new_item/installed_character_models.py": 239
+    }
+  },
+  {
+    "area": "items",
+    "message": "No template in the list matches. new_item_search changes the list.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_tools.py": 120
     }
   },
   {
@@ -42572,6 +42657,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 314
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Browse's preview process could not open this window.",
     "recovery": "internal",
     "sources": {
@@ -45670,6 +45763,14 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 307,
       "cdmw/workers/mesh_editor_workers.py": 367
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Export an .obj or .glb file (FBX needs Blender: use the Export Mesh File button through app_ui_act).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 475
     }
   },
   {
@@ -49453,6 +49554,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/cloth_collision_flow.py": 20
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Load the game archives first: open Browse Archives with the game folder set in Settings > Paths.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 296
     }
   },
   {
@@ -53914,6 +54023,14 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "cdmw/workers/mesh_editor_workers.py": 664
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 64
     }
   },
   {
@@ -58969,6 +59086,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Select a mesh in Browse Archives first, or give its path.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 318
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Select a procedural morph profile first.",
     "recovery": "input",
     "sources": {
@@ -60495,10 +60620,66 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The Mesh Editor did not take the command.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 393
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Mesh Editor did not take the export.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 485
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Mesh Editor did not take the selection.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 342
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The Mesh Editor executable package changed while its shadow session was being prepared. Open the mesh again to use the newly validated package.",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_rust_process.py": 134
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Mesh Editor has no command {call.arguments['command']}. commands_list with context mesh_editor lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 370
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Mesh Editor has {len(rows)} open documents.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 329
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Mesh Editor is still preparing this mesh; mesh_state says when it is ready.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 66
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Mesh Editor is working on the last request; try again in a moment.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 483
     }
   },
   {
@@ -61036,6 +61217,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 323
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The mesh has parts 0 to {len(parts) - 1}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 247
     }
   },
   {
@@ -61613,6 +61802,22 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/tab_dotnet_resources.py": 265
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This Mesh Editor cannot light a part up.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 353
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This Mesh Editor helper does not take commands from CDMW; it is older than this app.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 68
     }
   },
   {
@@ -74982,6 +75187,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "An AI tool's interface action failed",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_actions.py": 357
+    }
+  },
+  {
+    "area": "other",
     "message": "An FBX asks for Blender with a second chooser; give an OBJ, DAE, glTF or GLB file.",
     "recovery": "internal",
     "sources": {
@@ -75057,7 +75270,7 @@ MESSAGE_REFERENCE = [
     "message": "An output path is needed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/output_paths.py": 72
+      "cdmw/domain/output_paths.py": 100
     }
   },
   {
@@ -75576,6 +75789,38 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Browse Archives did not show {wanted}. search_archive finds a file's path.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 97
+    }
+  },
+  {
+    "area": "other",
+    "message": "Browse Archives has no Scene panel yet.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 108
+    }
+  },
+  {
+    "area": "other",
+    "message": "Browse Archives is not ready yet.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 39
+    }
+  },
+  {
+    "area": "other",
+    "message": "Browse Archives shows no 3D preview now: select a model first (view_open).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 151
+    }
+  },
+  {
+    "area": "other",
     "message": "Browser check cancelled. Your draft is kept.",
     "recovery": "cancelled",
     "sources": {
@@ -75691,7 +75936,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not offer {method}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 225
+      "cdmw/mcp/server.py": 250
     }
   },
   {
@@ -75715,7 +75960,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not write into the game folder. Choose a folder outside it; a mod manager installs the mod.",
     "recovery": "write",
     "sources": {
-      "cdmw/domain/output_paths.py": 84
+      "cdmw/domain/output_paths.py": 112
     }
   },
   {
@@ -75723,7 +75968,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not write into {what} ({holder}). Choose a folder outside it; a mod manager installs the mod.",
     "recovery": "write",
     "sources": {
-      "cdmw/domain/output_paths.py": 90
+      "cdmw/domain/output_paths.py": 118
     }
   },
   {
@@ -75731,7 +75976,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no tool {name or '(none)'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 266
+      "cdmw/mcp/server.py": 291
     }
   },
   {
@@ -75739,7 +75984,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW is not running or AI connections are off.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 313
+      "cdmw/mcp/server.py": 338
     }
   },
   {
@@ -75748,6 +75993,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/game_records.py": 123
+    }
+  },
+  {
+    "area": "other",
+    "message": "CDMW's window is not ready yet.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/control_tools.py": 37
     }
   },
   {
@@ -75803,9 +76056,9 @@ MESSAGE_REFERENCE = [
     "message": "Cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/mcp/jobs.py": 104,
+      "cdmw/mcp/jobs.py": 106,
       "cdmw/mcp/read_tools.py": 523,
-      "cdmw/mcp/server.py": 77,
+      "cdmw/mcp/server.py": 85,
       "cdmw/ui/ai_connections/catalogue_calls.py": 101,
       "cdmw/ui/ai_connections/context.py": 149
     }
@@ -79988,6 +80241,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "It is disabled now.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 492
+    }
+  },
+  {
+    "area": "other",
+    "message": "It is not shown now.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 492
+    }
+  },
+  {
+    "area": "other",
     "message": "Item Icon service is not configured.",
     "recovery": "internal",
     "sources": {
@@ -80544,6 +80813,7 @@ MESSAGE_REFERENCE = [
     "message": "Load the game archives first: open Browse Archives with the game folder set in Settings > Paths.",
     "recovery": "configuration",
     "sources": {
+      "cdmw/mcp/view_tools.py": 89,
       "cdmw/ui/ai_connections/context.py": 61
     }
   },
@@ -81005,10 +81275,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Name an action (show_all, isolate), a part or a file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 143
+    }
+  },
+  {
+    "area": "other",
     "message": "Name at least one file to look up.",
     "recovery": "internal",
     "sources": {
       "cdmw/automation/authoring_commands.py": 64
+    }
+  },
+  {
+    "area": "other",
+    "message": "Name the control: widget (its id from app_ui) or text (what it says).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/control_tools.py": 270
     }
   },
   {
@@ -81210,6 +81496,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/commands/registry.py": 126
+    }
+  },
+  {
+    "area": "other",
+    "message": "No control shown has the text {text}. Call app_ui for the controls shown.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 365
     }
   },
   {
@@ -81550,10 +81844,34 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool. It was put back.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/mcp/ui_actions.py": 365
+    }
+  },
+  {
+    "area": "other",
+    "message": "Only you can run this command in CDMW: it can change the AI connection settings or the game folder, or it writes into the game.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/mcp/control_tools.py": 172
+    }
+  },
+  {
+    "area": "other",
     "message": "Open DDS preview unavailable",
     "recovery": "missing",
     "sources": {
       "cdmw/ui/recolor_variants_tab.py": 903
+    }
+  },
+  {
+    "area": "other",
+    "message": "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 318
     }
   },
   {
@@ -83244,7 +83562,7 @@ MESSAGE_REFERENCE = [
     "message": "Something already exists at {target}; outputs never replace a file or folder.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/domain/output_paths.py": 93
+      "cdmw/domain/output_paths.py": 121
     }
   },
   {
@@ -83714,6 +84032,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The Mesh Editor's view can only be copied from the screen while CDMW is the window in front: click CDMW's window, then ask again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 329
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Mesh Editor's view is not on screen: show the Mesh Editor (app_open_tool mesh_editor) with CDMW's window visible.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 326
+    }
+  },
+  {
+    "area": "other",
     "message": "The Model Library has no catalogue yet: index one in Model Library first.",
     "recovery": "internal",
     "sources": {
@@ -83746,10 +84080,42 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The Scene panel has no file {a['file']}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 141
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Scene panel has no part {a['part']}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 137
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Scene panel's button is disabled now.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 133
+    }
+  },
+  {
+    "area": "other",
     "message": "The Windows user of this process could not be read.",
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/transport.py": 80
+    }
+  },
+  {
+    "area": "other",
+    "message": "The action is one of {', '.join(ACTIONS)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 488
     }
   },
   {
@@ -83930,6 +84296,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The call's safety class could not be worked out.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/server.py": 367
+    }
+  },
+  {
+    "area": "other",
     "message": "The captured guide bone palette does not match this PAC.",
     "recovery": "internal",
     "sources": {
@@ -84013,7 +84387,7 @@ MESSAGE_REFERENCE = [
     "message": "The command {call.tool.command_id} is not registered now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 179
+      "cdmw/mcp/tools.py": 196
     }
   },
   {
@@ -84122,6 +84496,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The field is read-only.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 527
+    }
+  },
+  {
+    "area": "other",
     "message": "The finder is not shown.",
     "recovery": "internal",
     "sources": {
@@ -84141,7 +84523,7 @@ MESSAGE_REFERENCE = [
     "message": "The folder for the output does not exist: {parent}",
     "recovery": "missing",
     "sources": {
-      "cdmw/domain/output_paths.py": 79
+      "cdmw/domain/output_paths.py": 107
     }
   },
   {
@@ -84386,6 +84768,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The list has no item {row}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 565
+    }
+  },
+  {
+    "area": "other",
+    "message": "The list has no row {wanted}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 226
+    }
+  },
+  {
+    "area": "other",
+    "message": "The list is empty.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 193
+    }
+  },
+  {
+    "area": "other",
     "message": "The look's prefabs could not be read: {error}",
     "recovery": "internal",
     "sources": {
@@ -84517,7 +84923,7 @@ MESSAGE_REFERENCE = [
     "message": "The output path must be absolute: {text}",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/output_paths.py": 75
+      "cdmw/domain/output_paths.py": 103
     }
   },
   {
@@ -84566,6 +84972,30 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/automation/bridge.py": 988
+    }
+  },
+  {
+    "area": "other",
+    "message": "The preview cannot take a picture now: nothing is shown in it yet.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 224
+    }
+  },
+  {
+    "area": "other",
+    "message": "The preview did not deliver the picture in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 206
+    }
+  },
+  {
+    "area": "other",
+    "message": "The preview did not take the camera now.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 169
     }
   },
   {
@@ -84778,6 +85208,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The shared Preview settings are not available yet.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 178
+    }
+  },
+  {
+    "area": "other",
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
@@ -84923,6 +85361,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The text is read-only.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 538
+    }
+  },
+  {
+    "area": "other",
     "message": "The texture registry ({TEXTURE_REGISTRY}) still lists {len(present)} texture(s) of CDMW's old overlays on the current game version. Use Steam's Verify integrity of game files first, then check again.",
     "recovery": "internal",
     "sources": {
@@ -84995,10 +85441,42 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "There is no command {command_id} now. commands_list lists them; the Mesh Editor's and the Texture Editor's exist while their tool is open.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/control_tools.py": 176
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no control {text} now. Call app_ui for the controls shown.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 74
+    }
+  },
+  {
+    "area": "other",
     "message": "There is no job {job_id}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/jobs.py": 124
+      "cdmw/mcp/jobs.py": 126
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no tab {row}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 573
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is nothing to take a picture of.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/control_tools.py": 50
     }
   },
   {
@@ -88800,6 +89278,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "row is needed: a row's number or its text.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 561
+    }
+  },
+  {
+    "area": "other",
     "message": "row is too short for a key and a name",
     "recovery": "internal",
     "sources": {
@@ -89670,6 +90156,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "value must be a number.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 544
+    }
+  },
+  {
+    "area": "other",
     "message": "value {replacement} would break the markup",
     "recovery": "internal",
     "sources": {
@@ -89730,6 +90224,14 @@ MESSAGE_REFERENCE = [
     "recovery": "recovery",
     "sources": {
       "cdmw/services/old_install_removal.py": 758
+    }
+  },
+  {
+    "area": "other",
+    "message": "{action} does not apply to a {kind_of(widget) or 'widget'}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 499
     }
   },
   {
@@ -90330,6 +90832,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/appearance_composite.py": 801
+    }
+  },
+  {
+    "area": "other",
+    "message": "{len(found)} controls have the text {text}; name one by its widget id.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 367
     }
   },
   {
@@ -91153,7 +91663,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name} and {wires[tool.wire]} have the same client name",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 198
+      "cdmw/mcp/tools.py": 215
     }
   },
   {
@@ -91161,7 +91671,15 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: a command tool is named after its command id",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 150
+      "cdmw/mcp/tools.py": 167
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: a tool whose class depends on the call is not listed as read",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/tools.py": 157
     }
   },
   {
@@ -91169,7 +91687,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: a typed tool is named <family>.<action>",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 155
+      "cdmw/mcp/tools.py": 172
     }
   },
   {
@@ -91177,7 +91695,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: an output tool names the arguments it writes to",
     "recovery": "write",
     "sources": {
-      "cdmw/mcp/tools.py": 140
+      "cdmw/mcp/tools.py": 155
     }
   },
   {
@@ -91185,7 +91703,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: clients cannot call {tool.wire}",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/tools.py": 136
+      "cdmw/mcp/tools.py": 150
     }
   },
   {
@@ -91193,7 +91711,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: command tools come from the registry",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 196
+      "cdmw/mcp/tools.py": 213
     }
   },
   {
@@ -91201,7 +91719,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: output path {name} is not an argument",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/tools.py": 143
+      "cdmw/mcp/tools.py": 160
     }
   },
   {
@@ -91209,7 +91727,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: runs_on must be {ON_WORKER}, {ON_UI} or {ON_CALL}",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/tools.py": 138
+      "cdmw/mcp/tools.py": 152
     }
   },
   {
@@ -91217,7 +91735,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: unknown effect class {tool.effect}",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 134
+      "cdmw/mcp/tools.py": 148
     }
   },
   {
@@ -91225,15 +91743,23 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: {tool.family} is not a typed tool family",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/tools.py": 153
+      "cdmw/mcp/tools.py": 170
     }
   },
   {
     "area": "other",
-    "message": "{tool.wire} is not built yet: its {tool.effect} tools come with a later part of the AI connection work.",
+    "message": "{tool.wire} is a command, not a tool of its own: run it with app_run_command, command {tool.command_id}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/server.py": 341
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.wire} is not built yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 315
+      "cdmw/mcp/server.py": 343
     }
   },
   {
@@ -100011,6 +100537,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "A point lies outside the texture ({width} x {height}).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_tools.py": 176
+    }
+  },
+  {
+    "area": "textures",
     "message": "A required texture replacement resource is missing.",
     "recovery": "missing",
     "sources": {
@@ -101379,6 +101913,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "No texture is open in the Texture Editor: open one from the Mesh Editor's Textures panel (textures_list, then textures_open).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_tools.py": 38
+    }
+  },
+  {
+    "area": "textures",
     "message": "None of the chosen parts' materials uses {source_path}.",
     "recovery": "internal",
     "sources": {
@@ -101455,6 +101997,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/texture_editor_project_io.py": 518
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_tools.py": 97
     }
   },
   {
@@ -102438,6 +102988,54 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/textures/rules.py": 249
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The Texture Editor did not add the adjustment.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_tools.py": 151
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The Texture Editor has no tool {tool}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_tools.py": 180
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The Texture Editor has no tool {tool}. textures_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_tools.py": 120
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The Texture Editor is busy; try again in a moment.",
+    "recovery": "locked",
+    "sources": {
+      "cdmw/mcp/texture_tools.py": 41
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The Textures panel has no texture {wanted}. textures_list lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_tools.py": 104
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The adjustments are: {', '.join(kinds)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_tools.py": 146
     }
   },
   {
@@ -104830,6 +105428,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/new_item/iteminfo_operations.py",
     "cdmw/domain/new_item/iteminfo_overrides.py",
     "cdmw/domain/new_item/rules.py",
+    "cdmw/mcp/new_item_tools.py",
     "cdmw/services/new_item_behavior.py",
     "cdmw/services/new_item_body_visibility.py",
     "cdmw/services/new_item_definition.py",
@@ -104947,6 +105546,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/mesh/operations.py",
     "cdmw/domain/mesh/ui_state.py",
     "cdmw/domain/mesh/ui_state_reducer.py",
+    "cdmw/mcp/mesh_tools.py",
     "cdmw/modding/mesh_asset.py",
     "cdmw/modding/mesh_glb_interchange.py",
     "cdmw/modding/mesh_importer.py",
@@ -105220,12 +105820,16 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/hair_registration.py",
     "cdmw/domain/library/scene_selection.py",
     "cdmw/mcp/bridge.py",
+    "cdmw/mcp/control_tools.py",
     "cdmw/mcp/jobs.py",
     "cdmw/mcp/link.py",
     "cdmw/mcp/read_tools.py",
     "cdmw/mcp/server.py",
     "cdmw/mcp/tools.py",
     "cdmw/mcp/transport.py",
+    "cdmw/mcp/ui_actions.py",
+    "cdmw/mcp/ui_tree.py",
+    "cdmw/mcp/view_tools.py",
     "cdmw/modding/pac_cloth_constraints.py",
     "cdmw/modding/pac_cloth_guide_builder.py",
     "cdmw/modding/pac_cloth_skinning.py",
@@ -106950,6 +107554,11 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/catalogue.py": {},
   "cdmw/mcp/classification.py": {},
+  "cdmw/mcp/control_tools.py": {
+    "code": 4,
+    "raise": 6,
+    "report": 1
+  },
   "cdmw/mcp/coverage.py": {},
   "cdmw/mcp/errors.py": {
     "diagnostic_text": 2,
@@ -106966,7 +107575,19 @@ SOURCE_COVERAGE = {
   "cdmw/mcp/link.py": {
     "raise": 1
   },
+  "cdmw/mcp/mesh_tools.py": {
+    "code": 10,
+    "diagnostic_field": 1,
+    "failure": 1,
+    "raise": 26,
+    "report": 2
+  },
   "cdmw/mcp/names.py": {},
+  "cdmw/mcp/new_item_tools.py": {
+    "code": 3,
+    "raise": 7,
+    "report": 3
+  },
   "cdmw/mcp/paging.py": {
     "code": 2,
     "raise": 2
@@ -106983,22 +107604,45 @@ SOURCE_COVERAGE = {
     "report": 8
   },
   "cdmw/mcp/server.py": {
-    "code": 6,
+    "code": 8,
     "diagnostic_field": 1,
-    "raise": 10,
-    "report": 9
+    "raise": 12,
+    "report": 10
   },
   "cdmw/mcp/setup_lines.py": {},
   "cdmw/mcp/summary.py": {},
+  "cdmw/mcp/texture_tools.py": {
+    "code": 5,
+    "raise": 9
+  },
   "cdmw/mcp/tools.py": {
     "code": 1,
-    "raise": 13,
+    "raise": 14,
     "report": 1
   },
   "cdmw/mcp/transport.py": {
     "diagnostic_field": 1,
     "raise": 8,
     "report": 1
+  },
+  "cdmw/mcp/ui_actions.py": {
+    "code": 3,
+    "diagnostic_field": 5,
+    "failure": 4,
+    "log": 1,
+    "raise": 1,
+    "report": 1
+  },
+  "cdmw/mcp/ui_tree.py": {
+    "code": 13,
+    "failure": 1,
+    "raise": 23,
+    "report": 1
+  },
+  "cdmw/mcp/view_tools.py": {
+    "code": 4,
+    "raise": 18,
+    "report": 3
   },
   "cdmw/modding/__init__.py": {},
   "cdmw/modding/_pbd_numeric.py": {

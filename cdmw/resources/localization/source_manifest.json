@@ -35476,7 +35476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 1007,
+          "line": 1012,
           "sink": "question"
         }
       ]
@@ -35571,7 +35571,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 990,
+          "line": 995,
           "sink": "question"
         }
       ]
@@ -39536,7 +39536,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
-          "line": 141,
+          "line": 229,
           "sink": "translate_active_ui_text"
         },
         {
@@ -44086,7 +44086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 115,
+          "line": 134,
           "sink": "python-return:hair_character_for_target"
         },
         {
@@ -46406,7 +46406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 664,
+          "line": 669,
           "sink": "setToolTip"
         }
       ]
@@ -46416,7 +46416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 662,
+          "line": 667,
           "sink": "setToolTip"
         }
       ]
@@ -47156,7 +47156,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 990,
+          "line": 995,
           "sink": "question"
         }
       ]
@@ -50426,7 +50426,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 406,
+          "line": 411,
           "sink": "addTab"
         }
       ]
@@ -51846,7 +51846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1048,
+          "line": 1050,
           "sink": "set_status_message"
         }
       ]
@@ -83657,7 +83657,7 @@
       ]
     },
     {
-      "key": "Lets AI apps on this computer, such as Claude and Codex CLI, search the archives and answer questions about files through CDMW's tools. Off by default; while it is off nothing listens.",
+      "key": "Lets AI apps on this computer, such as Claude and Codex CLI, see and use CDMW through its tools: search the archives, read files, and work in its tools as you do. Off by default; while it is off nothing listens.",
       "origins": [
         {
           "path": "cdmw/ui/ai_connections/settings_section.py",
@@ -85866,7 +85866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 99,
+          "line": 103,
           "sink": "setText"
         }
       ]
@@ -90551,7 +90551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 878,
+          "line": 883,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -90706,7 +90706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1231,
+          "line": 1233,
           "sink": "set_status_message"
         }
       ]
@@ -90766,7 +90766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1229,
+          "line": 1231,
           "sink": "set_status_message"
         }
       ]
@@ -90951,7 +90951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 823,
+          "line": 825,
           "sink": "set_status_message"
         },
         {
@@ -91291,7 +91291,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 945,
+          "line": 950,
           "sink": "RuntimeError"
         }
       ]
@@ -91311,32 +91311,32 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1120,
+          "line": 1122,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1140,
+          "line": 1142,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1147,
+          "line": 1149,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1167,
+          "line": 1169,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1176,
+          "line": 1178,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1190,
+          "line": 1192,
           "sink": "set_status_message"
         }
       ]
@@ -92001,7 +92001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1233,
+          "line": 1235,
           "sink": "set_status_message"
         }
       ]
@@ -100261,7 +100261,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
-          "line": 143,
+          "line": 231,
           "sink": "translate_active_ui_text"
         },
         {
@@ -108796,7 +108796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 181,
+          "line": 200,
           "sink": "ValueError"
         }
       ]
@@ -108806,7 +108806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 127,
+          "line": 146,
           "sink": "ValueError"
         }
       ]
@@ -110276,7 +110276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1106,
+          "line": 1108,
           "sink": "set_status_message"
         }
       ]
@@ -110406,7 +110406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 920,
+          "line": 922,
           "sink": "set_status_message"
         }
       ]
@@ -110571,7 +110571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1051,
+          "line": 1053,
           "sink": "set_status_message"
         }
       ]
@@ -113381,7 +113381,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1178,
+          "line": 1180,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -121141,7 +121141,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 942,
+          "line": 944,
           "sink": "set_status_message"
         }
       ]
@@ -121626,7 +121626,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1169,
+          "line": 1171,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -125021,7 +125021,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
-          "line": 142,
+          "line": 230,
           "sink": "translate_active_ui_text"
         },
         {
@@ -129771,7 +129771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1157,
+          "line": 1159,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -129826,7 +129826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1155,
+          "line": 1157,
           "sink": "set_status_message"
         }
       ]
@@ -131471,7 +131471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 191,
+          "line": 210,
           "sink": "ValueError"
         }
       ]
@@ -148321,12 +148321,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 839,
+          "line": 841,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1114,
+          "line": 1116,
           "sink": "set_status_message"
         }
       ]
@@ -148391,7 +148391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1238,
+          "line": 1240,
           "sink": "set_status_message"
         }
       ]
@@ -169356,7 +169356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 195,
+          "line": 214,
           "sink": "ValueError"
         }
       ]
@@ -173476,7 +173476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 1007,
+          "line": 1012,
           "sink": "question"
         }
       ]
@@ -195036,7 +195036,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 189,
+          "line": 208,
           "sink": "HairReferencePickerDialog"
         },
         {
@@ -201221,7 +201221,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 189,
+          "line": 208,
           "sink": "HairReferencePickerDialog"
         }
       ]
@@ -202657,7 +202657,7 @@
       ]
     },
     {
-      "key": "lets AI apps on this computer, such as Claude Desktop, Claude Code and Codex CLI, use CDMW's read-only tools while CDMW is open. Turn on Allow AI connections, add CDMW to the app with a line this page shows, then restart the app. These tools change nothing; no tool writes into the game or changes these settings, and CDMW logs every call.",
+      "key": "lets AI apps on this computer, such as Claude Desktop, Claude Code and Codex CLI, see and do in CDMW what you can while CDMW is open: search the archives and read files, work in Browse Archives, the Mesh Editor, the Texture Editor and Create New Item, press the buttons and fill the fields of any page, and take pictures of the windows and 3D views. Turn on Allow AI connections, add CDMW to the app with a line this page shows, then restart the app. Tools that only read always run. Tools that change something, write a file or delete something ask you in CDMW first, unless you set that kind to allow or turn on Full access. No tool writes into the game, changes these settings or the game folder, or answers its own question, and CDMW logs every call.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -220636,7 +220636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1157,
+          "line": 1159,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -221201,7 +221201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1157,
+          "line": 1159,
           "sink": "MeshImportSetupSelection"
         }
       ]
