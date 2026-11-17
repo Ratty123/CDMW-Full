@@ -1560,6 +1560,8 @@ fn ver2_grime_detail(
 
 struct RgbLayerChannel {
     pixels: Option<ImagePixels>,
+    /// The authored sRGB dye and strength, for the game's overlay rule.
+    tint: [f32; 4],
     dye: [f32; 4],
     opacity: f32,
     mean: f32,
@@ -1602,6 +1604,7 @@ fn compose_rgb_layer_base_color(
     let mut scratch: [Option<([f32; 4], ImagePixels)>; 3] = [None, None, None];
     let mut channels: [RgbLayerChannel; 3] = std::array::from_fn(|_| RgbLayerChannel {
         pixels: None,
+        tint: [0.0; 4],
         dye: [0.0; 4],
         opacity: 0.0,
         mean: 1.0,
@@ -1640,6 +1643,7 @@ fn compose_rgb_layer_base_color(
         channels[k].mean = mean_linear_luminance(cache.image(reference)?);
         channels[k].pixels = Some(cache.transformed(reference, width, height, layer)?);
         channels[k].dye = dye;
+        channels[k].tint = layer.tint;
         channels[k].opacity = layer.blend_opacity.unwrap_or(layer.weight);
         channels[k].flags = layer.blend_flags.unwrap_or(15);
         if layer.is_ver2_scratch() {
@@ -1690,12 +1694,8 @@ fn compose_rgb_layer_base_color(
             let mut color = [0.0_f32; 3];
             for (k, channel) in channels.iter().enumerate() {
                 let c = if let Some(pixels) = channel.pixels.as_deref() {
-                    rgb_layer_dye(
-                        linear_pixel(pixels, offset),
-                        channel.dye,
-                        channel.mean,
-                        channel.opacity,
-                    )
+                    // The game's dye rule; the opacity byte does not scale colour.
+                    ver2_tint(linear_pixel(pixels, offset), channel.tint)
                 } else if channel.seed[3] > 0.0 {
                     rgb_layer_dye(base_rgb, channel.seed, base_mean, 1.0)
                 } else {

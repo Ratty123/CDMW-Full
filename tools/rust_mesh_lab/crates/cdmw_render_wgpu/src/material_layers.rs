@@ -16,6 +16,9 @@ const REQUIRED_SAMPLED_TEXTURES: u32 = 40;
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable, Default)]
 pub struct LayerEntryUniform {
+    /// The layer's dye. Colour-blend layers (mode 1) carry the authored sRGB
+    /// colour, which the game overlays in display space; the sequential
+    /// overlays (mode 2) carry it linear.
     pub dye: [f32; 4],
     pub affine: [f32; 4],
     pub offset: [f32; 4],

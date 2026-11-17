@@ -470,7 +470,10 @@ Full preview packages bind eligible RGB detail layers from the shared PAC graph
 as source-resolution DDS in bind group 2. Group 0 and its 288-byte material uniform
 remain compatible. The renderer requests 40 sampled textures when available;
 other adapters and unsupported graphs use the CPU compositor. Each detail has
-an affine UV transform, linear dye, mean luminance and direct packed response.
+an affine UV transform, a dye and direct packed response. Colour-blend layers are
+dyed as the game's Ver2 shader does: the texel is desaturated 80%, the sRGB dye is
+overlaid in display space and mixed in by its alpha alone. Sequential overlays
+keep a linear dye scaled by the map's mean luminance.
 The layer sampler uses zero LOD bias. Technical masks use sequential overlays
 with separate authored colour, normal and packed-response flags and opacity.
 Missing channels use base maps; colour

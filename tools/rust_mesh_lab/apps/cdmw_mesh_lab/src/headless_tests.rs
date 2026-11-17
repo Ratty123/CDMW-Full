@@ -158,6 +158,20 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             [1.0, 1.0, 1.0],
         ),
         (
+            // The game's rule: desaturate, overlay the sRGB dye, mix by its alpha.
+            // Pure red desaturates to (0.439, 0.239, 0.239) linear, (0.694, 0.527,
+            // 0.527) in sRGB; overlaid with #806040 that is (0.441, 0.139, 0.069)
+            // in linear light.
+            "overlay dye",
+            1,
+            15,
+            [255, 0, 0, 255],
+            false,
+            [128.0 / 255.0, 96.0 / 255.0, 64.0 / 255.0, 1.0],
+            [0.0; 4],
+            [0.4409, 0.1395, 0.0686],
+        ),
+        (
             "rotated repeat",
             1,
             15,

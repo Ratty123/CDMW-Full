@@ -188,7 +188,9 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
         var n = vec3<f32>(0.0,0.0,1.0);
         var sp = base_sp;
         if layer.properties.z > 0.5 {
-            c = layer_dye(colors[k], layer.dye, layer.properties.y, layer.properties.x);
+            // The game's dye: its alpha alone sets the strength; the layer
+            // opacity byte belongs to normal and response, not to colour.
+            c = layer_tint(colors[k], layer.dye);
             n = layer_normal(normals[k], layer);
             sp = responses[k];
         } else if layer_uniform.seeds[k].a > 0.0 {

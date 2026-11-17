@@ -39,7 +39,9 @@ affine, blends normals and reads layer occlusion, roughness and metal directly.
 Colour seeds can supply channels without a detail layer. Technical detail masks
 use sequential overlays with authored channel flags and opacity, preserving base
 colour when only normals are enabled. An absent dye has zero strength; an
-explicit white dye remains white. Older packages lacking these sequential controls
+explicit white dye remains white. Colour-blend (Ver2) layers take the game's dye
+rule on both routes: desaturate the texel 80%, overlay the sRGB dye, mix by the
+dye's alpha; the layer opacity byte does not scale colour. Older packages lacking these sequential controls
 keep their CPU route until regenerated. Unsupported graphs or
 adapters retain CPU composition, including repeat-wrapped affine sampling.
 Grime of the Ver2 colour-blend families is drawn as the game's shader does: the

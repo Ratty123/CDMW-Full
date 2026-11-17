@@ -348,7 +348,12 @@ fn build(
         );
         // Grime of this channel may already sit in the entry: keep it.
         result.uniform.layers[k] = LayerEntryUniform {
-            dye: dye(layer.tint),
+            // Colour-blend layers are dyed by the game's overlay, on display values.
+            dye: if result.uniform.control[0] == 1 {
+                layer.tint
+            } else {
+                dye(layer.tint)
+            },
             affine: [affine[0], affine[1], affine[2], affine[3]],
             offset: [
                 affine[4],
@@ -1019,6 +1024,115 @@ mod tests {
                     "red {red}: metal {} != {metal}",
                     response[2]
                 );
+            }
+        }
+    }
+
+    /// The game dyes a colour layer by desaturating its texel 80%, overlaying the
+    /// dye in sRGB and mixing by the dye's alpha (the plate's leather layer G:
+    /// `_dyeingDetailLayerColorMaskG` #826c5bff). The layer opacity byte does not
+    /// scale it. The GPU uniform carries the sRGB dye; the CPU fallback composes
+    /// the same colour.
+    #[test]
+    fn ver2_dye_overlays_in_srgb_on_gpu_uniform_and_cpu_fallback() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let srgb = |value: f32| {
+            if value <= 0.003_130_8 {
+                value * 12.92
+            } else {
+                1.055 * value.powf(1.0 / 2.4) - 0.055
+            }
+        };
+        let texel = [90_u8, 70, 50];
+        for dye in [
+            [130.0 / 255.0, 108.0 / 255.0, 91.0 / 255.0, 1.0],
+            [1.0, 229.0 / 255.0, 99.0 / 255.0, 217.0 / 255.0],
+            [0.5, 0.5, 0.5, 0.0],
+        ] {
+            let bytes = [
+                make([texel[0], texel[1], texel[2], 255]),
+                make([255, 0, 0, 255]),
+            ];
+            let refs = [
+                reference(&bytes[0], "leather.dds"),
+                reference(&bytes[1], "mask.dds"),
+            ];
+            let mut base = layer("base", "r", &refs[0]);
+            base.diffuse = None;
+            base.mask = None;
+            let mut leather = layer("detail", "r", &refs[0]);
+            leather.mask = Some(refs[1].clone());
+            leather.tint = dye;
+            leather.blend_opacity = Some(0.25);
+            leather.blend_flags = Some(15);
+            let graph = PreviewCoreMaterialGraph {
+                schema_version: 1,
+                graph_version: 5,
+                semantics_version: 10,
+                quality: "full".into(),
+                resources_included: true,
+                source_edge_count: 2,
+                unique_resource_count: 2,
+                copied_resource_count: 2,
+                unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+                materials: vec![material(vec![base, leather])],
+            };
+            for gpu in [true, false] {
+                let mut resources = Vec::new();
+                let (_, layers) = prepare(
+                    &graph,
+                    &[],
+                    &document,
+                    &mut resources,
+                    gpu,
+                    false,
+                    |r| {
+                        Ok(bytes[refs
+                            .iter()
+                            .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                            .unwrap()]
+                        .clone())
+                    },
+                    &|| false,
+                )
+                .unwrap();
+                if gpu {
+                    assert_eq!(layers[0].uniform.control[0], 1);
+                    assert_eq!(
+                        layers[0].uniform.layers[0].dye, dye,
+                        "the dye stays in display space for the overlay"
+                    );
+                    continue;
+                }
+                let composed = resources
+                    .iter()
+                    .find(|r| r.role == TextureRole::BaseColor)
+                    .expect("composed base colour");
+                let decoded =
+                    cdmw_texture::decode_dds_rgba8(&composed.bytes, composed.role).unwrap();
+                let colour: [f32; 3] = std::array::from_fn(|k| linear(f32::from(texel[k]) / 255.0));
+                let luma = 0.299 * colour[0] + 0.587 * colour[1] + 0.114 * colour[2];
+                for channel in 0..3 {
+                    let grey = srgb(colour[channel] + (luma - colour[channel]) * 0.8);
+                    let overlaid = if grey < 0.5 {
+                        2.0 * grey * dye[channel]
+                    } else {
+                        1.0 - 2.0 * (1.0 - grey) * (1.0 - dye[channel])
+                    };
+                    let expected = colour[channel] + (linear(overlaid) - colour[channel]) * dye[3];
+                    let drawn = linear(f32::from(decoded.pixels[channel]) / 255.0);
+                    assert!(
+                        (drawn - expected).abs() <= 0.006,
+                        "dye {dye:?}, channel {channel}: {drawn} != {expected}"
+                    );
+                }
             }
         }
     }
