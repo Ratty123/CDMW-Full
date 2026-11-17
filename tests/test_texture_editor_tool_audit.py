@@ -436,3 +436,37 @@ def test_a_texture_opened_on_its_own_can_still_clear_its_history(tmp_path) -> No
         editor.request_shutdown()
         editor.deleteLater()
         _app().sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+# The edit as the model gets it ----------------------------------------------------------
+
+
+def test_a_recolor_reaches_the_file_the_mesh_editor_loads(dock, tmp_path) -> None:
+    """The dock's edit goes through LiveTextureUpdates, as the Mesh Editor wires it, and
+    the RGBA8 DDS it writes for the 3D view holds the recoloured pixels."""
+    from PySide6.QtCore import QThreadPool
+
+    from cdmw.ui.mesh_editor.live_texture_updates import EDITS_DIRNAME, LiveTextureUpdates
+
+    session_root = tmp_path / "session"
+    session_root.mkdir()
+    sent: list[dict] = []
+    pool = QThreadPool()
+    live = LiveTextureUpdates(lambda: session_root, lambda payload: sent.append(dict(payload)) or True, pool=pool)
+    dock.tools.texture_edited.connect(lambda _s, sha, image, changed: live.push(sha, image, changed=changed))
+    editor = dock.editor
+    editor.tool_buttons["recolor"].click()
+    editor.recolor_mode_combo.setCurrentIndex(editor.recolor_mode_combo.findData("tint"))
+    editor.recolor_target_edit.setText("#2100C8")
+    editor.apply_recolor_button.click()
+    deadline = time.monotonic() + 10
+    while not sent and time.monotonic() < deadline:
+        pool.waitForDone(100)
+        _pump(0.02)
+    assert sent and sent[-1]["source_sha256"] == SHA
+    path = session_root / sent[-1]["file"]
+    assert path.parent.name == EDITS_DIRNAME
+    data = path.read_bytes()
+    pixels = np.frombuffer(data[128:], dtype=np.uint8).reshape(64, 64, 4)
+    assert np.array_equal(pixels, dock.composite())
+    assert set(live.edited_textures()) == {SHA}
