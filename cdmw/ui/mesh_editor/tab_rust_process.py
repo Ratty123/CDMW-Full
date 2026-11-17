@@ -16,6 +16,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_MESH_EDIT_BACKEND,
     RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_RENDERER,
+    RUST_HOST_CDMW_COMMAND_CAPABILITY,
     RUST_UI_TRANSLATION_PARTS_CAPABILITY,
 )
 from cdmw.ui.mesh_editor.process_io import (
@@ -602,6 +603,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_translation_parts_supported = (
             RUST_UI_TRANSLATION_PARTS_CAPABILITY in capability_set
         )
+        self.standalone_rust_host_commands_supported = RUST_HOST_CDMW_COMMAND_CAPABILITY in capability_set
         session = self.standalone_rust_authoring_session
         if session is not None and (
             session.hair_start_mode

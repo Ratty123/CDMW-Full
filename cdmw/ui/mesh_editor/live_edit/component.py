@@ -71,7 +71,7 @@ STATE_NAMES = (
     "standalone_rust_stderr_tail", "standalone_rust_stdout_buffer", "standalone_rust_stop_after_protocol",
     "standalone_rust_target_controller", "standalone_rust_terminal_close_pending",
     "standalone_rust_texture_unavailable_reason", "standalone_rust_theme_digest",
-    "standalone_rust_translation_parts_supported",
+    "standalone_rust_translation_parts_supported", "standalone_rust_host_commands_supported",
 )
 
 

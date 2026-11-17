@@ -18,6 +18,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, Signal
 
 from cdmw.automation import inspect_commands, pass_commands, saved_work_commands
+from cdmw.automation import authoring_commands
 from cdmw.automation.pipe import LocalPipeServer, recv_json, send_json
 from cdmw.automation.policy import AutomationSettings
 
@@ -175,6 +176,8 @@ class AutomationBridge(QObject):
             "switch_piece": self._switch_piece,
             "debug_dump": self._debug_dump,
             "build_mod": self._build_mod,
+            # Import Replacement, Export Mesh File and New painting (authoring_commands.py).
+            **authoring_commands.ui_commands(self),
             # Drafts & Mods and whole-part selection (saved_work_commands.py).
             "saved_work_rows": lambda args: saved_work_commands.saved_work_rows(self.window, args),
             "saved_work_combine": lambda args: saved_work_commands.saved_work_combine(self.window, args),

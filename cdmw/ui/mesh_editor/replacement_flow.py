@@ -5,8 +5,13 @@ from PySide6.QtWidgets import QFileDialog
 from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
 
+# The mesh file the next Import Replacement takes instead of asking with the file
+# chooser; used once. Only CDMW's automated test runs set it (cdmw.automation).
+source_path_override = None
+
 
 def prepare_replacement_event(tab, session, event):
+    global source_path_override
     args = dict(event.get("arguments") or {})
     state = session.shadow_service._session(session.shadow_session_id).replacement_state
     if event.get("command") in {"replacement_islands", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_shader_controls", "replacement_guides", "replacement_cloth", "replacement_weapon_collisions", "replacement_collision_volumes", "replacement_jiggle"} and state is not None:
@@ -25,8 +30,10 @@ def prepare_replacement_event(tab, session, event):
         args["_archive_entry"] = target
         args["_archive_dependencies"] = archive_workflow_dependency_context(owner, target)
     if event.get("command") == "replacement_choose":
-        path, _ = QFileDialog.getOpenFileName(tab, "Import Replacement", "",
-                                              "Mesh models (*.obj *.dae *.gltf *.glb *.fbx)")
+        path, source_path_override = source_path_override, None
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(tab, "Import Replacement", "",
+                                                  "Mesh models (*.obj *.dae *.gltf *.glb *.fbx)")
         blender = _blender_for(tab, path) if path.lower().endswith(".fbx") else ""
         if not path or blender is None:
             args["cancelled"] = True

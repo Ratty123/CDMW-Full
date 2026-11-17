@@ -191,6 +191,7 @@ class PaintingDialog(QDialog):
         self.close_button.clicked.connect(self.reject)
         layout.addWidget(self.button_box)
         controller.log_message.connect(self._log_line)
+        self._log_connected = True
         self._refresh_list()
         self._show_painting()
         self.reload_frames()
@@ -429,13 +430,22 @@ class PaintingDialog(QDialog):
         if self._building:
             self.log.appendPlainText(str(message))
 
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API
+        # New painting... opens this dialog again after Close, which let the log go.
+        if not self._log_connected:
+            self._controller.log_message.connect(self._log_line)
+            self._log_connected = True
+        super().showEvent(event)
+
     def done(self, result: int) -> None:
         if self._building:
             self._controller.cancel_operation("paintings")
-        try:
-            self._controller.log_message.disconnect(self._log_line)
-        except (RuntimeError, TypeError):
-            pass
+        if self._log_connected:
+            self._log_connected = False
+            try:
+                self._controller.log_message.disconnect(self._log_line)
+            except (RuntimeError, TypeError):
+                pass
         super().done(result)
 
 

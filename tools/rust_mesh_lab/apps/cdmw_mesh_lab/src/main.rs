@@ -3738,6 +3738,18 @@ impl LabApplication {
                     .data_mut(|data| data.insert_temp(egui::Id::new("cdmw_parts_panel_open"), true));
                 self.handle_actions(vec![UiAction::SetPartSelection(indices)]);
             }
+            HostEvent::CdmwCommand {
+                command,
+                label,
+                arguments,
+            } => {
+                // The action the panel's button pushes, through the same path.
+                self.handle_actions(vec![UiAction::CdmwCommand {
+                    command,
+                    arguments,
+                    label,
+                }]);
+            }
             HostEvent::VertexInspection {
                 request_id,
                 ok,
