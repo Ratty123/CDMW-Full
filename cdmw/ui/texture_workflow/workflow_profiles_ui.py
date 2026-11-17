@@ -358,7 +358,7 @@ class TextureWorkflowProfilesUiMixin:
         self.workflow_rule_planner_profile_help_button = QPushButton("Docs")
         self.workflow_rule_planner_profile_help_button.setMaximumWidth(56)
         self.workflow_rule_planner_profile_help_button.setToolTip(
-            "Open the in-app documentation topic that explains planner profiles."
+            "Open the online manual at the topic that explains planner profiles."
         )
         planner_profile_label_layout.addWidget(self.workflow_rule_planner_profile_help_button)
         planner_profile_label_layout.addStretch(1)
@@ -370,7 +370,7 @@ class TextureWorkflowProfilesUiMixin:
         self.workflow_rule_planner_path_help_button = QPushButton("Docs")
         self.workflow_rule_planner_path_help_button.setMaximumWidth(56)
         self.workflow_rule_planner_path_help_button.setToolTip(
-            "Open the in-app documentation topic that explains planner paths."
+            "Open the online manual at the topic that explains planner paths."
         )
         planner_path_label_layout.addWidget(self.workflow_rule_planner_path_help_button)
         planner_path_label_layout.addStretch(1)

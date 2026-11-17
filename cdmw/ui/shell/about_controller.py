@@ -73,10 +73,42 @@ class AboutControllerMixin:
         QDesktopServices.openUrl(url)
 
     def _build_about_overview_html(self) -> str:
-        return self._build_about_intro_html() + """
+        # Topic links open the Wiki manual there, so this lead-in names the manual
+        # instead of the built-in window's side menu and search.
+        return f"""
+        <p><b>{APP_TITLE} v{APP_VERSION}</b> is a Windows desktop tool for Crimson Desert archive browsing and preview, supported archive patching, DDS rebuild workflows, visible-texture editing, replacement packaging, research, and text search.</p>
+        <p>Open a guide in the online manual:
+        <a href="topic:documentation_index">Documentation Index</a>,
+        <a href="topic:first_run_checklist">First Run Checklist</a>,
+        <a href="topic:new_item_studio">Create New Item</a>,
+        <a href="topic:model_library">Model Library</a>,
+        <a href="topic:icon_creator">Icon Creator</a>,
+        <a href="topic:workflow_overview">Textures</a>,
+        <a href="topic:workflow_profiles">Workflow Profiles</a>,
+        <a href="topic:workflow_rules">Ordered Rules</a>,
+        <a href="topic:workflow_planner_profiles">Planner Profiles</a>,
+        <a href="topic:workflow_planner_paths">Planner Paths</a>,
+        <a href="topic:archive_browser">Archive Browser</a>,
+        <a href="topic:mesh_editor">Mesh Editor</a>,
+        <a href="topic:placement_studio">Placement &amp; Animations</a>,
+        <a href="topic:texture_editor">Textures: Edit</a>,
+        <a href="topic:replace_assistant">Textures: Replace</a>,
+        <a href="topic:texture_recolor">Textures: Recolor</a>,
+        <a href="topic:mod_package_retrofit">Retrofit/Repackage</a>,
+        <a href="topic:format_explorer">Format Explorer</a>,
+        <a href="topic:translation_studio">Translations</a>,
+        <a href="topic:research">Research</a>,
+        <a href="topic:text_search">Text Search</a>,
+        <a href="topic:mod_packaging">Mod Packaging</a>,
+        <a href="topic:profile_settings">Profile &amp; Settings</a>,
+        <a href="topic:window_layout">Window &amp; Layout</a>,
+        <a href="topic:safety">Safety</a>,
+        <a href="topic:faq">FAQ</a>,
+        <a href="topic:troubleshooting">Troubleshooting</a>.
+        </p>
             <h3>Application Areas</h3>
             <p>The current build exposes 12 tools across Assets, Authoring, and Utilities: Create New Item, Archive Browser, Model Library, Icon Creator, Mesh Editor, Placement &amp; Animations, Textures, Mod Management, Format Explorer, Translations, Research, and Text Search.</p>
-            <p>Use <b>Help &gt; Documentation</b> for the full searchable guide.</p>
+            <p><b>Help &gt; Documentation</b> opens the online manual on the GitHub Wiki in your browser.</p>
             """
 
     def _build_about_overview_html_es(self) -> str:
@@ -184,6 +216,22 @@ class AboutControllerMixin:
         """
 
     def show_documentation_dialog(self, _checked: bool = False, topic_id: str = "") -> None:
+        """Open the GitHub Wiki manual in the interface language, at ``topic_id`` when given.
+
+        Every Documentation entry point comes here: Help > Documentation, the
+        command palette, About, the first-run guide and each tool's Help link.
+        The built-in window opens only when no browser can be started.
+        """
+
+        from cdmw.ui.shell import wiki_links
+
+        language_code = str(getattr(getattr(self, "ui_localizer", None), "language_code", "") or "en")
+        if not wiki_links.open_documentation(language_code, topic_id):
+            self.show_builtin_documentation_dialog(topic_id=topic_id)
+
+    def show_builtin_documentation_dialog(self, _checked: bool = False, topic_id: str = "") -> None:
+        """The Help topics in a window of their own: the Wiki's source, kept for when no browser opens."""
+
         title, intro_html, sections = self._build_about_document_for_language(self.ui_localizer.language_code)
         dialog = AboutDialog(
             self,

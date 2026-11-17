@@ -177,6 +177,35 @@ def test_the_frames_come_from_the_picture_group_with_their_canvas_and_source():
     assert frame.label == "0.86 x 0.75 m frame, picture 0.77 x 0.64 m (cd_in_dpw_picture_01)"
 
 
+def test_a_frame_knows_where_its_canvas_sits_seen_from_the_front():
+    """The dialog draws the frame to scale with the picture where the canvas is."""
+    frame = discover_painting_frames(source()).frames[0]
+    left, top, right, bottom = frame.canvas_box
+    # bbox x -0.428..0.428, y 0.003..0.756; the canvas x -0.3875..0.3875, y 0..0.639.
+    assert left == pytest.approx(0.0405) and right == pytest.approx(0.8155)
+    assert top == pytest.approx(0.756 - 0.639) and bottom == pytest.approx(0.756)
+
+
+def test_a_frame_thumbnail_is_cut_to_the_visible_icon(tmp_path):
+    """Fredric (2026-11-17): the frame thumbnails were too small to see. A game icon
+    keeps the painting small inside a transparent margin; the thumbnail now drops it."""
+    import io
+
+    from cdmw.services.new_item_painting import frame_thumbnails
+
+    icon_image = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
+    icon_image.paste((120, 80, 40, 255), (96, 64, 160, 192))  # a 64 x 128 painting in the middle
+    buffer = io.BytesIO()
+    icon_image.save(buffer, "PNG")
+    files = game_files()
+    files[ICON_FILE] = buffer.getvalue()
+    paintings = source(files)
+    catalogue = discover_painting_frames(paintings)
+    thumbnail = Image.open(io.BytesIO(frame_thumbnails(paintings, catalogue)[MESH]))
+    assert thumbnail.size == (64, 128)
+    assert thumbnail.getpixel((0, 0))[3] == 255
+
+
 def test_a_painting_adds_its_rows_group_entry_texts_and_files_to_the_base_tables_only(picture):
     src = source()
     plan = plan_paintings(src, discover_painting_frames(src),

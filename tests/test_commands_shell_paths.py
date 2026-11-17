@@ -48,9 +48,7 @@ def shell(tmp_path_factory):
 
 
 def _page_ids(page) -> set[str]:
-    from cdmw.ui.commands.shortcuts_page import _ID_ROLE
-
-    return {str(page.table.item(row, 0).data(_ID_ROLE)) for row in range(page.table.rowCount())}
+    return set(page.command_ids())
 
 
 # ----- E1 -----------------------------------------------------------------
@@ -122,6 +120,29 @@ def test_e3_the_shortcuts_page_lists_the_shell_s_commands_on_first_open(shell):
         _leave_shortcuts(shell)
 
 
+def test_e3_the_shortcuts_table_fills_the_height_of_the_settings_page(shell):
+    """Item 12: the table takes the page's height instead of a fixed box above empty space."""
+
+    from PySide6.QtCore import QPoint
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QScrollArea
+
+    shell.resize(1200, 760)
+    page = _open_shortcuts(shell)
+    try:
+        QTest.qWait(50)
+        scroll = page.parentWidget()
+        while scroll is not None and not isinstance(scroll, QScrollArea):
+            scroll = scroll.parentWidget()
+        viewport = scroll.viewport()
+        bottom = page.table.mapTo(viewport, QPoint(0, page.table.height())).y()
+        # Below the table only its hint, its buttons and the page margin remain.
+        assert viewport.height() - bottom < page.fontMetrics().height() * 8
+        assert page.table.height() > viewport.height() // 2
+    finally:
+        _leave_shortcuts(shell)
+
+
 def test_e3_a_command_registered_while_the_page_is_hidden_is_listed_when_it_shows(shell):
     from cdmw.ui.commands import Command
 
@@ -145,7 +166,6 @@ def _change(shell, monkeypatch, command_id, key=None, modifiers=None, *, slot=0)
     from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
     from cdmw.ui.commands import shortcuts_page as module
-    from cdmw.ui.commands.shortcuts_page import _ID_ROLE
 
     seen = {}
 
@@ -161,8 +181,7 @@ def _change(shell, monkeypatch, command_id, key=None, modifiers=None, *, slot=0)
     page = _open_shortcuts(shell)
     try:
         page.search.setText(command_id)
-        row = next(r for r in range(page.table.rowCount()) if page.table.item(r, 0).data(_ID_ROLE) == command_id)
-        page.table.selectRow(row)
+        assert page.select_command(command_id)
         page.change_selected()
     finally:
         page.search.setText("")

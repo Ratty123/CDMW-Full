@@ -433,6 +433,17 @@ class NewItemTaskControllerMixin:
             return catalogue, frame_thumbnails(source, catalogue, stop_event=stop)
         return self._run("paintings", task, on_done, on_error)
 
+    def painting_preview_source(self, frame, picture: str, fit: str):
+        """New painting's 3D view: `(stop_event) -> ModelPreviewData` of the frame with the
+        picture on its canvas, run on the viewport frame's own worker (not a lane of this
+        controller, so it never waits on the frame read or a build). None before the
+        archives are read."""
+        snapshot = self.snapshot
+        if snapshot is None:
+            return None
+        from cdmw.services.new_item_painting_preview import painting_preview_source
+        return painting_preview_source(snapshot, frame, picture, fit)
+
     def start_painting_build(self, requests, folder, title: str, on_done: Callable[[object], None],
                              on_error: Callable[[str], None]) -> bool:
         """Build the requested paintings into a DMM mod folder (an earlier painting mod is extended)."""

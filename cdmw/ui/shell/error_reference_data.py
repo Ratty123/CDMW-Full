@@ -29051,7 +29051,7 @@ MESSAGE_REFERENCE = [
     "message": "A custom painting has not been tested in the game. Check it there before sharing the mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 641
+      "cdmw/services/new_item_painting.py": 658
     }
   },
   {
@@ -29267,7 +29267,7 @@ MESSAGE_REFERENCE = [
     "message": "Add at least one painting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 384
+      "cdmw/services/new_item_painting.py": 401
     }
   },
   {
@@ -29734,7 +29734,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a frame for the painting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 232
+      "cdmw/services/new_item_painting.py": 235
     }
   },
   {
@@ -30433,7 +30433,7 @@ MESSAGE_REFERENCE = [
     "message": "Fast textures remain visible; full textures failed to load: {failure}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 1329
+      "cdmw/ui/new_item/item_preview.py": 1336
     }
   },
   {
@@ -30497,7 +30497,7 @@ MESSAGE_REFERENCE = [
     "message": "Icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 594
+      "cdmw/services/new_item_painting.py": 611
     }
   },
   {
@@ -32587,6 +32587,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The 3D view could not be shown.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/painting_dialog.py": 650
+    }
+  },
+  {
+    "area": "items",
+    "message": "The 3D view is not available here: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/painting_dialog.py": 594
+    }
+  },
+  {
+    "area": "items",
     "message": "The DDS encoder produced no RGB glow map for {path.name}.",
     "recovery": "internal",
     "sources": {
@@ -33070,10 +33086,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The frame {frame.stem} could not be read for the 3D view.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting_preview.py": 145
+    }
+  },
+  {
+    "area": "items",
+    "message": "The frame {frame.stem} has no canvas part to show the picture on.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting_preview.py": 158
+    }
+  },
+  {
+    "area": "items",
     "message": "The frame {mesh} is not one CDMW can use.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 232
+      "cdmw/services/new_item_painting.py": 235
     }
   },
   {
@@ -33097,7 +33129,15 @@ MESSAGE_REFERENCE = [
     "message": "The game has no StringInfo table for the icon names.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 583
+      "cdmw/services/new_item_painting.py": 600
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game has no file {frame.mesh}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_painting_preview.py": 135
     }
   },
   {
@@ -33113,7 +33153,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no icon registry ({ICON_REGISTRY_PATH}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 588
+      "cdmw/services/new_item_painting.py": 605
     }
   },
   {
@@ -33121,7 +33161,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no {gimmick_path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 615
+      "cdmw/services/new_item_painting.py": 632
     }
   },
   {
@@ -33129,7 +33169,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no {stem} table.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 461
+      "cdmw/services/new_item_painting.py": 478
     }
   },
   {
@@ -33145,7 +33185,7 @@ MESSAGE_REFERENCE = [
     "message": "The game's housing groups have no {PICTURE_GROUP_NAME}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 257
+      "cdmw/services/new_item_painting.py": 260
     }
   },
   {
@@ -33153,7 +33193,7 @@ MESSAGE_REFERENCE = [
     "message": "The gimmick names no prefab.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 246
+      "cdmw/services/new_item_painting.py": 249
     }
   },
   {
@@ -33353,7 +33393,15 @@ MESSAGE_REFERENCE = [
     "message": "The picture could not be encoded: CDMW's texture helper is not available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 709
+      "cdmw/services/new_item_painting.py": 726
+    }
+  },
+  {
+    "area": "items",
+    "message": "The picture {source.name} cannot be read: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/new_item_painting_preview.py": 68
     }
   },
   {
@@ -33386,6 +33434,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/ui/new_item/rust_ui_document.py": 202
+    }
+  },
+  {
+    "area": "items",
+    "message": "The preview could not be built: {message}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/item_preview.py": 1161
     }
   },
   {
@@ -33425,7 +33481,7 @@ MESSAGE_REFERENCE = [
     "message": "The resident viewport is not available here.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 694
+      "cdmw/ui/new_item/item_preview.py": 698
     }
   },
   {
@@ -33433,7 +33489,15 @@ MESSAGE_REFERENCE = [
     "message": "The resident viewport is not available here. ({self._host_error})",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/item_preview.py": 694
+      "cdmw/ui/new_item/item_preview.py": 698
+    }
+  },
+  {
+    "area": "items",
+    "message": "The resident viewport rejected the preview package.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/new_item/item_preview.py": 1296
     }
   },
   {
@@ -33752,6 +33816,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The viewport reported an error.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/new_item/item_preview.py": 1339
+    }
+  },
+  {
+    "area": "items",
     "message": "The visual effect is grafted into every compatible prefab the item owns as an EffectComponent. Compatibility is checked structurally; verify the final placement and fit in game.",
     "recovery": "internal",
     "sources": {
@@ -33787,7 +33859,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} gimmick texts have no entry for {src.name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 622
+      "cdmw/services/new_item_painting.py": 639
     }
   },
   {
@@ -33795,7 +33867,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} item texts have no description for {src.name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 610
+      "cdmw/services/new_item_painting.py": 627
     }
   },
   {
@@ -33803,7 +33875,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} item texts have no entry for {src.name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 605
+      "cdmw/services/new_item_painting.py": 622
     }
   },
   {
@@ -34396,7 +34468,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/new_item/panels_template.py": 317
+      "cdmw/ui/new_item/panels_template.py": 326
     }
   },
   {
@@ -35445,7 +35517,7 @@ MESSAGE_REFERENCE = [
     "message": "its gimmick names another housing object",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 272
+      "cdmw/services/new_item_painting.py": 275
     }
   },
   {
@@ -35453,7 +35525,7 @@ MESSAGE_REFERENCE = [
     "message": "its icon is not named after the item",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 284
+      "cdmw/services/new_item_painting.py": 287
     }
   },
   {
@@ -35461,7 +35533,7 @@ MESSAGE_REFERENCE = [
     "message": "its item names another gimmick",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 277
+      "cdmw/services/new_item_painting.py": 280
     }
   },
   {
@@ -35469,7 +35541,7 @@ MESSAGE_REFERENCE = [
     "message": "its material file names no mesh",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 294
+      "cdmw/services/new_item_painting.py": 297
     }
   },
   {
@@ -35477,7 +35549,7 @@ MESSAGE_REFERENCE = [
     "message": "its painting {chosen.name} has no icon file",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 346
+      "cdmw/services/new_item_painting.py": 349
     }
   },
   {
@@ -35485,7 +35557,7 @@ MESSAGE_REFERENCE = [
     "message": "its prefab names {len(pamis)} material files, not one",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 290
+      "cdmw/services/new_item_painting.py": 293
     }
   },
   {
@@ -36314,7 +36386,7 @@ MESSAGE_REFERENCE = [
     "message": "{label}: give the painting an English name.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 393
+      "cdmw/services/new_item_painting.py": 410
     }
   },
   {
@@ -36322,7 +36394,7 @@ MESSAGE_REFERENCE = [
     "message": "{label}: unknown picture fit {request.fit}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 395
+      "cdmw/services/new_item_painting.py": 412
     }
   },
   {
@@ -36346,7 +36418,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(self._frames)} frames found; {left_out} left out because CDMW cannot map their canvas.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/painting_dialog.py": 276
+      "cdmw/ui/new_item/painting_dialog.py": 420
     }
   },
   {
@@ -36411,7 +36483,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} is not a key in this row.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_painting.py": 239
+      "cdmw/services/new_item_painting.py": 242
     }
   },
   {
@@ -36523,7 +36595,7 @@ MESSAGE_REFERENCE = [
     "message": "{own.name}: the encoded picture is not {texture_plan.width} x {texture_plan.height}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 541
+      "cdmw/services/new_item_painting.py": 558
     }
   },
   {
@@ -36531,7 +36603,7 @@ MESSAGE_REFERENCE = [
     "message": "{own.name}: the frame's prefab could not be copied: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 549
+      "cdmw/services/new_item_painting.py": 566
     }
   },
   {
@@ -36603,7 +36675,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} already exists; a new painting must not overwrite it.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_painting.py": 452
+      "cdmw/services/new_item_painting.py": 469
     }
   },
   {
@@ -36699,7 +36771,7 @@ MESSAGE_REFERENCE = [
     "message": "{root.name} has lost {path} of {painting.get('internal_name')}. Build the paintings into a new folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting.py": 690
+      "cdmw/services/new_item_painting.py": 707
     }
   },
   {
@@ -36707,7 +36779,7 @@ MESSAGE_REFERENCE = [
     "message": "{root.name} holds another mod, or one CDMW has no record of. Choose an empty folder, or a painting mod CDMW made on this computer.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/new_item_painting.py": 683
+      "cdmw/services/new_item_painting.py": 700
     }
   },
   {
@@ -37027,7 +37099,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous duplicate material parameter: {name}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 154
+      "cdmw/core/material_shader_controls.py": 169
     }
   },
   {
@@ -37035,7 +37107,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous material binding: {name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 78
+      "cdmw/core/material_shader_controls.py": 93
     }
   },
   {
@@ -37219,7 +37291,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot identify the material shader.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 244
+      "cdmw/core/material_shader_controls.py": 259
     }
   },
   {
@@ -37763,7 +37835,7 @@ MESSAGE_REFERENCE = [
     "message": "Dye roughness is inactive because the source hair dye alpha is zero. This edit will not enable dye or change its colour.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 113
+      "cdmw/core/material_shader_controls.py": 128
     }
   },
   {
@@ -37795,7 +37867,7 @@ MESSAGE_REFERENCE = [
     "message": "EyeCover requires Create New Item texture preparation.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 196
+      "cdmw/core/material_shader_controls.py": 211
     }
   },
   {
@@ -37803,7 +37875,7 @@ MESSAGE_REFERENCE = [
     "message": "EyeCover requires an explicit {name} binding; its game default uses a face texture.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 235
+      "cdmw/core/material_shader_controls.py": 250
     }
   },
   {
@@ -38276,7 +38348,7 @@ MESSAGE_REFERENCE = [
     "message": "Material sidecar exceeds the supported size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 257
+      "cdmw/core/material_shader_controls.py": 272
     }
   },
   {
@@ -38789,7 +38861,7 @@ MESSAGE_REFERENCE = [
     "message": "Painted cutouts require owned mask texture preparation.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 238
+      "cdmw/core/material_shader_controls.py": 253
     }
   },
   {
@@ -39269,7 +39341,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader material bindings were not found: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 296
+      "cdmw/core/material_shader_controls.py": 311
     }
   },
   {
@@ -39893,7 +39965,7 @@ MESSAGE_REFERENCE = [
     "message": "The static material has no parameter block.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 178
+      "cdmw/core/material_shader_controls.py": 193
     }
   },
   {
@@ -40021,7 +40093,7 @@ MESSAGE_REFERENCE = [
     "message": "World-object and equipment shaders use different vertex pipelines.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 93
+      "cdmw/core/material_shader_controls.py": 108
     }
   },
   {
@@ -40381,7 +40453,7 @@ MESSAGE_REFERENCE = [
     "message": "{family.label} requires {family.shader} or a compatible plain material with a base colour texture.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 108
+      "cdmw/core/material_shader_controls.py": 123
     }
   },
   {
@@ -40389,7 +40461,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.label}: the owned texture override was not prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 205
+      "cdmw/core/material_shader_controls.py": 220
     }
   },
   {
@@ -40413,7 +40485,7 @@ MESSAGE_REFERENCE = [
     "message": "{name}: source parameter type does not match the decoded shader.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 157
+      "cdmw/core/material_shader_controls.py": 172
     }
   },
   {
@@ -40421,7 +40493,7 @@ MESSAGE_REFERENCE = [
     "message": "{name}: the source texture binding is incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 168
+      "cdmw/core/material_shader_controls.py": 183
     }
   },
   {
@@ -78739,7 +78811,7 @@ MESSAGE_REFERENCE = [
     "message": "Give the full path of an existing picture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 363
+      "cdmw/automation/authoring_commands.py": 366
     }
   },
   {
@@ -81126,7 +81198,7 @@ MESSAGE_REFERENCE = [
     "message": "No frame {wanted} is offered.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 358
+      "cdmw/automation/authoring_commands.py": 361
     }
   },
   {
@@ -81166,7 +81238,7 @@ MESSAGE_REFERENCE = [
     "message": "No language {language}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 379
+      "cdmw/automation/authoring_commands.py": 382
     }
   },
   {
@@ -82544,7 +82616,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 163
+      "cdmw/core/pac_xml_surface_layer.py": 186
     }
   },
   {
@@ -82552,7 +82624,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no material texture to write.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 165
+      "cdmw/core/pac_xml_surface_layer.py": 189
     }
   },
   {
@@ -83970,7 +84042,7 @@ MESSAGE_REFERENCE = [
     "message": "The fit is fill or whole.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 374
+      "cdmw/automation/authoring_commands.py": 377
     }
   },
   {
@@ -84034,7 +84106,7 @@ MESSAGE_REFERENCE = [
     "message": "The frames are not read yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 347
+      "cdmw/automation/authoring_commands.py": 350
     }
   },
   {
@@ -84394,7 +84466,7 @@ MESSAGE_REFERENCE = [
     "message": "The painting dialog is busy (reading the frames or building).",
     "recovery": "locked",
     "sources": {
-      "cdmw/automation/authoring_commands.py": 345
+      "cdmw/automation/authoring_commands.py": 348
     }
   },
   {
@@ -84804,6 +84876,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/hair_registration.py": 152
+    }
+  },
+  {
+    "area": "other",
+    "message": "The view is front or 3d.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/authoring_commands.py": 399
     }
   },
   {
@@ -92807,7 +92887,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a replacement model first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 259
+      "cdmw/services/mesh_rust_replacement.py": 262
     }
   },
   {
@@ -93538,7 +93618,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated material sidecar has no captured target: {payload.target_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 332
+      "cdmw/services/mesh_replacement_materials.py": 347
     }
   },
   {
@@ -93706,7 +93786,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement or change output inclusion before previewing output.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 223
+      "cdmw/services/mesh_rust_replacement.py": 226
     }
   },
   {
@@ -93762,7 +93842,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: no representable source material textures",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 301
+      "cdmw/services/mesh_replacement_materials.py": 316
     }
   },
   {
@@ -93770,7 +93850,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 301
+      "cdmw/services/mesh_replacement_materials.py": 316
     }
   },
   {
@@ -93786,7 +93866,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material {part.material or part.name} has no proven target binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 308
+      "cdmw/services/mesh_replacement_materials.py": 323
     }
   },
   {
@@ -93794,7 +93874,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials have no proven target sidecar wrapper mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 343
+      "cdmw/services/mesh_replacement_materials.py": 358
     }
   },
   {
@@ -93802,7 +93882,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials produced no output textures or sidecars; original-material fallback is disabled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 303
+      "cdmw/services/mesh_replacement_materials.py": 318
     }
   },
   {
@@ -93810,7 +93890,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a captured archive target identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 269
+      "cdmw/services/mesh_replacement_materials.py": 284
     }
   },
   {
@@ -93826,7 +93906,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a readable target material sidecar (.pac_xml or .pami).",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 288
+      "cdmw/services/mesh_replacement_materials.py": 303
     }
   },
   {
@@ -93834,7 +93914,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require one source material part per target part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 233
+      "cdmw/services/mesh_replacement_materials.py": 248
     }
   },
   {
@@ -93850,7 +93930,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require the original material sidecar and texture dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 235
+      "cdmw/services/mesh_replacement_materials.py": 250
     }
   },
   {
@@ -94659,7 +94739,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing imported texture: {path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 292
+      "cdmw/services/mesh_replacement_materials.py": 307
     }
   },
   {
@@ -94699,7 +94779,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required generated texture: {target_path or 'unresolved material slot'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 313
+      "cdmw/services/mesh_replacement_materials.py": 328
     }
   },
   {
@@ -96014,7 +96094,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement dependencies exceed the 512 MiB snapshot limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 205
+      "cdmw/services/mesh_replacement_materials.py": 220
     }
   },
   {
@@ -96270,7 +96350,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 185
+      "cdmw/services/mesh_rust_replacement.py": 188
     }
   },
   {
@@ -96278,7 +96358,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no replaced equipment material to apply to.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 381
+      "cdmw/services/mesh_replacement_materials.py": 396
     }
   },
   {
@@ -96286,7 +96366,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic must be between 0% and 100%.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 200
+      "cdmw/services/mesh_rust_replacement.py": 203
     }
   },
   {
@@ -96294,7 +96374,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic need the item's equipment material file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 183
+      "cdmw/services/mesh_rust_replacement.py": 186
     }
   },
   {
@@ -96345,7 +96425,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one target part before importing a replacement.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 248
+      "cdmw/services/mesh_rust_replacement.py": 251
     }
   },
   {
@@ -96851,7 +96931,7 @@ MESSAGE_REFERENCE = [
     "message": "The imported roughness and metallic maps could not be encoded as a game texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 599
+      "cdmw/services/mesh_replacement_materials.py": 653
     }
   },
   {
@@ -96891,7 +96971,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh changed after import preparation. Import again before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 263
+      "cdmw/services/mesh_rust_replacement.py": 266
     }
   },
   {
@@ -97139,7 +97219,7 @@ MESSAGE_REFERENCE = [
     "message": "This replacement mapping belongs to an older import. Review the current import before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 261
+      "cdmw/services/mesh_rust_replacement.py": 264
     }
   },
   {
@@ -97355,7 +97435,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown replacement comparison mode.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 219
+      "cdmw/services/mesh_rust_replacement.py": 222
     }
   },
   {
@@ -97395,7 +97475,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported replacement command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 328
+      "cdmw/services/mesh_rust_replacement.py": 331
     }
   },
   {
@@ -104697,6 +104777,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/new_item/item_preview.py",
     "cdmw/ui/new_item/mod_update_dialog.py",
     "cdmw/ui/new_item/model_import.py",
+    "cdmw/ui/new_item/painting_dialog.py",
     "cdmw/ui/new_item/panels_output.py",
     "cdmw/ui/new_item/read_failure.py",
     "cdmw/ui/new_item/rust_ui_tab.py",
@@ -105340,7 +105421,7 @@ SOURCE_COVERAGE = {
   "cdmw/app/startup_splash.py": {},
   "cdmw/automation/__init__.py": {},
   "cdmw/automation/authoring_commands.py": {
-    "raise": 19,
+    "raise": 20,
     "report": 4
   },
   "cdmw/automation/bridge.py": {
@@ -106075,7 +106156,7 @@ SOURCE_COVERAGE = {
     "raise": 12
   },
   "cdmw/core/pac_xml_surface_layer.py": {
-    "raise": 2
+    "raise": 3
   },
   "cdmw/core/painting_picture.py": {
     "raise": 10
@@ -107986,6 +108067,9 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 1,
     "raise": 33
   },
+  "cdmw/services/new_item_painting_preview.py": {
+    "raise": 4
+  },
   "cdmw/services/new_item_panel_search.py": {},
   "cdmw/services/new_item_planning.py": {
     "diagnostic_field": 3,
@@ -109699,7 +109783,8 @@ SOURCE_COVERAGE = {
     "display": 2,
     "finding": 1,
     "log": 1,
-    "raise": 12
+    "raise": 12,
+    "signal": 6
   },
   "cdmw/ui/new_item/item_preview_materials.py": {
     "raise": 4
@@ -109724,8 +109809,10 @@ SOURCE_COVERAGE = {
     "raise": 8
   },
   "cdmw/ui/new_item/painting_dialog.py": {
-    "report": 1
+    "failure": 2,
+    "report": 4
   },
+  "cdmw/ui/new_item/painting_preview.py": {},
   "cdmw/ui/new_item/panels_identity.py": {},
   "cdmw/ui/new_item/panels_model.py": {
     "display": 1
@@ -110074,6 +110161,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/shell/utility_controller.py": {
     "display": 6
   },
+  "cdmw/ui/shell/wiki_links.py": {},
   "cdmw/ui/shell/window_bootstrap_state.py": {},
   "cdmw/ui/shell/window_runtime_state.py": {},
   "cdmw/ui/shell/workbench.py": {},

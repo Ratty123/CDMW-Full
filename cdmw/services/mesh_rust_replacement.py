@@ -146,8 +146,11 @@ def imported_surface_support(pending):
 
 
 def _target_surface_shaders(pending, part_ids):
-    """{part id: wrapper shader} for the given target parts, from the captured .pac_xml."""
-    from cdmw.core.pac_xml_surface_layer import wrapper_shaders
+    """{part id: its wrapper shaders} for the given target parts, from the captured .pac_xml.
+
+    A set, because a part can use another shader in each model-property variant.
+    """
+    from cdmw.core.pac_xml_surface_layer import wrapper_shader_sets
     from cdmw.modding.mesh_parser import parse_mesh
     from cdmw.services.mesh_replacement_materials import (
         _sidecar_text, material_binding_name, material_binding_names, target_sidecar)
@@ -159,15 +162,15 @@ def _target_surface_shaders(pending, part_ids):
     bindings = material_binding_names(pending.state)
     names = {part.part_id: material_binding_name(original.submeshes[part.target_index], bindings)
              for part in pending.state.parts if part.part_id in set(part_ids)}
-    shaders = wrapper_shaders(_sidecar_text(sidecar.data), set(names.values()))
+    shaders = wrapper_shader_sets(_sidecar_text(sidecar.data), set(names.values()))
     return {part_id: shaders[name] for part_id, name in names.items() if name in shaders}
 
 
 def imported_surface_unsupported(pending):
     """Target part ids whose material shader does not take Roughness/Metallic."""
     from cdmw.core.pac_xml_surface_layer import SURFACE_SHADERS
-    return sorted(part_id for part_id, shader in _target_surface_shaders(pending, pending.target_part_ids).items()
-                  if shader not in SURFACE_SHADERS)
+    return sorted(part_id for part_id, shaders in _target_surface_shaders(pending, pending.target_part_ids).items()
+                  if not shaders & SURFACE_SHADERS)
 
 
 def check_imported_surface_support(pending, targets=None):
@@ -181,7 +184,7 @@ def check_imported_surface_support(pending, targets=None):
     shaders = _target_surface_shaders(pending, pending.target_part_ids if targets is None else targets)
     if not shaders:
         raise ValueError("Roughness and Metallic need the item's equipment material file.")
-    if not any(shader in SURFACE_SHADERS for shader in shaders.values()):
+    if not any(found & SURFACE_SHADERS for found in shaders.values()):
         raise ValueError("Roughness and Metallic are not available for this item's material shader.")
 
 

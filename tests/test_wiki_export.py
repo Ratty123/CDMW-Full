@@ -725,3 +725,22 @@ def test_complete_wiki_assets_preserve_every_message_source_and_translated_remed
             assert '/' + filename in wiki_manuals[manual_path(language.code)]
             quoted = {match[1].strip() for match in re.findall(r'(`+)(.*?)\1', assets[filename], re.DOTALL)}
             assert {row['message'] for row in MESSAGE_REFERENCE if row['area'] == area} <= quoted
+
+
+def test_every_help_topic_the_app_opens_lands_on_its_section_of_the_manual(wiki_manuals):
+    """Help > Documentation and each tool's Help link open documentation_url(); the anchor must exist."""
+
+    from cdmw.ui.shell.about_documentation_en import AboutDocumentationEnglishMixin
+    from cdmw.ui.shell.wiki_links import documentation_url
+
+    builder = AboutDocumentationEnglishMixin()
+    builder.settings_file_path = "CrimsonDesertModWorkbench.cfg"
+    builder.archive = type("DocumentationArchive", (), {"archive_cache_root": "workspace/cache"})()
+    topics = [section["id"] for section in builder._build_about_sections()]
+    for language in BUILTIN_LANGUAGES:
+        manual = wiki_manuals[manual_path(language.code)]
+        anchors = set(re.findall(r'<a id="([^"]+)"></a>', manual))
+        assert unquote(documentation_url(language.code)[len(WIKI):]) == manual_slug(language.code)
+        missing = [topic for topic in topics
+                   if documentation_url(language.code, topic).partition("#")[2] not in anchors]
+        assert missing == [], (language.code, missing)

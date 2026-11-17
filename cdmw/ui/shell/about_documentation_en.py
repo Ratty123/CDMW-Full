@@ -42,6 +42,7 @@ CREATE_NEW_ITEM_SECTION = {
     <p>New parts export as additive registrations for DMM 4.4.0 or newer, preserving the shared part table. Enable the item registrations entry alongside the archive in DMM. CDMW does not add duplicate CC/FAF/FAM part rules. Dyes on new models need their own model-path rows and supported material mappings. Preview and export checks do not prove in-game fit or equipping.</p>
     <h4>Paintings</h4>
     <p><b>New painting...</b>, beside Find on the Template page, adds your own pictures as new paintings. Choose a frame (the frames the game's paintings use, listed by size), a PNG or JPG picture, and whether the picture fills the canvas or shows whole. Type a name and a description; English is required and other languages fall back to it. <b>Add painting</b> puts several paintings into one build.</p>
+    <p>The middle of the dialog shows the result. <b>Front view</b> draws the chosen frame to scale with your picture on its canvas, as soft as the texture the build writes. <b>3D view</b> shows the frame's own mesh from the game with your picture on its canvas, in Create New Item's 3D preview; drag to turn it and scroll to zoom. Neither is the game itself. <b>Build log</b>, beside the status line, shows what the last build wrote.</p>
     <p><b>Build mod</b> writes a DMM mod folder. Each painting gets its own item, gimmick and housing object with new keys and joins the paintings' housing group. The frame's mesh is shared and the picture becomes a texture of its own, so no painting of the game is replaced. To add more paintings later, build them into the same folder; the paintings already in it are kept. A folder holding another mod is refused.</p>
     <p>A new painting keeps the price and knowledge entry of a game painting with the same frame, and is added to no shop or item group. Custom paintings have not been tested in the game: whether they appear in the housing menu, and how a player obtains one, are not established.</p>
     <h4>Identity</h4>
@@ -146,7 +147,7 @@ class AboutDocumentationEnglishMixin:
                 "summary": "High-level tour of the app and its main surfaces.",
                 "keywords": "overview about features tools archive create item model icon mesh placement texture retrofit format translations research search settings",
                 "html": """
-                <p>Use the <a href="topic:documentation_index">Documentation Index</a> for the complete reference or search across every topic from the field above.</p>
+                <p>Use the <a href="topic:documentation_index">Documentation Index</a> for the complete reference.</p>
                 <table>
                   <tr><th>Area</th><th>Tools</th></tr>
                   <tr><td>Assets</td><td><a href="topic:new_item_studio">Create New Item</a>, <a href="topic:archive_browser">Archive Browser</a>, <a href="topic:model_library">Model Library</a>, and <a href="topic:icon_creator">Icon Creator</a></td></tr>
@@ -154,6 +155,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
+                <p><b>Help &gt; Documentation</b> opens the online manual on the GitHub Wiki in your browser.</p>
                 <p>Documentation follows the source build it describes. Published releases and development builds can differ; check the release notes when controls or output options differ from your installed version.</p>
                 """,
             },
@@ -1081,13 +1083,14 @@ class AboutDocumentationEnglishMixin:
                   <li>Profiles do not save open archives, active documents, or per-tab project sessions.</li>
                   <li><b>Export Diagnostics</b> includes the same profile payload plus logs, cache summaries, chain analysis, crash context when available, a paste-ready issue summary, README, license, and third-party notices. Reports stay local until you export and share them.</li>
                 </ul>
-                <p>Settings has five pages in its left-hand list: <b>Setup</b>, <b>General</b>, <b>Paths</b>, <b>Performance</b>, and <b>Appearance</b>.</p>
+                <p>Settings has these pages in its left-hand list: <b>Setup</b>, <b>General</b>, <b>Paths</b>, <b>Performance</b>, <b>Appearance</b>, <b>Shortcuts</b>, and <b>AI connections</b>.</p>
                 <ul>
                   <li><b>Settings / Setup</b> holds workspace initialization, external tool discovery, and asset-authoring helper status.</li>
                   <li><b>Settings / General</b> combines archive auto-load, cache preference, last-tab restore, cleanup confirmations, diagnostic context, verbose Archive Browser logging, and direct profile import/export. Archive filters start neutral after launch.</li>
                   <li><b>Settings / Paths</b> holds workflow roots, archive locations, game/package roots, and extraction roots.</li>
                   <li><b>Settings / Performance</b> controls workload presets, archive-list batching/native helper use, optional DDS related-file indexing, preview caches, and Preview package caching.</li>
                   <li><b>Settings / Appearance</b> controls layout, the shared theme, pane-size memory, all 14 built-in app languages plus imported custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults. <b>Preview Settings...</b> opens the existing full preview-settings window and reuses the same live controls and stored values.</li>
+                  <li><b>Settings / Shortcuts</b> lists the keys of every command in every tool, the Mesh Editor's and the Texture Editor's included, in a table with the command, its keys, where it works and what it clashes with. Group it by area, sort by any column, search, or show only conflicts or changed keys. Double-click a key and press the new one to change it in place; Change... also sets a second key. Reset to default restores one command and Restore all defaults restores every command.</li>
                 </ul>
                 <p>Language export writes a JSON file with English keys and translated values. Keep keys unchanged, edit only values, then import the file from Settings / Appearance.</p>
                 """,
