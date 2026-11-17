@@ -108,7 +108,7 @@ class _WriteJob(QRunnable):
         error = ""
         try:
             width, height, rgba = image_rgba8(self.image)
-            self.target.parent.mkdir(parents=True, exist_ok=True)
+            self.target.parent.mkdir(exist_ok=True)  # never the session folder itself
             partial = self.target.with_suffix(".partial")
             partial.write_bytes(rgba8_dds_bytes(width, height, rgba))
             partial.replace(self.target)
@@ -231,7 +231,11 @@ class LiveTextureUpdates(QObject):
 
     def _start(self, key: str, state: _Texture) -> None:
         root = self._session_root()
-        if root is None or state.pending is None:
+        # The session's folder is made by its preparation, which refuses one that already
+        # exists; an edit restored from the draft before then waits (still pending) and is
+        # shown by ``reapply`` when the editor is ready (B pass 12: the restore wrote first
+        # and the session could not be prepared).
+        if root is None or state.pending is None or not Path(root).is_dir():
             return
         image, state.pending = state.pending, None
         revision = state.revision

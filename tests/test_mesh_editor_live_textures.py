@@ -108,6 +108,7 @@ def test_edits_outlive_the_editor_session_until_discard(tmp_path: Path) -> None:
 
     app = _app()
     root = {"value": tmp_path / "first"}
+    root["value"].mkdir()  # each session's preparation makes its folder
     sent: list[dict] = []
     live = LiveTextureUpdates(lambda: root["value"], lambda fields: sent.append(dict(fields)) or True)
     live.remember_source(SHA.upper(), "source info")
@@ -118,9 +119,35 @@ def test_edits_outlive_the_editor_session_until_discard(tmp_path: Path) -> None:
     assert list(live.edited_textures()) == [SHA] and live.sources == {SHA: "source info"}
     live.push(SHA, _image("green"))  # edited while no editor is open
     root["value"] = tmp_path / "second"
+    root["value"].mkdir()
     live.reapply()  # Resume: the next session is ready
     assert _wait(app, lambda: len(sent) == 2)
     assert (tmp_path / "second" / sent[1]["file"]).is_file()
     assert live.edited_textures()[SHA].pixelColor(0, 0).green() == 128
     live.clear()  # Discard
     assert live.edited_textures() == {} and live.sources == {}
+
+
+def test_an_edit_pushed_before_the_session_folder_exists_waits_and_never_makes_it(tmp_path):
+    """B pass 12: a draft's kept texture edit was restored before the resumed session was
+    prepared; writing it made the session folder, and the preparation (which refuses an
+    existing folder) failed. The edit must wait and be shown once the editor is ready."""
+
+    app = _app()
+    session = tmp_path / "session-not-prepared-yet"
+    sent: list[dict] = []
+    live = LiveTextureUpdates(lambda: session, lambda fields: sent.append(dict(fields)) or True)
+    live.push("ab" * 32, _image("#FF00FF"))
+    app.processEvents()
+    time.sleep(0.3)
+    app.processEvents()
+    assert not session.exists()
+    assert sent == []
+
+    session.mkdir()  # the preparation made it; the editor is ready
+    live.reapply()
+    live.flush()
+    assert _wait(app, lambda: bool(sent))
+    written = list((session / EDITS_DIRNAME).glob("*.dds"))
+    assert len(written) == 1
+    assert sent[-1]["source_sha256"] == "ab" * 32
