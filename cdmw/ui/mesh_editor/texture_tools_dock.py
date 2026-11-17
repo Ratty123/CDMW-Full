@@ -132,14 +132,22 @@ class MeshEditorTextureTools(QDockWidget):
     to the texture as it was opened."""
     history_moved = Signal()
     """The shared history (B item 4) took in a texture edit, undo or redo made here."""
+    texture_opened = Signal()
+    """A texture was opened here: the panel has something to show."""
+    emptied = Signal()
+    """The panel holds no texture any more (the mesh closed, or another one loads)."""
+    close_requested = Signal()
+    """The panel's own close button was pressed."""
 
     def __init__(self, parent: QWidget | None = None, *, settings: object = None, base_dir: Path | None = None,
                  editor_factory: Callable[[QWidget], QWidget] | None = None) -> None:
         super().__init__("Texture Editor", parent)
         self.setObjectName("MeshEditorTextureToolsDock")
-        # Docks, floats and resizes; it cannot be closed, so it is never lost.
+        # Docks, floats, resizes and closes; closing it hides it and keeps the edit, and
+        # a double-click in the Textures panel opens it again.
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable
-                         | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                         | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+                         | QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self.settings = settings
         self.base_dir = Path(base_dir) if base_dir is not None else Path.cwd()
         self._editor_factory = editor_factory
@@ -229,7 +237,27 @@ class MeshEditorTextureTools(QDockWidget):
             open_source(Path(target.source_path), binding=binding)
         self.show()
         self.raise_()
-        self._widen_for_the_canvas()
+        self.texture_opened.emit()
+
+    def show_empty(self) -> None:
+        """The mesh closed, or another one loads: nothing of the last one stays in view.
+        The edits are the document's (its draft, Finish, Build Mod), not the panel's."""
+
+        self.target = None
+        self._targets = {}
+        self.title_label.setText(EMPTY_TEXT)
+        self.title_label.setToolTip("")
+        self.sharing_text = ""
+        self.sharing_label.setText("")
+        self.set_kept_text("")
+        self._show_warning_marker()
+        self._show_status()
+        self.emptied.emit()
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        # The host decides: it hides the panel; the edit stays.
+        event.ignore()
+        self.close_requested.emit()
 
     def _sharing_is_a_warning(self) -> bool:
         """What the sharing check found (other files, or that it could not tell); its
@@ -270,18 +298,6 @@ class MeshEditorTextureTools(QDockWidget):
         if self.target is not None:
             self.target = dataclasses.replace(self.target, in_renderer=self.target.source_sha256.lower() in shown)
             self._show_warning_marker()
-
-    def _widen_for_the_canvas(self) -> None:
-        """Docked beside the model, the tools take about 45 % of the editor's width (once)."""
-
-        host = self.parentWidget()
-        resize = getattr(host, "resizeDocks", None)
-        if self.isFloating() or not callable(resize) or getattr(self, "_widened", False):
-            return
-        self._widened = True
-        width = max(scaled_px(560, self), int(host.width() * 0.45))
-        if self.width() < width:
-            resize([self], [width], Qt.Orientation.Horizontal)
 
     def set_sharing_text(self, game_path: str, text: str) -> None:
         """Say which other game files use ``game_path``, when it is the texture shown."""
@@ -417,6 +433,8 @@ class MeshEditorTextureTools(QDockWidget):
             return self.editor
         editor = self._editor_factory(self) if self._editor_factory is not None else self._default_editor()
         editor.hide()  # it does the editing; only its editing parts are shown, here
+        # Every texture opens fitted to the canvas, never at 100 % overflowing it.
+        editor.new_documents_open_fitted = True
         signal = getattr(editor, "resident_texture_patch_ready", None)
         if signal is not None:
             signal.connect(self._on_patch)
@@ -496,6 +514,8 @@ class MeshEditorTextureTools(QDockWidget):
         self.split.setStretchFactor(0, 0)
         self.split.setStretchFactor(self.split.count() - 1, 1)
         self.split.setSizes([rail_scroll.minimumWidth(), scaled_px(420, rail)])
+        # Never crushed: room for the tools and a canvas worth painting on.
+        self.widget().setMinimumHeight(scaled_px(260, rail))
         fit = getattr(editor, "_set_fit_mode", None)
         if callable(fit):
             fit(True)  # the whole texture in view; zoom with the wheel

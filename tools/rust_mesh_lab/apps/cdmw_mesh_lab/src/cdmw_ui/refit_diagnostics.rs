@@ -327,7 +327,13 @@ impl LabApplication {
     }
 
     pub(crate) fn refresh_cdmw_part_hover_overlay(&mut self) {
-        let target = self.cdmw_hovered_part.as_ref().filter(|_| {
+        // A row under the pointer here comes first; else the part CDMW's Textures
+        // panel is pointing at.
+        let host_target = self.cdmw_host_highlight_part.map(|part| PartHoverTarget {
+            part,
+            island_faces: None,
+        });
+        let target = self.cdmw_hovered_part.as_ref().or(host_target.as_ref()).filter(|_| {
             self.cdmw_mode()
                 && !self.hair.active()
                 && self.cdmw_jiggle.preview.scene.is_none()

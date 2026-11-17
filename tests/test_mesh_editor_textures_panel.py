@@ -189,9 +189,11 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         panel.set_manifest(_manifest(), session_root=tmp_path)
 
         assert panel.stack.currentWidget() is panel.tree
-        assert panel.tree.topLevelItemCount() == 2
-        chest = panel.tree.topLevelItem(0)
-        assert chest.text(COLUMN_THUMBNAIL) == "Chest (upper.pac)"
+        # Two files: each is named once, over its parts, not after every part's name.
+        assert [panel.tree.topLevelItem(i).text(COLUMN_THUMBNAIL) for i in range(2)] == ["upper.pac", "arms.pac"]
+        chest = panel.part_item(0)
+        assert chest.text(COLUMN_THUMBNAIL) == "Chest" and chest.parent() is panel.tree.topLevelItem(0)
+        assert chest.toolTip(COLUMN_THUMBNAIL) == "Chest (upper.pac)"
         first = chest.child(0)
         assert first.text(COLUMN_ROLE) == "Base colour"
         assert first.text(COLUMN_FILE) == "cd_armor_01_d.dds"
@@ -200,7 +202,7 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         assert chest.child(1).text(COLUMN_STATE) == ""
 
         # One decode for the shared file, and its icon on both parts' rows.
-        arms_base = panel.tree.topLevelItem(1).child(0)
+        arms_base = panel.part_item(1).child(0)
         assert _wait_for(app, lambda: not first.icon(COLUMN_THUMBNAIL).isNull()
                          and not arms_base.icon(COLUMN_THUMBNAIL).isNull())
         pool.waitForDone(5000)
@@ -208,7 +210,7 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         assert decoded.count("texture-0000-aaaaaaaaaaaa.dds") == 1
         # Files that do not exist never reach the decoder and show no icon.
         assert "texture-0001-bbbbbbbbbbbb.dds" not in decoded
-        assert panel.tree.topLevelItem(1).child(1).icon(COLUMN_THUMBNAIL).isNull()
+        assert panel.part_item(1).child(1).icon(COLUMN_THUMBNAIL).isNull()
 
         panel.tree.itemDoubleClicked.emit(first, COLUMN_ROLE)
         panel.tree.itemDoubleClicked.emit(chest, COLUMN_THUMBNAIL)
@@ -231,6 +233,60 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         panel.deleteLater()
         loader.deleteLater()
         app.processEvents()
+
+
+def test_the_list_starts_closed_and_keeps_what_the_user_opened(tmp_path: Path) -> None:
+    """Fredric, 2026-11-17: "Textures list should start not expanded"."""
+
+    _app()
+    panel = MeshEditorTexturesPanel(thumbnail_loader=TextureThumbnailLoader(decoder=lambda *_args: None))
+    try:
+        panel.set_manifest(_manifest(), session_root=tmp_path)
+        chest, arms = panel.part_item(0), panel.part_item(1)
+        assert not chest.isExpanded() and not arms.isExpanded()
+        # The file headers only group: they are open, so every part is in view.
+        assert all(panel.tree.topLevelItem(i).isExpanded() for i in range(panel.tree.topLevelItemCount()))
+        arms.setExpanded(True)
+        # The same session's list rebuilt (the editor reports again) keeps it open.
+        panel.set_manifest(_manifest(), session_root=tmp_path)
+        assert panel.part_item(1).isExpanded() and not panel.part_item(0).isExpanded()
+        # Another mesh starts closed again.
+        panel.set_manifest(_manifest(), session_root=tmp_path / "other")
+        assert not panel.part_item(1).isExpanded()
+    finally:
+        panel.shutdown()
+        panel.deleteLater()
+
+
+def test_the_list_is_compact(tmp_path: Path) -> None:
+    """Fredric, 2026-11-17: the list "takes just too much space for no reason"."""
+
+    app = _app()
+    manifest = _manifest()
+    manifest["state"]["archive_refit_assets"] = []  # one file: no header at all
+    panel = MeshEditorTexturesPanel(thumbnail_loader=TextureThumbnailLoader(decoder=lambda *_args: None))
+    try:
+        panel.resize(420, 400)
+        panel.show()
+        panel.set_manifest(manifest, session_root=tmp_path)
+        assert [panel.tree.topLevelItem(i).text(COLUMN_THUMBNAIL) for i in range(2)] == ["Chest", "Arms"]
+        panel.part_item(0).setExpanded(True)
+        app.processEvents()
+        # Three columns: the thumbnail sits in front of the role.
+        assert panel.tree.columnCount() == 3 and COLUMN_THUMBNAIL == COLUMN_ROLE
+        text_row = panel.tree.fontMetrics().height()
+        part_row = panel.tree.visualItemRect(panel.part_item(0)).height()
+        texture_row = panel.tree.visualItemRect(panel.part_item(0).child(0)).height()
+        # A row is about a line of text high, not a 48 pixel thumbnail.
+        assert part_row <= text_row * 2 and texture_row <= text_row * 2
+        assert panel.tree.iconSize().height() <= text_row * 2
+        # The file name keeps both ends when it is cut short.
+        from PySide6.QtCore import Qt
+
+        assert panel.tree.textElideMode() == Qt.TextElideMode.ElideMiddle
+    finally:
+        panel.shutdown()
+        panel.deleteLater()
 
 
 def test_the_panel_reads_a_session_folder_off_the_ui_thread(tmp_path: Path) -> None:
@@ -273,8 +329,9 @@ def test_the_mesh_editor_docks_the_panel_on_the_right_and_remembers_where_it_was
     again.deleteLater()
 
 
-def test_a_saved_layout_never_hides_the_panel_or_leaves_it_off_screen(tmp_path: Path) -> None:
-    """The first app pass found the panel hidden by a saved layout; it cannot be closed now."""
+def test_a_saved_layout_never_leaves_the_panel_off_screen(tmp_path: Path) -> None:
+    """A saved layout says where the panel is, not whether it shows (TexturePanels does,
+    see test_mesh_editor_texture_panels_shown); a panel left off every screen docks again."""
 
     from PySide6.QtCore import QSettings
 
@@ -285,7 +342,7 @@ def test_a_saved_layout_never_hides_the_panel_or_leaves_it_off_screen(tmp_path: 
     page = MeshEditorWorkspace(theme_key="graphite", defer_legacy_panels=True)
     page.show()
     host, dock = page.dock_host, page.textures_dock
-    assert not dock.features() & dock.DockWidgetFeature.DockWidgetClosable
+    assert dock.features() & dock.DockWidgetFeature.DockWidgetClosable
     dock.setFloating(True)
     dock.move(-100000, -100000)
     dock.hide()
@@ -294,7 +351,6 @@ def test_a_saved_layout_never_hides_the_panel_or_leaves_it_off_screen(tmp_path: 
     again = MeshEditorWorkspace(theme_key="graphite", defer_legacy_panels=True)
     again.show()
     remember_dock_layout(again.dock_host, again.textures_dock, settings)
-    assert not again.textures_dock.isHidden()
     # Off every screen it docks again (offscreen Qt restores a floating panel at 0,0, so
     # the check is tested on its own).
     from cdmw.ui.mesh_editor.textures_panel import _on_a_screen

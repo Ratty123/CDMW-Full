@@ -58,11 +58,16 @@ def _tools() -> MeshEditorTextureTools:
     return MeshEditorTextureTools(editor_factory=_FakeEditor)
 
 
-def test_the_tools_are_a_dock_that_cannot_be_closed_and_wait_for_a_texture() -> None:
+def test_the_tools_are_a_dock_that_waits_for_a_texture_and_closing_it_only_hides_it() -> None:
     tools = _tools()
     assert isinstance(tools, QDockWidget)
     assert tools.features() & QDockWidget.DockWidgetFeature.DockWidgetFloatable
-    assert not tools.features() & QDockWidget.DockWidgetFeature.DockWidgetClosable
+    assert tools.features() & QDockWidget.DockWidgetFeature.DockWidgetClosable
+    asked: list[bool] = []
+    tools.close_requested.connect(lambda: asked.append(True))
+    tools.show()
+    tools.close()  # the host hides it; nothing is closed or lost here
+    assert asked == [True] and tools.isVisible()
     assert tools.editor is None and tools.title_label.text() == EMPTY_TEXT
     tools.deleteLater()
 

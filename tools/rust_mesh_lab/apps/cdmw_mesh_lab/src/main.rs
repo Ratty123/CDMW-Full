@@ -2537,6 +2537,9 @@ struct LabApplication {
     cdmw_refit_diagnostics: Option<Value>,
     cdmw_refit_feedback: Option<cdmw_ui::RefitFeedback>,
     cdmw_hovered_part: Option<cdmw_ui::PartHoverTarget>,
+    /// The part CDMW's Textures panel is pointing at (`highlight_part`); it is lit
+    /// like a hovered Parts row until CDMW ends it.
+    cdmw_host_highlight_part: Option<u32>,
     cdmw_part_hover_overlay: Option<(cdmw_ui::PartHoverTarget, FaceSelectionOverlay)>,
     cdmw_viewport_hovered_part: Option<u32>,
     cdmw_part_name_rows: Vec<cdmw_ui::PartNameRow>,
@@ -2756,6 +2759,7 @@ impl LabApplication {
             cdmw_refit_diagnostics: None,
             cdmw_refit_feedback: None,
             cdmw_hovered_part: None,
+            cdmw_host_highlight_part: None,
             cdmw_part_hover_overlay: None,
             cdmw_viewport_hovered_part: None,
             cdmw_part_name_rows: Vec::new(),
@@ -3844,6 +3848,23 @@ impl LabApplication {
             HostEvent::RunCommand(command) => {
                 // Run at the next frame, where the key press would have run it.
                 self.pending_host_commands.push(command);
+            }
+            HostEvent::HighlightPart(part) => {
+                let count = self
+                    .document
+                    .as_ref()
+                    .and_then(|document| document.lods.get(self.active_lod_index))
+                    .map_or(0, |lod| lod.submeshes.len());
+                // A number past the parts lights nothing; the selection and the
+                // panels stay as they are.
+                let part = part.filter(|part| (*part as usize) < count);
+                if part != self.cdmw_host_highlight_part {
+                    self.cdmw_host_highlight_part = part;
+                    self.egui_context.request_repaint();
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                }
             }
             HostEvent::SelectParts(indices) => {
                 let count = self

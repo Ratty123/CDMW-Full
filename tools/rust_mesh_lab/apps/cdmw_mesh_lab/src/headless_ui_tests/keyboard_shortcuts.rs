@@ -780,3 +780,92 @@ fn a_texture_update_names_a_file_inside_the_session_and_waits_for_the_textures()
         Some(&(root.path().join("two.dds"), 2))
     );
 }
+
+#[test]
+fn highlight_part_from_the_host_lights_a_part_without_selecting_it() -> TestResult {
+    let root = tempfile::tempdir()?;
+    let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "parts", 1, 0);
+    let message = |index: Value| {
+        json!({"event": "highlight_part", "protocol": cdmw_session::PROTOCOL, "session_id": "parts",
+               "process_generation": 1, "index": index})
+    };
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message(json!(1))),
+        HostEvent::HighlightPart(Some(1))
+    ));
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message(Value::Null)),
+        HostEvent::HighlightPart(None)
+    ));
+    assert!(matches!(
+        bridge.decode_host_event_for_test(message(json!("one"))),
+        HostEvent::Fatal(_)
+    ));
+    let mut ui = HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    ui.application.cdmw_bridge = Some(bridge);
+    // Both parts are in the shown layer.
+    ui.application.cdmw_state["geometry_layers"]["layers"][0]["submesh_indices"] = json!([0, 1]);
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    let selection = ui.application.mesh.as_ref().ok_or("mesh")?.selection.clone();
+    let parts_open = |ui: &HeadlessUi| {
+        ui.application.egui_context.data_mut(|data| {
+            data.get_temp::<bool>(egui::Id::new("cdmw_parts_panel_open"))
+                .unwrap_or(false)
+        })
+    };
+    let parts_were_open = parts_open(&ui);
+    // The second part is lit as its row under the pointer would light it, with no
+    // pointer in the editor at all.
+    ui.application
+        .handle_cdmw_host_event(HostEvent::HighlightPart(Some(1)));
+    ui.frame(Vec::new());
+    let (target, overlay) = ui
+        .application
+        .cdmw_part_hover_overlay
+        .as_ref()
+        .ok_or("host highlight")?;
+    assert_eq!(target.part, 1);
+    assert!(!overlay.positions.is_empty());
+    let lit = overlay.positions.clone();
+    // It stays over the frames that follow, and nothing is selected or opened.
+    ui.frame(Vec::new());
+    assert_eq!(
+        ui.application
+            .cdmw_part_hover_overlay
+            .as_ref()
+            .ok_or("still lit")?
+            .1
+            .positions,
+        lit
+    );
+    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection, selection);
+    assert_eq!(parts_open(&ui), parts_were_open);
+    // Another part replaces it; a number past the parts and null both end it.
+    ui.application
+        .handle_cdmw_host_event(HostEvent::HighlightPart(Some(0)));
+    ui.frame(Vec::new());
+    assert_eq!(
+        ui.application
+            .cdmw_part_hover_overlay
+            .as_ref()
+            .ok_or("first part")?
+            .0
+            .part,
+        0
+    );
+    ui.application
+        .handle_cdmw_host_event(HostEvent::HighlightPart(Some(9)));
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    ui.application
+        .handle_cdmw_host_event(HostEvent::HighlightPart(Some(1)));
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_some());
+    ui.application
+        .handle_cdmw_host_event(HostEvent::HighlightPart(None));
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_part_hover_overlay.is_none());
+    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.selection, selection);
+    Ok(())
+}

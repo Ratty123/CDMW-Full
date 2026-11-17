@@ -25,10 +25,13 @@ def start_texture_edits_afresh(tab) -> None:
     if keeper is not None:
         keeper.forget()
     owner._shared_edit_history = None  # a new history per document session (B item 4)
-    _close_dock_documents(tab)
+    close_texture_editor_panel(tab)
 
 
-def _close_dock_documents(tab) -> None:
+def close_texture_editor_panel(tab) -> None:
+    """Close the textures the Texture Editor panel has open and show it empty. The live
+    edits and what the draft keeps of them are not touched."""
+
     panel = getattr(tab, "_texture_tools_panel", None)
     try:
         dock = panel() if callable(panel) else None
@@ -53,8 +56,12 @@ def _close_dock_documents(tab) -> None:
                 indices.add(index)
         if indices:
             close(sorted(indices))
-    dock._targets = {}
-    dock.target = None
+    show_empty = getattr(dock, "show_empty", None)
+    if callable(show_empty):
+        show_empty()
+    else:
+        dock._targets = {}
+        dock.target = None
 
 
-__all__ = ["start_texture_edits_afresh"]
+__all__ = ["close_texture_editor_panel", "start_texture_edits_afresh"]

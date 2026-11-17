@@ -229,6 +229,9 @@ class WorkspaceShellBuilderMixin:
         host.setWindowFlags(Qt.WindowType.Widget)
         host.setObjectName("MeshEditorDockHost")
         host.setDockOptions(QMainWindow.DockOption.AnimatedDocks | QMainWindow.DockOption.AllowTabbedDocks)
+        # No right-click menu of dock names: it would show a panel behind TexturePanels'
+        # back (an empty Texture Editor, the Textures button still off).
+        host.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         host.setCentralWidget(central_preview)
         from cdmw.ui.mesh_editor.texture_tools_dock import MeshEditorTextureTools
 
@@ -240,6 +243,10 @@ class WorkspaceShellBuilderMixin:
         host.splitDockWidget(self.textures_dock, self.texture_tools_dock, Qt.Orientation.Vertical)
         host.resizeDocks([self.textures_dock, self.texture_tools_dock], [1, 3], Qt.Orientation.Vertical)
         self.dock_host = host
+        # Both panels are off until the user asks for them and a mesh is open.
+        from cdmw.ui.mesh_editor.texture_panels import TexturePanels
+
+        self.texture_panels = TexturePanels(host, self.textures_dock, self.texture_tools_dock)
         return host
 
     def _install_direct_output_controls(self, parent: QWidget) -> None:

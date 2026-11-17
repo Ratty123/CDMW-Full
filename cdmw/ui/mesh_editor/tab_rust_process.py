@@ -17,6 +17,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_RENDERER,
     RUST_HOST_CDMW_COMMAND_CAPABILITY,
+    RUST_HOST_HIGHLIGHT_PART_CAPABILITY,
     RUST_UI_TRANSLATION_PARTS_CAPABILITY,
 )
 from cdmw.ui.mesh_editor.process_io import (
@@ -632,6 +633,7 @@ class MeshEditorRustProcessMixin:
             RUST_UI_TRANSLATION_PARTS_CAPABILITY in capability_set
         )
         self.standalone_rust_host_commands_supported = RUST_HOST_CDMW_COMMAND_CAPABILITY in capability_set
+        self.standalone_rust_highlight_part_supported = RUST_HOST_HIGHLIGHT_PART_CAPABILITY in capability_set
         session = self.standalone_rust_authoring_session
         if session is not None and (
             session.hair_start_mode
@@ -957,6 +959,25 @@ class MeshEditorRustProcessMixin:
                 self._live_textures().remember_source(source_sha256, source)
                 return source
         return None
+
+    def highlight_part_in_view(self, part_index: int | None) -> bool:
+        """Light one part up in the 3D view, as pointing at its row in the editor's Parts
+        list does; None (or a negative number) ends it. The Textures panel calls this
+        while the pointer is over a part or one of its textures. Nothing is selected.
+
+        Sent only when the part changes, and only to a ready editor whose hello said it
+        takes the message: an editor that does not know it would end its session."""
+
+        part = int(part_index) if part_index is not None and int(part_index) >= 0 else None
+        if part == self.standalone_rust_highlighted_part:
+            return False
+        if not (self.standalone_rust_ready and self.standalone_rust_highlight_part_supported):
+            return False
+        if not self._send_rust_message(self._rust_host_message(
+                "highlight_part", request_id=0, extra={"index": part})):
+            return False
+        self.standalone_rust_highlighted_part = part
+        return True
 
     def push_live_texture(self, source_sha256: str, image) -> int:
         """Show an edited texture on the model now; returns the edit's revision."""
