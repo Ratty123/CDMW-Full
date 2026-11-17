@@ -31,11 +31,14 @@ def client_setup_lines(command: str | None = None, args: list[str] | None = None
         command, args = bridge_command()
     args = list(args or [])
     shell_line = " ".join([_quoted(command), *(_quoted(a) for a in args)])
-    toml_args = ", ".join("'" + a + "'" for a in args)
+    # TOML basic strings escape as JSON strings do, so a folder such as O'Neil still parses.
+    toml_args = ", ".join(json.dumps(a) for a in args)
     return {
-        "Claude Code": f"claude mcp add {SERVER_KEY} -- {shell_line}",
+        # User scope: Claude Code finds the server in every folder it starts in, not only this one.
+        "Claude Code": f"claude mcp add --scope user {SERVER_KEY} -- {shell_line}",
         "Codex CLI": f"codex mcp add {SERVER_KEY} -- {shell_line}",
-        "Codex CLI (config.toml)": f"[mcp_servers.{SERVER_KEY}]\ncommand = '{command}'\nargs = [{toml_args}]",
+        "Codex CLI (config.toml)": (f"[mcp_servers.{SERVER_KEY}]\ncommand = {json.dumps(command)}\n"
+                                    f"args = [{toml_args}]"),
         "Claude Desktop (claude_desktop_config.json)": json.dumps(
             {"mcpServers": {SERVER_KEY: {"command": command, "args": args}}}, indent=2),
     }

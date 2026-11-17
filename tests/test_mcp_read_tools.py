@@ -153,8 +153,23 @@ def test_every_read_tool_is_listed_and_nothing_else(world) -> None:
     assert names == sorted([
         "app_jobs", "app_job", "app_cancel_job", "commands_list", "search_archive", "search_items",
         "search_characters", "search_text", "search_models", "search_saved_work", "files_describe", "files_bytes",
-        "files_parse", "files_references", "files_used_by", "files_format_report", "tables_row", "strings_get"])
+        "files_parse", "files_references", "files_used_by", "files_format_report", "tables_row", "strings_get",
+        "app_shortcuts", "app_manual", "textures_list"])
     assert all(tool["annotations"]["readOnlyHint"] for tool in listed["result"]["tools"])
+
+
+def test_shortcuts_help_and_the_textures_panel_answer_through_the_bridge(world) -> None:
+    shortcuts = world.call("app_shortcuts", {"context": "mesh_editor", "limit": 5})
+    assert not shortcuts["isError"], shortcuts
+    rows = shortcuts["structuredContent"]
+    assert len(rows["shortcuts"]) == 5 and rows["total"] > 5 and "next_page_token" in rows
+    assert {"command", "keys", "default_keys", "changed", "clashes_with"} <= set(rows["shortcuts"][0])
+    manual = world.call("app_manual", {"topic": "profile_settings"})
+    assert not manual["isError"], manual
+    assert "/wiki/" in manual["structuredContent"]["url"]
+    # No main window, so no Mesh Editor: the tool says what to open.
+    textures = world.call("textures_list")
+    assert textures["structuredContent"]["error"]["code"] == "unavailable"
 
 
 def test_search_the_archives_as_browse_does(world) -> None:
@@ -212,6 +227,12 @@ def test_items_tables_and_strings(world) -> None:
     assert by_name["key"] == 1
     unknown = world.call("tables_row", {"table": "not_a_table", "key": 1})
     assert unknown["structuredContent"]["error"]["code"] == "invalid_arguments"
+    # The fixture's iteminfo row is the Item Finder's short form: there, but not a row the
+    # table's schema decodes. The tool says so instead of calling it missing.
+    undecoded = world.call("tables_row", {"table": "iteminfo", "key": 1234})["structuredContent"]["error"]
+    assert undecoded["code"] == "failed" and "cannot decode" in undecoded["message"], undecoded
+    missing = world.call("tables_row", {"table": "inventory", "key": 99})["structuredContent"]["error"]
+    assert missing["code"] == "not_found"
 
 
 def test_saved_work_and_the_model_library(world) -> None:
@@ -234,8 +255,14 @@ def test_the_command_list_reads_the_registry_with_reasons(world) -> None:
     try:
         listed = world.call("commands_list", {"query": "probe the ai"})["structuredContent"]["commands"]
         assert listed == [{"id": "shell.mcp_probe", "label": "Probe the AI connection", "context": "shell",
-                           "keys": ["Ctrl+Alt+F12"], "effect": "edit", "available": False,
-                           "reason": "Wait for the probe.", "tool": None}]
+                           "keys": ["Ctrl+Alt+F12"], "default_keys": ["Ctrl+Alt+F12"], "effect": "edit",
+                           "available": False, "reason": "Wait for the probe.", "tool": None}]
+        # A key changed in Settings > Shortcuts is the key the command has now.
+        from cdmw.services import keymap_store
+
+        keymap_store.set_override(world.settings, "shell.mcp_probe", ["Ctrl+Alt+F11"])
+        rebound = world.call("commands_list", {"query": "probe the ai"})["structuredContent"]["commands"][0]
+        assert rebound["keys"] == ["Ctrl+Alt+F11"] and rebound["default_keys"] == ["Ctrl+Alt+F12"]
         refused = world.call("shell_mcp_probe")
         assert refused["structuredContent"]["error"]["code"] == "not_built"
     finally:

@@ -28,6 +28,8 @@ from cdmw.mcp.tools import ON_UI, ON_WORKER, Tool, object_schema
 MAX_BYTES = 1024 * 1024
 MAX_SEARCH_ROWS = 5000
 FETCH_PAGE = 500
+#: The archive worker's largest Body & Face Finder page (ArchiveCharacterCatalog.cs clamps to it).
+CHARACTER_PAGE = 72
 TEXT_EXTENSIONS = frozenset({
     ".xml", ".json", ".txt", ".ini", ".cfg", ".lua", ".csv", ".html", ".htm", ".css", ".js", ".yaml", ".yml",
     ".md", ".log", ".hlsl", ".fx",
@@ -87,16 +89,31 @@ def _commands_list(call) -> dict[str, object]:
         return {"commands": []}
     wanted = str(call.arguments.get("context") or "")
     query = str(call.arguments.get("query") or "").casefold()
+    # A command's own ``keys`` are its defaults; Settings > Shortcuts and the palette
+    # show the keymap's, with the user's changes.
+    keymap = {row.command_id: row for row in _keymap_rows(registry, call.context)}
     rows = []
     for command in registry.commands(*((wanted,) if wanted else ())):
         if query and query not in command.label.casefold() and query not in command.id.casefold():
             continue
         reason = registry.reason(command.id)
         tool = None if command.id in USER_ONLY_COMMANDS else command_tool(command)
-        rows.append({"id": command.id, "label": command.label, "context": command.context, "keys": list(command.keys),
+        bound = keymap.get(command.id)
+        rows.append({"id": command.id, "label": command.label, "context": command.context,
+                     "keys": list(bound.keys if bound is not None else command.keys),
+                     "default_keys": list(bound.defaults if bound is not None else command.keys),
                      "effect": command.effect, "available": not reason, "reason": reason,
                      "tool": tool.wire if tool is not None and tool.built else None})
     return {"commands": rows}
+
+
+def _keymap_rows(registry, context) -> list:
+    """Settings > Shortcuts' rows (on the UI thread), or none when there is no settings file."""
+
+    from cdmw.ui.commands.keymap import keymap_rows
+
+    settings = getattr(context, "settings", None)
+    return keymap_rows(registry, settings) if settings is not None else []
 
 
 # ----- search -----------------------------------------------------------------------
@@ -168,15 +185,27 @@ def _search_characters(call) -> dict[str, object]:
     session = context.archive_session()
     service = context.catalogue_service()
     if not context.ui_call(lambda: service.character_catalog_available):
-        raise ToolError(UNAVAILABLE, "The Character Finder needs an updated archive helper.")
+        raise ToolError(UNAVAILABLE, "Body & Face Finder needs an updated archive helper.")
     context.catalogue_call("build_character_catalog", session.session_id, cancel=call.cancel_event)
-    result = context.catalogue_call("search_character_catalog", CharacterCatalogSearchRequest(
-        session.session_id, query=str(a.get("query") or ""), view=str(a.get("view") or "assets"),
-        tab=str(a.get("tab") or "bodies"), page_size=min(int(a.get("max_results") or 200), 1000)),
-        cancel=call.cancel_event)
-    rows = [to_data(row) for row in getattr(result, "rows", ())]
-    return {"characters": rows, "total_matches": int(getattr(result, "total_matches", len(rows)) or len(rows)),
-            "warnings": list(getattr(result, "warnings", ()) or ())}
+    wanted = min(int(a.get("max_results") or 200), 1000)
+    rows: list[object] = []
+    total = 0
+    warnings: list[str] = []
+    # The worker answers at most CHARACTER_PAGE rows a request, as the finder's pages.
+    while len(rows) < wanted:
+        call.check_cancelled()
+        result = context.catalogue_call("search_character_catalog", CharacterCatalogSearchRequest(
+            session.session_id, query=str(a.get("query") or ""), view=str(a.get("view") or "assets"),
+            tab=str(a.get("tab") or "bodies"), page_start=len(rows),
+            page_size=min(CHARACTER_PAGE, wanted - len(rows))), cancel=call.cancel_event)
+        total = int(result.total_matches)
+        warnings = list(result.warnings or ())
+        if not result.rows:
+            break
+        rows.extend(to_data(row) for row in result.rows)
+        if len(rows) >= total:
+            break
+    return {"characters": rows, "total_matches": total, "truncated": total > len(rows), "warnings": warnings}
 
 
 def _search_text(call) -> dict[str, object]:
@@ -435,6 +464,7 @@ def _tables_row(call) -> dict[str, object]:
     if key is None and not name:
         raise ToolError(INVALID_ARGUMENTS, "Give key or name")
     found = []
+    refused: list[tuple[str, str]] = []
     for layer in layers:
         call.check_cancelled()
         decoded = decode_static_table(table, layer.header, layer.body)
@@ -442,6 +472,15 @@ def _tables_row(call) -> dict[str, object]:
             if (key is not None and record.key == int(key)) or (name and record.name == name):
                 found.append({"layer": layer.stem, "key": record.key, "name": record.name,
                               "fields": to_data(record.fields), "members": to_data(record.members)})
+        if key is not None:
+            refused.extend((layer.stem, reason) for row_id, reason in decoded.refused if row_id == int(key))
+    if not found and refused:
+        # The row is there, but its bytes do not fit the table's schema: say so, not "no row".
+        from cdmw.mcp.errors import FAILED
+
+        stem, reason = refused[-1]
+        raise ToolError(FAILED, f"{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}",
+                        {"layer": stem})
     if not found:
         raise ToolError(NOT_FOUND, f"{table} has no row {key if key is not None else name}.")
     # The game reads the last layer that has the row (a DLC copy over the base).
@@ -527,7 +566,8 @@ def read_tools() -> list[Tool]:
 
     return [
         tool("commands.list", "Commands",
-             "Every command of the interface with its id, label, context, keys and class, whether it can run now "
+             "Every command of the interface with its id, label, context, keys (as Settings > Shortcuts has them "
+             "now, and the defaults) and class, whether it can run now "
              "and, when not, the interface's reason. 'tool' names the AI tool that runs it, when one is built.",
              {"context": {"type": "string", "enum": ["", *_contexts()]}, "query": _TEXT}, [], _commands_list,
              "registry:CommandRegistry.commands", paged="commands", runs_on=ON_UI),
@@ -546,9 +586,11 @@ def read_tools() -> list[Tool]:
              {"query": _TEXT, "category": _TEXT, "only_dlc": {"type": "boolean"},
               "max_results": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 200}},
              [], _search_items, "service:ArchiveCatalogueService.search_item_catalog", paged="items"),
-        tool("search.characters", "Character Finder",
-             "Finds bodies, faces, hair and other character parts, as the Character Finder does.",
-             {"query": _TEXT, "view": _TEXT, "tab": _TEXT,
+        tool("search.characters", "Body & Face Finder",
+             "Finds bodies, faces, hair and other character parts, as Body & Face Finder does: its assets or "
+             "appearances view, on its Bodies or Faces tab.",
+             {"query": _TEXT, "view": {"type": "string", "enum": ["assets", "appearances"], "default": "assets"},
+              "tab": {"type": "string", "enum": ["bodies", "faces"], "default": "bodies"},
               "max_results": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 200}},
              [], _search_characters, "service:ArchiveCatalogueService.search_character_catalog",
              paged="characters"),

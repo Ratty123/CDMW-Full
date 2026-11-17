@@ -423,6 +423,12 @@
       "gap": "not_built",
       "class": "read",
       "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+    },
+    "saved_work.combine": {
+      "gap": "not_built",
+      "class": "output",
+      "milestone": "P13 stage C part 2: saved work tools (Combine needs P7's screens)",
+      "note": "Registered by Drafts & Mods when its page is first built (cdmw/ui/mesh_editor/saved_work_commands.py)."
     }
   },
   "command_patterns": [
@@ -763,11 +769,10 @@
     },
     {
       "id": "textures.list",
-      "area": "Texture Editor",
-      "what": "Every texture a model uses",
+      "area": "Mesh Editor > Textures panel",
+      "what": "Every texture the shown mesh's parts use",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
+      "tool": "textures.list"
     },
     {
       "id": "textures.open",
@@ -1059,9 +1064,16 @@
       "milestone": "P13 stage C part 2: app tools"
     },
     {
-      "id": "app.shortcuts",
+      "id": "shortcuts.list",
       "area": "Settings > Shortcuts",
-      "what": "List, rebind, reset",
+      "what": "Every command's keys, defaults and clashes",
+      "class": "read",
+      "tool": "app.shortcuts"
+    },
+    {
+      "id": "shortcuts.change",
+      "area": "Settings > Shortcuts",
+      "what": "Rebind, unbind, reset",
       "class": "edit",
       "gap": "not_built",
       "milestone": "P13 stage C part 2: app tools"
@@ -1093,10 +1105,9 @@
     {
       "id": "app.manual",
       "area": "Help",
-      "what": "The manual as MCP resources",
+      "what": "The Help topics (the Wiki manual's source) as text",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: app tools"
+      "tool": "app.manual"
     },
     {
       "id": "archive.overlay_install",

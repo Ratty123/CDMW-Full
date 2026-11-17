@@ -113,6 +113,11 @@ def _registered_commands(app, tmp_path: Path) -> dict[str, object]:
     keys = default_texture_editor_shortcuts()
     for command in texture_editor_commands(_Editor(), {key: (lambda: None) for key in keys}, keys):
         commands.setdefault(command.id, command)
+    # Drafts & Mods registers Combine into One Mod when its page is first built.
+    from cdmw.ui.mesh_editor.saved_work_commands import combine_command
+
+    command = combine_command(object())
+    commands.setdefault(command.id, command)
     return commands
 
 
@@ -127,6 +132,9 @@ def test_every_registry_command_has_a_row_and_no_row_names_a_missing_command(app
         if "tool" in row:
             assert row["tool"] == command_id, row
             assert command.effect == "read", f"{command_id} is covered by a tool but is not a read command"
+        if "class" in row and "prefix" not in row:
+            # The row's class is the one its approval will ask for: the command's own.
+            assert row["class"] == command.effect, f"{command_id}: row says {row['class']}, command {command.effect}"
     # Browse builds its buttons only for the panels it has; every row still names a real command id.
     from cdmw.ui.archive_browser.browse_commands import BROWSE_BUTTONS, command_id as browse_id
 

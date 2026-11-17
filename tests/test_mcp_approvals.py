@@ -312,7 +312,7 @@ def test_the_settings_section_writes_the_setting_and_starts_and_stops_the_link(a
         section.enabled_checkbox.setChecked(False)
         assert not controller.link.listening and not controller.link.token_file.exists()
         assert "--mcp-bridge" in section.setup_text.toPlainText()
-        assert "claude mcp add cdmw" in section.setup_text.toPlainText()
+        assert "claude mcp add --scope user cdmw" in section.setup_text.toPlainText()
     finally:
         section.deleteLater()
 
