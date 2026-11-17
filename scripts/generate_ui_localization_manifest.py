@@ -1817,7 +1817,7 @@ def build_manifest() -> dict[str, object]:
     from cdmw.domain.mesh.body_regions import DEFAULT_BODY_REGION_RULES, sided_region_label
     from cdmw.domain.mesh.morph_layers import _MACROS
     from cdmw.domain.mesh.shader_controls import (BLENDED_FIELD_HELP, EYE_COVER, MESH_FAMILIES, GLASS_FIELD_HELP,
-                                                 SHADER_PRESETS, TEXTURE_SLOTS)
+                                                 SHADER_PRESETS, TEXTURE_SLOTS, VEIL_EXTRA_HELP)
     for slots in TEXTURE_SLOTS.values():
         for _name, label in slots:
             origins.setdefault(label, []).append({
@@ -1856,12 +1856,12 @@ def build_manifest() -> dict[str, object]:
                 })
 
     for family in (*MESH_FAMILIES, EYE_COVER):
-        for text in (family.label, family.note, *(field.label for field in family.fields)):
+        for text in (family.label, family.note, *(field.label for field in (*family.fields, *family.extras))):
             origins.setdefault(text, []).append({
                 "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
                 "sink": "rust-presentation",
             })
-    for text in (*GLASS_FIELD_HELP.values(), *BLENDED_FIELD_HELP.values()):
+    for text in (*GLASS_FIELD_HELP.values(), *BLENDED_FIELD_HELP.values(), *VEIL_EXTRA_HELP.values()):
         origins.setdefault(text, []).append({
             "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
             "sink": "rust-presentation",

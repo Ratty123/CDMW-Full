@@ -46,9 +46,9 @@ class ShaderFamily:
 # the bytes of the channel in use instead of owning a row each.
 VEIL_REPEAT, VEIL_OFFSET, VEIL_ROTATION = "veilDetailRepeat", "veilDetailOffset", "veilDetailRotation"
 VEIL_LAYER_EXTRAS = (
-    ShaderField(VEIL_REPEAT, "Lace repeat X / Y", (1., 1.), 1, 64),
-    ShaderField(VEIL_OFFSET, "Lace offset X / Y", (0., 0.), 0, 1),
-    ShaderField(VEIL_ROTATION, "Lace rotation (degrees)", (0.,), -180, 180),
+    ShaderField("veilDetailRepeat", "Lace repeat X / Y", (1., 1.), 1, 64),
+    ShaderField("veilDetailOffset", "Lace offset X / Y", (0., 0.), 0, 1),
+    ShaderField("veilDetailRotation", "Lace rotation (degrees)", (0.,), -180, 180),
 )
 
 
@@ -409,9 +409,9 @@ def validate_choices(choices, *, glow_parts=(), translucent_parts=(), equipment=
 
 
 VEIL_EXTRA_HELP = {
-    VEIL_REPEAT: "How many times the lace texture repeats across the mesh UV, horizontally and vertically. The game stores 255 / repeat as one byte, so the value snaps to what a byte can hold. Unchecked: retain the authored repeat.",
-    VEIL_OFFSET: "Slides the lace texture, as a fraction of the mesh UV. Unchecked: retain the authored offset.",
-    VEIL_ROTATION: "Turns the lace texture about the UV centre. Stored as one byte, in steps of about 1.4 degrees. Unchecked: retain the authored rotation.",
+    "veilDetailRepeat": "How many times the lace texture repeats across the mesh UV, horizontally and vertically. The game stores 255 / repeat as one byte, so the value snaps to what a byte can hold. Unchecked: retain the authored repeat.",
+    "veilDetailOffset": "Slides the lace texture, as a fraction of the mesh UV. Unchecked: retain the authored offset.",
+    "veilDetailRotation": "Turns the lace texture about the UV centre. Stored as one byte, in steps of about 1.4 degrees. Unchecked: retain the authored rotation.",
 }
 
 
