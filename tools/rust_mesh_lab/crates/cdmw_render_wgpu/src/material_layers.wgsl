@@ -1,5 +1,8 @@
 struct LayerEntry {
     dye: vec4<f32>, affine: vec4<f32>, offset: vec4<f32>, properties: vec4<f32>,
+    // Grime of the same channel: its own tiling, (offset, ramp low, ramp high),
+    // sRGB tint and strength, (intensity, presence, normal encoding, unused).
+    grime_affine: vec4<f32>, grime_offset: vec4<f32>, grime_tint: vec4<f32>, grime: vec4<f32>,
 };
 struct LayerUniform {
     layers: array<LayerEntry, 3>, seeds: array<vec4<f32>, 3>, base_color: vec4<f32>, control: vec4<u32>,
@@ -15,6 +18,17 @@ struct LayerUniform {
 @group(2) @binding(8) var layer_b_normal: texture_2d<f32>;
 @group(2) @binding(9) var layer_b_sp: texture_2d<f32>;
 @group(2) @binding(10) var<uniform> layer_uniform: LayerUniform;
+// _detailMaskTexture: red marks scratches, green marks grime.
+@group(2) @binding(11) var detail_mask: texture_2d<f32>;
+@group(2) @binding(12) var grime_r_color: texture_2d<f32>;
+@group(2) @binding(13) var grime_r_normal: texture_2d<f32>;
+@group(2) @binding(14) var grime_r_sp: texture_2d<f32>;
+@group(2) @binding(15) var grime_g_color: texture_2d<f32>;
+@group(2) @binding(16) var grime_g_normal: texture_2d<f32>;
+@group(2) @binding(17) var grime_g_sp: texture_2d<f32>;
+@group(2) @binding(18) var grime_b_color: texture_2d<f32>;
+@group(2) @binding(19) var grime_b_normal: texture_2d<f32>;
+@group(2) @binding(20) var grime_b_sp: texture_2d<f32>;
 
 fn layer_uv(layer: LayerEntry, uv: vec2<f32>) -> vec2<f32> {
     return vec2<f32>(layer.affine.x*uv.x + layer.affine.z*uv.y,
@@ -32,6 +46,40 @@ fn layer_normal(sampled: vec3<f32>, layer: LayerEntry) -> vec3<f32> {
     let z = select(sampled.z * 2.0 - 1.0, sqrt(max(1.0-dot(xy,xy),0.0)), layer.properties.w > 0.0);
     let rotated = vec2<f32>(dot(layer.affine.xy, xy), dot(layer.affine.zw, xy)) / max(length(layer.affine.xy), 0.00001);
     return safe_normalize(vec3<f32>(rotated,z), vec3<f32>(0.0,0.0,1.0));
+}
+
+fn grime_uv(layer: LayerEntry, uv: vec2<f32>) -> vec2<f32> {
+    return vec2<f32>(layer.grime_affine.x*uv.x + layer.grime_affine.z*uv.y,
+                     layer.grime_affine.y*uv.x + layer.grime_affine.w*uv.y) + layer.grime_offset.xy;
+}
+
+fn grime_normal(sampled: vec3<f32>, layer: LayerEntry) -> vec3<f32> {
+    let signed = layer.grime.z == 2.0;
+    let xy = select(sampled.xy * 2.0 - vec2<f32>(1.0), sampled.xy, signed);
+    let z = select(sampled.z * 2.0 - 1.0, sqrt(max(1.0-dot(xy,xy),0.0)), layer.grime.z > 0.0);
+    let rotated = vec2<f32>(dot(layer.grime_affine.xy, xy), dot(layer.grime_affine.zw, xy)) / max(length(layer.grime_affine.xy), 0.00001);
+    return safe_normalize(vec3<f32>(rotated,z), vec3<f32>(0.0,0.0,1.0));
+}
+
+// Photoshop overlay on display-space values, as the game's shader applies its tints.
+fn layer_overlay(base: vec3<f32>, blend: vec3<f32>) -> vec3<f32> {
+    return select(vec3<f32>(1.0) - 2.0*(vec3<f32>(1.0)-base)*(vec3<f32>(1.0)-blend), 2.0*base*blend, base < vec3<f32>(0.5));
+}
+
+// The game's tint: desaturate 80%, overlay the tint in sRGB, mix in by its alpha.
+fn layer_tint(color: vec3<f32>, tint: vec4<f32>) -> vec3<f32> {
+    let grey = mix(color, vec3<f32>(dot(color, vec3<f32>(0.299, 0.587, 0.114))), 0.8);
+    let tinted = srgb_to_linear(layer_overlay(linear_to_srgb(clamp(grey, vec3<f32>(0.0), vec3<f32>(1.0))), tint.rgb));
+    return mix(color, tinted, clamp(tint.a, 0.0, 1.0));
+}
+
+// Where the game shows a layer's grime: a smoothstep ramp over the detail
+// mask's green between the layer's two ramp edges, times its intensity.
+fn grime_weight(layer: LayerEntry, detail_green: f32) -> f32 {
+    let low = layer.grime_offset.z;
+    let high = min(max(layer.grime_offset.w, low + 0.005), 1.0);
+    let x = clamp((detail_green - low) / (high - low), 0.0, 1.0);
+    return clamp(x*x*(3.0-2.0*x) * layer.grime.x, 0.0, 1.0) * step(0.5, layer.grime.y);
 }
 
 fn layer_rnm(base: vec3<f32>, detail: vec3<f32>) -> vec3<f32> {
@@ -91,6 +139,22 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     responses[0] = textureSampleBias(layer_r_sp, material_sampler, ur, 0.0).rgb;
     responses[1] = textureSampleBias(layer_g_sp, material_sampler, ug, 0.0).rgb;
     responses[2] = textureSampleBias(layer_b_sp, material_sampler, ub, 0.0).rgb;
+    let detail_texel = textureSampleBias(detail_mask, material_sampler, uv, 0.0).rgb;
+    var grime_colors: array<vec3<f32>,3>;
+    var grime_normals: array<vec3<f32>,3>;
+    var grime_responses: array<vec3<f32>,3>;
+    let gr = grime_uv(layer_uniform.layers[0], uv);
+    let gg = grime_uv(layer_uniform.layers[1], uv);
+    let gb = grime_uv(layer_uniform.layers[2], uv);
+    grime_colors[0] = textureSampleBias(grime_r_color, material_sampler, gr, 0.0).rgb;
+    grime_colors[1] = textureSampleBias(grime_g_color, material_sampler, gg, 0.0).rgb;
+    grime_colors[2] = textureSampleBias(grime_b_color, material_sampler, gb, 0.0).rgb;
+    grime_normals[0] = textureSampleBias(grime_r_normal, material_sampler, gr, 0.0).rgb;
+    grime_normals[1] = textureSampleBias(grime_g_normal, material_sampler, gg, 0.0).rgb;
+    grime_normals[2] = textureSampleBias(grime_b_normal, material_sampler, gb, 0.0).rgb;
+    grime_responses[0] = textureSampleBias(grime_r_sp, material_sampler, gr, 0.0).rgb;
+    grime_responses[1] = textureSampleBias(grime_g_sp, material_sampler, gg, 0.0).rgb;
+    grime_responses[2] = textureSampleBias(grime_b_sp, material_sampler, gb, 0.0).rgb;
     var color = vec3<f32>(0.0);
     var normal = vec3<f32>(0.0);
     var orm = vec3<f32>(0.0);
@@ -132,6 +196,17 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
         color += c * mask[k];
         normal += n * mask[k];
         orm += sp * mask[k];
+    }
+    if layer_uniform.control.x == 1u {
+        // Grime belongs to the layer with the largest mask channel, as in the game.
+        var slot = 2u;
+        if mask.r >= mask.g && mask.r >= mask.b { slot = 0u; } else if mask.g >= mask.b { slot = 1u; }
+        let layer = layer_uniform.layers[slot];
+        let weight = grime_weight(layer, detail_texel.g) * step(0.00001, mask[slot]);
+        color = mix(color, layer_tint(grime_colors[slot], layer.grime_tint), weight);
+        orm = vec3<f32>(orm.r, mix(orm.gb, grime_responses[slot].gb, weight));
+        let soiled = safe_normalize(mix(vec3<f32>(0.0,0.0,1.0), grime_normal(grime_normals[slot], layer), weight), vec3<f32>(0.0,0.0,1.0));
+        normal = select(normal, layer_rnm(safe_normalize(normal, vec3<f32>(0.0,0.0,1.0)), soiled), weight > 0.00001);
     }
     out.color = color;
     out.normal = normal;

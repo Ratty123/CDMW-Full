@@ -60,3 +60,63 @@ def pac_layer_uv_transform(
         cosine / sx, sine / sx, -sine / sy, cosine / sy,
         x * cosine - y * sine + 0.5, x * sine + y * cosine + 0.5,
     )
+
+
+def pac_grime_uv_transform(
+    value: object,
+) -> tuple[float, float, float, float, float, float] | None:
+    """Return the grime layer's own repeat-sampling affine, or None when unreadable.
+
+    `_grimeBlendingParameter{R,G,B}` carries the grime tile scale in bytes 0 and
+    1 and its angle in byte 2; grime has no offset, and does not follow the
+    colour layer's `_dyeingTransformProperty*`.
+    """
+    parts = _byte4(value)
+    if len(parts) != 4:
+        return None
+    sx, sy = max(parts[0], 1e-5), max(parts[1], 1e-5)
+    angle = parts[2] * (2.0 * math.pi) - math.pi
+    cosine, sine = math.cos(angle), math.sin(angle)
+    x, y = -0.5 / sx, -0.5 / sy
+    return (
+        cosine / sx, sine / sx, -sine / sy, cosine / sy,
+        x * cosine - y * sine + 0.5, x * sine + y * cosine + 0.5,
+    )
+
+
+def pac_grime_blend_bytes(
+    parameters: Iterable[tuple[str, object]], channel: str,
+) -> tuple[int, int, int] | None:
+    """Return the grime ramp's low and high bytes and its intensity byte.
+
+    The game shows grime where `_detailMaskTexture` green passes a smoothstep
+    between the two ramp bytes, times the intensity byte (255 is 2.0). Red and
+    green read `_grimeBlendingOpacityParameter` bytes 0, 1 and 2, 3; blue reads
+    `_grimeBlendingOpacityParameter1` bytes 0, 1. None when either parameter is
+    not authored, because the engine defaults are not known.
+    """
+    channel = str(channel).casefold()
+    if channel not in {"r", "g", "b"}:
+        return None
+    range_key = "grimeblendingopacityparameter1" if channel == "b" else "grimeblendingopacityparameter"
+    blend_key = f"grimeblendingparameter{channel}"
+    found: dict[str, int] = {}
+    for name, value in parameters:
+        key = "".join(character for character in str(name).casefold() if character.isalnum())
+        if key in {range_key, blend_key}:
+            text = str(value).strip() if value is not None else ""
+            if re.fullmatch(r"\d+", text):
+                found[key] = min(0xFFFFFFFF, int(text))
+    if range_key not in found or blend_key not in found:
+        return None
+    shift = 16 if channel == "g" else 0
+    ramp = found[range_key] >> shift
+    return ramp & 255, (ramp >> 8) & 255, (found[blend_key] >> 24) & 255
+
+
+def pac_color_bytes(value: object) -> tuple[float, float, float, float] | None:
+    """Parse a PAC `#rrggbbaa` colour into unit sRGB components and alpha."""
+    text = str(value or "").strip()
+    if not re.fullmatch(r"#[0-9a-fA-F]{8}", text):
+        return None
+    return tuple(int(text[index:index + 2], 16) / 255.0 for index in (1, 3, 5, 7))  # type: ignore[return-value]

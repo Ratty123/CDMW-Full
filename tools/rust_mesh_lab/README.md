@@ -468,13 +468,17 @@ the owned session directory rather than being embedded in JSONL.
 
 Full preview packages bind eligible RGB detail layers from the shared PAC graph
 as source-resolution DDS in bind group 2. Group 0 and its 288-byte material uniform
-remain compatible. The renderer requests 32 sampled textures when available;
+remain compatible. The renderer requests 40 sampled textures when available;
 other adapters and unsupported graphs use the CPU compositor. Each detail has
 an affine UV transform, linear dye, mean luminance and direct packed response.
 The layer sampler uses zero LOD bias. Technical masks use sequential overlays
 with separate authored colour, normal and packed-response flags and opacity.
 Missing channels use base maps; colour
-seeds affect channels without detail. Grime is hidden unless the internal
+seeds affect channels without detail. Ver2 grime layers that state their ramp
+(`grime_blend`) and detail mask ride in the same bind group: the detail mask and
+a colour, normal and response map per channel. The layer with the largest mask
+channel takes its grime where the detail mask's green passes the ramp, as the
+game's G-buffer shader does. Other grime is hidden unless the internal
 `CDMW_PREVIEW_DRAW_GRIME=1` comparison switch is set. Both capture and window
 recorders use this route. Every graph DDS is still hash-validated, even when
 disabled grime does not require decoding or upload.

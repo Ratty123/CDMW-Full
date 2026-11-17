@@ -244,6 +244,7 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             affine,
             offset: [0.25, 0.5, flags as f32, 0.0],
             properties: [1.0, 0.2126, 1.0, 0.0],
+            ..Default::default()
         };
         if second {
             layer.textures[4] = Some(color);
@@ -252,6 +253,7 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
                 affine: [0.0; 4],
                 offset: [0.75, 0.5, 0.0, 0.0],
                 properties: [1.0, 0.0722, 1.0, 0.0],
+                ..Default::default()
             };
         }
         let path = temporary.path().join(format!("{name}.bmp"));
@@ -309,6 +311,7 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             affine: [0.0; 4],
             offset: [0.25, 0.5, 0.0, 0.0],
             properties: [1.0, 1.0, 1.0, 0.0],
+            ..Default::default()
         };
         let lit = temporary.path().join(format!("skin-{red}-lit.bmp"));
         let response = temporary.path().join(format!("skin-{red}-response.bmp"));
@@ -344,6 +347,168 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
         skin_lit[0], skin_lit[1],
         "skin occlusion stays one regardless of packed R"
     );
+    Ok(())
+}
+
+/// The game's Ver2 grime rule on the plate of `cd_phm_00_vest_0047_04`: rust
+/// (roughness 0.96, metal 0) over polished steel (roughness 0.18, metal 1) where
+/// `_detailMaskTexture` green passes the layer's ramp (0.576 to 1.0, intensity
+/// byte 0x8E), not at one constant weight.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_ver2_grime_follows_the_detail_mask_ramp() -> TestResult {
+    use cdmw_render_wgpu::{
+        DETAIL_MASK_SLOT, GRIME_SLOT, LayerEntryUniform, LayerTexture, LayerUniform,
+        MaterialLayerSet,
+    };
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.5, 0.5]; 4];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let linear = |value: f32| {
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let srgb = |value: f32| {
+        if value <= 0.003_130_8 {
+            value * 12.92
+        } else {
+            1.055 * value.powf(1.0 / 2.4) - 0.055
+        }
+    };
+    let steel = [128_u8, 128, 128];
+    let rust = [200_u8, 100, 50];
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    let intensity = 142.0 * 2.0 / 255.0;
+    // (name, detail mask green, grime tint, expected grime weight)
+    for (name, green, tint, weight) in [
+        ("below the ramp", 100_u8, [1.0, 1.0, 1.0, 0.0], 0.0_f32),
+        ("half way", 201, [1.0, 1.0, 1.0, 0.0], 0.5 * intensity),
+        ("full", 255, [1.0, 1.0, 1.0, 0.0], 1.0),
+        ("full and tinted", 255, [0.698, 0.643, 0.643, 1.0], 1.0),
+    ] {
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[1] = Some(texture(
+            [steel[0], steel[1], steel[2], 255],
+            TextureRole::BaseColor,
+        )?);
+        layer.textures[3] = Some(texture([255, 46, 255, 255], TextureRole::Material)?);
+        layer.textures[DETAIL_MASK_SLOT] =
+            Some(texture([0, green, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[GRIME_SLOT] = Some(texture(
+            [rust[0], rust[1], rust[2], 255],
+            TextureRole::BaseColor,
+        )?);
+        layer.textures[GRIME_SLOT + 2] = Some(texture([255, 245, 0, 255], TextureRole::Material)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [1.0, 1.0, 1.0, 0.0],
+            affine: [1.0, 0.0, 0.0, 1.0],
+            properties: [1.0, 0.2158, 1.0, 0.0],
+            grime_affine: [1.0, 0.0, 0.0, 1.0],
+            grime_offset: [0.0, 0.0, 147.0 / 255.0, 1.0],
+            grime_tint: tint,
+            grime: [intensity, 1.0, 0.0, 0.0],
+            ..Default::default()
+        };
+        let colour = temporary.path().join(format!("{name}-base.bmp"));
+        let response = temporary.path().join(format!("{name}-response.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &colour,
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: Some(&response),
+                layer_mask: None,
+            },
+        ))?;
+        let grime: [f32; 3] = std::array::from_fn(|k| linear(f32::from(rust[k]) / 255.0));
+        let luma = 0.299 * grime[0] + 0.587 * grime[1] + 0.114 * grime[2];
+        let bytes = std::fs::read(colour)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        for channel in 0..3 {
+            let grey = srgb(grime[channel] + (luma - grime[channel]) * 0.8);
+            let blend = tint[channel];
+            let overlaid = if grey < 0.5 {
+                2.0 * grey * blend
+            } else {
+                1.0 - 2.0 * (1.0 - grey) * (1.0 - blend)
+            };
+            let soiled = grime[channel] + (linear(overlaid) - grime[channel]) * tint[3];
+            let clean = linear(f32::from(steel[channel]) / 255.0);
+            let expected = clean + (soiled - clean) * weight;
+            let drawn = linear(f32::from(pixel[2 - channel]) / 255.0);
+            assert!(
+                (drawn - expected).abs() <= 0.012,
+                "{name}: channel {channel}, {drawn} != {expected}"
+            );
+        }
+        let bytes = std::fs::read(response)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        let roughness = 46.0 + (245.0 - 46.0) * weight;
+        let metal = 255.0 * (1.0 - weight);
+        assert!(
+            (f32::from(pixel[1]) - roughness).abs() <= 3.0,
+            "{name}: roughness {} != {roughness}",
+            pixel[1]
+        );
+        assert!(
+            (f32::from(pixel[2]) - metal).abs() <= 3.0,
+            "{name}: metal {} != {metal}",
+            pixel[2]
+        );
+    }
     Ok(())
 }
 

@@ -151,7 +151,13 @@ mod work {
                 } else {
                     None
                 };
-                [reference, mask].into_iter().flatten()
+                // Ver2 grime is placed by the detail mask as well.
+                let detail = if reference.is_some() && layer.is_ver2_grime() {
+                    layer.detail_mask.as_ref()
+                } else {
+                    None
+                };
+                [reference, mask, detail].into_iter().flatten()
             })
             .collect()
     }
@@ -869,6 +875,7 @@ impl ImageCache {
                     layer.material.as_ref(),
                     layer.height.as_ref(),
                     layer.mask.as_ref(),
+                    layer.detail_mask.as_ref(),
                 ]
                 .into_iter()
                 .flatten()
@@ -1467,6 +1474,89 @@ fn rgb_layer_dye(color: [f32; 3], dye: [f32; 4], mean: f32, opacity: f32) -> [f3
     })
 }
 
+/// Photoshop overlay on display-space values (`layer_overlay` in material_layers.wgsl).
+fn overlay(base: f32, blend: f32) -> f32 {
+    if base < 0.5 {
+        2.0 * base * blend
+    } else {
+        1.0 - 2.0 * (1.0 - base) * (1.0 - blend)
+    }
+}
+
+/// `layer_tint` in material_layers.wgsl: desaturate 80%, overlay the sRGB tint,
+/// mix in by its alpha. Linear colour in and out.
+fn ver2_tint(color: [f32; 3], tint: [f32; 4]) -> [f32; 3] {
+    let luma = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
+    std::array::from_fn(|k| {
+        let grey = mix(color[k], luma, 0.8).clamp(0.0, 1.0);
+        let tinted = srgb_to_linear(overlay(linear_to_srgb(grey), tint[k]));
+        mix(color[k], tinted, tint[3].clamp(0.0, 1.0))
+    })
+}
+
+/// The mask channel whose layer the game draws at a pixel: the largest.
+fn ver2_slot(mask: [f32; 3]) -> usize {
+    if mask[0] >= mask[1] && mask[0] >= mask[2] {
+        0
+    } else if mask[1] >= mask[2] {
+        1
+    } else {
+        2
+    }
+}
+
+/// `grime_weight` in material_layers.wgsl, from the layer's ramp bytes.
+fn ver2_grime_ramp(blend: [u32; 3], detail_green: f32) -> f32 {
+    let low = blend[0] as f32 / 255.0;
+    let high = (blend[1] as f32 / 255.0).max(low + 0.005).min(1.0);
+    let x = ((detail_green - low) / (high - low)).clamp(0.0, 1.0);
+    (x * x * (3.0 - 2.0 * x) * (blend[2] as f32 * 2.0 / 255.0)).clamp(0.0, 1.0)
+}
+
+/// Where a Ver2 grime layer shows at one pixel: its ramp over the detail mask's
+/// green, on the pixels whose largest blend-mask channel is the layer's own.
+fn ver2_grime_coverage(
+    layer: &PreviewCoreMaterialLayer,
+    mask: Option<&[u8]>,
+    detail: Option<&[u8]>,
+    offset: usize,
+) -> f32 {
+    let (Some(blend), Some(detail)) = (layer.grime_blend, detail) else {
+        return 0.0;
+    };
+    let weights: [f32; 3] = match mask {
+        Some(pixels) => std::array::from_fn(|k| unit(pixels[offset + k])),
+        None => [1.0, 0.0, 0.0],
+    };
+    let weights = if weights.iter().sum::<f32>() < 0.00001 {
+        [1.0, 0.0, 0.0]
+    } else {
+        weights
+    };
+    let channel = channel_index(&layer.mask_channel).min(2);
+    if ver2_slot(weights) != channel || weights[channel] <= 0.0 {
+        return 0.0;
+    }
+    ver2_grime_ramp(blend, unit(detail[offset + 1]))
+}
+
+/// The detail mask of a Ver2 grime layer at the target size, or None for any other layer.
+fn ver2_grime_detail(
+    layer: &PreviewCoreMaterialLayer,
+    cache: &mut ImageCache,
+    width: u32,
+    height: u32,
+) -> Result<Option<ImagePixels>, SessionError> {
+    if !layer.is_ver2_grime() {
+        return Ok(None);
+    }
+    layer
+        .detail_mask
+        .as_ref()
+        .map(|reference| cache.resized(reference, width, height))
+        .transpose()
+}
+
 struct RgbLayerChannel {
     pixels: Option<ImagePixels>,
     dye: [f32; 4],
@@ -1506,6 +1596,8 @@ fn compose_rgb_layer_base_color(
         .map(|reference| cache.resized(reference, width, height))
         .transpose()?;
     let mut mask = None;
+    let mut grime: [Option<(&PreviewCoreMaterialLayer, ImagePixels, Option<ImagePixels>)>; 3] =
+        [None, None, None];
     let mut channels: [RgbLayerChannel; 3] = std::array::from_fn(|_| RgbLayerChannel {
         pixels: None,
         dye: [0.0; 4],
@@ -1534,6 +1626,15 @@ fn compose_rgb_layer_base_color(
         let Some(reference) = layer.diffuse.as_ref() else {
             continue;
         };
+        if layer.is_ver2_grime() {
+            let detail = ver2_grime_detail(layer, cache, width, height)?;
+            grime[k] = Some((
+                layer,
+                cache.transformed(reference, width, height, layer)?,
+                detail,
+            ));
+            continue;
+        }
         channels[k].mean = mean_linear_luminance(cache.image(reference)?);
         channels[k].pixels = Some(cache.transformed(reference, width, height, layer)?);
         channels[k].dye = dye;
@@ -1592,6 +1693,15 @@ fn compose_rgb_layer_base_color(
                 };
                 for (sum, value) in color.iter_mut().zip(c) {
                     *sum += value * weights[k];
+                }
+            }
+            // Grime of the layer with the largest mask channel, as on the GPU.
+            if let Some((layer, pixels, detail)) = grime[ver2_slot(weights)].as_ref() {
+                let coverage =
+                    ver2_grime_coverage(layer, mask.as_deref(), detail.as_deref(), offset);
+                if coverage > 0.0 {
+                    let soiled = ver2_tint(linear_pixel(pixels, offset), layer.tint);
+                    color = std::array::from_fn(|c| mix(color[c], soiled[c], coverage));
                 }
             }
             std::array::from_fn(|k| color[k] * tint[k])
@@ -1790,9 +1900,14 @@ fn compose_material_response(
             .transpose()?;
         let channel = channel_index(&layer.mask_channel);
         let response_decoder = MaterialResponseDecoder::new(layer);
+        let grime_detail = ver2_grime_detail(layer, cache, width, height)?;
         for pixel in 0..pixel_count {
             let offset = pixel * 4;
-            let coverage = layer_coverage(layer, mask.as_deref(), offset, channel);
+            let coverage = if grime_detail.is_some() {
+                ver2_grime_coverage(layer, mask.as_deref(), grime_detail.as_deref(), offset)
+            } else {
+                layer_coverage(layer, mask.as_deref(), offset, channel)
+            };
             if coverage <= 0.0 {
                 continue;
             }
@@ -1929,9 +2044,14 @@ fn compose_normal(
             .map(|reference| cache.resized(reference, width, height))
             .transpose()?;
         let channel = channel_index(&layer.mask_channel);
+        let grime_detail = ver2_grime_detail(layer, cache, width, height)?;
         for pixel in 0..pixel_count {
             let offset = pixel * 4;
-            let coverage = layer_coverage(layer, mask.as_deref(), offset, channel);
+            let coverage = if grime_detail.is_some() {
+                ver2_grime_coverage(layer, mask.as_deref(), grime_detail.as_deref(), offset)
+            } else {
+                layer_coverage(layer, mask.as_deref(), offset, channel)
+            };
             if coverage <= 0.0 {
                 continue;
             }
@@ -2462,6 +2582,10 @@ mod tests {
             mask_declared: false,
             mask_archive_path: String::new(),
             mask: None,
+            grime_blend: None,
+            detail_mask_declared: false,
+            detail_mask_archive_path: String::new(),
+            detail_mask: None,
         }
     }
 

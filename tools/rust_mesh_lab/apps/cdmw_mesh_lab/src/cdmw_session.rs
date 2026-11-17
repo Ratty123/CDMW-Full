@@ -273,6 +273,17 @@ pub struct PreviewCoreMaterialLayer {
     pub mask_declared: bool,
     pub mask_archive_path: String,
     pub mask: Option<FileReference>,
+    /// A Ver2 grime layer's ramp over `_detailMaskTexture` green: low byte, high
+    /// byte and intensity byte (255 is 2.0), as the game's shader reads them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grime_blend: Option<[u32; 3]>,
+    /// `_detailMaskTexture` of the layer's wrapper: red marks scratches, green grime.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub detail_mask_declared: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub detail_mask_archive_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail_mask: Option<FileReference>,
 }
 
 impl PreviewCoreMaterialLayer {
@@ -280,7 +291,17 @@ impl PreviewCoreMaterialLayer {
         self.uv_transform.unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
     }
 
-    fn resources(&self) -> [(&str, bool, &str, Option<&FileReference>); 5] {
+    /// Whether this is a grime layer the game's Ver2 rule can draw: its ramp is
+    /// stated and the detail mask it reads is present.
+    pub fn is_ver2_grime(&self) -> bool {
+        self.layer_role == "grime"
+            && self.mask_parameter == "_colorBlendingMaskTexture"
+            && self.grime_blend.is_some_and(|blend| blend[2] > 0)
+            && self.detail_mask.is_some()
+            && self.diffuse.is_some()
+    }
+
+    fn resources(&self) -> [(&str, bool, &str, Option<&FileReference>); 6] {
         [
             (
                 "diffuse",
@@ -311,6 +332,12 @@ impl PreviewCoreMaterialLayer {
                 self.mask_declared,
                 self.mask_archive_path.as_str(),
                 self.mask.as_ref(),
+            ),
+            (
+                "detail_mask",
+                self.detail_mask_declared,
+                self.detail_mask_archive_path.as_str(),
+                self.detail_mask.as_ref(),
             ),
         ]
     }
@@ -2399,6 +2426,9 @@ fn validate_preview_core_material_graph(
                     .iter()
                     .any(|value| !value.is_finite() || value.abs() > 1_000_000.0)
                 || layer.blend_flags.is_some_and(|value| value > 15)
+                || layer
+                    .grime_blend
+                    .is_some_and(|bytes| bytes.iter().any(|value| *value > 255))
                 || layer
                     .blend_opacity
                     .is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))

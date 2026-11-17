@@ -245,6 +245,62 @@ def test_layer_transforms_follow_wrapper_and_component_through_promotion(tmp_pat
         assert layers[1]["tint"][3] == 0  # No authored dye is not a white dye.
 
 
+def test_ver2_grime_layers_state_the_game_ramp_and_their_detail_mask(tmp_path: Path):
+    from cdmw.domain.material_layer_uv import pac_grime_uv_transform
+
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    detail_mask = tmp_path / "plate_mg.dds"
+    detail_mask.write_bytes(b"DDS " + b"M" * 512)
+    base = native["batches"][0]["material_layers"][0]
+    grime = dict(base, layer_role="grime", component_scope_id="piece-a",
+                 mask_parameter="_colorBlendingMaskTexture",
+                 mask_source=base["diffuse_source"], mask_archive_path="character/texture/plate_ma.dds")
+    native["batches"][0]["material_layers"].extend([
+        dict(grime, mask_channel="r", source_parameter="_grimeDiffuseTextureR"),
+        dict(grime, mask_channel="g", source_parameter="_grimeDiffuseTextureG"),
+        # Blue has no authored ramp parameter: it stays without the rule.
+        dict(grime, mask_channel="b", source_parameter="_grimeDiffuseTextureB"),
+    ])
+    parameters = [
+        dict(component_scope_id="piece-a", owner_wrapper_item_id="fixture-wrapper-1",
+             material_wrapper_index=0, parameter_name=name, integer_value=value)
+        for name, value in (
+            ("_grimeBlendingParameterR", 0x8E003333), ("_grimeBlendingParameterG", 0x41001010),
+            ("_grimeBlendingParameterB", 0x1B003333), ("_grimeBlendingOpacityParameter", 0xA7E0FF93),
+        )
+    ]
+    parameters.append(dict(
+        component_scope_id="piece-a", owner_wrapper_item_id="fixture-wrapper-1",
+        material_wrapper_index=0, parameter_name="_tintColorR", value="#b2a4a4ff"))
+    parameters.append(dict(
+        component_scope_id="piece-a", owner_wrapper_item_id="fixture-wrapper-1",
+        material_wrapper_index=0, parameter_name="_detailMaskTexture", value="",
+        resolved_source_path=str(detail_mask),
+        resolved_archive_path="character/texture/plate_mg.dds"))
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=6,
+                                           transported_parameter_count=6)
+    (source / "manifest.json").write_text(json.dumps(native))
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    graph = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]
+    red, green, blue = graph["materials"][0]["layers"][1:]
+    assert red["grime_blend"] == [0x93, 0xFF, 0x8E]
+    assert green["grime_blend"] == [0xE0, 0xA7, 0x41]
+    assert red["uv_transform"] == pytest.approx(pac_grime_uv_transform(0x8E003333))
+    assert red["tint"] == pytest.approx([0xB2 / 255, 0xA4 / 255, 0xA4 / 255, 1.0])
+    assert green["tint"][3] == 0  # No authored tint leaves the grime texture's own colour.
+    for layer in (red, green):
+        assert layer["detail_mask_declared"] is True
+        assert layer["detail_mask_archive_path"] == "character/texture/plate_mg.dds"
+        assert layer["detail_mask"]["byte_length"] == 516
+    assert red["detail_mask"]["sha256"] == green["detail_mask"]["sha256"]
+    assert "grime_blend" not in blue and "detail_mask" not in blue
+    # Base colour and the three masks, plus the detail mask on the two drawn layers.
+    assert graph["source_edge_count"] == 1 + 2 * 3 + 2
+    assert graph["unique_resource_count"] == 2
+
+
 def _called_names(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     result: set[str] = set()

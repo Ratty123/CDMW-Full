@@ -28,7 +28,8 @@ pub mod texture_view;
 pub use lighting_depth::LightingDepthSettings;
 pub use lighting_depth::verify_lighting_depth_compatibility;
 pub use material_layers::{
-    LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet, material_layers_supported,
+    DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_TEXTURE_SLOTS, LayerEntryUniform, LayerTexture,
+    LayerUniform, MaterialLayerSet, material_layers_supported,
 };
 pub use texture_upload::run_headless_texture_upload_comparison;
 

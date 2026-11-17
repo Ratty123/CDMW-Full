@@ -2,6 +2,16 @@
 use super::*;
 
 pub(super) const FLAG: u32 = 1 << 27;
+/// Layer textures: the blend mask; colour, normal and response for R, G, B; the
+/// detail mask; then grime colour, normal and response for R, G, B.
+pub const LAYER_TEXTURE_SLOTS: usize = 20;
+/// Slot of `_detailMaskTexture` (red marks scratches, green grime).
+pub const DETAIL_MASK_SLOT: usize = 10;
+/// First grime slot; grime of channel k starts at `GRIME_SLOT + 3 * k`.
+pub const GRIME_SLOT: usize = 11;
+/// Sampled textures of one fragment stage with layers bound: 16 material maps,
+/// the layer slots and the shadow map.
+const REQUIRED_SAMPLED_TEXTURES: u32 = 40;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable, Default)]
@@ -11,6 +21,14 @@ pub struct LayerEntryUniform {
     pub offset: [f32; 4],
     /// Opacity, mean linear luminance, presence, normal encoding (0 RGB, 1 RG, 2 signed RG).
     pub properties: [f32; 4],
+    /// The grime layer's own tiling, as `affine`.
+    pub grime_affine: [f32; 4],
+    /// Grime UV offset, then the ramp's low and high edge over the detail mask's green.
+    pub grime_offset: [f32; 4],
+    /// `_tintColor` of the grime: sRGB colour and strength.
+    pub grime_tint: [f32; 4],
+    /// Grime intensity (0 to 2), presence, normal encoding, reserved.
+    pub grime: [f32; 4],
 }
 
 #[repr(C)]
@@ -35,8 +53,9 @@ pub struct MaterialLayerSet {
     pub lod_index: usize,
     pub material_index: u32,
     pub uniform: LayerUniform,
-    /// Mask followed by colour, normal, packed response for R, G, B.
-    pub textures: [Option<LayerTexture>; 10],
+    /// Mask followed by colour, normal, packed response for R, G, B; then the
+    /// detail mask and grime colour, normal, packed response for R, G, B.
+    pub textures: [Option<LayerTexture>; LAYER_TEXTURE_SLOTS],
 }
 
 impl MaterialLayerSet {
@@ -63,13 +82,13 @@ pub(super) struct GpuLayers {
 }
 
 pub(super) fn supported(device: &wgpu::Device) -> bool {
-    device.limits().max_sampled_textures_per_shader_stage >= 32
+    device.limits().max_sampled_textures_per_shader_stage >= REQUIRED_SAMPLED_TEXTURES
 }
 
 pub(super) fn limits(adapter: &wgpu::Adapter) -> wgpu::Limits {
     let mut limits = wgpu::Limits::default();
-    if adapter.limits().max_sampled_textures_per_shader_stage >= 32 {
-        limits.max_sampled_textures_per_shader_stage = 32;
+    if adapter.limits().max_sampled_textures_per_shader_stage >= REQUIRED_SAMPLED_TEXTURES {
+        limits.max_sampled_textures_per_shader_stage = REQUIRED_SAMPLED_TEXTURES;
     } else if adapter.limits().max_sampled_textures_per_shader_stage >= 17 {
         limits.max_sampled_textures_per_shader_stage = 17;
     }
@@ -89,16 +108,19 @@ pub async fn material_layers_supported() -> bool {
             apply_limit_buckets: false,
         })
         .await
-        .is_ok_and(|adapter| adapter.limits().max_sampled_textures_per_shader_stage >= 32)
+        .is_ok_and(|adapter| {
+            adapter.limits().max_sampled_textures_per_shader_stage >= REQUIRED_SAMPLED_TEXTURES
+        })
 }
 
 pub(super) fn layout(device: &wgpu::Device) -> Option<wgpu::BindGroupLayout> {
     if !supported(device) {
         return None;
     }
-    let mut entries: Vec<_> = (0..10)
-        .map(|binding| wgpu::BindGroupLayoutEntry {
-            binding,
+    // Binding 10 is the uniform; texture slots from 10 up sit one binding higher.
+    let mut entries: Vec<_> = (0..LAYER_TEXTURE_SLOTS as u32)
+        .map(|slot| wgpu::BindGroupLayoutEntry {
+            binding: texture_binding(slot as usize),
             visibility: wgpu::ShaderStages::FRAGMENT,
             ty: wgpu::BindingType::Texture {
                 sample_type: wgpu::TextureSampleType::Float { filterable: true },
@@ -126,11 +148,20 @@ pub(super) fn layout(device: &wgpu::Device) -> Option<wgpu::BindGroupLayout> {
     )
 }
 
+/// The bind group binding of a texture slot.
+fn texture_binding(slot: usize) -> u32 {
+    if slot < 10 {
+        slot as u32
+    } else {
+        slot as u32 + 1
+    }
+}
+
 pub(super) fn binding(
     device: &wgpu::Device,
     defaults: &DefaultMaterialTextures,
     uniform: &LayerUniform,
-    uploaded: &[Option<UploadedDdsTexture>; 10],
+    uploaded: &[Option<UploadedDdsTexture>; LAYER_TEXTURE_SLOTS],
 ) -> Option<Arc<GpuLayers>> {
     let layout = layout(device)?;
     let views: Vec<_> = uploaded
@@ -143,10 +174,15 @@ pub(super) fn binding(
                     ..Default::default()
                 })
             } else {
-                let texture = if index == 0 {
+                let texture = if index == 0 || index == DETAIL_MASK_SLOT {
                     &defaults.layer_mask
                 } else {
-                    match (index - 1) % 3 {
+                    let set = if index < DETAIL_MASK_SLOT {
+                        index - 1
+                    } else {
+                        index - GRIME_SLOT
+                    };
+                    match set % 3 {
                         0 => &defaults.base_color,
                         1 => &defaults.normal,
                         _ => &defaults.surface,
@@ -165,7 +201,7 @@ pub(super) fn binding(
         .iter()
         .enumerate()
         .map(|(index, view)| wgpu::BindGroupEntry {
-            binding: index as u32,
+            binding: texture_binding(index),
             resource: wgpu::BindingResource::TextureView(view),
         })
         .collect();
@@ -244,11 +280,11 @@ mod tests {
 
     #[test]
     fn layer_uniform_preserves_group_zero_abi() {
-        assert_eq!(std::mem::size_of::<LayerEntryUniform>(), 64);
-        assert_eq!(std::mem::size_of::<LayerUniform>(), 272);
+        assert_eq!(std::mem::size_of::<LayerEntryUniform>(), 128);
+        assert_eq!(std::mem::size_of::<LayerUniform>(), 464);
         assert_eq!(std::mem::size_of::<MaterialUniform>(), 288);
         let shader = include_str!("material_layers.wgsl");
-        for binding in 0..=10 {
+        for binding in 0..=LAYER_TEXTURE_SLOTS {
             assert!(shader.contains(&format!("@group(2) @binding({binding})")));
         }
         assert!(shader.contains("textureSampleBias"));

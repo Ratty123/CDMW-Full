@@ -8,7 +8,9 @@ use crate::preview_core_material::{
     PreviewCoreMaterialCompositionMetrics, compose_preview_core_material_resources_cancellable,
 };
 use cdmw_formats::MeshDocument;
-use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
+use cdmw_render_wgpu::{
+    DETAIL_MASK_SLOT, GRIME_SLOT, LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet,
+};
 use cdmw_texture::{
     DdsFormat, TextureRole, dds_mean_luminance_with_verified_sha256,
     inspect_dds_with_verified_sha256,
@@ -55,10 +57,24 @@ pub(super) fn eligible(material: &PreviewCoreMaterial) -> bool {
             });
     }
     let mut channels = BTreeSet::new();
+    let mut grime_channels = BTreeSet::new();
+    let mut detail_mask = None;
     let mut mask = None;
     let mut mask_parameter = None;
     for layer in material.layers.iter().skip(1) {
-        if !matches!(layer.layer_role.as_str(), "detail" | "color_seed") {
+        if layer.is_ver2_grime() {
+            // Grime the game's rule can draw rides on its channel's layer slot.
+            let Some(channel) = channel(layer) else {
+                return false;
+            };
+            let reference = layer.detail_mask.as_ref().expect("ver2 grime detail mask");
+            if !grime_channels.insert(channel)
+                || detail_mask.is_some_and(|sha| sha != &reference.sha256)
+            {
+                return false;
+            }
+            detail_mask = Some(&reference.sha256);
+        } else if !matches!(layer.layer_role.as_str(), "detail" | "color_seed") {
             return false;
         }
         if mask_parameter.is_some_and(|name| name != &layer.mask_parameter) {
@@ -175,6 +191,32 @@ fn small_colour_mips(
     Ok(true)
 }
 
+/// How a layer normal map stores its vector: 0 RGB, 1 RG, 2 signed RG.
+fn normal_encoding(texture: &LayerTexture) -> Result<f32, SessionError> {
+    let metadata =
+        inspect_dds_with_verified_sha256(&texture.bytes, texture.role, &texture.source_sha256)
+            .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+    Ok(match metadata.format {
+        DdsFormat::Bc5Unorm | DdsFormat::Rg8Unorm => 1.0,
+        DdsFormat::Bc5Snorm => 2.0,
+        _ => 0.0,
+    })
+}
+
+/// Keep only the grime the game's Ver2 rule can draw, and only on a material the
+/// layer path takes with it. Every other grime layer stays hidden: drawn at a
+/// constant weight it tints the whole surface.
+pub(crate) fn keep_drawable_grime(material: &mut PreviewCoreMaterial) {
+    let mut kept = material.clone();
+    kept.layers
+        .retain(|layer| layer.layer_role != "grime" || layer.is_ver2_grime());
+    if kept.layers.iter().any(|layer| layer.layer_role == "grime") && eligible(&kept) {
+        *material = kept;
+    } else {
+        material.layers.retain(|layer| layer.layer_role != "grime");
+    }
+}
+
 fn build(
     material: &PreviewCoreMaterial,
     sources: &BTreeMap<String, Arc<[u8]>>,
@@ -251,12 +293,50 @@ fn build(
             result.uniform.seeds[k] = seed;
             continue;
         }
+        if layer.is_ver2_grime() {
+            let [low, high, intensity] = layer.grime_blend.expect("ver2 grime ramp");
+            let affine = layer.sampling_transform();
+            let slot = GRIME_SLOT + k * 3;
+            let mut encoding = 0.0;
+            result.textures[DETAIL_MASK_SLOT] = Some(layer_texture(
+                layer.detail_mask.as_ref().expect("ver2 grime detail mask"),
+                TextureRole::LayerMask,
+                sources,
+            ));
+            result.textures[slot] = Some(layer_texture(
+                layer.diffuse.as_ref().expect("ver2 grime diffuse"),
+                TextureRole::BaseColor,
+                sources,
+            ));
+            if let Some(reference) = &layer.normal {
+                let texture = layer_texture(reference, TextureRole::Normal, sources);
+                encoding = normal_encoding(&texture)?;
+                result.textures[slot + 1] = Some(texture);
+            }
+            if let Some(reference) = &layer.material {
+                result.textures[slot + 2] =
+                    Some(layer_texture(reference, TextureRole::Material, sources));
+            }
+            let entry = &mut result.uniform.layers[k];
+            entry.grime_affine = [affine[0], affine[1], affine[2], affine[3]];
+            entry.grime_offset = [
+                affine[4],
+                affine[5],
+                low as f32 / 255.0,
+                high as f32 / 255.0,
+            ];
+            // The game overlays the tint on display-space values: no decode.
+            entry.grime_tint = layer.tint;
+            entry.grime = [intensity as f32 * 2.0 / 255.0, 1.0, encoding, 0.0];
+            continue;
+        }
         let affine = layer.sampling_transform();
         let color = layer_texture(
             layer.diffuse.as_ref().expect("eligible diffuse"),
             TextureRole::BaseColor,
             sources,
         );
+        // Grime of this channel may already sit in the entry: keep it.
         result.uniform.layers[k] = LayerEntryUniform {
             dye: dye(layer.tint),
             affine: [affine[0], affine[1], affine[2], affine[3]],
@@ -274,21 +354,12 @@ fn build(
                 1.0,
                 0.0,
             ],
+            ..result.uniform.layers[k]
         };
         result.textures[1 + k * 3] = Some(color);
         if let Some(reference) = &layer.normal {
             let texture = layer_texture(reference, TextureRole::Normal, sources);
-            let metadata = inspect_dds_with_verified_sha256(
-                &texture.bytes,
-                texture.role,
-                &texture.source_sha256,
-            )
-            .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
-            result.uniform.layers[k].properties[3] = match metadata.format {
-                DdsFormat::Bc5Unorm | DdsFormat::Rg8Unorm => 1.0,
-                DdsFormat::Bc5Snorm => 2.0,
-                _ => 0.0,
-            };
+            result.uniform.layers[k].properties[3] = normal_encoding(&texture)?;
             result.textures[2 + k * 3] = Some(texture);
         }
         if let Some(reference) = &layer.material {
@@ -327,6 +398,7 @@ where
             &layer.material,
             &layer.height,
             &layer.mask,
+            &layer.detail_mask,
         ]
         .into_iter()
         .flatten()
@@ -363,7 +435,7 @@ where
         check_preview_cancelled(cancelled)?;
         let mut material = original.clone();
         if !draw_grime {
-            material.layers.retain(|layer| layer.layer_role != "grime");
+            keep_drawable_grime(&mut material);
         }
         if gpu_supported && eligible(&material) && small_colour_mips(&material, &sources)? {
             let gpu = build(&material, &sources)?;
@@ -661,6 +733,134 @@ mod tests {
                     &decoded.pixels[..4]
                 );
                 assert!(decoded.pixels[2] <= 3, "{:?}", &decoded.pixels[..4]);
+            }
+        }
+    }
+
+    /// The plate of `cd_phm_00_vest_0047_04`: grime R ramps from 0.576 to 1.0 over
+    /// the detail mask's green at intensity byte 0x8E. The GPU uniform states that
+    /// ramp, and the CPU fallback composes the same colour.
+    #[test]
+    fn ver2_grime_follows_the_detail_mask_ramp_on_gpu_uniform_and_cpu_fallback() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        // Detail mask green 201: half way up the ramp, weight 0.5 * 142 * 2 / 255.
+        for (green, weight) in [
+            (100_u8, 0.0_f32),
+            (201, 0.5 * 142.0 * 2.0 / 255.0),
+            (255, 1.0),
+        ] {
+            let bytes = [
+                make([128, 128, 128, 255]),
+                make([200, 100, 50, 255]),
+                make([255, 0, 0, 255]),
+                make([0, green, 0, 255]),
+            ];
+            let refs = [
+                reference(&bytes[0], "steel.dds"),
+                reference(&bytes[1], "rust.dds"),
+                reference(&bytes[2], "mask.dds"),
+                reference(&bytes[3], "detail-mask.dds"),
+            ];
+            let mut base = layer("base", "r", &refs[0]);
+            base.diffuse = None;
+            base.mask = None;
+            let mut steel = layer("detail", "r", &refs[0]);
+            steel.mask = Some(refs[2].clone());
+            let mut grime = layer("grime", "r", &refs[1]);
+            grime.source_parameter = "_grimeDiffuseTextureR".into();
+            grime.mask = Some(refs[2].clone());
+            grime.tint = [1.0, 1.0, 1.0, 0.0];
+            let mut hidden = material(vec![base.clone(), steel.clone(), grime.clone()]);
+            keep_drawable_grime(&mut hidden);
+            assert_eq!(hidden.layers.len(), 2, "grime without a ramp stays hidden");
+            grime.grime_blend = Some([147, 255, 142]);
+            grime.detail_mask_declared = true;
+            grime.detail_mask_archive_path = "detail-mask.dds".into();
+            grime.detail_mask = Some(refs[3].clone());
+            let value = material(vec![base, steel, grime]);
+            assert!(eligible(&value));
+            let graph = PreviewCoreMaterialGraph {
+                schema_version: 1,
+                graph_version: 5,
+                semantics_version: 10,
+                quality: "full".into(),
+                resources_included: true,
+                source_edge_count: 5,
+                unique_resource_count: 4,
+                copied_resource_count: 4,
+                unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+                materials: vec![value],
+            };
+            for gpu in [true, false] {
+                let mut resources = Vec::new();
+                let (_, layers) = prepare(
+                    &graph,
+                    &[],
+                    &document,
+                    &mut resources,
+                    gpu,
+                    false,
+                    |r| {
+                        Ok(bytes[refs
+                            .iter()
+                            .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                            .unwrap()]
+                        .clone())
+                    },
+                    &|| false,
+                )
+                .unwrap();
+                if gpu {
+                    assert_eq!(layers.len(), 1, "drawn grime keeps the material on the GPU");
+                    let entry = &layers[0].uniform.layers[0];
+                    assert!((entry.grime_offset[2] - 147.0 / 255.0).abs() < 1e-6);
+                    assert_eq!(entry.grime_offset[3], 1.0);
+                    assert!((entry.grime[0] - 142.0 * 2.0 / 255.0).abs() < 1e-6);
+                    assert_eq!(entry.grime[1], 1.0);
+                    assert_eq!(entry.properties[2], 1.0, "the colour layer keeps its slot");
+                    assert_eq!(
+                        layers[0].textures[DETAIL_MASK_SLOT]
+                            .as_ref()
+                            .unwrap()
+                            .source_sha256,
+                        refs[3].sha256
+                    );
+                    assert_eq!(
+                        layers[0].textures[GRIME_SLOT]
+                            .as_ref()
+                            .unwrap()
+                            .source_sha256,
+                        refs[1].sha256
+                    );
+                } else {
+                    assert!(layers.is_empty());
+                    let composed = resources
+                        .iter()
+                        .find(|r| r.role == TextureRole::BaseColor)
+                        .expect("composed base colour");
+                    let decoded =
+                        cdmw_texture::decode_dds_rgba8(&composed.bytes, composed.role).unwrap();
+                    for (channel, (clean, soiled)) in [(128_u8, 200_u8), (128, 100), (128, 50)]
+                        .into_iter()
+                        .enumerate()
+                    {
+                        let clean = linear(f32::from(clean) / 255.0);
+                        let soiled = linear(f32::from(soiled) / 255.0);
+                        let expected = clean + (soiled - clean) * weight;
+                        let drawn = linear(f32::from(decoded.pixels[channel]) / 255.0);
+                        assert!(
+                            (drawn - expected).abs() <= 0.01,
+                            "green {green}, channel {channel}: {drawn} != {expected}"
+                        );
+                    }
+                }
             }
         }
     }
