@@ -33092,7 +33092,7 @@ MESSAGE_REFERENCE = [
     "message": "The frame {frame.stem} could not be read for the 3D view.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting_preview.py": 145
+      "cdmw/services/new_item_painting_preview.py": 178
     }
   },
   {
@@ -33100,7 +33100,7 @@ MESSAGE_REFERENCE = [
     "message": "The frame {frame.stem} has no canvas part to show the picture on.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting_preview.py": 158
+      "cdmw/services/new_item_painting_preview.py": 192
     }
   },
   {
@@ -33140,7 +33140,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no file {frame.mesh}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting_preview.py": 135
+      "cdmw/services/new_item_painting_preview.py": 168
     }
   },
   {
@@ -33404,7 +33404,7 @@ MESSAGE_REFERENCE = [
     "message": "The picture {source.name} cannot be read: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_painting_preview.py": 68
+      "cdmw/services/new_item_painting_preview.py": 75
     }
   },
   {
