@@ -28,7 +28,8 @@ PAC_XML_PROFILE_INDEX_V1_CACHE_NAME = "pac_xml_profile_index_v1.json"
 PAC_XML_PROFILE_INDEX_V2_CACHE_NAME = "pac_xml_profile_index_v2.sqlite"
 PAC_XML_PROFILE_INDEX_CACHE_NAME = PAC_XML_PROFILE_INDEX_V2_CACHE_NAME
 PAC_XML_PROFILE_INDEX_SCHEMA = "cdmw_pac_xml_profile_index_v1_paths"
-PAC_XML_PROFILE_INDEX_SQLITE_SCHEMA = "cdmw_pac_xml_profile_index_v2_sqlite_compact"
+# Bump when classification changes, so cached families and shader families are rebuilt.
+PAC_XML_PROFILE_INDEX_SQLITE_SCHEMA = "cdmw_pac_xml_profile_index_v2_sqlite_compact_r2"
 
 
 def default_pac_xml_corpus_root() -> Path:
@@ -618,7 +619,8 @@ def classify_pac_xml_shader_family(shader_name: str) -> str:
         return "Standard"
     if "skinwrinkle" in compact:
         return "SkinWrinkle"
-    if "skin" in compact and "skinnedmesh" not in compact.replace("skinnedmesh", "", 1):
+    # Every shader name starts with "SkinnedMesh"; only a "skin" after it marks a skin shader.
+    if "skin" in compact.removeprefix("skinnedmesh"):
         return "Skin"
     return shader or "Unknown"
 
