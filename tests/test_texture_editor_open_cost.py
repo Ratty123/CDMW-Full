@@ -70,3 +70,35 @@ def test_the_first_document_opened_is_loaded_once(tmp_path) -> None:
         assert loads == [0, 1, 0] and editor.document.title == "Opened"
     finally:
         _close(editor)
+
+
+def _bounds_by_index_arrays(pixels: np.ndarray) -> np.ndarray:
+    ys, xs = np.where(pixels[..., 3] > 0)
+    if xs.size == 0:
+        return pixels
+    return pixels[int(ys.min()):int(ys.max()) + 1, int(xs.min()):int(xs.max()) + 1]
+
+
+def test_the_layer_thumbnail_crop_is_the_painted_area_without_per_pixel_index_arrays() -> None:
+    import tracemalloc
+
+    from cdmw.ui.texture_workflow.editor_images import texture_editor_layer_thumbnail_preview_pixels as crop
+
+    rng = np.random.default_rng(7)
+    for _ in range(25):
+        pixels = np.zeros((int(rng.integers(1, 40)), int(rng.integers(1, 40)), 4), dtype=np.uint8)
+        if rng.random() < 0.8:
+            y, x = int(rng.integers(0, pixels.shape[0])), int(rng.integers(0, pixels.shape[1]))
+            pixels[y:y + int(rng.integers(1, 9)), x:x + int(rng.integers(1, 9)), 3] = int(rng.integers(1, 256))
+        assert np.array_equal(crop(pixels), _bounds_by_index_arrays(pixels))
+    assert crop(None) is None and crop(np.zeros((0, 0, 4), dtype=np.uint8)) is None
+
+    opaque = np.full((2048, 2048, 4), 255, dtype=np.uint8)
+    tracemalloc.start()
+    try:
+        assert crop(opaque).shape == opaque.shape
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    # Index arrays of every pixel would take 64 MiB here; the layer itself is 16 MiB.
+    assert peak < 8 * 1024 * 1024
