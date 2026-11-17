@@ -242,3 +242,58 @@ def test_close_stops_the_3d_view_and_opening_again_starts_a_new_one(viewport_dia
     assert _until(lambda: len(_packages(viewport_dialog.loads)) == 2)
     second.host.controller.state_changed.emit("ready", "")
     assert not view.viewport_busy_now()
+
+
+def _nodes(node, kind):
+    found = [node] if node.get("kind") == kind else []
+    for child in node.get("children", []):
+        found.extend(_nodes(child, kind))
+    return found
+
+
+def test_the_presented_page_lays_the_3d_view_over_its_tab_and_keeps_its_slot(viewport_dialog):
+    """Create New Item's page draws the dialog and lays the native viewport over the slot
+    it gives it. The slot must stay in the page after the move (dcc749312), and the ready
+    viewport ends the busy state there too (ed3a8f58f)."""
+    from cdmw.ui.new_item.rust_ui_document import PresentationDocument
+    from cdmw.ui.new_item.rust_ui_portals import PreviewPortals
+
+    view = viewport_dialog.open(ViewportController())
+    view.frame.set_current_frame_row(1)
+    view.preview_tabs.setCurrentWidget(view.viewport_page)
+    assert _until(lambda: _packages(viewport_dialog.loads))
+    frame = viewport_dialog.made[0]
+    frame.host.setObjectName("RustPreviewViewport")  # as the real host is presented
+    document = PresentationDocument()
+
+    def tab():
+        _app().processEvents()  # as the page, which describes the dialog between events
+        state = document.snapshot(QWidget(), dialogs=(view,))
+        assert state["unsupported"] == []
+        tabs = [node for node in _nodes(state["dialogs"][0], "tabs")
+                if node["name"] == "new_item_painting_preview_tabs"][0]
+        assert tabs["props"]["selected"] == 1 and tabs["children"][0]["stretch"] == 1
+        return tabs
+
+    viewports = _nodes(tab(), "viewport")
+    row = frame.host.parentWidget()  # its Scene panel row, a splitter (dcc749312)
+    assert len(viewports) == 1 and document.portals[viewports[0]["id"]] is frame.host
+    surface = QWidget()
+    surface.resize(1400, 900)
+    portals = PreviewPortals(surface)
+    portals.update(document, {"pixels_per_point": surface.devicePixelRatioF(), "portals": [
+        {"id": viewports[0]["id"], "rect": [300, 80, 640, 480], "clip": [0, 0, 1400, 900]}]})
+    try:
+        assert frame.host.parentWidget() is surface and not frame.host.isHidden()
+        assert frame.host.geometry().getRect() == (300, 80, 640, 480)
+        assert [node["id"] for node in _nodes(tab(), "viewport")] == [viewports[0]["id"]]
+        assert view.viewport_busy_now()
+        frame.host.controller.state_changed.emit("ready", "")
+        assert not view.viewport_busy_now()
+        shown = tab()
+        assert not _nodes(shown, "progress")
+        assert [node["id"] for node in _nodes(shown, "viewport")] == [viewports[0]["id"]]
+    finally:
+        portals.restore()
+    assert frame.host.parentWidget() is row and row.objectName() == "ScenePanelRow"
+    surface.deleteLater()
