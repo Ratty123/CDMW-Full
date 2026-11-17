@@ -461,6 +461,9 @@ def test_model_library_and_textures_states(profile) -> None:
     library.results_tree = QTreeWidget(library)
     library.status_label = QLabel("Searching...", library)
     library.results_status_label = QLabel("", library)
+    library._active_results_view = "mirror"
+    library.local_roots = []
+    library.catalogue_db_path = lambda: profile / "catalogue" / "mirror_catalogue.sqlite"
     editor = QWidget(holder)
     editor._task_thread = None
     editor._busy = lambda: False
@@ -481,6 +484,8 @@ def test_model_library_and_textures_states(profile) -> None:
     try:
         state = review_commands.model_library_state(window, {})
         assert state["busy"] and state["status"] == "Searching..." and state["rows"] == 0
+        assert state["view"] == "mirror" and state["local_folders"] == 0
+        assert not state["catalogue_downloaded"] and not state["catalogue_indexed"]
         assert review_commands.textures_open(window, {"path": str(dds)})["bytes"] == 128
         assert opened == [[dds]] and activated == ["editor-tab"]
         shown = review_commands.textures_state(window, {})

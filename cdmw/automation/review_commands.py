@@ -811,8 +811,20 @@ def model_library_state(window, _args: dict) -> dict[str, object]:
     if tab is None:
         return {"created": False}
     tree = getattr(tab, "results_tree", None)
+    database = getattr(tab, "catalogue_db_path", None)
+    try:
+        database_present = bool(callable(database) and database().is_file())
+    except (OSError, RuntimeError):
+        database_present = False
     return {
         "created": True,
+        # Mirror Catalogue lists a downloaded copy of an online model mirror, not the
+        # game archive: with no catalogue downloaded and no local folder added, an
+        # empty table is what a fresh profile shows.
+        "view": str(getattr(tab, "_active_results_view", "") or ""),
+        "catalogue_downloaded": database_present,
+        "catalogue_indexed": bool(getattr(tab, "_catalogue_index_available", False)),
+        "local_folders": len(getattr(tab, "local_roots", ()) or ()),
         "busy": getattr(tab, "_task_thread", None) is not None or bool(getattr(tab, "_populating_results", False)),
         "task_running": getattr(tab, "_task_thread", None) is not None,
         "populating": bool(getattr(tab, "_populating_results", False)),
