@@ -7927,7 +7927,7 @@ MESSAGE_REFERENCE = [
     "message": "A set preview supports at most 32 additional model files.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_window_bridge.py": 366
+      "cdmw/ui/archive_browser/remote_window_bridge.py": 368
     }
   },
   {
@@ -11719,7 +11719,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set preview preparation was cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/item_set_preview.py": 91
+      "cdmw/ui/archive_browser/item_set_preview.py": 210
     }
   },
   {
@@ -16412,7 +16412,7 @@ MESSAGE_REFERENCE = [
     "message": "This choice has incomplete or ambiguous dependencies.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/item_set_preview.py": 66,
+      "cdmw/ui/archive_browser/item_set_preview.py": 137,
       "cdmw/ui/archive_browser/remote_preview_dependencies.py": 255,
       "cdmw/ui/archive_browser/workers.py": 592
     }
@@ -16963,7 +16963,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: archive folder filters could not be loaded from the worker: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_window_bridge.py": 883
+      "cdmw/ui/archive_browser/remote_window_bridge.py": 885
     }
   },
   {

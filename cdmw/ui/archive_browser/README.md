@@ -298,8 +298,14 @@ without adding a new layout setting.
 Item Finder's **Show Exact Links**, **Show Related Set** and double-click resolve every
 scoped PAC before selecting a preview primary, independent of the current page.
 The upper-body file wins; otherwise the largest model wins. `dropitem` paths are
-excluded unless the scope contains just that model. Related Set retains its wider
-file scope. The details pane lists up to 32 model filenames and prefab stems.
+excluded unless the scope contains just that model. The scope holds every wearer's
+copy of a piece, so set discovery also reads the item's own prefabs (the scoped
+`.prefab` files its model stems name, at most 33, in stem order). The first that
+lists a worn model gives the wearer: its folder under `prefab/` and the body in its
+name (`1_pc` + `phm`). A worn file that only other wearers' prefabs list is left
+out; files no prefab lists stay. If the prefabs cannot be read, the set is every
+worn model. Same-wearer alternatives, such as barding for each horse breed, still
+open together. Related Set retains its wider file scope. The details pane lists up to 32 model filenames and prefab stems.
 
 The primary and up to 32 other worn models share a bounded dependency request.
 Dependencies are gathered for each source before preparation; incomplete,

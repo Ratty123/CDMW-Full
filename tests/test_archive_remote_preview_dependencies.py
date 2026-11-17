@@ -160,13 +160,172 @@ def test_invalid_set_request_supersedes_pending_preview() -> None:
     assert len(service.requests) == 1
 
 
+# Kuku Marni Laser Helm (item 1002284) as Show Exact Links scopes it in the installed
+# game, read 2026-11-17: the helm for each wearer, their prefabs and two icons.
+_KUKU_HELM_SCOPE = (
+    (219249, "character/bin__/prefab/1_pc/01_phm/armor/13_hel/cd_phm_00_hel_00_0363_index01_c.prefab", 1998),
+    (223625, "character/bin__/prefab/1_pc/02_phw/armor/13_hel/cd_phw_01_hel_00_0363_index01_c.prefab", 1998),
+    (241806, "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0363.pac", 358376),
+    (245521, "character/model/1_pc/2_phw/armor/13_hel/cd_phw_01_hel_00_0363.pac", 351507),
+    (2084028, "ui/texture/icon/itemicon_prefab_cd_phm_00_hel_00_0363_c.dds", 65664),
+    (2084029, "ui/texture/icon/itemicon_prefab_cd_phm_00_hel_00_0363_index01_c.dds", 65664),
+)
+
+
+def _sized(entry_id: int, path: str, size: int) -> ArchiveEntryDto:
+    return replace(_dto(entry_id, path), original_size=size)
+
+
+_PREFAB = "character/bin__/prefab/"
+_MODEL = "character/model/"
+# (prefab, the PACs it lists) in the item's stem order, as the game's files read 2026-11-17.
+_KUKU_HELM_PREFABS = (
+    (_KUKU_HELM_SCOPE[0][1], (_KUKU_HELM_SCOPE[2][1],)),
+    (_KUKU_HELM_SCOPE[1][1], (_KUKU_HELM_SCOPE[3][1],)),
+)
+
+
+def _listing(prefab: str, *models: ArchiveEntryDto) -> tuple[str, tuple[str, ...]]:
+    return prefab, tuple(model.path for model in models)
+
+
+def test_a_worn_set_leaves_out_another_wearer_s_copy() -> None:
+    """Fredric, 2026-11-17: Item Finder opened the Kuku Marni Laser Helm twice. Its
+    scope holds the male and the female helm, and the set drew both in one place.
+    The item's prefabs say whose each file is."""
+    from cdmw.domain.archives.item_sets import worn_set_members
+
+    entries = tuple(_sized(*row) for row in _KUKU_HELM_SCOPE)
+    male, female = entries[2], entries[3]
+    assert worn_set_members(entries) == (male, female)  # Without the prefabs: every worn model.
+    assert worn_set_members(entries, _KUKU_HELM_PREFABS) == (male,)
+    assert worn_set_members(entries, _KUKU_HELM_PREFABS[::-1]) == (female,)
+    # Crimson Chaser Mail (item 8700): a set per wearer; the female's lower body is
+    # another model (`cd_phw_00_lb_00_0166`) than the male's.
+    male_set = (
+        _sized(243569, _MODEL + "1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_00_0350.pac", 506589),
+        _sized(241120, _MODEL + "1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_00_0350.pac", 175274),
+        _sized(241178, _MODEL + "1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_belt_00_0001.pac", 143587),
+        _sized(242290, _MODEL + "1_pc/1_phm/armor/14_sho/cd_phm_00_sho_0350.pac", 94490),
+    )
+    female_set = (
+        _sized(246460, _MODEL + "1_pc/2_phw/armor/9_upperbody/cd_phw_01_ub_00_0350.pac", 368882),
+        _sized(245060, _MODEL + "1_pc/2_phw/armor/10_lowerbody/cd_phw_00_lb_00_0166.pac", 374678),
+        _sized(245628, _MODEL + "1_pc/2_phw/armor/14_sho/cd_phw_01_sho_00_0350.pac", 88768),
+    )
+    assert worn_set_members((*female_set, *male_set), (
+        _listing(_PREFAB + "1_pc/01_phm/armor/9_upperbody/cd_phm_00_ub_00_0350.prefab", *male_set),
+        _listing(_PREFAB + "1_pc/02_phw/armor/9_upperbody/cd_phw_01_ub_00_0350.prefab", *female_set),
+    )) == male_set
+    # Martial Monk's Cloth Robe (item 1000319): the robe refitted for the player and the
+    # NPC's own robe it was made from. The player prefab comes first.
+    npc = _MODEL + "2_mon/cd_m0001_00_twofeet/cd_m0001_00_orcumer/"
+    robe = (
+        _sized(243736, _MODEL + "1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_orcumer_ub_0003.pac", 360843),
+        _sized(241203, _MODEL + "1_pc/1_phm/armor/10_lowerbody/cd_phm_m0001_00_orcumer_lb_0003.pac", 113877),
+    )
+    npc_robe = (_sized(247789, npc + "cd_m0001_00_orcumer_ub_0003.pac", 512160),
+                _sized(247784, npc + "cd_m0001_00_orcumer_lb_0003.pac", 85109))
+    assert worn_set_members((*npc_robe, *robe), (
+        _listing(_PREFAB + "1_pc/01_phm/armor/9_upperbody/cd_phm_m0001_00_orcumer_ub_0003.prefab", *robe),
+        _listing(_PREFAB + "2_mon/cd_m0001_00_twofeet/cd_m0001_00_orcumer/cd_m0001_00_orcumer_ub_0003.prefab", *npc_robe),
+    )) == robe
+
+
+def test_a_worn_set_keeps_pieces_its_wearer_wears_together() -> None:
+    """Real items whose one wearer's pieces sit in several prefabs or in another
+    wearer's folders; none of them is a duplicate."""
+    from cdmw.domain.archives.item_sets import worn_set_members
+
+    # Barbaros Leather Armor (item 113660): one prefab lists an NPC-built orc upper body
+    # with the human gloves, boots and belt. The gloves and boots also have item prefabs.
+    barbaros = (
+        _sized(249200, _MODEL + "2_mon/cd_m0001_00_twofeet/cd_m0001_05_pom/armor_south/9_upperbody/cd_m0001_00_so_pom_ub_12005.pac", 664768),
+        _sized(243688, _MODEL + "1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_belt_00_0001.pac", 479651),
+        _sized(241500, _MODEL + "1_pc/1_phm/armor/12_foot/cd_phm_00_foot_0056.pac", 251381),
+        _sized(241214, _MODEL + "1_pc/1_phm/armor/11_hand/cd_phm_00_hand_0018_02.pac", 128818),
+    )
+    assert worn_set_members(barbaros[::-1], (
+        _listing(_PREFAB + "2_mon/cd_m0001_00_twofeet/cd_m0001_05_pom/armor_south/cd_m0001_00_so_pom_ub_12005.prefab", *barbaros),
+        _listing(_PREFAB + "1_pc/01_phm/armor/11_hand/cd_phm_00_hand_0018_02.prefab", barbaros[3]),
+        _listing(_PREFAB + "1_pc/01_phm/armor/12_foot/cd_phm_00_foot_0056.prefab", barbaros[2]),
+    )) == barbaros
+    # Axiom Bracelet (item 1001129) and Angler's Pack (item 950042): two prefabs of the
+    # same wearer, both worn.
+    gauntlet = _MODEL + "6_object/object/t0281_abyss_gauntlet/"
+    axiom = (_sized(253571, gauntlet + "cd_t0281_abyss_gauntlet_0001_l.pac", 5227124),
+             _sized(253572, gauntlet + "cd_t0281_abyss_gauntlet_0001_r_sub01.pac", 146890))
+    assert worn_set_members(axiom, (
+        _listing(_PREFAB + "1_pc/01_phm/armor/18_acc/cd_phm_00_rinkband_0001_rb.prefab", axiom[0]),
+        _listing(_PREFAB + "1_pc/01_phm/armor/18_acc/cd_phm_00_rinkband_wire_0001_r.prefab", axiom[1]),
+    )) == axiom
+    pack = (_sized(243071, _MODEL + "1_pc/1_phm/armor/18_acc/cd_phm_14_bag_0003.pac", 3384569),
+            _sized(242962, _MODEL + "1_pc/1_phm/armor/18_acc/cd_phm_00_bag_belt_0003.pac", 182931))
+    assert worn_set_members(pack, (
+        _listing(_PREFAB + "1_pc/01_phm/armor/18_acc/cd_phm_14_bag_0003.prefab", pack[0]),
+        _listing(_PREFAB + "1_pc/01_phm/armor/18_acc/cd_phm_00_bag_belt_0003.prefab", pack[1]),
+    )) == pack
+    # St. Halssius Priest's Cloak (item 1000325): no prefab lists the cloak itself; a
+    # file no prefab names stays.
+    cloak = (_sized(243110, _MODEL + "1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0054_16.pac", 5787247),
+             _sized(251358, _MODEL + "3_npc/1_nhm/armor_south/14_sho/cd_nhm_00_so_sho_10181.pac", 97930))
+    assert worn_set_members(cloak, (
+        _listing(_PREFAB + "1_pc/01_phm/armor/19_cloak/cd_phm_00_cloak_0054_16_t.prefab", cloak[1]),
+    )) == cloak
+    # A prefab naming no scoped model leaves the set whole.
+    helm = tuple(_sized(*row) for row in _KUKU_HELM_SCOPE)
+    assert worn_set_members(helm, ((_KUKU_HELM_SCOPE[0][1], (_MODEL + "other.pac",)),)) == helm[2:4]
+
+
+def test_item_set_scope_reads_the_item_s_prefabs_in_its_own_order() -> None:
+    from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult
+    from cdmw.domain.archives.item_sets import worn_set_members
+    from cdmw.ui.archive_browser.item_set_preview import ItemSetScopeResolver
+
+    service = _CatalogueService()
+    contents = {f"C:/cache/{entry_id}.prefab": models for entry_id, (_path, models) in zip((219249, 223625), _KUKU_HELM_PREFABS)}
+    read = []
+    resolver = ItemSetScopeResolver(service, prefab_reader=lambda path: read.append(path) or contents[path])
+    ready, failures = [], []
+    resolver.ready.connect(lambda session, rows, prefabs: ready.append((session, rows, prefabs)))
+    resolver.failed.connect(failures.append)
+    entries = tuple(_sized(*row) for row in _KUKU_HELM_SCOPE)
+    ids = tuple(entry.entry_id for entry in entries)
+    stems = ("cd_phm_00_hel_00_0363_index01_c", "cd_phw_01_hel_00_0363_index01_c", "cd_phm_00_hel_00_0363", "cd_phw_01_hel_00_0363")
+    assert resolver.request("session-a", ids, 8, stems)
+    service.result_ready.emit("resolve-1", "resolve_entries", ArchiveLookupResult("session-a", entries[::-1], len(ids), False))
+    assert not ready
+    prepare = service.requests[-1][0]
+    assert prepare.entry_ids == (219249, 223625)  # The item's stem order; the icons are not read.
+    prepared = PrepareEntriesResult("session-a", tuple(_prepared(entry) for entry in entries[:2]), 2, 2, 3996)
+    service.result_ready.emit("prepare-2", "prepare_entry", prepared)
+    assert read == ["C:/cache/219249.prefab", "C:/cache/223625.prefab"]
+    assert ready[0][0] == "session-a" and ready[0][2] == _KUKU_HELM_PREFABS
+    assert worn_set_members(ready[0][1], ready[0][2]) == (entries[2],)
+    # A failed prefab read still opens the set, whole.
+    assert resolver.request("session-a", ids, 9, stems)
+    service.result_ready.emit("resolve-3", "resolve_entries", ArchiveLookupResult("session-a", entries, len(ids), False))
+    service.request_failed.emit("prepare-4", "worker gone")
+    assert len(ready) == 2 and ready[1][2] == () and not failures
+    # Without the item's stems (an automation set) no prefab is read.
+    assert resolver.request("session-a", ids, 10)
+    service.result_ready.emit("resolve-5", "resolve_entries", ArchiveLookupResult("session-a", entries, len(ids), False))
+    assert len(ready) == 3 and ready[2][2] == () and len(service.requests) == 5
+    # A late prefab reply after cancellation is ignored.
+    assert resolver.request("session-a", ids, 11, stems)
+    service.result_ready.emit("resolve-6", "resolve_entries", ArchiveLookupResult("session-a", entries, len(ids), False))
+    resolver.cancel()
+    service.result_ready.emit("prepare-7", "prepare_entry", prepared)
+    assert len(ready) == 3 and service.cancelled == ["prepare-7"]
+
+
 def test_item_set_scope_resolves_all_pages_and_rejects_stale_or_partial_results() -> None:
     from cdmw.ui.archive_browser.item_set_preview import ItemSetScopeResolver
     from cdmw.domain.archives.item_sets import worn_set_members
     service = _CatalogueService()
     resolver = ItemSetScopeResolver(service)
     ready, failures = [], []
-    resolver.ready.connect(lambda session, rows: ready.append((session, rows)))
+    resolver.ready.connect(lambda session, rows, _prefabs: ready.append((session, rows)))
     resolver.failed.connect(failures.append)
     lower = replace(_dto(1, "a_lb_01.pac"), original_size=500)
     upper = _dto(2, "a_ub_01.pac")
