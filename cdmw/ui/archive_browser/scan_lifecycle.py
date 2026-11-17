@@ -48,6 +48,7 @@ class ArchiveScanLifecycleMixin:
         panel = getattr(self, "archive_item_names_failure_panel", None)
         if panel is not None:
             panel.clear()
+        self.archive_game_fingerprint_task = None
         self.archive_remote_query_pending = False
 
     def _clear_archive_failure_display(self) -> None:
@@ -123,6 +124,7 @@ class ArchiveScanLifecycleMixin:
         if force_refresh and self.archive_remote_query_pending:
             self.archive_game_fingerprint_stop.set()
             self.archive_open_generation += 1
+            self.archive_game_fingerprint_task = None
             if bridge is not None:
                 bridge.cancel_pending_update()
             return
@@ -148,6 +150,9 @@ class ArchiveScanLifecycleMixin:
         self.archive_open_game_fingerprints = None
         self._archive_open_options = (Path(root_text).expanduser(), force_refresh, activate_archive_tab)
         self.archive_remote_query_pending = True
+        # The game check is the update's first phase: Refresh reads Cancel from here,
+        # not only once the worker starts, so the user can stop a long executable hash.
+        bridge.set_update_busy(True)
         self.shell.clear_archive_scan_log()
         if self.archive_obsolete_backend_override is not None and not self.archive_obsolete_override_logged:
             self.archive_obsolete_override_logged = True
@@ -166,7 +171,8 @@ class ArchiveScanLifecycleMixin:
         self.archive_game_fingerprint_task = None
         root, force_refresh, activate_tab = self._archive_open_options
         if str(root) != str(Path(self.archive_package_root_edit.text().strip()).expanduser()):
-            self.archive_remote_query_pending = False
+            if not self.archive_remote_bridge.cancel_pending_update():
+                self.archive_remote_query_pending = False
             return
         records, logs, changed = result
         self.archive_open_game_fingerprints = records

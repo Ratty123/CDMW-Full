@@ -649,6 +649,11 @@ class ArchiveRemoteWindowBridge(QObject):
         if hasattr(self._window, "_archive_scan_progress_pending"):
             self._window._archive_scan_progress_pending = None
 
+    def set_update_busy(self, busy: bool) -> None:
+        """Show a catalogue update as running (Refresh reads Cancel) or finished."""
+
+        self._set_remote_operation_busy(busy)
+
     def _set_remote_operation_busy(self, busy: bool) -> None:
         """Gate only controls that can start a conflicting catalogue generation."""
 
