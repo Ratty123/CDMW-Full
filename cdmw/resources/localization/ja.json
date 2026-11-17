@@ -18124,6 +18124,7 @@
     "unhealthy": "異常",
     "unique runtime DDS byte count overflow": "ユニークランタイムDDSバイト数オーバーフロー",
     "unknown": "不明",
+    "unknown lighting preset {value_0}": "不明なライティングプリセット {value_0}",
     "unknown; rare in shipped archives": "不明; 出荷アーカイブでは稀です。",
     "unresolved": "未解決",
     "unresolved: {value_0}": "未解決: {value_0}",

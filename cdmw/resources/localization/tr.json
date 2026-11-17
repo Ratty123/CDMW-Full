@@ -18124,6 +18124,7 @@
     "unhealthy": "Sağlıksız",
     "unique runtime DDS byte count overflow": "Benzersiz çalışma zamanı DDS bayt sayısı taşması",
     "unknown": "Bilinmiyor",
+    "unknown lighting preset {value_0}": "Bilinmeyen aydınlatma ön ayarı {value_0}",
     "unknown; rare in shipped archives": "Bilinmeyen; gönderilen arşivlerde nadir",
     "unresolved": "Çözülmedi",
     "unresolved: {value_0}": "çözümlenmemiş: {value_0}",

@@ -171,7 +171,7 @@ fn main() -> Result<()> {
                 .capture_output
                 .as_deref()
                 .context("CDMW capture requires --capture-output <bmp>")?;
-            capture_cdmw_session(
+            capture_cdmw_session_lit(
                 manifest_path,
                 output_path,
                 options.capture_report_json.as_deref(),
@@ -180,6 +180,9 @@ fn main() -> Result<()> {
                 options.capture_material_index,
                 options.capture_size.unwrap_or(1_024),
                 None,
+                options
+                    .capture_lighting_preset
+                    .unwrap_or(cdmw_render_wgpu::LightingPreset::NeutralStudio),
             )?;
         }
         return Ok(());
@@ -243,6 +246,7 @@ struct StartupOptions {
     capture_yaw_degrees: Option<f32>,
     capture_pitch_degrees: Option<f32>,
     capture_material_index: Option<u32>,
+    capture_lighting_preset: Option<cdmw_render_wgpu::LightingPreset>,
     control_contract_json: Option<PathBuf>,
     embedded_parent_hwnd: Option<u64>,
 }
@@ -308,6 +312,15 @@ fn parse_startup_options_from(
             "--capture-pitch-degrees" => {
                 options.capture_pitch_degrees =
                     Some(required_f32(&mut arguments, "--capture-pitch-degrees")?);
+            }
+            "--capture-lighting-preset" => {
+                let id = arguments
+                    .next()
+                    .context("--capture-lighting-preset requires a preset id")?;
+                options.capture_lighting_preset = Some(
+                    cdmw_render_wgpu::LightingPreset::from_id(&id)
+                        .with_context(|| format!("unknown lighting preset {id}"))?,
+                );
             }
             "--capture-material-index" => {
                 options.capture_material_index =
@@ -386,7 +399,9 @@ fn parse_startup_options_from(
     if options.capture_yaw_degrees.is_some() != options.capture_pitch_degrees.is_some() {
         bail!("--capture-yaw-degrees and --capture-pitch-degrees must be supplied together");
     }
-    if (options.capture_yaw_degrees.is_some() || options.capture_material_index.is_some())
+    if (options.capture_yaw_degrees.is_some()
+        || options.capture_material_index.is_some()
+        || options.capture_lighting_preset.is_some())
         && options.capture_output.is_none()
     {
         bail!("capture camera and material options require --capture-output");
@@ -780,6 +795,32 @@ pub(crate) fn capture_cdmw_session(
     size: u32,
     gpu: Option<&cdmw_render_wgpu::SharedGpu>,
 ) -> Result<()> {
+    capture_cdmw_session_lit(
+        manifest_path,
+        output_path,
+        report_path,
+        preview_package,
+        camera,
+        isolated_material_index,
+        size,
+        gpu,
+        cdmw_render_wgpu::LightingPreset::NeutralStudio,
+    )
+}
+
+/// `capture_cdmw_session` under a chosen lighting preset (`--capture-lighting-preset`).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn capture_cdmw_session_lit(
+    manifest_path: &Path,
+    output_path: &Path,
+    report_path: Option<&Path>,
+    preview_package: bool,
+    camera: Option<HeadlessMaterialCaptureCamera>,
+    isolated_material_index: Option<u32>,
+    size: u32,
+    gpu: Option<&cdmw_render_wgpu::SharedGpu>,
+    lighting_preset: cdmw_render_wgpu::LightingPreset,
+) -> Result<()> {
     let requested_paths = cdmw_capture_paths(output_path, report_path)?;
     let loaded = if preview_package {
         LoadedCdmwSessionPackage::load_preview(manifest_path)
@@ -869,7 +910,7 @@ pub(crate) fn capture_cdmw_session(
         .map(|texture| texture.metadata.source_sha256.as_str())
         .collect::<Vec<_>>();
     let report = pollster::block_on(
-        cdmw_render_wgpu::run_headless_verified_layered_material_capture_batch_on(
+        cdmw_render_wgpu::run_headless_verified_layered_material_capture_batch_lit(
             gpu,
             &snapshot,
             &texture_uploads,
@@ -893,6 +934,7 @@ pub(crate) fn capture_cdmw_session(
                 },
             }],
             &verified_hashes,
+            lighting_preset,
         ),
     )
     .context("CDMW material capture failed")?
@@ -9033,6 +9075,8 @@ mod tests {
                 "20",
                 "--capture-material-index",
                 "7",
+                "--capture-lighting-preset",
+                "studio_fixed",
             ]
             .into_iter()
             .map(str::to_owned),
@@ -9051,6 +9095,18 @@ mod tests {
             })
         );
         assert_eq!(options.capture_material_index, Some(7));
+        assert_eq!(
+            options.capture_lighting_preset,
+            Some(cdmw_render_wgpu::LightingPreset::StudioFixed)
+        );
+        assert!(
+            parse_startup_options_from(
+                ["--capture-lighting-preset", "sunset"]
+                    .into_iter()
+                    .map(str::to_owned)
+            )
+            .is_err()
+        );
 
         let missing_output = parse_startup_options_from(
             ["--capture-cdmw-preview-session", "manifest.json"]

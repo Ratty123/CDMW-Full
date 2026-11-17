@@ -2809,6 +2809,7 @@
   "state must be a captured Mesh Morph session state",
   "unexpected {value_0} for request {value_1}",
   "unique runtime DDS byte count overflow",
+  "unknown lighting preset {value_0}",
   "unsupported morph profile format",
   "unsupported procedural morph preset format",
   "validated preview byte",

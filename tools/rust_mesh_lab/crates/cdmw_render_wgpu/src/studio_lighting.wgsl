@@ -34,7 +34,16 @@ fn fixed_studio_lighting(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, T: vec3<f32>,
     let ambient = mix(vec3(0.20,0.18,0.16),vec3(0.55,0.62,0.73),sky);
     let F0 = mix(vec3(0.04*spec),C,metal);
     let R = reflect(-V,N);
-    var refl = mix(vec3(0.13,0.12,0.11),vec3(0.40,0.46,0.56),clamp(R.y*0.5+0.5,0.0,1.0));
+    // A reflection sees the room the ambient term describes, and its walls lit
+    // by the three lights (their summed colour, 80% reflective, spread over the
+    // sphere). A mirror-like conductor has no diffuse term, so this is all the
+    // colour its unlit parts have; the dimmer, bluer sky alone drew steel navy.
+    // Only for the metal fraction: dielectrics keep the reflection they had.
+    let up = clamp(R.y*0.5+0.5,0.0,1.0);
+    var refl = mix(
+        mix(vec3(0.13,0.12,0.11),vec3(0.40,0.46,0.56),up),
+        mix(vec3(0.20,0.18,0.16),vec3(0.55,0.62,0.73),up)+vec3(0.285,0.275,0.268),
+        clamp(metal,0.0,1.0));
     let blur = max(rough*rough,0.03);
     let lobe = pow(clamp(dot(R,normalize(vec3(-0.4,0.8,-0.6))),0.0,1.0),2.0/max(blur,0.02));
     refl += lobe*vec3(2.4,2.25,2.05)*(1.0-rough*0.6);

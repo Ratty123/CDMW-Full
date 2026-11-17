@@ -18124,6 +18124,7 @@
     "unhealthy": "Non integro",
     "unique runtime DDS byte count overflow": "sovraccarico del conteggio dei byte runtime unici DDS",
     "unknown": "Sconosciuto",
+    "unknown lighting preset {value_0}": "Preimpostazione di illuminazione sconosciuta {value_0}",
     "unknown; rare in shipped archives": "sconosciuto; raro negli archivi spediti",
     "unresolved": "Non risolto",
     "unresolved: {value_0}": "non risolto: {value_0}",

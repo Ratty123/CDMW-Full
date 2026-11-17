@@ -18124,6 +18124,7 @@
     "unhealthy": "Неисправно",
     "unique runtime DDS byte count overflow": "переполнение уникального байта времени выполнения DDS",
     "unknown": "Неизвестно",
+    "unknown lighting preset {value_0}": "Неизвестный пресет освещения {value_0}",
     "unknown; rare in shipped archives": "неизвестно; редко встречается в поставляемых архивах",
     "unresolved": "Не разрешено",
     "unresolved: {value_0}": "неразрешено: {value_0}",

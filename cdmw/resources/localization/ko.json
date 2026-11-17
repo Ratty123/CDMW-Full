@@ -18124,6 +18124,7 @@
     "unhealthy": "비정상",
     "unique runtime DDS byte count overflow": "고유 런타임 DDS 바이트 수 초과",
     "unknown": "알 수 없음",
+    "unknown lighting preset {value_0}": "알 수 없는 조명 프리셋 {value_0}",
     "unknown; rare in shipped archives": "알 수 없음; 배송된 아카이브에서는 드뭅니다.",
     "unresolved": "해결되지 않음",
     "unresolved: {value_0}": "해결되지 않음: {value_0}",
