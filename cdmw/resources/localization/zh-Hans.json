@@ -3058,6 +3058,7 @@
     "Click Save changes..., read the list of changes and any warnings, and confirm.": "点击保存更改...，阅读更改列表和警告，然后确认。",
     "Click Scan UI Rect References to find UI textures whose displayed size is fixed by XML.": "点击“扫描 UI 矩形参考”，查找显示尺寸由 XML 固定的 UI 纹理。",
     "Click Scan UI Rect References. Upscaling such a texture alone does not make it bigger in game.": "点击“扫描 UI 矩形参考”。仅放大这类纹理不会让它在游戏中变大。",
+    "Click Textures at the top of the Mesh Editor to show or hide the Textures panel; it is off until you click it, and CDMW remembers your choice. Each part is one line that you open to see its textures, and when several files are open each file is named once above its parts. Point at a part or one of its textures to light that part up in the 3D view. A texture you open is fitted to the canvas. Both panels close with the mesh, and Close asks first when texture edits are not kept in a draft yet.": "单击网格编辑器顶部的“纹理”可显示或隐藏纹理面板；在您单击之前它是关闭的，CDMW 会记住您的选择。每个部件占一行，展开后可查看其纹理；打开多个文件时，每个文件名只在其部件上方显示一次。指向某个部件或它的某个纹理，即可在 3D 视图中高亮该部件。打开的纹理会适应画布大小。两个面板会随网格一起关闭；如果纹理编辑尚未保留在草稿中，“关闭”会先询问。",
     "Click a column heading to sort; click it again to reverse the order.": "单击列标题进行排序；再次单击它可反转顺序。",
     "Click a shortcut, then press the new keys. Escape cancels and Backspace removes it. Keys work while the editor has focus; click the viewport first.": "单击一个快捷键，然后按下新的按键。Esc 取消，Backspace 删除该快捷键。编辑器获得焦点时按键才有效；请先单击视口。",
     "Click a socket in the viewport to hang the selected item there.": "单击视口中的挂点以悬挂在那里选择了物品。",
