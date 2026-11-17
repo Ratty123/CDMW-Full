@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QListView
 from cdmw.domain.archives.character_catalogue import CharacterCatalogSearchRequest, CharacterCatalogSearchResult, CharacterCatalogDetailRequest, CharacterCatalogDetailResult
 from cdmw.ui.character_finder.preview_controller import CharacterFinderPreviewController
 from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
+from cdmw.ui.archive_browser.character_dependency_live import CHARACTER_KEY_MISSING_TEXT
 from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 from cdmw.ui.preview.rust_host import RustPreviewHostFrame
 from cdmw.ui.shell.close_controller import register_transient_worker_controller
@@ -49,6 +50,7 @@ class HairReferencePickerDialog(QDialog):
                 if self._profile.hair_root + stem + ".pac" == self._preferred_path), 0)
             self._page_start = position // self._page_size * self._page_size
         self._audit_errors = {}
+        self._listed, self._absent = 0, 0
         self._audit_stop = threading.Event()
         self._icon_paths = dict(icons or {})
         self._icon_images, self._page_icon_paths = {}, {}
@@ -139,6 +141,7 @@ class HairReferencePickerDialog(QDialog):
         self._audit_prepare.cancel(); self._audit_queue.clear(); self._audit_active = None
         self._style_queue.clear(); self._details.clear(); self._verified.clear(); self._audit_errors.clear()
         self._icon_images.clear(); self._page_icon_paths.clear(); self._pending_icon_keys.clear()
+        self._absent = 0
         if self._icon_preparation:
             self._icon_preparation.cancel()
         try:
@@ -157,7 +160,8 @@ class HairReferencePickerDialog(QDialog):
                     self._style_queue = styles[self._page_start:self._page_start + self._page_size]
                     self.previous.setEnabled(self._page_start > 0)
                     self.next.setEnabled(self._page_start + self._page_size < len(styles))
-                    self.status.setText(f"{len(styles)} registered hairstyles" if styles else "No matching hairstyles.")
+                    self._listed = len(styles)
+                    self._count_status()
                     if self._icon_preparation:
                         self._page_icon_paths = {f"asset:{self._profile.hair_root}{stem}.pac": self._icon_paths[stem].casefold()
                                                 for _, stem in self._style_queue if self._icon_paths.get(stem)}
@@ -171,6 +175,13 @@ class HairReferencePickerDialog(QDialog):
                 self._requests[request] = ("search", None)
         except Exception as error:
             self._error(str(error))
+
+    def _count_status(self):
+        text = f"{self._listed} registered hairstyles." if self._listed else "No matching hairstyles."
+        if self._absent:
+            # The game lists hairstyles whose mesh it does not ship in the character's hair folder.
+            text += f" Left out on this page (not in the loaded game files): {self._absent}."
+        self.status.setText(text)
 
     def _request_styles(self):
         """Bound catalogue work to the current page, including after a filter."""
@@ -433,10 +444,17 @@ class HairReferencePickerDialog(QDialog):
     def _failed(self, request, error):
         if request in self._requests and not self._closed:
             kind, _ = self._requests.pop(request)
+            message = str(getattr(error, "message", error))
             if self._base_only:
                 self._request_next_base()
+            elif kind == "style" and CHARACTER_KEY_MISSING_TEXT.casefold() in message.casefold():
+                # Not a failure of the chooser: this one hairstyle has no mesh to open.
+                self._absent += 1
+                if self._key() is None:
+                    self._count_status()
+                self._request_styles()
             else:
-                self._error(str(getattr(error, "message", error)))
+                self._error(message)
                 if kind == "style":
                     self._request_styles()
 

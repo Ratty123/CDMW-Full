@@ -566,6 +566,23 @@ def test_hair_page_failure_continues_queued_choices_and_preserves_unavailable_re
     dialog.reject()
 
 
+def test_a_listed_hairstyle_the_game_does_not_ship_is_left_out_without_an_error(owner):
+    # Damiane's table names 13 hidden hairstyles with no mesh in her hair folder.
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair",
+        styles=tuple((i, f"style{i}") for i in range(3)), audit_hair=True)
+    QApplication.processEvents()
+    service = owner.archive_catalogue_service
+    errors = []
+    dialog.preparation_failed.connect(errors.append)
+    absent = SimpleNamespace(message="Archive backend request failed: Character catalogue result is unavailable. Refresh the finder.")
+    service.request_failed.emit(service.calls[0][0], absent)
+    assert not errors and len(dialog._requests) == 2
+    assert dialog.status.text() == "3 registered hairstyles. Left out on this page (not in the loaded game files): 1."
+    # Any other failure is still reported.
+    service.request_failed.emit(service.calls[1][0], SimpleNamespace(message="The archive worker stopped."))
+    assert errors == ["The archive worker stopped."]
+    dialog.reject()
+
 
 def test_picker_opens_the_page_containing_the_requested_hairstyle(owner):
     styles = tuple((i, f"style{i}") for i in range(180))
