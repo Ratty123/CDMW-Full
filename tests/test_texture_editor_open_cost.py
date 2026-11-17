@@ -102,3 +102,41 @@ def test_the_layer_thumbnail_crop_is_the_painted_area_without_per_pixel_index_ar
         tracemalloc.stop()
     # Index arrays of every pixel would take 64 MiB here; the layer itself is 16 MiB.
     assert peak < 8 * 1024 * 1024
+
+
+def test_opening_a_texture_flattens_it_on_the_worker_and_not_again_on_the_window_thread(tmp_path, monkeypatch) -> None:
+    import threading
+    import time
+
+    from PIL import Image
+
+    from cdmw.ui.texture_workflow import editor_session, editor_view_state
+
+    source = tmp_path / "opened.png"
+    Image.fromarray(np.full((64, 64, 4), 180, dtype=np.uint8), "RGBA").save(source)
+    on_window_thread: list[str] = []
+
+    def watched(module, name):
+        original = getattr(module, name)
+
+        def run(*args, **kwargs):
+            if threading.current_thread() is threading.main_thread():
+                on_window_thread.append(f"{module.__name__}.{name}")
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(module, name, run)
+
+    watched(editor_session, "flatten_texture_editor_layers")
+    watched(editor_view_state, "flatten_texture_editor_layers")
+    editor = _editor(tmp_path)
+    try:
+        editor.open_source_path(source)
+        end = time.perf_counter() + 30
+        while time.perf_counter() < end and (editor.document is None or editor._task_thread is not None):
+            _app().processEvents()
+            time.sleep(0.005)
+        assert editor.document is not None and editor.document.width == 64
+        assert editor._current_composite_rgba() is not None
+        assert on_window_thread == []
+    finally:
+        _close(editor)
