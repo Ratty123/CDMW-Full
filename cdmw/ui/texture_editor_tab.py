@@ -682,6 +682,16 @@ class TextureEditorTab(
         self.right_panel = QWidget()
         self.right_panel.setObjectName("EditorInspectorSidebar")
         self.right_panel.setMinimumWidth(210)
+        # Into its scroll area and the splitter before anything is built in it:
+        # moving the finished inspector in restyled all of it in one step.
+        self.right_scroll = QScrollArea()
+        self.right_scroll.setWidgetResizable(True)
+        self.right_scroll.setFrameShape(QFrame.NoFrame)
+        editor_inspector_min, _editor_inspector_pref, editor_inspector_max = responsive_sidebar_bounds(self, role="narrow")
+        self.right_scroll.setMinimumWidth(editor_inspector_min)
+        self.right_scroll.setMaximumWidth(editor_inspector_max)
+        self.right_scroll.setWidget(self.right_panel)
+        self.main_splitter.addWidget(self.right_scroll)
         right_layout = QVBoxLayout(self.right_panel)
         right_layout.setContentsMargins(12, 12, 12, 12)
         right_layout.setSpacing(10)
@@ -1492,14 +1502,6 @@ class TextureEditorTab(
         right_layout.addWidget(self.history_section)
 
         right_layout.addStretch(1)
-        self.right_scroll = QScrollArea()
-        self.right_scroll.setWidgetResizable(True)
-        self.right_scroll.setFrameShape(QFrame.NoFrame)
-        editor_inspector_min, _editor_inspector_pref, editor_inspector_max = responsive_sidebar_bounds(self, role="narrow")
-        self.right_scroll.setMinimumWidth(editor_inspector_min)
-        self.right_scroll.setMaximumWidth(editor_inspector_max)
-        self.right_scroll.setWidget(self.right_panel)
-        self.main_splitter.addWidget(self.right_scroll)
         yield  # one construction step ends here (build_in_steps)
         self._finish_editor_setup()
 
