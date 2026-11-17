@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QListWidgetItem
 from cdmw.models import TextureEditorDocument
 from cdmw.ui.texture_workflow.editor_action_state import (
     texture_editor_history_action_state,
+    texture_editor_history_shared_with_mesh_editor,
     texture_editor_image_action_state,
 )
 from cdmw.ui.texture_workflow.editor_history_state import (
@@ -215,7 +216,7 @@ class TextureEditorHistoryUiMixin:
         self._restore_history_index(row)
 
     def clear_history(self) -> None:
-        if self.document is None:
+        if self.document is None or texture_editor_history_shared_with_mesh_editor(self.document):
             return
         current_label = "Current State"
         state = texture_editor_history_cleared_state(self._build_checkpoint_record(current_label))

@@ -99858,7 +99858,7 @@ MESSAGE_REFERENCE = [
     "message": "A stroke needs one pressure per point ({len(points)} points, {len(values)} pressures).",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/textures/editor_brush.py": 86
+      "cdmw/domain/textures/editor_brush.py": 87
     }
   },
   {
@@ -101481,7 +101481,7 @@ MESSAGE_REFERENCE = [
     "message": "Pen pressure must be between 0 and 1.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/textures/editor_brush.py": 88
+      "cdmw/domain/textures/editor_brush.py": 89
     }
   },
   {

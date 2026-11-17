@@ -14292,6 +14292,7 @@
     "The Mesh Editor keeps the 3D view of up to 4 open documents. When you open more, the one shown longest ago is parked: its view closes, and it opens again with its edits and history when you show it.": "Редактор сеток держит открытым 3D-вид не более 4 документов. Если открыть больше, документ, показанный раньше всех, откладывается: его вид закрывается и снова открывается с правками и историей, когда вы его покажете.",
     "The Mesh Editor revision could not be captured safely.": "Не удалось безопасно захватить ревизию Редактора сеток.",
     "The Mesh Editor still has unsaved geometry or layer changes.": "В объекте Редактор сеток все еще присутствуют несохраненные изменения геометрии или слоев.",
+    "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here.": "История отмены редактора сеток содержит правки этой текстуры, поэтому здесь она не очищается.",
     "The New Item metadata is too large.": "Метаданные нового предмета слишком велики.",
     "The Preview is not render-ready yet.": "Предварительный просмотр еще не готов к рендерингу.",
     "The Rust New Item interface cannot start: {value_0}.": "Не удаётся запустить интерфейс Rust для создания предметов: {value_0}.",

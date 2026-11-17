@@ -14292,6 +14292,7 @@
     "The Mesh Editor keeps the 3D view of up to 4 open documents. When you open more, the one shown longest ago is parked: its view closes, and it opens again with its edits and history when you show it.": "网格编辑器最多保留 4 个已打开文档的 3D 视图。打开更多时，最久之前显示的文档会被暂停：它的视图关闭，再次显示时会连同编辑和历史重新打开。",
     "The Mesh Editor revision could not be captured safely.": "无法安全捕获网格编辑器修订版。",
     "The Mesh Editor still has unsaved geometry or layer changes.": "网格编辑器 仍有未保存的几何体或图层更改。",
+    "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here.": "网格编辑器的撤销历史包含此纹理的编辑，因此不会在此清除。",
     "The New Item metadata is too large.": "新物品元数据过大。",
     "The Preview is not render-ready yet.": "预览尚未准备好渲染。",
     "The Rust New Item interface cannot start: {value_0}.": "无法启动新建物品的 Rust 界面：{value_0}。",

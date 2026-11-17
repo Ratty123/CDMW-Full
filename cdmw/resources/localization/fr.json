@@ -14292,6 +14292,7 @@
     "The Mesh Editor keeps the 3D view of up to 4 open documents. When you open more, the one shown longest ago is parked: its view closes, and it opens again with its edits and history when you show it.": "L'éditeur de maillage garde la vue 3D de 4 documents ouverts au plus. Si vous en ouvrez davantage, celui affiché il y a le plus longtemps est mis en attente : sa vue se ferme, puis se rouvre avec ses modifications et son historique quand vous l'affichez.",
     "The Mesh Editor revision could not be captured safely.": "La révision de l’Éditeur de maillage n’a pas pu être capturée de manière sûre.",
     "The Mesh Editor still has unsaved geometry or layer changes.": "Le Éditeur de maillage contient encore des modifications de géométrie ou de calques non enregistrées.",
+    "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here.": "L’historique d’annulation de l’éditeur de maillage contient les modifications de cette texture ; il n’est donc pas effacé ici.",
     "The New Item metadata is too large.": "Les métadonnées de Nouvel objet sont trop volumineuses.",
     "The Preview is not render-ready yet.": "l'aperçu n'est pas encore prêt pour le rendu.",
     "The Rust New Item interface cannot start: {value_0}.": "L’interface Rust de création d’objet ne peut pas démarrer : {value_0}.",

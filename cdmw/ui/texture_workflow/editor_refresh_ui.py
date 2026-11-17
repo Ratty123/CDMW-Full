@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QListWidgetItem
 
 from cdmw.ui.texture_workflow.editor_action_state import (
     texture_editor_guide_action_state,
+    texture_editor_history_shared_with_mesh_editor,
     texture_editor_image_action_state,
     texture_editor_layer_action_state,
     texture_editor_main_action_state,
@@ -343,6 +344,15 @@ class TextureEditorRefreshUiMixin:
                 if button in {self.open_file_button, self.open_archive_button, self.open_project_button}
                 else main_actions.document_action_enabled
             )
+        if texture_editor_history_shared_with_mesh_editor(self.document):
+            # Its steps are in the Mesh Editor's one Undo history, and whether the texture
+            # differs from the one opened is read from them (an edit undone to the start).
+            self.history_clear_button.setEnabled(False)
+            self.history_clear_button.setToolTip(
+                "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here."
+            )
+        else:
+            self.history_clear_button.setToolTip("")
         self.actions_menu_button.setEnabled(main_actions.actions_menu_enabled)
         for button, action in (
             (self.open_file_button, self.action_open_file),

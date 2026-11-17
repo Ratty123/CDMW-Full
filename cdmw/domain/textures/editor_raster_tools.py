@@ -49,6 +49,28 @@ def _blend_rgb(
         for orig, target in zip(original_rgb, target_rgb)
     )
 
+_LUMA_WEIGHTS = np.asarray((0.299, 0.587, 0.114), dtype=np.float32)
+
+
+def _target_with_pixel_luma(target: np.ndarray, rgb: np.ndarray) -> np.ndarray:
+    """The target colour at each pixel's own luminance (the "Color" blend mode).
+
+    The target is shifted to the pixel's luma; a shift that leaves the RGB range is
+    pulled towards grey at that luma rather than clipped per channel, so the hue
+    stays the target's and the shading stays the texture's. Scaling the target
+    instead clipped a dark blue to pure (x, 0, 255) on any mid-tone pixel."""
+
+    pixel_luma = rgb @ _LUMA_WEIGHTS
+    shifted = target[None, None, :] + (pixel_luma - np.float32(target @ _LUMA_WEIGHTS))[..., None]
+    luma = pixel_luma[..., None]
+    low = shifted.min(axis=2, keepdims=True)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        below = np.where(low < 0.0, luma + (shifted - luma) * luma / (luma - low), shifted)
+        high = below.max(axis=2, keepdims=True)
+        above = np.where(high > 255.0, luma + (below - luma) * (255.0 - luma) / (high - luma), below)
+    return np.clip(np.nan_to_num(above, nan=0.0), 0.0, 255.0)
+
+
 def apply_texture_editor_recolor(
     image: np.ndarray,
     settings: TextureEditorToolSettings,
@@ -56,35 +78,33 @@ def apply_texture_editor_recolor(
     selection_mask: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     rgba = np.asarray(image, dtype=np.uint8).copy()
+    if rgba.ndim != 3 or rgba.shape[2] != 4 or rgba.size == 0:
+        return rgba
     target_rgb = _parse_hex_rgb(settings.recolor_target_hex, "#C85A30")
     source_rgb = _parse_hex_rgb(settings.recolor_source_hex, "#808080")
     tolerance = max(0.0, float(settings.recolor_tolerance))
     strength = max(0.0, min(1.0, settings.recolor_strength / 100.0))
-    selection_alpha = selection_mask.astype(np.float32) / 255.0 if selection_mask is not None else None
-    flat = rgba.reshape(-1, 4)
-    selection_flat = selection_alpha.reshape(-1) if selection_alpha is not None else None
-    for index, (r, g, b, a) in enumerate(flat):
-        if a == 0:
-            continue
-        if selection_flat is not None and selection_flat[index] <= 0.0:
-            continue
-        base_rgb = (int(r), int(g), int(b))
-        replacement_rgb = target_rgb
-        weight = strength
-        if settings.recolor_mode == "replace_color":
-            distance = math.sqrt((r - source_rgb[0]) ** 2 + (g - source_rgb[1]) ** 2 + (b - source_rgb[2]) ** 2)
-            if tolerance <= 0.0 or distance > tolerance:
-                continue
-            falloff = 1.0 - (distance / tolerance) if tolerance > 0.0 else 1.0
-            weight *= max(0.0, min(1.0, falloff))
-        if selection_flat is not None:
-            weight *= float(selection_flat[index])
-        if settings.recolor_preserve_luminance:
-            replacement_rgb = _match_rgb_luma(target_rgb, base_rgb)
-        merged_rgb = _blend_rgb(base_rgb, replacement_rgb, weight)
-        flat[index, 0] = merged_rgb[0]
-        flat[index, 1] = merged_rgb[1]
-        flat[index, 2] = merged_rgb[2]
+    # Whole-array float maths: the colour distance is measured in float, never in the
+    # pixels' uint8 (where it wrapped and matched nearly every pixel), and a 4K texture
+    # is not walked pixel by pixel on the window thread.
+    rgb = rgba[..., :3].astype(np.float32)
+    weight = np.where(rgba[..., 3] > 0, np.float32(strength), np.float32(0.0))
+    if selection_mask is not None:
+        weight = weight * (np.asarray(selection_mask, dtype=np.float32) / 255.0)
+    if settings.recolor_mode == "replace_color":
+        if tolerance <= 0.0:
+            return rgba
+        distance = np.sqrt(np.sum((rgb - np.asarray(source_rgb, dtype=np.float32)) ** 2, axis=2))
+        weight = weight * np.clip(1.0 - distance / np.float32(tolerance), 0.0, 1.0)
+    if not np.any(weight > 0.0):
+        return rgba
+    target = np.asarray(target_rgb, dtype=np.float32)
+    if settings.recolor_preserve_luminance:
+        replacement = _target_with_pixel_luma(target, rgb)
+    else:
+        replacement = np.broadcast_to(target, rgb.shape)
+    merged = rgb * (1.0 - weight[..., None]) + replacement * weight[..., None]
+    rgba[..., :3] = np.clip(np.round(merged), 0.0, 255.0).astype(np.uint8)
     return rgba
 
 def apply_texture_editor_fill(
