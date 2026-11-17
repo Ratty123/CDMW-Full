@@ -1,8 +1,9 @@
 """New painting's 3D view: the frame's own mesh with the picture on its canvas.
 
-The frame mesh is decoded the way Browse Archives decodes it (its textures resolved from
-the material file beside it), and the canvas part's base colour is swapped for the full
-texture the build will write: `compose_picture` puts the picture, shaped by Fill or
+The frame mesh is decoded the way Browse Archives decodes it, textures included; a part
+it leaves without a base colour takes it from the source painting's `.pami`, which the
+new painting copies. The canvas part's base colour is swapped for the full texture the
+build will write: `compose_picture` puts the picture, shaped by Fill or
 Whole, into the canvas's UV rectangle and carries its edges outward. The other parts keep
 the game's textures. The result is a `ModelPreviewData` for Create New Item's own
 viewport frame (`ItemPreviewFrame`), which builds the viewport package on its worker.
@@ -79,12 +80,53 @@ def composed_picture_png(frame, picture, fit: str, folder: Path) -> Path:
     return target
 
 
+def _pami_base_textures(pami_text: str) -> dict:
+    """`{material: base colour texture path}` from a painting's `.pami`."""
+
+    from cdmw.core.crimson_formats import parse_pami_material_instances
+
+    found = {}
+    for instance in parse_pami_material_instances(pami_text):
+        name = str(instance.primitive_name or instance.material_name or "").strip()
+        for parameter in instance.texture_parameters:
+            if parameter.parameter_name == "_baseColorTexture" and name and name not in found:
+                found[name] = str(parameter.texture_path or "")
+    return found
+
+
+def _bind_missing_frame_textures(model, canvas_material: str, pami_text: str, texture_entry_of: Callable,
+                                 texture_preview: Callable, stop_event) -> None:
+    """Parts the decode left without a base colour take it from the painting's own `.pami`,
+    which the new painting copies (cd_in_dpw_picture_06's two metal trims, 2026-11-17)."""
+
+    bindings = _pami_base_textures(pami_text)
+    for mesh in model.meshes:
+        material = str(getattr(mesh, "material_name", "") or "").strip()
+        if material == canvas_material or str(getattr(mesh, "preview_texture_path", "") or "").strip():
+            continue
+        texture = bindings.get(material)
+        entry = texture_entry_of(texture) if texture else None
+        if entry is None:
+            continue
+        raise_if_cancelled(stop_event, "The 3D view was cancelled.")
+        try:
+            mesh.preview_texture_path = str(texture_preview(entry, stop_event=stop_event))
+        except Exception:  # noqa: BLE001 - the part keeps its plain colour, as before
+            continue
+        mesh.preview_texture_image = None
+        mesh.preview_base_texture_source = "pami"
+
+
 def painting_preview_model(entry, frame, picture, fit: str, *, texture_entries_by_normalized_path,
                            texture_entries_by_basename, folder: Optional[Path] = None,
-                           stop_event: Optional[threading.Event] = None, decode: Optional[Callable] = None):
+                           stop_event: Optional[threading.Event] = None, decode: Optional[Callable] = None,
+                           pami_text: str = "", texture_entry_of: Optional[Callable] = None,
+                           texture_preview: Optional[Callable] = None):
     """The frame mesh `entry` as a `ModelPreviewData`, with `picture` on its canvas.
 
     Without a picture the frame shows the game's own picture, as Browse Archives shows it.
+    `pami_text` (the source painting's material file) fills in base textures the decode
+    could not resolve, with `texture_entry_of(path)` finding the archive entry.
     """
 
     from cdmw.services.archive_preview_service import build_archive_preview_result, clone_archive_preview_model
@@ -103,6 +145,11 @@ def painting_preview_model(entry, frame, picture, fit: str, *, texture_entries_b
         raise PaintingPreviewError(f"The frame {frame.stem} could not be read for the 3D view.")
     # The decode may be cached and shared; the canvas is changed on a copy.
     model = clone_archive_preview_model(model)
+    if pami_text and texture_entry_of is not None:
+        if texture_preview is None:
+            from cdmw.core.archive_model_textures import _ensure_archive_model_texture_preview_path as texture_preview
+        _bind_missing_frame_textures(model, frame.canvas.material, pami_text, texture_entry_of, texture_preview,
+                                     stop_event)
     if not str(picture or "").strip():
         return model
     raise_if_cancelled(stop_event, "The 3D view was cancelled.")
@@ -127,11 +174,19 @@ def painting_preview_source(snapshot, frame, picture, fit: str, *, folder: Optio
     """`(stop_event) -> ModelPreviewData` for the viewport frame's worker: nothing heavy
     runs on the thread that asks for it."""
 
+    def normal(path: str) -> str:
+        return str(path or "").replace("\\", "/").strip().strip("/").lower()
+
     def build(stop_event: threading.Event):
-        mesh = str(frame.mesh or "").replace("\\", "/").strip().strip("/").lower()
-        entry = snapshot.entries.get(mesh)
+        entry = snapshot.entries.get(normal(frame.mesh))
         by_path, by_basename = snapshot.archive_index_maps()
+        pami = str(getattr(getattr(frame, "source", None), "pami", "") or "")
+        try:
+            pami_text = snapshot.payload(pami).decode("utf-8") if pami and normal(pami) in snapshot.entries else ""
+        except (OSError, UnicodeDecodeError, ValueError):
+            pami_text = ""
         return painting_preview_model(entry, frame, picture, fit, texture_entries_by_normalized_path=by_path,
-                                      texture_entries_by_basename=by_basename, folder=folder, stop_event=stop_event)
+                                      texture_entries_by_basename=by_basename, folder=folder, stop_event=stop_event,
+                                      pami_text=pami_text, texture_entry_of=lambda path: snapshot.entries.get(normal(path)))
 
     return build

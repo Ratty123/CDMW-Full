@@ -32590,7 +32590,7 @@ MESSAGE_REFERENCE = [
     "message": "The 3D view could not be shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/painting_dialog.py": 646
+      "cdmw/ui/new_item/painting_dialog.py": 650
     }
   },
   {
@@ -32598,7 +32598,7 @@ MESSAGE_REFERENCE = [
     "message": "The 3D view is not available here: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/painting_dialog.py": 590
+      "cdmw/ui/new_item/painting_dialog.py": 594
     }
   },
   {
@@ -33089,7 +33089,7 @@ MESSAGE_REFERENCE = [
     "message": "The frame {frame.stem} could not be read for the 3D view.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting_preview.py": 103
+      "cdmw/services/new_item_painting_preview.py": 145
     }
   },
   {
@@ -33097,7 +33097,7 @@ MESSAGE_REFERENCE = [
     "message": "The frame {frame.stem} has no canvas part to show the picture on.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting_preview.py": 111
+      "cdmw/services/new_item_painting_preview.py": 158
     }
   },
   {
@@ -33137,7 +33137,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no file {frame.mesh}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_painting_preview.py": 93
+      "cdmw/services/new_item_painting_preview.py": 135
     }
   },
   {
@@ -33401,7 +33401,7 @@ MESSAGE_REFERENCE = [
     "message": "The picture {source.name} cannot be read: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_painting_preview.py": 67
+      "cdmw/services/new_item_painting_preview.py": 68
     }
   },
   {
@@ -36418,7 +36418,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(self._frames)} frames found; {left_out} left out because CDMW cannot map their canvas.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/painting_dialog.py": 416
+      "cdmw/ui/new_item/painting_dialog.py": 420
     }
   },
   {

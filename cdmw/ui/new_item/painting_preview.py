@@ -197,6 +197,8 @@ class FrameList(QListWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("new_item_painting_frame")
+        # The frame sizes read "0.86 x 1.38 m / picture ..." in the chosen language.
+        self.setProperty("_i18n_translate_items", True)
         self.setViewMode(QListView.ViewMode.ListMode)
         self.setIconSize(QSize(72, 72))
         self.setUniformItemSizes(True)

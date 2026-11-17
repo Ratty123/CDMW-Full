@@ -281,12 +281,34 @@ def test_the_preview_takes_most_of_the_dialog(dialog):
 
 
 def test_the_dialog_opens_at_a_share_of_the_screen(dialog):
-    from cdmw.ui.new_item.painting_dialog import _OPENING_MINIMUM, _SCREEN_SHARE
+    from cdmw.ui.new_item.painting_dialog import _MAX_ASPECT, _OPENING_MINIMUM, _SCREEN_SHARE
 
     view, _controller = dialog
     view.show()
     _app().processEvents()
     area = view.screen().availableGeometry()
-    assert view.width() == min(area.width(), max(_OPENING_MINIMUM[0], int(area.width() * _SCREEN_SHARE[0])))
-    assert view.height() == min(area.height(), max(_OPENING_MINIMUM[1], int(area.height() * _SCREEN_SHARE[1])))
+    height = min(area.height(), max(_OPENING_MINIMUM[1], int(area.height() * _SCREEN_SHARE[1])))
+    width = min(area.width(), max(_OPENING_MINIMUM[0], int(area.width() * _SCREEN_SHARE[0])))
+    assert view.width() == min(width, max(_OPENING_MINIMUM[0], int(height * _MAX_ASPECT)))
+    assert view.height() == height
     assert area.contains(view.geometry().topLeft())
+
+
+@pytest.mark.parametrize("screen, expected", [
+    ((1920, 1040), (1536, 884)),   # 1080p at 100%
+    ((1706, 920), (1364, 782)),    # 2560 x 1440 at 150%, in logical pixels
+    ((3440, 1400), (2142, 1190)),  # an ultrawide: no wider than 1.8 times its height
+])
+def test_the_opening_size_follows_the_screen_in_logical_pixels(dialog, screen, expected):
+    from PySide6.QtCore import QRect
+
+    view, _controller = dialog
+
+    class Screen:
+        def availableGeometry(self):
+            return QRect(0, 0, *screen)
+
+    view.screen = lambda: Screen()
+    view._fit_to_screen()
+    assert (view.width(), view.height()) == expected
+    assert sum(view.splitter.sizes()) <= view.width()

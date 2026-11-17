@@ -51,6 +51,9 @@ _PREVIEW_SIZE = 1600
 #: The share of the screen's free area the dialog opens at, and the size it never opens below.
 _SCREEN_SHARE = (0.8, 0.85)
 _OPENING_MINIMUM = (900, 620)
+#: The widest the dialog opens, as a multiple of its height: on an ultrawide screen the
+#: extra width would only widen the side columns around the preview.
+_MAX_ASPECT = 1.8
 #: The splitter's first shares: frames, the preview, the painting's details.
 _SPLIT_SHARES = (0.22, 0.52, 0.26)
 
@@ -375,6 +378,7 @@ class PaintingDialog(QDialog):
         area = screen.availableGeometry()
         width = min(area.width(), max(_OPENING_MINIMUM[0], int(area.width() * _SCREEN_SHARE[0])))
         height = min(area.height(), max(_OPENING_MINIMUM[1], int(area.height() * _SCREEN_SHARE[1])))
+        width = min(width, max(_OPENING_MINIMUM[0], int(height * _MAX_ASPECT)))
         self.resize(width, height)
         anchor = self.parentWidget().window().frameGeometry().center() if self.parentWidget() is not None else area.center()
         left = min(max(area.left(), anchor.x() - width // 2), area.right() - width + 1)

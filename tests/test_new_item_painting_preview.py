@@ -70,6 +70,36 @@ def test_the_canvas_shows_the_texture_the_build_writes_and_the_frame_keeps_its_o
     assert len(decoded.preview_model.meshes[0].preview_material_texture_inputs) == 2
 
 
+def test_a_part_the_decode_left_bare_takes_its_texture_from_the_paintings_material_file(tmp_path, picture):
+    """cd_in_dpw_picture_06 (2026-11-17): two metal trims came out untextured, though the
+    painting's .pami binds them to cd_bg_trimborder_metal_06.dds."""
+    def decode(*_args, **_kwargs):
+        decoded = _decoded()
+        decoded.preview_model.meshes.append(ModelPreviewMesh(material_name="cd_bg_trimborder_metal_01"))
+        return decoded
+
+    pami = ('<StaticMeshInstance><MaterialData><Material PrimitiveName="cd_bg_trimborder_metal_01"><Parameters>'
+            '<MaterialParameterTexture Name="_baseColorTexture" Value="object/texture/cd_bg_trimborder_metal_06.dds"/>'
+            '</Parameters></Material><Material PrimitiveName="cd_bg_wood_01"><Parameters>'
+            '<MaterialParameterTexture Name="_baseColorTexture" Value="object/texture/other.dds"/>'
+            '</Parameters></Material></MaterialData></StaticMeshInstance>')
+    asked = []
+
+    def preview(entry, *, stop_event=None):
+        asked.append(entry)
+        return f"{entry}.png"
+
+    model = painting_preview_model("e", FRAME, str(picture), "fill", texture_entries_by_normalized_path={},
+                                   texture_entries_by_basename={}, folder=tmp_path, decode=decode, pami_text=pami,
+                                   texture_entry_of=lambda path: f"entry:{path}", texture_preview=preview)
+    trim = model.meshes[2]
+    assert trim.preview_texture_path == "entry:object/texture/cd_bg_trimborder_metal_06.dds.png"
+    assert trim.preview_base_texture_source == "pami"
+    # Parts the decode textured keep their texture; the canvas gets the picture, not the .pami's.
+    assert model.meshes[1].preview_texture_path == "wood.png"
+    assert asked == ["entry:object/texture/cd_bg_trimborder_metal_06.dds"]
+
+
 def test_without_a_picture_the_frame_shows_the_games_picture(tmp_path):
     model = painting_preview_model("frame-entry", FRAME, "", "fill", texture_entries_by_normalized_path={},
                                    texture_entries_by_basename={}, folder=tmp_path, decode=lambda *_a, **_k: _decoded())
