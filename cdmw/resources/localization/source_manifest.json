@@ -111,12 +111,12 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 980,
+          "line": 981,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 981,
+          "line": 982,
           "sink": "setText"
         }
       ]
@@ -1066,17 +1066,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 498,
+          "line": 499,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 510,
+          "line": 511,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 511,
+          "line": 512,
           "sink": "emit"
         }
       ]
@@ -1106,17 +1106,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 498,
+          "line": 499,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 510,
+          "line": 511,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 511,
+          "line": 512,
           "sink": "emit"
         }
       ]
@@ -1451,17 +1451,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 498,
+          "line": 499,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 510,
+          "line": 511,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 511,
+          "line": 512,
           "sink": "emit"
         }
       ]
@@ -1521,7 +1521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 934,
+          "line": 935,
           "sink": "setText"
         }
       ]
@@ -1686,7 +1686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 485,
+          "line": 486,
           "sink": "setFormat"
         },
         {
@@ -1726,7 +1726,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 479,
+          "line": 482,
           "sink": "setFormat"
         }
       ]
@@ -2741,7 +2741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 464,
+          "line": 467,
           "sink": "_set_phase_progress"
         }
       ]
@@ -2751,17 +2751,17 @@
       "origins": [
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 408,
+          "line": 410,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 506,
+          "line": 507,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 87,
+          "line": 88,
           "sink": "setFormat"
         },
         {
@@ -3531,17 +3531,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 811,
+          "line": 812,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1168,
+          "line": 1169,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1236,
+          "line": 1237,
           "sink": "setText"
         }
       ]
@@ -4561,7 +4561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 305,
+          "line": 307,
           "sink": "warning"
         },
         {
@@ -5321,7 +5321,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1124,
+          "line": 1125,
           "sink": "emit"
         }
       ]
@@ -6511,7 +6511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_texture_original_texture_material_part_01.py",
-          "line": 623,
+          "line": 624,
           "sink": "set_status_message"
         }
       ]
@@ -8106,7 +8106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 492,
+          "line": 493,
           "sink": "setText"
         }
       ]
@@ -8166,7 +8166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1312,
+          "line": 1313,
           "sink": "setText"
         }
       ]
@@ -9071,7 +9071,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 918,
+          "line": 919,
           "sink": "setText"
         },
         {
@@ -9181,7 +9181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1044,
+          "line": 1045,
           "sink": "_set_preview_image"
         }
       ]
@@ -9571,7 +9571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 751,
+          "line": 752,
           "sink": "addItem"
         },
         {
@@ -9691,12 +9691,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 344,
+          "line": 346,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 636,
+          "line": 638,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -9736,7 +9736,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 238,
+          "line": 239,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -9746,7 +9746,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 709,
+          "line": 711,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -10516,7 +10516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 641,
+          "line": 643,
           "sink": "append_log"
         }
       ]
@@ -10971,7 +10971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 768,
+          "line": 769,
           "sink": "failed"
         }
       ]
@@ -11001,17 +11001,17 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 843,
+          "line": 844,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1127,
+          "line": 1128,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1135,
+          "line": 1136,
           "sink": "emit"
         }
       ]
@@ -11061,7 +11061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 788,
+          "line": 789,
           "sink": "emit"
         }
       ]
@@ -11071,7 +11071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 749,
+          "line": 750,
           "sink": "_append_log"
         }
       ]
@@ -12286,7 +12286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1257,
+          "line": 1258,
           "sink": "_set_status"
         }
       ]
@@ -13081,7 +13081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 831,
+          "line": 832,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -13196,17 +13196,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_workers.py",
-          "line": 293,
+          "line": 294,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 272,
+          "line": 273,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 327,
+          "line": 329,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -14491,7 +14491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 202,
+          "line": 203,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -14801,7 +14801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 418,
+          "line": 421,
           "sink": "append_log"
         }
       ]
@@ -15271,7 +15271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 915,
+          "line": 916,
           "sink": "_write_crash_report"
         }
       ]
@@ -15331,7 +15331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 957,
+          "line": 958,
           "sink": "_write_crash_report"
         }
       ]
@@ -15361,7 +15361,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 925,
+          "line": 926,
           "sink": "set_status_message"
         },
         {
@@ -15551,32 +15551,32 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 205,
+          "line": 206,
           "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 208,
-          "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
           "line": 209,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 244,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 246,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
+          "line": 210,
+          "sink": "append_archive_log"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sidecar_index.py",
+          "line": 245,
+          "sink": "_set_archive_load_progress"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sidecar_index.py",
           "line": 247,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sidecar_index.py",
+          "line": 248,
           "sink": "append_archive_log"
         }
       ]
@@ -16281,7 +16281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_helper_discovery.py",
-          "line": 134,
+          "line": 135,
           "sink": "setText"
         }
       ]
@@ -16291,7 +16291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_helper_discovery.py",
-          "line": 137,
+          "line": 138,
           "sink": "setText"
         }
       ]
@@ -16746,7 +16746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 810,
+          "line": 812,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -17811,7 +17811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_path_task_controller.py",
-          "line": 213,
+          "line": 214,
           "sink": "_set_status"
         }
       ]
@@ -17821,7 +17821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_path_task_controller.py",
-          "line": 206,
+          "line": 207,
           "sink": "_set_status"
         }
       ]
@@ -17846,7 +17846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_path_task_controller.py",
-          "line": 206,
+          "line": 207,
           "sink": "_set_status"
         }
       ]
@@ -17866,7 +17866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_path_task_controller.py",
-          "line": 175,
+          "line": 176,
           "sink": "set_detail"
         }
       ]
@@ -17926,7 +17926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 692,
+          "line": 694,
           "sink": "setText"
         }
       ]
@@ -17936,17 +17936,17 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 638,
+          "line": 640,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 670,
+          "line": 672,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 673,
+          "line": 675,
           "sink": "append_log"
         }
       ]
@@ -17956,7 +17956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 546,
+          "line": 547,
           "sink": "append_log"
         }
       ]
@@ -17966,7 +17966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 545,
+          "line": 546,
           "sink": "setText"
         }
       ]
@@ -18471,7 +18471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1275,
+          "line": 1276,
           "sink": "_set_status"
         }
       ]
@@ -18746,7 +18746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 187,
+          "line": 188,
           "sink": "_write_crash_report"
         }
       ]
@@ -19216,12 +19216,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 578,
+          "line": 579,
           "sink": "_add_candidate"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 635,
+          "line": 636,
           "sink": "_add_candidate"
         }
       ]
@@ -19361,7 +19361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 918,
+          "line": 919,
           "sink": "setText"
         },
         {
@@ -19416,7 +19416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1043,
+          "line": 1044,
           "sink": "_set_preview_image"
         }
       ]
@@ -20256,7 +20256,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 1150,
+          "line": 1151,
           "sink": "information"
         },
         {
@@ -20281,7 +20281,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 1150,
+          "line": 1151,
           "sink": "information"
         }
       ]
@@ -22146,17 +22146,17 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1221,
-          "sink": "QTreeWidgetItem"
-        },
-        {
-          "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1231,
+          "line": 1223,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 1233,
+          "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/recolor_variants_tab.py",
+          "line": 1235,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -22461,12 +22461,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 928,
+          "line": 930,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 934,
+          "line": 936,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -22476,7 +22476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1038,
+          "line": 1040,
           "sink": "QPushButton"
         }
       ]
@@ -22496,7 +22496,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 139,
+          "line": 140,
           "sink": "setText"
         }
       ]
@@ -22631,7 +22631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 395,
+          "line": 398,
           "sink": "set_status_message"
         }
       ]
@@ -22641,7 +22641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 171,
+          "line": 172,
           "sink": "append_log"
         }
       ]
@@ -22651,7 +22651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 536,
+          "line": 539,
           "sink": "set_status_message"
         }
       ]
@@ -22661,7 +22661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 525,
+          "line": 528,
           "sink": "set_status_message"
         }
       ]
@@ -22676,7 +22676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 532,
+          "line": 535,
           "sink": "set_status_message"
         }
       ]
@@ -22686,7 +22686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 234,
+          "line": 237,
           "sink": "set_status_message"
         }
       ]
@@ -22706,7 +22706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1222,
+          "line": 1224,
           "sink": "_append_log"
         }
       ]
@@ -22786,7 +22786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 389,
+          "line": 392,
           "sink": "append_log"
         }
       ]
@@ -22796,7 +22796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 243,
+          "line": 246,
           "sink": "set_status_message"
         }
       ]
@@ -22806,7 +22806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 252,
+          "line": 255,
           "sink": "set_status_message"
         }
       ]
@@ -23221,7 +23221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 62,
+          "line": 63,
           "sink": "on_log"
         }
       ]
@@ -23271,7 +23271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_02.py",
-          "line": 168,
+          "line": 169,
           "sink": "_set_alignment_d3d11_progress"
         }
       ]
@@ -23316,7 +23316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1029,
+          "line": 1031,
           "sink": "_run_utility_task"
         }
       ]
@@ -23336,7 +23336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 102,
+          "line": 103,
           "sink": "_run_utility_task"
         }
       ]
@@ -23456,7 +23456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 85,
+          "line": 86,
           "sink": "setText"
         }
       ]
@@ -23511,7 +23511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1229,
+          "line": 1231,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -23571,7 +23571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1210,
+          "line": 1212,
           "sink": "_append_log"
         }
       ]
@@ -24621,12 +24621,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 557,
+          "line": 560,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 589,
+          "line": 592,
           "sink": "append_log"
         }
       ]
@@ -24791,7 +24791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 198,
+          "line": 199,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -25461,7 +25461,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 837,
+          "line": 838,
           "sink": "QPushButton"
         },
         {
@@ -25561,7 +25561,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/source_picker_dialog.py",
-          "line": 491,
+          "line": 492,
           "sink": "QPushButton"
         },
         {
@@ -25571,7 +25571,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
-          "line": 113,
+          "line": 114,
           "sink": "addButton"
         },
         {
@@ -25656,7 +25656,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 242,
+          "line": 243,
           "sink": "QProgressDialog"
         },
         {
@@ -25676,7 +25676,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 812,
+          "line": 814,
           "sink": "QPushButton"
         },
         {
@@ -25976,12 +25976,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1597,
+          "line": 1598,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1617,
+          "line": 1618,
           "sink": "_set_rust_status"
         }
       ]
@@ -25991,7 +25991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 829,
+          "line": 830,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -26081,7 +26081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 803,
+          "line": 804,
           "sink": "QLabel"
         }
       ]
@@ -26536,7 +26536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1377,
+          "line": 1378,
           "sink": "emit"
         }
       ]
@@ -26586,7 +26586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1356,
+          "line": 1357,
           "sink": "emit"
         }
       ]
@@ -26951,7 +26951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1044,
+          "line": 1045,
           "sink": "setToolTip"
         }
       ]
@@ -27431,7 +27431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1056,
+          "line": 1057,
           "sink": "setText"
         }
       ]
@@ -28186,7 +28186,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -28336,7 +28336,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -28371,7 +28371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -28406,7 +28406,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -28471,7 +28471,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -28996,7 +28996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 527,
+          "line": 528,
           "sink": "_render_index_search_results"
         }
       ]
@@ -29036,7 +29036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_path_task_controller.py",
-          "line": 172,
+          "line": 173,
           "sink": "_set_status"
         }
       ]
@@ -29151,7 +29151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 404,
+          "line": 407,
           "sink": "_run_utility_task"
         }
       ]
@@ -29526,7 +29526,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 811,
+          "line": 813,
           "sink": "QPushButton"
         }
       ]
@@ -30131,7 +30131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1334,
+          "line": 1335,
           "sink": "getExistingDirectory"
         }
       ]
@@ -30201,7 +30201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 249,
+          "line": 250,
           "sink": "getExistingDirectory"
         }
       ]
@@ -30251,7 +30251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 600,
+          "line": 602,
           "sink": "addButton"
         }
       ]
@@ -30281,7 +30281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 586,
+          "line": 588,
           "sink": "setWindowTitle"
         }
       ]
@@ -30391,7 +30391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 238,
+          "line": 239,
           "sink": "getOpenFileName"
         }
       ]
@@ -30431,7 +30431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 934,
+          "line": 936,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -30451,7 +30451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 867,
+          "line": 869,
           "sink": "getExistingDirectory"
         }
       ]
@@ -30601,7 +30601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 745,
+          "line": 746,
           "sink": "emit"
         }
       ]
@@ -30851,7 +30851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 532,
+          "line": 533,
           "sink": "setText"
         }
       ]
@@ -30976,7 +30976,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 729,
+          "line": 730,
           "sink": "setText"
         }
       ]
@@ -31891,7 +31891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1143,
+          "line": 1144,
           "sink": "emit"
         }
       ]
@@ -31961,7 +31961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 790,
+          "line": 792,
           "sink": "setWindowTitle"
         }
       ]
@@ -32396,7 +32396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 709,
+          "line": 711,
           "sink": "getOpenFileName"
         }
       ]
@@ -32446,7 +32446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 942,
+          "line": 943,
           "sink": "getColor"
         }
       ]
@@ -32456,7 +32456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 229,
+          "line": 230,
           "sink": "getExistingDirectory"
         }
       ]
@@ -33681,7 +33681,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 757,
+          "line": 758,
           "sink": "QPushButton"
         },
         {
@@ -35081,7 +35081,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1040,
+          "line": 1042,
           "sink": "QPushButton"
         },
         {
@@ -35241,7 +35241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1315,
+          "line": 1316,
           "sink": "question"
         }
       ]
@@ -35251,7 +35251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
-          "line": 112,
+          "line": 113,
           "sink": "addButton"
         }
       ]
@@ -35291,7 +35291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1315,
+          "line": 1316,
           "sink": "question"
         }
       ]
@@ -35321,7 +35321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
-          "line": 120,
+          "line": 121,
           "sink": "question"
         },
         {
@@ -37206,7 +37206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 227,
+          "line": 228,
           "sink": "python-return:_format_comparison_html"
         }
       ]
@@ -37286,7 +37286,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1044,
+          "line": 1045,
           "sink": "setToolTip"
         }
       ]
@@ -37426,17 +37426,17 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/asset_authoring_panel.py",
-          "line": 294,
+          "line": 295,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 523,
+          "line": 526,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 573,
+          "line": 576,
           "sink": "setText"
         }
       ]
@@ -38566,7 +38566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 378,
+          "line": 381,
           "sink": "addButton"
         }
       ]
@@ -38696,7 +38696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 399,
+          "line": 402,
           "sink": "append_log"
         }
       ]
@@ -39586,7 +39586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1001,
+          "line": 1003,
           "sink": "log"
         }
       ]
@@ -39981,7 +39981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 658,
+          "line": 659,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -40031,12 +40031,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 436,
+          "line": 437,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 440,
+          "line": 441,
           "sink": "_finish_pending_textured_view"
         }
       ]
@@ -40046,7 +40046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 90,
+          "line": 91,
           "sink": "set_status_message"
         }
       ]
@@ -40056,7 +40056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 447,
+          "line": 450,
           "sink": "set_status_message"
         }
       ]
@@ -40146,7 +40146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 271,
+          "line": 274,
           "sink": "set_status_message"
         }
       ]
@@ -40486,7 +40486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1322,
+          "line": 1323,
           "sink": "warning"
         }
       ]
@@ -40781,12 +40781,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 359,
+          "line": 360,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 360,
+          "line": 361,
           "sink": "_finish_pending_textured_view"
         }
       ]
@@ -40826,12 +40826,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 127,
+          "line": 128,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 132,
+          "line": 133,
           "sink": "on_error"
         }
       ]
@@ -42156,7 +42156,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 898,
+          "line": 899,
           "sink": "_set_color_swatch"
         },
         {
@@ -42186,7 +42186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 617,
+          "line": 618,
           "sink": "_add_candidate"
         }
       ]
@@ -42406,7 +42406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1078,
+          "line": 1079,
           "sink": "emit"
         }
       ]
@@ -42486,7 +42486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 376,
+          "line": 379,
           "sink": "setInformativeText"
         }
       ]
@@ -43196,7 +43196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 342,
+          "line": 345,
           "sink": "setWindowTitle"
         }
       ]
@@ -43296,7 +43296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 709,
+          "line": 711,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -43306,17 +43306,17 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 464,
+          "line": 467,
           "sink": "_set_phase_progress"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 491,
+          "line": 494,
           "sink": "_set_phase_progress"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 498,
+          "line": 501,
           "sink": "_set_phase_progress"
         }
       ]
@@ -43491,7 +43491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 580,
+          "line": 583,
           "sink": "set_status_message"
         }
       ]
@@ -43501,7 +43501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 575,
+          "line": 578,
           "sink": "set_status_message"
         }
       ]
@@ -46831,7 +46831,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1460,
+          "line": 1461,
           "sink": "addButton"
         },
         {
@@ -46871,7 +46871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
-          "line": 120,
+          "line": 121,
           "sink": "question"
         },
         {
@@ -47481,7 +47481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_texture_original_texture_material_part_01.py",
-          "line": 694,
+          "line": 695,
           "sink": "_handle_donor_material_source_error"
         }
       ]
@@ -47786,7 +47786,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 140,
+          "line": 141,
           "sink": "setText"
         }
       ]
@@ -47956,7 +47956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 87,
+          "line": 88,
           "sink": "setText"
         }
       ]
@@ -49246,7 +49246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 235,
+          "line": 238,
           "sink": "append_log"
         }
       ]
@@ -49271,7 +49271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 177,
+          "line": 178,
           "sink": "append_log"
         }
       ]
@@ -49286,17 +49286,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 274,
+          "line": 275,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 275,
+          "line": 276,
           "sink": "append_archive_log"
         },
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 210,
+          "line": 211,
           "sink": "append_log"
         },
         {
@@ -49306,7 +49306,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 225,
+          "line": 226,
           "sink": "append_log"
         },
         {
@@ -49341,27 +49341,27 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 91,
+          "line": 92,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 128,
+          "line": 129,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 130,
+          "line": 131,
           "sink": "append_archive_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 194,
+          "line": 195,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 196,
+          "line": 197,
           "sink": "append_archive_log"
         },
         {
@@ -49381,17 +49381,17 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 611,
+          "line": 612,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 140,
+          "line": 141,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/texture_workflow/asset_authoring_panel.py",
-          "line": 296,
+          "line": 297,
           "sink": "append_log"
         }
       ]
@@ -50956,7 +50956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 805,
+          "line": 806,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -51016,12 +51016,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 94,
+          "line": 95,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 95,
+          "line": 96,
           "sink": "emit"
         }
       ]
@@ -51031,12 +51031,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 88,
+          "line": 89,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 89,
+          "line": 90,
           "sink": "emit"
         }
       ]
@@ -51071,7 +51071,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 147,
+          "line": 148,
           "sink": "emit"
         }
       ]
@@ -51226,12 +51226,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 193,
+          "line": 195,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 194,
+          "line": 196,
           "sink": "emit"
         }
       ]
@@ -51241,12 +51241,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 187,
+          "line": 189,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 188,
+          "line": 190,
           "sink": "emit"
         }
       ]
@@ -51291,7 +51291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 171,
+          "line": 173,
           "sink": "emit"
         }
       ]
@@ -51301,7 +51301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 144,
+          "line": 145,
           "sink": "emit"
         }
       ]
@@ -51976,7 +51976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 740,
+          "line": 741,
           "sink": "emit"
         }
       ]
@@ -51986,7 +51986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 733,
+          "line": 734,
           "sink": "emit"
         }
       ]
@@ -53441,17 +53441,17 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1231,
+          "line": 1233,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 215,
+          "line": 216,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 230,
+          "line": 231,
           "sink": "setFormat"
         },
         {
@@ -53466,12 +53466,12 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 610,
+          "line": 611,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 138,
+          "line": 139,
           "sink": "setFormat"
         }
       ]
@@ -53506,7 +53506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1208,
+          "line": 1210,
           "sink": "_append_log"
         }
       ]
@@ -54256,7 +54256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 376,
+          "line": 379,
           "sink": "setInformativeText"
         }
       ]
@@ -54396,7 +54396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 238,
+          "line": 239,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -55616,7 +55616,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 795,
+          "line": 796,
           "sink": "information"
         }
       ]
@@ -55901,7 +55901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 344,
+          "line": 346,
           "sink": "getSaveFileName"
         },
         {
@@ -55971,12 +55971,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 305,
+          "line": 307,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 327,
+          "line": 329,
           "sink": "warning"
         },
         {
@@ -55996,27 +55996,27 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 305,
+          "line": 307,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 310,
+          "line": 312,
           "sink": "getSaveFileName"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 321,
+          "line": 323,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 327,
+          "line": 329,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 426,
+          "line": 428,
           "sink": "warning"
         },
         {
@@ -56551,7 +56551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 825,
+          "line": 826,
           "sink": "setText"
         },
         {
@@ -57441,17 +57441,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 115,
+          "line": 116,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 119,
+          "line": 120,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 120,
+          "line": 121,
           "sink": "append_log"
         }
       ]
@@ -57471,7 +57471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 802,
+          "line": 803,
           "sink": "setText"
         }
       ]
@@ -57481,7 +57481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 794,
+          "line": 795,
           "sink": "setText"
         }
       ]
@@ -57491,12 +57491,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 795,
+          "line": 796,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 815,
+          "line": 816,
           "sink": "information"
         }
       ]
@@ -57581,7 +57581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 774,
+          "line": 775,
           "sink": "setText"
         }
       ]
@@ -57591,7 +57591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 779,
+          "line": 780,
           "sink": "setText"
         }
       ]
@@ -57681,7 +57681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 77,
+          "line": 78,
           "sink": "setText"
         }
       ]
@@ -59081,27 +59081,27 @@
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 277,
+          "line": 278,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1221,
+          "line": 1223,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 195,
+          "line": 196,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 202,
+          "line": 203,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/texture_workflow/asset_authoring_panel.py",
-          "line": 294,
+          "line": 295,
           "sink": "setText"
         },
         {
@@ -59216,7 +59216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 910,
+          "line": 911,
           "sink": "set_status_message"
         }
       ]
@@ -59251,17 +59251,17 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1136,
+          "line": 1137,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1273,
+          "line": 1274,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1323,
+          "line": 1324,
           "sink": "emit"
         }
       ]
@@ -59271,7 +59271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1283,
+          "line": 1284,
           "sink": "emit"
         }
       ]
@@ -59286,12 +59286,12 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1150,
+          "line": 1151,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1330,
+          "line": 1331,
           "sink": "emit"
         }
       ]
@@ -60086,7 +60086,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 803,
+          "line": 805,
           "sink": "setPlaceholderText"
         }
       ]
@@ -60406,7 +60406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 796,
+          "line": 798,
           "sink": "QLabel"
         }
       ]
@@ -60631,7 +60631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/source_picker_dialog.py",
-          "line": 465,
+          "line": 466,
           "sink": "setText"
         }
       ]
@@ -61046,7 +61046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 267,
+          "line": 268,
           "sink": "python-return:_preview_match_status_text"
         }
       ]
@@ -61231,12 +61231,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 996,
+          "line": 997,
           "sink": "_card_caption"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 999,
+          "line": 1000,
           "sink": "setText"
         }
       ]
@@ -61391,7 +61391,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1459,
+          "line": 1460,
           "sink": "addButton"
         }
       ]
@@ -61441,7 +61441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 305,
+          "line": 307,
           "sink": "warning"
         }
       ]
@@ -61796,7 +61796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 581,
+          "line": 584,
           "sink": "append_log"
         }
       ]
@@ -61816,7 +61816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 537,
+          "line": 540,
           "sink": "append_log"
         }
       ]
@@ -61981,12 +61981,12 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/preview.py",
-          "line": 77,
+          "line": 78,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/preview.py",
-          "line": 226,
+          "line": 228,
           "sink": "setText"
         },
         {
@@ -63296,7 +63296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 184,
+          "line": 185,
           "sink": "setText"
         }
       ]
@@ -64231,7 +64231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 465,
+          "line": 468,
           "sink": "set_status_message"
         }
       ]
@@ -64951,7 +64951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 969,
+          "line": 970,
           "sink": "set_status_message"
         }
       ]
@@ -65001,7 +65001,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1323,
+          "line": 1324,
           "sink": "emit"
         }
       ]
@@ -65191,7 +65191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 595,
+          "line": 600,
           "sink": "_write_crash_report"
         }
       ]
@@ -65201,7 +65201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/garbage_collection.py",
-          "line": 141,
+          "line": 153,
           "sink": "RuntimeError"
         }
       ]
@@ -68736,7 +68736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 890,
+          "line": 891,
           "sink": "setText"
         }
       ]
@@ -72866,7 +72866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 137,
+          "line": 138,
           "sink": "getExistingDirectory"
         }
       ]
@@ -74281,7 +74281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 219,
+          "line": 220,
           "sink": "append_log"
         }
       ]
@@ -74291,7 +74291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 216,
+          "line": 217,
           "sink": "setText"
         }
       ]
@@ -74371,7 +74371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 163,
+          "line": 165,
           "sink": "setText"
         }
       ]
@@ -74426,12 +74426,12 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 150,
+          "line": 151,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 160,
+          "line": 161,
           "sink": "setFormat"
         }
       ]
@@ -75901,7 +75901,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 790,
+          "line": 791,
           "sink": "setHeaderLabels"
         }
       ]
@@ -77336,7 +77336,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1044,
+          "line": 1045,
           "sink": "setToolTip"
         }
       ]
@@ -79116,12 +79116,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 720,
+          "line": 721,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1242,
+          "line": 1243,
           "sink": "information"
         },
         {
@@ -79151,7 +79151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 736,
+          "line": 737,
           "sink": "setWindowTitle"
         }
       ]
@@ -79161,7 +79161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 603,
+          "line": 604,
           "sink": "_add_candidate"
         }
       ]
@@ -79201,12 +79201,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 567,
+          "line": 568,
           "sink": "_add_candidate"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 603,
+          "line": 604,
           "sink": "_add_candidate"
         }
       ]
@@ -79216,12 +79216,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 567,
+          "line": 568,
           "sink": "_add_candidate"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 603,
+          "line": 604,
           "sink": "_add_candidate"
         }
       ]
@@ -80266,7 +80266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_warmup.py",
-          "line": 676,
+          "line": 677,
           "sink": "emit"
         }
       ]
@@ -80366,7 +80366,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 491,
+          "line": 494,
           "sink": "_set_phase_progress"
         }
       ]
@@ -80496,7 +80496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 636,
+          "line": 638,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -81101,47 +81101,47 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 718,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
           "line": 720,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 755,
+          "line": 722,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
+          "line": 757,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 755,
+          "line": 757,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 755,
+          "line": 757,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 755,
+          "line": 757,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 755,
+          "line": 757,
           "sink": "QTreeWidgetItem"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 756,
-          "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
           "line": 758,
+          "sink": "setData"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
+          "line": 760,
           "sink": "setToolTip"
         }
       ]
@@ -81811,7 +81811,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 815,
+          "line": 816,
           "sink": "information"
         }
       ]
@@ -82336,7 +82336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 520,
+          "line": 521,
           "sink": "setText"
         }
       ]
@@ -82411,7 +82411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 601,
+          "line": 603,
           "sink": "addButton"
         }
       ]
@@ -82461,7 +82461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 610,
+          "line": 611,
           "sink": "set_status_message"
         }
       ]
@@ -84951,7 +84951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 535,
+          "line": 536,
           "sink": "setText"
         }
       ]
@@ -85181,7 +85181,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1157,
+          "line": 1158,
           "sink": "setText"
         }
       ]
@@ -85196,7 +85196,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1114,
+          "line": 1115,
           "sink": "setText"
         }
       ]
@@ -85206,12 +85206,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 699,
+          "line": 700,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 700,
+          "line": 701,
           "sink": "show_loading"
         }
       ]
@@ -85236,7 +85236,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 815,
+          "line": 816,
           "sink": "emit"
         }
       ]
@@ -85506,17 +85506,17 @@
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1136,
+          "line": 1137,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1273,
+          "line": 1274,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1323,
+          "line": 1324,
           "sink": "emit"
         }
       ]
@@ -85631,7 +85631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 645,
+          "line": 647,
           "sink": "setText"
         }
       ]
@@ -85696,12 +85696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 277,
+          "line": 278,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1273,
+          "line": 1274,
           "sink": "emit"
         }
       ]
@@ -86156,7 +86156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 805,
+          "line": 806,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -86406,7 +86406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1322,
+          "line": 1323,
           "sink": "warning"
         }
       ]
@@ -86506,7 +86506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 567,
+          "line": 568,
           "sink": "_add_candidate"
         }
       ]
@@ -86556,7 +86556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 568,
+          "line": 569,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -87016,7 +87016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 585,
+          "line": 590,
           "sink": "_write_crash_report"
         }
       ]
@@ -87826,7 +87826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 587,
+          "line": 588,
           "sink": "setText"
         },
         {
@@ -87946,7 +87946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 544,
+          "line": 545,
           "sink": "setFormat"
         }
       ]
@@ -88256,7 +88256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 901,
+          "line": 902,
           "sink": "setText"
         }
       ]
@@ -88266,7 +88266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1274,
+          "line": 1276,
           "sink": "setToolTip"
         }
       ]
@@ -88276,7 +88276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 989,
+          "line": 990,
           "sink": "emit"
         }
       ]
@@ -89551,7 +89551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 625,
+          "line": 626,
           "sink": "set_status_message"
         }
       ]
@@ -89736,7 +89736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 536,
+          "line": 537,
           "sink": "set_status_message"
         }
       ]
@@ -89746,7 +89746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 534,
+          "line": 535,
           "sink": "set_status_message"
         }
       ]
@@ -89756,7 +89756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 631,
+          "line": 632,
           "sink": "set_status_message"
         }
       ]
@@ -89911,7 +89911,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 243,
+          "line": 244,
           "sink": "setWindowTitle"
         },
         {
@@ -90006,12 +90006,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1597,
+          "line": 1598,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1617,
+          "line": 1618,
           "sink": "_set_rust_status"
         }
       ]
@@ -90021,7 +90021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 909,
+          "line": 910,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90071,7 +90071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
-          "line": 108,
+          "line": 109,
           "sink": "setWindowTitle"
         }
       ]
@@ -90081,7 +90081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1454,
+          "line": 1455,
           "sink": "setWindowTitle"
         }
       ]
@@ -90371,7 +90371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_archive_material_context.py",
-          "line": 477,
+          "line": 478,
           "sink": "emit"
         }
       ]
@@ -90381,7 +90381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_archive_material_context.py",
-          "line": 468,
+          "line": 469,
           "sink": "emit"
         }
       ]
@@ -90421,12 +90421,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 863,
+          "line": 864,
           "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 837,
+          "line": 838,
           "sink": "_stop_rust_editor_process"
         }
       ]
@@ -90516,7 +90516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1136,
+          "line": 1137,
           "sink": "_set_rust_status"
         }
       ]
@@ -90536,7 +90536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1314,
+          "line": 1315,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90546,7 +90546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1320,
+          "line": 1321,
           "sink": "show_error"
         }
       ]
@@ -90556,7 +90556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1298,
+          "line": 1299,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90566,7 +90566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 883,
+          "line": 884,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90576,7 +90576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1047,
+          "line": 1048,
           "sink": "_set_rust_status"
         }
       ]
@@ -90626,7 +90626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1056,
+          "line": 1057,
           "sink": "_set_rust_status"
         }
       ]
@@ -90636,7 +90636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1417,
+          "line": 1418,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -90656,7 +90656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1204,
+          "line": 1205,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -90666,7 +90666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1200,
+          "line": 1201,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -90726,7 +90726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 722,
+          "line": 723,
           "sink": "_set_rust_status"
         }
       ]
@@ -90736,17 +90736,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1117,
+          "line": 1118,
           "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1211,
+          "line": 1212,
           "sink": "_stop_rust_editor_process"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1292,
+          "line": 1293,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91036,7 +91036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 771,
+          "line": 772,
           "sink": "emit"
         }
       ]
@@ -91056,7 +91056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 703,
+          "line": 704,
           "sink": "emit"
         }
       ]
@@ -91151,12 +91151,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 892,
+          "line": 893,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1069,
+          "line": 1070,
           "sink": "_set_rust_status"
         }
       ]
@@ -91196,7 +91196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1230,
+          "line": 1231,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91246,7 +91246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 913,
+          "line": 914,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91776,7 +91776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 344,
+          "line": 346,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -92776,7 +92776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 224,
+          "line": 225,
           "sink": "emit"
         }
       ]
@@ -97166,7 +97166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 590,
+          "line": 592,
           "sink": "setText"
         }
       ]
@@ -98791,7 +98791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 361,
+          "line": 362,
           "sink": "setText"
         }
       ]
@@ -99921,12 +99921,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 69,
+          "line": 70,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 289,
+          "line": 292,
           "sink": "ValueError"
         }
       ]
@@ -99961,7 +99961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 720,
+          "line": 721,
           "sink": "information"
         }
       ]
@@ -99971,7 +99971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1052,
+          "line": 1053,
           "sink": "setText"
         }
       ]
@@ -100321,7 +100321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 785,
+          "line": 787,
           "sink": "information"
         }
       ]
@@ -101586,7 +101586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 270,
+          "line": 271,
           "sink": "python-return:_preview_match_status_text"
         }
       ]
@@ -101676,17 +101676,17 @@
         },
         {
           "path": "cdmw/ui/research/preview_controller.py",
-          "line": 183,
+          "line": 184,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/research/preview_controller.py",
-          "line": 186,
+          "line": 187,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/research/preview_controller.py",
-          "line": 332,
+          "line": 334,
           "sink": "clear_preview"
         }
       ]
@@ -101716,12 +101716,12 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 176,
+          "line": 177,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 177,
+          "line": 178,
           "sink": "append_log"
         }
       ]
@@ -101766,7 +101766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 282,
+          "line": 283,
           "sink": "clear_preview"
         }
       ]
@@ -101961,7 +101961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1233,
+          "line": 1235,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -101991,7 +101991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 525,
+          "line": 526,
           "sink": "setText"
         }
       ]
@@ -102076,7 +102076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 526,
+          "line": 527,
           "sink": "setText"
         }
       ]
@@ -102551,7 +102551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1233,
+          "line": 1235,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -102771,7 +102771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1007,
+          "line": 1009,
           "sink": "ValueError"
         }
       ]
@@ -102801,7 +102801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1055,
+          "line": 1056,
           "sink": "setText"
         }
       ]
@@ -102861,7 +102861,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/preview.py",
-          "line": 76,
+          "line": 77,
           "sink": "clear_preview"
         }
       ]
@@ -102871,17 +102871,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 534,
+          "line": 535,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 588,
+          "line": 589,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 265,
+          "line": 266,
           "sink": "python-return:_preview_match_status_text"
         },
         {
@@ -103466,7 +103466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 833,
+          "line": 835,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -103831,7 +103831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 833,
+          "line": 835,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -103841,7 +103841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 928,
+          "line": 930,
           "sink": "warning"
         }
       ]
@@ -104011,12 +104011,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 787,
+          "line": 788,
           "sink": "_send_embedded_viewport_display_mode"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 792,
+          "line": 793,
           "sink": "emit"
         }
       ]
@@ -104336,7 +104336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_refresh_ui.py",
-          "line": 249,
+          "line": 250,
           "sink": "setText"
         }
       ]
@@ -104396,7 +104396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 491,
+          "line": 494,
           "sink": "_set_phase_progress"
         }
       ]
@@ -105391,7 +105391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 550,
+          "line": 553,
           "sink": "append_log"
         }
       ]
@@ -105441,7 +105441,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 242,
+          "line": 243,
           "sink": "python-return:_format_details_html"
         },
         {
@@ -105876,7 +105876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 823,
+          "line": 825,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -106696,7 +106696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1065,
+          "line": 1066,
           "sink": "emit"
         }
       ]
@@ -107231,7 +107231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 902,
+          "line": 903,
           "sink": "setText"
         }
       ]
@@ -107546,7 +107546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 433,
+          "line": 435,
           "sink": "emit"
         }
       ]
@@ -108061,7 +108061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 126,
+          "line": 127,
           "sink": "emit"
         }
       ]
@@ -108081,7 +108081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 211,
+          "line": 212,
           "sink": "emit"
         }
       ]
@@ -108091,7 +108091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 702,
+          "line": 705,
           "sink": "emit"
         }
       ]
@@ -109581,7 +109581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1097,
+          "line": 1098,
           "sink": "emit"
         }
       ]
@@ -109751,7 +109751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 914,
+          "line": 915,
           "sink": "setText"
         }
       ]
@@ -109861,12 +109861,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1544,
+          "line": 1545,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1548,
+          "line": 1549,
           "sink": "_set_rust_status"
         }
       ]
@@ -111486,7 +111486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 439,
+          "line": 442,
           "sink": "set_status_message"
         }
       ]
@@ -112176,7 +112176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -112251,7 +112251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 329,
+          "line": 331,
           "sink": "_start_standalone_rebuild_report_requested"
         }
       ]
@@ -112271,22 +112271,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 384,
+          "line": 386,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 385,
+          "line": 387,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 409,
+          "line": 411,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 410,
+          "line": 412,
           "sink": "emit"
         }
       ]
@@ -112296,7 +112296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 310,
+          "line": 312,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -112306,7 +112306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 310,
+          "line": 312,
           "sink": "getSaveFileName"
         }
       ]
@@ -112486,7 +112486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 491,
+          "line": 494,
           "sink": "_set_phase_progress"
         }
       ]
@@ -114821,7 +114821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 810,
+          "line": 812,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -115056,22 +115056,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 384,
+          "line": 386,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 385,
+          "line": 387,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 409,
+          "line": 411,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 410,
+          "line": 412,
           "sink": "emit"
         }
       ]
@@ -115286,7 +115286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 242,
+          "line": 243,
           "sink": "python-return:_format_details_html"
         },
         {
@@ -116616,7 +116616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 823,
+          "line": 825,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -116906,7 +116906,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 790,
+          "line": 791,
           "sink": "setHeaderLabels"
         }
       ]
@@ -116951,7 +116951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 790,
+          "line": 791,
           "sink": "setHeaderLabels"
         }
       ]
@@ -118171,7 +118171,7 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 503,
+          "line": 504,
           "sink": "setText"
         }
       ]
@@ -118186,7 +118186,7 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 557,
+          "line": 558,
           "sink": "setText"
         }
       ]
@@ -118391,7 +118391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 313,
+          "line": 316,
           "sink": "on_log"
         }
       ]
@@ -118476,7 +118476,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -118726,7 +118726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -118756,7 +118756,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 998,
+          "line": 1000,
           "sink": "log"
         }
       ]
@@ -119231,7 +119231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 183,
+          "line": 184,
           "sink": "append_log"
         }
       ]
@@ -119326,7 +119326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 113,
+          "line": 114,
           "sink": "set_status_message"
         }
       ]
@@ -119446,7 +119446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 595,
+          "line": 596,
           "sink": "setText"
         }
       ]
@@ -119486,7 +119486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 877,
+          "line": 878,
           "sink": "_set_rust_status"
         }
       ]
@@ -119506,7 +119506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 449,
+          "line": 454,
           "sink": "pump_startup_splash"
         },
         {
@@ -119586,7 +119586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 181,
+          "line": 183,
           "sink": "set_status_message"
         }
       ]
@@ -119866,12 +119866,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 996,
+          "line": 997,
           "sink": "_card_caption"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 999,
+          "line": 1000,
           "sink": "setText"
         }
       ]
@@ -120006,7 +120006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_02.py",
-          "line": 168,
+          "line": 169,
           "sink": "_set_alignment_d3d11_progress"
         }
       ]
@@ -120151,7 +120151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1055,
+          "line": 1056,
           "sink": "emit"
         }
       ]
@@ -120266,7 +120266,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 769,
+          "line": 770,
           "sink": "show_loading"
         }
       ]
@@ -120361,7 +120361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 84,
+          "line": 85,
           "sink": "setText"
         },
         {
@@ -120386,7 +120386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 471,
+          "line": 476,
           "sink": "pump_startup_splash"
         }
       ]
@@ -120471,7 +120471,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 247,
+          "line": 248,
           "sink": "show_loading"
         },
         {
@@ -120931,17 +120931,17 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/preview.py",
-          "line": 66,
+          "line": 67,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/preview.py",
-          "line": 72,
+          "line": 73,
           "sink": "set_preview_image"
         },
         {
           "path": "cdmw/ui/replace_assistant/preview.py",
-          "line": 74,
+          "line": 75,
           "sink": "set_preview_image_path"
         },
         {
@@ -121661,7 +121661,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 829,
+          "line": 830,
           "sink": "setText"
         }
       ]
@@ -122091,7 +122091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/preview.py",
-          "line": 84,
+          "line": 85,
           "sink": "setText"
         }
       ]
@@ -122141,12 +122141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/preview.py",
-          "line": 88,
-          "sink": "clear_preview"
-        },
-        {
-          "path": "cdmw/ui/replace_assistant/review_dialog.py",
-          "line": 312,
+          "line": 89,
           "sink": "clear_preview"
         },
         {
@@ -122155,9 +122150,9 @@
           "sink": "clear_preview"
         },
         {
-          "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 137,
-          "sink": "setText"
+          "path": "cdmw/ui/replace_assistant/review_dialog.py",
+          "line": 314,
+          "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
@@ -122166,7 +122161,12 @@
         },
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 146,
+          "line": 139,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/text_search/preview_panel.py",
+          "line": 147,
           "sink": "setText"
         }
       ]
@@ -122191,12 +122191,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 924,
+          "line": 925,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 974,
+          "line": 975,
           "sink": "_clear_archive_preview"
         },
         {
@@ -122306,7 +122306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 839,
+          "line": 840,
           "sink": "setText"
         }
       ]
@@ -122316,7 +122316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 833,
+          "line": 834,
           "sink": "setText"
         }
       ]
@@ -122481,7 +122481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_02.py",
-          "line": 458,
+          "line": 459,
           "sink": "_set_alignment_d3d11_progress"
         }
       ]
@@ -122671,7 +122671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 444,
+          "line": 445,
           "sink": "setText"
         }
       ]
@@ -122881,7 +122881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_02.py",
-          "line": 319,
+          "line": 320,
           "sink": "_set_alignment_d3d11_progress"
         }
       ]
@@ -123081,7 +123081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 652,
+          "line": 654,
           "sink": "setText"
         }
       ]
@@ -123091,7 +123091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 688,
+          "line": 690,
           "sink": "setText"
         }
       ]
@@ -123101,7 +123101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 659,
+          "line": 661,
           "sink": "setText"
         }
       ]
@@ -123496,7 +123496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1024,
+          "line": 1025,
           "sink": "failed"
         }
       ]
@@ -123616,7 +123616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_02.py",
-          "line": 336,
+          "line": 337,
           "sink": "_set_alignment_d3d11_progress"
         }
       ]
@@ -123646,7 +123646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 950,
+          "line": 951,
           "sink": "setText"
         }
       ]
@@ -123656,7 +123656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 941,
+          "line": 942,
           "sink": "setText"
         }
       ]
@@ -123846,7 +123846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 129,
+          "line": 130,
           "sink": "setText"
         }
       ]
@@ -123856,7 +123856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 1030,
+          "line": 1031,
           "sink": "_card_caption"
         },
         {
@@ -123876,12 +123876,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
-          "line": 177,
+          "line": 178,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
-          "line": 183,
+          "line": 184,
           "sink": "setText"
         },
         {
@@ -126011,7 +126011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_window.py",
-          "line": 585,
+          "line": 590,
           "sink": "_write_crash_report"
         }
       ]
@@ -126171,7 +126171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 907,
+          "line": 908,
           "sink": "set_status_message"
         }
       ]
@@ -128146,12 +128146,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 205,
+          "line": 206,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 244,
+          "line": 245,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -128166,27 +128166,27 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 180,
+          "line": 181,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 175,
+          "line": 176,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 186,
+          "line": 187,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 215,
+          "line": 216,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 667,
+          "line": 669,
           "sink": "setFormat"
         },
         {
@@ -128201,7 +128201,7 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 242,
+          "line": 243,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -128211,12 +128211,12 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 538,
+          "line": 539,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 118,
+          "line": 119,
           "sink": "setFormat"
         },
         {
@@ -128291,7 +128291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_path_task_controller.py",
-          "line": 155,
+          "line": 156,
           "sink": "_set_status"
         }
       ]
@@ -128346,7 +128346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 457,
+          "line": 460,
           "sink": "setText"
         }
       ]
@@ -128381,7 +128381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 876,
+          "line": 877,
           "sink": "setText"
         }
       ]
@@ -128731,12 +128731,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 429,
+          "line": 431,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 443,
+          "line": 445,
           "sink": "emit"
         }
       ]
@@ -128781,12 +128781,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 486,
+          "line": 488,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 487,
+          "line": 489,
           "sink": "emit"
         }
       ]
@@ -128796,22 +128796,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 384,
+          "line": 386,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 385,
+          "line": 387,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 409,
+          "line": 411,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 410,
+          "line": 412,
           "sink": "emit"
         }
       ]
@@ -128821,7 +128821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 679,
+          "line": 682,
           "sink": "emit"
         }
       ]
@@ -128831,7 +128831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 676,
+          "line": 679,
           "sink": "emit"
         }
       ]
@@ -128841,22 +128841,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 384,
+          "line": 386,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 385,
+          "line": 387,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 409,
+          "line": 411,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 410,
+          "line": 412,
           "sink": "emit"
         }
       ]
@@ -129381,12 +129381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 756,
+          "line": 757,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 759,
+          "line": 760,
           "sink": "RunCancelled"
         }
       ]
@@ -129396,7 +129396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 784,
+          "line": 785,
           "sink": "emit"
         }
       ]
@@ -129406,7 +129406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 764,
+          "line": 765,
           "sink": "emit"
         }
       ]
@@ -129446,7 +129446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1020,
+          "line": 1021,
           "sink": "emit"
         }
       ]
@@ -129456,7 +129456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1013,
+          "line": 1014,
           "sink": "ValueError"
         }
       ]
@@ -129536,7 +129536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 856,
+          "line": 857,
           "sink": "emit"
         }
       ]
@@ -129601,7 +129601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1217,
+          "line": 1219,
           "sink": "emit"
         }
       ]
@@ -129611,7 +129611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1223,
+          "line": 1225,
           "sink": "emit"
         }
       ]
@@ -129621,7 +129621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1215,
+          "line": 1217,
           "sink": "emit"
         }
       ]
@@ -129631,7 +129631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1237,
+          "line": 1239,
           "sink": "emit"
         }
       ]
@@ -129796,7 +129796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 827,
+          "line": 828,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -133021,7 +133021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 760,
+          "line": 762,
           "sink": "append_log"
         }
       ]
@@ -133896,12 +133896,12 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 188,
+          "line": 189,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 189,
+          "line": 190,
           "sink": "emit"
         }
       ]
@@ -133911,12 +133911,12 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 176,
+          "line": 177,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 177,
+          "line": 178,
           "sink": "emit"
         }
       ]
@@ -135421,7 +135421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 376,
+          "line": 379,
           "sink": "setInformativeText"
         }
       ]
@@ -137221,7 +137221,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 790,
+          "line": 791,
           "sink": "setHeaderLabels"
         }
       ]
@@ -137376,7 +137376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_archive_material_context.py",
-          "line": 460,
+          "line": 461,
           "sink": "emit"
         }
       ]
@@ -137536,7 +137536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 890,
+          "line": 892,
           "sink": "start"
         }
       ]
@@ -138891,7 +138891,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
-          "line": 111,
+          "line": 112,
           "sink": "addButton"
         },
         {
@@ -139511,7 +139511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 377,
+          "line": 380,
           "sink": "addButton"
         }
       ]
@@ -139746,7 +139746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 376,
+          "line": 379,
           "sink": "setInformativeText"
         }
       ]
@@ -141366,7 +141366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 633,
+          "line": 635,
           "sink": "emit"
         }
       ]
@@ -141456,7 +141456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 339,
+          "line": 341,
           "sink": "emit"
         }
       ]
@@ -141496,7 +141496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 92,
+          "line": 93,
           "sink": "emit"
         }
       ]
@@ -141506,7 +141506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 90,
+          "line": 91,
           "sink": "setText"
         }
       ]
@@ -141516,7 +141516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 283,
+          "line": 285,
           "sink": "emit"
         }
       ]
@@ -141526,7 +141526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 242,
+          "line": 243,
           "sink": "QProgressDialog"
         },
         {
@@ -141716,7 +141716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1019,
+          "line": 1021,
           "sink": "information"
         }
       ]
@@ -141776,7 +141776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1027,
+          "line": 1029,
           "sink": "set_status_message"
         }
       ]
@@ -142241,7 +142241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 636,
+          "line": 638,
           "sink": "getSaveFileName"
         }
       ]
@@ -143371,7 +143371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 672,
+          "line": 675,
           "sink": "emit"
         }
       ]
@@ -143871,7 +143871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 459,
+          "line": 462,
           "sink": "set_status_message"
         },
         {
@@ -143991,17 +143991,17 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 498,
+          "line": 499,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 510,
+          "line": 511,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 511,
+          "line": 512,
           "sink": "emit"
         }
       ]
@@ -144196,7 +144196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1357,
+          "line": 1358,
           "sink": "setText"
         }
       ]
@@ -144701,7 +144701,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 482,
+          "line": 483,
           "sink": "setText"
         }
       ]
@@ -144841,7 +144841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 535,
+          "line": 536,
           "sink": "setText"
         }
       ]
@@ -144931,7 +144931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 269,
+          "line": 270,
           "sink": "python-return:_preview_match_status_text"
         }
       ]
@@ -144991,7 +144991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 755,
+          "line": 756,
           "sink": "setPlaceholderText"
         }
       ]
@@ -145031,7 +145031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 741,
+          "line": 742,
           "sink": "QLabel"
         }
       ]
@@ -145281,7 +145281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 697,
+          "line": 698,
           "sink": "setText"
         }
       ]
@@ -145291,7 +145291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 644,
+          "line": 645,
           "sink": "setText"
         }
       ]
@@ -145356,7 +145356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 482,
+          "line": 483,
           "sink": "setText"
         },
         {
@@ -145486,7 +145486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/source_picker_dialog.py",
-          "line": 492,
+          "line": 493,
           "sink": "QPushButton"
         },
         {
@@ -146406,7 +146406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/reference_controller.py",
-          "line": 71,
+          "line": 72,
           "sink": "emit"
         }
       ]
@@ -146736,12 +146736,12 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 774,
+          "line": 776,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 776,
+          "line": 778,
           "sink": "setText"
         },
         {
@@ -146766,7 +146766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 521,
+          "line": 522,
           "sink": "setText"
         }
       ]
@@ -146841,7 +146841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 586,
+          "line": 587,
           "sink": "setText"
         },
         {
@@ -147191,12 +147191,12 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 986,
+          "line": 987,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1062,
+          "line": 1063,
           "sink": "emit"
         }
       ]
@@ -147241,7 +147241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1242,
+          "line": 1243,
           "sink": "information"
         }
       ]
@@ -147251,7 +147251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1235,
+          "line": 1236,
           "sink": "setText"
         }
       ]
@@ -147306,7 +147306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 480,
+          "line": 482,
           "sink": "setText"
         }
       ]
@@ -147861,12 +147861,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 806,
+          "line": 807,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1167,
+          "line": 1168,
           "sink": "setText"
         }
       ]
@@ -148066,7 +148066,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 889,
+          "line": 890,
           "sink": "setText"
         }
       ]
@@ -148231,7 +148231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 775,
+          "line": 777,
           "sink": "setText"
         },
         {
@@ -148341,12 +148341,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 781,
+          "line": 782,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1166,
+          "line": 1167,
           "sink": "setText"
         }
       ]
@@ -148451,7 +148451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1139,
+          "line": 1140,
           "sink": "emit"
         }
       ]
@@ -148521,7 +148521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1160,
+          "line": 1161,
           "sink": "ValueError"
         }
       ]
@@ -148996,7 +148996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 444,
+          "line": 445,
           "sink": "setText"
         }
       ]
@@ -149891,7 +149891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 847,
+          "line": 849,
           "sink": "setToolTip"
         }
       ]
@@ -150431,7 +150431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1048,
+          "line": 1049,
           "sink": "emit"
         }
       ]
@@ -150501,7 +150501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1276,
+          "line": 1278,
           "sink": "setToolTip"
         }
       ]
@@ -155506,7 +155506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 111,
+          "line": 112,
           "sink": "python-return:_compact_archive_sidecar_status_text"
         }
       ]
@@ -155961,7 +155961,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -156576,7 +156576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 855,
+          "line": 856,
           "sink": "_append_log"
         }
       ]
@@ -157101,7 +157101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 895,
+          "line": 897,
           "sink": "warning"
         }
       ]
@@ -157206,7 +157206,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -157381,7 +157381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -158146,7 +158146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 754,
+          "line": 755,
           "sink": "FileNotFoundError"
         }
       ]
@@ -159966,7 +159966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 114,
+          "line": 115,
           "sink": "append_log"
         }
       ]
@@ -159996,7 +159996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_02.py",
-          "line": 336,
+          "line": 337,
           "sink": "_set_alignment_d3d11_progress"
         }
       ]
@@ -160046,7 +160046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 182,
+          "line": 184,
           "sink": "append_log"
         }
       ]
@@ -160066,7 +160066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1150,
+          "line": 1151,
           "sink": "_append_log"
         }
       ]
@@ -160096,7 +160096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 89,
+          "line": 90,
           "sink": "emit"
         }
       ]
@@ -160106,7 +160106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 440,
+          "line": 441,
           "sink": "append_log"
         }
       ]
@@ -160116,7 +160116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 441,
+          "line": 442,
           "sink": "emit"
         }
       ]
@@ -160796,7 +160796,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 136,
+          "line": 137,
           "sink": "setText"
         }
       ]
@@ -161051,12 +161051,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 427,
+          "line": 430,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 429,
+          "line": 432,
           "sink": "append_archive_log"
         }
       ]
@@ -161066,12 +161066,12 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 417,
+          "line": 420,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 419,
+          "line": 422,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -161081,7 +161081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 430,
+          "line": 433,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -161091,7 +161091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 426,
+          "line": 429,
           "sink": "set_status_message"
         }
       ]
@@ -161121,22 +161121,22 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 205,
+          "line": 206,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 598,
+          "line": 599,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 128,
+          "line": 129,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 595,
+          "line": 598,
           "sink": "setText"
         }
       ]
@@ -161161,17 +161161,17 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 183,
+          "line": 184,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 419,
+          "line": 422,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 430,
+          "line": 433,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -161191,7 +161191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1196,
+          "line": 1198,
           "sink": "_append_log"
         }
       ]
@@ -162521,7 +162521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 385,
+          "line": 387,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -162546,7 +162546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 129,
+          "line": 130,
           "sink": "setText"
         }
       ]
@@ -162646,7 +162646,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1044,
+          "line": 1045,
           "sink": "setToolTip"
         }
       ]
@@ -162951,7 +162951,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 899,
+          "line": 900,
           "sink": "_set_color_swatch"
         },
         {
@@ -163631,7 +163631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 840,
+          "line": 842,
           "sink": "setText"
         }
       ]
@@ -163641,7 +163641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_texture_original_texture_material_part_01.py",
-          "line": 705,
+          "line": 706,
           "sink": "QLabel"
         }
       ]
@@ -163961,7 +163961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 848,
+          "line": 849,
           "sink": "_append_log"
         }
       ]
@@ -164601,7 +164601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 493,
+          "line": 494,
           "sink": "append_log"
         }
       ]
@@ -164611,7 +164611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 504,
+          "line": 505,
           "sink": "append_log"
         }
       ]
@@ -164631,12 +164631,12 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 514,
+          "line": 515,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 521,
+          "line": 522,
           "sink": "setText"
         },
         {
@@ -165261,7 +165261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 99,
+          "line": 100,
           "sink": "set_status_message"
         }
       ]
@@ -165271,7 +165271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 95,
+          "line": 96,
           "sink": "set_status_message"
         }
       ]
@@ -165361,32 +165361,32 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 205,
+          "line": 206,
           "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 208,
-          "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
           "line": 209,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 244,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 246,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
+          "line": 210,
+          "sink": "append_archive_log"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sidecar_index.py",
+          "line": 245,
+          "sink": "_set_archive_load_progress"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sidecar_index.py",
           "line": 247,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sidecar_index.py",
+          "line": 248,
           "sink": "append_archive_log"
         }
       ]
@@ -165396,32 +165396,32 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 205,
+          "line": 206,
           "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 208,
-          "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
           "line": 209,
-          "sink": "append_archive_log"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 244,
-          "sink": "_set_archive_load_progress"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 246,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
+          "line": 210,
+          "sink": "append_archive_log"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sidecar_index.py",
+          "line": 245,
+          "sink": "_set_archive_load_progress"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sidecar_index.py",
           "line": 247,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/sidecar_index.py",
+          "line": 248,
           "sink": "append_archive_log"
         }
       ]
@@ -165441,7 +165441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 211,
+          "line": 212,
           "sink": "append_archive_log"
         }
       ]
@@ -165451,7 +165451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 158,
+          "line": 159,
           "sink": "setToolTip"
         }
       ]
@@ -165461,7 +165461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 145,
+          "line": 146,
           "sink": "setToolTip"
         }
       ]
@@ -165491,12 +165491,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 273,
+          "line": 274,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 277,
+          "line": 278,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -165506,7 +165506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 218,
+          "line": 219,
           "sink": "append_archive_log"
         }
       ]
@@ -165791,7 +165791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 187,
+          "line": 188,
           "sink": "setText"
         }
       ]
@@ -166011,7 +166011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1455,
+          "line": 1456,
           "sink": "setText"
         }
       ]
@@ -166021,22 +166021,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1378,
+          "line": 1379,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1379,
+          "line": 1380,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1386,
+          "line": 1387,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1387,
+          "line": 1388,
           "sink": "_set_rust_status"
         }
       ]
@@ -166046,22 +166046,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1378,
+          "line": 1379,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1379,
+          "line": 1380,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1386,
+          "line": 1387,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1387,
+          "line": 1388,
           "sink": "_set_rust_status"
         }
       ]
@@ -166071,7 +166071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1455,
+          "line": 1456,
           "sink": "setText"
         }
       ]
@@ -166261,7 +166261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
-          "line": 109,
+          "line": 110,
           "sink": "setText"
         }
       ]
@@ -166301,7 +166301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 380,
+          "line": 381,
           "sink": "_fail"
         }
       ]
@@ -166311,7 +166311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 393,
+          "line": 394,
           "sink": "_fail"
         }
       ]
@@ -166331,7 +166331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 357,
+          "line": 358,
           "sink": "_fail"
         }
       ]
@@ -166341,7 +166341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 413,
+          "line": 414,
           "sink": "show_error"
         }
       ]
@@ -166621,7 +166621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 1069,
+          "line": 1070,
           "sink": "_invalidate"
         }
       ]
@@ -167431,7 +167431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1375,
+          "line": 1376,
           "sink": "emit"
         }
       ]
@@ -168116,7 +168116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1245,
+          "line": 1246,
           "sink": "_set_status"
         }
       ]
@@ -168431,7 +168431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1297,
+          "line": 1298,
           "sink": "_set_status"
         }
       ]
@@ -168786,7 +168786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/rust_ui_tab.py",
-          "line": 429,
+          "line": 430,
           "sink": "emit"
         }
       ]
@@ -168851,7 +168851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 873,
+          "line": 874,
           "sink": "_hair_failed"
         }
       ]
@@ -169151,7 +169151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 917,
+          "line": 918,
           "sink": "_preview_failed"
         }
       ]
@@ -169181,7 +169181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 226,
+          "line": 227,
           "sink": "_show_preparation"
         }
       ]
@@ -169496,7 +169496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 321,
+          "line": 323,
           "sink": "warning"
         }
       ]
@@ -170266,7 +170266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 319,
+          "line": 320,
           "sink": "_show_preparation"
         }
       ]
@@ -170411,7 +170411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1154,
+          "line": 1155,
           "sink": "emit"
         }
       ]
@@ -170801,7 +170801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 284,
+          "line": 285,
           "sink": "setText"
         }
       ]
@@ -170811,7 +170811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1288,
+          "line": 1289,
           "sink": "emit"
         }
       ]
@@ -171331,7 +171331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 260,
+          "line": 263,
           "sink": "set_status_message"
         }
       ]
@@ -172481,7 +172481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1353,
+          "line": 1354,
           "sink": "emit"
         }
       ]
@@ -172856,7 +172856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 597,
+          "line": 599,
           "sink": "setInformativeText"
         }
       ]
@@ -173381,12 +173381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 746,
+          "line": 747,
           "sink": "_send_embedded_viewport_display_mode"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 751,
+          "line": 752,
           "sink": "emit"
         }
       ]
@@ -173791,7 +173791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1284,
+          "line": 1285,
           "sink": "_set_rust_status"
         }
       ]
@@ -173911,7 +173911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 305,
+          "line": 307,
           "sink": "warning"
         },
         {
@@ -173926,7 +173926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 305,
+          "line": 307,
           "sink": "warning"
         },
         {
@@ -174761,7 +174761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 335,
+          "line": 337,
           "sink": "emit"
         },
         {
@@ -175266,7 +175266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 370,
+          "line": 371,
           "sink": "setText"
         }
       ]
@@ -175421,7 +175421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 1006,
+          "line": 1007,
           "sink": "setText"
         }
       ]
@@ -177716,7 +177716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1216,
+          "line": 1217,
           "sink": "setText"
         }
       ]
@@ -178241,7 +178241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 712,
+          "line": 713,
           "sink": "setText"
         }
       ]
@@ -179041,7 +179041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 376,
+          "line": 379,
           "sink": "setInformativeText"
         }
       ]
@@ -179051,7 +179051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 376,
+          "line": 379,
           "sink": "setInformativeText"
         }
       ]
@@ -179061,7 +179061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 376,
+          "line": 379,
           "sink": "setInformativeText"
         }
       ]
@@ -179571,7 +179571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/app_startup.py",
-          "line": 130,
+          "line": 133,
           "sink": "RuntimeError"
         }
       ]
@@ -179871,22 +179871,22 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 283,
+          "line": 284,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 298,
+          "line": 299,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 343,
+          "line": 344,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 352,
+          "line": 353,
           "sink": "setToolTip"
         }
       ]
@@ -180936,7 +180936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 503,
+          "line": 504,
           "sink": "setText"
         }
       ]
@@ -181261,7 +181261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 293,
+          "line": 294,
           "sink": "set_status_message"
         }
       ]
@@ -182096,7 +182096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 835,
+          "line": 836,
           "sink": "QPushButton"
         }
       ]
@@ -182161,7 +182161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 836,
+          "line": 837,
           "sink": "QPushButton"
         }
       ]
@@ -182171,7 +182171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1233,
+          "line": 1234,
           "sink": "setText"
         }
       ]
@@ -183471,7 +183471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 527,
+          "line": 528,
           "sink": "_render_index_search_results"
         }
       ]
@@ -183896,7 +183896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 825,
+          "line": 826,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -183976,12 +183976,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 161,
+          "line": 162,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 162,
+          "line": 163,
           "sink": "emit"
         }
       ]
@@ -183991,22 +183991,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 117,
+          "line": 118,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 118,
+          "line": 119,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 143,
+          "line": 144,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 144,
+          "line": 145,
           "sink": "emit"
         }
       ]
@@ -184036,22 +184036,22 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 117,
+          "line": 118,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 118,
+          "line": 119,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 143,
+          "line": 144,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 144,
+          "line": 145,
           "sink": "emit"
         }
       ]
@@ -185491,7 +185491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 224,
+          "line": 225,
           "sink": "append_archive_log"
         }
       ]
@@ -185656,7 +185656,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 285,
+          "line": 286,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -185671,7 +185671,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_packages.py",
-          "line": 134,
+          "line": 135,
           "sink": "emit"
         },
         {
@@ -185681,7 +185681,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 219,
+          "line": 220,
           "sink": "emit"
         }
       ]
@@ -185706,7 +185706,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 305,
+          "line": 307,
           "sink": "warning"
         },
         {
@@ -185851,7 +185851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 645,
+          "line": 647,
           "sink": "emit"
         }
       ]
@@ -185936,12 +185936,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1312,
+          "line": 1313,
           "sink": "_set_status"
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1325,
+          "line": 1326,
           "sink": "_set_status"
         }
       ]
@@ -186061,7 +186061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_path_task_controller.py",
-          "line": 155,
+          "line": 156,
           "sink": "_set_status"
         }
       ]
@@ -186116,12 +186116,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 122,
+          "line": 123,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 124,
+          "line": 125,
           "sink": "append_archive_log"
         }
       ]
@@ -186131,7 +186131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 87,
+          "line": 88,
           "sink": "append_log"
         }
       ]
@@ -186231,7 +186231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 122,
+          "line": 123,
           "sink": "append_log"
         }
       ]
@@ -186326,22 +186326,22 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 783,
+          "line": 784,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 853,
+          "line": 854,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1047,
+          "line": 1048,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1206,
+          "line": 1208,
           "sink": "_append_log"
         },
         {
@@ -186666,7 +186666,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -186696,7 +186696,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -186711,7 +186711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -186731,7 +186731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -186811,7 +186811,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -186841,7 +186841,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -186901,7 +186901,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 783,
+          "line": 785,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -187271,7 +187271,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 790,
+          "line": 791,
           "sink": "setHeaderLabels"
         }
       ]
@@ -189011,7 +189011,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 178,
+          "line": 179,
           "sink": "setFormat"
         },
         {
@@ -189021,7 +189021,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 163,
+          "line": 164,
           "sink": "setFormat"
         },
         {
@@ -189031,27 +189031,27 @@
         },
         {
           "path": "cdmw/ui/research/reference_controller.py",
-          "line": 62,
+          "line": 63,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 120,
+          "line": 121,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 155,
+          "line": 157,
           "sink": "setFormat"
-        },
-        {
-          "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 162,
-          "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
           "line": 163,
+          "sink": "_set_archive_load_progress"
+        },
+        {
+          "path": "cdmw/ui/shell/utility_controller.py",
+          "line": 164,
           "sink": "set_status_message"
         },
         {
@@ -189066,7 +189066,7 @@
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 474,
+          "line": 475,
           "sink": "setFormat"
         },
         {
@@ -189081,17 +189081,17 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 470,
+          "line": 473,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 472,
+          "line": 475,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 511,
+          "line": 514,
           "sink": "setFormat"
         }
       ]
@@ -189101,7 +189101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 167,
+          "line": 168,
           "sink": "setText"
         }
       ]
@@ -189661,7 +189661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1005,
+          "line": 1007,
           "sink": "log"
         }
       ]
@@ -190106,7 +190106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
-          "line": 1293,
+          "line": 1294,
           "sink": "_set_status"
         }
       ]
@@ -190621,7 +190621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1019,
+          "line": 1021,
           "sink": "information"
         }
       ]
@@ -190631,7 +190631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 1024,
+          "line": 1026,
           "sink": "set_status_message"
         }
       ]
@@ -191226,7 +191226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1457,
+          "line": 1458,
           "sink": "setInformativeText"
         }
       ]
@@ -191256,12 +191256,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1114,
+          "line": 1115,
           "sink": "show_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1289,
+          "line": 1290,
           "sink": "show_result"
         }
       ]
@@ -193926,7 +193926,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 285,
+          "line": 286,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -194076,7 +194076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 635,
+          "line": 636,
           "sink": "_add_candidate"
         }
       ]
@@ -194126,7 +194126,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 520,
+          "line": 522,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -196031,7 +196031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 810,
+          "line": 812,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -197716,7 +197716,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 547,
+          "line": 549,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -197801,7 +197801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 578,
+          "line": 579,
           "sink": "_add_candidate"
         }
       ]
@@ -198506,27 +198506,27 @@
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 917,
+          "line": 918,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 961,
+          "line": 962,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 977,
+          "line": 978,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1008,
+          "line": 1009,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1026,
+          "line": 1027,
           "sink": "setData"
         }
       ]
@@ -199391,7 +199391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 1121,
+          "line": 1122,
           "sink": "_package_ready"
         }
       ]
@@ -199701,7 +199701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 394,
+          "line": 395,
           "sink": "_mesh_edit_start_selection_worker"
         }
       ]
@@ -201701,7 +201701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 617,
+          "line": 618,
           "sink": "_add_candidate"
         }
       ]
@@ -204476,7 +204476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 696,
+          "line": 699,
           "sink": "RuntimeError"
         }
       ]
@@ -205686,7 +205686,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_02.py",
-          "line": 168,
+          "line": 169,
           "sink": "_set_alignment_d3d11_progress"
         }
       ]
@@ -205706,7 +205706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 453,
+          "line": 455,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -206651,12 +206651,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 996,
+          "line": 997,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 997,
+          "line": 998,
           "sink": "emit"
         }
       ]
@@ -206666,12 +206666,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 992,
+          "line": 993,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 993,
+          "line": 994,
           "sink": "emit"
         }
       ]
@@ -206731,7 +206731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 971,
+          "line": 972,
           "sink": "emit"
         }
       ]
@@ -206741,7 +206741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 968,
+          "line": 969,
           "sink": "setText"
         }
       ]
@@ -206866,7 +206866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 705,
+          "line": 708,
           "sink": "emit"
         }
       ]
@@ -206876,7 +206876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1076,
+          "line": 1077,
           "sink": "setText"
         }
       ]
@@ -206981,12 +206981,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1069,
+          "line": 1070,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1070,
+          "line": 1071,
           "sink": "emit"
         }
       ]
@@ -207031,7 +207031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 978,
+          "line": 979,
           "sink": "emit"
         }
       ]
@@ -207041,7 +207041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 447,
+          "line": 449,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -207431,7 +207431,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/preview_controller.py",
-          "line": 514,
+          "line": 515,
           "sink": "emit"
         }
       ]
@@ -207716,7 +207716,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_02.py",
-          "line": 319,
+          "line": 320,
           "sink": "_set_alignment_d3d11_progress"
         }
       ]
@@ -208896,7 +208896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/preview_controller.py",
-          "line": 349,
+          "line": 350,
           "sink": "_report_progress"
         },
         {
@@ -209801,7 +209801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
-          "line": 810,
+          "line": 812,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -210391,7 +210391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 405,
+          "line": 406,
           "sink": "_mesh_edit_start_selection_worker"
         }
       ]
@@ -210546,7 +210546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_selection.py",
-          "line": 416,
+          "line": 417,
           "sink": "_mesh_edit_start_selection_worker"
         },
         {
@@ -213066,7 +213066,7 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 198,
+          "line": 199,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -214856,7 +214856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 591,
+          "line": 593,
           "sink": "setInformativeText"
         }
       ]
@@ -214876,7 +214876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 165,
+          "line": 166,
           "sink": "setPlainText"
         }
       ]
@@ -215021,7 +215021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1215,
+          "line": 1216,
           "sink": "setText"
         }
       ]
@@ -215171,7 +215171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1183,
+          "line": 1184,
           "sink": "setText"
         }
       ]
@@ -215926,7 +215926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 894,
+          "line": 895,
           "sink": "setText"
         }
       ]
@@ -216046,7 +216046,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_texture_original_texture_material_part_01.py",
-          "line": 700,
+          "line": 701,
           "sink": "setWindowTitle"
         }
       ]
@@ -216191,7 +216191,7 @@
         },
         {
           "path": "cdmw/ui/model_library/tasks.py",
-          "line": 175,
+          "line": 176,
           "sink": "setFormat"
         },
         {
@@ -216211,12 +216211,12 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/build.py",
-          "line": 160,
+          "line": 161,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 157,
+          "line": 158,
           "sink": "setFormat"
         },
         {
@@ -216236,22 +216236,22 @@
         },
         {
           "path": "cdmw/ui/research/refresh_controller.py",
-          "line": 444,
+          "line": 446,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 471,
+          "line": 472,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/controller.py",
-          "line": 560,
+          "line": 561,
           "sink": "setFormat"
         },
         {
           "path": "cdmw/ui/text_search/export_actions.py",
-          "line": 102,
+          "line": 103,
           "sink": "setFormat"
         }
       ]
@@ -216286,7 +216286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 498,
+          "line": 501,
           "sink": "_set_phase_progress"
         }
       ]
@@ -216431,7 +216431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1057,
+          "line": 1058,
           "sink": "setText"
         }
       ]
@@ -216556,7 +216556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/startup_path_task_controller.py",
-          "line": 219,
+          "line": 220,
           "sink": "_set_status"
         }
       ]
@@ -217416,7 +217416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 508,
+          "line": 509,
           "sink": "setText"
         }
       ]
@@ -217956,7 +217956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 596,
+          "line": 598,
           "sink": "setText"
         }
       ]
@@ -218516,7 +218516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 344,
+          "line": 347,
           "sink": "setText"
         }
       ]
@@ -219526,7 +219526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/source_picker_dialog.py",
-          "line": 431,
+          "line": 432,
           "sink": "setText"
         }
       ]
@@ -219546,7 +219546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/source_picker_dialog.py",
-          "line": 420,
+          "line": 421,
           "sink": "setText"
         }
       ]
@@ -219606,7 +219606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 370,
+          "line": 371,
           "sink": "setText"
         }
       ]
@@ -219666,7 +219666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 1229,
+          "line": 1231,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -220141,7 +220141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/sidecar_index.py",
-          "line": 112,
+          "line": 113,
           "sink": "python-return:_compact_archive_sidecar_status_text"
         }
       ]
@@ -220251,7 +220251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/text_search/preview_panel.py",
-          "line": 184,
+          "line": 185,
           "sink": "setText"
         }
       ]
@@ -220441,7 +220441,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/queue.py",
-          "line": 829,
+          "line": 831,
           "sink": "QListWidgetItem"
         },
         {
@@ -221241,7 +221241,7 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 805,
+          "line": 806,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -221361,7 +221361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
-          "line": 508,
+          "line": 511,
           "sink": "setFormat"
         }
       ]
@@ -222066,7 +222066,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1406,
+          "line": 1407,
           "sink": "emit"
         },
         {
@@ -222106,12 +222106,12 @@
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 923,
+          "line": 924,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 926,
+          "line": 927,
           "sink": "setText"
         },
         {
@@ -222411,7 +222411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 775,
+          "line": 776,
           "sink": "setText"
         }
       ]
@@ -222691,12 +222691,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 466,
+          "line": 467,
           "sink": "make_attachment_donor_candidate_item"
         },
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "make_attachment_donor_candidate_item"
         },
         {
@@ -223001,7 +223001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
-          "line": 805,
+          "line": 806,
           "sink": "QTreeWidgetItem"
         }
       ]

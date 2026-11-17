@@ -69,6 +69,17 @@ def _system_input_idle_seconds() -> float:
     return ((int(get_tick_count()) - int(info.dwTime)) & 0xFFFFFFFF) / 1000.0
 
 
+def _release_layout_item_wrappers() -> None:
+    """The idle sweep of PySide's wrappers of Qt-made layout items (see layout_item_wrappers)."""
+
+    try:
+        from cdmw.ui.layout_item_wrappers import release_all_layout_item_wrappers
+
+        release_all_layout_item_wrappers()
+    except Exception:  # noqa: BLE001 - a sweep must never break the collector
+        _LOGGER.debug("layout item wrapper sweep failed", exc_info=True)
+
+
 class GuiGarbageCollector(QObject):
     def __init__(
         self,
@@ -116,6 +127,7 @@ class GuiGarbageCollector(QObject):
             if self._full_collection_due():
                 started = time.perf_counter()
                 gc.collect()
+                _release_layout_item_wrappers()
                 self.last_full_collection_ms = (time.perf_counter() - started) * 1000.0
                 self._last_full_at = self._clock()
                 self._young_passes_since_full = 0

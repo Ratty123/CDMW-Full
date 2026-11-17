@@ -106,3 +106,16 @@ def test_nothing_allocated_means_no_full_collection(collector):
     _seconds(gui, state, int(getattr(garbage_collection, "FULL_COLLECTION_MAX_INTERVAL_S", 300.0)) * 2)
 
     assert fake.calls == []
+
+
+def test_the_full_collection_also_drops_wrappers_of_layout_items_qt_deleted(collector, monkeypatch):
+    from cdmw.ui import layout_item_wrappers
+
+    gui, fake, state = collector
+    sweeps = []
+    monkeypatch.setattr(layout_item_wrappers, "release_all_layout_item_wrappers", lambda: sweeps.append(state.now) or 0)
+
+    _seconds(gui, state, int(getattr(garbage_collection, "FULL_COLLECTION_MAX_INTERVAL_S", 300.0)) + 1)
+
+    assert fake.calls.count("full") == 1
+    assert len(sweeps) == 1  # with the full collection only, never every second

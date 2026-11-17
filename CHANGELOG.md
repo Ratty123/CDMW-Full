@@ -51,6 +51,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- CDMW no longer risks closing with an access violation after a window's buttons or rows were moved or removed, for example while **Mesh Editor** tabs end their edits as Browse prepares Item Finder icons. PySide kept its record of layout entries Qt had already deleted, and a background job started later could be handed that old record in place of its own. CDMW now drops those records when Qt takes a widget out of a layout.
 - CDMW no longer risks closing with an access violation when a background search or job ends while the window thread lets go of its worker (for example **Finish** in the **Mesh Editor** while another search was still running): each worker is now released on the window thread once its thread has ended.
 - When CDMW closes because of a fault in its native code, it now also leaves a small crash dump (`native-crash-<date>-<time>-<process>.dmp`, a few megabytes at most) in the profile's `logs` folder beside `native_fault_current.log`, so the cause can be read later even when the log shows no Python frame. The three newest are kept. Set `CDMW_NATIVE_CRASH_DUMP=0` to turn it off.
 - The **Mesh Editor** opens a model again after a finished edit that deleted every face. It used to refuse with "CDMW session payload is invalid: file reference type or count is invalid", both inside Browse and in its own window.

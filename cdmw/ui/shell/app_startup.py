@@ -18,6 +18,7 @@ from cdmw.ui.app_event_hub import install_app_event_filter
 from cdmw.ui.app_icon import load_app_icon
 from cdmw.ui.combo_popup_limiter import ensure_app_combo_popup_limiter
 from cdmw.ui.display_scaling import ensure_app_display_scaling
+from cdmw.ui.layout_item_wrappers import ensure_app_layout_item_wrapper_release
 from cdmw.ui.shell.garbage_collection import ensure_app_garbage_collector
 from cdmw.ui.shell.icon_controller import AppWindowIconEventFilter
 from cdmw.ui.shell.compact.config import active_shell_theme_key
@@ -53,6 +54,8 @@ def prepare_shell_application(
     ensure_app_wheel_guard(app)
     ensure_app_combo_popup_limiter(app)
     ensure_app_display_scaling(app)
+    # Before any window is built: PySide must not keep wrappers of layout items Qt deleted.
+    ensure_app_layout_item_wrapper_release(app)
 
     startup_settings = (
         create_settings(settings_file_path=settings_file_path)
