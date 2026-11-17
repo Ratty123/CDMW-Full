@@ -20,6 +20,7 @@ class HairSetupDialog(QDialog):
         self._target_path = target_path.casefold()
         self._reuse_target, self._draft_root = reuse_target, draft_root
         self.prepared_result = None
+        self._last_failure, self._retrying, self._retry_requested = "", False, False
         import threading
         self._stop = threading.Event()
         self.setWindowTitle("Hair Tools (Experimental)")
@@ -71,7 +72,7 @@ class HairSetupDialog(QDialog):
         self._service.session_published.connect(self._session_changed)
         self.character.currentIndexChanged.connect(self._load)
         self.mode.currentIndexChanged.connect(self._load)
-        self.retry.clicked.connect(self._load)
+        self.retry.clicked.connect(self._retry)
         self.cancel_button.clicked.connect(self.reject)
         if character:
             self.character.setCurrentIndex(max(0, self.character.findData(character)))
@@ -82,9 +83,18 @@ class HairSetupDialog(QDialog):
         if self._picker is not None and self.waiting_start.isEnabled():
             self._picker._choose()
 
+    def _retry(self):
+        """Ask the catalogue again; a plain reload would hand back the remembered character."""
+        if self._closed:
+            return
+        self._resolver.forget()
+        self._retry_requested = True
+        self._load()
+
     def _load(self):
         if self._closed:
             return
+        self._retrying, self._retry_requested = self._retry_requested, False
         self.waiting_start.setEnabled(False)
         for control in (self.character, self.mode, self.preset, self.retry):
             control.setEnabled(True)
@@ -109,7 +119,8 @@ class HairSetupDialog(QDialog):
         elif not character:
             self.status.setText("Choose Kliff, Damiane, or Oongka to load compatible hairstyles.")
         else:
-            self.status.setText("Loading the mounted character and hairstyle catalogue…")
+            self.status.setText("Loading the character and its hairstyles again…" if self._retrying
+                                else "Loading the mounted character and hairstyle catalogue…")
             self._resolver.start(character)
 
     def _context_ready(self, context):
@@ -119,23 +130,41 @@ class HairSetupDialog(QDialog):
         profile = hair_character(context.character)
         entry = context.dependencies.entry_for_path(profile.mesh_param_path)
         if entry is None:
-            self._failed("The mounted character is missing its barber registration. Refresh the catalogue.")
+            self._failed(f"{profile.name}'s barber list ({profile.mesh_param_path}) is not in the loaded archives. "
+                         "Refresh the archive catalogue, then use Retry loading choices.", hint=False)
             return
         generation = self._generation
         def read_choices(_log):
             from cdmw.core.archive_extraction import read_archive_entry_data
-            from cdmw.domain.hair_registration import read_hair_choices
+            from cdmw.domain.hair_registration import HairRegistrationError, read_hair_choices
             if entry.orig_size > 2 * 1024 * 1024:
                 raise ValueError("The barber registration exceeds its supported size.")
-            return read_hair_choices(read_archive_entry_data(entry)[0])
+            data = read_archive_entry_data(entry)[0]
+            try:
+                return read_hair_choices(data)
+            except HairRegistrationError as error:
+                return error  # Not a failed read: the table itself is one this tool does not understand.
         def ready(choices):
             if self._closed or generation != self._generation:
                 return
+            if isinstance(choices, Exception):
+                self._failed(f"CDMW cannot read {profile.name}'s barber list ({profile.mesh_param_path}): {choices} "
+                             "A game update or another mod may have changed it. Loading again will not change this; "
+                             "choose another character, or turn off mods that change this file.", hint=False)
+                return
+            listed = len(choices)
+            choices = tuple(choice for choice in choices if choice.usable)
+            if not choices:
+                self._failed(f"None of {profile.name}'s {listed} barber hairstyles can be opened in Hair Tools. "
+                             "Choose another character.", hint=False)
+                return
+            self._last_failure, self._retrying = "", False
             creating = self.mode.currentData() == "generated"
             picker = HairReferencePickerDialog(self._owner, "hair", character=profile.name,
                 styles=tuple((c.index, c.prefab_stem) for c in choices), audit_hair=True,
                 preferred_path=self._target_path, base_only=creating,
-                icons={c.prefab_stem: c.icon_path for c in reversed(choices)})
+                icons={c.prefab_stem: c.icon_path for c in reversed(choices) if c.icon_path},
+                hidden=tuple(c.index for c in choices if not c.shown_in_game))
             self._picker = picker
             picker.setParent(self, Qt.Widget)
             picker.choose.setText("Start")
@@ -199,11 +228,19 @@ class HairSetupDialog(QDialog):
         else:
             self.reject()
 
-    def _failed(self, message):
-        if not self._closed:
-            for control in (self.character, self.mode, self.preset, self.retry):
-                control.setEnabled(True)
-            self.status.setText(str(message) + " Use Retry loading choices to try again.")
+    def _failed(self, message, hint=True):
+        """Say what failed. ``hint`` is off for messages that already name their own way forward."""
+        if self._closed:
+            return
+        for control in (self.character, self.mode, self.preset, self.retry):
+            control.setEnabled(True)
+        text = str(message).strip()
+        if hint:
+            text = f"{text} Use Retry loading choices to try again."
+        # Without this a second identical failure looks as if Retry did nothing.
+        repeated = self._retrying and text == self._last_failure
+        self._last_failure, self._retrying = text, False
+        self.status.setText(f"{text} Retrying gave the same result." if repeated else text)
 
     def _session_changed(self, _session):
         self._load()

@@ -15,7 +15,7 @@ from cdmw.core.pappt_format import encode_pappt, insert_part_prefabs, parse_papp
 from cdmw.core.prefab_binary import decode_prefab_binary
 from cdmw.core.prefab_binary_edit import rewrite_prefab_paths_any_length
 from cdmw.domain.hair_registration import (
-    HairRegistrationError, append_hair_choice, read_hair_choices, validate_hair_stem,
+    HairRegistrationError, append_hair_choice, icon_donor_for, read_hair_choices, validate_hair_stem,
 )
 from cdmw.domain.hair_characters import hair_character
 from cdmw.domain.part_names import same_part_name
@@ -38,6 +38,8 @@ class HairRegistrationPlan:
     replacements: tuple[HairRegistrationFile, ...]
     additions: tuple[HairRegistrationFile, ...]
     source_sha256: tuple[tuple[str, str], ...]
+    #: The existing barber icon the new hairstyle's icon is a copy of.
+    icon_donor: str = ""
 
     def check_sources(self, files: Mapping[str, bytes]) -> None:
         current = _source_files(files)
@@ -109,6 +111,10 @@ def prepare_hair_registration(
     if isinstance(template_index, bool) or not isinstance(template_index, int) or not 0 <= template_index < len(choices):
         raise HairRegistrationError("The template hair choice does not exist.")
     donor = choices[template_index]
+    if not donor.usable:
+        raise HairRegistrationError(donor.problem)
+    # Hairstyles the barber hides have no icon of their own; the copy borrows a shown one.
+    icon_donor = icon_donor_for(choices, template_index)
     table_bytes = source(PART_PREFAB_TABLE)
     table = parse_pappt(table_bytes)
     if encode_pappt(table) != table_bytes:
@@ -129,7 +135,7 @@ def prepare_hair_registration(
     material_path = mesh_path.replace("character/model/", "character/modelproperty/", 1) + "_xml"
     physics_path = mesh_path.replace("character/model/", "character/bin__/meshphysics/", 1)[:-4] + ".hkx"
     new_mesh = str(PurePosixPath(mesh_path).with_name(new_stem + ".pac"))
-    new_icon = str(PurePosixPath(_path(donor.icon_path)).with_name(new_stem + ".dds"))
+    new_icon = str(PurePosixPath(_path(icon_donor)).with_name(new_stem + ".dds"))
     rewrite = rewrite_prefab_paths_any_length(prefab, {resources[0]: new_mesh})
     if tuple(item.text for item in decode_prefab_binary(rewrite.data).resource_strings()) != (new_mesh,):
         raise HairRegistrationError("The cloned prefab did not retain the new mesh reference.")
@@ -138,7 +144,7 @@ def prepare_hair_registration(
         HairRegistrationFile(new_mesh, source(mesh_path)),
         HairRegistrationFile(str(PurePosixPath(material_path).with_name(new_stem + ".pac_xml")), source(material_path)),
         HairRegistrationFile(str(PurePosixPath(physics_path).with_name(new_stem + ".hkx")), source(physics_path)),
-        HairRegistrationFile(new_icon, source(donor.icon_path)),
+        HairRegistrationFile(new_icon, source(icon_donor)),
     )
     occupied = {_path(path) for path in existing_paths} | files.keys()
     for addition in additions:
@@ -153,4 +159,5 @@ def prepare_hair_registration(
     replacements = (HairRegistrationFile(profile.mesh_param_path, appended.data),
                     HairRegistrationFile(PART_PREFAB_TABLE, encoded))
     return HairRegistrationPlan(appended.choice.index, new_stem, replacements, additions,
-                                tuple((path, hashlib.sha256(files[path]).hexdigest()) for path in sorted(used)))
+                                tuple((path, hashlib.sha256(files[path]).hexdigest()) for path in sorted(used)),
+                                _path(icon_donor))

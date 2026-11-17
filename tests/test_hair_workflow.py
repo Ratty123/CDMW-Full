@@ -566,6 +566,24 @@ def test_hair_page_failure_continues_queued_choices_and_preserves_unavailable_re
     dialog.reject()
 
 
+def test_a_listed_hairstyle_the_game_does_not_ship_is_left_out_without_an_error(owner):
+    # Damiane's table names 13 hidden hairstyles with no mesh in her hair folder.
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair",
+        styles=tuple((i, f"style{i}") for i in range(3)), audit_hair=True)
+    QApplication.processEvents()
+    service = owner.archive_catalogue_service
+    errors = []
+    dialog.preparation_failed.connect(errors.append)
+    absent = SimpleNamespace(message="Archive backend request failed: Character catalogue result is unavailable. Refresh the finder.")
+    service.request_failed.emit(service.calls[0][0], absent)
+    assert not errors and len(dialog._requests) == 2
+    assert dialog.status.text() == "3 registered hairstyles. Left out on this page (not in the loaded game files): 1."
+    # Any other failure is still reported.
+    service.request_failed.emit(service.calls[1][0], SimpleNamespace(message="The archive worker stopped."))
+    assert errors == ["The archive worker stopped."]
+    dialog.reject()
+
+
 def test_picker_opens_the_page_containing_the_requested_hairstyle(owner):
     styles = tuple((i, f"style{i}") for i in range(180))
     dialog = picker_module.HairReferencePickerDialog(owner, "hair", styles=styles,
@@ -604,7 +622,8 @@ def test_create_dialog_loads_scene_only_after_start_and_mode_change_invalidates_
     dialog = HairSetupDialog(owner, character="Damiane")
     context = SimpleNamespace(character="Damiane", dependencies=SimpleNamespace(entry_for_path=lambda _: object()))
     dialog._context_ready(context)
-    tasks.pop()["on_complete"]([SimpleNamespace(index=0, prefab_stem="first", icon_path="")])
+    from cdmw.domain.hair_registration import HairChoice
+    tasks.pop()["on_complete"]([HairChoice(0, "first", "")])
     picker = dialog._picker
     assert picker.isHidden() and dialog.preset.currentData() == "empty"
     started = []
@@ -738,3 +757,154 @@ def test_reference_cache_cancellation_releases_unpublished_assets(monkeypatch, f
         worker.prepare_hair_reference_source(args, stop)
     assert released == ([] if failure == "cancel_cached_copy" else [True])
     assert len(worker._hair_references) == (1 if failure == "cancel_cached_copy" else 0)
+
+
+def _setup_with_remembered_character(owner, monkeypatch, data, mode="existing"):
+    from cdmw.core import archive_extraction
+    from cdmw.ui.mesh_editor.hair_setup_dialog import HairSetupDialog
+    from tests.test_hair_catalogue_icons import IconService
+    service = IconService()
+    service.current_session = owner.archive_catalogue_service.current_session
+    owner.archive_catalogue_service = service
+    tasks = []
+    owner._run_utility_task_when_idle = lambda **kwargs: tasks.append(kwargs)
+    monkeypatch.setattr(archive_extraction, "read_archive_entry_data", lambda entry: (data, ""))
+    dialog = HairSetupDialog(owner, mode=mode)
+    context = SimpleNamespace(character="Damiane", session_id="session-a", arguments=lambda: {"character": "Damiane"},
+        dependencies=SimpleNamespace(entry_for_path=lambda _: SimpleNamespace(orig_size=len(data))))
+    dialog._resolver._cache = context  # the character this dialog already resolved once
+    dialog.character.setCurrentIndex(dialog.character.findData("Damiane"))
+    return dialog, tasks
+
+
+def test_setup_lists_the_game_table_with_hidden_iconless_and_mixed_case_hairstyles(owner, monkeypatch):
+    from tests.test_hair_registration import OTHER, OTHER_ICON, game_table, hidden, shown
+    data = game_table(shown(0), hidden(1, "phw_00_hair_00_0001"), hidden(2, "PHW_00_Hair_00_0521"), hidden(3, OTHER))
+    dialog, tasks = _setup_with_remembered_character(owner, monkeypatch, data)
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    picker = dialog._picker
+    assert picker is not None and "Choose an existing hairstyle" in dialog.status.text()
+    assert picker._styles == ((0, OTHER), (1, "phw_00_hair_00_0001"), (2, "phw_00_hair_00_0521"))
+    assert picker._icon_paths == {OTHER: OTHER_ICON}
+    # A hairstyle the barber hides says so; the copy Build Mod makes of it is offered.
+    service = owner.archive_catalogue_service
+    QApplication.processEvents()
+    for token, request, _ in [call for call in service.calls if call[0].startswith("detail")]:
+        chosen = row(len(picker._rows) + 1, key=request.key, path=request.key.removeprefix("asset:"))
+        service.result_ready.emit(token, "get_character_catalog_detail", detail(chosen))
+    assert [picker.grid.item(i).text() for i in range(picker.grid.count())] == [
+        "Damiane hairstyle 1", "Damiane hairstyle 2 (not offered by the barber)",
+        "Damiane hairstyle 3 (not offered by the barber)"]
+    dialog.reject()
+
+
+def test_setup_names_an_unreadable_barber_list_and_retry_asks_the_catalogue_again(owner, monkeypatch):
+    from tests.test_hair_registration import game_table, shown
+    dialog, tasks = _setup_with_remembered_character(owner, monkeypatch, game_table(shown(0), shown(5)))
+    service = owner.archive_catalogue_service
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    first = dialog.status.text()
+    assert dialog._picker is None and dialog.retry.isEnabled()
+    assert "Damiane's barber list (character/descriptors/customizationmeta/meshparam_example_damian.xml)" in first
+    assert "Hairstyle 2 in the barber list is out of order" in first
+    assert "another character" in first and "to try again" not in first
+    # Retry used to be handed the remembered character and re-read the same bytes at once.
+    asked = len(service.calls)
+    dialog.retry.click()
+    assert len(service.calls) == asked + 1 and "again" in dialog.status.text()
+    assert dialog._resolver._cache is None
+    dialog._resolver._cache = SimpleNamespace(character="Damiane", session_id="session-a",
+        dependencies=SimpleNamespace(entry_for_path=lambda _: SimpleNamespace(orig_size=100)))
+    dialog._context_ready(dialog._resolver._cache)
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    assert dialog.status.text() == first + " Retrying gave the same result."
+    # A failure that can pass on its own still offers Retry by name.
+    dialog._resolver.failed.emit("The archive worker stopped.")
+    assert dialog.status.text() == "The archive worker stopped. Use Retry loading choices to try again."
+    dialog.reject()
+
+
+def test_a_hairstyle_opened_without_setup_is_fitted_to_its_own_character():
+    from cdmw.ui.mesh_editor.hair_flow import hair_character_for_target
+    damiane = SimpleNamespace(path="character/model/1_pc/2_phw/head/hair/phw_00_hair_00_0008_01_player.pac")
+    shared = SimpleNamespace(path="character/model/1_pc/1_phm/head/hair/phm_00_hair_00_0022_player.pac")
+    # Kliff was the last setup; Character Finder then opens one of Damiane's hairstyles.
+    assert hair_character_for_target(SimpleNamespace(_pending_hair_character="Kliff"), damiane) == "Damiane"
+    assert hair_character_for_target(SimpleNamespace(_pending_hair_character="Damiane"), shared) == "Kliff"
+    # Kliff and Oongka share a hair folder: the remembered one of the two is kept.
+    assert hair_character_for_target(SimpleNamespace(_pending_hair_character="Oongka"), shared) == "Oongka"
+    assert hair_character_for_target(SimpleNamespace(), damiane) == "Damiane"
+
+
+def test_setup_says_when_no_listed_hairstyle_can_be_opened(owner, monkeypatch):
+    from tests.test_hair_registration import game_table, shown
+    dialog, tasks = _setup_with_remembered_character(owner, monkeypatch, game_table(shown(0, "not a file")))
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    assert dialog._picker is None
+    assert dialog.status.text() == ("None of Damiane's 1 barber hairstyles can be opened in Hair Tools. "
+                                    "Choose another character.")
+    dialog.reject()
+
+
+def test_opening_setup_decodes_the_open_hairstyle_once(owner, monkeypatch):
+    # .payload decodes the whole hairstyle, bindings included, and this runs on the UI thread.
+    from cdmw.ui.mesh_editor import hair_flow, hair_setup_dialog
+    reads, opened = [], []
+
+    class State:
+        @property
+        def payload(self):
+            reads.append(1)
+            return {"template": {"character": "Kliff"}, "converted": False, "groups": [{"mode": "generated"}]}
+
+    class Setup:
+        _closed = False
+
+        def __init__(self, _owner, **options):
+            opened.append(options)
+            self.finished = SimpleNamespace(connect=lambda _slot: None)
+
+        def open(self):
+            pass
+
+    monkeypatch.setattr(hair_setup_dialog, "HairSetupDialog", Setup)
+    session = SimpleNamespace(hair_state=State())
+    tab = QWidget(owner)
+    tab.standalone_rust_authoring_session = SimpleNamespace(closed=False, shadow_session_id="shadow",
+        shadow_service=SimpleNamespace(_session=lambda _id: session))
+    target = SimpleNamespace(identity="hair", path="character/model/1_pc/1_phm/head/hair/phm_00_hair_00_0022_player.pac")
+    tab._current_target_entry = lambda: target
+    hair_flow.start_hair_workflow(tab)
+    assert len(reads) == 1
+    assert opened[0]["character"] == "Kliff" and opened[0]["reuse_target"] == ("Kliff", "hair")
+    assert opened[0]["target_path"] == target.path
+
+
+def test_a_character_left_by_an_unstarted_setup_is_not_used_for_another_hairstyle(owner):
+    from cdmw.ui.mesh_editor import hair_flow
+    started, resumed = [], []
+    signal = SimpleNamespace(connect=lambda _slot: None, disconnect=lambda: None)
+    session = SimpleNamespace(shadow_session_id="shadow",
+        shadow_service=SimpleNamespace(_session=lambda _id: SimpleNamespace(hair_state=None)))
+    target = SimpleNamespace(identity="hair", path="character/model/1_pc/2_phw/head/hair/phw_00_hair_00_0008_01_player.pac")
+    tab = QWidget(owner)
+    tab._current_target_entry = lambda: target
+    tab.archive_session_dependencies = object()
+    tab.standalone_rust_authoring_session, tab.standalone_rust_closing = session, False
+    tab.standalone_rust_protocol_queue = []
+    tab._start_next_rust_protocol_worker = lambda: resumed.append(tab.standalone_rust_protocol_queue[0])
+    tab._hair_context_preparation = SimpleNamespace(cancel=lambda: None, ready=signal, failed=signal,
+                                                    start=started.append)
+    # Kliff's setup was confirmed but its scene never opened; Damiane's hairstyle opens next.
+    tab._pending_hair_character = "Kliff"
+    tab._pending_hair_context = SimpleNamespace(character="Kliff", arguments=lambda: {"character": "Kliff"})
+    hair_flow.begin_hair_context(tab, session, {"command": "hair_begin", "arguments": {}})
+    assert started == ["Damiane"] and not resumed and tab._pending_hair_context is None
+    # The context of the setup that did open this hairstyle is used as it is.
+    tab._pending_hair_context = SimpleNamespace(character="Damiane", arguments=lambda: {"character": "Damiane"})
+    hair_flow.begin_hair_context(tab, session, {"command": "hair_begin", "arguments": {}})
+    assert started == ["Damiane"] and resumed[0]["arguments"]["character"] == "Damiane"

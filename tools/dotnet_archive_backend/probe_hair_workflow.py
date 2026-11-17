@@ -310,6 +310,15 @@ def run(args):
                 output = {"session_id": authoring.session_id, "hair": state.hair_state.payload, "document": _mesh_document_payload(state.working_mesh),
                           "host": host, "session_root": str(authoring.root)}
                 (args.evidence / "input.json").write_text(json.dumps(output), encoding="utf-8")
+                if args.package_as_loaded:
+                    # Build Mod on the hairstyle exactly as it opened: the registration, icon and
+                    # texture copies are those of an edited one. Output stays in the evidence folder.
+                    from cdmw.services.mesh_hair_output import export_hair_package
+                    service = authoring.shadow_service
+                    snapshot = service.capture_export_snapshot(authoring.shadow_session_id)
+                    rebuilt = service._replacement_output_for_snapshot(snapshot)
+                    export_hair_package(snapshot, rebuilt, target, args.evidence / "package", on_log=print)
+                    results["package_reparsed"] = True
                 if candidate or args.live_renderer or args.resume_draft:
                     import copy
                     import cProfile
@@ -405,6 +414,7 @@ if __name__ == "__main__":
     parser.add_argument("--profile-host", action="store_true")
     parser.add_argument("--audit-all", action="store_true")
     parser.add_argument("--prepared-setup", action="store_true")
+    parser.add_argument("--package-as-loaded", action="store_true")
     parser.add_argument("--resume-draft", type=Path)
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--live-renderer", type=Path)

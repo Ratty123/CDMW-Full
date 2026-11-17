@@ -621,12 +621,19 @@ impl LabApplication {
                 self.hair.last_pointer = None;
                 self.hair.drawing.clear();
                 self.hair.drawing_samples.clear();
+                // Erase gathers the locks it removes in the selection; they are gone now.
+                if self.hair.tool == Some(HairTool::Erase) {
+                    self.hair.selected.clear();
+                }
                 // Keep the edited rest pose visible while its worker publishes.
                 // Resume at the same procedural pose after preparation completes.
-                self.hair.playing = self.hair.restart_after_stroke && self.hair.job.is_none();
-                self.hair.last_tick = Instant::now();
-                if self.hair.playing {
-                    self.hair.restart_after_stroke = false;
+                // Selecting edits nothing and never paused the preview, so it leaves it running.
+                if self.hair.tool != Some(HairTool::Select) {
+                    self.hair.playing = self.hair.restart_after_stroke && self.hair.job.is_none();
+                    self.hair.last_tick = Instant::now();
+                    if self.hair.playing {
+                        self.hair.restart_after_stroke = false;
+                    }
                 }
                 if let Some(scene) = &mut self.hair.scene {
                     scene.applied = false;
@@ -654,6 +661,9 @@ impl LabApplication {
         self.hair.move_anchor = None;
         self.hair.cuts.clear();
         self.hair.erased_faces.clear();
+        if self.hair.tool == Some(HairTool::Erase) {
+            self.hair.selected.clear();
+        }
         self.hair.scene = None;
         if editing {
             self.hair.playing = self.hair.restart_after_stroke;
@@ -866,7 +876,7 @@ impl LabApplication {
                         .screen_ray(pointer, rect)
                         .ok_or("Point at the scalp to draw")?;
                     let Some(root) = self.pick_hair_scalp(ray.0, ray.1) else {
-                        return Ok(());
+                        return Err("Start the stroke on the scalp".into());
                     };
                     let position = state.scalp.point(&root).map_err(|e| e.to_string())?;
                     let normal = self
@@ -1165,6 +1175,13 @@ impl LabApplication {
                             .into(),
                     );
                 }
+                let ray = self
+                    .camera
+                    .screen_ray(pointer, rect)
+                    .ok_or("Point at the scalp")?;
+                let Some(root) = self.pick_hair_scalp(ray.0, ray.1) else {
+                    return Err("Click the scalp to place the root".into());
+                };
                 if self.hair.selected.len() > 1 {
                     let selected = self.hair.selected.clone();
                     let id = *selected.iter().min().unwrap() as u64;
@@ -1195,13 +1212,6 @@ impl LabApplication {
                     });
                     self.hair.selected = HashSet::from([id as usize]);
                 }
-                let ray = self
-                    .camera
-                    .screen_ray(pointer, rect)
-                    .ok_or("Point at the scalp")?;
-                let Some(root) = self.pick_hair_scalp(ray.0, ray.1) else {
-                    return Ok(());
-                };
                 let position = state.scalp.point(&root).map_err(|e| e.to_string())?;
                 let index = state
                     .locks

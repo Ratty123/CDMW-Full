@@ -5006,3 +5006,107 @@ fn hair_shortcuts_choose_tools_undo_and_delete_through_the_keymap() {
         "{actions:?}"
     );
 }
+
+fn hair_click(app: &mut LabApplication, rect: egui::Rect, point: Vec2) {
+    for event in [
+        ViewportPointerEvent::PrimaryPressed(point),
+        ViewportPointerEvent::PrimaryReleased(point),
+    ] {
+        app.dispatch_hair_pointer(event, rect, false, false, false);
+    }
+}
+
+#[test]
+fn hair_select_click_keeps_the_motion_preview_playing() {
+    let (mut app, rect) = ready_hair_app();
+    let (point, id) = visible_lock(&app, rect);
+    app.hair.tool = Some(HairTool::Select);
+    app.hair.playing = true;
+    hair_click(&mut app, rect, point);
+    assert_eq!(app.hair.selected, HashSet::from([id as usize]));
+    assert!(
+        app.hair.playing,
+        "selecting edits nothing and must not pause the preview"
+    );
+}
+
+#[test]
+fn hair_erase_leaves_no_erased_lock_selected() {
+    let (mut app, rect) = ready_hair_app();
+    let (point, id) = visible_lock(&app, rect);
+    app.hair.tool = Some(HairTool::Erase);
+    app.hair.erase_whole_locks = true;
+    hair_click(&mut app, rect, point);
+    assert!(app.hair.preparing(), "{}", app.hair.feedback);
+    assert!(
+        app.hair.selected.is_empty(),
+        "an erased lock must not stay selected for Delete or Apply to selected locks"
+    );
+    await_hair(&mut app);
+    let state = app.hair.state.as_ref().unwrap();
+    assert!(state.locks.iter().all(|lock| lock.id != id));
+    assert!(app.hair.selected.is_empty());
+}
+
+#[test]
+fn hair_root_click_beside_the_head_keeps_the_selection() {
+    let (mut app, rect) = ready_hair_app();
+    let ids: HashSet<usize> = app
+        .hair
+        .state
+        .as_ref()
+        .unwrap()
+        .locks
+        .iter()
+        .take(2)
+        .map(|lock| lock.id as usize)
+        .collect();
+    assert_eq!(ids.len(), 2);
+    app.hair.selected = ids.clone();
+    app.hair.tool = Some(HairTool::Root);
+    hair_click(&mut app, rect, Vec2::new(3.0, 3.0));
+    assert_eq!(app.hair.selected, ids, "{}", app.hair.feedback);
+    assert_eq!(app.hair.feedback, "Click the scalp to place the root");
+    assert!(!app.hair.preparing());
+}
+
+#[test]
+fn hair_command_waits_for_the_edit_being_prepared() {
+    let (mut app, _) = ready_hair_app();
+    // A stroke is in progress: the host's hair does not have it yet.
+    app.hair.stroke = app.hair.state.clone();
+    app.handle_actions(vec![UiAction::CdmwCommand {
+        command: "hair_color",
+        arguments: json!({"color": [120, 80, 40]}),
+        label: "Hair color",
+    }]);
+    assert_eq!(
+        app.hair.feedback,
+        "Wait for the current hair edit to finish, then try again."
+    );
+    assert!(app.hair.stroke.is_some() && !app.cdmw_busy());
+    // The editor's own request for the character at the start of a session is never held back.
+    app.hair.feedback.clear();
+    app.handle_actions(vec![UiAction::CdmwCommand {
+        command: "hair_begin",
+        arguments: json!({"mode": "generated"}),
+        label: "Loading character",
+    }]);
+    assert!(app.hair.feedback.is_empty());
+}
+
+#[test]
+fn hair_draw_beside_the_head_says_where_to_start() {
+    let (mut app, rect) = ready_hair_app();
+    app.hair.tool = Some(HairTool::Guide);
+    app.dispatch_hair_pointer(
+        ViewportPointerEvent::PrimaryPressed(Vec2::new(3.0, 3.0)),
+        rect,
+        false,
+        false,
+        false,
+    );
+    assert_eq!(app.hair.feedback, "Start the stroke on the scalp");
+    assert!(app.hair.drawing.is_empty());
+    assert!(app.cancel_hair_stroke());
+}

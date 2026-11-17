@@ -995,6 +995,35 @@ def test_hair_hello_and_real_qt_command_queue(editor, tmp_path, monkeypatch, has
         _dispose(tab)
 
 
+def test_cancelling_the_edited_dds_picker_keeps_the_editor_session(editor, tmp_path, monkeypatch):
+    import time
+    from PySide6.QtWidgets import QApplication, QFileDialog
+    from tests.test_mesh_rust_editor_selection import _tab, _dispose
+    _, session = editor
+    tab = _tab(tmp_path)
+    tab.standalone_rust_authoring_session = session
+    tab.standalone_rust_process_generation = session.process_generation
+    responses = []
+    monkeypatch.setattr(tab, "_send_rust_message", lambda message: responses.append(message) or True)
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args, **kwargs: ("", ""))
+    try:
+        request = _fixtures._request(session, "command_request", 1)
+        request.update(command="hair_texture", arguments={"texture_path": TEXTURE})
+        tab.standalone_rust_protocol_queue.append(request)
+        tab._start_next_rust_protocol_worker()
+        deadline = time.monotonic() + 30
+        while tab.standalone_rust_protocol_thread is not None and time.monotonic() < deadline:
+            QApplication.processEvents()
+            time.sleep(.005)
+        result = next(message for message in responses if message["event"] == "command_result")
+        assert result["ok"] is False and result["error"] == "DDS selection cancelled."
+        # The editor closes the session on a refusal that carries no state to return to.
+        assert result["payload"].get("state")
+    finally:
+        tab.standalone_rust_authoring_session = None
+        _dispose(tab)
+
+
 @pytest.mark.parametrize("stale", [False, True])
 def test_hair_output_worker_uses_validated_revision_and_complete_package(editor, tmp_path, monkeypatch, stale):
     from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
