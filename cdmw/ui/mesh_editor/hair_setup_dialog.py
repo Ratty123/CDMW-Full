@@ -163,7 +163,8 @@ class HairSetupDialog(QDialog):
             picker = HairReferencePickerDialog(self._owner, "hair", character=profile.name,
                 styles=tuple((c.index, c.prefab_stem) for c in choices), audit_hair=True,
                 preferred_path=self._target_path, base_only=creating,
-                icons={c.prefab_stem: c.icon_path for c in reversed(choices) if c.icon_path})
+                icons={c.prefab_stem: c.icon_path for c in reversed(choices) if c.icon_path},
+                hidden=tuple(c.index for c in choices if not c.shown_in_game))
             self._picker = picker
             picker.setParent(self, Qt.Widget)
             picker.choose.setText("Start")

@@ -19,7 +19,7 @@ class HairReferencePickerDialog(QDialog):
     preparation_failed = Signal(str)
     base_ready = Signal()
 
-    def __init__(self, owner, role, *, styles=(), character="Damiane", audit_hair=False, preferred_path="", base_only=False, icons=None):
+    def __init__(self, owner, role, *, styles=(), character="Damiane", audit_hair=False, preferred_path="", base_only=False, icons=None, hidden=()):
         super().__init__(owner)
         if role not in {"head", "body", "hair"}:
             raise ValueError("Unknown Hair reference role")
@@ -53,6 +53,8 @@ class HairReferencePickerDialog(QDialog):
         self._listed, self._absent = 0, 0
         self._audit_stop = threading.Event()
         self._icon_paths = dict(icons or {})
+        #: Indexes of hairstyles the game lists but its barber does not offer.
+        self._hidden = frozenset(hidden)
         self._icon_images, self._page_icon_paths = {}, {}
         self._pending_icon_keys = set()
         self._icon_preparation = None
@@ -212,7 +214,10 @@ class HairReferencePickerDialog(QDialog):
             self.status.setText(f"{result.total_matches} compatible choices" if result.rows else "No compatible matches are available in the mounted character data.")
         elif isinstance(result, CharacterCatalogDetailResult):
             if kind == "style":
-                row = replace(result.row, label=f"{self._profile.name} hairstyle {index + 1}")
+                label = f"{self._profile.name} hairstyle {index + 1}"
+                if index in self._hidden:
+                    label = f"{label} (not offered by the barber)"
+                row = replace(result.row, label=label)
                 result = replace(result, row=row)
                 self._details[row.key] = result
                 self._add(row)

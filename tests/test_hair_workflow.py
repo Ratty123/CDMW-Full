@@ -787,6 +787,15 @@ def test_setup_lists_the_game_table_with_hidden_iconless_and_mixed_case_hairstyl
     assert picker is not None and "Choose an existing hairstyle" in dialog.status.text()
     assert picker._styles == ((0, OTHER), (1, "phw_00_hair_00_0001"), (2, "phw_00_hair_00_0521"))
     assert picker._icon_paths == {OTHER: OTHER_ICON}
+    # A hairstyle the barber hides says so; the copy Build Mod makes of it is offered.
+    service = owner.archive_catalogue_service
+    QApplication.processEvents()
+    for token, request, _ in [call for call in service.calls if call[0].startswith("detail")]:
+        chosen = row(len(picker._rows) + 1, key=request.key, path=request.key.removeprefix("asset:"))
+        service.result_ready.emit(token, "get_character_catalog_detail", detail(chosen))
+    assert [picker.grid.item(i).text() for i in range(picker.grid.count())] == [
+        "Damiane hairstyle 1", "Damiane hairstyle 2 (not offered by the barber)",
+        "Damiane hairstyle 3 (not offered by the barber)"]
     dialog.reject()
 
 
