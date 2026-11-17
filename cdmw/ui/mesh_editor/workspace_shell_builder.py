@@ -229,6 +229,9 @@ class WorkspaceShellBuilderMixin:
         host.setWindowFlags(Qt.WindowType.Widget)
         host.setObjectName("MeshEditorDockHost")
         host.setDockOptions(QMainWindow.DockOption.AnimatedDocks | QMainWindow.DockOption.AllowTabbedDocks)
+        # No right-click menu of dock names: it would show a panel behind TexturePanels'
+        # back (an empty Texture Editor, the Textures button still off).
+        host.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         host.setCentralWidget(central_preview)
         from cdmw.ui.mesh_editor.texture_tools_dock import MeshEditorTextureTools
 

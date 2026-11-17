@@ -793,6 +793,12 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         from cdmw.ui.mesh_editor.live_texture_reset import close_texture_editor_panel
 
         close_texture_editor_panel(self)
+        # The list goes now, not when the editor's session has been disposed of in the
+        # background: until then it would list a mesh that is no longer open.
+        textures_panel = getattr(self, "_textures_panel", None)
+        textures_dock = textures_panel() if callable(textures_panel) else None
+        if textures_dock is not None:
+            textures_dock.show_session(None)
         preparation = getattr(self, "item_set_preparation", None)
         if preparation is not None:
             preparation.cancel()

@@ -28111,7 +28111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 338,
+          "line": 341,
           "sink": "QLabel"
         }
       ]
@@ -35281,12 +35281,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 497,
+          "line": 500,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 498,
+          "line": 501,
           "sink": "setAccessibleName"
         },
         {
@@ -52236,7 +52236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 486,
+          "line": 489,
           "sink": "setToolTip"
         }
       ]
@@ -55351,7 +55351,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 455,
+          "line": 458,
           "sink": "QPushButton"
         },
         {
@@ -57046,7 +57046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 478,
+          "line": 481,
           "sink": "setToolTip"
         }
       ]
@@ -57056,7 +57056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 457,
+          "line": 460,
           "sink": "setToolTip"
         }
       ]
@@ -59036,7 +59036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 483,
+          "line": 486,
           "sink": "QLabel"
         }
       ]
@@ -73051,7 +73051,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 462,
+          "line": 465,
           "sink": "QPushButton"
         },
         {
@@ -73661,7 +73661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 464,
+          "line": 467,
           "sink": "setToolTip"
         }
       ]
@@ -90171,7 +90171,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 448,
+          "line": 451,
           "sink": "QPushButton"
         },
         {
@@ -90681,7 +90681,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 851,
+          "line": 857,
           "sink": "_stop_rust_editor_process"
         }
       ]
@@ -91396,7 +91396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 485,
+          "line": 488,
           "sink": "setAccessibleName"
         }
       ]
@@ -104946,7 +104946,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 376,
+          "line": 379,
           "sink": "_rig_palette_button"
         }
       ]
@@ -105166,7 +105166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 376,
+          "line": 379,
           "sink": "_rig_palette_button"
         }
       ]
@@ -107406,7 +107406,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 469,
+          "line": 472,
           "sink": "QPushButton"
         },
         {
@@ -108271,7 +108271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 343,
+          "line": 346,
           "sink": "_rig_palette_button"
         }
       ]
@@ -109391,7 +109391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 471,
+          "line": 474,
           "sink": "setToolTip"
         }
       ]
@@ -114531,7 +114531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 490,
+          "line": 493,
           "sink": "QLabel"
         }
       ]
@@ -118656,7 +118656,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 352,
+          "line": 355,
           "sink": "_rig_palette_button"
         },
         {
@@ -124076,7 +124076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 964,
+          "line": 970,
           "sink": "setText"
         }
       ]
@@ -124086,7 +124086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 955,
+          "line": 961,
           "sink": "setText"
         }
       ]
@@ -141916,7 +141916,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 258,
+          "line": 261,
           "sink": "setText"
         }
       ]
@@ -156541,7 +156541,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 343,
+          "line": 346,
           "sink": "_rig_palette_button"
         },
         {
@@ -171176,7 +171176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 450,
+          "line": 453,
           "sink": "setToolTip"
         }
       ]
@@ -177111,7 +177111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 352,
+          "line": 355,
           "sink": "_rig_palette_button"
         }
       ]
@@ -177741,7 +177741,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 364,
+          "line": 367,
           "sink": "_rig_palette_button"
         }
       ]
@@ -177806,7 +177806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 364,
+          "line": 367,
           "sink": "_rig_palette_button"
         }
       ]
@@ -207511,12 +207511,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1010,
+          "line": 1016,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1011,
+          "line": 1017,
           "sink": "emit"
         }
       ]
@@ -207526,12 +207526,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1006,
+          "line": 1012,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1007,
+          "line": 1013,
           "sink": "emit"
         }
       ]
@@ -207591,7 +207591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 985,
+          "line": 991,
           "sink": "emit"
         }
       ]
@@ -207601,7 +207601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 982,
+          "line": 988,
           "sink": "setText"
         }
       ]
@@ -207736,7 +207736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1090,
+          "line": 1096,
           "sink": "setText"
         }
       ]
@@ -207841,12 +207841,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1083,
+          "line": 1089,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 1084,
+          "line": 1090,
           "sink": "emit"
         }
       ]
@@ -207891,7 +207891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 992,
+          "line": 998,
           "sink": "emit"
         }
       ]

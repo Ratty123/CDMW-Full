@@ -195,6 +195,25 @@ def test_the_choice_is_remembered_and_a_saved_layout_does_not_override_it(tmp_pa
         off.deleteLater()
 
 
+def test_only_the_textures_button_shows_a_panel_not_a_right_click_menu(tmp_path: Path) -> None:
+    from PySide6.QtCore import Qt
+
+    page = _page()
+    try:
+        page.textures_dock.set_manifest(_manifest(), session_root=tmp_path)
+        # Qt offers every closable dock in the host's right-click menu; that would show
+        # an empty Texture Editor, or the list with the Textures button still off.
+        assert page.dock_host.contextMenuPolicy() == Qt.ContextMenuPolicy.PreventContextMenu
+        for dock in (page.textures_dock, page.texture_tools_dock):
+            action = dock.toggleViewAction()
+            assert not action.isEnabled() and not action.isVisible()
+            action.trigger()
+        _settle()
+        assert _shown(page) == (False, False) and not page.texture_panels.wanted
+    finally:
+        page.deleteLater()
+
+
 def test_closing_the_texture_editor_panel_hides_it_and_a_texture_opens_it_again(tmp_path: Path) -> None:
     page = _page()
     try:
@@ -235,9 +254,19 @@ def test_the_mesh_editor_has_a_textures_button_and_close_empties_the_texture_edi
         tools.open_target(LiveTextureTarget(session_id="doc", source_path=str(tmp_path / "a.dds"),
                                             source_sha256="cd" * 32, channel="base_color", display_name="a.dds"))
         assert tools.target is not None and panels.texture_open
-        # Close in the Mesh Editor (and every open of another mesh goes through it).
+        # A mesh is open and both panels show.
+        tab.resize(1400, 800)
+        tab.show()
+        textures = tab.standalone_workspace.textures_dock
+        textures.set_manifest(_manifest(), session_root=tmp_path)
+        _settle()
+        assert textures.isVisible() and tools.isVisible()
+        # Close in the Mesh Editor (and every open of another mesh goes through it): both
+        # go at once, not when the editor's session has been disposed of in the background.
         tab.close_standalone_session()
         assert tools.target is None and tools.title_label.text() == EMPTY_TEXT and not panels.texture_open
+        assert not textures.has_session and not textures.isVisible() and not tools.isVisible()
+        assert button.isChecked()  # the choice stands for the next mesh
     finally:
         tab.deleteLater()
         _APP.processEvents()

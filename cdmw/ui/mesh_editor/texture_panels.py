@@ -70,6 +70,12 @@ class TexturePanels(QObject):
         closed = getattr(textures, "close_requested", None)
         if closed is not None:
             closed.connect(lambda: self.set_wanted(False))
+        # A dock's own show and hide action (the host's right-click menu) is off: only
+        # this object shows a panel.
+        for dock in (textures, tools):
+            if dock is not None:
+                dock.toggleViewAction().setVisible(False)
+                dock.toggleViewAction().setEnabled(False)
         if tools is not None:
             tools.texture_opened.connect(self._on_texture_opened)
             tools.emptied.connect(self._on_editor_emptied)

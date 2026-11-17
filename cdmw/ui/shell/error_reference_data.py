@@ -49843,7 +49843,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/ui/mesh_editor/tab_rust_process.py": 1203,
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 851
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 857
     }
   },
   {
@@ -56783,7 +56783,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status parse failed: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 964
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 970
     }
   },
   {
@@ -56791,7 +56791,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview status read failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 955
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 961
     }
   },
   {
@@ -70793,7 +70793,7 @@ MESSAGE_REFERENCE = [
     "message": "preview error: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1006
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1012
     }
   },
   {
@@ -70875,7 +70875,7 @@ MESSAGE_REFERENCE = [
     "message": "preview process error; retry scheduled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1090
+      "cdmw/ui/mesh_editor/tab_session_runtime.py": 1096
     }
   },
   {
