@@ -210,4 +210,8 @@ def texture_editor_history_shared_with_mesh_editor(document: Optional[TextureEdi
     still differs from the one opened, so its own history is never cleared."""
 
     binding = getattr(document, "source_binding", None)
-    return bool(binding is not None and getattr(binding, "launch_origin", "") == "mesh_editor")
+    return bool(
+        binding is not None
+        and getattr(binding, "launch_origin", "") == "mesh_editor"
+        and getattr(binding, "mesh_commit_mode", "") == "live"
+    )
