@@ -19181,7 +19181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 104,
+          "line": 113,
           "sink": "python-return:texture_role_label"
         }
       ]
@@ -24311,7 +24311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 727,
+          "line": 837,
           "sink": "emit"
         }
       ]
@@ -45816,7 +45816,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 110,
+          "line": 119,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -52406,7 +52406,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 114,
+          "line": 123,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -62996,7 +62996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 132,
+          "line": 141,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -65596,7 +65596,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 593,
+          "line": 613,
           "sink": "setHeaderLabels"
         }
       ]
@@ -66776,7 +66776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 126,
+          "line": 135,
           "sink": "python-return:texture_role_label"
         }
       ]
@@ -70151,7 +70151,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 128,
+          "line": 137,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -82686,7 +82686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 112,
+          "line": 121,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -87611,7 +87611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 108,
+          "line": 117,
           "sink": "python-return:texture_role_label"
         }
       ]
@@ -88206,7 +88206,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 116,
+          "line": 125,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -93406,7 +93406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 122,
+          "line": 131,
           "sink": "python-return:texture_role_label"
         }
       ]
@@ -104321,7 +104321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 624,
+          "line": 677,
           "sink": "setText"
         }
       ]
@@ -104941,7 +104941,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 106,
+          "line": 115,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -105426,7 +105426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 640,
+          "line": 706,
           "sink": "setText"
         }
       ]
@@ -106461,7 +106461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 124,
+          "line": 133,
           "sink": "python-return:texture_role_label"
         }
       ]
@@ -107316,7 +107316,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 130,
+          "line": 139,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -108451,12 +108451,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 586,
+          "line": 606,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 662,
+          "line": 773,
           "sink": "setText"
         }
       ]
@@ -111461,7 +111461,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 133,
+          "line": 142,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -121293,11 +121293,6 @@
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
           "line": 1169,
           "sink": "_mesh_editor_rebuilt_asset_setup"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 593,
-          "sink": "setHeaderLabels"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
@@ -140910,11 +140905,6 @@
           "sink": "setHorizontalHeaderLabels"
         },
         {
-          "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 593,
-          "sink": "setHeaderLabels"
-        },
-        {
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 232,
           "sink": "setHeaderLabels"
@@ -141371,7 +141361,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 120,
+          "line": 129,
           "sink": "python-return:texture_role_label"
         },
         {
@@ -153271,7 +153261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 646,
+          "line": 712,
           "sink": "setText"
         }
       ]
@@ -159561,7 +159551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 118,
+          "line": 127,
           "sink": "python-return:texture_role_label"
         }
       ]
@@ -160896,7 +160886,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 593,
+          "line": 613,
           "sink": "setHeaderLabels"
         },
         {
@@ -164985,6 +164975,11 @@
           "sink": "QTreeWidgetItem"
         },
         {
+          "path": "cdmw/ui/mesh_editor/textures_panel.py",
+          "line": 613,
+          "sink": "setHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 763,
           "sink": "_part_tree"
@@ -166221,7 +166216,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 567,
+          "line": 581,
           "sink": "setWindowTitle"
         },
         {
@@ -184236,7 +184231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 647,
+          "line": 713,
           "sink": "setToolTip"
         }
       ]
@@ -222961,7 +222956,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/textures_panel.py",
-          "line": 742,
+          "line": 852,
           "sink": "addAction"
         },
         {

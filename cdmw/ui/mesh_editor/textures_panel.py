@@ -19,10 +19,11 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, Signal
-from PySide6.QtGui import QIcon, QImage, QPixmap
+from PySide6.QtGui import QFont, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDockWidget,
+    QHeaderView,
     QLabel,
     QStackedWidget,
     QTreeWidget,
@@ -31,13 +32,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-THUMBNAIL_SIZE = 48
-TEXTURE_ID_ROLE = int(Qt.ItemDataRole.UserRole) + 1
+from cdmw.ui.layout_utils import scaled_px
 
+#: A thumbnail's side in logical pixels at the default font size; it follows the
+#: panel's font, and is decoded at the screen's device pixel ratio.
+THUMBNAIL_SIZE = 22
+TEXTURE_ID_ROLE = int(Qt.ItemDataRole.UserRole) + 1
+#: The part a row belongs to (a part row and each of its textures); a file header has none.
+PART_INDEX_ROLE = int(Qt.ItemDataRole.UserRole) + 2
+NO_PART = -1
+
+# The thumbnail sits in front of the role, so one column holds both.
 COLUMN_THUMBNAIL = 0
-COLUMN_ROLE = 1
-COLUMN_FILE = 2
-COLUMN_STATE = 3
+COLUMN_ROLE = 0
+COLUMN_FILE = 1
+COLUMN_STATE = 2
 
 _THUMBNAIL_CACHE_LIMIT = 512
 
@@ -553,13 +562,18 @@ class TextureThumbnailLoader(QObject):
 
 
 class MeshEditorTexturesPanel(QDockWidget):
-    """Dockable, read-only list of the open session's textures, per part."""
+    """Dockable, read-only list of the open session's textures, per part.
+
+    Compact: one line per part, closed until it is opened, and one line per texture
+    with a small thumbnail, its role, its game file and its state. When the session
+    holds several files (a worn set), each file is named once, as a header over its
+    parts, instead of after every part's name.
+    """
 
     texture_activated = Signal(str)
     #: Why a double-clicked row cannot be edited (a colour made from several files).
     texture_refused = Signal(str)
     """A texture row's texture_id, on double-click."""
-
     def __init__(self, parent: QWidget | None = None, *,
                  thumbnail_loader: TextureThumbnailLoader | None = None) -> None:
         super().__init__(parent)
@@ -572,16 +586,22 @@ class MeshEditorTexturesPanel(QDockWidget):
         self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         self._generation = 0
         self._items_by_path: dict[str, list[QTreeWidgetItem]] = {}
+        self._roles_by_path: dict[str, str] = {}
         self._session_request = 0
         self._manifest_readers: set[QObject] = set()
         self.groups: list[TexturePartGroup] = []
         #: What the editor said an edit shows on (B item 6); None until it says.
         self._shown_live: Mapping[str, frozenset[int]] | None = None
         self._session_root: str | None = None
+        #: The parts the user opened, kept while the same session's list is rebuilt.
+        self._opened_parts: set[int] = set()
+        self._opened_parts_root: str | None = None
 
         body = QWidget(self)
+        self._body = body
         layout = QVBoxLayout(body)
-        layout.setContentsMargins(6, 4, 6, 4)
+        pad = scaled_px(4, body)
+        layout.setContentsMargins(pad, scaled_px(2, body), pad, pad)
         self.stack = QStackedWidget(body)
         self.placeholder_label = QLabel("Open a mesh to see its textures.")
         self.placeholder_label.setObjectName("HintLabel")
@@ -589,13 +609,23 @@ class MeshEditorTexturesPanel(QDockWidget):
         self.placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.tree = QTreeWidget()
         self.tree.setObjectName("MeshEditorTexturesTree")
-        self.tree.setColumnCount(4)
-        self.tree.setHeaderLabels(["Preview", "Role", "Game file", "State"])
-        self.tree.setIconSize(QSize(THUMBNAIL_SIZE, THUMBNAIL_SIZE))
+        self.tree.setColumnCount(3)
+        self.tree.setHeaderLabels(["Texture", "Game file", "State"])
         self.tree.setRootIsDecorated(True)
+        self.tree.setUniformRowHeights(True)
+        self.tree.setTextElideMode(Qt.TextElideMode.ElideMiddle)  # both ends of a file name stay readable
         self.tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        header = self.tree.header()
+        header.setStretchLastSection(False)
+        header.setSectionsMovable(False)
+        header.setSectionResizeMode(COLUMN_ROLE, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(COLUMN_FILE, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(COLUMN_STATE, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
+        self.tree.itemExpanded.connect(lambda item: self._remember_part_open(item, True))
+        self.tree.itemCollapsed.connect(lambda item: self._remember_part_open(item, False))
         self.stack.addWidget(self.placeholder_label)
         self.stack.addWidget(self.tree)
         layout.addWidget(self.stack)
@@ -603,8 +633,23 @@ class MeshEditorTexturesPanel(QDockWidget):
 
         self.thumbnails = thumbnail_loader or TextureThumbnailLoader(self)
         self.thumbnails.thumbnail_ready.connect(self._on_thumbnail_ready)
+        self._fit_to_font()
         self.clear()
 
+    # ----- sizes: logical pixels that follow the font --------------------------
+    def thumbnail_side(self) -> int:
+        """A thumbnail's side in logical pixels, following the panel's font."""
+
+        return scaled_px(THUMBNAIL_SIZE, self.tree)
+
+    def _fit_to_font(self) -> None:
+        """Icon size and indentation from the font in use."""
+
+        side = self.thumbnail_side()
+        self.tree.setIconSize(QSize(side, side))
+        self.tree.setIndentation(scaled_px(12, self.tree))
+
+    # ----- the list -----------------------------------------------------------
     def set_manifest(self, manifest: Mapping[str, object] | None, *,
                      session_root: str | os.PathLike[str] | None = None,
                      part_names: Mapping[int, str] | Sequence[str] | None = None) -> None:
@@ -616,23 +661,44 @@ class MeshEditorTexturesPanel(QDockWidget):
         groups = texture_rows_from_manifest(manifest, session_root=session_root, part_names=part_names)
         if self._shown_live is not None:
             groups = with_shown_live_textures(groups, self._shown_live)
+        root = str(session_root) if session_root is not None else None
+        if root is None or root != self._opened_parts_root:
+            # Another mesh: its list starts closed. The same session's list, rebuilt,
+            # keeps the parts the user opened.
+            self._opened_parts = set()
+            self._opened_parts_root = root
+        opened = set(self._opened_parts)
         self._generation += 1
         self._items_by_path = {}
+        self._roles_by_path = {}
         self.groups = groups
         self.tree.clear()
         if not groups:
             self.placeholder_label.setText("No textures were resolved for this mesh.")
             self.stack.setCurrentWidget(self.placeholder_label)
             return
-        requests: dict[str, str] = {}
+        file_items: dict[str, QTreeWidgetItem] = {}
         for group in groups:
-            parent = QTreeWidgetItem(self.tree)
-            parent.setText(COLUMN_THUMBNAIL, group.group_heading)
+            holder: QTreeWidget | QTreeWidgetItem = self.tree
+            if group.source_file:
+                # The file is named once, over its parts.
+                holder = file_items.get(group.source_file)
+                if holder is None:
+                    holder = file_items[group.source_file] = QTreeWidgetItem(self.tree)
+                    holder.setText(COLUMN_THUMBNAIL, group.source_file)
+                    holder.setFirstColumnSpanned(True)
+                    holder.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                    holder.setData(COLUMN_THUMBNAIL, PART_INDEX_ROLE, NO_PART)
+            parent = QTreeWidgetItem(holder)
+            parent.setText(COLUMN_THUMBNAIL, group.part_name)
+            parent.setToolTip(COLUMN_THUMBNAIL, group.group_heading)
             parent.setFirstColumnSpanned(True)
             parent.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            parent.setData(COLUMN_THUMBNAIL, PART_INDEX_ROLE, group.part_index)
             for row in group.rows:
                 item = QTreeWidgetItem(parent)
                 item.setData(COLUMN_THUMBNAIL, TEXTURE_ID_ROLE, row.texture_id)
+                item.setData(COLUMN_THUMBNAIL, PART_INDEX_ROLE, group.part_index)
                 item.setText(COLUMN_ROLE, texture_role_label(row.role))
                 item.setText(COLUMN_FILE, row.file_name)
                 item.setToolTip(COLUMN_FILE, row.game_path)
@@ -647,16 +713,61 @@ class MeshEditorTexturesPanel(QDockWidget):
                     item.setToolTip(COLUMN_STATE, "Used by more than one part of this model.")
                 if row.decoded_path:
                     self._items_by_path.setdefault(row.decoded_path, []).append(item)
-                    requests.setdefault(row.decoded_path, row.role)
-        self.tree.expandAll()
-        self.tree.resizeColumnToContents(COLUMN_ROLE)
+                    self._roles_by_path.setdefault(row.decoded_path, row.role)
+        # The files stay open (they are only headers); the parts start closed.
+        for holder in file_items.values():
+            holder.setExpanded(True)
+        self._opened_parts = set()
+        for part_index in opened:
+            item = self.part_item(part_index)
+            if item is not None:
+                item.setExpanded(True)
+        self._restyle_headers()
         self.stack.setCurrentWidget(self.tree)
-        for path, role in requests.items():
+        self._request_thumbnails()
+
+    def _request_thumbnails(self) -> None:
+        for path, role in self._roles_by_path.items():
             self.thumbnails.queue_texture_thumbnail(self._generation, path, role)
+
+    def _restyle_headers(self) -> None:
+        """A file's header in bold, so it reads as a heading over its parts."""
+
+        for index in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(index)
+            if item.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE) == NO_PART:
+                font = QFont(self.tree.font())
+                font.setBold(True)
+                item.setFont(COLUMN_THUMBNAIL, font)
+
+    def _part_items(self) -> list[QTreeWidgetItem]:
+        items: list[QTreeWidgetItem] = []
+        for index in range(self.tree.topLevelItemCount()):
+            top = self.tree.topLevelItem(index)
+            if top.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE) == NO_PART:
+                items.extend(top.child(child) for child in range(top.childCount()))
+            else:
+                items.append(top)
+        return items
+
+    def part_item(self, part_index: int) -> QTreeWidgetItem | None:
+        """The row of one part (its textures are its children)."""
+
+        for item in self._part_items():
+            if item.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE) == part_index:
+                return item
+        return None
+
+    def _remember_part_open(self, item: QTreeWidgetItem, opened: bool) -> None:
+        part = item.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE)
+        if item.data(COLUMN_THUMBNAIL, TEXTURE_ID_ROLE) or part is None or part == NO_PART:
+            return
+        (self._opened_parts.add if opened else self._opened_parts.discard)(int(part))
 
     def clear(self) -> None:
         self._generation += 1
         self._items_by_path = {}
+        self._roles_by_path = {}
         self.groups = []
         self.tree.clear()
         self.placeholder_label.setText("Open a mesh to see its textures.")
@@ -705,8 +816,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         )
 
     def texture_item(self, texture_id: str) -> QTreeWidgetItem | None:
-        for index in range(self.tree.topLevelItemCount()):
-            parent = self.tree.topLevelItem(index)
+        for parent in self._part_items():
             for child_index in range(parent.childCount()):
                 child = parent.child(child_index)
                 if child.data(COLUMN_THUMBNAIL, TEXTURE_ID_ROLE) == texture_id:

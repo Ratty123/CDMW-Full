@@ -189,9 +189,11 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         panel.set_manifest(_manifest(), session_root=tmp_path)
 
         assert panel.stack.currentWidget() is panel.tree
-        assert panel.tree.topLevelItemCount() == 2
-        chest = panel.tree.topLevelItem(0)
-        assert chest.text(COLUMN_THUMBNAIL) == "Chest (upper.pac)"
+        # Two files: each is named once, over its parts, not after every part's name.
+        assert [panel.tree.topLevelItem(i).text(COLUMN_THUMBNAIL) for i in range(2)] == ["upper.pac", "arms.pac"]
+        chest = panel.part_item(0)
+        assert chest.text(COLUMN_THUMBNAIL) == "Chest" and chest.parent() is panel.tree.topLevelItem(0)
+        assert chest.toolTip(COLUMN_THUMBNAIL) == "Chest (upper.pac)"
         first = chest.child(0)
         assert first.text(COLUMN_ROLE) == "Base colour"
         assert first.text(COLUMN_FILE) == "cd_armor_01_d.dds"
@@ -200,7 +202,7 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         assert chest.child(1).text(COLUMN_STATE) == ""
 
         # One decode for the shared file, and its icon on both parts' rows.
-        arms_base = panel.tree.topLevelItem(1).child(0)
+        arms_base = panel.part_item(1).child(0)
         assert _wait_for(app, lambda: not first.icon(COLUMN_THUMBNAIL).isNull()
                          and not arms_base.icon(COLUMN_THUMBNAIL).isNull())
         pool.waitForDone(5000)
@@ -208,7 +210,7 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         assert decoded.count("texture-0000-aaaaaaaaaaaa.dds") == 1
         # Files that do not exist never reach the decoder and show no icon.
         assert "texture-0001-bbbbbbbbbbbb.dds" not in decoded
-        assert panel.tree.topLevelItem(1).child(1).icon(COLUMN_THUMBNAIL).isNull()
+        assert panel.part_item(1).child(1).icon(COLUMN_THUMBNAIL).isNull()
 
         panel.tree.itemDoubleClicked.emit(first, COLUMN_ROLE)
         panel.tree.itemDoubleClicked.emit(chest, COLUMN_THUMBNAIL)
@@ -231,6 +233,60 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         panel.deleteLater()
         loader.deleteLater()
         app.processEvents()
+
+
+def test_the_list_starts_closed_and_keeps_what_the_user_opened(tmp_path: Path) -> None:
+    """Fredric, 2026-11-17: "Textures list should start not expanded"."""
+
+    _app()
+    panel = MeshEditorTexturesPanel(thumbnail_loader=TextureThumbnailLoader(decoder=lambda *_args: None))
+    try:
+        panel.set_manifest(_manifest(), session_root=tmp_path)
+        chest, arms = panel.part_item(0), panel.part_item(1)
+        assert not chest.isExpanded() and not arms.isExpanded()
+        # The file headers only group: they are open, so every part is in view.
+        assert all(panel.tree.topLevelItem(i).isExpanded() for i in range(panel.tree.topLevelItemCount()))
+        arms.setExpanded(True)
+        # The same session's list rebuilt (the editor reports again) keeps it open.
+        panel.set_manifest(_manifest(), session_root=tmp_path)
+        assert panel.part_item(1).isExpanded() and not panel.part_item(0).isExpanded()
+        # Another mesh starts closed again.
+        panel.set_manifest(_manifest(), session_root=tmp_path / "other")
+        assert not panel.part_item(1).isExpanded()
+    finally:
+        panel.shutdown()
+        panel.deleteLater()
+
+
+def test_the_list_is_compact(tmp_path: Path) -> None:
+    """Fredric, 2026-11-17: the list "takes just too much space for no reason"."""
+
+    app = _app()
+    manifest = _manifest()
+    manifest["state"]["archive_refit_assets"] = []  # one file: no header at all
+    panel = MeshEditorTexturesPanel(thumbnail_loader=TextureThumbnailLoader(decoder=lambda *_args: None))
+    try:
+        panel.resize(420, 400)
+        panel.show()
+        panel.set_manifest(manifest, session_root=tmp_path)
+        assert [panel.tree.topLevelItem(i).text(COLUMN_THUMBNAIL) for i in range(2)] == ["Chest", "Arms"]
+        panel.part_item(0).setExpanded(True)
+        app.processEvents()
+        # Three columns: the thumbnail sits in front of the role.
+        assert panel.tree.columnCount() == 3 and COLUMN_THUMBNAIL == COLUMN_ROLE
+        text_row = panel.tree.fontMetrics().height()
+        part_row = panel.tree.visualItemRect(panel.part_item(0)).height()
+        texture_row = panel.tree.visualItemRect(panel.part_item(0).child(0)).height()
+        # A row is about a line of text high, not a 48 pixel thumbnail.
+        assert part_row <= text_row * 2 and texture_row <= text_row * 2
+        assert panel.tree.iconSize().height() <= text_row * 2
+        # The file name keeps both ends when it is cut short.
+        from PySide6.QtCore import Qt
+
+        assert panel.tree.textElideMode() == Qt.TextElideMode.ElideMiddle
+    finally:
+        panel.shutdown()
+        panel.deleteLater()
 
 
 def test_the_panel_reads_a_session_folder_off_the_ui_thread(tmp_path: Path) -> None:
