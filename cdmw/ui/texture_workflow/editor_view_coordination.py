@@ -191,7 +191,12 @@ class TextureEditorViewCoordinationMixin:
             self._horizontal_guides = ()
             self.vertical_guides_edit.setText("")
             self.horizontal_guides_edit.setText("")
-            self.canvas.set_zoom_factor(1.0)
+            if getattr(self, "new_documents_open_fitted", False):
+                # A host with a small canvas (the Mesh Editor's docked panel) shows a
+                # newly opened texture whole; it stays fitted as the panel is resized.
+                self.canvas.set_fit_to_view(True)
+            else:
+                self.canvas.set_zoom_factor(1.0)
             self.canvas_scroll.horizontalScrollBar().setValue(0)
             self.canvas_scroll.verticalScrollBar().setValue(0)
             self._refresh_zoom_indicators()

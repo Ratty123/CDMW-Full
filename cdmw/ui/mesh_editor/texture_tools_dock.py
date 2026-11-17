@@ -417,6 +417,8 @@ class MeshEditorTextureTools(QDockWidget):
             return self.editor
         editor = self._editor_factory(self) if self._editor_factory is not None else self._default_editor()
         editor.hide()  # it does the editing; only its editing parts are shown, here
+        # Every texture opens fitted to the canvas, never at 100 % overflowing it.
+        editor.new_documents_open_fitted = True
         signal = getattr(editor, "resident_texture_patch_ready", None)
         if signal is not None:
             signal.connect(self._on_patch)
