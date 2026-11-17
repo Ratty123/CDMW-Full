@@ -147,14 +147,16 @@ def test_worker_outlives_the_owner_until_its_thread_ended_then_goes_on_the_gui_t
 
 
 def test_no_thread_worker_is_deleted_on_its_own_thread():
-    pattern = re.compile(r"\b(\w+(?:\.\w+)?)\.finished\.connect\((\w+(?:\.\w+)?)\.deleteLater\)")
+    # Any signal (finished, completed, error...) connected to a worker's deleteLater, with
+    # or without a connection type. The helper's own fallback is the one exception.
+    pattern = re.compile(r"\.\w+\.connect\(\s*(\w+(?:\.\w+)?)\.deleteLater\b")
     found = []
     for path in sorted((ROOT / "cdmw").rglob("*.py")):
         text = path.read_text(encoding="utf-8")
-        if "moveToThread" not in text:
+        if "moveToThread" not in text or path.name == "thread_lifetime.py":
             continue
         for number, line in enumerate(text.splitlines(), 1):
             match = pattern.search(line)
-            if match and "thread" not in match.group(2).casefold():
+            if match and "thread" not in match.group(1).casefold():
                 found.append(f"{path.relative_to(ROOT).as_posix()}:{number}: {line.strip()}")
     assert found == [], "use release_worker_after_thread(thread, worker) instead:\n" + "\n".join(found)
