@@ -281,8 +281,9 @@ def weapon_socket_patch(base: str, edited: str) -> str:
         old, new = old_tag.attributes(), new_tag.attributes()
         if old == new:
             continue
-        name, parent = old.get(_SOCKET_KEY, ""), old.get("Parent")
-        if not name or parent is None:
+        name, parent = old.get(_SOCKET_KEY, ""), old.get("Parent", "")
+        if not name or not parent:
+            # `match-Parent=""` has not been seen in DMM, so such a file stays whole.
             raise PatchError(f"Socket {name or '(unnamed)'} has no Name and Parent to find it by")
         if set(old) != set(new):
             raise PatchError(f"Socket {name} gained or lost an attribute")

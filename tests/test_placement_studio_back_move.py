@@ -34,6 +34,8 @@ from tools.placement_studio.dmm_patch import PatchError
 from tools.placement_studio.documents import SocketDocument, is_weapon_socket_file
 from tools.placement_studio.editing import EditSession
 from tools.placement_studio.model import Quat, Socket, Vec3
+from tools.placement_studio.resolver import PlacementResolver
+from tools.placement_studio.session import PlacementSession
 from tools.placement_studio.skeleton import BoneHierarchy, multiply
 
 SB = "character/descriptors/socketbonedata/1_pc/1_phm/"
@@ -175,6 +177,14 @@ def test_an_item_file_whose_change_a_set_cannot_express_stays_whole() -> None:
     assert [path for path, _why in lowered.kept_whole] == [SWORD]
     assert lowered.patched == (SHEATH,)
     assert dmm_patch.patch_path(SHEATH) in lowered.files and SHEATH not in lowered.files
+
+
+def test_a_point_with_no_parent_bone_keeps_its_file_whole() -> None:
+    base = _item().replace(b'"Spine2_B_SubWeapon_ChildSocket" Parent="B_Weapon_0001"',
+                           b'"Spine2_B_SubWeapon_ChildSocket" Parent=""')
+    moved = base.replace(b"-0.470292", b"-0.400000")
+    lowered = dmm_patch.lower_for_dmm({SWORD: moved}, lambda path: base)
+    assert lowered.files == {SWORD: moved} and not lowered.patched
 
 
 def test_a_body_file_a_patch_cannot_express_still_blocks() -> None:
@@ -347,6 +357,14 @@ def test_on_the_back_moves_the_sword_and_its_sheaths_and_saves_three_patches(
     assert _value(edits.socket(BODY, BACK)) == _value(_body())
     assert "in 4 files" in window.statusBar().currentMessage()
 
+    # One Undo puts all four files back, and one Redo moves them again.
+    window._undo()
+    for path in (SWORD, SHEATH, SHEATH_15, LONG):
+        assert _value(edits.socket(path, CHILD)) == _value(_socket(path)), path
+    window._redo()
+    for path in (SWORD, SHEATH, SHEATH_15):
+        assert _value(edits.socket(path, CHILD)) == _value(moved), path
+
     with tempfile.TemporaryDirectory() as folder:
         request = save_mod.SaveRequest(name="2H out", folder=Path(folder),
                                        include=(save_mod.MANUAL,))
@@ -387,6 +405,7 @@ REAL = {
     "kliff_body": BODY, "kliff_rig": "character/model/1_pc/1_phm/phm_01.pab",
     "damiane_body": PHW + "phw_damian_01.pab.sockets.xml",
     "phw_rig": "character/model/1_pc/2_phw/phw_01.pab",
+    "kliff_rows": DESC,
 }
 KLIFF_FILES = [TWO + f"cd_phm_02_sword_{s}.sockets.xml" for s in ("0001", "0001_in", "0015_in",
                                                                    "0045")]
@@ -462,3 +481,37 @@ def test_damianes_two_files_move_as_the_generator_moves_them(game) -> None:
     assert _same_rotation(second.rotation, Quat(-0.037429, -0.952985, 0.011819, -0.300464), 2e-6)
     assert _near((second.translation.x, second.translation.y, second.translation.z),
                  (0.107372, -0.039424, -0.059942), 5e-6)
+
+
+@pytest.mark.real_game
+def test_a_move_of_kliffs_2h_sword_saves_past_the_preflight_on_the_games_rows(game,
+                                                                            tmp_path) -> None:
+    files = {path: game[path] for path in (BODY, DESC, *KLIFF_FILES)}
+    resolver = PlacementResolver()
+    resolver.add_files(files)
+    session = PlacementSession("1_phm", BoneHierarchy.from_pab(game[REAL["kliff_rig"]],
+                                                               REAL["kliff_rig"]), resolver)
+    # Each file is read by one row: the sword's by the 2H sword row, the sheaths' by its case.
+    shared = session.file_shared_users()
+    assert shared[(KLIFF_FILES[0], CHILD)] == ("TwoHandWeapon_Sword",)
+    assert shared[(KLIFF_FILES[1], CHILD)] == ("TwoHandWeapon_Sword_IN",)
+    edits = EditSession(files)
+    body = next(s for s in session.body_sockets() if s.name == BACK)
+    steps = back_move.in_step_files(session.weapons(), edits, KLIFF_FILES[0], CHILD,
+                                    hierarchy=session.bind_hierarchy, body_socket=body)
+    plan = back_move.plan_back_move(session.bind_hierarchy, body, KLIFF_FILES[0],
+                                    edits.socket(KLIFF_FILES[0], CHILD),
+                                    edits.original_socket(KLIFF_FILES[0], CHILD),
+                                    key="out", amount=0.02, in_step=steps)
+    with edits.undo_step():
+        for path, socket in plan.sockets:
+            edits.set_translation(path, CHILD, socket.translation)
+            edits.set_rotation_quaternion(path, CHILD, socket.rotation)
+    users = {n: u.child_offset for n, u in session.usage_map().items() if u.child_offset}
+    users.update(shared)
+    outcome = save_mod.save_mod(edits, save_mod.SaveRequest(name="2H out", folder=tmp_path,
+                                                            include=(save_mod.MANUAL,)),
+                                baseline=_Baseline(files), shared_socket_users=users)
+    assert outcome.saved, outcome.problems
+    assert sorted(p.name for p in tmp_path.rglob("*.sockets.xml.patch")) == sorted(
+        Path(path).name + ".patch" for path in KLIFF_FILES)

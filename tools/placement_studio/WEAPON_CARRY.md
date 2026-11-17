@@ -274,7 +274,8 @@ into the child point, `C' = S * inverse(W')`; the body point is not touched.
   `.sockets.xml.patch` when every change is a `<set>` of a value its sockets already hold. Each
   line finds the socket by `Name` and `Parent` together, the in-game form, which also keeps a
   bare `<Socket Name>` reference under `StackEquipInfo` from matching. Anything else (a new
-  child socket from **Move it**, a changed Count) keeps the file whole, as before, rather than
+  child socket from **Move it**, a changed Count, a socket with an empty `Parent`, since
+  `match-Parent=""` has not been seen in DMM) keeps the file whole, as before, rather than
   blocking the save. The README warns that another mod's whole copy of the file may override
   the patch, which of the two wins in DMM has not been checked: Weapon Carry's 2H Sword on Hip
   parts ship whole copies of the 2H sword files with the hip child (rotation 0.38, -0.15), so
@@ -290,18 +291,25 @@ into the child point, `C' = S * inverse(W')`; the body point is not touched.
 - **Carry > Fine-tune > On the back**: a move, **−** / **+** by the Step distance or the By
   angle, and **With the files in step** (on). Offered for the selected item's own point shown
   put away, on a character with a skeleton, when the item lies flat to the back. The note
-  names the files in step. The body point is the one the tab shows, so a Damiane session
-  measures on whichever of her body files the session reads.
+  names the files in step, and one Undo puts all of them back (`EditSession.undo_step`). The
+  body point is the one the tab shows, so a Damiane session measures on whichever of her
+  body files the session reads. Female Kliff carries Kliff's 2H sword files, so a move made
+  in a Kliff session moves her 2H sword too, relative to the sword, over her other shoulder.
 
 **Checked.** On the installed game's files, Turn +35, Out 3 cm and Up -25 cm on Kliff's sword
 file give (0 0.953717 0 0.300706), (0.177976 -0.03 -0.164176) in all three of his files, and the
 saved patches are byte for byte those of the Core seen working in game. On Damiane's files
-`_0002` comes out at the Core's values to within 3e-6 (three rounded steps).
+`_0002` comes out at the Core's values to within 3e-6 (three rounded steps). The game has six
+2H sword socket files (the four of Kliff's and Damiane's two named above); over all 21 of
+Kliff's item files `in_step_files` takes under a millisecond. A move saved through the game's
+own Kliff descriptor passes the preflight: each file is read by one row (the sword's by
+`TwoHandWeapon_Sword`, the sheaths' by `TwoHandWeapon_Sword_IN`).
 
-**Differs from the generator.** `cd_phm_02_sword_0045` hangs its sword on the same line as
-the others (child (0 1 0 0), (0 0 -0.003718)), so it is in step here, turned about a guard 16
-cm up from its own origin, which is not checked against its mesh; the generator leaves it as
-the game has it. Untick **With the files in step** to move one file alone.
+**Differs from the generator, for Fredric to decide.** `cd_phm_02_sword_0045` hangs its sword
+on the same line as the others (child (0 1 0 0), (0 0 -0.003718)), 47 cm lower. Its grip point
+(`Basic_ChildSocket`) sits where the others' does on the item, so its guard is taken 16 cm up
+from its own origin like theirs, and it moves in step here; the generator leaves it as the
+game has it. Untick **With the files in step** to move one file alone.
 
 Not in this slice: Help and the Wiki do not describe On the back yet; the research reference
 (`docs/crimson-desert-research.md` 7.5 and 12.3) still says weapon socket files ship whole,

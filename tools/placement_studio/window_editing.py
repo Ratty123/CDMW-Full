@@ -1432,9 +1432,10 @@ class EditPanelMixin:
             return
         edits = self._edits
         try:
-            for path, socket in plan.sockets:
-                edits.set_translation(path, socket.name, socket.translation)
-                edits.set_rotation_quaternion(path, socket.name, socket.rotation)
+            with edits.undo_step():  # one Undo puts every file back together
+                for path, socket in plan.sockets:
+                    edits.set_translation(path, socket.name, socket.translation)
+                    edits.set_rotation_quaternion(path, socket.name, socket.rotation)
         except EditError as exc:
             self.statusBar().showMessage(str(exc))
             return
