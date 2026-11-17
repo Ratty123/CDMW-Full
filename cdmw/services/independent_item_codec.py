@@ -49,7 +49,8 @@ _RECORDS = {
     'RgbGlow': RecordAdapter(emission.RgbGlow),
     'EmissionChoice': RecordAdapter(emission.EmissionChoice),
     'ShaderField': RecordAdapter(shader_controls.ShaderField),
-    'ShaderFamily': RecordAdapter(shader_controls.ShaderFamily),
+    # The extra controls are a Mesh Editor addition; a v1 item package has none.
+    'ShaderFamily': RecordAdapter(shader_controls.ShaderFamily, defaults={'extras': ()}),
     # Replacement textures live in this computer's texture store and the rebuilt
     # layout is a Mesh Editor choice; neither is part of the v1 item package.
     'ShaderControls': RecordAdapter(shader_controls.ShaderControls, defaults={'textures': (), 'rebuild': False}),
