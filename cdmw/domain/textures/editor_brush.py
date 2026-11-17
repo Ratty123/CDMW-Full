@@ -638,15 +638,19 @@ def _soften_or_sharpen_rgb(
         else:
             result = image_ops.gaussian_blur(rgb, sigma)
         return result, 0.03 + strength * 0.22
+    # Strength sets how much of the sharpened image is blended in, once. It also used to
+    # scale the sharpening itself, so the default 25 % kept about 2 % of the detail and
+    # left a game texture's gentle shading unchanged; each mode now sharpens as it did
+    # at 100 %, and 100 % is as strong as before.
     mode = getattr(settings, "sharpen_mode", "unsharp_mask")
     if mode == "high_pass":
         blurred = image_ops.gaussian_blur(rgb, sigma * 1.6)
-        return np.clip(rgb + (rgb - blurred) * (0.04 + strength * 0.20), 0.0, 255.0), 0.08 + strength * 0.34
+        return np.clip(rgb + (rgb - blurred) * 0.24, 0.0, 255.0), 0.08 + strength * 0.34
     if mode == "local_contrast":
         blurred = image_ops.gaussian_blur(rgb, sigma * 2.2)
-        return np.clip(rgb + (rgb - blurred) * (0.03 + strength * 0.12), 0.0, 255.0), 0.07 + strength * 0.30
+        return np.clip(rgb + (rgb - blurred) * 0.15, 0.0, 255.0), 0.07 + strength * 0.30
     blurred = image_ops.gaussian_blur(rgb, sigma)
-    amount = 0.05 + strength * 0.42
+    amount = 0.47
     result = np.clip(image_ops.add_weighted(rgb, 1.0 + amount, blurred, -amount, 0.0), 0.0, 255.0)
     return result, 0.06 + strength * 0.34
 
@@ -666,8 +670,10 @@ def _apply_soften_or_sharpen(
         settings,
         context.effective_size,
     )
-    processed = context.sample_snapshot.copy()
-    processed[..., :3] = np.clip(np.round(processed_rgb), 0, 255).astype(np.uint8)
+    # Blended in float and rounded once: rounding the filtered image first lost a
+    # change of under half a level before the blend could add it up.
+    processed = context.sample_snapshot.astype(np.float32)
+    processed[..., :3] = np.clip(processed_rgb, 0.0, 255.0)
     blended = _blend_patch(rgba, processed, np.clip(coverage * blend_strength, 0.0, 1.0))
     context.updated[context.document.active_layer_id] = _apply_stroke_locks(context, rgba, blended)
     return context.updated

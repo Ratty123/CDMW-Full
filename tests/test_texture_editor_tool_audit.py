@@ -470,3 +470,27 @@ def test_a_recolor_reaches_the_file_the_mesh_editor_loads(dock, tmp_path) -> Non
     pixels = np.frombuffer(data[128:], dtype=np.uint8).reshape(64, 64, 4)
     assert np.array_equal(pixels, dock.composite())
     assert set(live.edited_textures()) == {SHA}
+
+
+def test_sharpen_at_its_default_strength_changes_gentle_shading() -> None:
+    """A game texture's gentle shading came out unchanged at the default 25 %: strength
+    scaled both the sharpening and its blend, and the filtered image was rounded before
+    the blend, so a sharpen stroke recorded an Undo step and changed nothing."""
+    from cdmw.domain.textures.editor_brush import apply_texture_editor_stroke
+    from cdmw.models import TextureEditorDocument, TextureEditorLayer
+
+    # Fine grain about as strong as cd_texturelayer_003_0209.dds's (a standard deviation of 6).
+    shade = 100.0 + np.random.default_rng(11).normal(0.0, 6.0, (48, 48))
+    rgba = np.zeros((48, 48, 4), dtype=np.uint8)
+    rgba[..., :3] = np.round(shade)[..., None].astype(np.uint8)
+    rgba[..., 3] = 255
+    document = TextureEditorDocument("Shade", 48, 48, active_layer_id="base",
+                                     layers=(TextureEditorLayer("base", "Base", "unused.png"),))
+    settings = TextureEditorToolSettings(tool="sharpen", size=24, hardness=100, opacity=100, flow=100,
+                                         spacing=10, strength=25)
+    out = apply_texture_editor_stroke(document, {"base": rgba}, settings, [(10, 24), (38, 24)])["base"]
+    changed = np.any(out != rgba, axis=2)
+    assert changed.sum() > 50, int(changed.sum())
+    # Sharpening pushes values away from the local mean: the peaks rise.
+    peaks = (rgba[..., 0] >= 112) & changed
+    assert peaks.any() and np.all(out[..., 0][peaks] >= rgba[..., 0][peaks])
