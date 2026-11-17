@@ -13303,6 +13303,7 @@
     "Show or hide mirror catalogue settings and local model folders.": "미러 카탈로그 설정과 로컬 모델 폴더를 표시하거나 숨깁니다.",
     "Show or hide separate underwear meshes in the 3D preview. Clothing painted into skin textures is unaffected.": "3D 미리보기에서 별도의 속옷 메시를 표시하거나 숨깁니다. 피부 텍스처에 그려진 의상에는 영향을 주지 않습니다.",
     "Show or hide session Activity and the current tool's log.": "세션 활동과 현재 도구의 로그를 표시하거나 숨깁니다.",
+    "Show or hide the Textures panel beside the 3D view. It lists each part's textures; double-click one to edit it in the Texture Editor.": "3D 보기 옆의 텍스처 패널을 표시하거나 숨깁니다. 각 파트의 텍스처가 나열되며, 하나를 두 번 클릭하면 텍스처 편집기에서 편집할 수 있습니다.",
     "Show or hide the optional 3D Preview pane. Keep it hidden when you only want the linked editor/table views.": "선택적 3D 미리보기 창을 표시하거나 숨깁니다. 연결된 편집기/테이블 보기만 원할 경우 숨김 상태로 유지하세요.",
     "Show outfit corrections": "의상 보정 표시",
     "Show outfit corrections must be a boolean.": "의상 보정 표시는 불리언이어야 합니다.",

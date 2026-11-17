@@ -132,14 +132,22 @@ class MeshEditorTextureTools(QDockWidget):
     to the texture as it was opened."""
     history_moved = Signal()
     """The shared history (B item 4) took in a texture edit, undo or redo made here."""
+    texture_opened = Signal()
+    """A texture was opened here: the panel has something to show."""
+    emptied = Signal()
+    """The panel holds no texture any more (the mesh closed, or another one loads)."""
+    close_requested = Signal()
+    """The panel's own close button was pressed."""
 
     def __init__(self, parent: QWidget | None = None, *, settings: object = None, base_dir: Path | None = None,
                  editor_factory: Callable[[QWidget], QWidget] | None = None) -> None:
         super().__init__("Texture Editor", parent)
         self.setObjectName("MeshEditorTextureToolsDock")
-        # Docks, floats and resizes; it cannot be closed, so it is never lost.
+        # Docks, floats, resizes and closes; closing it hides it and keeps the edit, and
+        # a double-click in the Textures panel opens it again.
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable
-                         | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+                         | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+                         | QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self.settings = settings
         self.base_dir = Path(base_dir) if base_dir is not None else Path.cwd()
         self._editor_factory = editor_factory
@@ -229,7 +237,28 @@ class MeshEditorTextureTools(QDockWidget):
             open_source(Path(target.source_path), binding=binding)
         self.show()
         self.raise_()
+        self.texture_opened.emit()
         self._widen_for_the_canvas()
+
+    def show_empty(self) -> None:
+        """The mesh closed, or another one loads: nothing of the last one stays in view.
+        The edits are the document's (its draft, Finish, Build Mod), not the panel's."""
+
+        self.target = None
+        self._targets = {}
+        self.title_label.setText(EMPTY_TEXT)
+        self.title_label.setToolTip("")
+        self.sharing_text = ""
+        self.sharing_label.setText("")
+        self.set_kept_text("")
+        self._show_warning_marker()
+        self._show_status()
+        self.emptied.emit()
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        # The host decides: it hides the panel; the edit stays.
+        event.ignore()
+        self.close_requested.emit()
 
     def _sharing_is_a_warning(self) -> bool:
         """What the sharing check found (other files, or that it could not tell); its

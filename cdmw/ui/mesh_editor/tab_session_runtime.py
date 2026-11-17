@@ -788,6 +788,11 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         )
         if callable(defer_for_rust_finish) and defer_for_rust_finish():
             return False
+        # The Texture Editor panel closes with the mesh; a panel left showing the last
+        # mesh's texture would edit nothing. Its edits were kept or asked about before.
+        from cdmw.ui.mesh_editor.live_texture_reset import close_texture_editor_panel
+
+        close_texture_editor_panel(self)
         preparation = getattr(self, "item_set_preparation", None)
         if preparation is not None:
             preparation.cancel()

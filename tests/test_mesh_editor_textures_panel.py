@@ -329,8 +329,9 @@ def test_the_mesh_editor_docks_the_panel_on_the_right_and_remembers_where_it_was
     again.deleteLater()
 
 
-def test_a_saved_layout_never_hides_the_panel_or_leaves_it_off_screen(tmp_path: Path) -> None:
-    """The first app pass found the panel hidden by a saved layout; it cannot be closed now."""
+def test_a_saved_layout_never_leaves_the_panel_off_screen(tmp_path: Path) -> None:
+    """A saved layout says where the panel is, not whether it shows (TexturePanels does,
+    see test_mesh_editor_texture_panels_shown); a panel left off every screen docks again."""
 
     from PySide6.QtCore import QSettings
 
@@ -341,7 +342,7 @@ def test_a_saved_layout_never_hides_the_panel_or_leaves_it_off_screen(tmp_path: 
     page = MeshEditorWorkspace(theme_key="graphite", defer_legacy_panels=True)
     page.show()
     host, dock = page.dock_host, page.textures_dock
-    assert not dock.features() & dock.DockWidgetFeature.DockWidgetClosable
+    assert dock.features() & dock.DockWidgetFeature.DockWidgetClosable
     dock.setFloating(True)
     dock.move(-100000, -100000)
     dock.hide()
@@ -350,7 +351,6 @@ def test_a_saved_layout_never_hides_the_panel_or_leaves_it_off_screen(tmp_path: 
     again = MeshEditorWorkspace(theme_key="graphite", defer_legacy_panels=True)
     again.show()
     remember_dock_layout(again.dock_host, again.textures_dock, settings)
-    assert not again.textures_dock.isHidden()
     # Off every screen it docks again (offscreen Qt restores a floating panel at 0,0, so
     # the check is tested on its own).
     from cdmw.ui.mesh_editor.textures_panel import _on_a_screen

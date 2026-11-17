@@ -13303,6 +13303,7 @@
     "Show or hide mirror catalogue settings and local model folders.": "Show or hide mirror catalogue settings and local model folders.",
     "Show or hide separate underwear meshes in the 3D preview. Clothing painted into skin textures is unaffected.": "Show or hide separate underwear meshes in the 3D preview. Clothing painted into skin textures is unaffected.",
     "Show or hide session Activity and the current tool's log.": "Show or hide session Activity and the current tool's log.",
+    "Show or hide the Textures panel beside the 3D view. It lists each part's textures; double-click one to edit it in the Texture Editor.": "Show or hide the Textures panel beside the 3D view. It lists each part's textures; double-click one to edit it in the Texture Editor.",
     "Show or hide the optional 3D Preview pane. Keep it hidden when you only want the linked editor/table views.": "Show or hide the optional 3D Preview pane. Keep it hidden when you only want the linked editor/table views.",
     "Show outfit corrections": "Show outfit corrections",
     "Show outfit corrections must be a boolean.": "Show outfit corrections must be a boolean.",

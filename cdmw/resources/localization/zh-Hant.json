@@ -13303,6 +13303,7 @@
     "Show or hide mirror catalogue settings and local model folders.": "顯示或隱藏鏡像目錄設定和本機模型資料夾。",
     "Show or hide separate underwear meshes in the 3D preview. Clothing painted into skin textures is unaffected.": "在 3D 預覽中顯示或隱藏獨立的內衣網格。繪製在皮膚紋理上的衣物不受影響。",
     "Show or hide session Activity and the current tool's log.": "顯示或隱藏工作階段活動與目前工具的日誌。",
+    "Show or hide the Textures panel beside the 3D view. It lists each part's textures; double-click one to edit it in the Texture Editor.": "顯示或隱藏 3D 檢視旁的紋理面板。面板會列出每個部件的紋理；按兩下其中一個即可在紋理編輯器中編輯。",
     "Show or hide the optional 3D Preview pane. Keep it hidden when you only want the linked editor/table views.": "顯示或隱藏選購的 3D 預覽窗格。當您只需要連結的編輯器/表格視圖時，請將其隱藏。",
     "Show outfit corrections": "顯示服裝修正",
     "Show outfit corrections must be a boolean.": "顯示服裝修正必須為布林值。",

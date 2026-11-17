@@ -574,6 +574,11 @@ class MeshEditorTexturesPanel(QDockWidget):
     #: Why a double-clicked row cannot be edited (a colour made from several files).
     texture_refused = Signal(str)
     """A texture row's texture_id, on double-click."""
+    #: Whether a session's textures are listed (False once the mesh closes or another loads).
+    session_shown = Signal(bool)
+    #: The panel's own close button was pressed.
+    close_requested = Signal()
+
     def __init__(self, parent: QWidget | None = None, *,
                  thumbnail_loader: TextureThumbnailLoader | None = None) -> None:
         super().__init__(parent)
@@ -582,6 +587,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         self.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+            | QDockWidget.DockWidgetFeature.DockWidgetClosable
         )
         self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         self._generation = 0
@@ -596,6 +602,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         #: The parts the user opened, kept while the same session's list is rebuilt.
         self._opened_parts: set[int] = set()
         self._opened_parts_root: str | None = None
+        self._has_session = False
 
         body = QWidget(self)
         self._body = body
@@ -649,6 +656,22 @@ class MeshEditorTexturesPanel(QDockWidget):
         self.tree.setIconSize(QSize(side, side))
         self.tree.setIndentation(scaled_px(12, self.tree))
 
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        # The host decides: it hides the panel and remembers that the user closed it.
+        event.ignore()
+        self.close_requested.emit()
+
+    @property
+    def has_session(self) -> bool:
+        """A session's textures are listed (or it has none); False with no mesh open."""
+
+        return self._has_session
+
+    def _set_has_session(self, shown: bool) -> None:
+        if shown != self._has_session:
+            self._has_session = shown
+            self.session_shown.emit(shown)
+
     # ----- the list -----------------------------------------------------------
     def set_manifest(self, manifest: Mapping[str, object] | None, *,
                      session_root: str | os.PathLike[str] | None = None,
@@ -676,6 +699,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         if not groups:
             self.placeholder_label.setText("No textures were resolved for this mesh.")
             self.stack.setCurrentWidget(self.placeholder_label)
+            self._set_has_session(True)
             return
         file_items: dict[str, QTreeWidgetItem] = {}
         for group in groups:
@@ -725,6 +749,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._restyle_headers()
         self.stack.setCurrentWidget(self.tree)
         self._request_thumbnails()
+        self._set_has_session(True)
 
     def _request_thumbnails(self) -> None:
         for path, role in self._roles_by_path.items():
@@ -772,6 +797,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         self.tree.clear()
         self.placeholder_label.setText("Open a mesh to see its textures.")
         self.stack.setCurrentWidget(self.placeholder_label)
+        self._set_has_session(False)
 
     def shutdown(self) -> None:
         """Drop pending thumbnails; the host calls this before tearing the page down."""
@@ -931,7 +957,10 @@ def _on_a_screen(widget: QWidget) -> bool:
 def remember_dock_layout(host: object, dock: QDockWidget | tuple[QDockWidget, ...], settings: object,
                          key: str = DOCK_LAYOUT_KEY) -> None:
     """Restore where the Mesh Editor's docks were, and save it whenever one moves,
-    floats, docks again or is closed (Fredric: the panel can be "freely moved around")."""
+    floats or docks again (Fredric: the panel can be "freely moved around").
+
+    Where, not whether: ``TexturePanels`` alone shows and hides them, so a saved layout
+    neither hides a panel the user asked for nor shows one they closed."""
 
     restore = getattr(host, "restoreState", None)
     value = settings.value(key, None) if settings is not None else None
@@ -940,12 +969,9 @@ def remember_dock_layout(host: object, dock: QDockWidget | tuple[QDockWidget, ..
             restore(value)
         except (TypeError, ValueError, RuntimeError):
             pass
-    # The panel cannot be closed, so a saved state never hides it; and a panel left
-    # floating on a screen that is gone (or off every screen) docks again.
+    # A panel left floating on a screen that is gone (or off every screen) docks again.
     docks = tuple(dock) if isinstance(dock, (tuple, list)) else (dock,)
     for each in docks:
-        if each.isHidden():
-            each.show()
         if each.isFloating() and not _on_a_screen(each):
             each.setFloating(False)
 

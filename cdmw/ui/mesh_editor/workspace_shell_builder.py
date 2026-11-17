@@ -240,6 +240,10 @@ class WorkspaceShellBuilderMixin:
         host.splitDockWidget(self.textures_dock, self.texture_tools_dock, Qt.Orientation.Vertical)
         host.resizeDocks([self.textures_dock, self.texture_tools_dock], [1, 3], Qt.Orientation.Vertical)
         self.dock_host = host
+        # Both panels are off until the user asks for them and a mesh is open.
+        from cdmw.ui.mesh_editor.texture_panels import TexturePanels
+
+        self.texture_panels = TexturePanels(host, self.textures_dock, self.texture_tools_dock)
         return host
 
     def _install_direct_output_controls(self, parent: QWidget) -> None:

@@ -265,6 +265,8 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
             tools = getattr(self.standalone_workspace, "texture_tools_dock", None)
             docks = (textures_dock, tools) if tools is not None else (textures_dock,)
             remember_dock_layout(self.standalone_workspace.dock_host, docks, getattr(self, "settings", None))
+            texture_panels = self.standalone_workspace.texture_panels
+            texture_panels.use_settings(getattr(self, "settings", None))
             textures_dock.texture_activated.connect(self.open_texture_in_window)
             textures_dock.texture_refused.connect(lambda reason: self.status_message_requested.emit(reason, True))
             if tools is not None:
@@ -304,6 +306,20 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         )
         self.saved_work_button.clicked.connect(lambda _checked=False: self.saved_work_requested.emit(""))
         entry_layout.insertWidget(entry_layout.indexOf(self.hair_entry_button), self.saved_work_button)
+        if textures_dock is not None:
+            # The clear option to show the Textures panel: off until it is clicked,
+            # and the choice is remembered.
+            self.textures_toggle_button = QPushButton("Textures", entry_bar)
+            self.textures_toggle_button.setObjectName("MeshEditorTexturesToggle")
+            self.textures_toggle_button.setCheckable(True)
+            self.textures_toggle_button.setToolTip(
+                "Show or hide the Textures panel beside the 3D view. It lists each part's textures; "
+                "double-click one to edit it in the Texture Editor."
+            )
+            self.textures_toggle_button.setChecked(texture_panels.wanted)
+            self.textures_toggle_button.toggled.connect(texture_panels.set_wanted)
+            texture_panels.wanted_changed.connect(self.textures_toggle_button.setChecked)
+            entry_layout.insertWidget(entry_layout.indexOf(self.saved_work_button), self.textures_toggle_button)
         self.draft_name_button.setVisible(False)
         self.draft_name_label.setVisible(False)
         root.insertWidget(0, entry_bar)

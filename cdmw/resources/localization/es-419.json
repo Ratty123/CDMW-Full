@@ -13303,6 +13303,7 @@
     "Show or hide mirror catalogue settings and local model folders.": "Mostrar u ocultar la configuración del catálogo del espejo y las carpetas de modelos locales.",
     "Show or hide separate underwear meshes in the 3D preview. Clothing painted into skin textures is unaffected.": "Muestra u oculta las mallas separadas de ropa interior en la vista previa 3D. La ropa dibujada en las texturas de la piel no se ve afectada.",
     "Show or hide session Activity and the current tool's log.": "Mostrar u ocultar la actividad de la sesión y el registro de la herramienta actual.",
+    "Show or hide the Textures panel beside the 3D view. It lists each part's textures; double-click one to edit it in the Texture Editor.": "Muestra u oculta el panel Texturas junto a la vista 3D. Enumera las texturas de cada parte; haz doble clic en una para editarla en el Editor de texturas.",
     "Show or hide the optional 3D Preview pane. Keep it hidden when you only want the linked editor/table views.": "Muestra u oculta el panel de vista previa 3D opcional. Manténgalo oculto cuando solo desee las vistas de tabla/editor vinculado.",
     "Show outfit corrections": "Mostrar correcciones del atuendo",
     "Show outfit corrections must be a boolean.": "Mostrar correcciones del atuendo debe ser un booleano.",
