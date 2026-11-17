@@ -322,6 +322,15 @@ def test_files_in_step_get_the_same_move_about_their_own_guard() -> None:
         assert _near(shift, tuple(-0.04 * c for c in tip)), path
 
 
+def test_the_sword_that_hangs_its_own_way_never_moves_in_step() -> None:
+    files = {**FILES, OWN_WAY: _item()}   # even holding the very same point
+    steps = back_move.in_step_files(_weapons(files), EditSession(files), SWORD, CHILD,
+                                    hierarchy=_rig(), body_socket=_body())
+    assert OWN_WAY not in {step.socket_file for step in steps}
+    assert back_move.in_step_files(_weapons(files), EditSession(files), OWN_WAY, CHILD,
+                                   hierarchy=_rig(), body_socket=_body()) == []
+
+
 # ── the window ───────────────────────────────────────────────────────
 
 
@@ -451,7 +460,9 @@ def _real_move(game, body_file, rig_file, body_point, files):
 @pytest.mark.real_game
 def test_kliffs_three_files_move_exactly_as_the_core_seen_in_game(game) -> None:
     how, moved = _real_move(game, REAL["kliff_body"], REAL["kliff_rig"], BACK, KLIFF_FILES)
-    assert how == {KLIFF_FILES[1]: "same", KLIFF_FILES[2]: "same", KLIFF_FILES[3]: "line"}
+    # `_0045` hangs on the same line, 47 cm lower, and is left as the game has it.
+    assert how == {KLIFF_FILES[1]: "same", KLIFF_FILES[2]: "same"}
+    assert _value(moved[KLIFF_FILES[3]]) == _value(_Weapon(KLIFF_FILES[3], game).sockets[CHILD])
     for path in KLIFF_FILES[:3]:
         assert moved[path].rotation.format() == "0.000000 0.953717 0.000000 0.300706"
         assert moved[path].translation.format() == "0.177976 -0.030000 -0.164176"
@@ -514,4 +525,4 @@ def test_a_move_of_kliffs_2h_sword_saves_past_the_preflight_on_the_games_rows(ga
                                 baseline=_Baseline(files), shared_socket_users=users)
     assert outcome.saved, outcome.problems
     assert sorted(p.name for p in tmp_path.rglob("*.sockets.xml.patch")) == sorted(
-        Path(path).name + ".patch" for path in KLIFF_FILES)
+        Path(path).name + ".patch" for path in KLIFF_FILES[:3])

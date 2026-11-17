@@ -94506,7 +94506,7 @@ MESSAGE_REFERENCE = [
     "message": "A direction of zero length cannot be followed",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/back_move.py": 91
+      "tools/placement_studio/back_move.py": 101
     }
   },
   {
@@ -97320,7 +97320,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a back move: {key}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/back_move.py": 326
+      "tools/placement_studio/back_move.py": 335
     }
   },
   {
@@ -98984,7 +98984,7 @@ MESSAGE_REFERENCE = [
     "message": "The item lies edge-on to the back, so it has no back plane to move in",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/back_move.py": 142
+      "tools/placement_studio/back_move.py": 152
     }
   },
   {
@@ -98992,7 +98992,7 @@ MESSAGE_REFERENCE = [
     "message": "The item points straight out of the back, so it cannot tip further out",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/back_move.py": 188
+      "tools/placement_studio/back_move.py": 198
     }
   },
   {
@@ -99200,7 +99200,7 @@ MESSAGE_REFERENCE = [
     "message": "This character has no skeleton to measure the back on",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/back_move.py": 328
+      "tools/placement_studio/back_move.py": 337
     }
   },
   {

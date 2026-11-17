@@ -55,6 +55,16 @@ _MIN_FACING = 0.3
 _SAME_LINE_COSINE = math.cos(math.radians(1.0))
 _SAME_LINE_DISTANCE = 0.01
 
+#: Item files that hang their own way and never move in step, by file stem. The game's
+#: `cd_phm_02_sword_0045` hangs its sword on Kliff's 2H sword line, 47 cm lower, and nothing in
+#: the files tells it apart from Damiane's `_0002` (12 cm along hers), which does move. Weapon
+#: Carry's 2H tab leaves it as the game has it, and Fredric chose the same here (2026-11-17).
+HANGS_ITS_OWN_WAY = frozenset({"cd_phm_02_sword_0045"})
+
+
+def _stem(path: str) -> str:
+    return str(path).replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".sockets.xml")
+
 
 class BackMoveError(ValueError):
     """A back-plane move that cannot be made."""
@@ -251,9 +261,8 @@ def in_step_files(weapons, edits, socket_file: str, child_name: str, *, hierarch
     `2_twohandweapon`), defines `child_name` on the same bone, and either holds the same value
     now or, given the rig and the body point, hangs the item on the same line in the world.
     So Kliff's sword file takes its two sheath files along and Damiane's sword file her other
-    one, while a spear file holding the same child point is another kind and stays. In the
-    game `cd_phm_02_sword_0045` hangs on Kliff's 2H sword line too and comes along, which
-    Weapon Carry's generator does not do.
+    one, while a spear file holding the same child point is another kind and stays. A file in
+    `HANGS_ITS_OWN_WAY` neither comes along nor takes others along.
     """
 
     from .equipment_assets import socket_file_kind
@@ -267,7 +276,7 @@ def in_step_files(weapons, edits, socket_file: str, child_name: str, *, hierarch
         by_path.setdefault(weapon.game_path, weapon)
     own_weapon = by_path.get(socket_file)
     own = current(socket_file, own_weapon.sockets.get(child_name) if own_weapon else None)
-    if own is None:
+    if own is None or _stem(socket_file) in HANGS_ITS_OWN_WAY:
         return []
     kind, hands = socket_file_kind(socket_file), _hands(socket_file)
     own_world = None
@@ -277,7 +286,7 @@ def in_step_files(weapons, edits, socket_file: str, child_name: str, *, hierarch
     out: List[InStep] = []
     for path in sorted(by_path):
         if (path == socket_file or path not in editable or socket_file_kind(path) != kind
-                or _hands(path) != hands):
+                or _hands(path) != hands or _stem(path) in HANGS_ITS_OWN_WAY):
             continue
         other = current(path, by_path[path].sockets.get(child_name))
         if other is None or other.parent_bone != own.parent_bone:

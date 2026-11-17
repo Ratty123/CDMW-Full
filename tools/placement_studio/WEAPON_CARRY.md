@@ -305,11 +305,12 @@ Kliff's item files `in_step_files` takes under a millisecond. A move saved throu
 own Kliff descriptor passes the preflight: each file is read by one row (the sword's by
 `TwoHandWeapon_Sword`, the sheaths' by `TwoHandWeapon_Sword_IN`).
 
-**Differs from the generator, for Fredric to decide.** `cd_phm_02_sword_0045` hangs its sword
-on the same line as the others (child (0 1 0 0), (0 0 -0.003718)), 47 cm lower. Its grip point
-(`Basic_ChildSocket`) sits where the others' does on the item, so its guard is taken 16 cm up
-from its own origin like theirs, and it moves in step here; the generator leaves it as the
-game has it. Untick **With the files in step** to move one file alone.
+**`cd_phm_02_sword_0045` is left alone**, as the generator leaves it (Fredric, 2026-11-17). It
+hangs its sword on the same line as the others (child (0 1 0 0), (0 0 -0.003718)), 47 cm lower,
+and nothing in the files tells it apart from Damiane's `_0002`, which sits 12 cm along her line
+and does move, so it is named in `back_move.HANGS_ITS_OWN_WAY`: it neither comes along nor
+takes the others along. Selected on its own, it can still be moved alone. Untick **With the
+files in step** to move any one file alone.
 
 Not in this slice: Help and the Wiki do not describe On the back yet; the research reference
 (`docs/crimson-desert-research.md` 7.5 and 12.3) still says weapon socket files ship whole,
