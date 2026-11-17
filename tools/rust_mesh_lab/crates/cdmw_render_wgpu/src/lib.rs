@@ -5504,6 +5504,32 @@ pub async fn run_headless_verified_layered_material_capture_batch_on(
     requests: &[HeadlessMaterialCaptureRequest<'_>],
     verified_sha256: &[&str],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
+    run_headless_verified_layered_material_capture_batch_lit(
+        gpu,
+        snapshot,
+        textures,
+        factors,
+        layers,
+        requests,
+        verified_sha256,
+        LightingPreset::NeutralStudio,
+    )
+    .await
+}
+
+/// As `run_headless_verified_layered_material_capture_batch_on`, under the
+/// lighting preset a viewport would use instead of always Neutral studio.
+#[allow(clippy::too_many_arguments)]
+pub async fn run_headless_verified_layered_material_capture_batch_lit(
+    gpu: Option<&SharedGpu>,
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    layers: &[MaterialLayerSet],
+    requests: &[HeadlessMaterialCaptureRequest<'_>],
+    verified_sha256: &[&str],
+    lighting_preset: LightingPreset,
+) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     if verified_sha256.len() != textures.len() {
         return Err(RenderError::ResourceLimit);
     }
@@ -5517,7 +5543,7 @@ pub async fn run_headless_verified_layered_material_capture_batch_on(
         None,
         verified_sha256,
         LightingDepthSettings::default(),
-        LightingPreset::NeutralStudio,
+        lighting_preset,
     )
     .await
 }
