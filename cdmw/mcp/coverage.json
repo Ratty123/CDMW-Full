@@ -720,6 +720,20 @@
       "tool": "mesh.replacement_cancel"
     },
     {
+      "id": "hair.state",
+      "area": "Hair Tools",
+      "what": "The hairstyle being made: style, template, guides, groups, locks",
+      "class": "read",
+      "tool": "mesh.state"
+    },
+    {
+      "id": "hair.build",
+      "area": "Hair Tools",
+      "what": "Build Mod for a hairstyle",
+      "class": "output",
+      "tool": "mesh.build_mod"
+    },
+    {
       "id": "textures.panel",
       "area": "Mesh Editor",
       "what": "The Textures panel's rows",

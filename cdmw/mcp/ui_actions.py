@@ -182,15 +182,20 @@ _CONFIRM = {"yes": "Yes", "no": "No", "ok": "Ok", "cancel": "Cancel", "save": "S
 _DECLINE = ("No", "Cancel", "Close", "Abort")
 
 
+#: Questions only the user answers, whatever runs meanwhile: the two flows that write
+#: into the game folder ask them (remove what an older CDMW installed, restore a backup).
+USER_ONLY_TITLES = frozenset({"Remove What an Older CDMW Installed", "Restore Backup"})
+
+
 def _message(original, kind: str):
     def answered(*args, **kwargs):
         current = _current()
-        if current is None:
+        title = _argument(args, kwargs, 1, "title")
+        if current is None or str(title or "") in USER_ONLY_TITLES:
             return original(*args, **kwargs)
         from PySide6.QtWidgets import QMessageBox
 
         buttons_type = QMessageBox.StandardButton
-        title = _argument(args, kwargs, 1, "title")
         text = _argument(args, kwargs, 2, "text")
         default = buttons_type.Yes | buttons_type.No if kind == "question" else buttons_type.Ok
         buttons = _argument(args, kwargs, 3, "buttons", default=default)
@@ -368,10 +373,20 @@ def run_action(context, function: Callable[[], object], answers: Mapping[str, ob
     else:
         context.ui_call(lambda: QTimer.singleShot(0, go))
         if not done.wait(max(0.1, ACTION_WAIT_S if wait_s is None else wait_s)):
-            record.active = False
-            return {"waiting_on": context.ui_call(modal_dialog), "asked": list(record.asked),
-                    "message": "The action opened a dialog that waits for an answer. Read it with app_ui and "
-                               "answer it with app_ui_act."}
+            # Either a dialog of the app's own waits, or the handler is still working. The
+            # UI thread answers this question only once it runs an event loop again.
+            try:
+                waiting = context.ui_call(modal_dialog)
+            except ToolError:
+                waiting = None
+            if not done.is_set():
+                if waiting is not None:
+                    record.active = False  # the dialog is the user's (and app_ui_act's) from here
+                    return {"waiting_on": waiting, "asked": list(record.asked),
+                            "message": "The action opened a dialog that waits for an answer. Read it with "
+                                       "app_ui and answer it with app_ui_act."}
+                return {"running": True, "asked": list(record.asked),
+                        "message": "The action is still running in CDMW; app_state shows what it is doing."}
     if "error" in box:
         error = box["error"]
         if record.asked and isinstance(error, ToolError):

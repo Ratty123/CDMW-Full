@@ -124,6 +124,19 @@ def test_mesh_state_and_geometry_are_the_sessions_parts_counts_and_selection(mes
     assert triangles["rows"][0] == list(part.faces[0])
     assert mcp.ok("mesh_geometry", {"part": 0, "what": "selection"})["vertices"] == []
     assert mcp.error("mesh_geometry", {"part": 99})["code"] == "not_found"
+    # A hairstyle being made (Hair Tools): its style, template and how much is authored.
+    assert "hair" not in state
+    session = service._session(session_id)
+    session.hair_state = SimpleNamespace(revision=4, payload={
+        "style_name": "Braids", "startup_preset": "bob", "revision": 4,
+        "template": {"path": "character/model/cd_phw_hair_0003.pac", "character": "phw"},
+        "guides": [{}, {}, {}], "groups": [{}], "locks": [{}, {}], "prepared_parts": [0]})
+    try:
+        assert mcp.ok("mesh_state")["hair"] == {
+            "style_name": "Braids", "preset": "bob", "template": "character/model/cd_phw_hair_0003.pac",
+            "character": "phw", "guides": 3, "groups": 1, "locks": 2, "prepared_parts": 1, "revision": 4}
+    finally:
+        session.hair_state = None
 
 
 def test_parts_are_selected_and_highlighted_with_the_parts_lists_own_messages(mesh) -> None:
@@ -213,7 +226,15 @@ def test_build_mod_presses_the_button_with_its_dialog_filled_and_reports_a_refus
     holder = QWidget()
     validated, building, built = [False], [False], []
 
+    hair = [False]
+
     def press() -> None:  # the button's handler, cut down to its question and its dialog
+        if hair[0]:  # a hairstyle asks for the folder with a chooser instead of the dialog
+            from PySide6.QtWidgets import QFileDialog
+
+            built.append(("hair", QFileDialog.getExistingDirectory(None, "Build Additional Hairstyle"), None, None))
+            building[0] = bool(built[-1][1])
+            return
         if not validated[0]:
             QMessageBox.warning(None, "Build Mod", "Run validation successfully before building a mesh mod.")
             return
@@ -240,6 +261,10 @@ def test_build_mod_presses_the_button_with_its_dialog_filled_and_reports_a_refus
     assert "does not write into" in mcp.error("mesh_build_mod", {"output_folder": str(game)})["message"]
     assert mcp.error("mesh_build_mod", {"output_folder": str(tmp_path / "missing" / "x")})["code"] == "refused"
     assert len(built) == 1 and tab_direct_output.MeshModExportDialog.__name__ == "MeshModExportDialog"
+    # A hairstyle: the same folder answers its chooser.
+    hair[0], building[0] = True, False
+    assert mcp.ok("mesh_build_mod", {"output_folder": str(out)})["started"]
+    assert built[-1] == ("hair", str(out), None, None)
     holder.deleteLater()
 
 
@@ -402,6 +427,17 @@ def test_a_capture_of_the_mesh_editor_is_its_viewports_rectangle(browse, app) ->
                                     _current_target_entry=lambda: None)
     browse.window.shell.mesh_editor_tab = holder
     browse.window.shell.compact_workspace._active_tool_key = "mesh_editor"
+    # No picture from the helper's window (none here): the screen is copied, but only
+    # while CDMW is the window in front, so no other program's window can be in it.
+    other = QWidget()
+    other.show()
+    other.activateWindow()
+    mcp.wait_until(lambda: not frame.isActiveWindow())
+    assert "window in front" in mcp.error("view_capture")["message"]
+    other.close()
+    other.deleteLater()
+    frame.activateWindow()
+    mcp.wait_until(frame.isActiveWindow)
     result = mcp.call("view_capture")  # the view that is shown
     assert not result["isError"], result["structuredContent"]
     facts = result["structuredContent"]
@@ -411,6 +447,44 @@ def test_a_capture_of_the_mesh_editor_is_its_viewports_rectangle(browse, app) ->
     assert "not on screen" in mcp.error("view_capture", {"view": "mesh_editor"})["message"]
     frame.deleteLater()
     holder.deleteLater()
+
+
+def test_the_mesh_editors_picture_is_what_its_own_window_draws(browse, app) -> None:
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    user32.CreateWindowExW.restype = wintypes.HWND
+    user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+                                       ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.HWND,
+                                       wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+    user32.DestroyWindow.argtypes = [wintypes.HWND]
+    # A native window far off the screen, with no taskbar entry and never activated (Windows
+    # gives no picture of a hidden one): a button, which draws a frame and its text.
+    hwnd = user32.CreateWindowExW(0x08000000 | 0x80, "BUTTON", "Viewport", 0x80000000 | 0x10000000, -32000, -32000,
+                                  200, 120, None, None, None, None)
+    assert hwnd
+    frame = QWidget()  # hidden: the helper's window gives the picture, the screen is not needed
+    holder = QWidget()
+    holder.active = SimpleNamespace(standalone_native_host_frame=frame, standalone_rust_child_hwnd=hwnd,
+                                    live_edit=None, _current_target_entry=lambda: None)
+    browse.window.shell.mesh_editor_tab = holder
+    try:
+        from cdmw.mcp.view_tools import _one_colour, window_picture
+
+        # The button paints itself once its thread has handled its first messages.
+        picture = browse.mcp.wait_until(lambda: (lambda p: p if p is not None and not _one_colour(p) else None)(
+            window_picture(hwnd)))
+        assert (picture.width(), picture.height()) == (200, 120)
+        result = browse.mcp.call("view_capture", {"view": "mesh_editor"})
+        assert not result["isError"], result["structuredContent"]
+        facts = result["structuredContent"]
+        assert facts["how"] == "drawn by the editor's window" and (facts["width"], facts["height"]) == (200, 120)
+    finally:
+        user32.DestroyWindow(hwnd)
+        frame.deleteLater()
+        holder.deleteLater()
+    assert window_picture(hwnd) is None and window_picture(0) is None
 
 
 # ===== the Texture Editor =====================================================================
@@ -598,7 +672,8 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     tab = QWidget()
     tab.workflow = workflow
     tab._bridge = object()  # the page is drawn by its helper from these controls
-    tab._dialogs = SimpleNamespace(dialogs=lambda: ())
+    chooser_open = [False]
+    tab._dialogs = SimpleNamespace(dialogs=lambda: (), native_modal=lambda: chooser_open[0])
     window = SimpleNamespace(shell=SimpleNamespace(
         new_item_studio_tab=tab, compact_workspace=SimpleNamespace(_active_tool_key="new_item_studio")))
     mcp = connect(window)
@@ -617,6 +692,12 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
         kinds = [row["kind"] for row in mcp.ok("app_ui", arguments)["controls"]]
         assert kinds == ["field", "tree", "field", "button"], arguments
     mcp.ok("app_ui_act", {"text": "item_name", "action": "set_text", "value": "Kliff's Blade"})
+    assert item_name.text() == "Kliff's Blade"
+    # As the page itself: no input while one of its file or colour choosers is open.
+    chooser_open[0] = True
+    refused = mcp.error("app_ui_act", {"text": "item_name", "action": "set_text", "value": "Other"})
+    assert refused == {"code": "unavailable",
+                       "message": "Complete the file or colour dialog before editing the item."}
     assert item_name.text() == "Kliff's Blade"
     for widget in (workflow, tab):
         widget.deleteLater()

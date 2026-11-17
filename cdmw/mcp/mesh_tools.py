@@ -135,6 +135,24 @@ def _selection(selection) -> dict[str, object]:
             "faces": sum(row["faces"] for row in rows), "by_part": rows}
 
 
+def _hair(service, session_id) -> dict[str, object] | None:
+    """The hairstyle being made in this session (Hair Tools), or None."""
+
+    try:
+        state = service._session(session_id).hair_state
+    except Exception:
+        return None
+    if state is None:
+        return None
+    payload = state.payload
+    template = payload.get("template") or {}
+    return {"style_name": str(payload.get("style_name") or ""), "preset": str(payload.get("startup_preset") or ""),
+            "template": str(template.get("path") or ""), "character": str(template.get("character") or ""),
+            "guides": len(payload.get("guides") or ()), "groups": len(payload.get("groups") or ()),
+            "locks": len(payload.get("locks") or ()), "prepared_parts": len(payload.get("prepared_parts") or ()),
+            "revision": int(state.revision)}
+
+
 def _session_of(call):
     """(the UI's facts, the session) for the shown document, read on the UI thread."""
 
@@ -206,6 +224,9 @@ def _state(call) -> dict[str, object]:
         "output": {"policy": view.output_policy, "destination": view.output_destination,
                    "reason": view.output_policy_reason},
     })
+    hair = _hair(service, session_id)
+    if hair is not None:
+        facts["hair"] = hair
     return facts
 
 
@@ -434,10 +455,10 @@ def _build_mod(call) -> dict[str, object]:
         finally:
             tab_direct_output.MeshModExportDialog = original
         busy = getattr(tab, "_mesh_direct_output_busy", None)
-        return {"started": bool(shown) and bool(busy()) if callable(busy) else bool(shown), **shown,
-                "status": _status(tab)}
+        return {"started": bool(busy()) if callable(busy) else bool(shown), **shown, "status": _status(tab)}
 
-    outcome = _act(call, build)
+    # A hairstyle's Build Mod asks for the folder with a chooser, not the dialog: the same answer.
+    outcome = _act(call, build, {"folder": folder})
     if not outcome.get("started"):
         outcome["message"] = ("Build Mod did not start: 'asked' and 'status' say why. A mesh edit must be "
                               "finished (mesh_finish) and pass validation first.")
@@ -502,7 +523,8 @@ def mesh_tools() -> list[Tool]:
                          "ready, its status line, every part with its name, material, vertex and triangle "
                          "counts and (for a set) the file it belongs to, the selection (whole parts, and how "
                          "many vertices, edges and faces in each part), the history (steps, can undo, can "
-                         "redo) and where its output goes.",
+                         "redo), where its output goes and, for a hairstyle made with Hair Tools, its style, "
+                         "template and how many guides, groups and locks it has.",
              input_schema=object_schema(), effect=READ, route="service:MeshService.session_view+working_mesh",
              handler=_state, runs_on=ON_WORKER, paged="parts"),
         Tool(name="mesh.geometry", family="mesh", title="Mesh geometry",

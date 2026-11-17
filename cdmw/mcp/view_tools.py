@@ -10,9 +10,10 @@ writes.
 
 * ``browse``: the frame the preview helper renders (its own capture request);
 * ``mesh_editor``: the Mesh Editor helper has no capture message for a
-  document, so the viewport's rectangle is copied from the screen. The window
-  must be visible and not covered. An edit shown in Browse's view is captured
-  as Browse's.
+  document, so its window is asked for its own picture (``PrintWindow``), which
+  shows only that window, also while it is covered. When Windows cannot give
+  that, the viewport's rectangle is copied from the screen, only while CDMW is
+  the window in front. An edit shown in Browse's view is captured as Browse's.
 """
 
 from __future__ import annotations
@@ -230,8 +231,79 @@ def _capture_browse(call):
         shutil.rmtree(folder, ignore_errors=True)
 
 
-def _capture_screen(context, max_side: int):
-    """On the UI thread: the shown Mesh Editor document's viewport, copied from the screen."""
+def window_picture(hwnd: int):
+    """What a native window draws, asked of the window itself (``PrintWindow``): only that
+    window, also while another one covers it. A QImage, or None when Windows cannot give it."""
+
+    import ctypes
+    import os
+    from ctypes import wintypes
+
+    from PySide6.QtGui import QImage
+
+    if os.name != "nt" or not hwnd:
+        return None
+    user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+    user32.GetDC.restype = wintypes.HDC
+    user32.GetDC.argtypes = [wintypes.HWND]
+    user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
+    user32.IsWindow.argtypes = [wintypes.HWND]
+    user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+    user32.PrintWindow.argtypes = [wintypes.HWND, wintypes.HDC, wintypes.UINT]
+    gdi32.CreateCompatibleDC.restype = wintypes.HDC
+    gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+    gdi32.CreateCompatibleBitmap.restype = wintypes.HBITMAP
+    gdi32.CreateCompatibleBitmap.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int]
+    gdi32.SelectObject.restype = wintypes.HGDIOBJ
+    gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+    gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+    gdi32.DeleteDC.argtypes = [wintypes.HDC]
+    gdi32.GetDIBits.argtypes = [wintypes.HDC, wintypes.HBITMAP, wintypes.UINT, wintypes.UINT, ctypes.c_void_p,
+                                ctypes.c_void_p, wintypes.UINT]
+    rect = wintypes.RECT()
+    if not user32.IsWindow(hwnd) or not user32.GetClientRect(hwnd, ctypes.byref(rect)):
+        return None
+    width, height = rect.right - rect.left, rect.bottom - rect.top
+    if width <= 0 or height <= 0:
+        return None
+    window_dc = user32.GetDC(hwnd)
+    if not window_dc:
+        return None
+    memory_dc = gdi32.CreateCompatibleDC(window_dc)
+    bitmap = gdi32.CreateCompatibleBitmap(window_dc, width, height)
+    previous = gdi32.SelectObject(memory_dc, bitmap)
+    try:
+        # PW_CLIENTONLY | PW_RENDERFULLCONTENT: the second makes a Direct3D window draw too.
+        if not user32.PrintWindow(hwnd, memory_dc, 0x1 | 0x2):
+            return None
+        header = (ctypes.c_uint32 * 10)(40, width, ctypes.c_uint32(-height).value, 1 | (32 << 16), 0, 0, 0, 0, 0,
+                                         0)
+        pixels = ctypes.create_string_buffer(width * height * 4)
+        gdi32.SelectObject(memory_dc, previous)
+        if gdi32.GetDIBits(memory_dc, bitmap, 0, height, pixels, header, 0) != height:
+            return None
+        return QImage(pixels.raw, width, height, width * 4, QImage.Format.Format_RGB32).copy()
+    finally:
+        gdi32.SelectObject(memory_dc, previous)
+        gdi32.DeleteObject(bitmap)
+        gdi32.DeleteDC(memory_dc)
+        user32.ReleaseDC(hwnd, window_dc)
+
+
+def _one_colour(image) -> bool:
+    """A picture of one flat colour: the window gave nothing of what it draws."""
+
+    data = bytes(image.constBits())
+    return len(data) < 8 or data == data[:4] * (len(data) // 4)
+
+
+def _capture_mesh_editor(context, max_side: int):
+    """On the UI thread: the shown Mesh Editor document's viewport.
+
+    First the helper window's own picture. When Windows cannot give that, the viewport's
+    rectangle is copied from the screen, and only while CDMW is the window in front: a
+    read that needs no approval must not copy another program's window.
+    """
 
     from PySide6.QtCore import QPoint
 
@@ -244,17 +316,23 @@ def _capture_screen(context, max_side: int):
     frame = getattr(tab, "standalone_native_host_frame", None)
     if tab is None or frame is None:
         raise ToolError(UNAVAILABLE, NO_EDITOR)
+    facts: dict[str, object] = {"view": "mesh_editor", "document": document_label(tab)}
+    image = window_picture(int(getattr(tab, "standalone_rust_child_hwnd", 0) or 0))
+    if image is not None and not _one_colour(image):
+        data, width, height = png_of(image, max_side)
+        return ImageResult(data, {**facts, "how": "drawn by the editor's window", "width": width,
+                                  "height": height})
     if not frame.isVisible() or frame.window().isMinimized():
         raise ToolError(UNAVAILABLE, "The Mesh Editor's view is not on screen: show the Mesh Editor "
                                      "(app_open_tool mesh_editor) with CDMW's window visible.")
+    if not frame.window().isActiveWindow():
+        raise ToolError(UNAVAILABLE, "The Mesh Editor's view can only be copied from the screen while CDMW is "
+                                     "the window in front: click CDMW's window, then ask again.")
     screen = frame.screen()
     origin = frame.mapToGlobal(QPoint(0, 0)) - screen.geometry().topLeft()
     pixmap = screen.grabWindow(0, origin.x(), origin.y(), frame.width(), frame.height())
     data, width, height = png_of(pixmap, max_side)
-    return ImageResult(data, {"view": "mesh_editor", "how": "copied from the screen", "width": width,
-                              "height": height, "document": document_label(tab),
-                              "note": "This is what the screen shows where the view is: another window over "
-                                      "CDMW would be in the picture."})
+    return ImageResult(data, {**facts, "how": "copied from the screen", "width": width, "height": height})
 
 
 def _capture(call):
@@ -278,7 +356,7 @@ def _capture(call):
         return "mesh_editor" if shown == "mesh_editor" and tab is not None and not in_browse else "browse"
 
     if context.ui_call(where) == "mesh_editor":
-        return context.ui_call(lambda: _capture_screen(context, max_side))
+        return context.ui_call(lambda: _capture_mesh_editor(context, max_side))
     return _capture_browse(call)
 
 
@@ -329,9 +407,9 @@ def view_tools() -> list[Tool]:
              approval_key=lambda call: "set" if call.arguments.get("values") else "get"),
         Tool(name="view.capture", family="view", title="Picture of the 3D view",
              description="A picture (PNG) of a 3D view: 'browse' is Browse Archives' preview as its renderer "
-                         "draws it; 'mesh_editor' is the shown Mesh Editor document's viewport, copied from "
-                         "the screen (CDMW's window must be visible and uncovered). Without 'view' it is the "
-                         "one that is shown.",
+                         "draws it; 'mesh_editor' is the shown Mesh Editor document's viewport, as its own "
+                         "window draws it ('how' says when it had to be copied from the screen instead, which "
+                         "needs CDMW's window in front). Without 'view' it is the one that is shown.",
              input_schema=object_schema({"view": {"type": "string", "enum": ["", "browse", "mesh_editor"]},
                                          "max_side": {"type": "integer", "minimum": 64, "maximum": 4096,
                                                       "default": 1600}}),

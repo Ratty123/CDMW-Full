@@ -381,7 +381,9 @@ def test_a_button_that_deletes_or_exports_asks_as_that_class(mcp, window, settin
     settings.setValue(approvals.FULL_ACCESS_KEY, False)
     mcp.send("app_ui_act", {"text": "Delete draft", "action": "click"})
     prompt = mcp.wait_for_prompt()
-    assert prompt.request.effect == "destructive" and prompt.request.tool == "app.ui_act:click:Delete draft"
+    # What a session allowance would allow: this button of this window, not every "Delete draft".
+    assert prompt.request.effect == "destructive"
+    assert prompt.request.tool == "app.ui_act:click:Crimson Desert Mod Workbench:Delete draft"
     prompt.deny_button.click()
     assert mcp.read()["structuredContent"]["error"]["code"] == "refused" and window.seen == []
     mcp.send("app_ui_act", {"text": "Export OBJ...", "action": "click",
@@ -424,6 +426,101 @@ def test_no_tool_drives_the_ai_settings_the_approval_prompt_or_the_game_folder(m
     assert error["code"] == "refused" and not prompt.request.decided
     prompt.deny_button.click()
     assert mcp.read()["isError"] and window.seen == []
+
+
+def test_no_tool_types_a_place_in_the_game_into_a_field(mcp, window, settings, tmp_path) -> None:
+    # A field may be where an output goes (Build Mod's folder, an extract folder).
+    game = tmp_path / "Crimson Desert"
+    (game / "meta").mkdir(parents=True)
+    (game / "meta" / "0.papgt").write_bytes(b"\0")
+    settings.setValue(approvals.GAME_FOLDER_KEY, str(game))
+    copy = tmp_path / "backup of the game"
+    (copy / "meta").mkdir(parents=True)
+    (copy / "meta" / "0.papgt").write_bytes(b"\0")
+    window.choice.setEditable(True)
+    field = _controls(mcp)["probe_name"]["widget"]
+    choice = next(row for row in _controls(mcp).values() if row["kind"] == "choice")["widget"]
+    for target in (game, game / "mods" / "mine", copy / "0009", str(game).upper()):
+        for widget in (field, choice):
+            error = mcp.error("app_ui_act", {"widget": widget, "action": "set_text", "value": str(target)})
+            assert error["code"] == "refused" and "does not write into" in error["message"], target
+    assert window.name_edit.text() == "" and window.seen == []
+    outside = str(tmp_path / "mods")
+    mcp.ok("app_ui_act", {"widget": field, "action": "set_text", "value": outside})
+    assert window.name_edit.text() == outside
+
+
+def test_the_controls_that_write_into_the_game_or_set_its_folder_are_the_users(mcp, window, app) -> None:
+    from types import SimpleNamespace
+
+    from cdmw.mcp.ui_tree import widget_id
+
+    pressed: list[str] = []
+    remove = QPushButton("Remove What an Older CDMW Installed...")
+    restore = QPushButton("Restore Backup...")
+
+    class StartupArchivePathDialog(QDialog):  # the first-run dialog's name: it sets the game folder
+        pass
+
+    first_run = StartupArchivePathDialog(window)
+    use = QPushButton("Use this folder", first_run)
+    for button in (remove, restore, use):
+        button.clicked.connect(lambda _checked=False, b=button: pressed.append(b.text()))
+    for button in (remove, restore):
+        window.centralWidget().layout().addWidget(button)
+    window.archive = SimpleNamespace(archive_remove_old_install_button=remove,
+                                     archive_restore_patch_backup_button=restore)
+    first_run.show()
+    app.processEvents()
+    for button in (remove, restore, use):
+        error = mcp.error("app_ui_act", {"widget": widget_id(button), "action": "click"})  # under Full access
+        assert error["code"] == "refused" and "Only you" in error["message"], button.text()
+    assert pressed == []
+    first_run.close()
+
+
+def test_a_question_of_a_flow_that_writes_into_the_game_is_never_answered_for_the_user(mcp, commands,
+                                                                                      monkeypatch) -> None:
+    shown: list[str] = []
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(
+        lambda _parent, title, _text, *_more: shown.append(title) or QMessageBox.StandardButton.No))
+    answers: list[object] = []
+
+    def ask() -> None:
+        # As when the user's own Restore Backup reaches its question while a tool's action runs.
+        answers.append(QMessageBox.question(None, "Restore Backup", "Restore the game's files?"))
+        answers.append(QMessageBox.question(None, "Probe", "Go on?"))
+
+    commands(Command("shell.mcp_question", "Question", "shell", ask))
+    asked = mcp.ok("app_run_command", {"command": "shell.mcp_question", "answers": {"confirm": "yes"}})["asked"]
+    assert shown == ["Restore Backup"], "the real question was shown to the user"
+    assert answers == [QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes]
+    assert [row["title"] for row in asked] == ["Probe"]
+
+
+def test_an_action_that_is_still_working_is_reported_as_running_not_as_a_dialog(mcp, commands, monkeypatch) -> None:
+    from PySide6.QtCore import QEventLoop, QTimer
+
+    from cdmw.mcp import ui_actions
+
+    finished: list[bool] = []
+
+    def work() -> None:
+        loop = QEventLoop()
+        QTimer.singleShot(2500, loop.quit)
+        loop.exec()
+        finished.append(True)
+
+    commands(Command("shell.mcp_slow", "Slow", "shell", work))
+    monkeypatch.setattr(ui_actions, "ACTION_WAIT_S", 0.5)
+
+    def client() -> tuple[dict, list[bool]]:
+        answer = mcp.ok("app_run_command", {"command": "shell.mcp_slow"})
+        return answer, list(finished)  # as it was when the answer came
+
+    result, finished_then = mcp.as_client(client)
+    assert result["running"] is True and "waiting_on" not in result and finished_then == []
+    mcp.wait_until(lambda: finished)
 
 
 # ----- pictures and settings ----------------------------------------------------------------

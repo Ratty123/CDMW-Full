@@ -63,6 +63,34 @@ def game_folder_holding(path: Path) -> Path | None:
     return None
 
 
+def game_path_reason(path: str | os.PathLike[str], *, game_folder: str | os.PathLike[str] | None = None) -> str:
+    """Why ``path`` lies in the game (the configured folder, an installation or a DLC folder), or "".
+
+    For text typed into a field that may name an output: only the game rules, since the
+    field's own handler decides the rest. A text that is not an absolute path is no path.
+    """
+
+    text = str(os.fspath(path) if path is not None else "").strip().strip('"')
+    if not text:
+        return ""
+    try:
+        raw = Path(text)
+        if not raw.is_absolute() or (os.name == "nt" and not raw.drive):
+            return ""
+        target = _resolved(raw)
+    except (OSError, ValueError):
+        return ""
+    configured = str(os.fspath(game_folder) if game_folder is not None else "").strip()
+    if configured and _inside(target, _resolved(Path(configured))):
+        return ("CDMW does not write into the game folder. Choose a folder outside it; "
+                "a mod manager installs the mod.")
+    holder = game_folder_holding(target)
+    if holder is not None:
+        what = "a DLC folder of the game" if is_dlc_folder(holder) else "a game installation"
+        return f"CDMW does not write into {what} ({holder}). Choose a folder outside it; a mod manager installs the mod."
+    return ""
+
+
 def check_output_path(path: str | os.PathLike[str], *, game_folder: str | os.PathLike[str] | None = None,
                       allow_existing: bool = False) -> Path:
     """The resolved path when it may be written to; otherwise raise :class:`OutputPathRefused`."""

@@ -30,9 +30,14 @@ OUTPUT_WORDS = ("build", "export", "save", "extract", "combine", "create", "writ
 DESTRUCTIVE_WORDS = ("delete", "remove", "discard", "clear", "reset", "uninstall", "revert")
 USER_ONLY_MESSAGE = ("Only you can use this control in CDMW: AI connections, their approvals, Full access, the "
                      "game folder and what writes into the game are never driven by a tool.")
-#: ``window.archive`` attributes that set the game folder.
-_GAME_FOLDER_CONTROLS = ("archive_package_root_edit", "archive_package_root_browse_button",
-                         "archive_package_root_detect_button")
+#: ``window.archive`` attributes that set the game folder, and the two buttons that
+#: write into it (remove what an older CDMW installed, restore a backup).
+_USER_ONLY_CONTROLS = ("archive_package_root_edit", "archive_package_root_browse_button",
+                       "archive_package_root_detect_button", "archive_remove_old_install_button",
+                       "archive_restore_patch_backup_button")
+#: Windows whose every control is the user's: the AI settings, the approval question, and
+#: the first-run dialog that sets the game folder.
+_USER_ONLY_WINDOWS = ("AiConnectionsSettingsSection", "ApprovalPrompt", "StartupArchivePathDialog")
 
 _IDS: dict[int, object] = {}
 _NUMBERS: dict[int, int] = {}
@@ -385,6 +390,26 @@ def mirrored_page(window) -> tuple[object, list]:
     return workflow, dialogs
 
 
+def mirrored_gate(widget, window=None) -> str:
+    """Why Create New Item takes no input for ``widget`` now, or "": its own page refuses
+    input while a file or colour chooser is open, and outside its newest dialog."""
+
+    from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+    workflow, dialogs = mirrored_page(window)
+    if workflow is None or not any(root is widget or root.isAncestorOf(widget) for root in (*dialogs, workflow)):
+        return ""
+    tab = created_tool_widget(getattr(getattr(window, "shell", None), "new_item_studio_tab", None))
+    try:
+        if getattr(tab, "_dialogs").native_modal():
+            return "Complete the file or colour dialog before editing the item."
+    except (AttributeError, RuntimeError, TypeError):
+        pass
+    if dialogs and not (dialogs[-1] is widget or dialogs[-1].isAncestorOf(widget)):
+        return "Complete the active dialog before editing the item."
+    return ""
+
+
 def shown_to_user(widget, window=None) -> bool:
     """Whether the user can see and use ``widget``: on screen, or on a page a helper draws."""
 
@@ -408,11 +433,11 @@ def user_only_reason(widget, window=None) -> str:
 
     parent = widget
     while parent is not None:
-        if type(parent).__name__ in ("AiConnectionsSettingsSection", "ApprovalPrompt"):
+        if any(base.__name__ in _USER_ONLY_WINDOWS for base in type(parent).__mro__):
             return USER_ONLY_MESSAGE
         parent = parent.parentWidget()
     archive = getattr(window, "archive", None)
-    if archive is not None and any(getattr(archive, name, None) is widget for name in _GAME_FOLDER_CONTROLS):
+    if archive is not None and any(getattr(archive, name, None) is widget for name in _USER_ONLY_CONTROLS):
         return USER_ONLY_MESSAGE
     if isinstance(widget, QAbstractButton):
         registry = command_registry()
@@ -444,8 +469,13 @@ def effect_of_action(widget, action: str) -> str:
 
 
 # ----- acting ----------------------------------------------------------------------------------
-def act(widget, action: str, *, value: object = None, row: object = None, window=None) -> dict[str, object]:
-    """Do ``action`` to ``widget`` as the user would; the control as it is afterwards."""
+def act(widget, action: str, *, value: object = None, row: object = None, window=None,
+        game_folder: str = "") -> dict[str, object]:
+    """Do ``action`` to ``widget`` as the user would; the control as it is afterwards.
+
+    Text that names a place in the game is never typed: a field may be where an output
+    goes (Build Mod's folder, an extract folder), and no tool writes into the game.
+    """
 
     from PySide6.QtCore import QItemSelectionModel
     from PySide6.QtWidgets import (QAbstractButton, QAbstractItemView, QAbstractSlider, QComboBox, QDoubleSpinBox,
@@ -460,6 +490,10 @@ def act(widget, action: str, *, value: object = None, row: object = None, window
     if action != "focus" and (not widget.isEnabled() or not shown):
         why = _clean(widget.toolTip()) or ("It is disabled now." if shown else "It is not shown now.")
         raise ToolError(UNAVAILABLE, why)
+
+    gate = mirrored_gate(widget, window) if action != "focus" else ""
+    if gate:
+        raise ToolError(UNAVAILABLE, gate)
 
     def wrong() -> ToolError:
         return ToolError(INVALID_ARGUMENTS, f"{action} does not apply to a {kind_of(widget) or 'widget'}.")
@@ -480,7 +514,12 @@ def act(widget, action: str, *, value: object = None, row: object = None, window
         else:
             raise wrong()
     elif action == "set_text":
+        from cdmw.domain.output_paths import game_path_reason
+
         text = "" if value is None else str(value)
+        in_game = game_path_reason(text, game_folder=game_folder)
+        if in_game:
+            raise ToolError(REFUSED, in_game)
         if isinstance(widget, QComboBox) and widget.isEditable():
             widget = widget.lineEdit()
         if isinstance(widget, QLineEdit):
@@ -548,4 +587,4 @@ def act(widget, action: str, *, value: object = None, row: object = None, window
 
 
 __all__ = ["ACTIONS", "act", "describe", "describe_tree", "effect_of_action", "find_by_text", "kind_of",
-           "mirrored_page", "shown_to_user", "user_only_reason", "widget_by_id", "widget_id"]
+           "mirrored_gate", "mirrored_page", "shown_to_user", "user_only_reason", "widget_by_id", "widget_id"]

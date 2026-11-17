@@ -205,7 +205,7 @@ def _run_command(call) -> dict[str, object]:
         context.command_registry().run(command_id)
 
     outcome = run_action(context, run, call.arguments.get("answers"))
-    if "waiting_on" in outcome:
+    if "result" not in outcome:
         return {"ran": True, "command": command_id, **outcome}
     return {"ran": True, "command": command_id, "asked": outcome["asked"]}
 
@@ -253,14 +253,24 @@ def _ui(call) -> dict[str, object]:
 
 
 def _target(call):
-    from cdmw.mcp.ui_tree import find_by_text, widget_by_id
+    """The control a call names. Found once: the control that was approved is the one used,
+    whatever else has that text by the time the user has answered."""
 
+    from cdmw.mcp.ui_tree import find_by_text, widget_by_id, widget_id
+
+    pinned = getattr(call, "pinned_widget", "")
+    if pinned:
+        return widget_by_id(pinned)
     a = call.arguments
     if a.get("widget"):
-        return widget_by_id(str(a["widget"]))
-    if a.get("text"):
-        return find_by_text(_root(call, "inside"), str(a["text"]), str(a.get("kind") or ""))
-    raise ToolError(INVALID_ARGUMENTS, "Name the control: widget (its id from app_ui) or text (what it says).")
+        widget = widget_by_id(str(a["widget"]))
+    elif a.get("text"):
+        widget = find_by_text(_root(call, "inside"), str(a["text"]), str(a.get("kind") or ""))
+    else:
+        raise ToolError(INVALID_ARGUMENTS, "Name the control: widget (its id from app_ui) or text (what it "
+                                           "says).")
+    call.pinned_widget = widget_id(widget)
+    return widget
 
 
 def _ui_act_effect(call) -> str:
@@ -276,8 +286,11 @@ def _ui_act_effect(call) -> str:
 def _ui_act_key(call) -> str:
     from cdmw.mcp.ui_tree import describe
 
-    row = describe(_target(call), rows=False)
-    return f"{call.arguments['action']}:{row.get('text') or row.get('name') or row['widget']}"
+    widget = _target(call)
+    row = describe(widget, rows=False)
+    # One control of one window: allowing "OK" in a dialog does not allow every OK button.
+    title = widget.window().windowTitle().split(" [AI connections on")[0]
+    return f"{call.arguments['action']}:{title}:{row.get('text') or row.get('name') or row['widget']}"
 
 
 def _ui_act(call) -> dict[str, object]:
@@ -289,10 +302,10 @@ def _ui_act(call) -> dict[str, object]:
 
     def run() -> dict[str, object]:
         return act(_target(call), str(a["action"]), value=a.get("value"), row=a.get("row"),
-                   window=getattr(context, "window", None))
+                   window=getattr(context, "window", None), game_folder=context.game_folder())
 
     outcome = run_action(context, run, a.get("answers"))
-    if "waiting_on" in outcome:
+    if "result" not in outcome:
         return {"done": True, **outcome}
     return {"done": True, "control": outcome["result"], "asked": outcome["asked"]}
 

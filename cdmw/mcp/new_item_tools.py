@@ -95,7 +95,7 @@ def _search(call) -> dict[str, object]:
         from cdmw.mcp.ui_tree import act
 
         act(workflow.template_panel.filter_edit, "set_text", value=str(call.arguments.get("text") or ""),
-            window=getattr(context, "window", None))
+            window=getattr(context, "window", None), game_folder=context.game_folder())
         matches = workflow.template_panel.matches
         return {"search": workflow.template_panel.filter_edit.text(),
                 "template_count": int(matches.topLevelItemCount()),
