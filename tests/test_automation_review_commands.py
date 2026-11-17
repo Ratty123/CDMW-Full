@@ -458,6 +458,12 @@ def test_new_item_state_says_where_the_preview_viewport_is_and_what_it_last_said
         assert [entry[1:] for entry in controller["states"]] == [["inactive", "Preview paused while hidden."]]
         tab._portals._attached = {"viewport": (host, workflow, None, 0)}
         assert review_commands.new_item_state(window, {})["preview_host"]["portal_attached"]
+        assert review_commands.new_item_state(window, {"measure_publish": True})["publish"] == {"bridge": False}
+        tab._bridge = SimpleNamespace(snapshot=lambda: {"generation": 4, "root": {"kind": "column"}, "assets": {"a": 1}})
+        tab._sent_generation = 4
+        cost = review_commands.new_item_state(window, {"measure_publish": True})["publish"]
+        assert cost["bridge"] and cost["assets"] == 1 and cost["json_bytes"] > 0 and cost["sent_generation"] == 4
+        assert not cost["same_as_last_sent"]
     finally:
         workflow.deleteLater()
         page.deleteLater()

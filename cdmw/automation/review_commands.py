@@ -780,7 +780,7 @@ def _new_item(window):
     return tab, workflow
 
 
-def new_item_state(window, _args: dict) -> dict[str, object]:
+def new_item_state(window, args: dict) -> dict[str, object]:
     tab, workflow = _new_item(window)
     if workflow is None:
         return {"created": tab is not None}
@@ -808,7 +808,29 @@ def new_item_state(window, _args: dict) -> dict[str, object]:
         },
         "preview_statuses": list((_PREVIEW_STATUS.get(id(preview)) or [])[-12:]),
         "preview_host": None if preview is None else _preview_host_state(tab, preview),
+        **({"publish": _publish_cost(tab)} if args.get("measure_publish") else {}),
     }
+
+
+def _publish_cost(tab) -> dict[str, object]:
+    """What one of the Rust page's 100 ms publish ticks builds: the page snapshot, its
+    theme, the JSON and its hash (as ``_publish_state`` does, without sending it)."""
+
+    bridge = getattr(tab, "_bridge", None)
+    if bridge is None:
+        return {"bridge": False}
+    from cdmw.ui.new_item.rust_ui_document import theme_snapshot
+
+    started = time.perf_counter()
+    state = bridge.snapshot()
+    state["theme"] = theme_snapshot(tab)
+    stable = {key: value for key, value in state.items() if key != "generation"}
+    encoded = json.dumps(stable, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    fingerprint = hashlib.blake2s(encoded).digest()
+    return {"bridge": True, "ms": round((time.perf_counter() - started) * 1000, 2), "json_bytes": len(encoded),
+            "assets": len(state.get("assets") or {}),
+            "same_as_last_sent": fingerprint == getattr(tab, "_state_fingerprint", b""),
+            "sent_generation": int(getattr(tab, "_sent_generation", 0) or 0)}
 
 
 def new_item_search(window, args: dict) -> dict[str, object]:
