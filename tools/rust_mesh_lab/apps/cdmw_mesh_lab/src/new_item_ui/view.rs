@@ -1534,10 +1534,13 @@ impl PresentationView {
     /// A custom-painted Qt surface: its drawing fills the slot at its own proportions,
     /// and its labels (a hint such as "Choose a frame") sit centred over it.
     fn picture(&mut self, ui: &mut Ui, node: &Node) -> egui::Response {
-        let size = Vec2::new(
-            ui.available_width().max(80.0),
-            bounded_height(ui).max(node.number("min_height", 120.0).clamp(80.0, 400.0) as f32),
-        );
+        // One that grows in Qt fills its slot; one that does not keeps its Qt height.
+        let height = if node.flag("grow_y") {
+            bounded_height(ui).max(picture_height(node))
+        } else {
+            picture_height(node)
+        };
+        let size = Vec2::new(ui.available_width().max(80.0), height);
         let (rect, response) = ui.allocate_exact_size(size, egui::Sense::hover());
         if let Some(texture) = self.textures.get(node.text("image")) {
             let source = Vec2::new(
@@ -1949,7 +1952,7 @@ impl PresentationView {
         let height = if fill_height {
             height
         } else {
-            height.min(rows * (row_height(ui, node) + ui.spacing().item_spacing.y) + header_space)
+            height.min(rows_height(ui, node, &columns, &widths, rows) + rows * ui.spacing().item_spacing.y + header_space)
         };
         let mut at_end = false;
         let response = egui::ScrollArea::horizontal().id_salt("table-columns").auto_shrink([false,!fill_height])
@@ -2068,16 +2071,18 @@ impl PresentationView {
     ) {
         if let Some(rows) = props["rows"].as_array() {
             for row in rows {
+                let height = row_height(ui, node).max(wrapped_row_height(ui, node, row, columns, widths));
+                let tall = height > control_height(ui);
                 ui.push_id(row["path"].to_string(), |ui| {
                     ui.horizontal(|ui| {
                         if node.flag("row_headers") {
-                            ui.add_sized(Vec2::new(row_header_width, row_height(ui, node)), egui::Label::new(row["label"].as_str().unwrap_or("")).truncate());
+                            ui.add_sized(Vec2::new(row_header_width, height), egui::Label::new(row["label"].as_str().unwrap_or("")).truncate());
                         }
                         for (column, width) in columns.iter().zip(widths) {
                             let col = column["index"].as_u64().unwrap_or(0) as usize;
                             let cell = &row["cells"][col];
                             ui.push_id(col, |ui| {
-                                ui.allocate_ui_with_layout(Vec2::new(*width, row_height(ui, node)), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                ui.allocate_ui_with_layout(Vec2::new(*width, height), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                     // Empty/check-only cells still occupy their column.
                                     // Otherwise the next editor slides left on those rows.
                                     ui.set_min_width(*width);
@@ -2128,10 +2133,10 @@ impl PresentationView {
                                             let mut button = if let Some((size, texture)) = icon {
                                                 // left_text prepends each atom in turn: the icon is
                                                 // listed last so it is drawn first, as Qt places it.
-                                                // Icon rows are tall, so their text wraps (Qt does too).
+                                                // A row taller than one line wraps its text, as Qt does.
                                                 egui::Button::selectable(cell["selected"] == true, "")
                                                     .left_text((text, egui::AtomExt::atom_size(egui::Image::new(texture), size)))
-                                                    .wrap()
+                                                    .wrap_mode(if tall { egui::TextWrapMode::Wrap } else { egui::TextWrapMode::Truncate })
                                             } else {
                                                 egui::Button::selectable(cell["selected"] == true, "").left_text(text).truncate()
                                             };
@@ -2140,7 +2145,7 @@ impl PresentationView {
                                                 && let Ok(color) = Color32::from_hex(cell["background"].as_str().unwrap_or("")) {
                                                 button = button.fill(color).frame(true).frame_when_inactive(true).stroke(egui::Stroke::NONE);
                                             }
-                                            let response = ui.add_enabled_ui(cell["enabled"] != false,|ui|ui.add_sized(Vec2::new(text_width,row_height(ui, node)),button)).inner;
+                                            let response = ui.add_enabled_ui(cell["enabled"] != false,|ui|ui.add_sized(Vec2::new(text_width,height),button)).inner;
                                             if response.clicked() || response.double_clicked() {
                                                 response.request_focus();
                                                 self.table_focus.insert(node.id.clone(),response.id);
@@ -2235,6 +2240,58 @@ fn control_height(ui: &Ui) -> f32 {
         .ceil()
 }
 
+/// A custom-painted picture's own height: its Qt minimum when it grows, else its Qt height.
+fn picture_height(node: &Node) -> f32 {
+    let natural = node.array("natural").get(1).and_then(Value::as_f64);
+    let height = if node.flag("grow_y") {
+        node.number("min_height", 120.0)
+    } else {
+        natural.unwrap_or_else(|| node.number("min_height", 120.0))
+    };
+    height.clamp(16.0, if node.flag("grow_y") { 400.0 } else { 2048.0 }) as f32
+}
+
+/// The height of a table's first count rows: the loaded rows as they are drawn, the rest
+/// at the table's row height.
+fn rows_height(ui: &Ui, node: &Node, columns: &[&Value], widths: &[f32], count: f32) -> f32 {
+    let base = row_height(ui, node);
+    let loaded: Vec<f32> = node
+        .array("rows")
+        .iter()
+        .take(count.max(0.0) as usize)
+        .map(|row| base.max(wrapped_row_height(ui, node, row, columns, widths)))
+        .collect();
+    loaded.iter().sum::<f32>() + (count - loaded.len() as f32).max(0.0) * base
+}
+
+/// How tall a row of tall icon rows must be for its wrapped text; nothing for one-line rows.
+fn wrapped_row_height(ui: &Ui, node: &Node, row: &Value, columns: &[&Value], widths: &[f32]) -> f32 {
+    let Some(icon) = node.icon_size() else {
+        return 0.0;
+    };
+    if row_height(ui, node) <= control_height(ui) {
+        return 0.0;
+    }
+    let padding = ui.spacing().button_padding;
+    columns
+        .iter()
+        .zip(widths)
+        .map(|(column, width)| {
+            let cell = &row["cells"][column["index"].as_u64().unwrap_or(0) as usize];
+            let text = cell["text"].as_str().unwrap_or("");
+            if text.is_empty() {
+                return 0.0;
+            }
+            let room = width - 2.0 * padding.x - if cell["image"].is_string() { icon.x + ui.spacing().icon_spacing } else { 0.0 };
+            ui.painter()
+                .layout(text.to_owned(), TextStyle::Button.resolve(ui.style()), ui.visuals().text_color(), room.max(8.0))
+                .size()
+                .y
+                + 2.0 * padding.y
+        })
+        .fold(0.0, f32::max)
+}
+
 /// A table row's height: tall enough for the view's item icons when it shows them, as
 /// Qt sizes such a row, and never less than one control.
 fn row_height(ui: &Ui, node: &Node) -> f32 {
@@ -2245,7 +2302,8 @@ fn row_height(ui: &Ui, node: &Node) -> f32 {
 fn layout_flexible(node: &Node) -> bool {
     match node.kind.as_str() {
         "table" => node.stretch > 0 || node.number("total", 0.0) > 8.0,
-        "viewport" | "scroll" | "image_crop" | "picture" => true,
+        "viewport" | "scroll" | "image_crop" => true,
+        "picture" => node.flag("grow_y"),
         "text" => node.flag("multiline"),
         _ => node.children.iter().any(layout_flexible),
     }
@@ -2442,7 +2500,7 @@ fn estimate_height(ui: &Ui, node: &Node, width: f32) -> f32 {
                 }
         }
         "viewport" => 260.0,
-        "picture" => node.number("min_height", 120.0).clamp(80.0, 400.0) as f32,
+        "picture" => picture_height(node),
         "row" => {
             let mut used = 0.0;
             let mut height = 0.0;

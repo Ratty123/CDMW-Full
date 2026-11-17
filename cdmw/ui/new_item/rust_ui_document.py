@@ -11,7 +11,7 @@ import re
 import weakref
 from collections import OrderedDict
 
-from PySide6.QtCore import QBuffer, QIODevice, QPoint, Qt
+from PySide6.QtCore import QBuffer, QIODevice, QPoint, QRect, QRectF, Qt
 from PySide6.QtGui import QAction, QIcon, QImage, QIntValidator, QPainter, QPalette, QPixmap, QRegion, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractButton, QAbstractItemView, QApplication, QBoxLayout, QCheckBox, QComboBox,
@@ -117,6 +117,8 @@ def theme_snapshot(widget):
 #: 8 MB of hex, and the whole state is serialised on every update).
 PICTURE_MAX_SIDE = 900
 PICTURE_MAX_BYTES = 1_000_000
+#: ...and drawn at most this many times its size in Qt, however small it is there.
+PICTURE_MAX_ZOOM = 4.0
 #: Encoded images kept between snapshots, least recently used first out.
 IMAGE_CACHE_ENTRIES = 512
 
@@ -172,6 +174,20 @@ def _icon_cell(icon, size, ratio):
     finally:
         painter.end()
     return QPixmap.fromImage(cell)
+
+
+def _drawn_bounds(image):
+    """The smallest rectangle holding every pixel of `image` that is not fully transparent."""
+
+    alpha = image.convertToFormat(QImage.Format.Format_Alpha8)
+    data, stride, width = bytes(alpha.constBits()), alpha.bytesPerLine(), alpha.width()
+    rows = [(y, data[y * stride:y * stride + width]) for y in range(alpha.height())]
+    drawn = [(y, row) for y, row in rows if row.count(0) != width]
+    if not drawn:
+        return QRect()
+    left = min(width - len(row.lstrip(b"\0")) for _, row in drawn)
+    right = max(len(row.rstrip(b"\0")) for _, row in drawn)
+    return QRect(left, drawn[0][0], right - left, drawn[-1][0] - drawn[0][0] + 1)
 
 
 def _png(image):
@@ -288,7 +304,10 @@ class PresentationDocument:
         return self._cached_image(key, make)
 
     def picture(self, widget):
-        """A custom-painted widget's own drawing (its children are described apart).
+        """A custom-painted widget's own drawing (its children are described apart), cut to
+        what it draws: the asset id, or None when it draws nothing, and that part's size in
+        logical pixels. The page fits it into the room it has, which is seldom the hidden Qt
+        widget's shape, so empty margins would only make the drawing smaller.
 
         It is drawn again only when its change key differs: its size, scale, palette and,
         when it has one, its `presentation_revision()`. A widget without that hook is drawn
@@ -296,42 +315,58 @@ class PresentationDocument:
 
         size = widget.size()
         if size.width() <= 0 or size.height() <= 0:
-            return None
+            return None, (0, 0)
         revision_of = getattr(widget, "presentation_revision", None)
         revision = revision_of() if callable(revision_of) else None
         ratio = max(1.0, float(widget.devicePixelRatioF()))
         key = (revision, size.width(), size.height(), ratio, widget.palette().cacheKey())
         cached = self._pictures.get(widget)
         if cached is not None and revision is not None and cached[0] == key:
-            self.assets[cached[2]] = cached[3]
-            return cached[2]
-        scale = min(ratio, PICTURE_MAX_SIDE / max(size.width(), size.height()))
-        image = self._render(widget, scale)
-        digest = hashlib.blake2b(bytes(image.constBits()), digest_size=16).digest()
+            return self._reuse_picture(widget, key, cached)
+        whole = QRectF(widget.rect())
+        probe_scale = min(1.0, PICTURE_MAX_SIDE / max(size.width(), size.height()))
+        probe = self._render(widget, whole, probe_scale)
+        digest = hashlib.blake2b(bytes(probe.constBits()), digest_size=16).digest()
         if cached is not None and cached[1] == digest:
-            self._pictures[widget] = (key, digest, cached[2], cached[3])
-            self.assets[cached[2]] = cached[3]
-            return cached[2]
+            return self._reuse_picture(widget, key, cached)
+        bounds = _drawn_bounds(probe)
+        if bounds.isEmpty():
+            self._pictures[widget] = (key, digest, None, None, (0, 0))
+            return None, (0, 0)
+        crop = QRectF(bounds.x() / probe_scale, bounds.y() / probe_scale, bounds.width() / probe_scale,
+                      bounds.height() / probe_scale).adjusted(-1, -1, 1, 1).intersected(whole)
+        # As sharp as the cap allows, so a page larger than the hidden widget stays crisp.
+        scale = min(PICTURE_MAX_SIDE / max(crop.width(), crop.height()), max(ratio, PICTURE_MAX_ZOOM))
+        image = self._render(widget, crop, scale)
         data = _png(image)
-        while len(data) > PICTURE_MAX_BYTES and scale > 0.2:
+        while len(data) > PICTURE_MAX_BYTES and max(image.width(), image.height()) > 64:
             scale *= 0.7
-            image = self._render(widget, scale)
+            image = self._render(widget, crop, scale)
             data = _png(image)
         identifier = hashlib.sha256(data).hexdigest()
         asset = {"png_hex": data.hex(), "width": image.width(), "height": image.height()}
-        self._pictures[widget] = (key, digest, identifier, asset)
+        shown = (round(crop.width()), round(crop.height()))
+        self._pictures[widget] = (key, digest, identifier, asset, shown)
         self.assets[identifier] = asset
-        return identifier
+        return identifier, shown
+
+    def _reuse_picture(self, widget, key, cached):
+        self._pictures[widget] = (key, *cached[1:])
+        if cached[2] is not None:
+            self.assets[cached[2]] = cached[3]
+        return cached[2], cached[4]
 
     @staticmethod
-    def _render(widget, scale):
-        size = widget.size()
-        image = QImage(max(1, round(size.width() * scale)), max(1, round(size.height() * scale)),
+    def _render(widget, source, scale):
+        """`source` (a part of the widget, in logical pixels) drawn at `scale`."""
+
+        image = QImage(max(1, round(source.width() * scale)), max(1, round(source.height() * scale)),
                        QImage.Format.Format_ARGB32_Premultiplied)
         image.fill(Qt.GlobalColor.transparent)
         painter = QPainter(image)
         try:
-            painter.scale(image.width() / size.width(), image.height() / size.height())
+            painter.scale(image.width() / source.width(), image.height() / source.height())
+            painter.translate(-source.topLeft())
             # Only the widget's own paintEvent: its labels are described as children.
             widget.render(painter, QPoint(), QRegion(), QWidget.RenderFlag(0))
         finally:
@@ -507,7 +542,11 @@ class PresentationDocument:
             # labels, and New painting's Front view showed no frame (2026-11-17).
             node["kind"] = "picture"
             minimum = widget.minimumSize()
-            props.update(image=self.picture(widget), width=widget.width(), height=widget.height(),
+            image, (width, height) = self.picture(widget)
+            # width/height: the drawn part the image shows; natural: the widget's own size,
+            # the height a picture that does not grow keeps (grow_y follows its size policy).
+            props.update(image=image, width=width, height=height,
+                         natural=[min(widget.width(), 4096), min(widget.height(), 4096)],
                          min_width=min(minimum.width(), 4096), min_height=min(minimum.height(), 4096))
             layout = widget.layout()
             if layout is not None:

@@ -3382,7 +3382,7 @@ fn custom_painted_pictures_fill_their_slot_and_keep_their_hint_over_them() {
         "front",
         "picture",
         "",
-        json!({"image":"front-image","width":300,"height":400,"min_width":280,"min_height":220}),
+        json!({"image":"front-image","width":300,"height":400,"natural":[640,520],"min_width":280,"min_height":220,"grow_y":true}),
     );
     picture.children.push(layout);
     picture.stretch = 1;
@@ -3428,15 +3428,45 @@ fn custom_painted_pictures_fill_their_slot_and_keep_their_hint_over_them() {
 }
 
 #[test]
-fn icon_rows_are_as_tall_as_their_icons() {
-    // New painting's frame list: 72 px thumbnails beside two lines of sizes.
+fn a_picture_that_does_not_grow_keeps_its_qt_height() {
+    let context = egui::Context::default();
+    let mut root = control("page", "column", "", json!({}));
+    root.children = vec![
+        control(
+            "badge",
+            "picture",
+            "",
+            json!({"image":"badge-image","width":40,"height":40,"natural":[60,48],"min_height":20,"grow_y":false}),
+        ),
+        control("after", "button", "Next", json!({})),
+    ];
+    let state = state(root);
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, egui::vec2(640.0, 480.0), vec![]);
+    }
+    assert!(view.errors.is_empty(), "{:?}", view.errors);
+    let badge = view.rects.iter().find(|rect| rect.id == "badge").unwrap();
+    assert_eq!(badge.rect[3], 48.0, "{badge:?}");
+}
+
+#[test]
+fn icon_rows_are_as_tall_as_their_icons_and_their_wrapped_text() {
+    // New painting's frame list: 72 px thumbnails beside two lines of sizes. Rows with
+    // small icons stay one line, as before.
     let mut heights = Vec::new();
-    for icons in [false, true] {
+    for (icon, font, window) in [
+        (None, 14.0, 480.0),
+        (Some(20), 14.0, 480.0),
+        (Some(72), 14.0, 480.0),
+        (Some(72), 22.0, 250.0),
+    ] {
         let context = egui::Context::default();
         let mut props = json!({"total":3,
             "columns":[{"index":0,"text":"","width":200,"stretch":true}]});
-        if icons {
-            props["icon_size"] = json!([72, 72]);
+        if let Some(icon) = icon {
+            props["icon_size"] = json!([icon, icon]);
         }
         let mut table = control("frames", "table", "", props);
         table.props["rows"] = json!(
@@ -3448,7 +3478,8 @@ fn icon_rows_are_as_tall_as_their_icons() {
         );
         let mut root = control("page", "column", "", json!({}));
         root.children = vec![table, control("after", "button", "Add", json!({}))];
-        let state = state(root);
+        let mut state = state(root);
+        state.theme["font_pixels"] = json!(font);
         apply_theme(&context, &state.theme);
         let mut view = PresentationView::default();
         view.textures.insert(
@@ -3460,7 +3491,7 @@ fn icon_rows_are_as_tall_as_their_icons() {
             ),
         );
         for _ in 0..4 {
-            frame(&context, &mut view, &state, egui::vec2(480.0, 720.0), vec![]);
+            frame(&context, &mut view, &state, egui::vec2(window, 900.0), vec![]);
         }
         assert!(view.errors.is_empty(), "{:?}", view.errors);
         let table = view.rects.iter().find(|rect| rect.id == "frames").unwrap();
@@ -3469,5 +3500,10 @@ fn icon_rows_are_as_tall_as_their_icons() {
         heights.push(table.rect[3]);
     }
     assert!(heights[0] < 3.0 * 76.0, "rows without icons stay one control tall: {heights:?}");
-    assert!(heights[1] >= 3.0 * 76.0, "icon rows fit their 72 px icons: {heights:?}");
+    assert_eq!(heights[1], heights[0], "rows with small icons stay one control tall: {heights:?}");
+    assert!(heights[2] >= 3.0 * 76.0, "icon rows fit their 72 px icons: {heights:?}");
+    assert!(
+        heights[3] > heights[2] + 3.0 * 8.0,
+        "a narrow list with a large font grows its rows to the wrapped text: {heights:?}"
+    );
 }

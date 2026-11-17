@@ -107,17 +107,20 @@ def test_the_front_view_is_presented_as_its_drawing_of_the_frame(presented):
     state, window = snapshot()
     front = _find(window, "new_item_painting_preview")
     assert front["kind"] == "picture"
-    assert front["props"]["min_height"] == 220 and front["props"]["width"] == dialog.preview.width()
-    image = _image(state, front["props"]["image"])
-    scale = image.width() / dialog.preview.width()
-    middle = dialog.preview.canvas_rect().center()
-    canvas = image.pixelColor(int(middle.x() * scale), int(middle.y() * scale))
-    assert (canvas.red(), canvas.green(), canvas.blue()) == (222, 214, 198)  # the empty canvas
+    assert front["props"]["min_height"] == 220 and front["props"]["grow_y"] is True
+    assert front["props"]["natural"] == [dialog.preview.width(), dialog.preview.height()]
+    # Cut to what is drawn, the frame and its shadow: the page fits it into a slot of its
+    # own shape, and the hidden widget's empty margins would only make the frame smaller.
     frame = dialog.preview.frame_rect()
-    edge = image.pixelColor(int((frame.left() + 2) * scale), int(frame.center().y() * scale))
+    assert frame.width() <= front["props"]["width"] <= frame.width() + 12
+    assert frame.height() <= front["props"]["height"] <= frame.height() + 16
+    image = _image(state, front["props"]["image"])
+    assert max(image.width(), image.height()) == 900  # as sharp as the cap allows
+    canvas = image.pixelColor(image.width() // 2, image.height() // 2)
+    assert (canvas.red(), canvas.green(), canvas.blue()) == (222, 214, 198)  # the empty canvas
+    edge = image.pixelColor(int(image.width() * 0.05), image.height() // 2)
     assert edge.alpha() == 255 and edge != canvas  # the frame round it
-    corner = image.pixelColor(1, 1)
-    assert corner.alpha() == 0  # the page's own background shows round the frame
+    assert image.pixelColor(image.width() - 1, 0).alpha() == 0  # the shadow falls down and right
 
     picture = QImage(40, 60, QImage.Format.Format_ARGB32)
     picture.fill(QColor(200, 30, 40))
@@ -125,7 +128,8 @@ def test_the_front_view_is_presented_as_its_drawing_of_the_frame(presented):
     state, window = snapshot()
     shown = _find(window, "new_item_painting_preview")
     assert shown["props"]["image"] != front["props"]["image"]
-    pixel = _image(state, shown["props"]["image"]).pixelColor(int(middle.x() * scale), int(middle.y() * scale))
+    shown_image = _image(state, shown["props"]["image"])
+    pixel = shown_image.pixelColor(shown_image.width() // 2, shown_image.height() // 2)
     assert (pixel.red(), pixel.green(), pixel.blue()) == (200, 30, 40)
 
 
@@ -135,9 +139,9 @@ def test_an_unchanged_front_view_is_not_drawn_again(presented, monkeypatch):
     paints = []
     original = PresentationDocument._render
 
-    def counted(widget, scale):
+    def counted(widget, source, scale):
         paints.append(widget)
-        return original(widget, scale)
+        return original(widget, source, scale)
 
     monkeypatch.setattr(PresentationDocument, "_render", staticmethod(counted))
     first, window = snapshot()
