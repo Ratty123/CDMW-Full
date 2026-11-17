@@ -1117,10 +1117,24 @@ binds a generated 4x4 B8G8R8A8 texture as `_detailMaterialMaskR` (layer R has no
 mask), sets `_colorBlendingFlag` bit 2 and `_dyeingGlobalOpacity` byte 0 to 255
 (`cdmw/core/pac_xml_surface_layer.py`). The value is uniform because layer UVs are
 always rotated by at least 0.7 degrees. Both at 0% leaves the output unchanged.
+
+The older SkinnedMeshStandard-technique shaders that most creatures use
+(`SkinnedMeshStandard`, `Cloth`, `Emissive`, `Fur`, `BlendHeight` and
+`StaticBlendHeight`, `MATERIAL_TEXTURE_SURFACE_SHADERS`) read roughness (G) and
+metalness (B) from `_materialTexture`, with the layers mixed over it. Imported
+materials drop that texture too, and its declared default is
+`NoneTexture0x00000000`, so these also land at roughness 0. For their wrappers
+Apply writes a uniform `_materialTexture` (`ItemID="6"`, red 255 as in the game's
+`_sp` textures) instead of layer R; one import can use both paths, and a texture
+no wrapper names is pruned.
+
 `pending.materials.surface` carries the starting values (`roughness`, `metallic`,
 from OBJ `map_Pr`/`map_Pm`/`Pr`/`Pm` or glTF metallic-roughness maps, else null)
-and `reason`, which disables the sliders for wrappers outside the traced shader
-families (`SURFACE_LAYER_SHADERS`). `replacement_apply` takes `roughness` and
+and `reason`, which disables the sliders when any target wrapper is outside the
+traced shader families (`SURFACE_SHADERS`); eyes, hair, skin,
+`SkinnedMeshAnisotropy` and `SkinnedMeshAmplifiedGlare` (whose shipped wrappers
+never declare `_materialTexture`) stay refused, so an import that also covers a
+creature's eye keeps the sliders off. `replacement_apply` takes `roughness` and
 `metallic` in 0..1. In-game appearance is not yet verified.
 
 Imported materials follow the selected part's exact sidecar binding, even when its

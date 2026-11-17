@@ -28,7 +28,8 @@ PAC_XML_PROFILE_INDEX_V1_CACHE_NAME = "pac_xml_profile_index_v1.json"
 PAC_XML_PROFILE_INDEX_V2_CACHE_NAME = "pac_xml_profile_index_v2.sqlite"
 PAC_XML_PROFILE_INDEX_CACHE_NAME = PAC_XML_PROFILE_INDEX_V2_CACHE_NAME
 PAC_XML_PROFILE_INDEX_SCHEMA = "cdmw_pac_xml_profile_index_v1_paths"
-PAC_XML_PROFILE_INDEX_SQLITE_SCHEMA = "cdmw_pac_xml_profile_index_v2_sqlite_compact"
+# Bump when classification changes, so cached families and shader families are rebuilt.
+PAC_XML_PROFILE_INDEX_SQLITE_SCHEMA = "cdmw_pac_xml_profile_index_v2_sqlite_compact_r2"
 
 
 def default_pac_xml_corpus_root() -> Path:
@@ -618,7 +619,8 @@ def classify_pac_xml_shader_family(shader_name: str) -> str:
         return "Standard"
     if "skinwrinkle" in compact:
         return "SkinWrinkle"
-    if "skin" in compact and "skinnedmesh" not in compact.replace("skinnedmesh", "", 1):
+    # Every shader name starts with "SkinnedMesh"; only a "skin" after it marks a skin shader.
+    if "skin" in compact.removeprefix("skinnedmesh"):
         return "Skin"
     return shader or "Unknown"
 
@@ -737,19 +739,29 @@ def classify_pac_xml_profile(path: str | Path, xml_text: str | None = None) -> P
         confidence = 0.95
         evidence.append("armor path")
         slot = _armor_slot_from_path(key)
-    elif any(token in key for token in ("/monster/", "/mon/", "/npcmonster/", "/boss/", "/creature/")):
+    # The game files creatures under character/model(property)/2_mon/ and mounts and
+    # vehicles under 4_riding/; the other tokens cover loose and renamed layouts.
+    elif any(token in key for token in ("/2_mon/", "/monster/", "/mon/", "/npcmonster/", "/boss/", "/creature/")):
         family = "monster"
         confidence = 0.9
         evidence.append("monster path")
-        if any(token in key for token in ("machine", "mechanic", "mecha", "golem", "construct", "vehicle")):
+        if any(token in key for token in (
+            "machine", "mechanic", "mecha", "golem", "construct", "vehicle", "robot", "tank", "drone", "droid",
+            "tower", "cannon",
+        )):
             slot = "mechanical"
         else:
             slot = "organic"
-    elif any(token in key for token in ("/riding/", "/mount/", "/vehicle/", "/wagon/", "/horse/", "/camel/")):
+    # 4_riding/cd_r0013_00_object holds loose objects (a barrel, a table), not mounts.
+    elif "_object/" not in key and any(token in key for token in ("/4_riding/", "/riding/", "/mount/", "/vehicle/", "/wagon/", "/horse/", "/camel/")):
         family = "riding"
         confidence = 0.85
         evidence.append("riding/mount path")
-        if any(token in key for token in ("wagon", "vehicle", "boat", "ship", "cart", "carriage", "sled")):
+        if any(token in key for token in (
+            "wagon", "vehicle", "boat", "ship", "cart", "carriage", "sled", "cannon", "ballista", "crossbow",
+            "catapult", "batteringram", "flamethrower", "airballoon", "airplane", "submarine", "singijeon",
+            "train", "robot", "machine", "scooter", "wheelbarrow", "broom",
+        )):
             slot = "vehicle"
         else:
             slot = "animal"

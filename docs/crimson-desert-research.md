@@ -546,8 +546,34 @@ channel to the render targets shows:
   (±0.7°), so only a uniform layer value reproduces exactly on the mesh UVs.
 
 Mesh Editor's imported materials use this to set Roughness and Metallic as a
-uniform layer R. In-game appearance has not yet been checked; other shader
-families were not traced.
+uniform layer R. In-game appearance has not yet been checked.
+
+Standard-technique surface response (static DXIL analysis, 17 November 2026, game
+1.0.0.3446). The `.material` files of `SkinnedMeshStandard`, `Cloth`, `Emissive`,
+`Fur`, `AmplifiedGlare` and `BlendHeight` all name the `SkinnedMeshStandard`
+technique (`StaticBlendHeight` names `SkinnedMeshStaticStandard`). Every 4-target
+G-buffer permutation of these seven (72 each, 36 for AmplifiedGlare, 26 for
+StaticBlendHeight) reads roughness from `_materialTexture` G and puts its B into
+the metalness byte (the low byte of `SV_Target0.y`, packed as in Ver2):
+
+- Standard, Cloth, Emissive, Fur and AmplifiedGlare mix layers R, G and B over that
+  base by `_maskTexture` R/G/B, `_colorBlendingFlag` bits 2, 6 and 10 and
+  `_dyeingGlobalOpacity` bytes 0 to 2.
+- BlendHeight and StaticBlendHeight blend by height instead: each layer weighs
+  `_maskTexture` × `_detailHeightMask*` R × its opacity byte against
+  `_heightTexture` R × `_screenSpaceDisplacementScale`, with no colour-blend flag.
+  When every layer weight is 0 the surface is `_materialTexture` alone.
+- `_materialTexture` defaults to `NoneTexture0x00000000`, so the same material with
+  its layers and `_materialTexture` removed renders at roughness and metalness 0.
+- The same check finds no `_materialTexture` read in any permutation of
+  `SkinnedMeshStandard_Ver2` or `SkinnedMeshStaticStandard`, matching the Ver2
+  result above.
+
+No shipped AmplifiedGlare wrapper declares `_materialTexture` (all 39,349 rows of
+the other six use `ItemID="6"`), so Mesh Editor writes it only for the other six.
+The dragon and wyvern bodies use BlendHeight. Hair, eye, skin and
+`SkinnedMeshAnisotropy` (horse coats) also read `_materialTexture` G for
+roughness but shade differently and were not traced further.
 
 Sources: [renderer contract][renderer-contract], [rendering ownership][rendering-notes],
 [shader compatibility guide][shader-controls], [effect consumer reference][effect-preview].

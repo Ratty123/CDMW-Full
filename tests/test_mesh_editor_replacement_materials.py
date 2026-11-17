@@ -215,18 +215,62 @@ def test_imported_materials_write_roughness_and_metallic_as_layer_r(editor, tmp_
     assert struct.unpack_from("<I", texture.data, 28)[0] == 3  # full mip chain for 4x4
 
 
-def test_zero_roughness_and_metallic_leave_imported_materials_unchanged(editor, tmp_path):
-    pending, key = _surface_pending(editor, tmp_path)
+@pytest.mark.parametrize("shader", ["SkinnedMeshBlendHeight", "SkinnedMeshStandard"])
+def test_imported_materials_write_roughness_and_metallic_as_the_material_texture(editor, tmp_path, shader):
+    """The SkinnedMeshStandard-technique shaders most creatures use (the wyvern's
+    BlendHeight body, Standard) read roughness (G) and metalness (B) from
+    _materialTexture once the import has removed the layers. The import writes
+    none, and its default is NoneTexture0x00000000, so the surface was a mirror."""
+    from cdmw.services.mesh_rust_replacement import imported_surface_support
+    pending, key = _surface_pending(editor, tmp_path, shader=shader)
+    assert imported_surface_support(pending) == ""
+    files = prepare_imported_materials(pending, (key,), tmp_path, surface=(0.8, 0.25))
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    replaced, untouched = text.split('_subMeshName="target1"')
+    material = re.search(r'<MaterialParameterTexture StringItemID="_materialTexture" ItemID="6" _name="_materialTexture" '
+                         r'Index="\d+"><ResourceReferencePath_ITexture Name="_value" _path="([^"]+_sp\.dds)"', replaced)
+    assert material
+    assert "_detailMaterialMaskR" not in replaced and "_colorBlendingFlag" not in replaced
+    assert "_materialTexture" not in untouched
+    textures = [file for file in files if file.path.endswith(".dds") and "_cdmw_surface_" in file.path]
+    assert [file.path for file in textures] == [material.group(1)]  # the unused layer-R texture is pruned
+    with Image.open(io.BytesIO(textures[0].data)) as image:
+        assert image.size == (4, 4) and image.convert("RGBA").getpixel((0, 0)) == (255, 204, 64, 255)
+
+
+def test_one_surface_reaches_ver2_and_standard_wrappers_by_their_own_paths():
+    from cdmw.core.pac_xml_surface_layer import apply_surface_layer
+
+    def wrapper(name, shader):
+        return (f'<SkinnedMeshMaterialWrapper _subMeshName="{name}"><Material Name="_resourceMaterial" '
+                f'_materialName="{shader}"><Vector Name="_parameters"><MaterialParameterTexture '
+                f'StringItemID="_baseColorTexture" ItemID="8" _name="_baseColorTexture" Index="0">'
+                f'<ResourceReferencePath_ITexture Name="_value" _path="character/texture/{name}.dds"/>'
+                '</MaterialParameterTexture></Vector></Material></SkinnedMeshMaterialWrapper>')
+
+    text = "<Root>" + wrapper("armour", "SkinnedMeshStandard_Ver2") + wrapper("body", "SkinnedMeshBlendHeight") + "</Root>"
+    edited, changed = apply_surface_layer(text, {"armour", "body"}, "layer.dds", "material_sp.dds")
+    armour, body = edited.split('_subMeshName="body"')
+    assert changed == 2
+    assert '_name="_detailMaterialMaskR"' in armour and "material_sp.dds" not in armour
+    assert '_name="_materialTexture"' in body and "layer.dds" not in body and "_colorBlendingFlag" not in body
+
+
+@pytest.mark.parametrize("shader", ["SkinnedMeshCloth_Ver2", "SkinnedMeshBlendHeight"])
+def test_zero_roughness_and_metallic_leave_imported_materials_unchanged(editor, tmp_path, shader):
+    pending, key = _surface_pending(editor, tmp_path, shader=shader)
     plain = prepare_imported_materials(pending, (key,), tmp_path)
     zero = prepare_imported_materials(pending, (key,), tmp_path, surface=(0.0, 0.0))
     assert [(file.path, file.data) for file in plain] == [(file.path, file.data) for file in zero]
 
 
-def test_roughness_and_metallic_refuse_materials_outside_the_traced_shaders(editor, tmp_path):
+# AmplifiedGlare reads _materialTexture too, but no shipped wrapper of it declares one.
+@pytest.mark.parametrize("shader", ["SkinnedMeshHair", "SkinnedMeshAmplifiedGlare"])
+def test_roughness_and_metallic_refuse_materials_outside_the_traced_shaders(editor, tmp_path, shader):
     from cdmw.services.mesh_rust_replacement import imported_surface_support
-    pending, key = _surface_pending(editor, tmp_path, shader="SkinnedMeshHair")
-    assert "Ver2 equipment material" in imported_surface_support(pending)
-    with pytest.raises(ValueError, match="Ver2 equipment material"):
+    pending, key = _surface_pending(editor, tmp_path, shader=shader)
+    assert "not available for this item's material shader" in imported_surface_support(pending)
+    with pytest.raises(ValueError, match="not available for this item's material shader"):
         prepare_imported_materials(pending, (key,), tmp_path, surface=(0.5, 0.0))
     # Without a surface choice the import itself still works.
     assert prepare_imported_materials(pending, (key,), tmp_path)

@@ -188,6 +188,92 @@ class PacXmlProfileTests(unittest.TestCase):
         self.assertNotIn("skin", standard.profiles)
         self.assertIn("skin", skin.profiles)
 
+    def test_only_skin_shaders_are_the_skin_family(self) -> None:
+        # Every material shader the shipped .pac_xml files name (game 1.0.0.3446,
+        # 17 November 2026). "SkinnedMesh" is a prefix, not a skin marker.
+        expected = {
+            "SkinnedMeshStandard": "Standard",
+            "SkinnedMeshStandard_Ver2": "Standard_Ver2",
+            "SkinnedMeshCloth_Ver2": "Cloth",
+            "SkinnedMeshCloth": "Cloth",
+            "SkinnedMeshTornCloth_Ver2": "Cloth",
+            "SkinnedMeshAnimalHair": "Hair",
+            "SkinnedMeshHair": "Hair",
+            "SkinnedMeshHairAnimatedUV": "Hair",
+            "SkinnedMeshHairAging": "Hair",
+            "SkinnedMeshWhiteHornHair": "Hair",
+            "SkinnedMeshFur": "Fur",
+            "SkinnedMeshFur_Ver2": "Fur",
+            "SkinnedMeshEye": "Eye",
+            "SkinnedMeshEyeCover": "EyeCover",
+            "SkinnedMeshEmissive": "Emissive",
+            "SkinnedMeshEmissive_Ver2": "Emissive",
+            "SkinnedMeshPoster": "Poster",
+            "SkinnedMeshChain": "Chain",
+            "SkinnedMeshStaticStandard": "StaticStandard",
+            "SkinnedMeshSkin": "Skin",
+            "SkinnedMeshSkin_Ver2": "Skin",
+            "SkinnedMeshSkinWrinkle": "SkinWrinkle",
+            "SkinnedMeshSkinWrinkleAging": "SkinWrinkle",
+        }
+        # The rest keep their own shader name as the family.
+        for shader in (
+            "SkinnedMeshBlendHeight", "SkinnedMeshStaticBlendHeight", "SkinnedMeshAnisotropy",
+            "SkinnedMeshSail_Ver2", "SkinnedMeshGrassLeaf", "SkinnedMeshAmplifiedGlare",
+            "SkinnedMeshAmplifiedGlare_Ver2", "SkinnedMeshGhost", "SkinnedMeshWing", "SkinnedMeshTranslucent",
+            "SkinnedMeshTreeFrond", "SkinnedMeshTreeLeaf", "SkinnedMeshGlass", "SkinnedMeshTear",
+            "SkinnedMeshCable", "SkinnedMeshNoRender", "SkinnedMeshTransparency", "SkinnedMeshBlendTerrain",
+            "SkinnedMeshEditorBlackboard",
+        ):
+            expected[shader] = shader
+        actual = {shader: classify_pac_xml_shader_family(shader) for shader in expected}
+        self.assertEqual(expected, actual)
+
+    def test_creature_body_shaders_are_not_a_skin_profile(self) -> None:
+        dragon = classify_pac_xml_profile(
+            "character/modelproperty/2_mon/cd_m0004_00_dragon/cd_m0004_00_wyvern/cd_m0004_00_wyvern_00_0001.pac_xml",
+            '<Material _materialName="SkinnedMeshBlendHeight"/><Material _materialName="SkinnedMeshEye"/>',
+        )
+        horse = classify_pac_xml_profile(
+            "character/modelproperty/2_mon/cd_m0001_00_twofeet/cd_m0001_00_deerila/cd_m0001_00_deerila_0001.pac_xml",
+            '<Material _materialName="SkinnedMeshAnisotropy"/>',
+        )
+        self.assertNotIn("skin", dragon.profiles)
+        self.assertNotIn("skin", horse.profiles)
+
+    def test_game_monster_and_riding_folders_are_not_props(self) -> None:
+        # The game files creatures under 2_mon and mounts and vehicles under 4_riding.
+        cases = (
+            ("character/modelproperty/2_mon/cd_m0004_00_dragon/cd_m0004_00_dragon/cd_m0004_00_dragon_00_0001.pac_xml",
+             "monster", "organic"),
+            ("character/model/2_mon/cd_m0004_00_dragon/cd_m0004_00_wyvern/cd_m0004_00_wyvern_00_0001.pac",
+             "monster", "organic"),
+            ("character/modelproperty/2_mon/m0002_00_fourfeet/m0002_00_dog/m0002_00_wolf/m0002_00_wolf_00_0001.pac_xml",
+             "monster", "organic"),
+            ("character/modelproperty/2_mon/cd_m0004_00_dragon/cd_m0004_00_golemdragon/cd_m0004_00_golemdragon_ub_00_0001.pac_xml",
+             "monster", "mechanical"),
+            ("character/modelproperty/4_riding/cd_r0002_00_fourfeet/cd_r0002_00_horse/body/body/cd_r0002_00_horse_body_0005.pac_xml",
+             "riding", "animal"),
+            ("character/model/4_riding/cd_r0002_00_fourfeet/cd_r0002_00_horse/body/body/cd_r0002_00_horse_body_0005.pac",
+             "riding", "animal"),
+            ("character/modelproperty/4_riding/cd_r0048_00_ship/cd_r0048_00_bigship_sail_0001.pac_xml", "riding", "vehicle"),
+            ("character/modelproperty/4_riding/cd_r0010_00_cannon/cd_r0010_00_bigcannon/cd_r0010_00_bigcannon_0001.pac_xml",
+             "riding", "vehicle"),
+            ("character/modelproperty/4_riding/cd_r0039_00_warrobot/cd_r0039_00_protorobot_0001.pac_xml", "riding", "vehicle"),
+            ("character/modelproperty/2_mon/cd_m0010_00_tank/cd_m0010_00_tank/cd_m0010_00_tank_00_0001.pac_xml", "monster", "mechanical"),
+            # Loose objects filed under 4_riding stay props.
+            ("character/modelproperty/4_riding/cd_r0013_00_object/cd_r0013_00_oak_barrel_0001.pac_xml", "prop", "prop"),
+            # Folder tokens that come first still win: armour sets worn by monsters, horse armour.
+            ("character/modelproperty/2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_desert/9_upperbody/cd_m0001_00_de_phm_ub_25001.pac_xml",
+             "armor", "body"),
+            ("character/modelproperty/4_riding/cd_r0002_00_fourfeet/cd_r0002_00_horse/armor/stirrup/cd_r0002_00_horse_stirrup_0002.pac_xml",
+             "armor", ""),
+        )
+        for path, family, slot in cases:
+            with self.subTest(path=path):
+                profile = classify_pac_xml_profile(path)
+                self.assertEqual((family, slot), (profile.family, profile.slot))
+
     def test_shader_family_and_texture_contract_validation(self) -> None:
         self.assertEqual("Cloth", classify_pac_xml_shader_family("SkinnedMeshTornCloth_Ver2"))
         self.assertEqual("EyeCover", classify_pac_xml_shader_family("SkinnedMeshEyeCover_Ver2"))
@@ -280,6 +366,29 @@ class PacXmlProfileTests(unittest.TestCase):
             self.assertTrue(cached.sqlite_backed)
             self.assertEqual(1, cached.xml_count)
             self.assertEqual([], cached.profiles)
+
+    def test_sqlite_cache_from_the_old_skin_classifier_is_rebuilt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "archive_extract"
+            cache = Path(temp_dir) / "settings" / PAC_XML_PROFILE_INDEX_V2_CACHE_NAME
+            xml_dir = root / "character/modelproperty/2_mon/cd_m0004_00_dragon/cd_m0004_00_wyvern"
+            xml_dir.mkdir(parents=True)
+            (xml_dir / "cd_m0004_00_wyvern_00_0001.pac_xml").write_text(
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="Body"><Material _materialName="SkinnedMeshBlendHeight"/>'
+                "</SkinnedMeshMaterialWrapper></Root>",
+                encoding="utf-8",
+            )
+            load_or_build_pac_xml_corpus_index(root, cache_path=cache)
+            # A cache written before the classifier fix: old schema, BlendHeight stored as Skin.
+            conn = sqlite3.connect(str(cache))
+            try:
+                conn.execute("UPDATE metadata SET value = 'cdmw_pac_xml_profile_index_v2_sqlite_compact' WHERE key = 'schema'")
+                conn.execute("UPDATE wrappers SET shader_family = 'Skin'")
+                conn.commit()
+            finally:
+                conn.close()
+            index = hydrate_pac_xml_corpus_index(load_or_build_pac_xml_corpus_index(root, cache_path=cache))
+            self.assertEqual("SkinnedMeshBlendHeight", index.profiles[0].wrappers[0].shader_family)
 
     def test_sqlite_cache_corrupt_file_rebuilds_and_legacy_json_is_ignored(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
