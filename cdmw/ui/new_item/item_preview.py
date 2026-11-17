@@ -597,6 +597,10 @@ class ItemPreviewFrame(QWidget):
     captured = Signal(object, object)
     #: something to say next to the view
     status_changed = Signal(str)
+    #: the request in hand will not be shown: its build failed, the viewport refused its
+    #: package or reported an error, or there is no viewport. A caller waiting on `ready`
+    #: stops waiting here. A build stopped for a newer request says nothing.
+    failed = Signal(str)
     #: the gizmo moved the model: the placement now (a ModelPlacement), and whether the drag ended
     placement_changed = Signal(object, bool)
 
@@ -692,6 +696,7 @@ class ItemPreviewFrame(QWidget):
             self.host = None
             self._host_error = str(exc)
             self.placeholder.setText("The resident viewport is not available here." + (f" ({self._host_error})" if self._host_error else ""))
+            self.failed.emit(self.placeholder.text())
             return False
         self.host.setMinimumSize(420, 300)
         self.host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -1153,6 +1158,7 @@ class ItemPreviewFrame(QWidget):
             )
         else:
             self.status_changed.emit(f"The preview could not be built: {message}")
+        self.failed.emit(f"The preview could not be built: {message}")
 
     def _build_finished(self) -> None:
         """The build in flight has ended (landed or failed): tear its thread down and
@@ -1287,6 +1293,7 @@ class ItemPreviewFrame(QWidget):
                 )
             else:
                 self.status_changed.emit("The resident viewport rejected the preview package.")
+            self.failed.emit("The resident viewport rejected the preview package.")
 
     def _host_state(self, state: str, message: str) -> None:
         if self._closed or self.host is None or self._pending is None:
@@ -1329,6 +1336,12 @@ class ItemPreviewFrame(QWidget):
                 failure = f"Fast textures remain visible; full textures failed to load: {failure}"
             self._full_texture_upgrade_from_fast = False
             self.status_changed.emit(failure)
+            self.failed.emit(failure)
+
+    def showing(self, token: Hashable) -> bool:
+        """Whether the viewport shows `token`'s package and has said it is ready."""
+
+        return bool(self.is_ready) and self._loaded_token == token and not self._closed
 
     # ------------------------------------------------------------------ capture
 

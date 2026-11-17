@@ -125,6 +125,45 @@ class ItemPreviewFrameTests(unittest.TestCase):
 
         return FakeHost
 
+    def test_the_frame_says_when_it_cannot_show_what_it_was_asked_for(self) -> None:
+        """There was no failure signal: a caller waiting for `ready` waited for good when
+        there was no viewport, the build failed, or the viewport refused the package."""
+
+        from PySide6.QtCore import QEventLoop
+        from PySide6.QtWidgets import QWidget
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        workspace = tempfile.TemporaryDirectory(prefix="cdmw-item-preview-failed-")
+        self.addCleanup(workspace.cleanup)
+        root = Path(workspace.name)
+
+        def no_host(_parent):
+            raise RuntimeError("no GPU")
+
+        frame = ItemPreviewFrame(output_root=root / "output", host_factory=no_host)
+        failures = []
+        frame.failed.connect(failures.append)
+        QWidget.show(frame)
+        frame.show(lambda _stop: None, token="a")
+        self.assertTrue(failures and "not available here" in failures[0])
+        frame.request_shutdown()
+
+        built = ItemPreviewFrame(output_root=root / "output", host_factory=self._fake_host_class())
+        built.failed.connect(failures.append)
+        built.show(lambda _stop: None, token="b")  # nothing to show: the build fails
+        deadline = time.monotonic() + 5
+        while len(failures) < 2 and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertIn("could not be built", failures[-1])
+
+        self.assertTrue(built._ensure_host())
+        built.host.controller.state_changed.emit("ready", "")
+        self.assertFalse(built.showing("b"))
+        built._pending = ("c", object())
+        built._package_ready(root / "elsewhere" / "package_c", token="c")
+        built.host.controller.state_changed.emit("error", "The device was lost.")
+        self.assertEqual(failures[-1], "The device was lost.")
+
     def test_an_icon_capture_renders_the_viewport_shape_at_full_resolution(self) -> None:
         """A pane-sized frame left the icon selection to be upscaled and blurry."""
 
