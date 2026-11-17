@@ -108,7 +108,12 @@ class TextureEditorSessionUiMixin:
         self._store_active_session()
         session = create_texture_editor_session(document, layer_pixels, label=label)
         self._sessions.append(session)
+        # The first tab added to an empty bar becomes current and announces it, which
+        # loaded the new document once through _handle_document_tab_changed and then
+        # again below: two full refreshes of a 4K texture on the window thread.
+        self.document_tab_bar.blockSignals(True)
         self.document_tab_bar.addTab(label)
+        self.document_tab_bar.blockSignals(False)
         self.document_tab_bar.setVisible(not self.workspace_embedded)
         self.workspace = dataclasses.replace(
             self.workspace,
