@@ -75,6 +75,11 @@ class HairContextPreparation(QObject):
             self._pending = False
             self.failed.emit(str(error))
 
+    def forget(self):
+        """Drop the remembered character, so the next start asks the catalogue again."""
+        self.cancel()
+        self._cache = None
+
     def cancel(self):
         self._token += 1
         self._pending = False

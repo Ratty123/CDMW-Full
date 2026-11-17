@@ -771,3 +771,42 @@ def test_setup_lists_the_game_table_with_hidden_iconless_and_mixed_case_hairstyl
     assert picker._styles == ((0, OTHER), (1, "phw_00_hair_00_0001"), (2, "phw_00_hair_00_0521"))
     assert picker._icon_paths == {OTHER: OTHER_ICON}
     dialog.reject()
+
+
+def test_setup_names_an_unreadable_barber_list_and_retry_asks_the_catalogue_again(owner, monkeypatch):
+    from tests.test_hair_registration import game_table, shown
+    dialog, tasks = _setup_with_remembered_character(owner, monkeypatch, game_table(shown(0), shown(5)))
+    service = owner.archive_catalogue_service
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    first = dialog.status.text()
+    assert dialog._picker is None and dialog.retry.isEnabled()
+    assert "Damiane's barber list (character/descriptors/customizationmeta/meshparam_example_damian.xml)" in first
+    assert "Hairstyle 2 in the barber list is out of order" in first
+    assert "another character" in first and "to try again" not in first
+    # Retry used to be handed the remembered character and re-read the same bytes at once.
+    asked = len(service.calls)
+    dialog.retry.click()
+    assert len(service.calls) == asked + 1 and "again" in dialog.status.text()
+    assert dialog._resolver._cache is None
+    dialog._resolver._cache = SimpleNamespace(character="Damiane", session_id="session-a",
+        dependencies=SimpleNamespace(entry_for_path=lambda _: SimpleNamespace(orig_size=100)))
+    dialog._context_ready(dialog._resolver._cache)
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    assert dialog.status.text() == first + " Retrying gave the same result."
+    # A failure that can pass on its own still offers Retry by name.
+    dialog._resolver.failed.emit("The archive worker stopped.")
+    assert dialog.status.text() == "The archive worker stopped. Use Retry loading choices to try again."
+    dialog.reject()
+
+
+def test_setup_says_when_no_listed_hairstyle_can_be_opened(owner, monkeypatch):
+    from tests.test_hair_registration import game_table, shown
+    dialog, tasks = _setup_with_remembered_character(owner, monkeypatch, game_table(shown(0, "not a file")))
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    assert dialog._picker is None
+    assert dialog.status.text() == ("None of Damiane's 1 barber hairstyles can be opened in Hair Tools. "
+                                    "Choose another character.")
+    dialog.reject()
