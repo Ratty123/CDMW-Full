@@ -18,6 +18,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QPushButton, QWidget
 
 from cdmw.automation import authoring_commands
+from cdmw.modding.mesh_native_core import native_mesh_core_available
 from cdmw.models import ArchiveEntry
 from cdmw.ui.mesh_editor import replacement_flow
 
@@ -108,6 +109,8 @@ def _idle(editor):
     return _wait(lambda: (lambda s: not s["busy"] and s)(authoring_commands.replacement_state(editor.window, {})))
 
 
+# Transfer from Original runs in the native mesh core (CDMW_MESH_CORE_BIN names a built one).
+@pytest.mark.skipif(not native_mesh_core_available(), reason="the native mesh core is not built")
 def test_export_then_import_with_an_added_piece_takes_the_real_host_path(editor, profile):
     window = editor.window
     exported = profile / "exchange" / "part.obj"
@@ -150,6 +153,26 @@ def test_export_then_import_with_an_added_piece_takes_the_real_host_path(editor,
     # Every request the stand-in helper sent was answered as the helper expects.
     results = [m for m in editor.sent if m.get("event") == "command_result"]
     assert len(results) == 3 and all(m["ok"] for m in results)
+
+
+@pytest.mark.skipif(not native_mesh_core_available(), reason="the native mesh core is not built")
+def test_cancel_import_leaves_the_mapping_step_and_the_mesh_as_it_was(editor, tmp_path):
+    window = editor.window
+    model = tmp_path / "model.obj"
+    model.write_text("o replacement\nv 12 3 7\nv 16 3 7\nv 12 5 8\nf 1 2 3\n")
+    before = [list(part.vertices) for part in
+              editor.host.shadow_service.working_mesh(editor.host.shadow_session_id).submeshes]
+    assert authoring_commands.replacement_import(window, {"path": str(model)})["sent"]
+    pending = _wait(lambda: authoring_commands.replacement_state(window, {}).get("pending"))
+    assert pending["sources"] == ["replacement"]
+    assert authoring_commands.replacement_cancel(window, {}) == {"sent": True, "busy": False}
+    assert editor.sent[-1]["command"] == "replacement_cancel" and editor.sent[-1]["arguments"] == {}
+    _wait(lambda: editor.sent[-1].get("event") == "command_result")
+    after = _idle(editor)
+    assert after["pending"] is None and not after["has_import"]
+    assert [list(part.vertices) for part in
+            editor.host.shadow_service.working_mesh(editor.host.shadow_session_id).submeshes] == before
+    assert not editor.ui.responses
 
 
 def test_replacement_commands_refuse_what_the_pass_must_not_do(editor, profile, tmp_path):
@@ -363,3 +386,29 @@ def test_the_bridge_lists_the_authoring_commands(monkeypatch, tmp_path):
         app_folder._reset_for_tests()
     assert set(authoring_commands.ui_commands(bridge)) <= set(bridge._ui_commands)
     assert {"replacement_import", "replacement_apply", "mesh_export", "painting_build"} <= set(bridge._ui_commands)
+
+
+@pytest.mark.parametrize("announced", [False, True])
+def test_the_editor_learns_from_the_helper_s_hello_whether_it_takes_cdmw_commands(tmp_path, announced):
+    """A helper that does not announce host_cdmw_command_v1 would end its session on the
+    event, so the bridge only sends to one whose hello names it."""
+    from cdmw.services.mesh_rust_contract import (
+        RUST_HOST_CDMW_COMMAND_CAPABILITY, RUST_MESH_EDIT_BACKEND, RUST_MESH_RENDERER)
+    from tests.test_mesh_rust_embedding import _tab
+
+    tab = _tab(tmp_path)
+    try:
+        tab.standalone_rust_process = SimpleNamespace(processId=lambda: 77)
+        tab.standalone_native_host_frame.attach_child_window = lambda *_args: (True, "")
+        tab._send_rust_message = lambda _payload: True
+        assert tab.standalone_rust_host_commands_supported is False
+        capabilities = ["embedded_child_window_v1", *([RUST_HOST_CDMW_COMMAND_CAPABILITY] if announced else [])]
+        tab._handle_rust_hello({"renderer": RUST_MESH_RENDERER, "edit_backend": RUST_MESH_EDIT_BACKEND,
+                                "capabilities": capabilities, "child_hwnd": 123, "embedded_parent_hwnd": 456})
+        assert tab.standalone_rust_host_commands_supported is announced
+        # A helper started again forgets it until its own hello.
+        tab._reset_rust_protocol_state()
+        assert tab.standalone_rust_host_commands_supported is False
+    finally:
+        tab.deleteLater()
+        _APP.processEvents()
