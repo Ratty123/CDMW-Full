@@ -38829,7 +38829,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core composed resources exceed the total texture byte safety limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2341
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2343
     }
   },
   {
@@ -38837,7 +38837,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core composed texture ownership LOD is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2296
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2298
     }
   },
   {
@@ -38877,7 +38877,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material LOD exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2292
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2294
     }
   },
   {
@@ -38885,7 +38885,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material dimensions exceed this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2108
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2110
     }
   },
   {
@@ -38901,7 +38901,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material source offset overflowed",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2100
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2102
     }
   },
   {
@@ -82408,7 +82408,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 140
+      "cdmw/core/pac_xml_surface_layer.py": 163
     }
   },
   {
@@ -82416,7 +82416,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no material texture to write.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 142
+      "cdmw/core/pac_xml_surface_layer.py": 165
     }
   },
   {
@@ -96118,7 +96118,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no replaced equipment material to apply to.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 380
+      "cdmw/services/mesh_replacement_materials.py": 381
     }
   },
   {
@@ -96651,7 +96651,7 @@ MESSAGE_REFERENCE = [
     "message": "The imported roughness and metallic maps could not be encoded as a game texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 557
+      "cdmw/services/mesh_replacement_materials.py": 599
     }
   },
   {

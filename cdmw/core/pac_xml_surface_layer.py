@@ -29,7 +29,11 @@ BlendHeight and StaticBlendHeight; most creatures use these) is different. Decod
 For these, a uniform ``_materialTexture`` sets the surface. Its red channel is
 not read by the G-buffer shaders; it is written as 255, as every shipped ``_sp``
 texture has it. SkinnedMeshAmplifiedGlare reads ``_materialTexture`` the same way,
-but no shipped wrapper of it declares one, so it stays refused.
+but no shipped wrapper of it declares one, so the sliders skip it.
+
+Wrappers outside SURFACE_SHADERS (eyes, hair, skin, the anisotropic coat,
+AmplifiedGlare) are skipped, not refused; Mesh Editor gives them back the mean of
+their own game surface texture instead (``bind_texture``).
 """
 from __future__ import annotations
 
@@ -84,6 +88,29 @@ def surface_material_dds(roughness: float, metallic: float) -> bytes:
     return _uniform_dds(255, surface_byte(roughness), surface_byte(metallic))
 
 
+def surface_rgb_dds(red: int, green: int, blue: int) -> bytes:
+    """A uniform 4x4 B8G8R8A8 texture of the given bytes, for a game surface's own means."""
+    return _uniform_dds(red, green, blue)
+
+
+def bind_texture(text: str, material_names, parameter: str, path: str, item_id: str) -> tuple[str, int]:
+    """Bind ``path`` as ``parameter`` (with the game row's ItemID) on every named wrapper."""
+    names = {str(name).casefold() for name in material_names}
+
+    def edit(fragment):
+        changed = 0
+        for wrapper in reversed(find_material_wrappers(fragment)):
+            if wrapper.submesh_name.casefold() in names:
+                block = _write_parameter(fragment[wrapper.start:wrapper.end], parameter, "Texture", path, item_id,
+                                         static=False)
+                fragment = fragment[:wrapper.start] + block + fragment[wrapper.end:]
+                changed += 1
+        return fragment, changed
+
+    text, counts = edit_material_variants(text, edit)
+    return text, sum(counts)
+
+
 def _uniform_dds(red: int, green: int, blue: int) -> bytes:
     pixel = bytes((blue, green, red, 255))  # B, G, R, A
     header = bytearray(128)
@@ -104,10 +131,6 @@ def wrapper_shaders(text: str, material_names) -> dict[str, str]:
     return {wrapper.submesh_name.casefold(): wrapper.shader
             for wrapper in find_material_wrappers(text) if wrapper.submesh_name.casefold() in names}
 
-
-def unsupported_surface_shaders(text: str, material_names) -> tuple[str, ...]:
-    return tuple(sorted({shader for shader in wrapper_shaders(text, material_names).values()
-                         if shader not in SURFACE_SHADERS}))
 
 
 def material_texture_surface_needed(text: str, material_names) -> bool:

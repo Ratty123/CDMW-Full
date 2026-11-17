@@ -1150,7 +1150,10 @@ hair, skin, `SkinnedMeshAnisotropy` and `SkinnedMeshAmplifiedGlare` (whose
 shipped wrappers never declare `_materialTexture`) keep their own surface.
 `surface.unsupported` lists those target part ids; the mapping step names the
 ones a source is mapped to and disables the sliders only when every mapped part
-is one, and `apply_surface_layer` skips them. `reason` disables the sliders when
+is one, and `apply_surface_layer` skips them. The import strips their
+`_materialTexture` (and an eye's `_irisMaterialTexture`) too, so
+`_restore_own_surfaces` binds a uniform texture of the game texture's own R, G and
+B means there, with the game row's ItemID. `reason` disables the sliders when
 no target in the import's scope can take a surface (or the `.pac_xml` is
 missing), and Apply refuses a slider value only when none of its chosen targets
 can. `replacement_apply` takes `roughness` and

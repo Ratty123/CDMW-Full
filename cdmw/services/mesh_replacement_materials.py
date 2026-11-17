@@ -345,6 +345,7 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
             _apply_imported_surface(files, merged_keys, names, pending.state.target_path, surface)
         else:
             _apply_default_surface(pending, targets, files, merged_keys, names, directory)
+        _restore_own_surfaces(pending, files, merged_keys, names)
         return _prune_unreferenced_generated_files(files)
 
 
@@ -384,6 +385,46 @@ def _apply_imported_surface(files, sidecar_keys, names, target_path, surface):
 
 #: Used when neither the import nor the game part states a surface: matte, not metal.
 _FALLBACK_SURFACE = {"roughness": 0.5, "metallic": 0.0}
+#: Game surface textures read back from the target, by parameter.
+_SURFACE_PARAMETERS = frozenset({"_materialTexture", "_detailMaterialMaskR", "_irisMaterialTexture"})
+#: Surface textures the import drops that a shader outside SURFACE_SHADERS reads (eyes, hair, skin).
+_OWN_SURFACE_PARAMETERS = ("_materialTexture", "_irisMaterialTexture")
+
+
+def _restore_own_surfaces(pending, files, sidecar_keys, names):
+    """Give wrappers that Roughness/Metallic skip their own game surface back, as its mean.
+
+    The import strips every ``*materialTexture`` from the replaced wrappers, so an
+    eye, hair, skin or horse-coat part would read roughness 0 (a mirror). Those
+    shaders are not traced, so the slider value is not written there; instead
+    each texture the game part declared comes back as a uniform texture of its
+    own R, G and B means, with the game row's ItemID. The original texture is
+    not kept: it is painted for the original UVs.
+    """
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    from cdmw.core.pac_xml_surface_layer import SURFACE_SHADERS, bind_texture, surface_rgb_dds, surface_byte
+
+    originals = _original_surface_means(pending, names)
+    folder, stem = _surface_folder(pending.state.target_path)
+    for key in sidecar_keys:
+        if not key.endswith(".pac_xml"):
+            continue
+        file = files[key]
+        text = _sidecar_text(file.data)
+        for wrapper in find_material_wrappers(text):
+            name = wrapper.submesh_name.casefold()
+            if name not in names or wrapper.shader in SURFACE_SHADERS:
+                continue
+            present = {parameter.name for parameter in wrapper.parameters}
+            for parameter in _OWN_SURFACE_PARAMETERS:
+                original = originals.get(name, {}).get(parameter)
+                if original is None or parameter in present:
+                    continue
+                red, green, blue = (surface_byte(original[kind]) for kind in ("red", "roughness", "metallic"))
+                path = f"{folder}/{stem}_cdmw_surface_{red:03d}_{green:03d}_{blue:03d}_sp.dds"
+                text, _ = bind_texture(text, {name}, parameter, path, original["item_id"])
+                files[path.casefold()] = ReplacementFile(path, surface_rgb_dds(red, green, blue))
+        files[key] = replace(file, data=text.encode("utf-8"))
 
 
 def _apply_default_surface(pending, targets, files, sidecar_keys, names, directory):
@@ -494,7 +535,7 @@ def _original_surface_means(pending, names):
             continue
         means = {}
         for parameter in wrapper.parameters:
-            if parameter.name not in {"_materialTexture", "_detailMaterialMaskR"} or not parameter.texture_path:
+            if parameter.name not in _SURFACE_PARAMETERS or not parameter.texture_path:
                 continue
             texture = files.get(parameter.texture_path.replace("\\", "/").casefold())
             if texture is None:
@@ -505,9 +546,10 @@ def _original_surface_means(pending, names):
                     rgb = image.convert("RGB")
             except (OSError, ValueError):
                 continue
-            green, blue = (sum(value * count for value, count in enumerate(rgb.getchannel(c).histogram()))
-                           / max(1, rgb.width * rgb.height) / 255 for c in "GB")
-            means[parameter.name] = {"roughness": green, "metallic": blue, "format": _dds_format(texture.data)}
+            red, green, blue = (sum(value * count for value, count in enumerate(rgb.getchannel(c).histogram()))
+                                / max(1, rgb.width * rgb.height) / 255 for c in "RGB")
+            means[parameter.name] = {"red": red, "roughness": green, "metallic": blue,
+                                     "format": _dds_format(texture.data), "item_id": parameter.item_id}
         result[name] = means
     return result
 

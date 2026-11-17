@@ -366,7 +366,8 @@ def test_an_eye_in_the_import_does_not_refuse_the_surface_for_the_body(editor, t
         check_imported_surface_support, imported_material_status, imported_surface_support)
     service, session_id = editor
     snapshot = service.capture_export_snapshot(session_id)
-    target, context, model = material_fixture(tmp_path, snapshot, shader=("SkinnedMeshBlendHeight", "SkinnedMeshEye"))
+    target, context, model = material_fixture(tmp_path, snapshot, shader=("SkinnedMeshBlendHeight", "SkinnedMeshEye"),
+                                              surface=(120, 57))
     model.write_text("mtllib import.mtl\nusemtl imported\nv 12 3 7\nv 16 3 7\nv 12 5 8\nvt 0 0\nvt 1 0\nvt 0 1\n"
                      "o body\nf 1/1 2/2 3/3\no eye\nf 1/1 3/3 2/2\n")
     dependencies = capture_replacement_dependencies(target, context)
@@ -378,7 +379,10 @@ def test_an_eye_in_the_import_does_not_refuse_the_surface_for_the_body(editor, t
     text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
     body, eye = text.split('_subMeshName="target1"')
     assert re.search(r'_name="_materialTexture"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_cdmw_surface_153_051_sp\.dds', body)
-    assert "_cdmw_surface_" not in eye
+    # The eye keeps its own surface: the mean of its game _sp, not the slider value
+    # and not roughness 0, which the stripped texture would leave.
+    assert "_cdmw_surface_153_051" not in eye
+    assert re.search(r'_name="_materialTexture"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_cdmw_surface_255_120_057_sp\.dds', eye)
     # Mapped onto the eye alone, the sliders have nothing to set.
     with pytest.raises(ValueError, match="not available for this item's material shader"):
         check_imported_surface_support(pending, (keys[1],))
@@ -975,3 +979,16 @@ def test_replacement_build_button_and_companion_export_guard(editor, tmp_path, m
         tab.standalone_controller = None
         tab.deleteLater()
         app.processEvents()
+
+
+@pytest.mark.parametrize("shader", ["SkinnedMeshHair", "SkinnedMeshSkin", "SkinnedMeshAnisotropy"])
+def test_untraced_creature_shaders_keep_the_mean_of_their_own_surface(editor, tmp_path, shader):
+    """The import strips every material texture, so hair, skin and horse-coat parts
+    read roughness 0. Their shaders are not traced, so they get their own game
+    surface back as its R, G and B means, with the game row's ItemID."""
+    pending, key = _surface_pending(editor, tmp_path, shader=shader, surface=(120, 57))
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    assert 'StringItemID="_materialTexture" ItemID="6"' in text.split('_subMeshName="target1"')[0]
+    path, size, pixel = _surface_binding(files, "_materialTexture")
+    assert path.endswith("_cdmw_surface_255_120_057_sp.dds") and pixel == (255, 120, 57, 255)
