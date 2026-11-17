@@ -816,12 +816,31 @@ def apply_texture_editor_stroke(
     stroke_pressures = context.stroke_pressures
     if opacity >= 1.0 and stroke_pressures is None:
         return _run_stroke(context, full)
-    layer_id = context.document.active_layer_id
-    original = layer_pixels[layer_id]
-    before = context.active.copy() if context.active is original else np.asarray(original, dtype=np.uint8)
+    window = _stroke_window(context)
+    if window is None:
+        return updated
+    x0, y0, x1, y1 = window
+    before = context.active[y0:y1, x0:x1].copy()
     context = dataclasses.replace(context, stroke_pressures=None)
     updated = _run_stroke(context, full)
-    return _cap_stroke(updated, layer_id, before, _stroke_opacity(context, stroke_pressures, opacity))
+    weight = _stroke_opacity(context, stroke_pressures, opacity)
+    if isinstance(weight, np.ndarray):
+        weight = weight[y0:y1, x0:x1, None]
+    return _cap_stroke(updated, context.document.active_layer_id, before, window, weight)
+
+
+def _stroke_window(context: _StrokeContext) -> Optional[Tuple[int, int, int, int]]:
+    """The part of the active layer the stroke's stamps can reach (x0, y0, x1, y1)."""
+
+    window: Optional[Tuple[int, int, int, int]] = None
+    for point in context.stroke_points:
+        clipped = _clip_stroke_to_active_layer(context, point)
+        if clipped is None:
+            continue
+        lx0, ly0, lx1, ly1 = clipped[0]
+        window = (lx0, ly0, lx1, ly1) if window is None else (
+            min(window[0], lx0), min(window[1], ly0), max(window[2], lx1), max(window[3], ly1))
+    return window
 
 
 def _run_stroke(context: _StrokeContext, settings: TextureEditorToolSettings) -> Dict[str, np.ndarray]:
@@ -858,11 +877,20 @@ def _cap_stroke(
     updated: Dict[str, np.ndarray],
     layer_id: str,
     before: np.ndarray,
+    window: Tuple[int, int, int, int],
     weight: object,
 ) -> Dict[str, np.ndarray]:
     after = updated.get(layer_id)
-    if after is None or after.shape != before.shape:
+    if after is None:
         return updated
+    x0, y0, x1, y1 = window
+    if not after.flags.writeable:
+        after = after.copy()
+        updated[layer_id] = after
+    start = before.astype(np.float32)
+    end = after[y0:y1, x0:x1].astype(np.float32)
+    after[y0:y1, x0:x1] = np.clip(np.round(start + (end - start) * weight), 0, 255).astype(np.uint8)
+    return updated
     changed = np.any(after != before, axis=2)
     rows = np.flatnonzero(changed.any(axis=1))
     if rows.size == 0:
