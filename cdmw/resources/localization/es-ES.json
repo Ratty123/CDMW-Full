@@ -12052,6 +12052,7 @@
     "Rotation {value_0} (°):": "Rotación {value_0} (°):",
     "Roughness": "Rugosidad",
     "Roughness and Metallic are not available for this item's material shader.": "«Rugosidad» y «Metálico» no están disponibles para el shader de material de este objeto.",
+    "Roughness and Metallic do not apply to {value_0}, whose material shader keeps its own surface.": "«Rugosidad» y «Metálico» no se aplican a {value_0}, cuyo shader de material conserva su propia superficie.",
     "Roughness and Metallic found no replaced equipment material to apply to.": "«Rugosidad» y «Metálico» no han encontrado ningún material de equipo sustituido al que aplicarse.",
     "Roughness and Metallic must be between 0% and 100%.": "«Rugosidad» y «Metálico» deben estar entre el 0 % y el 100 %.",
     "Roughness and Metallic need the item's equipment material file.": "«Rugosidad» y «Metálico» necesitan el archivo de material de equipo del objeto.",

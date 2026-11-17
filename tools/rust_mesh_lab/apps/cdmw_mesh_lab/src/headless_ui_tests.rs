@@ -6341,6 +6341,55 @@ fn integrated_replacement_surface_is_disabled_for_unsupported_materials() -> Tes
 }
 
 #[test]
+fn integrated_replacement_surface_skips_only_the_parts_whose_shader_keeps_its_own() -> TestResult {
+    // A whole-wyvern import includes the eye (SkinnedMeshEye), which greyed the
+    // sliders out for the body too. They now apply to the body and name the eye.
+    let note = "Roughness and Metallic do not apply to Eye, whose material shader keeps its own surface.";
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    let mut state = replacement_pending_with_materials(json!({
+        "error": "", "textures": 1,
+        "surface": {"roughness": 0.47, "metallic": 0.22, "reason": "", "unsupported": ["stable:1"]},
+    }));
+    state["parts"] = json!([
+        {"index": 0, "id": "stable:0", "name": "Body", "included": true},
+        {"index": 1, "id": "stable:1", "name": "Eye", "included": true},
+    ]);
+    state["pending"]["targets"] = json!([{"id": "stable:0", "name": "Body"}, {"id": "stable:1", "name": "Eye"}]);
+    state["pending"]["sources"] = json!([{"name": "Wyvern", "target": "stable:0"}, {"name": "Eyes", "target": "stable:1"}]);
+    ui.application.cdmw_state["replacement"] = state.clone();
+    ui.settle_layout();
+    ui.click("Imported Materials & Textures")?;
+    ui.reveal(REPLACEMENT_SURFACE_HINT)?;
+    ui.reveal(note)?;
+    ui.type_number_in_row("Roughness", 47.0, "60")?;
+    let apply = ui.actions_from_click("Apply Replacement")?;
+    assert!(
+        apply.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                if arguments["roughness"] == json!(0.6) && arguments["metallic"] == json!(0.22)
+        )),
+        "{apply:?}"
+    );
+
+    // Mapped only onto the eye, there is nothing for the sliders to set.
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    state["pending"]["sources"] = json!([{"name": "Eyes", "target": "stable:1"}]);
+    ui.application.cdmw_state["replacement"] = state;
+    ui.settle_layout();
+    ui.click("Imported Materials & Textures")?;
+    ui.reveal("Roughness")?;
+    assert!(ui.label_rect(REPLACEMENT_SURFACE_HINT).is_none());
+    assert!(ui.label_rect(note).is_none());
+    Ok(())
+}
+
+#[test]
 fn integrated_replacement_mapping_explains_scope_and_part_destinations() -> TestResult {
     for entire_mesh in [true, false] {
         let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(

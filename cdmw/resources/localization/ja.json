@@ -12052,6 +12052,7 @@
     "Rotation {value_0} (°):": "回転 {value_0} (°):",
     "Roughness": "ラフネス",
     "Roughness and Metallic are not available for this item's material shader.": "「ラフネス」と「メタリック」は、このアイテムのマテリアルシェーダーでは使用できません。",
+    "Roughness and Metallic do not apply to {value_0}, whose material shader keeps its own surface.": "「ラフネス」と「メタリック」は {value_0} には適用されません。そのマテリアルシェーダーは独自の表面を保ちます。",
     "Roughness and Metallic found no replaced equipment material to apply to.": "「ラフネス」と「メタリック」を適用できる、置き換えた装備マテリアルが見つかりませんでした。",
     "Roughness and Metallic must be between 0% and 100%.": "「ラフネス」と「メタリック」は 0% から 100% の間で指定してください。",
     "Roughness and Metallic need the item's equipment material file.": "「ラフネス」と「メタリック」には、アイテムの装備マテリアルファイルが必要です。",

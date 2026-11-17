@@ -127,7 +127,10 @@ def imported_material_status(pending):
     status = {"error": pending.material_error, "textures": len(files)}
     if not pending.material_error:
         from cdmw.services.mesh_replacement_materials import helper_material_targets, imported_surface_start
-        status["surface"] = {**imported_surface_start(pending), "reason": imported_surface_support(pending)}
+        status["surface"] = {**imported_surface_start(pending), "reason": imported_surface_support(pending),
+                             # Target parts whose shader keeps its own surface (an eye);
+                             # the mapping step names the ones a source is mapped to.
+                             "unsupported": imported_surface_unsupported(pending)}
         # The mapping step warns before Apply when a part goes to one of these.
         status["helper_targets"] = sorted(helper_material_targets(pending))
     return status
@@ -142,26 +145,43 @@ def imported_surface_support(pending):
     return ""
 
 
-def check_imported_surface_support(pending):
-    """Raise when a target material cannot take the Roughness/Metallic layer."""
-    from cdmw.core.pac_xml_surface_layer import unsupported_surface_shaders, wrapper_shaders
+def _target_surface_shaders(pending, part_ids):
+    """{part id: wrapper shader} for the given target parts, from the captured .pac_xml."""
+    from cdmw.core.pac_xml_surface_layer import wrapper_shaders
     from cdmw.modding.mesh_parser import parse_mesh
     from cdmw.services.mesh_replacement_materials import (
-        _sidecar_text, material_binding_name, material_binding_names)
+        _sidecar_text, material_binding_name, material_binding_names, target_sidecar)
 
+    sidecar = target_sidecar(pending)
+    if sidecar is None:
+        return {}
     original = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
     bindings = material_binding_names(pending.state)
-    names = {material_binding_name(original.submeshes[part.target_index], bindings)
-             for part in pending.state.parts if part.part_id in pending.target_part_ids}
-    target = pending.state.target_path.replace("\\", "/").casefold()
-    pac_xml = target.replace("/model/", "/modelproperty/", 1) + "_xml"
-    sidecars = [file for file in pending.state.dependencies if file.path.casefold().endswith(".pac_xml")]
-    sidecar = next((file for file in sidecars if file.path.replace("\\", "/").casefold() == pac_xml),
-                   sidecars[0] if len(sidecars) == 1 else None)
-    text = _sidecar_text(sidecar.data) if sidecar is not None else ""
-    if not text or not wrapper_shaders(text, names):
+    names = {part.part_id: material_binding_name(original.submeshes[part.target_index], bindings)
+             for part in pending.state.parts if part.part_id in set(part_ids)}
+    shaders = wrapper_shaders(_sidecar_text(sidecar.data), set(names.values()))
+    return {part_id: shaders[name] for part_id, name in names.items() if name in shaders}
+
+
+def imported_surface_unsupported(pending):
+    """Target part ids whose material shader does not take Roughness/Metallic."""
+    from cdmw.core.pac_xml_surface_layer import SURFACE_SHADERS
+    return sorted(part_id for part_id, shader in _target_surface_shaders(pending, pending.target_part_ids).items()
+                  if shader not in SURFACE_SHADERS)
+
+
+def check_imported_surface_support(pending, targets=None):
+    """Raise when none of the target materials can take Roughness/Metallic.
+
+    ``targets`` are the parts Apply maps the import onto (default: every part
+    in the import's scope). Parts whose shader keeps its own surface, such as a
+    creature's eye, are left as they are; they do not refuse the others.
+    """
+    from cdmw.core.pac_xml_surface_layer import SURFACE_SHADERS
+    shaders = _target_surface_shaders(pending, pending.target_part_ids if targets is None else targets)
+    if not shaders:
         raise ValueError("Roughness and Metallic need the item's equipment material file.")
-    if unsupported_surface_shaders(text, names):
+    if not any(shader in SURFACE_SHADERS for shader in shaders.values()):
         raise ValueError("Roughness and Metallic are not available for this item's material shader.")
 
 
@@ -249,7 +269,7 @@ def run_replacement_command(authoring, command, args, stop_event):
             from cdmw.services.mesh_replacement_materials import prepare_imported_materials
             surface = _surface_argument(args)
             if surface is not None:
-                check_imported_surface_support(pending)
+                check_imported_surface_support(pending, targets)
             files = prepare_imported_materials(pending, targets, authoring.root, stop_event, surface=surface,
                                                skin_policy=weights)
         skin_notes = []

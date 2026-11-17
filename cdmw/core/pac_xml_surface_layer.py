@@ -130,12 +130,13 @@ def apply_surface_layer(text: str, material_names, texture_path: str, material_t
 
     Ver2 wrappers get ``texture_path`` as layer R; Standard-technique wrappers get
     ``material_texture_path`` as their _materialTexture. Returns the edited text
-    and the number of wrappers changed. A named wrapper on a shader outside
-    SURFACE_SHADERS is refused rather than skipped.
+    and the number of wrappers changed. Named wrappers on a shader outside
+    SURFACE_SHADERS (an eye, hair) keep their own surface; only when none of
+    the named wrappers can take it is the surface refused.
     """
-    names = {str(name).casefold() for name in material_names}
-    unsupported = unsupported_surface_shaders(text, names)
-    if unsupported:
+    shaders = wrapper_shaders(text, material_names)
+    names = {name for name, shader in shaders.items() if shader in SURFACE_SHADERS}
+    if shaders and not names:
         raise ValueError("Roughness and Metallic are not available for this item's material shader.")
     if not material_texture_path and material_texture_surface_needed(text, names):
         raise ValueError("Roughness and Metallic found no material texture to write.")

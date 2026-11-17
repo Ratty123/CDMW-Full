@@ -1145,11 +1145,15 @@ G 0.47 and B 0.22 (B is a flat 57 on body, head and wings).
 `metallic`): the import's own values, else the target wrappers' game surface mean,
 else 0.5 and 0. The sliders send nothing until one is moved; a moved slider sends
 both as one uniform surface, 0% included, which replaces the default and any maps.
-`reason` disables the sliders when any target wrapper is outside the
-traced shader families (`SURFACE_SHADERS`); eyes, hair, skin,
-`SkinnedMeshAnisotropy` and `SkinnedMeshAmplifiedGlare` (whose shipped wrappers
-never declare `_materialTexture`) stay refused, so an import that also covers a
-creature's eye keeps the sliders off. `replacement_apply` takes `roughness` and
+Target wrappers outside the traced shader families (`SURFACE_SHADERS`): eyes,
+hair, skin, `SkinnedMeshAnisotropy` and `SkinnedMeshAmplifiedGlare` (whose
+shipped wrappers never declare `_materialTexture`) keep their own surface.
+`surface.unsupported` lists those target part ids; the mapping step names the
+ones a source is mapped to and disables the sliders only when every mapped part
+is one, and `apply_surface_layer` skips them. `reason` disables the sliders when
+no target in the import's scope can take a surface (or the `.pac_xml` is
+missing), and Apply refuses a slider value only when none of its chosen targets
+can. `replacement_apply` takes `roughness` and
 `metallic` in 0..1; without them it writes the default surface. In-game appearance
 is not yet verified.
 

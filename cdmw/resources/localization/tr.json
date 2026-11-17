@@ -12052,6 +12052,7 @@
     "Rotation {value_0} (°):": "Döndürme {value_0} (°):",
     "Roughness": "Pürüzlülük",
     "Roughness and Metallic are not available for this item's material shader.": "\"Pürüzlülük\" ve \"Metalik\" bu eşyanın malzeme gölgelendiricisi için kullanılamaz.",
+    "Roughness and Metallic do not apply to {value_0}, whose material shader keeps its own surface.": "\"Pürüzlülük\" ve \"Metalik\", malzeme gölgelendiricisi kendi yüzeyini koruyan {value_0} için geçerli değildir.",
     "Roughness and Metallic found no replaced equipment material to apply to.": "\"Pürüzlülük\" ve \"Metalik\" için uygulanabilecek değiştirilmiş bir ekipman malzemesi bulunamadı.",
     "Roughness and Metallic must be between 0% and 100%.": "\"Pürüzlülük\" ve \"Metalik\" %0 ile %100 arasında olmalıdır.",
     "Roughness and Metallic need the item's equipment material file.": "\"Pürüzlülük\" ve \"Metalik\", eşyanın ekipman malzemesi dosyasını gerektirir.",

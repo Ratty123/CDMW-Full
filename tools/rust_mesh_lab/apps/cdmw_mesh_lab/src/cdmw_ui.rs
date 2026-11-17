@@ -5534,7 +5534,27 @@ impl LabApplication {
                     // Only a moved slider is sent, as one uniform surface, so an
                     // untouched import keeps its per-pixel maps.
                     let surface = &pending["materials"]["surface"];
-                    let surface_reason = surface["reason"].as_str().unwrap_or("").trim().to_owned();
+                    // Parts whose shader keeps its own surface (a creature's eye)
+                    // only refuse the sliders when every mapped part is one.
+                    let unsupported = surface["unsupported"].as_array().cloned().unwrap_or_default();
+                    let mut skipped = Vec::new();
+                    for choice in choices.iter().filter(|choice| !choice.is_empty()) {
+                        if !unsupported.iter().any(|id| id.as_str() == Some(choice.as_str())) {
+                            continue;
+                        }
+                        let name = targets.iter().find(|row| row["id"].as_str() == Some(choice.as_str()))
+                            .and_then(|row| row["name"].as_str()).unwrap_or(choice.as_str()).to_owned();
+                        if !skipped.contains(&name) {
+                            skipped.push(name);
+                        }
+                    }
+                    let all_skipped = choices.iter().any(|choice| !choice.is_empty())
+                        && choices.iter().filter(|choice| !choice.is_empty())
+                            .all(|choice| unsupported.iter().any(|id| id.as_str() == Some(choice.as_str())));
+                    let mut surface_reason = surface["reason"].as_str().unwrap_or("").trim().to_owned();
+                    if surface_reason.is_empty() && all_skipped {
+                        surface_reason = "Roughness and Metallic are not available for this item's material shader.".to_owned();
+                    }
                     let surface_id = egui::Id::new(("replacement_surface", token));
                     let surface_start = [
                         (surface["roughness"].as_f64().unwrap_or(0.0) * 100.0).round(),
@@ -5557,6 +5577,10 @@ impl LabApplication {
                         }).response;
                         if surface_reason.is_empty() {
                             ui.small(crate::localization::tr("Roughness and Metallic start from the imported model's own maps or values, or from the game part's surface. Move one to set a single surface for the whole import."));
+                            if !skipped.is_empty() {
+                                let parts = skipped.join(", ");
+                                ui.small(crate::localization::tr(format!("Roughness and Metallic do not apply to {parts}, whose material shader keeps its own surface.")));
+                            }
                         } else {
                             response.on_disabled_hover_text(crate::localization::tr(&surface_reason));
                         }

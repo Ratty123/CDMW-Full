@@ -12052,6 +12052,7 @@
     "Rotation {value_0} (°):": "旋转 {value_0} (°):",
     "Roughness": "粗糙度",
     "Roughness and Metallic are not available for this item's material shader.": "“粗糙度”和“金属度”不适用于此物品的材质着色器。",
+    "Roughness and Metallic do not apply to {value_0}, whose material shader keeps its own surface.": "“粗糙度”和“金属度”不适用于 {value_0}，其材质着色器保留自己的表面。",
     "Roughness and Metallic found no replaced equipment material to apply to.": "未找到可应用“粗糙度”和“金属度”的已替换装备材质。",
     "Roughness and Metallic must be between 0% and 100%.": "“粗糙度”和“金属度”必须介于 0% 到 100% 之间。",
     "Roughness and Metallic need the item's equipment material file.": "“粗糙度”和“金属度”需要该物品的装备材质文件。",

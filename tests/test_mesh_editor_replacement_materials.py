@@ -58,7 +58,8 @@ def material_fixture(root, snapshot, *, layered=False, normal=False, shader="", 
                  '</MaterialParameterTexture>')
     xml = ('<Root>' + ''.join(
         f'<SkinnedMeshMaterialWrapper _subMeshName="target{i}">'
-        + (f'<Material Name="_resourceMaterial" _materialName="{shader}">' if shader else '<Material>')
+        + (f'<Material Name="_resourceMaterial" _materialName="{shader[i] if isinstance(shader, tuple) else shader}">'
+           if shader else '<Material>')
         + '<Vector Name="_parameters">'
         f'<MaterialParameterTexture _name="_diffuseTexture" Index="0"><ResourceReferencePath_ITexture _path="character/texture/original{i}.dds"/>'
         f'</MaterialParameterTexture>{layer(i)}</Vector></Material></SkinnedMeshMaterialWrapper>' for i in range(2)) + '</Root>')
@@ -355,6 +356,33 @@ def test_a_chosen_surface_replaces_the_default_and_zero_is_kept(editor, tmp_path
     zero = prepare_imported_materials(pending, (key,), tmp_path, surface=(0.0, 0.0))
     assert _surface_binding(zero, parameter)[2][1:3] == (0, 0)
     assert _surface_binding(prepare_imported_materials(pending, (key,), tmp_path), parameter)[2][1:3] == (120, 57)
+
+
+def test_an_eye_in_the_import_does_not_refuse_the_surface_for_the_body(editor, tmp_path):
+    """A whole-wyvern import covers the eye (SkinnedMeshEye), and that greyed out
+    Roughness and Metallic for every part. The eye keeps its own surface; the
+    body takes the chosen one."""
+    from cdmw.services.mesh_rust_replacement import (
+        check_imported_surface_support, imported_material_status, imported_surface_support)
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot, shader=("SkinnedMeshBlendHeight", "SkinnedMeshEye"))
+    model.write_text("mtllib import.mtl\nusemtl imported\nv 12 3 7\nv 16 3 7\nv 12 5 8\nvt 0 0\nvt 1 0\nvt 0 1\n"
+                     "o body\nf 1/1 2/2 3/3\no eye\nf 1/1 3/3 2/2\n")
+    dependencies = capture_replacement_dependencies(target, context)
+    keys = tuple(part.part_id for part in initial_replacement_state(snapshot).parts)
+    pending = prepare_import(snapshot, model, target_part_ids=keys, entry=target, dependencies=dependencies)
+    assert imported_surface_support(pending) == ""
+    assert imported_material_status(pending)["surface"]["unsupported"] == [keys[1]]
+    files = prepare_imported_materials(pending, keys, tmp_path, surface=(0.6, 0.2))
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    body, eye = text.split('_subMeshName="target1"')
+    assert re.search(r'_name="_materialTexture"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_cdmw_surface_153_051_sp\.dds', body)
+    assert "_cdmw_surface_" not in eye
+    # Mapped onto the eye alone, the sliders have nothing to set.
+    with pytest.raises(ValueError, match="not available for this item's material shader"):
+        check_imported_surface_support(pending, (keys[1],))
+    check_imported_surface_support(pending, keys)
 
 
 # AmplifiedGlare reads _materialTexture too, but no shipped wrapper of it declares one.

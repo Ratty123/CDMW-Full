@@ -12052,6 +12052,7 @@
     "Rotation {value_0} (°):": "회전 {value_0}(°):",
     "Roughness": "거칠기",
     "Roughness and Metallic are not available for this item's material shader.": "'거칠기'와 '금속성'은 이 아이템의 머티리얼 셰이더에서 사용할 수 없습니다.",
+    "Roughness and Metallic do not apply to {value_0}, whose material shader keeps its own surface.": "'거칠기'와 '금속성'은 {value_0}에는 적용되지 않습니다. 해당 머티리얼 셰이더는 자체 표면을 유지합니다.",
     "Roughness and Metallic found no replaced equipment material to apply to.": "'거칠기'와 '금속성'을 적용할 교체된 장비 머티리얼을 찾지 못했습니다.",
     "Roughness and Metallic must be between 0% and 100%.": "'거칠기'와 '금속성'은 0%에서 100% 사이여야 합니다.",
     "Roughness and Metallic need the item's equipment material file.": "'거칠기'와 '금속성'에는 아이템의 장비 머티리얼 파일이 필요합니다.",

@@ -12052,6 +12052,7 @@
     "Rotation {value_0} (°):": "Obrót {value_0} (°):",
     "Roughness": "Chropowatość",
     "Roughness and Metallic are not available for this item's material shader.": "„Chropowatość” i „Metaliczność” są niedostępne dla shadera materiału tego przedmiotu.",
+    "Roughness and Metallic do not apply to {value_0}, whose material shader keeps its own surface.": "„Chropowatość” i „Metaliczność” nie dotyczą {value_0}, którego shader materiału zachowuje własną powierzchnię.",
     "Roughness and Metallic found no replaced equipment material to apply to.": "Nie znaleziono zastąpionego materiału wyposażenia, do którego można zastosować „Chropowatość” i „Metaliczność”.",
     "Roughness and Metallic must be between 0% and 100%.": "„Chropowatość” i „Metaliczność” muszą mieścić się w zakresie od 0% do 100%.",
     "Roughness and Metallic need the item's equipment material file.": "„Chropowatość” i „Metaliczność” wymagają pliku materiału wyposażenia przedmiotu.",

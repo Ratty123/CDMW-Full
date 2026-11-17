@@ -12052,6 +12052,7 @@
     "Rotation {value_0} (°):": "Drehung {value_0} (°):",
     "Roughness": "Rauheit",
     "Roughness and Metallic are not available for this item's material shader.": "„Rauheit“ und „Metallisch“ sind für den Material-Shader dieses Gegenstands nicht verfügbar.",
+    "Roughness and Metallic do not apply to {value_0}, whose material shader keeps its own surface.": "„Rauheit“ und „Metallisch“ gelten nicht für {value_0}, dessen Material-Shader seine eigene Oberfläche behält.",
     "Roughness and Metallic found no replaced equipment material to apply to.": "„Rauheit“ und „Metallisch“ haben kein ersetztes Ausrüstungsmaterial gefunden, auf das sie angewendet werden können.",
     "Roughness and Metallic must be between 0% and 100%.": "„Rauheit“ und „Metallisch“ müssen zwischen 0 % und 100 % liegen.",
     "Roughness and Metallic need the item's equipment material file.": "„Rauheit“ und „Metallisch“ benötigen die Ausrüstungsmaterialdatei des Gegenstands.",

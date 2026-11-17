@@ -41657,7 +41657,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1223,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6250
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6274
     }
   },
   {
@@ -41674,7 +41674,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1205,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6237
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6261
     }
   },
   {
@@ -44695,7 +44695,7 @@ MESSAGE_REFERENCE = [
     "message": "Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5941
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5965
     }
   },
   {
@@ -44823,7 +44823,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate and Delete require Free Edit output",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5756
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5780
     }
   },
   {
@@ -46965,7 +46965,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layer visibility cannot change in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6124
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6148
     }
   },
   {
@@ -46973,7 +46973,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layers cannot be activated in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6106
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6130
     }
   },
   {
@@ -58582,6 +58582,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Roughness and Metallic are not available for this item's material shader.",
+    "recovery": "internal",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5556
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Run rebuild report",
     "recovery": "internal",
     "sources": {
@@ -61677,7 +61685,7 @@ MESSAGE_REFERENCE = [
     "message": "This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5587
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5611
     }
   },
   {
@@ -61965,7 +61973,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency is unavailable for this mesh.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6493
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6517
     }
   },
   {
@@ -74182,7 +74190,7 @@ MESSAGE_REFERENCE = [
     "message": "{target} is a helper material for the inside of the model and cannot take imported textures. Map {part} to a main part, join it with one before exporting, or choose Keep Original Materials.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5578
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5602
     }
   },
   {
@@ -82400,7 +82408,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 139
+      "cdmw/core/pac_xml_surface_layer.py": 140
     }
   },
   {
@@ -82408,7 +82416,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no material texture to write.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 141
+      "cdmw/core/pac_xml_surface_layer.py": 142
     }
   },
   {
@@ -92647,7 +92655,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a replacement model first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 239
+      "cdmw/services/mesh_rust_replacement.py": 259
     }
   },
   {
@@ -93546,7 +93554,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement or change output inclusion before previewing output.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 203
+      "cdmw/services/mesh_rust_replacement.py": 223
     }
   },
   {
@@ -96102,7 +96110,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 165
+      "cdmw/services/mesh_rust_replacement.py": 185
     }
   },
   {
@@ -96118,7 +96126,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic must be between 0% and 100%.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 180
+      "cdmw/services/mesh_rust_replacement.py": 200
     }
   },
   {
@@ -96126,7 +96134,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic need the item's equipment material file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 163
+      "cdmw/services/mesh_rust_replacement.py": 183
     }
   },
   {
@@ -96177,7 +96185,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one target part before importing a replacement.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 228
+      "cdmw/services/mesh_rust_replacement.py": 248
     }
   },
   {
@@ -96667,7 +96675,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh changed after import preparation. Import again before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 243
+      "cdmw/services/mesh_rust_replacement.py": 263
     }
   },
   {
@@ -96907,7 +96915,7 @@ MESSAGE_REFERENCE = [
     "message": "This replacement mapping belongs to an older import. Review the current import before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 241
+      "cdmw/services/mesh_rust_replacement.py": 261
     }
   },
   {
@@ -97123,7 +97131,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown replacement comparison mode.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 199
+      "cdmw/services/mesh_rust_replacement.py": 219
     }
   },
   {
@@ -97163,7 +97171,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported replacement command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 308
+      "cdmw/services/mesh_rust_replacement.py": 328
     }
   },
   {
@@ -111404,7 +111412,7 @@ SOURCE_COVERAGE = {
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": {
     "native_handoff": 1,
-    "native_message": 26
+    "native_message": 27
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs": {
     "native_handoff": 7,
