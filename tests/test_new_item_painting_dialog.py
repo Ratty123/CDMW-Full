@@ -143,3 +143,61 @@ def test_a_dialog_opened_again_after_close_still_shows_its_build_log(dialog, tmp
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             view.done(0)
+
+
+def _wait_for_preview(view, timeout_s=5.0):
+    import time
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        QThreadPool.globalInstance().waitForDone(100)
+        _app().processEvents()
+        pixmap = view.preview.pixmap()
+        if pixmap is not None and not pixmap.isNull():
+            return pixmap
+    raise AssertionError(f"no preview shown: {view.preview.text()!r}")
+
+
+def test_a_small_picture_fills_the_preview_box_instead_of_staying_tiny(dialog, tmp_path):
+    """Fredric (2026-11-17): the painting preview was so small it could hardly be seen.
+    The preview only ever shrank the picture, so a small picture stayed a few pixels big."""
+    from PIL import Image
+
+    view, _controller = dialog
+    picture = tmp_path / "small.png"
+    Image.new("RGB", (12, 24), (200, 30, 30)).save(picture)
+    view.resize(1100, 800)
+    view.show()
+    view.frame.setCurrentIndex(2)  # 1.5 x 2.0 m: a tall canvas
+    view._paintings[0]["picture"] = str(picture)
+    view.picture.setText(str(picture))
+    view._request_preview()
+    pixmap = _wait_for_preview(view)
+    shown = pixmap.deviceIndependentSize()
+    box = view.preview.contentsRect()
+    # The picture fills the box's height (it is taller than wide), not 24 pixels of it.
+    assert shown.height() >= box.height() - 2
+    assert shown.height() >= 200
+    assert abs(shown.width() / shown.height() - 1.5 / 2.0) < 0.05
+    view.hide()
+
+
+def test_the_frame_thumbnail_fills_its_box(dialog):
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+    from PySide6.QtGui import QImage
+
+    view, _controller = dialog
+    icon = QImage(16, 16, QImage.Format.Format_RGBA8888)
+    icon.fill(0xFF3366CC)
+    data = QByteArray()
+    buffer = QBuffer(data)
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    icon.save(buffer, "PNG")
+    view._thumbnails["object/a/large.pam"] = bytes(data)
+    view.show()
+    view.frame.setCurrentIndex(2)
+    _app().processEvents()
+    pixmap = view.frame_thumbnail.pixmap()
+    assert pixmap is not None and not pixmap.isNull()
+    assert pixmap.deviceIndependentSize().width() >= view.frame_thumbnail.contentsRect().width() - 2
+    view.hide()

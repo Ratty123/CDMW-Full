@@ -36346,7 +36346,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(self._frames)} frames found; {left_out} left out because CDMW cannot map their canvas.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/painting_dialog.py": 224
+      "cdmw/ui/new_item/painting_dialog.py": 276
     }
   },
   {
