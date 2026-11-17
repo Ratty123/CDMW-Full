@@ -95,6 +95,13 @@ def _registered_items():
     ]
 
 
+def _new_items(baseline):
+    """Records made since ``baseline`` (ids of the ones before): other test modules in the
+    same process leave records of their own live layouts, which these tests do not own."""
+
+    return [wrapper for wrapper in _registered_items() if id(wrapper) not in baseline]
+
+
 def _run(mode):
     env = dict(os.environ, PYTHONPATH=str(ROOT), QT_QPA_PLATFORM="offscreen", CDMW_NATIVE_CRASH_DUMP="0")
     return subprocess.run([sys.executable, "-c", _SCENARIO, mode], cwd=ROOT, env=env,
@@ -134,8 +141,9 @@ def _laid_out_rows(count=3):
 def test_child_removal_drops_the_parent_layouts_item_wrappers(remove):
     app = _app()
     ensure_app_layout_item_wrapper_release(app)
+    baseline = {id(wrapper) for wrapper in _registered_items()}
     host, outer, labels = _laid_out_rows()
-    before = len(_registered_items())
+    before = len(_new_items(baseline))
     assert before >= 6  # a QWidgetItem and a QSpacerItem a row
     victim = labels[1]
     if remove == "delete":
@@ -145,7 +153,7 @@ def test_child_removal_drops_the_parent_layouts_item_wrappers(remove):
     else:
         victim.deleteLater()
         app.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
-    assert _registered_items() == []
+    assert _new_items(baseline) == []
     # The layout and the other rows are untouched; itemAt wraps a live item again.
     assert outer.count() == 3
     first_row = outer.itemAt(0).layout()
@@ -175,10 +183,11 @@ def test_items_made_in_python_and_taken_items_are_left_alone():
 
 def test_the_idle_sweep_reaches_every_layout():
     _app()
+    baseline = {id(wrapper) for wrapper in _registered_items()}
     hosts = [_laid_out_rows(2)[0] for _ in range(3)]
-    assert len(_registered_items()) >= 12
+    assert len(_new_items(baseline)) >= 12
     assert release_all_layout_item_wrappers() >= 12
-    assert _registered_items() == []
+    assert _new_items(baseline) == []
     for host in hosts:
         shiboken6.delete(host)
 
