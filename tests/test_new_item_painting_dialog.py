@@ -123,3 +123,23 @@ def test_a_busy_controller_is_reported():
     assert "busy with another step" in view.status.text()
     assert view.build_button.isEnabled()
     view.deleteLater()
+
+
+def test_a_dialog_opened_again_after_close_still_shows_its_build_log(dialog, tmp_path):
+    """New painting... keeps one dialog and opens it again; Close must not leave it deaf
+    to the build's log for the next opening."""
+    import warnings
+
+    view, controller = dialog
+    result = SimpleNamespace(plan=SimpleNamespace(summary_lines=[]), paintings=[],
+                             export=SimpleNamespace(package_root=tmp_path))
+    for opening in ("first", "second"):
+        view.open()
+        view.folder.setText(str(tmp_path))
+        view.build_button.click()
+        controller.log_message.emit(f"{opening} build: writing the mod")
+        assert f"{opening} build: writing the mod" in view.log.toPlainText()
+        controller.finish(result)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            view.done(0)
