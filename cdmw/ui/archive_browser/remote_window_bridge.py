@@ -329,7 +329,8 @@ class ArchiveRemoteWindowBridge(QObject):
         self._begin_pending(f"Applying {label} scope...", operation="query")
         if worn_set:
             self._pending_item_set_query = query
-            return self._item_set_scope.request(session.session_id, bounded_ids, self._controller.generation)
+            return self._item_set_scope.request(session.session_id, bounded_ids, self._controller.generation,
+                                                self._item_scope_preferred_prefab_stems)
         self._item_scope_selection_generation = self._controller.apply_query(
             query,
             selection_identity=None,
@@ -356,12 +357,13 @@ class ArchiveRemoteWindowBridge(QObject):
         if panel is not None:
             panel.reset()
 
-    def _item_set_scope_ready(self, session_id: str, entries: object) -> None:
+    def _item_set_scope_ready(self, session_id: str, entries: object, prefab_models: object = ()) -> None:
         query, self._pending_item_set_query = self._pending_item_set_query, None
         if (query is None or self.current_session is None or self.current_session.session_id != session_id
                 or getattr(self._window.shell, "_shutting_down", False)):
             return
-        members = worn_set_members(tuple(entries))
+        # The item's own prefab names one wearer's pieces; its scope holds every wearer's.
+        members = worn_set_members(tuple(entries), tuple(prefab_models or ()))
         if len(members) > MAX_SET_FILES:
             self._handle_failure("item_set_scope", "A set preview supports at most 32 additional model files.")
             return

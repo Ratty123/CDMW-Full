@@ -22,7 +22,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveSessionHandle,
     ArchiveViewMode,
 )
-from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind, PrepareEntryResult, ProgressUpdate
+from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind, PrepareEntriesResult, PrepareEntryResult, ProgressUpdate
 from cdmw.models import ArchiveEntry
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
@@ -573,6 +573,55 @@ def test_worn_set_scope_seeds_primary_beyond_first_page_and_preserves_file_selec
         ArchiveLookupResult("session-a", (lower, upper), 2, False))
     bridge._clear_item_set_scope()
     assert window.archive_d3d11_prefab_component_selections[key] == {"previous-manual.pac"}
+
+
+def test_item_finder_open_of_a_helm_with_a_female_copy_previews_one_helm(monkeypatch) -> None:
+    """Kuku Marni Laser Helm, as Show Exact Links and double-click scope it (Fredric,
+    2026-11-17: "it opened it twice"). The female helm stays in the file list but is not
+    added to the male helm's preview as a second part."""
+    from dataclasses import replace
+    from cdmw.domain.archives.catalogue import ArchiveLookupResult
+    from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
+    _app()
+    window = _RemoteExportWindow()
+    window.archive_clear_asset_scope_button = QPushButton()
+    bridge = ArchiveRemoteWindowBridge(window)
+    bridge.controller._current_session = ArchiveSessionHandle("session-a", "C:/Game", "fp", 900, 1, True)
+    requests, queries = [], []
+    monkeypatch.setattr(bridge, "_begin_pending", lambda *args, **kwargs: None)
+    monkeypatch.setattr(window.archive_catalogue_service, "resolve_entries", lambda request, **_: requests.append(request) or "resolve-set", raising=False)
+    monkeypatch.setattr(bridge.controller, "apply_query", lambda query, **kwargs: queries.append((query, kwargs)) or 12)
+    scope = (
+        _remote(219249, "character/bin__/prefab/1_pc/01_phm/armor/13_hel/cd_phm_00_hel_00_0363_index01_c.prefab", extension=".prefab"),
+        _remote(223625, "character/bin__/prefab/1_pc/02_phw/armor/13_hel/cd_phw_01_hel_00_0363_index01_c.prefab", extension=".prefab"),
+        replace(_remote(241806, "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_00_0363.pac"), original_size=358376),
+        replace(_remote(245521, "character/model/1_pc/2_phw/armor/13_hel/cd_phw_01_hel_00_0363.pac"), original_size=351507),
+        _remote(2084028, "ui/texture/icon/itemicon_prefab_cd_phm_00_hel_00_0363_c.dds", extension=".dds"),
+        _remote(2084029, "ui/texture/icon/itemicon_prefab_cd_phm_00_hel_00_0363_index01_c.dds", extension=".dds"),
+    )
+    male, female = scope[2], scope[3]
+    # Each helm prefab lists its own wearer's helm (the installed game, 2026-11-17).
+    lists = {f"C:/Cache/{scope[0].entry_id}.bin": (male.path,), f"C:/Cache/{scope[1].entry_id}.bin": (female.path,)}
+    prepares = []
+    monkeypatch.setattr(window.archive_catalogue_service, "prepare_entries", lambda request, **_: prepares.append(request) or "prepare-set", raising=False)
+    monkeypatch.setattr(bridge._item_set_scope, "_prefab_reader", lambda path: lists[path], raising=False)
+    assert bridge.apply_entry_id_scope(tuple(row.entry_id for row in scope), label="Item Finder: Kuku Marni Laser Helm",
+                                       preferred_prefab_stems=("cd_phm_00_hel_00_0363_index01_c", "cd_phw_01_hel_00_0363_index01_c",
+                                                               "cd_phm_00_hel_00_0363", "cd_phw_01_hel_00_0363"),
+                                       worn_set=True)
+    window.archive_catalogue_service.result_ready.emit("resolve-set", "resolve_entries",
+        ArchiveLookupResult("session-a", scope, len(scope), False))
+    prepared = tuple(PrepareEntryResult(ArchiveEntryRef(dto.session_id, dto.entry_id, dto.identity, dto.path),
+                                        f"C:/Cache/{dto.entry_id}.bin", 1998, "sha256") for dto in scope[:2])
+    window.archive_catalogue_service.result_ready.emit("prepare-set", "prepare_entry",
+        PrepareEntriesResult("session-a", prepared, 2, 2, 3996))
+    assert bridge.item_set_members == (male,)
+    assert [request.entry_ids for request in prepares] == [(219249, 223625)]
+    assert not bridge.item_set_active
+    assert queries[0][0].entry_ids == tuple(row.entry_id for row in scope)  # Browse still lists every file.
+    assert queries[0][1]["selection_identity"] == male.identity
+    key = ArchivePreviewD3D11PartsMixin._archive_d3d11_prefab_entry_key(ArchiveCatalogueService.compatibility_entry(male))
+    assert female.path.casefold() not in window.archive_d3d11_prefab_component_selections.get(key, set())
 
 
 @pytest.mark.parametrize("lifecycle", ("shutdown", "destroy"))
