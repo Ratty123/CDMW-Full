@@ -806,6 +806,9 @@ class MeshEditorRustProcessMixin:
         show = getattr(tools, "set_kept_text", None)
         if callable(show):
             show(text)
+        changed = getattr(self, "texture_edits_changed", None)
+        if changed is not None and hasattr(changed, "emit"):
+            changed.emit()
 
     def _live_texture_session_id(self) -> str:
         # The document, not one editor session: edits made after Finish still belong to it.

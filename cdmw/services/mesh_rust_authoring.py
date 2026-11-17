@@ -7862,6 +7862,9 @@ class RustMeshAuthoringSession:
     recovered_edits_at: float = 0.0
     #: The shadow session's revision when the editor opened (-1: not known yet).
     shadow_base_revision: int = -1
+    #: The shadow's (revision, layer revision, morph revision) when the editor
+    #: opened, or None; read without the session lock (has_unfinished_changes).
+    shadow_base_marks: tuple[int, int, int] | None = None
     #: Why unfinished edits that exist were not restored ("" when none were lost).
     recovery_problem: str = ""
     #: The user chose Discard for this session: its close ends the recovery point.
@@ -8129,6 +8132,7 @@ class RustMeshAuthoringSession:
             try:
                 instance.shadow_base_revision = int(
                     instance.shadow_service.session_view(instance.shadow_session_id).revision)
+                instance.shadow_base_marks = instance._shadow_marks()
             except Exception:
                 instance.shadow_base_revision = -1
             report("Preparing Mesh Editor files...")
@@ -10744,6 +10748,32 @@ class RustMeshAuthoringSession:
                 return max(steps, 1)  # unreadable: count it, so nothing is closed unasked
             steps += max(0, current - self.shadow_base_revision)
         return steps
+
+    def _shadow_marks(self) -> tuple[int, int, int]:
+        shadow = self.shadow_service._session(self.shadow_session_id)
+        return int(shadow.revision), int(shadow.geometry_layer_revision), int(shadow.morph_session_revision)
+
+    def has_unfinished_changes(self) -> bool:
+        """Whether this editor holds a change no Finish has taken yet (the tab's ``*``).
+
+        Opening the editor, its set preparation and its seeded layers are not
+        changes: they happen before the marks are taken. A step moves the shadow's
+        revision; a layer rename, visibility or activation only its layer revision;
+        a Morph & Refit slider, definition or preset change its morph revision.
+        Read without the session lock, which a worker holds through a native job,
+        since every tab label asks this (see adcf12455).
+        """
+
+        if self._finish_accepted or self.closed:
+            return False
+        if self.recovered_edits_at > 0.0:
+            return True  # restored from a recovery point: not finished yet
+        if self.shadow_base_marks is None:
+            return False
+        try:
+            return self._shadow_marks() != self.shadow_base_marks
+        except Exception:
+            return True  # unreadable: mark it, as unfinished_steps counts it
 
     def live_texture_coverage(self, parts: Sequence[object], lod_index: int = 0) -> dict[str, object]:
         """rust_texture_coverage of ``parts`` from the materials the editor draws now.
