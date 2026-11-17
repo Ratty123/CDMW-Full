@@ -731,6 +731,11 @@ class SavedWorkPage(QWidget):
         self._visible_rows = rows
         self.table.blockSignals(True)
         self.table.setSortingEnabled(False)
+        # The date column sizes to its contents, measured once after the fill:
+        # sized during it, each cell written over an earlier fill made Qt measure
+        # the column over every row again (about 100 ms for 60 rows).
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.table.setRowCount(len(rows))
         for index, row in enumerate(rows):
             saved = time.strftime("%Y-%m-%d %H:%M", time.localtime(row.saved_at)) if row.saved_at else ""
@@ -758,6 +763,7 @@ class SavedWorkPage(QWidget):
                 if label.paths:
                     cells[2][0].setData(_GAME_FILES_ROLE, label.paths)
             cells[5][0].setToolTip(cells[5][0].text())
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table.setSortingEnabled(True)
         self.table.clearSelection()
         # selectRow would replace the selection in extended mode; add each row.
