@@ -60,23 +60,35 @@ class _Dock:
         from cdmw.ui.mesh_editor.texture_tools_dock import LiveTextureTarget, MeshEditorTextureTools
 
         _app()
-        source = tmp_path / "texture.png"
-        Image.fromarray(_texture() if rgba is None else rgba, "RGBA").save(source)
+        self.tmp_path = tmp_path
         self.tools = MeshEditorTextureTools(
             settings=QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat), base_dir=tmp_path)
         self.edits: list[tuple[np.ndarray, bool]] = []
-        self.tools.texture_edited.connect(lambda _s, _h, image, changed: self.edits.append((_rgba(image), changed)))
+        self.edited_shas: list[str] = []
+        self.tools.texture_edited.connect(self._edited)
         self.tools.resize(1000, 700)
-        self.tools.open_target(LiveTextureTarget(
-            session_id="doc", source_path=str(source), source_sha256=SHA, channel="base",
+        self._target_class = LiveTextureTarget
+        self.open("texture.png", SHA, _texture() if rgba is None else rgba)
+
+    def _edited(self, _session: str, sha: str, image, changed: bool) -> None:
+        self.edits.append((_rgba(image), changed))
+        self.edited_shas.append(sha)
+
+    def open(self, name: str, sha: str, rgba: np.ndarray) -> None:
+        source = self.tmp_path / name
+        Image.fromarray(rgba, "RGBA").save(source)
+        self.tools.open_target(self._target_class(
+            session_id="doc", source_path=str(source), source_sha256=sha, channel="base",
             display_name=source.name, game_path="character/texture/" + source.name))
         self.editor = self.tools.editor
         deadline = time.monotonic() + 30
-        while self.editor.document is None and time.monotonic() < deadline:
+        while (self.editor.document is None or self.editor.document.source_binding.mesh_resource_id != sha) \
+                and time.monotonic() < deadline:
             _pump(0.02)
-        assert self.editor.document is not None, "the texture did not open"
+        assert self.editor.document is not None and self.editor.document.source_binding.mesh_resource_id == sha
         _pump(0.05)
         self.edits.clear()
+        self.edited_shas.clear()
 
     def composite(self) -> np.ndarray:
         return np.array(self.editor._current_composite_rgba(), copy=True)
@@ -198,3 +210,50 @@ def test_apply_recolor_in_the_dock_reaches_canvas_model_and_history(dock) -> Non
     editor.redo()
     _pump(0.05)
     assert np.array_equal(dock.composite(), after)
+
+
+# Every edit reaches the model -------------------------------------------------------
+
+
+def _shows_on_the_model(dock, *, changed: bool = True) -> bool:
+    _pump(0.05)
+    live = dock.live()
+    return live is not None and np.array_equal(live, dock.composite()) and dock.edits[-1][1] is changed
+
+
+def test_move_layer_visibility_undo_and_history_restore_reach_the_model(dock) -> None:
+    editor = dock.editor
+    opened = dock.composite()
+    editor.tool_buttons["move"].click()
+    editor.canvas.stroke_committed.emit({"tool": "move", "points": [(10, 10), (20, 15)]})
+    assert not np.array_equal(dock.composite(), opened)
+    assert _shows_on_the_model(dock), "Move"
+
+    dock.edits.clear()
+    editor.layer_visible_checkbox.setChecked(False)
+    assert int(dock.composite()[..., 3].max()) == 0
+    assert _shows_on_the_model(dock), "hiding the layer"
+
+    dock.edits.clear()
+    editor.undo()
+    assert _shows_on_the_model(dock), "Undo of hiding the layer"
+    assert int(dock.composite()[..., 3].max()) == 255
+
+    dock.edits.clear()
+    editor.history_list.setCurrentRow(0)
+    editor.history_restore_button.click()
+    assert np.array_equal(dock.composite(), opened)
+    assert _shows_on_the_model(dock, changed=False), "History restore to the opened texture"
+
+
+def test_a_patch_for_one_texture_is_not_sent_once_another_is_shown(dock) -> None:
+    dock.open("second.png", "cd" * 32, np.full((64, 64, 4), 200, dtype=np.uint8))
+    editor = dock.editor
+    first = next(index for index, session in enumerate(editor._sessions)
+                 if session.document.source_binding.mesh_resource_id == SHA)
+    editor.tool_buttons["move"].click()
+    editor.canvas.stroke_committed.emit({"tool": "move", "points": [(10, 10), (20, 15)]})
+    editor.document_tab_bar.setCurrentIndex(first)  # before the patch goes out
+    _pump(0.05)
+    assert editor.document.source_binding.mesh_resource_id == SHA
+    assert SHA not in dock.edited_shas, "the second texture's edit went out as the first's"

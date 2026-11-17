@@ -129,11 +129,25 @@ def build_texture_editor_resident_patch(
     )
 
 
+def _resident_patch_document_key(document: object) -> tuple[str, ...]:
+    """Which texture a patch belongs to. Not the document object: every edit and most
+    view refreshes replace it (``dataclasses.replace``), so a patch scheduled by an edit
+    was dropped whenever the refresh after it (a layer's visibility, Move, an Undo of a
+    layer or adjustment step, a History restore) made a new one before the patch went
+    out. A switch to another texture's document still drops it."""
+
+    binding = getattr(document, "source_binding", None)
+    return tuple(
+        str(getattr(binding, name, "") or "")
+        for name in ("launch_origin", "mesh_session_id", "mesh_resource_id", "source_path")
+    )
+
+
 class TextureEditorResidentTextureMixin:
     def _initialize_resident_texture_patch_state(self) -> None:
         self._resident_texture_patch_dirty_bounds: Optional[tuple[int, int, int, int]] = None
         self._resident_texture_patch_full_dirty = False
-        self._resident_texture_patch_document_id = 0
+        self._resident_texture_patch_document_key: Optional[tuple[str, ...]] = None
         self._resident_texture_patch_timer = QTimer(self)
         self._resident_texture_patch_timer.setSingleShot(True)
         self._resident_texture_patch_timer.timeout.connect(self._emit_resident_texture_patch)
@@ -153,11 +167,11 @@ class TextureEditorResidentTextureMixin:
         # channel live (step 8); the older hand-off only showed base colour.
         if binding.mesh_commit_mode != "live" and channel not in {"base", "base_color", "albedo"}:
             return
-        document_id = id(document)
-        if self._resident_texture_patch_document_id not in {0, document_id}:
+        document_key = _resident_patch_document_key(document)
+        if self._resident_texture_patch_document_key not in {None, document_key}:
             self._resident_texture_patch_dirty_bounds = None
             self._resident_texture_patch_full_dirty = False
-        self._resident_texture_patch_document_id = document_id
+        self._resident_texture_patch_document_key = document_key
         if dirty_bounds is None:
             self._resident_texture_patch_full_dirty = True
             self._resident_texture_patch_dirty_bounds = None
@@ -170,7 +184,7 @@ class TextureEditorResidentTextureMixin:
 
     def _emit_resident_texture_patch(self) -> None:
         document = self.document
-        if document is None or id(document) != self._resident_texture_patch_document_id:
+        if document is None or _resident_patch_document_key(document) != self._resident_texture_patch_document_key:
             self._clear_resident_texture_patch_state()
             return
         dirty_bounds = None if self._resident_texture_patch_full_dirty else self._resident_texture_patch_dirty_bounds
@@ -197,7 +211,7 @@ class TextureEditorResidentTextureMixin:
             self._resident_texture_patch_timer.stop()
         self._resident_texture_patch_dirty_bounds = None
         self._resident_texture_patch_full_dirty = False
-        self._resident_texture_patch_document_id = 0
+        self._resident_texture_patch_document_key = None
 
 
 __all__ = [
