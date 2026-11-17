@@ -40773,7 +40773,7 @@ MESSAGE_REFERENCE = [
     "message": "A PAC alone cannot contain these texture or material changes. Use Build Mod to include their companion files.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 307,
+      "cdmw/ui/mesh_editor/tab_reports.py": 309,
       "cdmw/workers/mesh_editor_workers.py": 385
     }
   },
@@ -45007,7 +45007,7 @@ MESSAGE_REFERENCE = [
     "message": "Editable mesh package export failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_packages.py": 95
+      "cdmw/ui/mesh_editor/tab_packages.py": 96
     }
   },
   {
@@ -45039,7 +45039,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited mesh package import failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_packages.py": 195
+      "cdmw/ui/mesh_editor/tab_packages.py": 196
     }
   },
   {
@@ -45047,7 +45047,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited mesh package imported and validated ({float(elapsed_ms)} ms): {'safe to rebuild' if ok else 'rebuild blocked'} ({blocker_count} blockers, {warning_count} warnings).",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_packages.py": 189
+      "cdmw/ui/mesh_editor/tab_packages.py": 190
     }
   },
   {
@@ -45529,7 +45529,7 @@ MESSAGE_REFERENCE = [
     "message": "Expected renderer {RUST_MESH_RENDERER}; received {backend or '<missing>'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 472
+      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 473
     }
   },
   {
@@ -45561,7 +45561,7 @@ MESSAGE_REFERENCE = [
     "message": "Export PAC As requires a PAC mesh and a .pac destination.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 307,
+      "cdmw/ui/mesh_editor/tab_reports.py": 309,
       "cdmw/workers/mesh_editor_workers.py": 367
     }
   },
@@ -45875,7 +45875,7 @@ MESSAGE_REFERENCE = [
     "message": "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 307
+      "cdmw/ui/mesh_editor/tab_reports.py": 309
     }
   },
   {
@@ -49974,7 +49974,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no active edit session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 846
+      "cdmw/ui/mesh_editor/controller.py": 854
     }
   },
   {
@@ -57080,7 +57080,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild report cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 417
+      "cdmw/ui/mesh_editor/tab_reports.py": 419
     }
   },
   {
@@ -57088,7 +57088,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild report failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 424
+      "cdmw/ui/mesh_editor/tab_reports.py": 426
     }
   },
   {
@@ -60848,7 +60848,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh changed while choosing the destination. Finish or check it again before exporting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 323
+      "cdmw/ui/mesh_editor/tab_reports.py": 325
     }
   },
   {
@@ -61563,7 +61563,7 @@ MESSAGE_REFERENCE = [
     "message": "This edit needs multiple files. Use Build Mod to save the complete result.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 307,
+      "cdmw/ui/mesh_editor/tab_reports.py": 309,
       "cdmw/workers/mesh_editor_workers.py": 369
     }
   },
@@ -61572,7 +61572,7 @@ MESSAGE_REFERENCE = [
     "message": "This edit requires companion files. Use Build Mod to export the complete result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 307,
+      "cdmw/ui/mesh_editor/tab_reports.py": 309,
       "cdmw/workers/mesh_editor_workers.py": 379
     }
   },
@@ -62126,7 +62126,7 @@ MESSAGE_REFERENCE = [
     "message": "Unexpected editing backend",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 475
+      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 476
     }
   },
   {
@@ -62142,7 +62142,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown Mesh Editor action: {key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 858
+      "cdmw/ui/mesh_editor/controller.py": 866
     }
   },
   {
@@ -62794,7 +62794,7 @@ MESSAGE_REFERENCE = [
     "message": "Validation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 162
+      "cdmw/ui/mesh_editor/tab_reports.py": 164
     }
   },
   {
@@ -63066,7 +63066,7 @@ MESSAGE_REFERENCE = [
     "message": "Wait for the current Mesh Editor task to finish.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 307
+      "cdmw/ui/mesh_editor/tab_reports.py": 309
     }
   },
   {
@@ -63298,7 +63298,7 @@ MESSAGE_REFERENCE = [
     "message": "active Mesh Editor result for {result.action} did not include native preview payload; legacy Python preview rebuild is disabled",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 729
+      "cdmw/ui/mesh_editor/controller.py": 737
     }
   },
   {
@@ -63306,7 +63306,7 @@ MESSAGE_REFERENCE = [
     "message": "active native {result.action} result did not include preview payload; Python preview rebuild is disabled",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 683
+      "cdmw/ui/mesh_editor/controller.py": 691
     }
   },
   {
@@ -66853,7 +66853,7 @@ MESSAGE_REFERENCE = [
     "message": "legacy Python preview rebuild is archive-only; active Mesh Editor requires native preview payloads",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 742
+      "cdmw/ui/mesh_editor/controller.py": 750
     }
   },
   {
@@ -69769,7 +69769,7 @@ MESSAGE_REFERENCE = [
     "message": "native selection result did not include selection groups; Python selection rebuild is disabled",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 605
+      "cdmw/ui/mesh_editor/controller.py": 613
     }
   },
   {
@@ -69873,7 +69873,7 @@ MESSAGE_REFERENCE = [
     "message": "native topology result for {result.action} did not include final submesh count",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 627
+      "cdmw/ui/mesh_editor/controller.py": 635
     }
   },
   {
@@ -69881,7 +69881,7 @@ MESSAGE_REFERENCE = [
     "message": "native topology result for {result.action} did not include preview triangle groups; Python preview rebuild is disabled",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 688
+      "cdmw/ui/mesh_editor/controller.py": 696
     }
   },
   {
@@ -69937,7 +69937,7 @@ MESSAGE_REFERENCE = [
     "message": "native vertex update result for {result.action} did not include preview vertex groups; Python vertex preview rebuild is disabled",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 673
+      "cdmw/ui/mesh_editor/controller.py": 681
     }
   },
   {
@@ -69969,7 +69969,7 @@ MESSAGE_REFERENCE = [
     "message": "native {result.action} result did not include preview payload; Python preview rebuild is disabled",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 703
+      "cdmw/ui/mesh_editor/controller.py": 711
     }
   },
   {
@@ -70033,7 +70033,7 @@ MESSAGE_REFERENCE = [
     "message": "no rebuild report is available",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 699
+      "cdmw/ui/mesh_editor/tab_reports.py": 701
     }
   },
   {
@@ -71415,7 +71415,7 @@ MESSAGE_REFERENCE = [
       "cdmw/services/mesh_service_payloads.py": 360,
       "cdmw/services/mesh_service_rebuild.py": 107,
       "cdmw/services/model_library_preview.py": 209,
-      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 61,
+      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 62,
       "cdmw/ui/mesh_editor/tab_rust_process.py": 375,
       "cdmw/ui/preview/dotnet_session.py": 1271,
       "cdmw/ui/preview/engine_channel.py": 99,
@@ -72249,7 +72249,7 @@ MESSAGE_REFERENCE = [
     "message": "status JSON could not be parsed",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 127
+      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 128
     }
   },
   {
@@ -73483,7 +73483,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} is legacy display-shape cleanup and is not available in active Mesh Editor",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 553,
+      "cdmw/ui/mesh_editor/controller.py": 561,
       "cdmw/workers/mesh_editor_workers.py": 246
     }
   },

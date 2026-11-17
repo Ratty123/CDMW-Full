@@ -33,7 +33,13 @@ def pending_edit_revision(tab: object) -> int:
         if not callable(has_session) or not has_session():
             return 0
         controller = getattr(tab, "standalone_controller", None)
-        return int(controller.session_view().revision) if controller is not None else 0
+        if controller is None:
+            return 0
+        # Not a session view: that waits for the session's lock, which a worker
+        # holds through a native job, and every tab label asks this.
+        from cdmw.ui.mesh_editor.controller import controller_session_revision
+
+        return controller_session_revision(controller)
     except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
         return 0
 
