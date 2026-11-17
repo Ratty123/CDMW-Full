@@ -49885,7 +49885,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1231
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1233
     }
   },
   {
@@ -49950,7 +49950,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 823,
+      "cdmw/ui/mesh_editor/shell_bridge.py": 825,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 185
     }
   },
@@ -50106,7 +50106,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_native_preview.py": 16,
-      "cdmw/ui/mesh_editor/tab_shell.py": 945
+      "cdmw/ui/mesh_editor/tab_shell.py": 950
     }
   },
   {
@@ -50114,7 +50114,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1120
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1122
     }
   },
   {
@@ -53921,7 +53921,7 @@ MESSAGE_REFERENCE = [
     "message": "Open a registered hairstyle before changing references.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_flow.py": 181
+      "cdmw/ui/mesh_editor/hair_flow.py": 200
     }
   },
   {
@@ -53929,7 +53929,7 @@ MESSAGE_REFERENCE = [
     "message": "Open a registered hairstyle before entering Hair.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_flow.py": 127
+      "cdmw/ui/mesh_editor/hair_flow.py": 146
     }
   },
   {
@@ -57235,7 +57235,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1155
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1157
     }
   },
   {
@@ -57307,7 +57307,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference selection cancelled; the current hairstyle is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_flow.py": 191
+      "cdmw/ui/mesh_editor/hair_flow.py": 210
     }
   },
   {
@@ -60882,7 +60882,7 @@ MESSAGE_REFERENCE = [
     "message": "The editor or archive changed during reference selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_flow.py": 195
+      "cdmw/ui/mesh_editor/hair_flow.py": 214
     }
   },
   {

@@ -790,12 +790,14 @@ class MeshEditorShellBridgeMixin:
         from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import has_pending_edit
 
         view = self._mesh_documents()
-        if view is None:
+        # Replacing the shown document's own target (Hair Tools set up again on the open
+        # hairstyle) is no second file: it asks first, as every replacement of an edit does.
+        if view is None or replace_same:
             return False
         current = view.active
         target = getattr(current, "_current_target_entry", None)
         current_entry = target() if callable(target) else None
-        if (not replace_same and isinstance(current_entry, ArchiveEntry)
+        if (isinstance(current_entry, ArchiveEntry)
                 and current_entry.identity == entry.identity
                 and _open_target_files(current_entry, getattr(current, "item_set_contexts", ()))
                 == (wanted or _open_target_files(entry, ()))):

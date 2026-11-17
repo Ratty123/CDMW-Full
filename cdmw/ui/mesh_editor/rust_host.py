@@ -442,6 +442,16 @@ class RustMeshEditorHostFrame(QFrame):
         self._child_process_id = 0
         self._editor_visible = False
 
+    def show_idle(self) -> None:
+        """Nothing is open here and nothing is being prepared: the page claims neither."""
+
+        self._editor_visible = False
+        self._set_child_visible(False)
+        self._status_label.setText("")
+        self._retry_button.setVisible(False)
+        self._pages.setCurrentWidget(self._status_page)
+        self._pages.setVisible(True)
+
     def show_loading(self, message: str) -> None:
         self._editor_visible = False
         self._set_child_visible(False)

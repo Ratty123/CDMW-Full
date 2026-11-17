@@ -203,6 +203,8 @@ class MeshEditorTabShellMixin(
         page.save_rebuild_report_requested.connect(self._save_standalone_rebuild_report_requested)
         self.standalone_preview_stack = page.preview_stack
         self.standalone_native_host_frame = page.native_host_frame
+        # An empty document prepares nothing: its host does not say it does.
+        self.standalone_native_host_frame.show_idle()
         self.standalone_native_host_frame.retry_requested.connect(
             self._retry_rust_editor_requested
         )
@@ -379,6 +381,9 @@ class MeshEditorTabShellMixin(
                 widget.setParent(None)
         if message:
             self.empty_status_label.setText(message)
+        show_idle = getattr(getattr(self, "standalone_native_host_frame", None), "show_idle", None)
+        if callable(show_idle):
+            show_idle()  # not the closed session's last page, and not "Preparing..."
         self.empty_state.setVisible(True)
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.update_editor_session_state(None)
