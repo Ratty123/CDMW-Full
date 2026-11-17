@@ -149,13 +149,19 @@ def world(app, tmp_path, monkeypatch):
 def test_every_read_tool_is_listed_and_nothing_else(world) -> None:
     world.bridge.send_request("tools/list")
     listed = world.bridge.read(60, pump=QApplication.instance().processEvents)
-    names = sorted(tool["name"] for tool in listed["result"]["tools"])
-    assert names == sorted([
+    tools = {tool["name"]: tool for tool in listed["result"]["tools"]}
+    read_tools = {
         "app_jobs", "app_job", "app_cancel_job", "commands_list", "search_archive", "search_items",
         "search_characters", "search_text", "search_models", "search_saved_work", "files_describe", "files_bytes",
         "files_parse", "files_references", "files_used_by", "files_format_report", "tables_row", "strings_get",
-        "app_shortcuts", "app_manual", "textures_list"])
-    assert all(tool["annotations"]["readOnlyHint"] for tool in listed["result"]["tools"])
+        "app_shortcuts", "app_manual", "textures_list"}
+    # Since the full connection (2026-11-17) the server also lists edit, output and
+    # destructive tools; every read tool is still there and still says it only reads.
+    assert read_tools <= set(tools)
+    assert all(tools[name]["annotations"]["readOnlyHint"] for name in read_tools)
+    for name in ("mesh_discard", "mesh_build_mod", "mesh_undo"):
+        if name in tools:
+            assert not tools[name]["annotations"]["readOnlyHint"], name
 
 
 def test_shortcuts_help_and_the_textures_panel_answer_through_the_bridge(world) -> None:
