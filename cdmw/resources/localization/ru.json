@@ -3121,6 +3121,7 @@
     "Close {value_0} settings": "Закрыть настройки {value_0}",
     "Closing after active background workers stop...": "Закрытие после остановки активных фоновых работников...",
     "Closing after {value_0} owned task(s) stop{value_1}...": "Закрытие после остановки задач, принадлежащих {value_0},{value_1}...",
+    "Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.": "Если закрыть панель «Текстуры» её собственной кнопкой закрытия или кнопкой «Текстуры», скрывается только список. Текстура, открытая на панели «Редактор текстур», остаётся открытой и занимает место списка рядом с моделью, поэтому у холста больше места. Нажмите «Текстуры» ещё раз, чтобы вернуть список; текстура по-прежнему открыта.",
     "Cloth": "Ткань",
     "Cloth & other data": "Ткань и другие данные",
     "Cloth amount": "Количество ткани",

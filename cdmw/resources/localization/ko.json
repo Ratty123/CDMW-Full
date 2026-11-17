@@ -3121,6 +3121,7 @@
     "Close {value_0} settings": "{value_0} 설정 닫기",
     "Closing after active background workers stop...": "활성 백그라운드 작업자가 중지된 후 닫는 중...",
     "Closing after {value_0} owned task(s) stop{value_1}...": "{value_0} 소유 작업 중지 후 닫기{value_1}...",
+    "Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.": "텍스처 패널을 자체 닫기 단추나 텍스처 단추로 닫으면 목록만 숨겨집니다. 텍스처 편집기 패널에 열린 텍스처는 열린 채로 남아 모델 옆의 목록 자리를 차지하므로 캔버스가 더 넓어집니다. 텍스처를 다시 클릭하면 목록이 돌아오며, 텍스처는 계속 열려 있습니다.",
     "Cloth": "천",
     "Cloth & other data": "천 및 기타 데이터",
     "Cloth amount": "천 양",

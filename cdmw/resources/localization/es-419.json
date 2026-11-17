@@ -3121,6 +3121,7 @@
     "Close {value_0} settings": "Cerrar la configuración de {value_0}",
     "Closing after active background workers stop...": "Cerrando después de que los trabajadores activos en segundo plano dejen de funcionar...",
     "Closing after {value_0} owned task(s) stop{value_1}...": "Cerrando después de que las tareas de propiedad de {value_0} se detengan{value_1}...",
+    "Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.": "Cerrar el panel Texturas, con su propio cierre o con el botón Texturas, oculta solo la lista. Una textura abierta en el panel Editor de texturas sigue abierta y ocupa el espacio de la lista junto al modelo, así que el lienzo tiene más espacio. Haz clic de nuevo en Texturas para volver a mostrar la lista; la textura sigue abierta.",
     "Cloth": "Tela",
     "Cloth & other data": "Tela y otros datos",
     "Cloth amount": "Cantidad de tela",

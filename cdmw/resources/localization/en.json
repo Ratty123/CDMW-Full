@@ -3121,6 +3121,7 @@
     "Close {value_0} settings": "Close {value_0} settings",
     "Closing after active background workers stop...": "Closing after active background workers stop...",
     "Closing after {value_0} owned task(s) stop{value_1}...": "Closing after {value_0} owned task(s) stop{value_1}...",
+    "Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.": "Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.",
     "Cloth": "Cloth",
     "Cloth & other data": "Cloth & other data",
     "Cloth amount": "Cloth amount",

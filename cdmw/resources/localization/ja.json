@@ -3121,6 +3121,7 @@
     "Close {value_0} settings": "{value_0}設定を閉じる",
     "Closing after active background workers stop...": "アクティブなバックグラウンド ワーカーが停止した後に閉じます...",
     "Closing after {value_0} owned task(s) stop{value_1}...": "{value_0} が所有するタスクが停止した後に閉じています {value_1}...",
+    "Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.": "「テクスチャ」パネルをそれ自体の閉じるボタンまたは「テクスチャ」ボタンで閉じると、一覧だけが非表示になります。「テクスチャ エディタ」パネルで開いているテクスチャは開いたままで、モデルの横の一覧の場所を使うため、キャンバスが広くなります。もう一度「テクスチャ」をクリックすると一覧が戻り、テクスチャは開いたままです。",
     "Cloth": "布",
     "Cloth & other data": "布およびその他のデータ",
     "Cloth amount": "布の量",

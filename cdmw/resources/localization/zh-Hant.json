@@ -3121,6 +3121,7 @@
     "Close {value_0} settings": "關閉 {value_0} 設定",
     "Closing after active background workers stop...": "活動後台工作人員停止後關閉...",
     "Closing after {value_0} owned task(s) stop{value_1}...": "{value_0} 擁有的任務停止後關閉{value_1}...",
+    "Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.": "透過紋理面板本身的關閉按鈕或「紋理」按鈕關閉紋理面板時，只會隱藏清單。「紋理編輯器」面板中開啟的紋理會保持開啟，並占用模型旁清單的位置，讓畫布有更多空間。再按一下「紋理」即可讓清單回來；紋理仍然開啟。",
     "Cloth": "布料",
     "Cloth & other data": "布料及其他資料",
     "Cloth amount": "布料影響量",

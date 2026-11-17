@@ -3121,6 +3121,7 @@
     "Close {value_0} settings": "{value_0}-Einstellungen schließen",
     "Closing after active background workers stop...": "Schließung, nachdem aktive Hintergrundarbeiter aufgehört haben...",
     "Closing after {value_0} owned task(s) stop{value_1}...": "Wird geschlossen, nachdem die {value_0}-eigenen Aufgabe(n) stoppt{value_1}...",
+    "Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.": "Wenn Sie das Panel „Texturen“ über sein eigenes Schließen oder die Schaltfläche „Texturen“ schließen, wird nur die Liste ausgeblendet. Eine im Panel „Textur-Editor“ geöffnete Textur bleibt geöffnet und nimmt den Platz der Liste neben dem Modell ein, sodass die Leinwand mehr Raum hat. Klicken Sie erneut auf „Texturen“, um die Liste zurückzuholen; die Textur ist weiterhin geöffnet.",
     "Cloth": "Stoff",
     "Cloth & other data": "Stoff und andere Daten",
     "Cloth amount": "Stoffmenge",

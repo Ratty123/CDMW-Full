@@ -3121,6 +3121,7 @@
     "Close {value_0} settings": "{value_0} ayarlarını kapat",
     "Closing after active background workers stop...": "Aktif arka planda çalışanlar durduktan sonra kapanıyor...",
     "Closing after {value_0} owned task(s) stop{value_1}...": "{value_0}'e ait görev(ler) durdurulduktan sonra kapatılıyor{value_1}...",
+    "Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.": "Dokular panelini kendi kapatma düğmesiyle veya Dokular düğmesiyle kapatmak yalnızca listeyi gizler. Doku Düzenleyici panelinde açık olan doku açık kalır ve modelin yanında listenin yerini alır, böylece tuvale daha fazla yer kalır. Listeyi geri getirmek için Dokular'a yeniden tıklayın; doku hâlâ açıktır.",
     "Cloth": "Kumaş",
     "Cloth & other data": "Kumaş ve diğer veriler",
     "Cloth amount": "Kumaş miktarı",

@@ -133,6 +133,50 @@ def test_with_a_texture_open_both_panels_are_usable_and_the_model_stays_in_view(
             page.deleteLater()
 
 
+def test_with_the_list_hidden_the_texture_editor_has_the_whole_side(tmp_path: Path) -> None:
+    """Fredric: close only the list "so you get a bigger workspace"."""
+
+    for width, height in ((1600, 900), (1280, 720)):
+        page = _page(width, height)
+        try:
+            _show_list(page, tmp_path)
+            _open_texture(page, tmp_path)
+            textures, tools, host = page.textures_dock, page.texture_tools_dock, page.dock_host
+            split = (textures.height(), tools.height(), tools.width())
+            page.texture_panels.set_wanted(False)
+            _settle()
+            assert textures.isHidden() and tools.isVisible(), (width, height)
+            # The list's height is the Texture Editor's now; its width is as it was.
+            assert tools.height() >= split[0] + split[1], (width, height)
+            assert tools.height() >= host.height() - tools.fontMetrics().height() * 3, (width, height)
+            assert tools.width() == split[2], (width, height)
+            # Shown again, the list has today's split back.
+            page.texture_panels.set_wanted(True)
+            _settle()
+            assert abs(textures.height() - split[0]) <= 2 and abs(tools.height() - split[1]) <= 2, (width, height)
+            assert _rows_in_view(textures) >= 5, (width, height)
+        finally:
+            page.deleteLater()
+
+
+def test_a_texture_opened_with_the_list_hidden_still_gets_the_split_when_the_list_shows(tmp_path: Path) -> None:
+    page = _page(1600, 900)
+    try:
+        page.textures_dock.set_manifest(_manifest(), session_root=tmp_path)
+        _settle()
+        _open_texture(page, tmp_path)
+        textures, tools, host = page.textures_dock, page.texture_tools_dock, page.dock_host
+        assert textures.isHidden() and tools.isVisible() and not page.texture_panels.wanted
+        assert tools.width() >= int(host.width() * 0.44)
+        page.texture_panels.set_wanted(True)
+        _settle()
+        assert textures.height() >= textures.widget().minimumSize().height()
+        assert _rows_in_view(textures) >= 5
+        assert tools.height() > textures.height()
+    finally:
+        page.deleteLater()
+
+
 def test_a_crushed_saved_layout_is_sized_again_once_and_the_users_size_stands_after(tmp_path: Path) -> None:
     """Fredric's saved layout holds the strip of the build before; it must not come back."""
 
