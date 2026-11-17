@@ -58,6 +58,9 @@ class PaintingFrameView(QWidget):
         self._canvas_box: Optional[Tuple[float, float, float, float]] = None
         self._colour = QColor(DEFAULT_FRAME_COLOUR)
         self._picture = QImage()
+        #: Counts the changes to what is drawn; Create New Item's page draws the view
+        #: again only when it moves (see presentation_revision).
+        self._revision = 0
         layout = QVBoxLayout(self)
         self.message = QLabel("")
         self.message.setObjectName("HintLabel")
@@ -70,6 +73,14 @@ class PaintingFrameView(QWidget):
 
     def sizeHint(self) -> QSize:
         return QSize(640, 520)
+
+    def presentation_revision(self) -> int:
+        """Changes whenever the drawing does, apart from the size and palette."""
+        return self._revision
+
+    def _changed(self) -> None:
+        self._revision += 1
+        self.update()
 
     # ------------------------------------------------------------------ state
 
@@ -90,25 +101,25 @@ class PaintingFrameView(QWidget):
         self._frame_size = (width, height)
         self._canvas_box = (left, top, right, bottom)
         self._colour = QColor(colour) if colour is not None and colour.isValid() else QColor(DEFAULT_FRAME_COLOUR)
-        self.update()
+        self._changed()
 
     def clear_frame(self, message: str = "") -> None:
         self._frame_size = None
         self._canvas_box = None
         self._picture = QImage()
         self.set_message(message)
-        self.update()
+        self._changed()
 
     def set_picture(self, image: QImage) -> None:
         self._picture = QImage(image)
         if not self._picture.isNull():
             self.set_message("")
-        self.update()
+        self._changed()
 
     def clear_picture(self, message: str = "") -> None:
         self._picture = QImage()
         self.set_message(message)
-        self.update()
+        self._changed()
 
     def set_message(self, text: str) -> None:
         self.message.setText(str(text or ""))

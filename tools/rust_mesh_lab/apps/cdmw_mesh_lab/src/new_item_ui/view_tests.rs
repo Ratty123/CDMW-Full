@@ -3364,3 +3364,146 @@ fn label_contents_margins_inset_the_text_from_its_pane_edge() {
         text.pos
     );
 }
+
+#[test]
+fn custom_painted_pictures_fill_their_slot_and_keep_their_hint_over_them() {
+    // New painting's Front view (2026-11-17): Qt draws the frame in paintEvent, so the
+    // page gets that drawing as a picture with the view's hint label laid over it.
+    let context = egui::Context::default();
+    let hint = control(
+        "hint",
+        "label",
+        "",
+        json!({"text":"Choose the frame; it decides the painting's size.","wrap":true}),
+    );
+    let mut layout = control("", "column", "", json!({}));
+    layout.children.push(hint);
+    let mut picture = control(
+        "front",
+        "picture",
+        "",
+        json!({"image":"front-image","width":300,"height":400,"natural":[640,520],"min_width":280,"min_height":220,"grow_y":true}),
+    );
+    picture.children.push(layout);
+    picture.stretch = 1;
+    let mut tabs = control(
+        "views",
+        "tabs",
+        "",
+        json!({"selected":0,"tabs":[{"text":"Front view"},{"text":"3D view"}]}),
+    );
+    tabs.children.push(picture);
+    let mut root = control("page", "column", "", json!({}));
+    root.children = vec![
+        tabs,
+        control("info", "label", "", json!({"text":"Picture area 0.86 x 1.38 m."})),
+    ];
+    let state = state(root);
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    view.textures.insert(
+        "front-image".into(),
+        context.load_texture(
+            "front-image",
+            egui::ColorImage::filled([300, 400], Color32::BROWN),
+            egui::TextureOptions::LINEAR,
+        ),
+    );
+    for _ in 0..4 {
+        frame(&context, &mut view, &state, egui::vec2(960.0, 720.0), vec![]);
+    }
+    assert!(view.errors.is_empty(), "{:?}", view.errors);
+    let front = view.rects.iter().find(|rect| rect.id == "front").unwrap();
+    let hint = view.rects.iter().find(|rect| rect.id == "hint").unwrap();
+    let info = view.rects.iter().find(|rect| rect.id == "info").unwrap();
+    assert!(front.rect[3] >= 500.0, "the picture fills its tab: {front:?}");
+    assert!(front.rect[2] >= 900.0, "the picture fills its tab: {front:?}");
+    assert!(front.rect[1] + front.rect[3] <= info.rect[1] + 1.0, "{front:?} {info:?}");
+    let hint_middle = hint.rect[1] + hint.rect[3] / 2.0;
+    let front_middle = front.rect[1] + front.rect[3] / 2.0;
+    assert!(
+        (hint_middle - front_middle).abs() < 40.0,
+        "the hint sits over the picture's middle: {hint:?} {front:?}"
+    );
+}
+
+#[test]
+fn a_picture_that_does_not_grow_keeps_its_qt_height() {
+    let context = egui::Context::default();
+    let mut root = control("page", "column", "", json!({}));
+    root.children = vec![
+        control(
+            "badge",
+            "picture",
+            "",
+            json!({"image":"badge-image","width":40,"height":40,"natural":[60,48],"min_height":20,"grow_y":false}),
+        ),
+        control("after", "button", "Next", json!({})),
+    ];
+    let state = state(root);
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    for _ in 0..3 {
+        frame(&context, &mut view, &state, egui::vec2(640.0, 480.0), vec![]);
+    }
+    assert!(view.errors.is_empty(), "{:?}", view.errors);
+    let badge = view.rects.iter().find(|rect| rect.id == "badge").unwrap();
+    assert_eq!(badge.rect[3], 48.0, "{badge:?}");
+}
+
+#[test]
+fn icon_rows_are_as_tall_as_their_icons_and_their_wrapped_text() {
+    // New painting's frame list: 72 px thumbnails beside two lines of sizes. Rows with
+    // small icons stay one line, as before.
+    let mut heights = Vec::new();
+    for (icon, font, window) in [
+        (None, 14.0, 480.0),
+        (Some(20), 14.0, 480.0),
+        (Some(72), 14.0, 480.0),
+        (Some(72), 22.0, 250.0),
+    ] {
+        let context = egui::Context::default();
+        let mut props = json!({"total":3,
+            "columns":[{"index":0,"text":"","width":200,"stretch":true}]});
+        if let Some(icon) = icon {
+            props["icon_size"] = json!([icon, icon]);
+        }
+        let mut table = control("frames", "table", "", props);
+        table.props["rows"] = json!(
+            (0..3)
+                .map(|index| json!({"path":[index], "cells":[{
+                    "text":format!("0.86 x 1.38 m\npicture 0.70 x 1.2{index} m"),
+                    "enabled":true,"selectable":true,"image":"thumb"}]}))
+                .collect::<Vec<_>>()
+        );
+        let mut root = control("page", "column", "", json!({}));
+        root.children = vec![table, control("after", "button", "Add", json!({}))];
+        let mut state = state(root);
+        state.theme["font_pixels"] = json!(font);
+        apply_theme(&context, &state.theme);
+        let mut view = PresentationView::default();
+        view.textures.insert(
+            "thumb".into(),
+            context.load_texture(
+                "thumb",
+                egui::ColorImage::filled([72, 72], Color32::BROWN),
+                egui::TextureOptions::LINEAR,
+            ),
+        );
+        for _ in 0..4 {
+            frame(&context, &mut view, &state, egui::vec2(window, 900.0), vec![]);
+        }
+        assert!(view.errors.is_empty(), "{:?}", view.errors);
+        let table = view.rects.iter().find(|rect| rect.id == "frames").unwrap();
+        let after = view.rects.iter().find(|rect| rect.id == "after").unwrap();
+        assert!(table.rect[1] + table.rect[3] <= after.rect[1] + 1.0, "{table:?} {after:?}");
+        heights.push(table.rect[3]);
+    }
+    assert!(heights[0] < 3.0 * 76.0, "rows without icons stay one control tall: {heights:?}");
+    assert_eq!(heights[1], heights[0], "rows with small icons stay one control tall: {heights:?}");
+    assert!(heights[2] >= 3.0 * 76.0, "icon rows fit their 72 px icons: {heights:?}");
+    assert!(
+        heights[3] > heights[2] + 3.0 * 8.0,
+        "a narrow list with a large font grows its rows to the wrapped text: {heights:?}"
+    );
+}
