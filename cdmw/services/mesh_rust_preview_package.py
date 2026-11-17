@@ -37,6 +37,7 @@ from cdmw.domain.material_layer_uv import (
     pac_grime_blend_bytes,
     pac_grime_uv_transform,
     pac_layer_uv_transform,
+    pac_scratch_bytes,
 )
 from cdmw.services import mesh_rust_preview_files as _preview_files
 from cdmw.services.mesh_rust_preview_files import atomic_preview_publication, validate_preview_files
@@ -726,6 +727,8 @@ def _preview_core_layer_parameter_index(parameters):
             "grimeblendingparameterr", "grimeblendingparameterg", "grimeblendingparameterb",
             "grimeblendingopacityparameter", "grimeblendingopacityparameter1",
             "tintcolorr", "tintcolorg", "tintcolorb", "detailmasktexture",
+            "scratchroughness", "scratchmetallic",
+            "scratchtintcolorr", "scratchtintcolorg", "scratchtintcolorb",
         }:
             continue
         key = (
@@ -773,6 +776,32 @@ def _preview_core_ver2_grime(layer, role, channel, mask_parameter, parameters):
     tint = pac_color_bytes(values.get(f"tintcolor{channel}"))
     # No authored `_tintColor` leaves the grime texture's own colour.
     layer["tint"] = list(tint) if tint is not None else [1.0, 1.0, 1.0, 0.0]
+    return str(mask["source"]), str(mask["archive_path"]).replace("\\", "/")
+
+
+def _preview_core_ver2_scratch(layer, role, channel, mask_parameter, parameters):
+    """State the game's scratch rule on a Ver2 colour layer; return its detail mask.
+
+    Where `_detailMaskTexture` red marks a scratch, the game moves the layer's
+    roughness and metal by signed bytes and overlays `_scratchTintColor{R,G,B}`.
+    """
+    if role != "detail" or mask_parameter != "_colorBlendingMaskTexture" or not parameters:
+        return None
+    values = {str(name).casefold().lstrip("_"): value for name, value in parameters}
+    scratch = pac_scratch_bytes(parameters, channel)
+    tint = pac_color_bytes(values.get(f"scratchtintcolor{channel}"))
+    mask = values.get("detailmasktexture")
+    if (
+        (scratch is None and tint is None)
+        or not isinstance(mask, Mapping)
+        or not mask.get("source")
+        or not mask.get("archive_path")
+    ):
+        return None
+    if scratch is not None:
+        layer["scratch"] = list(scratch)
+    if tint is not None:
+        layer["scratch_tint"] = list(tint)
     return str(mask["source"]), str(mask["archive_path"]).replace("\\", "/")
 
 
@@ -862,7 +891,9 @@ def _copy_preview_core_material_layers(
                     if f"_dyeingdetaillayercolormask{channel}" not in values:
                         # A native default white is not an authored white dye.
                         layer["tint"][3] = 0.0
-                detail_mask = _preview_core_ver2_grime(layer, role, channel, mask_parameter, parameters)
+                detail_mask = _preview_core_ver2_grime(
+                    layer, role, channel, mask_parameter, parameters,
+                ) or _preview_core_ver2_scratch(layer, role, channel, mask_parameter, parameters)
             else:
                 detail_mask = None
             layer_has_source = False

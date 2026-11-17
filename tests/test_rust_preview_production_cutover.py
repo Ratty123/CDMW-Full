@@ -296,9 +296,53 @@ def test_ver2_grime_layers_state_the_game_ramp_and_their_detail_mask(tmp_path: P
         assert layer["detail_mask"]["byte_length"] == 516
     assert red["detail_mask"]["sha256"] == green["detail_mask"]["sha256"]
     assert "grime_blend" not in blue and "detail_mask" not in blue
+    assert all("scratch" not in layer for layer in (red, green, blue))
     # Base colour and the three masks, plus the detail mask on the two drawn layers.
     assert graph["source_edge_count"] == 1 + 2 * 3 + 2
     assert graph["unique_resource_count"] == 2
+
+
+def test_ver2_colour_layers_state_their_scratch_bytes_tint_and_detail_mask(tmp_path: Path):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    detail_mask = tmp_path / "plate_mg.dds"
+    detail_mask.write_bytes(b"DDS " + b"M" * 512)
+    base = native["batches"][0]["material_layers"][0]
+    detail = dict(base, layer_role="detail", component_scope_id="piece-a",
+                  mask_parameter="_colorBlendingMaskTexture",
+                  mask_source=base["diffuse_source"], mask_archive_path="character/texture/plate_ma.dds")
+    native["batches"][0]["material_layers"].extend([
+        dict(detail, mask_channel="r", source_parameter="_detailDiffuseMaskR"),
+        dict(detail, mask_channel="g", source_parameter="_detailDiffuseMaskG"),
+        dict(detail, layer_role="detail", mask_channel="b", source_parameter="_detailDiffuseMaskB",
+             component_scope_id="piece-b"),
+    ])
+    wrapper = dict(component_scope_id="piece-a", owner_wrapper_item_id="fixture-wrapper-1",
+                   material_wrapper_index=0)
+    parameters = [
+        dict(wrapper, parameter_name="_scratchRoughness", integer_value=0x597F9B),
+        dict(wrapper, parameter_name="_scratchMetallic", integer_value=0x7F7FFF),
+        dict(wrapper, parameter_name="_scratchTintColorR", value="#c8b9b42d"),
+        dict(wrapper, parameter_name="_detailMaskTexture", value="",
+             resolved_source_path=str(detail_mask),
+             resolved_archive_path="character/texture/plate_mg.dds"),
+    ]
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=4,
+                                           transported_parameter_count=4)
+    (source / "manifest.json").write_text(json.dumps(native))
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    graph = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]
+    red, green, other_wrapper = graph["materials"][0]["layers"][1:]
+    assert red["scratch"] == [0x9B, 0xFF]
+    assert red["scratch_tint"] == pytest.approx([0xC8 / 255, 0xB9 / 255, 0xB4 / 255, 0x2D / 255])
+    assert green["scratch"] == [0x7F, 0x7F]
+    assert "scratch_tint" not in green
+    for layer in (red, green):
+        assert layer["detail_mask_archive_path"] == "character/texture/plate_mg.dds"
+        assert layer["detail_mask"]["byte_length"] == 516
+    # A layer of another wrapper has none of these parameters, so no scratch rule.
+    assert "scratch" not in other_wrapper and "detail_mask" not in other_wrapper
 
 
 def _called_names(path: Path) -> set[str]:

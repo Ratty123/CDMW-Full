@@ -46,7 +46,11 @@ Grime of the Ver2 colour-blend families is drawn as the game's shader does: the
 package step states each grime layer's ramp bytes (`grime_blend`), its own tiling,
 its `_tintColor` and the wrapper's `_detailMaskTexture` (`detail_mask`), and both
 preview routes show the grime of the largest blend-mask channel where the detail
-mask's green passes that ramp. Grime without those authored inputs stays in the
+mask's green passes that ramp. Scratches follow the same route: a colour layer
+states its `_scratchRoughness` and `_scratchMetallic` bytes (`scratch`) and its
+`_scratchTintColor` (`scratch_tint`), and where the detail mask's red is set the
+drawn layer's roughness moves through its remaining range, its metal by the plain
+step, and the tint is overlaid. Grime without those authored inputs stays in the
 conserved graph but hidden; `CDMW_PREVIEW_DRAW_GRIME=1` draws it at a constant
 weight for internal comparisons.
 

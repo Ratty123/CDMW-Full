@@ -512,6 +512,144 @@ fn offscreen_ver2_grime_follows_the_detail_mask_ramp() -> TestResult {
     Ok(())
 }
 
+/// The game's Ver2 scratch rule: where `_detailMaskTexture` red marks a scratch,
+/// the drawn layer's roughness moves through its remaining range and its metal by
+/// the plain step, and the scratch tint is overlaid on the colour.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_ver2_scratch_moves_roughness_and_metal_where_the_detail_mask_marks_it() -> TestResult {
+    use cdmw_render_wgpu::{
+        DETAIL_MASK_SLOT, LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet,
+    };
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.5, 0.5]; 4];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let linear = |value: f32| {
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    let tint = [200.0 / 255.0, 185.0 / 255.0, 180.0 / 255.0, 45.0 / 255.0];
+    // (name, detail mask red, roughness byte, metal byte)
+    for (name, red, rough_byte, metal_byte) in [
+        ("no scratch", 0_u8, 0x9B_u8, 0xFF_u8),
+        ("plate layer R", 255, 0x9B, 0xFF),
+        ("half a scratch", 128, 0x9B, 0xFF),
+        ("plate layer B", 255, 0x59, 0x7F),
+    ] {
+        let wear = f32::from(red) / 255.0;
+        let steps = [rough_byte, metal_byte].map(|byte| f32::from(byte) * 2.0 / 255.0 - 1.0);
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[1] = Some(texture([128, 128, 128, 255], TextureRole::BaseColor)?);
+        layer.textures[3] = Some(texture([255, 128, 100, 255], TextureRole::Material)?);
+        layer.textures[DETAIL_MASK_SLOT] = Some(texture([red, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [1.0, 1.0, 1.0, 0.0],
+            affine: [1.0, 0.0, 0.0, 1.0],
+            properties: [1.0, 0.2158, 1.0, 0.0],
+            scratch: [steps[0], steps[1], 1.0, 0.0],
+            scratch_tint: tint,
+            ..Default::default()
+        };
+        let colour = temporary.path().join(format!("{name}-base.bmp"));
+        let response = temporary.path().join(format!("{name}-response.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &colour,
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: Some(&response),
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(colour)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        let clean = linear(128.0 / 255.0);
+        for channel in 0..3 {
+            let overlaid = if wear < 0.5 {
+                2.0 * wear * tint[channel]
+            } else {
+                1.0 - 2.0 * (1.0 - wear) * (1.0 - tint[channel])
+            };
+            let expected = clean + (linear(overlaid) - clean) * tint[3] * wear;
+            let drawn = linear(f32::from(pixel[2 - channel]) / 255.0);
+            assert!(
+                (drawn - expected).abs() <= 0.012,
+                "{name}: channel {channel}, {drawn} != {expected}"
+            );
+        }
+        let bytes = std::fs::read(response)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        let rough = 128.0 / 255.0;
+        let roughness = (rough + (1.0 - rough) * steps[0] * wear) * 255.0;
+        let metal = ((100.0 / 255.0 + steps[1] * wear).clamp(0.0, 1.0)) * 255.0;
+        assert!(
+            (f32::from(pixel[1]) - roughness).abs() <= 3.0,
+            "{name}: roughness {} != {roughness}",
+            pixel[1]
+        );
+        assert!(
+            (f32::from(pixel[2]) - metal).abs() <= 3.0,
+            "{name}: metal {} != {metal}",
+            pixel[2]
+        );
+    }
+    Ok(())
+}
+
 #[test]
 fn shader_controls_legacy_documents_have_unknown_vertex_masks() -> TestResult {
     let document = decode_mesh(

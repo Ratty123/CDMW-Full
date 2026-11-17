@@ -277,6 +277,13 @@ pub struct PreviewCoreMaterialLayer {
     /// byte and intensity byte (255 is 2.0), as the game's shader reads them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grime_blend: Option<[u32; 3]>,
+    /// A Ver2 colour layer's scratch bytes for roughness and metal: where
+    /// `_detailMaskTexture` red is set the game moves each by `byte * 2 / 255 - 1`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scratch: Option<[u32; 2]>,
+    /// `_scratchTintColor` of the layer: sRGB colour and strength.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scratch_tint: Option<[f32; 4]>,
     /// `_detailMaskTexture` of the layer's wrapper: red marks scratches, green grime.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub detail_mask_declared: bool,
@@ -299,6 +306,21 @@ impl PreviewCoreMaterialLayer {
             && self.grime_blend.is_some_and(|blend| blend[2] > 0)
             && self.detail_mask.is_some()
             && self.diffuse.is_some()
+    }
+
+    /// Whether this is a colour layer whose scratches the game's Ver2 rule draws.
+    pub fn is_ver2_scratch(&self) -> bool {
+        self.layer_role == "detail"
+            && self.mask_parameter == "_colorBlendingMaskTexture"
+            && (self.scratch.is_some() || self.scratch_tint.is_some())
+            && self.detail_mask.is_some()
+    }
+
+    /// The signed roughness and metal steps of a scratch, each in -1 to 1.
+    pub fn scratch_steps(&self) -> [f32; 2] {
+        self.scratch.map_or([0.0; 2], |bytes| {
+            bytes.map(|byte| byte as f32 * 2.0 / 255.0 - 1.0)
+        })
     }
 
     fn resources(&self) -> [(&str, bool, &str, Option<&FileReference>); 6] {
@@ -2429,6 +2451,13 @@ fn validate_preview_core_material_graph(
                 || layer
                     .grime_blend
                     .is_some_and(|bytes| bytes.iter().any(|value| *value > 255))
+                || layer
+                    .scratch
+                    .is_some_and(|bytes| bytes.iter().any(|value| *value > 255))
+                || layer.scratch_tint.is_some_and(|tint| {
+                    tint.iter()
+                        .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+                })
                 || layer
                     .blend_opacity
                     .is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))

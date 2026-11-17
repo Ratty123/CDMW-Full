@@ -151,12 +151,13 @@ mod work {
                 } else {
                     None
                 };
-                // Ver2 grime is placed by the detail mask as well.
-                let detail = if reference.is_some() && layer.is_ver2_grime() {
-                    layer.detail_mask.as_ref()
-                } else {
-                    None
-                };
+                // Ver2 grime and scratches are placed by the detail mask as well.
+                let detail =
+                    if reference.is_some() && (layer.is_ver2_grime() || layer.is_ver2_scratch()) {
+                        layer.detail_mask.as_ref()
+                    } else {
+                        None
+                    };
                 [reference, mask, detail].into_iter().flatten()
             })
             .collect()
@@ -1475,7 +1476,7 @@ fn rgb_layer_dye(color: [f32; 3], dye: [f32; 4], mean: f32, opacity: f32) -> [f3
 }
 
 /// Photoshop overlay on display-space values (`layer_overlay` in material_layers.wgsl).
-fn overlay(base: f32, blend: f32) -> f32 {
+fn overlay_blend(base: f32, blend: f32) -> f32 {
     if base < 0.5 {
         2.0 * base * blend
     } else {
@@ -1489,7 +1490,7 @@ fn ver2_tint(color: [f32; 3], tint: [f32; 4]) -> [f32; 3] {
     let luma = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
     std::array::from_fn(|k| {
         let grey = mix(color[k], luma, 0.8).clamp(0.0, 1.0);
-        let tinted = srgb_to_linear(overlay(linear_to_srgb(grey), tint[k]));
+        let tinted = srgb_to_linear(overlay_blend(linear_to_srgb(grey), tint[k]));
         mix(color[k], tinted, tint[3].clamp(0.0, 1.0))
     })
 }
@@ -1598,6 +1599,7 @@ fn compose_rgb_layer_base_color(
     let mut mask = None;
     let mut grime: [Option<(&PreviewCoreMaterialLayer, ImagePixels, Option<ImagePixels>)>; 3] =
         [None, None, None];
+    let mut scratch: [Option<([f32; 4], ImagePixels)>; 3] = [None, None, None];
     let mut channels: [RgbLayerChannel; 3] = std::array::from_fn(|_| RgbLayerChannel {
         pixels: None,
         dye: [0.0; 4],
@@ -1640,6 +1642,14 @@ fn compose_rgb_layer_base_color(
         channels[k].dye = dye;
         channels[k].opacity = layer.blend_opacity.unwrap_or(layer.weight);
         channels[k].flags = layer.blend_flags.unwrap_or(15);
+        if layer.is_ver2_scratch() {
+            let detail = layer
+                .detail_mask
+                .as_ref()
+                .map(|reference| cache.resized(reference, width, height))
+                .transpose()?;
+            scratch[k] = detail.map(|pixels| (layer.scratch_tint.unwrap_or([0.0; 4]), pixels));
+        }
     }
     let tint = material.base_color;
     let mut target = Vec::with_capacity(pixel_count.saturating_mul(4));
@@ -1703,6 +1713,18 @@ fn compose_rgb_layer_base_color(
                     let soiled = ver2_tint(linear_pixel(pixels, offset), layer.tint);
                     color = std::array::from_fn(|c| mix(color[c], soiled[c], coverage));
                 }
+            }
+            // Its scratch tint, where the detail mask's red marks a scratch.
+            if let Some((scratch_tint, detail)) = scratch[ver2_slot(weights)].as_ref() {
+                let wear = unit(detail[offset]);
+                let amount = (scratch_tint[3] * wear).clamp(0.0, 1.0);
+                color = std::array::from_fn(|c| {
+                    mix(
+                        color[c],
+                        srgb_to_linear(overlay_blend(wear, scratch_tint[c])),
+                        amount,
+                    )
+                });
             }
             std::array::from_fn(|k| color[k] * tint[k])
         };
@@ -1918,11 +1940,57 @@ fn compose_material_response(
             target[offset + 3] = unit_byte(mix(unit(target[offset + 3]), decoded[2], coverage));
         }
     }
+    apply_ver2_scratch_response(material, cache, width, height, &mut target)?;
     Ok(Some(DecodedRgba8 {
         width,
         height,
         pixels: target,
     }))
+}
+
+/// The game's scratch rule on a composed response map (green roughness, blue
+/// metal): the layer with the largest blend-mask channel moves both where the
+/// detail mask's red marks a scratch, as `evaluate_material_layers` does.
+fn apply_ver2_scratch_response(
+    material: &PreviewCoreMaterial,
+    cache: &mut ImageCache,
+    width: u32,
+    height: u32,
+    target: &mut [u8],
+) -> Result<(), SessionError> {
+    let mut steps: [Option<[f32; 2]>; 3] = [None; 3];
+    let mut mask = None;
+    let mut detail = None;
+    for layer in material
+        .layers
+        .iter()
+        .filter(|layer| layer.is_ver2_scratch())
+    {
+        steps[channel_index(&layer.mask_channel).min(2)] = Some(layer.scratch_steps());
+        mask = layer.mask.as_ref();
+        detail = layer.detail_mask.as_ref();
+    }
+    let Some(detail) = detail else {
+        return Ok(());
+    };
+    let detail = cache.resized(detail, width, height)?;
+    let mask = mask
+        .map(|reference| cache.resized(reference, width, height))
+        .transpose()?;
+    for offset in (0..target.len()).step_by(4) {
+        let weights: [f32; 3] = match mask.as_deref() {
+            Some(pixels) => std::array::from_fn(|k| unit(pixels[offset + k])),
+            None => [1.0, 0.0, 0.0],
+        };
+        let Some([roughness, metal]) = steps[ver2_slot(weights)] else {
+            continue;
+        };
+        let wear = unit(detail[offset]);
+        let rough = unit(target[offset + 1]);
+        target[offset + 1] = unit_byte((rough + (1.0 - rough) * roughness * wear).clamp(0.0, 1.0));
+        target[offset + 2] = unit_byte((unit(target[offset + 2]) + metal * wear).clamp(0.0, 1.0));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -2583,6 +2651,8 @@ mod tests {
             mask_archive_path: String::new(),
             mask: None,
             grime_blend: None,
+            scratch: None,
+            scratch_tint: None,
             detail_mask_declared: false,
             detail_mask_archive_path: String::new(),
             detail_mask: None,

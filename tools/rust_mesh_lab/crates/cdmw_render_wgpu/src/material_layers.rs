@@ -29,6 +29,10 @@ pub struct LayerEntryUniform {
     pub grime_tint: [f32; 4],
     /// Grime intensity (0 to 2), presence, normal encoding, reserved.
     pub grime: [f32; 4],
+    /// Scratch steps of roughness and metal (each -1 to 1), presence, reserved.
+    pub scratch: [f32; 4],
+    /// `_scratchTintColor`: sRGB colour and strength.
+    pub scratch_tint: [f32; 4],
 }
 
 #[repr(C)]
@@ -280,8 +284,8 @@ mod tests {
 
     #[test]
     fn layer_uniform_preserves_group_zero_abi() {
-        assert_eq!(std::mem::size_of::<LayerEntryUniform>(), 128);
-        assert_eq!(std::mem::size_of::<LayerUniform>(), 464);
+        assert_eq!(std::mem::size_of::<LayerEntryUniform>(), 160);
+        assert_eq!(std::mem::size_of::<LayerUniform>(), 560);
         assert_eq!(std::mem::size_of::<MaterialUniform>(), 288);
         let shader = include_str!("material_layers.wgsl");
         for binding in 0..=LAYER_TEXTURE_SLOTS {

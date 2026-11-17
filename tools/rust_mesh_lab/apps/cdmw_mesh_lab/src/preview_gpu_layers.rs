@@ -76,6 +76,16 @@ pub(super) fn eligible(material: &PreviewCoreMaterial) -> bool {
             detail_mask = Some(&reference.sha256);
         } else if !matches!(layer.layer_role.as_str(), "detail" | "color_seed") {
             return false;
+        } else if layer.is_ver2_scratch() {
+            // Scratches and grime read one detail mask.
+            let reference = layer
+                .detail_mask
+                .as_ref()
+                .expect("ver2 scratch detail mask");
+            if detail_mask.is_some_and(|sha| sha != &reference.sha256) {
+                return false;
+            }
+            detail_mask = Some(&reference.sha256);
         }
         if mask_parameter.is_some_and(|name| name != &layer.mask_parameter) {
             return false;
@@ -357,6 +367,20 @@ fn build(
             ..result.uniform.layers[k]
         };
         result.textures[1 + k * 3] = Some(color);
+        if layer.is_ver2_scratch() {
+            let [roughness, metal] = layer.scratch_steps();
+            result.uniform.layers[k].scratch = [roughness, metal, 1.0, 0.0];
+            // The game overlays the tint on display-space values: no decode.
+            result.uniform.layers[k].scratch_tint = layer.scratch_tint.unwrap_or([0.0; 4]);
+            result.textures[DETAIL_MASK_SLOT] = Some(layer_texture(
+                layer
+                    .detail_mask
+                    .as_ref()
+                    .expect("ver2 scratch detail mask"),
+                TextureRole::LayerMask,
+                sources,
+            ));
+        }
         if let Some(reference) = &layer.normal {
             let texture = layer_texture(reference, TextureRole::Normal, sources);
             result.uniform.layers[k].properties[3] = normal_encoding(&texture)?;
@@ -861,6 +885,140 @@ mod tests {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    /// The plate's layer R: scratch bytes 0x9B and 0xFF move roughness by +0.216 of
+    /// its remaining range and metal by +1.0 where the detail mask's red is set,
+    /// and `_scratchTintColorR` (#c8b9b4, alpha 0x2d) is overlaid on the colour.
+    #[test]
+    fn ver2_scratch_moves_response_and_colour_on_gpu_uniform_and_cpu_fallback() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let tint = [200.0 / 255.0, 185.0 / 255.0, 180.0 / 255.0, 45.0 / 255.0];
+        for red in [0_u8, 128, 255] {
+            let wear = f32::from(red) / 255.0;
+            let bytes = [
+                make([128, 128, 128, 255]),
+                make([255, 128, 100, 255]),
+                make([255, 0, 0, 255]),
+                make([red, 0, 0, 255]),
+            ];
+            let refs = [
+                reference(&bytes[0], "steel.dds"),
+                reference(&bytes[1], "steel_sp.dds"),
+                reference(&bytes[2], "mask.dds"),
+                reference(&bytes[3], "detail-mask.dds"),
+            ];
+            let mut base = layer("base", "r", &refs[0]);
+            base.diffuse = None;
+            base.mask = None;
+            let mut steel = layer("detail", "r", &refs[0]);
+            steel.mask = Some(refs[2].clone());
+            steel.material_declared = true;
+            steel.material_archive_path = "steel_sp.dds".into();
+            steel.material = Some(refs[1].clone());
+            steel.scratch = Some([0x9B, 0xFF]);
+            steel.scratch_tint = Some(tint);
+            steel.detail_mask_declared = true;
+            steel.detail_mask_archive_path = "detail-mask.dds".into();
+            steel.detail_mask = Some(refs[3].clone());
+            let value = material(vec![base, steel]);
+            assert!(eligible(&value));
+            let graph = PreviewCoreMaterialGraph {
+                schema_version: 1,
+                graph_version: 5,
+                semantics_version: 10,
+                quality: "full".into(),
+                resources_included: true,
+                source_edge_count: 4,
+                unique_resource_count: 4,
+                copied_resource_count: 4,
+                unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+                materials: vec![value],
+            };
+            for gpu in [true, false] {
+                let mut resources = Vec::new();
+                let (_, layers) = prepare(
+                    &graph,
+                    &[],
+                    &document,
+                    &mut resources,
+                    gpu,
+                    false,
+                    |r| {
+                        Ok(bytes[refs
+                            .iter()
+                            .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                            .unwrap()]
+                        .clone())
+                    },
+                    &|| false,
+                )
+                .unwrap();
+                if gpu {
+                    assert_eq!(layers.len(), 1);
+                    let entry = &layers[0].uniform.layers[0];
+                    assert!((entry.scratch[0] - (155.0 * 2.0 / 255.0 - 1.0)).abs() < 1e-6);
+                    assert_eq!(entry.scratch[1], 1.0);
+                    assert_eq!(entry.scratch[2], 1.0);
+                    assert_eq!(entry.scratch_tint, tint);
+                    assert_eq!(
+                        layers[0].textures[DETAIL_MASK_SLOT]
+                            .as_ref()
+                            .unwrap()
+                            .source_sha256,
+                        refs[3].sha256
+                    );
+                    continue;
+                }
+                assert!(layers.is_empty());
+                let composed = |role| {
+                    let resource = resources
+                        .iter()
+                        .find(|r| r.role == role)
+                        .expect("composed map");
+                    cdmw_texture::decode_dds_rgba8(&resource.bytes, resource.role)
+                        .unwrap()
+                        .pixels
+                };
+                let colour = composed(TextureRole::BaseColor);
+                let clean = linear(128.0 / 255.0);
+                for channel in 0..3 {
+                    // Overlay of the mask value with the tint, mixed in by alpha * mask.
+                    let overlaid = if wear < 0.5 {
+                        2.0 * wear * tint[channel]
+                    } else {
+                        1.0 - 2.0 * (1.0 - wear) * (1.0 - tint[channel])
+                    };
+                    let expected = clean + (linear(overlaid) - clean) * tint[3] * wear;
+                    let drawn = linear(f32::from(colour[channel]) / 255.0);
+                    assert!(
+                        (drawn - expected).abs() <= 0.01,
+                        "red {red}, channel {channel}: {drawn} != {expected}"
+                    );
+                }
+                let response = composed(TextureRole::Material);
+                let rough = 128.0 / 255.0;
+                let expected = rough + (1.0 - rough) * (155.0 * 2.0 / 255.0 - 1.0) * wear;
+                assert!(
+                    (f32::from(response[1]) / 255.0 - expected).abs() <= 0.012,
+                    "red {red}: roughness {} != {expected}",
+                    response[1]
+                );
+                let metal = ((100.0_f32 / 255.0 - 0.18) * 1.22 + wear).min(1.0);
+                assert!(
+                    (f32::from(response[2]) / 255.0 - metal).abs() <= 0.012,
+                    "red {red}: metal {} != {metal}",
+                    response[2]
+                );
             }
         }
     }

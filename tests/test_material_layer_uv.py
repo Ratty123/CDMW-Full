@@ -11,6 +11,7 @@ from cdmw.domain.material_layer_uv import (
     pac_grime_blend_bytes,
     pac_grime_uv_transform,
     pac_layer_uv_transform,
+    pac_scratch_bytes,
 )
 
 
@@ -112,3 +113,21 @@ def test_pac_colour_text_is_red_green_blue_alpha():
     assert pac_color_bytes("#c8b9b42d")[3] == pytest.approx(0x2D / 255)
     assert pac_color_bytes("") is None
     assert pac_color_bytes("#fff") is None
+
+
+@pytest.mark.parametrize("channel,expected", (
+    ("r", (0x9B, 0xFF)),  # roughness +0.216 of the remaining range, metal +1.0
+    ("g", (0x7F, 0x7F)),  # no change
+    ("b", (0x59, 0x7F)),  # roughness -0.302
+))
+def test_plate_scratch_bytes_are_one_per_layer(channel, expected):
+    parameters = (("_scratchRoughness", 0x597F9B), ("_scratchMetallic", 0x7F7FFF))
+    assert pac_scratch_bytes(parameters, channel) == expected
+
+
+def test_scratch_needs_an_authored_parameter_and_fills_the_other_with_no_change():
+    assert pac_scratch_bytes((), "r") is None
+    assert pac_scratch_bytes((("_scratchRoughness", "invalid"),), "r") is None
+    assert pac_scratch_bytes((("_scratchRoughness", 0x9B),), "r") == (0x9B, 127)
+    assert pac_scratch_bytes((("_scratchMetallic", 0xFF),), "r") == (127, 0xFF)
+    assert pac_scratch_bytes((("_scratchRoughness", 0x9B),), "a") is None

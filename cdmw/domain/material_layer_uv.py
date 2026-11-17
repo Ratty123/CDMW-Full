@@ -114,6 +114,31 @@ def pac_grime_blend_bytes(
     return ramp & 255, (ramp >> 8) & 255, (found[blend_key] >> 24) & 255
 
 
+def pac_scratch_bytes(
+    parameters: Iterable[tuple[str, object]], channel: str,
+) -> tuple[int, int] | None:
+    """Return a layer's scratch roughness and metal bytes, or None when unauthored.
+
+    Where `_detailMaskTexture` red marks a scratch the game moves roughness and
+    metal by `byte * 2 / 255 - 1`; `_scratchRoughness` and `_scratchMetallic`
+    hold one byte per layer. 127, the value authors leave for no change, stands
+    in for the one parameter a wrapper leaves out.
+    """
+    index = {"r": 0, "g": 1, "b": 2}.get(str(channel).casefold())
+    if index is None:
+        return None
+    found: dict[str, int] = {}
+    for name, value in parameters:
+        key = "".join(character for character in str(name).casefold() if character.isalnum())
+        if key in {"scratchroughness", "scratchmetallic"}:
+            text = str(value).strip() if value is not None else ""
+            if re.fullmatch(r"\d+", text):
+                found[key] = (min(0xFFFFFFFF, int(text)) >> (8 * index)) & 255
+    if not found:
+        return None
+    return found.get("scratchroughness", 127), found.get("scratchmetallic", 127)
+
+
 def pac_color_bytes(value: object) -> tuple[float, float, float, float] | None:
     """Parse a PAC `#rrggbbaa` colour into unit sRGB components and alpha."""
     text = str(value or "").strip()

@@ -3,6 +3,8 @@ struct LayerEntry {
     // Grime of the same channel: its own tiling, (offset, ramp low, ramp high),
     // sRGB tint and strength, (intensity, presence, normal encoding, unused).
     grime_affine: vec4<f32>, grime_offset: vec4<f32>, grime_tint: vec4<f32>, grime: vec4<f32>,
+    // Scratches: (roughness step, metal step, presence, unused), sRGB tint and strength.
+    scratch: vec4<f32>, scratch_tint: vec4<f32>,
 };
 struct LayerUniform {
     layers: array<LayerEntry, 3>, seeds: array<vec4<f32>, 3>, base_color: vec4<f32>, control: vec4<u32>,
@@ -207,6 +209,11 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
         orm = vec3<f32>(orm.r, mix(orm.gb, grime_responses[slot].gb, weight));
         let soiled = safe_normalize(mix(vec3<f32>(0.0,0.0,1.0), grime_normal(grime_normals[slot], layer), weight), vec3<f32>(0.0,0.0,1.0));
         normal = select(normal, layer_rnm(safe_normalize(normal, vec3<f32>(0.0,0.0,1.0)), soiled), weight > 0.00001);
+        // Scratches of the same layer, where the detail mask's red marks them:
+        // roughness moves through its remaining range, metal by the plain step.
+        let wear = detail_texel.r * step(0.5, layer.scratch.z);
+        orm = vec3<f32>(orm.r, orm.g + (1.0 - orm.g) * layer.scratch.x * wear, orm.b + layer.scratch.y * wear);
+        color = mix(color, srgb_to_linear(layer_overlay(vec3<f32>(detail_texel.r), layer.scratch_tint.rgb)), clamp(layer.scratch_tint.a * wear, 0.0, 1.0));
     }
     out.color = color;
     out.normal = normal;
