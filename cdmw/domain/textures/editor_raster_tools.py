@@ -49,6 +49,28 @@ def _blend_rgb(
         for orig, target in zip(original_rgb, target_rgb)
     )
 
+_LUMA_WEIGHTS = np.asarray((0.299, 0.587, 0.114), dtype=np.float32)
+
+
+def _target_with_pixel_luma(target: np.ndarray, rgb: np.ndarray) -> np.ndarray:
+    """The target colour at each pixel's own luminance (the "Color" blend mode).
+
+    The target is shifted to the pixel's luma; a shift that leaves the RGB range is
+    pulled towards grey at that luma rather than clipped per channel, so the hue
+    stays the target's and the shading stays the texture's. Scaling the target
+    instead clipped a dark blue to pure (x, 0, 255) on any mid-tone pixel."""
+
+    pixel_luma = rgb @ _LUMA_WEIGHTS
+    shifted = target[None, None, :] + (pixel_luma - np.float32(target @ _LUMA_WEIGHTS))[..., None]
+    luma = pixel_luma[..., None]
+    low = shifted.min(axis=2, keepdims=True)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        below = np.where(low < 0.0, luma + (shifted - luma) * luma / (luma - low), shifted)
+        high = below.max(axis=2, keepdims=True)
+        above = np.where(high > 255.0, luma + (below - luma) * (255.0 - luma) / (high - luma), below)
+    return np.clip(np.nan_to_num(above, nan=0.0), 0.0, 255.0)
+
+
 def apply_texture_editor_recolor(
     image: np.ndarray,
     settings: TextureEditorToolSettings,
@@ -78,10 +100,7 @@ def apply_texture_editor_recolor(
         return rgba
     target = np.asarray(target_rgb, dtype=np.float32)
     if settings.recolor_preserve_luminance:
-        luma_weights = np.asarray((0.299, 0.587, 0.114), dtype=np.float32)
-        target_luma = max(1.0, float(np.dot(target, luma_weights)))
-        scale = (rgb @ luma_weights) / np.float32(target_luma)
-        replacement = np.clip(np.round(target[None, None, :] * scale[..., None]), 0.0, 255.0)
+        replacement = _target_with_pixel_luma(target, rgb)
     else:
         replacement = np.broadcast_to(target, rgb.shape)
     merged = rgb * (1.0 - weight[..., None]) + replacement * weight[..., None]

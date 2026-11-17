@@ -159,6 +159,24 @@ def test_recolor_skips_transparent_pixels_and_honours_the_selection() -> None:
     assert np.array_equal(out[..., 3], rgba[..., 3])
 
 
+def _luma(rgb: np.ndarray) -> np.ndarray:
+    return rgb[..., :3].astype(np.float64) @ np.array([0.299, 0.587, 0.114])
+
+
+def test_preserve_luminance_keeps_the_shading_and_the_target_hue() -> None:
+    rgba = _texture()
+    out = apply_texture_editor_recolor(rgba, _recolor(
+        recolor_mode="tint", recolor_target_hex="#2100C8", recolor_strength=100,
+        recolor_preserve_luminance=True))
+    # Every pixel keeps its brightness (the red ramp's shading and the grey), within rounding.
+    assert np.max(np.abs(_luma(out) - _luma(rgba))) <= 1.0
+    # And takes the target's hue: blue the strongest channel, then red, then green.
+    r, g, b = (out[..., channel].astype(int) for channel in range(3))
+    assert np.all(b > r) and np.all(r >= g)
+    # Brighter pixels stay brighter: the shading is not flattened.
+    assert np.all(np.diff(_luma(out[0])) >= -1.0) and _luma(out[0, -1]) - _luma(out[0, 0]) > 30
+
+
 def test_apply_recolor_in_the_dock_reaches_canvas_model_and_history(dock) -> None:
     editor = dock.editor
     before = dock.composite()
