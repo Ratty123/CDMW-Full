@@ -2416,6 +2416,9 @@ struct LabApplication {
     shortcut_numpad_presses: Vec<(egui::Key, shortcuts::NumpadKey)>,
     /// Editor commands CDMW asked for (its palette), run at the next frame.
     pending_host_commands: Vec<String>,
+    /// CDMW's test automation drives this editor: a refusal goes to CDMW and the status
+    /// line, never into a dialog nobody can close.
+    cdmw_driven_by_automation: bool,
     /// A popup was open when this frame began: an Escape in it closes the popup only.
     popup_open_at_frame_start: bool,
     /// A Finish asked for while an edit was in flight: sent once it is done.
@@ -2662,6 +2665,7 @@ impl LabApplication {
             primary_press_modifiers: egui::Modifiers::NONE,
             shortcut_numpad_presses: Vec::new(),
             pending_host_commands: Vec::new(),
+            cdmw_driven_by_automation: cdmw_ui::driven_by_automation(),
             popup_open_at_frame_start: false,
             cdmw_finish_waiting: false,
             published_commands_state: String::new(),

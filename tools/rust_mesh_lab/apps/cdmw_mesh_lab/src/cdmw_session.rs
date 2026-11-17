@@ -1388,6 +1388,17 @@ impl CdmwBridge {
         }))
     }
 
+    /// A refusal the editor explained to the user: CDMW shows it in its status line and
+    /// activity log, so a test run sees it too.
+    pub fn publish_notice(&self, kind: &str, message: &str) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "notice", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation,
+            "kind": kind, "message": message,
+        }))
+    }
+
     pub fn take_reference_pieces(&mut self) -> Vec<LoadedReferencePiece> {
         std::mem::take(&mut self.reference_pieces)
     }

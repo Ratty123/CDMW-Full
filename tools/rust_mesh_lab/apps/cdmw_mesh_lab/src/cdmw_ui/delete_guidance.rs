@@ -5,6 +5,14 @@ fn guidance_id() -> egui::Id {
     egui::Id::new("cdmw-delete-guidance")
 }
 
+/// Set by CDMW when its test automation drives this editor. Nobody is there to close
+/// a dialog then, so a refusal must never wait for a click.
+pub(crate) const AUTOMATION_ENV: &str = "CDMW_MESH_EDITOR_AUTOMATION";
+
+pub(crate) fn driven_by_automation() -> bool {
+    std::env::var_os(AUTOMATION_ENV).is_some_and(|value| value == "1")
+}
+
 impl LabApplication {
     /// Explain why Delete did nothing. The Free Edit advice belongs only to refusals
     /// the output mode causes; a busy, read-only or empty-selection refusal has its own fix.
@@ -18,6 +26,15 @@ impl LabApplication {
     }
 
     fn show_cdmw_delete_guidance_with(&mut self, message: &str, about_output: bool) {
+        let shown = crate::localization::tr(message);
+        if let Some(bridge) = &self.cdmw_bridge {
+            let _ = bridge.publish_notice("delete_unavailable", &shown);
+        }
+        if self.cdmw_driven_by_automation {
+            // The reason reaches CDMW (above) and the status line; no dialog waits.
+            self.status = shown;
+            return;
+        }
         self.egui_context.data_mut(|data| {
             data.insert_temp(guidance_id(), (message.to_owned(), about_output))
         });
