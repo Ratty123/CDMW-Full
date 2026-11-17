@@ -260,6 +260,8 @@ SHADER_LAYOUTS = {
         ("Field", "_thickness", "", None), ("Field", "_glassColor", "", None),
     ),
 }
+LAYOUT_TEXTURE_LABELS = {"_normalTexture": "Normal texture", "_materialTexture": "Material texture",
+                         "_heightTexture": "Height texture"}
 # Both materials carry this permutation, with no value.
 LAYOUT_PERMUTATIONS = (("Uint", "AlphaTest", "1921855275401214"),)
 # Texture parameters the equipment shader reads, which a user may point at a
@@ -298,6 +300,12 @@ class ShaderControls:
     # Write the material with the shader's own row set (SHADER_LAYOUTS) instead
     # of adding the changed rows to the source's.
     rebuild: bool = False
+    # Replace any equipment material, whatever its source shader: the source
+    # checks and the appearance bake are skipped, and the rebuild keeps only the
+    # textures it lists. Colours a source mixes in its shader (dye, layers) are lost.
+    force: bool = False
+    # Texture rows of the layout a rebuild does not take from the source.
+    dropped_textures: tuple[str, ...] = ()
 
     @property
     def has_masks(self):
@@ -344,6 +352,14 @@ class ShaderControls:
             raise ValueError("Colour coverage requires the calibrated mapping.")
         if type(self.rebuild) is not bool or (self.rebuild and self.shader not in SHADER_LAYOUTS):
             raise ValueError("This shader has no known parameter layout to rebuild from.")
+        if type(self.force) is not bool or (self.force and not self.rebuild):
+            raise ValueError("Replacing a material requires the shader's own parameter set.")
+        droppable = {name for kind, name, _id, _default in SHADER_LAYOUTS.get(self.shader, ())
+                     if kind == "Texture" and name != "_baseColorTexture"}
+        if (not isinstance(self.dropped_textures, tuple) or (self.dropped_textures and not self.rebuild)
+                or len(set(self.dropped_textures)) != len(self.dropped_textures)
+                or not set(self.dropped_textures) <= droppable):
+            raise ValueError("Unknown texture to leave out of the rebuilt material.")
         slots = {name for name, _label in TEXTURE_SLOTS.get(self.shader, ())}
         if (len({name for name, _digest in self.textures}) != len(self.textures)
                 or any(name not in slots or not isinstance(digest, str) or len(digest) != 64
@@ -372,13 +388,16 @@ class ShaderControls:
                 **({"coverage_mapping": self.coverage_mapping, "colour_coverage": self.colour_coverage}
                    if self.coverage_mapping != "raw" else {}),
                 **({"textures": dict(self.textures)} if self.textures else {}),
-                **({"rebuild": True} if self.rebuild else {})}
+                **({"rebuild": True} if self.rebuild else {}),
+                **({"force": True} if self.force else {}),
+                **({"dropped_textures": list(self.dropped_textures)} if self.dropped_textures else {})}
 
     @classmethod
     def from_dict(cls, value):
         if (not isinstance(value, dict) or not {"shader", "values"} <= set(value)
                 or set(value) - {"shader", "values", "transparency_mask", "surface_response_mask",
-                                 "coverage_mapping", "colour_coverage", "cutout_mask", "textures", "rebuild"}
+                                 "coverage_mapping", "colour_coverage", "cutout_mask", "textures", "rebuild",
+                                 "force", "dropped_textures"}
                 or not isinstance(value["shader"], str) or not isinstance(value["values"], dict)
                 or not isinstance(value.get("textures", {}), dict)):
             raise ValueError("Invalid experimental shader controls.")
@@ -387,7 +406,8 @@ class ShaderControls:
                          **{name: TransparencyMask.from_dict(value[name]) for name in
                             ("transparency_mask", "surface_response_mask", "cutout_mask") if name in value},
                          coverage_mapping=value.get("coverage_mapping", "raw"), colour_coverage=value.get("colour_coverage"),
-                         textures=tuple(value.get("textures", {}).items()), rebuild=value.get("rebuild", False))
+                         textures=tuple(value.get("textures", {}).items()), rebuild=value.get("rebuild", False),
+                         force=value.get("force", False), dropped_textures=tuple(value.get("dropped_textures", ())))
             result.validate()
         except (TypeError, OverflowError) as exc:
             raise ValueError("Invalid experimental shader controls.") from exc
@@ -429,7 +449,10 @@ def catalogue_payload():
              "presets": [{"label": label, "values": {name: list(numbers) for name, numbers in values}}
                          for label, values in SHADER_PRESETS.get(f.shader, ())],
              "textures": [{"name": name, "label": label} for name, label in TEXTURE_SLOTS.get(f.shader, ())],
-             "rebuild": f.shader in SHADER_LAYOUTS}
+             "rebuild": f.shader in SHADER_LAYOUTS,
+             # Texture rows a rebuild can leave out, as (parameter, label).
+             "layout_textures": [[name, LAYOUT_TEXTURE_LABELS[name]] for kind, name, _id, _default
+                                 in SHADER_LAYOUTS.get(f.shader, ()) if kind == "Texture" and name in LAYOUT_TEXTURE_LABELS]}
             for f in MESH_FAMILIES]
 
 

@@ -9258,6 +9258,51 @@ fn shader_layout_rebuild_is_an_explicit_choice_sent_with_the_controls() -> TestR
 }
 
 #[test]
+fn force_replace_opens_a_refused_shader_and_sends_the_rewrite_with_the_kept_textures() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 3000.0));
+    let mut state = veil_shader_state();
+    // A Cloth_Ver2 part: the source checks refuse the net veil.
+    state["catalogue"][0]["rebuild"] = json!(true);
+    state["catalogue"][0]["layout_textures"] = json!([["_normalTexture", "Normal texture"], ["_heightTexture", "Height texture"]]);
+    state["parts"][0]["source_shader"] = json!("SkinnedMeshCloth_Ver2");
+    state["parts"][0]["shader_options"] = json!({"SkinnedMeshTransparency": "This source material cannot use this shader."});
+    // Glow, or no source material: the host offers no force replace.
+    state["parts"][0]["forceable"] = json!({"SkinnedMeshTransparency": false});
+    ui.application.cdmw_state["shader_controls"] = state.clone();
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    let shows = |ui: &HeadlessUi, start: &str| ui.output.shapes.iter().any(|shape|
+        matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with(start)));
+    assert!(!shows(&ui, "Replace the material outright (force)"));
+    state["parts"][0]["forceable"] = json!({"SkinnedMeshTransparency": true});
+    ui.application.cdmw_state["shader_controls"] = state;
+    ui.settle_layout();
+    assert!(!shows(&ui, "Force replace deletes every row"));
+    ui.click("Replace the material outright (force)")?;
+    ui.settle_layout();
+    assert!(shows(&ui, "Force replace deletes every row"));
+    ui.click("Keep source shader")?;
+    ui.settle_layout();
+    ui.click("Sheer net veil (experimental)")?;
+    ui.settle_layout();
+    // The rewrite is forced on, and the kept textures can be chosen.
+    assert!(shows(&ui, "Keep these textures from the source material:"));
+    ui.click("Height texture")?;
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    let sent = settled_shader_actions(&mut ui).into_iter().find_map(|action| match action {
+        UiAction::CdmwCommand { command, arguments, .. } if command == "replacement_shader_controls" => Some(arguments),
+        _ => None,
+    }).ok_or("no shader command")?;
+    assert_eq!(sent["shader_controls"]["shader"], "SkinnedMeshTransparency");
+    assert_eq!(sent["shader_controls"]["force"], json!(true));
+    assert_eq!(sent["shader_controls"]["rebuild"], json!(true));
+    assert_eq!(sent["shader_controls"]["dropped_textures"], json!(["_heightTexture"]));
+    Ok(())
+}
+
+#[test]
 fn shift_h_hides_and_shows_the_selection_highlight_without_changing_the_selection() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
     ui.settle_layout();

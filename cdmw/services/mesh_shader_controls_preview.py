@@ -30,6 +30,7 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
             for variant in control_material_variants(_sidecar_text(file.data)):
                 for name, (shader, values, textures) in variant.items():
                     if (name in selected_names and selected_names[name].shader in BAKED_CONVERSION_SHADERS
+                            and not selected_names[name].force
                             and equipment_glass_needs_bake(shader, {*values, *textures})):
                         baked_names.add(name)
     files.update({file.path.replace("\\", "/").casefold(): file

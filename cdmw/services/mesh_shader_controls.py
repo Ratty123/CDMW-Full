@@ -7,7 +7,7 @@ from cdmw.core.common import raise_if_cancelled
 from cdmw.core.material_shader_controls import (control_material_variants, material_source_details,
                                                  rewrite_shader_controls, rewrite_texture_paths, validate_source)
 from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
-from cdmw.domain.mesh.shader_controls import (veil_layer_inputs, MESH_FAMILIES, ShaderControls, authored_values_payload, catalogue_payload,
+from cdmw.domain.mesh.shader_controls import (veil_layer_inputs, MESH_FAMILIES, SHADER_LAYOUTS, ShaderControls, authored_values_payload, catalogue_payload,
                                              family_for, preview_factors)
 from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 
@@ -191,13 +191,19 @@ def _shader_source_options(session):
             options = {family.shader: next((row[family.shader] for row in variants if row[family.shader]), "") for family in MESH_FAMILIES}
         if error:
             options = dict.fromkeys(options, error)
-        if binding is not None and (binding.translucency is not None or binding.emission is not None):
+        glow = binding is not None and (binding.translucency is not None or binding.emission is not None)
+        if glow:
             options = dict.fromkeys(options, "Restore Glow and Translucency before choosing another shader experiment.")
+        # Force replace may override a source-check refusal, never a missing source or Glow.
+        known = bool(candidates) and all(source[0] for source in candidates)
+        forceable = {family.shader: bool(not static and known and not error and not glow
+                                         and family.shader in SHADER_LAYOUTS) for family in MESH_FAMILIES}
         result[index] = {"source_shader": ", ".join(dict.fromkeys(source[0] for source in candidates)), "shader_options": options,
+                         "forceable": forceable,
                          "source": {"path": sidecar_path, "part": name, "viewport_slot": owner},
                          "preview_warning": _preview_warning(candidates),
                          "veil_layers": _veil_layers_state(candidates),
-                         **_authored_panel_state(candidates, options, wrappers)}
+                         **_authored_panel_state(candidates, options, wrappers, forceable)}
     return result
 
 
@@ -250,7 +256,7 @@ def _owner_slot(part):
     return owners.pop() if len(owners) == 1 else -1
 
 
-def _authored_panel_state(candidates, options, wrappers=()):
+def _authored_panel_state(candidates, options, wrappers=(), forceable=None):
     """What the source material declares, for the inspector and its live preview.
 
     ``authored`` lists each distinct model variant's shader, parsed numbers and
@@ -261,6 +267,8 @@ def _authored_panel_state(candidates, options, wrappers=()):
     ``wrappers`` (parallel to ``candidates``) adds where each came from: the
     model variants that share those numbers, the wrapper's position in the
     file and its rows as written, so a user can check them against the file.
+    ``forceable`` names the families force replace can still apply over a
+    refusal; they get a live-preview base too.
     """
     variants, origins = [], []
     for position, (shader, values, textures) in enumerate(candidates):
@@ -280,7 +288,7 @@ def _authored_panel_state(candidates, options, wrappers=()):
     if candidates:
         _, values, textures = candidates[0]
         for family in MESH_FAMILIES:
-            if options.get(family.shader):
+            if options.get(family.shader) and not (forceable or {}).get(family.shader):
                 continue
             try:
                 layers = veil_layer_inputs(family.shader, values, textures)

@@ -283,7 +283,7 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
                 # output, including Wing's visible starting pose on conversion.
                 shader, authored, source_textures = sources[source_name]
                 source_shader = shader
-                layered_glass = (controls.shader in BAKED_CONVERSION_SHADERS
+                layered_glass = (controls.shader in BAKED_CONVERSION_SHADERS and not controls.force
                                  and equipment_glass_needs_bake(shader, {*authored, *source_textures}))
                 if controls.shader == EYE_COVER.shader or controls.cutout_mask is not None or layered_glass:
                     # Read inherited values without generating export BC7 maps

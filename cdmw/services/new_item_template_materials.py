@@ -47,7 +47,8 @@ def bake_equipment_glass(text, choices, model_path, read_texture, *, on_log=None
             continue
         parameters = _parameter_rows(text[row.start:row.end])
         validate_source(row.shader, controls, parameters, allow_bake=True)
-        if controls.shader not in BAKED_CONVERSION_SHADERS or not equipment_glass_needs_bake(row.shader, parameters):
+        if (controls.shader not in BAKED_CONVERSION_SHADERS or controls.force
+                or not equipment_glass_needs_bake(row.shader, parameters)):
             continue
         if counts[name] > 1:
             raise ValueError(f"Ambiguous layered material binding: {row.submesh_name}")

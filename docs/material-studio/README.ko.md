@@ -278,6 +278,18 @@
 - Ver2 → 망사·레이어 유리 변환을 Mesh Editor, Create New Item 템플릿, 가져온 모델 세 경로에서 확인했다(디코드 단계만 대체).
 - 최종 정리와 남은 작업은 `HANDOFF.ko.md`에 있다.
 
+### 강제 교체 (2026-11-18)
+- 사용자 요청: 재질 자체를 바꿔서라도 의상을 투명하게 만들기. 게임에서 비쳐 보이는 재질은 망사(`SkinnedMeshTransparency`)와 유리(`SkinnedMeshGlass`) 계열이라, Cloth·Cloth_Ver2처럼 원본 검사에서 막히는 재질도 이 둘로 바꿀 수 있어야 한다.
+- 셰이더 패널에 "Replace the material outright (force)" 체크박스를 넣었다. 켜면:
+  - 다시 쓰기(rebuild)가 강제로 켜진다. 재질의 모든 행을 지우고 선택한 셰이더의 고유 행만 새로 쓴다.
+  - 원본 셰이더 검사와 레이어 굽기(bake)를 건너뛴다. 장비가 아닌 정적 메시, 원본 재질 정보가 없는 부위, Glow·Translucency를 적용한 부위에는 체크박스가 나오지 않는다(호스트가 부위별 `forceable`로 알려준다).
+  - 강제로 고른 셰이더도 슬라이더를 움직이는 동안 실시간 미리보기가 된다(`preview_base`에 포함).
+  - "원본 재질에서 유지할 텍스처" 체크박스가 나온다. `_baseColorTexture`는 항상 유지하고, normal / material / height 텍스처는 끌 수 있다. 끈 텍스처는 셰이더 기본값(비어 있음)으로 쓴다.
+- 대가: 원본이 셰이더 안에서 섞던 염색 색과 디테일 레이어는 사라진다. base 텍스처가 회색인 의상은 회색이 된다. 미리보기로 판단한다.
+- 데이터: `ShaderControls.force`, `ShaderControls.dropped_textures`. force는 rebuild 없이 쓸 수 없고, dropped_textures에는 그 셰이더 구성의 텍스처 이름(base 제외)만 들어간다.
+- 테스트: `tests/test_material_studio_force_replace.py`(Cloth_Ver2 + Cloth 픽스처, 거부·교체·텍스처 제외·직렬화·Ver2 직접 교체), Rust 헤드리스 `force_replace_opens_a_refused_shader_and_sends_the_rewrite_with_the_kept_textures`.
+- 인게임 확인 필요: Cloth 계열을 망사로 바꾼 모드가 게임에서 깨지지 않고 비쳐 보이는지. Cloth 셰이더 고유의 물리·바람 설정은 재질 행이 아니라 메시 쪽에 있다고 보고 있지만 확인하지 않았다.
+
 ## 남긴 결정 사항
 
 1. `_screenSpaceDisplacementScale`은 슬라이더로 추가하지 않았다. 유일한 근거인 Angel Teddy 모드가 이 행에 작은 ItemID 3을 쓰는데, 작은 ID의 규칙이 밝혀지지 않았다. 다만 Glass를 "다시 쓰기"로 만들면 그 모드의 구성대로 이 행(ItemID 3)을 넣는다. 원본에 값이 있으면 그 값을, 없으면 0을 쓴다.

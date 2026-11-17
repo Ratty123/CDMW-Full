@@ -94,7 +94,7 @@ impl LabApplication {
             let is_static = state["static"].as_bool().unwrap_or(false);
             let families = state["catalogue"].as_array().into_iter().flatten()
                 .filter(|family| (family["shader"] == "Dissolve" || family["shader"] == "Translucent") == is_static).collect::<Vec<_>>();
-            let unavailable_reason = |shader: &str| -> Option<String> {
+            let base_reason = |shader: &str| -> Option<String> {
                 rows.iter().find_map(|row| {
                     let reason = row["shader_options"][shader].as_str()
                         .unwrap_or("Source material information is unavailable; shader experiments are disabled.");
@@ -104,7 +104,7 @@ impl LabApplication {
             // A material that already uses one of these shaders opens on its own numbers.
             let source_shader = rows.first().and_then(|row| row["source_shader"].as_str()).unwrap_or("");
             let source_family = families.iter()
-                .find(|family| family["shader"] == source_shader && unavailable_reason(source_shader).is_none())
+                .find(|family| family["shader"] == source_shader && base_reason(source_shader).is_none())
                 .and_then(|family| family["shader"].as_str()).unwrap_or("");
             let baseline = if saved.is_null() { json!({"shader": source_family, "values": {}}) } else { saved.clone() };
             let mut value = ui.ctx().data_mut(|data| data.get_temp::<Value>(key)).unwrap_or_else(|| baseline.clone());
@@ -189,6 +189,46 @@ impl LabApplication {
             let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
                 && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
             let enabled = available && editing && !self.cdmw_busy() && !ids.is_empty();
+            // Force replace: a shader with a known row set may replace any equipment
+            // material, even one the source checks refuse (Cloth, Cloth_Ver2, ...).
+            // The host says where: never without a source material or over Glow.
+            let forceable = |shader: &str| !is_static && !rows.is_empty()
+                && families.iter().any(|family| family["shader"] == shader && family["rebuild"].as_bool() == Some(true))
+                && rows.iter().all(|row| row["forceable"][shader].as_bool() == Some(true));
+            let force_key = key.with("force");
+            let any_forceable = families.iter().filter_map(|family| family["shader"].as_str()).any(|shader| forceable(shader));
+            let mut force_mode = any_forceable && ui.ctx().data_mut(|data| data.get_temp::<bool>(force_key))
+                .unwrap_or(value["force"].as_bool() == Some(true));
+            if any_forceable {
+                if ui.add_enabled(enabled, egui::Checkbox::new(&mut force_mode,
+                        crate::localization::tr("Replace the material outright (force)")))
+                    .on_hover_text(crate::localization::tr(
+                        "Lets the net veil and layered glass replace any equipment material, including ones the source checks refuse \
+                         (Cloth, Cloth_Ver2 and others). Every row of the material is deleted and written anew; only the textures \
+                         kept below carry over. Colours the source mixes from dye or layers are lost."))
+                    .changed() {
+                    let shader = value["shader"].as_str().unwrap_or("").to_owned();
+                    if force_mode && forceable(&shader) {
+                        value["rebuild"] = json!(true);
+                        value["force"] = json!(true);
+                    } else if let Some(object) = value.as_object_mut() {
+                        object.remove("force");
+                    }
+                    if !force_mode && !shader.is_empty() && base_reason(&shader).is_some() {
+                        // Without force the source refuses this shader: keep the source's.
+                        value = json!({"shader": "", "values": {}});
+                    }
+                }
+                ui.ctx().data_mut(|data| data.insert_temp(force_key, force_mode));
+                if force_mode {
+                    ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr(
+                        "Force replace deletes every row of the material and writes the chosen shader's own rows. If the outfit's colour \
+                         comes from dye or detail layers, it turns grey; judge it in the preview."));
+                }
+            }
+            let unavailable_reason = |shader: &str| -> Option<String> {
+                if force_mode && forceable(shader) { None } else { base_reason(shader) }
+            };
             let mut reason = None;
             ui.add_enabled_ui(enabled, |ui| {
                 let mut shader = value["shader"].as_str().unwrap_or("").to_owned();
@@ -211,14 +251,23 @@ impl LabApplication {
                     }
                 }).response.on_hover_text(crate::localization::tr(families.iter().find(|f| f["shader"] == shader)
                     .and_then(|f| f["note"].as_str()).unwrap_or("")));
-                if shader != chosen { value = json!({"shader": shader, "values": {}}); }
+                if shader != chosen {
+                    value = json!({"shader": shader, "values": {}});
+                    if force_mode && forceable(&shader) {
+                        value["rebuild"] = json!(true);
+                        value["force"] = json!(true);
+                    }
+                }
                 reason = if shader.is_empty() { None } else { unavailable_reason(&shader) };
                 if let Some(note) = &reason { ui.small(crate::localization::tr(note)); }
                 ui.add_enabled_ui(reason.is_none(), |ui| {
                 if let Some(family) = families.iter().find(|f| f["shader"] == shader) {
                     if family["rebuild"].as_bool() == Some(true) {
-                        let mut rebuild = value["rebuild"].as_bool().unwrap_or(false);
-                        if ui.checkbox(&mut rebuild, crate::localization::tr("Rewrite with this shader's own parameter set"))
+                        let forced = value["force"].as_bool() == Some(true);
+                        let mut rebuild = value["rebuild"].as_bool().unwrap_or(false) || forced;
+                        // Force replace always writes the shader's own rows.
+                        if ui.add_enabled(!forced, egui::Checkbox::new(&mut rebuild,
+                                crate::localization::tr("Rewrite with this shader's own parameter set")))
                             .on_hover_text(crate::localization::tr(
                                 "Off: changed values are added to the source material's rows. On: the material is written with this shader's usual rows, order and IDs; other rows are dropped. Compare both in game."))
                             .changed() {
@@ -226,7 +275,30 @@ impl LabApplication {
                                 value["rebuild"] = json!(true);
                             } else if let Some(object) = value.as_object_mut() {
                                 object.remove("rebuild");
+                                object.remove("dropped_textures");
                             }
+                        }
+                        // The textures a rewrite takes from the source; the base colour always stays.
+                        let layout = family["layout_textures"].as_array().cloned().unwrap_or_default();
+                        if value["rebuild"].as_bool() == Some(true) && !layout.is_empty() {
+                            ui.small(crate::localization::tr("Keep these textures from the source material:"));
+                            ui.horizontal_wrapped(|ui| {
+                                for item in &layout {
+                                    let (Some(name), Some(label)) = (item[0].as_str(), item[1].as_str()) else { continue; };
+                                    let mut dropped: Vec<String> = value["dropped_textures"].as_array().into_iter().flatten()
+                                        .filter_map(|n| n.as_str().map(str::to_owned)).collect();
+                                    let mut keep = !dropped.iter().any(|n| n == name);
+                                    if ui.checkbox(&mut keep, crate::localization::tr(label)).changed() {
+                                        dropped.retain(|n| n != name);
+                                        if !keep { dropped.push(name.to_owned()); }
+                                        if dropped.is_empty() {
+                                            if let Some(object) = value.as_object_mut() { object.remove("dropped_textures"); }
+                                        } else {
+                                            value["dropped_textures"] = json!(dropped);
+                                        }
+                                    }
+                                }
+                            });
                         }
                     }
                     let presets = family["presets"].as_array().cloned().unwrap_or_default();
@@ -526,7 +598,7 @@ impl LabApplication {
                     let unchanged_source = value["shader"].as_str().unwrap_or("").is_empty()
                         || (value["shader"] == source_family && value["values"].as_object().is_some_and(|values| values.is_empty())
                             && MASK_KEYS.iter().all(|mask| value[*mask].is_null())
-                            && value["textures"].is_null() && value["rebuild"].is_null());
+                            && value["textures"].is_null() && value["rebuild"].is_null() && value["force"].is_null());
                     if !unchanged_source {
                         actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
                             arguments: json!({"part_ids": ids, "shader_controls": value}), label: "Edit shader controls" });

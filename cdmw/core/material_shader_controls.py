@@ -136,6 +136,9 @@ def validate_source(shader, controls, parameters, *, static=False, allow_bake=Fa
     family = family_for(controls.shader)
     if static != (controls.shader in {"Dissolve", "Translucent"}):
         raise ValueError("World-object and equipment shaders use different vertex pipelines.")
+    if controls.force:
+        # Any equipment material may be replaced; the rebuild drops its rows.
+        return
     if (allow_bake and controls.shader in BAKED_CONVERSION_SHADERS
             and equipment_glass_needs_bake(shader, parameters)):
         return
@@ -360,11 +363,11 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
     if controls.rebuild:
         if static:
             raise ValueError("Rebuilding the parameter layout is supported on equipment models only.")
-        block = rebuild_material_layout(block, family)
+        block = rebuild_material_layout(block, family, controls.dropped_textures)
     return block
 
 
-def rebuild_material_layout(block, family):
+def rebuild_material_layout(block, family, dropped=()):
     """Rewrite one equipment material with the shader's own row set.
 
     Values come from the block as it stands, so call this after the changed
@@ -399,6 +402,8 @@ def rebuild_material_layout(block, family):
             else:
                 value = " ".join(f"{v:.9g}" for v in field.default)
         elif kind == "Texture":
+            if name in dropped:
+                old = None  # Left out by the user: the layout's default, or no row.
             child = old.find("ResourceReferencePath_ITexture") if old is not None else None
             value = child.get("_path", "") if child is not None else default
         else:
