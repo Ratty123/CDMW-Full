@@ -66,7 +66,7 @@ def test_a_template_in_another_slot_is_refused():
         prepare_damiane_hair_registration(fixture(slot="Hair_Tail"), new_stem=NEW, existing_paths=())
 
 
-# The game's own tables since the November 2026 update: the hair slot carries no
+# The game's own tables as found on 1.0.0.3663: the hair slot carries no
 # Default, hairstyles the barber hides are marked ShowInGame="False" and have no
 # icon, and two of Damiane's hidden names are written in mixed case.
 OTHER = "phw_00_hair_00_0507_player"

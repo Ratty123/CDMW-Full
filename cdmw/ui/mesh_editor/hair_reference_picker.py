@@ -179,11 +179,12 @@ class HairReferencePickerDialog(QDialog):
             self._error(str(error))
 
     def _count_status(self):
-        text = f"{self._listed} registered hairstyles." if self._listed else "No matching hairstyles."
         if self._absent:
             # The game lists hairstyles whose mesh it does not ship in the character's hair folder.
-            text += f" Left out on this page (not in the loaded game files): {self._absent}."
-        self.status.setText(text)
+            self.status.setText(f"{self._listed} registered hairstyles. Left out on this page "
+                                f"(not in the loaded game files): {self._absent}.")
+        else:
+            self.status.setText(f"{self._listed} registered hairstyles" if self._listed else "No matching hairstyles.")
 
     def _request_styles(self):
         """Bound catalogue work to the current page, including after a filter."""

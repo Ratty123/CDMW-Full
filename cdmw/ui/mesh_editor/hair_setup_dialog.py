@@ -236,11 +236,11 @@ class HairSetupDialog(QDialog):
             control.setEnabled(True)
         text = str(message).strip()
         if hint:
-            text += " Use Retry loading choices to try again."
+            text = f"{text} Use Retry loading choices to try again."
         # Without this a second identical failure looks as if Retry did nothing.
         repeated = self._retrying and text == self._last_failure
         self._last_failure, self._retrying = text, False
-        self.status.setText(text + " Retrying gave the same result." if repeated else text)
+        self.status.setText(f"{text} Retrying gave the same result." if repeated else text)
 
     def _session_changed(self, _session):
         self._load()

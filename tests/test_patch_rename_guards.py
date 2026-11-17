@@ -112,9 +112,9 @@ def test_p17_hair_tools_find_each_characters_head_and_base_body(game):
 def test_hair_tools_read_each_characters_barber_list(game):
     """Hair Tools' setup reads every playable character's barber list and finds hairstyles to open.
 
-    The November 2026 update (1.0.0.3663 era files of 13 November) left the hair slot without
-    `Default`, gave hidden hairstyles (`ShowInGame="False"`) no `IconPath` and spelt two of
-    Damiane's names in mixed case; the reader refused all three tables and no hairstyle loaded.
+    Found on 1.0.0.3663 (which patch brought it is not known): the hair slot has no `Default`,
+    hidden hairstyles (`ShowInGame="False"`) have no `IconPath`, and two of Damiane's names
+    are in mixed case; the reader refused all three tables and no hairstyle loaded.
     On that build: Kliff 11 listed, Damiane 78 (10 offered by the barber), Oongka 10.
     """
 
