@@ -94,10 +94,10 @@ def test_both_panels_are_off_until_the_user_asks_and_a_mesh_is_open(tmp_path: Pa
         assert _shown(page) == (True, False)
         _open_texture(page, tmp_path)
         assert _shown(page) == (True, True)
-        # Turned off, both go; the open texture is still there when they come back.
+        # Turned off, only the list goes; the open texture stays in its panel.
         panels.set_wanted(False)
         _settle()
-        assert _shown(page) == (False, False)
+        assert _shown(page) == (False, True)
         panels.set_wanted(True)
         _settle()
         assert _shown(page) == (True, True) and page.texture_tools_dock.title_label.text() == "a.dds"
@@ -225,10 +225,71 @@ def test_closing_the_texture_editor_panel_hides_it_and_a_texture_opens_it_again(
         assert _shown(page) == (True, False)
         _open_texture(page, tmp_path)
         assert _shown(page) == (True, True)
-        # Opening a texture while the panels are off (a command, not a click) asks for them.
+        # Opening a texture while the list is off (Undo bringing one forward, a command)
+        # shows the Texture Editor only: the list stays as the user left it.
         page.texture_panels.set_wanted(False)
+        page.texture_tools_dock.close()
+        _settle()
+        assert _shown(page) == (False, False)
         _open_texture(page, tmp_path)
-        assert page.texture_panels.wanted and _shown(page) == (True, True)
+        assert not page.texture_panels.wanted and _shown(page) == (False, True)
+    finally:
+        page.deleteLater()
+
+
+def test_closing_the_list_keeps_the_open_texture_in_its_own_panel(tmp_path: Path) -> None:
+    """Fredric: "close only the texture list and keep the texture you opened/editing open,
+    so you get a bigger workspace"."""
+
+    page = _page()
+    try:
+        panels, textures, tools = page.texture_panels, page.textures_dock, page.texture_tools_dock
+        panels.set_wanted(True)
+        textures.set_manifest(_manifest(), session_root=tmp_path)
+        _open_texture(page, tmp_path)
+        target = tools.target
+        tools.set_kept_text("Texture edits are not kept yet: Finish keeps them in the draft.")
+        assert _shown(page) == (True, True)
+        height = tools.height()
+        # The list's own close: the list goes, the Texture Editor stays with its texture
+        # and takes the list's room.
+        textures.close()
+        _settle()
+        assert _shown(page) == (False, True) and not panels.wanted
+        assert tools.target is target and tools.title_label.text() == "a.dds"
+        assert tools.kept_text.startswith("Texture edits are not kept yet")
+        assert tools.height() > height
+        # The Textures button brings the list back; the texture is still open.
+        panels.set_wanted(True)
+        _settle()
+        assert _shown(page) == (True, True) and tools.target is target
+        # And turning it off by the button hides the list only, as its close does.
+        panels.set_wanted(False)
+        _settle()
+        assert _shown(page) == (False, True) and tools.target is target
+    finally:
+        page.deleteLater()
+
+
+def test_with_the_list_off_the_texture_editor_still_goes_with_the_mesh(tmp_path: Path) -> None:
+    page = _page()
+    try:
+        panels, textures, tools = page.texture_panels, page.textures_dock, page.texture_tools_dock
+        panels.set_wanted(True)
+        textures.set_manifest(_manifest(), session_root=tmp_path)
+        _open_texture(page, tmp_path)
+        panels.set_wanted(False)
+        _settle()
+        assert _shown(page) == (False, True)
+        # The session ends (Close, or the first step of loading another mesh).
+        textures.show_session(None)
+        _settle()
+        assert _shown(page) == (False, False)
+        # The next mesh does not bring back the last mesh's texture once it was emptied.
+        tools.show_empty()
+        textures.set_manifest(_manifest(), session_root=tmp_path / "next")
+        _settle()
+        assert _shown(page) == (False, False)
     finally:
         page.deleteLater()
 
@@ -268,5 +329,102 @@ def test_the_mesh_editor_has_a_textures_button_and_close_empties_the_texture_edi
         assert not textures.has_session and not textures.isVisible() and not tools.isVisible()
         assert button.isChecked()  # the choice stands for the next mesh
     finally:
+        tab.deleteLater()
+        _APP.processEvents()
+
+
+def test_the_textures_button_hides_the_list_only_and_close_still_hides_both(tmp_path: Path) -> None:
+    from tests.test_mesh_rust_embedding import _tab
+
+    tab = _tab(tmp_path)
+    try:
+        button = tab.textures_toggle_button
+        workspace = tab.standalone_workspace
+        textures, tools = workspace.textures_dock, workspace.texture_tools_dock
+        tools._editor_factory = _FakeEditor
+        tab.resize(1400, 800)
+        tab.show()
+        button.click()
+        textures.set_manifest(_manifest(), session_root=tmp_path)
+        tools.open_target(LiveTextureTarget(session_id="doc", source_path=str(tmp_path / "a.dds"),
+                                            source_sha256="cd" * 32, channel="base_color", display_name="a.dds"))
+        _settle()
+        assert textures.isVisible() and tools.isVisible()
+        # The button off: the list goes, the texture stays open beside the model.
+        button.click()
+        _settle()
+        assert not button.isChecked() and tab.settings.value(SHOWN_KEY) in (False, "false")
+        assert not textures.isVisible() and tools.isVisible() and tools.title_label.text() == "a.dds"
+        # On again: the list is back and the texture still open.
+        button.click()
+        _settle()
+        assert textures.isVisible() and tools.isVisible() and tools.title_label.text() == "a.dds"
+        # Close in the Mesh Editor with the list off: the Texture Editor goes too.
+        button.click()
+        _settle()
+        tab.close_standalone_session()
+        assert not textures.isVisible() and not tools.isVisible() and tools.target is None
+    finally:
+        tab.deleteLater()
+        _APP.processEvents()
+
+
+def test_the_texture_editors_own_close_hides_it_and_keeps_the_edits(tmp_path: Path, monkeypatch) -> None:
+    """The Texture Editor panel has its own clear close, apart from the list's and the
+    Mesh Editor's Close: it hides the panel, the edits stay, and Close still asks."""
+
+    from types import SimpleNamespace
+
+    from PySide6.QtGui import QColor, QImage
+    from PySide6.QtWidgets import QMessageBox
+
+    from tests.test_mesh_rust_embedding import _tab
+
+    tab = _tab(tmp_path)
+    try:
+        workspace = tab.standalone_workspace
+        textures, tools = workspace.textures_dock, workspace.texture_tools_dock
+        tools._editor_factory = _FakeEditor
+        tab.resize(1400, 800)
+        tab.show()
+        # With no mesh loaded the tab disables its workspace; a loaded mesh enables it.
+        workspace.setEnabled(True)
+        tab.textures_toggle_button.click()
+        textures.set_manifest(_manifest(), session_root=tmp_path)
+        session =tab.live_edit._live_texture_session_id()
+        tools.open_target(LiveTextureTarget(session_id=session, source_path=str(tmp_path / "a.dds"),
+                                            source_sha256="ab" * 32, channel="base_color", display_name="a.dds"))
+        image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+        image.fill(QColor("#336699"))
+        tab.live_edit._on_texture_window_edit(session, "ab" * 32, image, True)
+        keeper = tab.live_edit._live_texture_keeping
+        tools.set_kept_text("Texture edits are not kept yet: Finish keeps them in the draft.")
+        _settle()
+        assert keeper.unkept_count() == 1 and textures.isVisible() and tools.isVisible()
+        target = tools.target
+
+        button = tools.close_button
+        assert button.text() == "Close Editor" and button.toolTip() and button.isVisibleTo(tools)
+        questions: list[str] = []
+        monkeypatch.setattr(QMessageBox, "question",
+                            staticmethod(lambda _parent, title, *_args: questions.append(title)
+                                         or QMessageBox.StandardButton.No))
+        button.click()
+        _settle()
+        # Only the Texture Editor goes, without asking: nothing is lost by hiding it.
+        assert not tools.isVisible() and textures.isVisible() and not questions
+        assert tools.target is target and tools.kept_text.startswith("Texture edits are not kept yet")
+        assert keeper.unkept_count() == 1 and tab.live_edit._live_texture_updates.edited_textures()
+        # A double-click (as open_texture_in_window does) opens it again with the texture.
+        tools.open_target(target)
+        _settle()
+        assert tools.isVisible() and tools.target is target
+        # Close in the Mesh Editor still asks about the edits that are not kept.
+        tab.standalone_controller = SimpleNamespace(active_session_id="session", closing_loses_work=lambda: False)
+        monkeypatch.setattr(tab, "show_empty_state", lambda *_args: None)
+        tab._close_standalone_session_requested()
+        assert questions and "Texture Edits" in questions[0] and keeper.unkept_count() == 1
+    finally:
+        tab.standalone_controller = None
         tab.deleteLater()
         _APP.processEvents()

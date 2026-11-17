@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSplitter,
@@ -137,7 +138,7 @@ class MeshEditorTextureTools(QDockWidget):
     emptied = Signal()
     """The panel holds no texture any more (the mesh closed, or another one loads)."""
     close_requested = Signal()
-    """The panel's own close button was pressed."""
+    """The panel's own close (Close Editor, or the title bar's) was pressed."""
 
     def __init__(self, parent: QWidget | None = None, *, settings: object = None, base_dir: Path | None = None,
                  editor_factory: Callable[[QWidget], QWidget] | None = None) -> None:
@@ -185,6 +186,18 @@ class MeshEditorTextureTools(QDockWidget):
         self.title_label.setObjectName("FlatSectionTitle")
         self.title_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.header.addWidget(self.title_label, 1)
+        # Its own close, named, beside the file name: the title bar's small cross looks
+        # like the list's, and the Mesh Editor's Close ends the mesh. It hides the panel
+        # as that cross does; the texture and its edits stay.
+        self.close_button = QPushButton("Close Editor", body)
+        self.close_button.setObjectName("MeshEditorTextureClose")
+        self.close_button.setToolTip(
+            "Close the Texture Editor panel. The texture's edits stay. Double-click a texture in the "
+            "Textures panel to open it again; click Textures at the top first if the list is hidden."
+        )
+        self.close_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.close_button.clicked.connect(lambda _checked=False: self.close_requested.emit())
+        self.header.addWidget(self.close_button)
         layout.addLayout(self.header)
         self.split = QSplitter(Qt.Orientation.Horizontal, body)
         self.split.setChildrenCollapsible(False)

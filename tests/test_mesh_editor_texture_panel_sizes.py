@@ -17,6 +17,7 @@ from PySide6.QtCore import QSettings, QThreadPool, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QImage
 from PySide6.QtWidgets import QApplication, QPushButton, QScrollArea, QToolButton, QWidget
 
+from cdmw.ui.layout_utils import scaled_px
 from cdmw.ui.mesh_editor.texture_panels import SIZES_KEY, SIZES_VERSION
 from cdmw.ui.mesh_editor.texture_tools_dock import LiveTextureTarget
 from cdmw.ui.mesh_editor.textures_panel import (
@@ -131,6 +132,151 @@ def test_with_a_texture_open_both_panels_are_usable_and_the_model_stays_in_view(
             assert page.native_host_frame.width() >= host.width() * 0.4, (width, height)
         finally:
             page.deleteLater()
+
+
+def test_with_the_list_hidden_the_texture_editor_has_the_whole_side(tmp_path: Path) -> None:
+    """Fredric: close only the list "so you get a bigger workspace"."""
+
+    for width, height in ((1600, 900), (1280, 720)):
+        page = _page(width, height)
+        try:
+            _show_list(page, tmp_path)
+            _open_texture(page, tmp_path)
+            textures, tools, host = page.textures_dock, page.texture_tools_dock, page.dock_host
+            split = (textures.height(), tools.height(), tools.width())
+            page.texture_panels.set_wanted(False)
+            _settle()
+            assert textures.isHidden() and tools.isVisible(), (width, height)
+            # The list's height is the Texture Editor's now, and the side is wider: about
+            # half the window, with the 3D view still usable.
+            assert tools.height() >= split[0] + split[1], (width, height)
+            assert tools.height() >= host.height() - tools.fontMetrics().height() * 3, (width, height)
+            assert tools.width() >= int(host.width() * 0.49) > split[2], (width, height)
+            assert page.native_host_frame.width() >= scaled_px(480, host), (width, height)
+            # Shown again, the list has the width and split it had.
+            page.texture_panels.set_wanted(True)
+            _settle()
+            assert abs(textures.height() - split[0]) <= 2 and abs(tools.height() - split[1]) <= 2, (width, height)
+            assert abs(tools.width() - split[2]) <= 2, (width, height)
+            assert _rows_in_view(textures) >= 5, (width, height)
+        finally:
+            page.deleteLater()
+
+
+def _real_page(width: int, height: int, tmp_path: Path, settings: QSettings | None = None) -> MeshEditorWorkspace:
+    """A page whose Texture Editor is the real one, so the canvas is fitted as in the app."""
+
+    page = MeshEditorWorkspace(theme_key="graphite", defer_legacy_panels=True)
+    page.texture_tools_dock.settings = settings or QSettings(str(tmp_path / "tools.ini"), QSettings.Format.IniFormat)
+    page.texture_tools_dock.base_dir = tmp_path
+    page.resize(width, height)
+    page.show()
+    if settings is not None:
+        page.texture_panels.use_settings(settings)
+    _settle()
+    return page
+
+
+def _open_real_texture(page: MeshEditorWorkspace, tmp_path: Path, side: int = 2048) -> None:
+    source = tmp_path / f"texture-{side}.png"
+    if not source.exists():
+        image = QImage(side, side, QImage.Format.Format_RGBA8888)
+        image.fill(QColor("#406080"))
+        assert image.save(str(source))
+    tools = page.texture_tools_dock
+    tools.open_target(LiveTextureTarget(session_id="doc", source_path=str(source), source_sha256="ef" * 32,
+                                        channel="base_color", display_name=source.name))
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline and not (
+            getattr(tools.editor.document, "width", 0) == side and not tools.editor._busy()):
+        _settle(2)
+    _settle()
+
+
+def _drawn(page: MeshEditorWorkspace) -> tuple[int, int]:
+    canvas = page.texture_tools_dock.editor.canvas
+    assert canvas.is_fit_to_view()
+    return canvas.width(), canvas.height()
+
+
+def test_hiding_the_list_draws_the_open_texture_larger(tmp_path: Path) -> None:
+    """Fredric wants "a bigger workspace": the texture itself, not only the panel, grows."""
+
+    for width, height in ((1600, 900), (1280, 720)):
+        page = _real_page(width, height, tmp_path)
+        try:
+            _show_list(page, tmp_path)
+            _open_real_texture(page, tmp_path)
+            tools = page.texture_tools_dock
+            before, side = _drawn(page), tools.width()
+            page.texture_panels.set_wanted(False)
+            _settle()
+            after = _drawn(page)
+            assert after[0] > before[0] * 1.1 and after[1] > before[1] * 1.1, (width, height, before, after)
+            assert page.native_host_frame.width() >= scaled_px(480, page.dock_host), (width, height)
+            # The list back: the texture as it was drawn beside it.
+            page.texture_panels.set_wanted(True)
+            _settle()
+            assert abs(tools.width() - side) <= 2 and abs(_drawn(page)[0] - before[0]) <= 2, (width, height)
+        finally:
+            page.textures_dock.shutdown()
+            page.deleteLater()
+            _settle(2)
+
+
+def test_a_width_the_user_drags_to_with_the_list_hidden_is_kept(tmp_path: Path) -> None:
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    page = _page(1600, 900, settings)
+    try:
+        _show_list(page, tmp_path)
+        _open_texture(page, tmp_path)
+        panels, tools, host = page.texture_panels, page.texture_tools_dock, page.dock_host
+        narrow = tools.width()
+        panels.set_wanted(False)
+        _settle()
+        assert tools.width() >= 790
+        # The user drags the side narrower than CDMW made it, then shows the list again.
+        host.resizeDocks([tools], [740], Qt.Orientation.Horizontal)
+        _settle()
+        chosen = tools.width()
+        panels.set_wanted(True)
+        _settle()
+        assert abs(tools.width() - narrow) <= 2
+        # Hidden again, the side goes back to the user's width, not CDMW's.
+        panels.set_wanted(False)
+        _settle()
+        assert abs(tools.width() - chosen) <= 2
+    finally:
+        page.deleteLater()
+
+    # And after a restart.
+    again = _page(1600, 900, QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat))
+    try:
+        _show_list(again, tmp_path)
+        _open_texture(again, tmp_path)
+        again.texture_panels.set_wanted(False)
+        _settle()
+        assert abs(again.texture_tools_dock.width() - chosen) <= 4
+    finally:
+        again.deleteLater()
+
+
+def test_a_texture_opened_with_the_list_hidden_still_gets_the_split_when_the_list_shows(tmp_path: Path) -> None:
+    page = _page(1600, 900)
+    try:
+        page.textures_dock.set_manifest(_manifest(), session_root=tmp_path)
+        _settle()
+        _open_texture(page, tmp_path)
+        textures, tools, host = page.textures_dock, page.texture_tools_dock, page.dock_host
+        assert textures.isHidden() and tools.isVisible() and not page.texture_panels.wanted
+        assert tools.width() >= int(host.width() * 0.44)
+        page.texture_panels.set_wanted(True)
+        _settle()
+        assert textures.height() >= textures.widget().minimumSize().height()
+        assert _rows_in_view(textures) >= 5
+        assert tools.height() > textures.height()
+    finally:
+        page.deleteLater()
 
 
 def test_a_crushed_saved_layout_is_sized_again_once_and_the_users_size_stands_after(tmp_path: Path) -> None:
