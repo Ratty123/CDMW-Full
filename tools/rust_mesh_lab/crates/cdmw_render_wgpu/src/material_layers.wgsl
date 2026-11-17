@@ -96,7 +96,10 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     let base = vec4<f32>(select(sampled_base.rgb, vec3<f32>(1.0), layer_uniform.control.w == 1u), sampled_base.a);
     var out = LayerSurface(sampled_base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0));
     if (material.flags & MATERIAL_GPU_LAYERS) == 0u { return out; }
-    var mask = textureSampleBias(blend_mask, material_sampler, uv, 0.0).rgb;
+    // Mode 1 picks one layer per pixel, so its mask is read as sharply as the base
+    // maps are: at a mip two levels coarser the thin trims and inlays fall below
+    // their neighbours and vanish from the picture.
+    var mask = textureSampleBias(blend_mask, material_sampler, uv, select(0.0, MATERIAL_MIP_LOD_BIAS, layer_uniform.control.x == 1u)).rgb;
     let raw_mask = mask;
     let sum = dot(mask, vec3<f32>(1.0));
     if layer_uniform.control.x == 1u {
