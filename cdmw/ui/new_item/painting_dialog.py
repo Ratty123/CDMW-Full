@@ -503,7 +503,7 @@ class PaintingDialog(QDialog):
     def _show_painting(self) -> None:
         painting = self._paintings[self._current]
         self._syncing = True
-        self.frame.setCurrentIndex(self.frame.findData(painting["frame"]))
+        self.frame.set_current_frame_row(self.frame.findData(painting["frame"]))
         self.picture.setText(str(painting["picture"]))
         self.fit.setCurrentIndex(max(0, self.fit.findData(painting["fit"])))
         self.name.setText(str(painting["names"].get(self._language, "")))

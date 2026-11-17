@@ -359,7 +359,7 @@ def painting_set(window, args: dict) -> dict[str, object]:
                           if Path(str(dialog.frame.itemData(row) or "")).stem.casefold() == wanted.casefold()), -1)
         if index < 0:
             raise ValueError(f"No frame {wanted} is offered.")
-        dialog.frame.setCurrentIndex(index)
+        dialog.frame.set_current_frame_row(index)
     if "picture" in args:
         picture = Path(str(args["picture"]))
         if not picture.is_absolute() or not picture.is_file():
