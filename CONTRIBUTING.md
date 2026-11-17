@@ -68,8 +68,9 @@ feature README own exact implementation contracts. Update those owners and the
 affected research sections together when the supported behaviour or evidence
 changes; do not create a competing overview.
 
-The GitHub Wiki and **Help > Documentation** are two presentations of the same
-manual. Every documentation change must keep both aligned, whether the edit
+**Help > Documentation** opens the GitHub Wiki. The Wiki is exported from the
+app's documentation source, which the built-in Documentation window (shown when
+no browser can be started) also presents. Every documentation change must keep both aligned, whether the edit
 starts on GitHub, in the app's documentation source, or alongside a feature fix.
 This covers every topic, supported workflow, warning, limitation and link in all
 14 built-in languages. Layout, navigation and machine-specific path examples can

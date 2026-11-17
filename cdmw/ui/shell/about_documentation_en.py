@@ -146,7 +146,7 @@ class AboutDocumentationEnglishMixin:
                 "summary": "High-level tour of the app and its main surfaces.",
                 "keywords": "overview about features tools archive create item model icon mesh placement texture retrofit format translations research search settings",
                 "html": """
-                <p>Use the <a href="topic:documentation_index">Documentation Index</a> for the complete reference or search across every topic from the field above.</p>
+                <p>Use the <a href="topic:documentation_index">Documentation Index</a> for the complete reference.</p>
                 <table>
                   <tr><th>Area</th><th>Tools</th></tr>
                   <tr><td>Assets</td><td><a href="topic:new_item_studio">Create New Item</a>, <a href="topic:archive_browser">Archive Browser</a>, <a href="topic:model_library">Model Library</a>, and <a href="topic:icon_creator">Icon Creator</a></td></tr>
@@ -154,6 +154,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
+                <p><b>Help &gt; Documentation</b> opens the online manual on the GitHub Wiki in your browser.</p>
                 <p>Documentation follows the source build it describes. Published releases and development builds can differ; check the release notes when controls or output options differ from your installed version.</p>
                 """,
             },

@@ -136,7 +136,17 @@ controllers. There is no runtime provider registry or generated method manifest.
 
 ## In-app documentation
 
-`Help > Documentation` is the app's wiki surface. It uses a hierarchical topic
+`Help > Documentation` opens the published GitHub Wiki manual in the default
+browser, in the interface language (`wiki_links.documentation_url`; English for an
+imported language). Every entry point goes through `show_documentation_dialog`:
+the Help menu and the palette's `shell.documentation`, About, the first-run guide
+and each tool's Help link, which passes its topic id. A topic id is an anchor in
+every manual, so a link lands on its section. The exporter imports the same Wiki
+address and page names, and `tests/test_wiki_export.py` checks every topic's
+anchor in every manual.
+
+The built-in window (`show_builtin_documentation_dialog`, `help_dialogs.AboutDialog`)
+remains for when no browser can be started. It uses a hierarchical topic
 tree, a generated all-topic index, multi-word relevance search with `Ctrl+K`,
 article links, breadcrumbs, and back/forward history. English topic data in
 `about_documentation_en.py` is the single source; all 14 built-in languages use
