@@ -345,25 +345,32 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
 
 
 def _apply_imported_surface(files, sidecar_keys, names, target_path, surface):
-    """Write the chosen roughness/metalness as the replaced wrappers' layer R."""
-    from cdmw.core.pac_xml_surface_layer import apply_surface_layer, surface_byte, surface_layer_dds
+    """Write the chosen roughness/metalness where each replaced wrapper's shader reads it.
+
+    Ver2 wrappers get it as layer R, Standard-technique wrappers (most creatures)
+    as their _materialTexture. A texture no wrapper names is pruned afterwards.
+    """
+    from cdmw.core.pac_xml_surface_layer import (
+        apply_surface_layer, surface_byte, surface_layer_dds, surface_material_dds)
 
     roughness, metallic = (surface_byte(value) for value in surface)
     model = target_path.replace("\\", "/")
     folder = "character/texture" if "/character/" in f"/{model}" else str(Path(model).parent).replace("\\", "/")
     path = f"{folder}/{Path(model).stem}_cdmw_surface_{roughness:03d}_{metallic:03d}.dds"
+    material_path = f"{folder}/{Path(model).stem}_cdmw_surface_{roughness:03d}_{metallic:03d}_sp.dds"
     applied = 0
     for key in sidecar_keys:
         if not key.endswith(".pac_xml"):
             continue
         file = files[key]
-        text, changed = apply_surface_layer(_sidecar_text(file.data), names, path)
+        text, changed = apply_surface_layer(_sidecar_text(file.data), names, path, material_path)
         if changed:
             files[key] = replace(file, data=text.encode("utf-8"))
             applied += changed
     if not applied:
         raise ValueError("Roughness and Metallic found no replaced equipment material to apply to.")
     files[path.casefold()] = ReplacementFile(path, surface_layer_dds(roughness / 255, metallic / 255))
+    files[material_path.casefold()] = ReplacementFile(material_path, surface_material_dds(roughness / 255, metallic / 255))
 
 
 def _image_channel_means(path, channels):

@@ -82397,10 +82397,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Roughness and Metallic need a Ver2 equipment material, which this item does not use.",
+    "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 94
+      "cdmw/core/pac_xml_surface_layer.py": 140
+    }
+  },
+  {
+    "area": "other",
+    "message": "Roughness and Metallic found no material texture to write.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/core/pac_xml_surface_layer.py": 142
     }
   },
   {
@@ -96091,10 +96099,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Roughness and Metallic are not available for this item's material shader.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_rust_replacement.py": 165
+    }
+  },
+  {
+    "area": "placement",
     "message": "Roughness and Metallic found no replaced equipment material to apply to.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 365
+      "cdmw/services/mesh_replacement_materials.py": 371
     }
   },
   {
@@ -96103,14 +96119,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_rust_replacement.py": 176
-    }
-  },
-  {
-    "area": "placement",
-    "message": "Roughness and Metallic need a Ver2 equipment material, which this item does not use.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 165
     }
   },
   {
@@ -98881,7 +98889,7 @@ MESSAGE_REFERENCE = [
     "message": "Material authority review: unknown material-response parameter {_authority_parameter_location(parameter)} ({parameter.parameter_type}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 964
+      "cdmw/modding/pac_xml_profiles.py": 976
     }
   },
   {
@@ -98889,7 +98897,7 @@ MESSAGE_REFERENCE = [
     "message": "Material authority review: {len(unknown) - 12} more unknown response parameter(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 969
+      "cdmw/modding/pac_xml_profiles.py": 981
     }
   },
   {
@@ -98929,7 +98937,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML runtime ABI changed: _subMeshResources ItemID/IdBase sequence differs.",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 1808
+      "cdmw/modding/pac_xml_profiles.py": 1820
     }
   },
   {
@@ -98937,7 +98945,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML runtime ABI changed: _subMeshResources binding order/name/shader differs ({source_bindings} source binding(s), {payload_bindings} payload binding(s)).",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 1803
+      "cdmw/modding/pac_xml_profiles.py": 1815
     }
   },
   {
@@ -98945,7 +98953,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML runtime ABI changed: material parameter names/types/ItemIDs/indexes differ ({source_params} source parameter(s), {payload_params} payload parameter(s)).",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 1810
+      "cdmw/modding/pac_xml_profiles.py": 1822
     }
   },
   {
@@ -98953,7 +98961,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML runtime ABI changed: wrapper ItemID sequence differs.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 1801
+      "cdmw/modding/pac_xml_profiles.py": 1813
     }
   },
   {
@@ -98961,7 +98969,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML runtime ABI changed: wrapper order/name/shader differs ({source_wrappers} source wrapper(s), {payload_wrappers} payload wrapper(s)).",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 1796
+      "cdmw/modding/pac_xml_profiles.py": 1808
     }
   },
   {
@@ -98969,7 +98977,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC XML runtime ABI structural compare unavailable: {status or 'unknown'}.",
     "recovery": "helper",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 1793
+      "cdmw/modding/pac_xml_profiles.py": 1805
     }
   },
   {
@@ -99153,7 +99161,7 @@ MESSAGE_REFERENCE = [
     "message": "Protected PBD simulation material refs removed from PAC XML.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 2733
+      "cdmw/modding/pac_xml_profiles.py": 2745
     }
   },
   {
@@ -99426,7 +99434,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/upscale_profiles.py": 948,
-      "cdmw/modding/pac_xml_profiles.py": 2664
+      "cdmw/modding/pac_xml_profiles.py": 2676
     }
   },
   {
@@ -99474,7 +99482,7 @@ MESSAGE_REFERENCE = [
     "message": "{left.wrapper_name or '<unnamed>'}: protected PAC XML param removed: {removed}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 2727
+      "cdmw/modding/pac_xml_profiles.py": 2739
     }
   },
   {
@@ -99482,7 +99490,7 @@ MESSAGE_REFERENCE = [
     "message": "{left.wrapper_name or '<unnamed>'}: protected PAC XML wrapper removed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 2720
+      "cdmw/modding/pac_xml_profiles.py": 2732
     }
   },
   {
@@ -99490,7 +99498,7 @@ MESSAGE_REFERENCE = [
     "message": "{left.wrapper_name or '<unnamed>'}: protected shader changed from {left.shader_name or '<none>'} to {right.shader_name or '<none>'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 2729
+      "cdmw/modding/pac_xml_profiles.py": 2741
     }
   },
   {
@@ -99498,7 +99506,7 @@ MESSAGE_REFERENCE = [
     "message": "{prefix}: {len(inherited) - 12} more inherited target-side influence parameter(s).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 961
+      "cdmw/modding/pac_xml_profiles.py": 973
     }
   },
   {
@@ -99522,7 +99530,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.wrapper_name or '<unnamed>'} {ref.parameter_name}: stock runtime {old.texture_path} replaced by mod-owned {ref.texture_path} without explicit opt-in.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 2766
+      "cdmw/modding/pac_xml_profiles.py": 2778
     }
   },
   {
@@ -99530,7 +99538,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.wrapper_name or '<unnamed>'} {ref.parameter_name}: texture {ref.texture_path} does not match expected suffix {expected}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_xml_profiles.py": 1750
+      "cdmw/modding/pac_xml_profiles.py": 1762
     }
   },
   {
@@ -105748,7 +105756,7 @@ SOURCE_COVERAGE = {
     "raise": 12
   },
   "cdmw/core/pac_xml_surface_layer.py": {
-    "raise": 1
+    "raise": 2
   },
   "cdmw/core/painting_picture.py": {
     "raise": 10

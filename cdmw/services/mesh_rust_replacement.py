@@ -162,7 +162,7 @@ def check_imported_surface_support(pending):
     if not text or not wrapper_shaders(text, names):
         raise ValueError("Roughness and Metallic need the item's equipment material file.")
     if unsupported_surface_shaders(text, names):
-        raise ValueError("Roughness and Metallic need a Ver2 equipment material, which this item does not use.")
+        raise ValueError("Roughness and Metallic are not available for this item's material shader.")
 
 
 def _surface_argument(args):
