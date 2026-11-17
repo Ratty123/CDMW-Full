@@ -37,15 +37,17 @@ def texture_editor_quick_mask_overlay_image(document: TextureEditorDocument) -> 
 def texture_editor_layer_thumbnail_preview_pixels(pixels: Optional[np.ndarray]) -> Optional[np.ndarray]:
     if pixels is None or pixels.size == 0:
         return None
+    # The painted area's bounds from which rows and columns hold any alpha. np.where
+    # built two index arrays of every painted pixel (256 MB for a full 4096 x 4096
+    # layer) on the window thread at each layer-list refresh.
     alpha = pixels[..., 3]
-    ys, xs = np.where(alpha > 0)
-    if xs.size > 0 and ys.size > 0:
-        x0 = max(0, int(xs.min()))
-        y0 = max(0, int(ys.min()))
-        x1 = int(xs.max()) + 1
-        y1 = int(ys.max()) + 1
-        return pixels[y0:y1, x0:x1]
-    return pixels
+    rows = np.flatnonzero(alpha.any(axis=1))
+    if rows.size == 0:
+        return pixels
+    y0, y1 = int(rows[0]), int(rows[-1]) + 1
+    columns = np.flatnonzero(alpha[y0:y1].any(axis=0))
+    x0, x1 = int(columns[0]), int(columns[-1]) + 1
+    return pixels[y0:y1, x0:x1]
 
 
 def _create_tool_icon(tool_key: str, palette: Optional[QPalette] = None) -> QIcon:

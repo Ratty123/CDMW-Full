@@ -322,7 +322,10 @@ class MeshEditorDirectOutputMixin:
         if int(request_id) != int(self.standalone_output_request_id):
             return
         progress = self.standalone_output_progress
-        if progress is not None:
+        # After Cancel the worker still reports until it reaches its next check, and a
+        # cancelled QProgressDialog shows itself again on the next setValue: the build
+        # looked as if Cancel had not been taken. A cancelled dialog stays closed.
+        if progress is not None and not progress.wasCanceled():
             progress.setValue(max(0, min(100, int(percent))))
             progress.setLabelText(str(message or "Preparing mesh-only output..."))
 

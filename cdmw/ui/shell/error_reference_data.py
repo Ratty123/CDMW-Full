@@ -51316,7 +51316,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 341
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 344
     }
   },
   {
@@ -60872,7 +60872,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was not built. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 428
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 431
     }
   },
   {
@@ -74374,7 +74374,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 789
+      "cdmw/automation/bridge.py": 793
     }
   },
   {
@@ -75360,7 +75360,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod output is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 644
+      "cdmw/automation/bridge.py": 648
     }
   },
   {
@@ -75368,7 +75368,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod refuses until validation passes: finish the edit first.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 652
+      "cdmw/automation/bridge.py": 656
     }
   },
   {
@@ -77134,6 +77134,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/recolor_variants.py": 657
+    }
+  },
+  {
+    "area": "other",
+    "message": "Create New Item is not open yet.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 706
     }
   },
   {
@@ -80859,6 +80867,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "No CrimsonDesert.exe hash is recorded yet (start once with the game connected).",
+    "recovery": "integrity",
+    "sources": {
+      "cdmw/automation/review_commands.py": 106
+    }
+  },
+  {
+    "area": "other",
+    "message": "No CrimsonDesert.exe hash is recorded yet.",
+    "recovery": "integrity",
+    "sources": {
+      "cdmw/automation/review_commands.py": 168
+    }
+  },
+  {
+    "area": "other",
     "message": "No DDS files were found under the original root with the current filter.",
     "recovery": "internal",
     "sources": {
@@ -80875,6 +80899,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "No Scene panel is shown.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 522
+    }
+  },
+  {
+    "area": "other",
+    "message": "No Scene panel row for {wanted or 'any file'}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 535
+    }
+  },
+  {
+    "area": "other",
     "message": "No UV islands were found.",
     "recovery": "internal",
     "sources": {
@@ -80887,6 +80927,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/appearance_composite.py": 519
+    }
+  },
+  {
+    "area": "other",
+    "message": "No archive catalogue is open, so there is no current.json to change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 158
     }
   },
   {
@@ -83442,7 +83490,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 591
+      "cdmw/automation/bridge.py": 595
     }
   },
   {
@@ -83755,6 +83803,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/structured_binary_editor.py": 409
+    }
+  },
+  {
+    "area": "other",
+    "message": "The finder is not shown.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 454
     }
   },
   {
@@ -84202,7 +84258,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 793
+      "cdmw/automation/bridge.py": 797
     }
   },
   {
@@ -84426,7 +84482,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 569
+      "cdmw/automation/bridge.py": 573
     }
   },
   {
@@ -85059,7 +85115,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown automation command: {command or '(none)'}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 311
+      "cdmw/automation/bridge.py": 315
     }
   },
   {
@@ -86139,6 +86195,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "action is show_all or isolate",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 542
+    }
+  },
+  {
+    "area": "other",
     "message": "actual",
     "recovery": "internal",
     "sources": {
@@ -86559,6 +86623,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/action_chart_binary.py": 857
+    }
+  },
+  {
+    "area": "other",
+    "message": "current.json has no fingerprint field.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 96
     }
   },
   {
@@ -87789,6 +87861,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "kind is catalogue or executable",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 174
+    }
+  },
+  {
+    "area": "other",
     "message": "larger than 4 MiB",
     "recovery": "internal",
     "sources": {
@@ -88096,7 +88176,7 @@ MESSAGE_REFERENCE = [
     "message": "no {name} event within the timeout",
     "recovery": "timeout",
     "sources": {
-      "cdmw/automation/bridge.py": 273
+      "cdmw/automation/bridge.py": 277
     }
   },
   {
@@ -89397,7 +89477,7 @@ MESSAGE_REFERENCE = [
     "message": "{command} did not finish on the UI thread",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 315
+      "cdmw/automation/bridge.py": 319
     }
   },
   {
@@ -90658,6 +90738,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{source} is not a file.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/automation/review_commands.py": 754
+    }
+  },
+  {
+    "area": "other",
     "message": "{stem} has no closed record schema.",
     "recovery": "configuration",
     "sources": {
@@ -90710,6 +90798,22 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/core/item_icon_addition.py": 97
+    }
+  },
+  {
+    "area": "other",
+    "message": "{target} is inside a game folder.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 63
+    }
+  },
+  {
+    "area": "other",
+    "message": "{target} is outside the run's own profile folder.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/automation/review_commands.py": 58
     }
   },
   {
@@ -104929,6 +105033,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/automation/policy.py": {
     "raise": 4
+  },
+  "cdmw/automation/review_commands.py": {
+    "raise": 16
   },
   "cdmw/automation/saved_work_commands.py": {
     "raise": 3
