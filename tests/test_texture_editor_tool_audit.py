@@ -307,3 +307,48 @@ def test_an_adjustment_drag_is_one_undo_step_when_released(dock) -> None:
     editor.undo()
     _pump(0.05)
     assert np.array_equal(dock.composite(), before)
+
+
+# Brush settings --------------------------------------------------------------------
+
+
+def test_opacity_caps_the_stroke_and_flow_builds_up() -> None:
+    from dataclasses import replace
+
+    from cdmw.domain.textures.editor_brush import apply_texture_editor_stroke
+    from cdmw.models import TextureEditorDocument, TextureEditorLayer
+
+    document = TextureEditorDocument("Brush", 96, 32, active_layer_id="paint",
+                                     layers=(TextureEditorLayer("paint", "Paint", "unused.png"),))
+    blank = np.zeros((32, 96, 4), dtype=np.uint8)
+    settings = TextureEditorToolSettings(tool="paint", size=16, hardness=100, opacity=100, flow=100,
+                                         spacing=10, color_hex="#FFFFFF")
+    line = [(16, 16), (80, 16)]
+
+    def alpha(**values) -> int:
+        out = apply_texture_editor_stroke(document, {"paint": blank}, replace(settings, **values), line)["paint"]
+        return int(out[16, 48, 3])
+
+    # Stamps overlap about ten times at the middle of the line.
+    assert abs(alpha(opacity=30) - round(0.3 * 255)) <= 1, "opacity is the most a stroke covers"
+    assert alpha(flow=30) > 200, "flow builds up where stamps overlap"
+    assert abs(alpha(opacity=50, flow=30) - round(0.5 * alpha(flow=30))) <= 1
+    assert alpha() == 255
+
+
+def test_an_opacity_drag_in_the_dock_stays_at_its_opacity(dock) -> None:
+    editor = dock.editor
+    editor.tool_buttons["paint"].click()
+    editor.paint_color_edit.setText("#00FF00")
+    editor.brush_size_slider.setValue(12)
+    editor.hardness_slider.setValue(100)
+    editor.flow_slider.setValue(100)
+    editor.opacity_slider.setValue(30)
+    editor.spacing_slider.setValue(10)
+    before = dock.composite()
+    editor.canvas.stroke_committed.emit({"tool": "paint", "points": [(10, 48), (54, 48)]})
+    after = dock.composite()
+    green = int(after[48, 32, 1])
+    expected = round(int(before[48, 32, 1]) + 0.3 * (255 - int(before[48, 32, 1])))
+    assert abs(green - expected) <= 1, (green, expected)
+    assert _shows_on_the_model(dock)

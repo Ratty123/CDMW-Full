@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from functools import lru_cache
 import math
@@ -788,14 +789,23 @@ def apply_texture_editor_stroke(
 ) -> Dict[str, np.ndarray]:
     """Apply one stroke.
 
-    `pressures`, when given, holds the pen pressure (0 to 1) of each point and scales
-    each stamp's strength. Without it, the tool settings' `pressure` (default 1.0)
-    applies to every point, so existing callers paint exactly as before.
+    Flow is each stamp's strength: where stamps overlap they build up. Opacity caps
+    the whole stroke: the built-up stroke is mixed with the layer at the opacity, so
+    a 30 % stroke never covers more than 30 % however often its stamps overlap.
+    (Both used to scale each stamp, which made Opacity a second Flow.)
+
+    `pressures`, when given, holds the pen pressure (0 to 1) of each point; without
+    it, the tool settings' `pressure` (default 1.0) applies to every point. Pressure
+    scales the opacity where that point's stamp lands, so a lighter press paints a
+    lighter stroke however much its stamps overlap. At full opacity and pressure a
+    stroke is what it always was.
     """
+    opacity = max(0.0, min(1.0, float(tool_settings.opacity) / 100.0))
+    full = dataclasses.replace(tool_settings, opacity=100.0) if opacity < 1.0 else tool_settings
     updated, context = _prepare_stroke_context(
         document,
         layer_pixels,
-        tool_settings,
+        full,
         points,
         source_snapshot=source_snapshot,
         mutate_active_layer=mutate_active_layer,
@@ -803,8 +813,67 @@ def apply_texture_editor_stroke(
     )
     if context is None:
         return updated
-    if tool_settings.tool in {"soften", "sharpen"}:
-        return _apply_soften_or_sharpen(context, tool_settings)
+    stroke_pressures = context.stroke_pressures
+    if opacity >= 1.0 and stroke_pressures is None:
+        return _run_stroke(context, full)
+    layer_id = context.document.active_layer_id
+    original = layer_pixels[layer_id]
+    before = context.active.copy() if context.active is original else np.asarray(original, dtype=np.uint8)
+    context = dataclasses.replace(context, stroke_pressures=None)
+    updated = _run_stroke(context, full)
+    return _cap_stroke(updated, layer_id, before, _stroke_opacity(context, stroke_pressures, opacity))
+
+
+def _run_stroke(context: _StrokeContext, settings: TextureEditorToolSettings) -> Dict[str, np.ndarray]:
+    if settings.tool in {"soften", "sharpen"}:
+        return _apply_soften_or_sharpen(context, settings)
     for index, point in enumerate(context.stroke_points):
-        _apply_stroke_point(context, tool_settings, index, point)
+        _apply_stroke_point(context, settings, index, point)
     return context.updated
+
+
+def _stroke_opacity(
+    context: _StrokeContext,
+    pressures: Optional[Tuple[float, ...]],
+    opacity: float,
+) -> object:
+    """The most the stroke may change each pixel: the opacity, times the firmest
+    pressure of the stamps that land on it."""
+
+    if pressures is None:
+        return np.float32(opacity)
+    reach = np.zeros((context.layer_height, context.layer_width), dtype=np.float32)
+    for index, point in enumerate(context.stroke_points):
+        clipped = _clip_stroke_to_active_layer(context, point)
+        if clipped is None:
+            continue
+        (lx0, ly0, lx1, ly1), (sx0, sy0, sx1, sy1) = clipped
+        footprint = context.stamp[sy0:sy1, sx0:sx1] > 0.0
+        region = reach[ly0:ly1, lx0:lx1]
+        np.maximum(region, np.where(footprint, np.float32(pressures[index]), np.float32(0.0)), out=region)
+    return reach * np.float32(opacity)
+
+
+def _cap_stroke(
+    updated: Dict[str, np.ndarray],
+    layer_id: str,
+    before: np.ndarray,
+    weight: object,
+) -> Dict[str, np.ndarray]:
+    after = updated.get(layer_id)
+    if after is None or after.shape != before.shape:
+        return updated
+    changed = np.any(after != before, axis=2)
+    rows = np.flatnonzero(changed.any(axis=1))
+    if rows.size == 0:
+        return updated
+    cols = np.flatnonzero(changed.any(axis=0))
+    y0, y1, x0, x1 = int(rows[0]), int(rows[-1]) + 1, int(cols[0]), int(cols[-1]) + 1
+    if not after.flags.writeable:
+        after = after.copy()
+        updated[layer_id] = after
+    local = weight[y0:y1, x0:x1, None] if isinstance(weight, np.ndarray) and weight.ndim == 2 else weight
+    start = before[y0:y1, x0:x1].astype(np.float32)
+    end = after[y0:y1, x0:x1].astype(np.float32)
+    after[y0:y1, x0:x1] = np.clip(np.round(start + (end - start) * local), 0, 255).astype(np.uint8)
+    return updated
