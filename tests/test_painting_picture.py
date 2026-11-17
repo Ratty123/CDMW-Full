@@ -94,6 +94,26 @@ def test_the_picture_lands_upright_in_the_canvas_rect_and_its_edges_extend_outwa
     assert {image.getpixel((x, y))[3] for x in range(0, 64, 7) for y in range(0, 64, 7)} == {255}
 
 
+def test_the_picture_is_written_the_way_round_the_shipped_pictures_are():
+    """A pin, not a fix: the build was checked against the game and found right (2026-11-17,
+    `.work/research/2026-11-17-painting-mirror`). Every offered frame's canvas faces -z with u
+    along +x and v down -y, and the game's own item icons show each shipped picture's canvas
+    cell (`plan_picture_texture(...).rect`) unmirrored and upright, the animal atlases
+    included. So the picture's left edge goes to the cell's lowest u and its top to the lowest
+    v, as in `cd_in_dpw_picture_animal_01.dds`, whose rooster cell (u 0.648 to 1.0, v 0.099
+    to 0.439 on `cd_in_dpw_picture_animal_12`) faces right in the DDS and in game."""
+    rooster = find_canvas(frame(quad("pic", 0.704, 0.68, (0.648, 0.099, 1.0, 0.439), z=-0.02)), ["pic"])
+    plan = plan_picture_texture((1024, 1024), rooster)
+    left, top, right, bottom = plan.rect
+    assert (left, top, right, bottom) == pytest.approx((663, 101, 1024, 450), abs=1)
+    image = compose_picture(picture(704, 680), plan, fit=FIT_FILL)
+    middle = (left + right) // 2
+    assert image.getpixel((left + 4, 300))[:3] == (255, 0, 0)     # the picture's left at the cell's lowest u
+    assert image.getpixel((right - 4, 300))[:3] == (0, 0, 255)    # its right at the highest u
+    assert image.getpixel((middle, top + 3))[:3] == (0, 255, 0)   # its top at the lowest v
+    assert image.getpixel((middle, bottom - 3))[1] < 64
+
+
 def test_fill_crops_and_whole_pads_to_the_canvas_shape():
     canvas = find_canvas(frame(quad("pic", 1.0, 1.0, (0, 0, 1, 1))), ["pic"])
     plan = plan_picture_texture((32, 32), canvas)

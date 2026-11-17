@@ -10,8 +10,15 @@ viewport frame (`ItemPreviewFrame`), which builds the viewport package on its wo
 
 Checked on 2026-11-17 against game 1.0.0.3663 (`.work/research/2026-11-17-painting-ui`):
 the package carries the composed picture as the canvas's base colour texture, in the
-same orientation and flip setting as the shipped picture it replaces. What the game
-itself draws is not checked here.
+same orientation and flip setting as the shipped picture it replaces.
+
+The frame is drawn mirrored across x (`_as_the_game_shows_it`). The game's models are
+left-handed: the player skeleton faces -z with its right hand at -x, and every painting's
+canvas faces -z with u running along +x, while the game's own item icons show the
+shipped pictures unmirrored (`.work/research/2026-11-17-painting-mirror`). CDMW's viewport
+draws them right-handed from the -z side, so +x lands on the screen's left and every
+picture read back to front there; a stock painting rendered through this package showed
+the rooster of `cd_in_dpw_picture_animal_01.dds` facing left, as it never does in game.
 """
 
 from __future__ import annotations
@@ -117,6 +124,32 @@ def _bind_missing_frame_textures(model, canvas_material: str, pami_text: str, te
         mesh.preview_base_texture_source = "pami"
 
 
+def _as_the_game_shows_it(model) -> None:
+    """Mirror the cloned frame across x (positions, normals, winding) so the viewport,
+    which is right-handed and looks from -z, shows the painting the way the left-handed
+    game does: the picture's left edge on the left, the front faces still facing the eye.
+    The geometry lists are replaced, never changed in place: the decode may be shared.
+    Drop this if the viewport itself is ever made left-handed.
+
+    A frame whose geometry arrived as binary buffers (the archive decode gives lists) is
+    left as it is, rather than mirrored in part."""
+
+    binary = ("positions_binary", "normals_binary", "indices_binary")
+    if any(getattr(mesh, name, None) for mesh in model.meshes for name in binary):
+        return
+    for mesh in model.meshes:
+        mesh.positions = [(-float(x), y, z) for x, y, z in (mesh.positions or ())]
+        mesh.normals = [(-float(x), y, z) for x, y, z in (mesh.normals or ())]
+        indices = list(mesh.indices or ())
+        for start in range(0, len(indices) - len(indices) % 3, 3):
+            indices[start + 1], indices[start + 2] = indices[start + 2], indices[start + 1]
+        mesh.indices = indices
+    for name in ("normalization_center", "preview_grid_origin"):
+        value = tuple(getattr(model, name, ()) or ())
+        if len(value) == 3:
+            setattr(model, name, (-float(value[0]), value[1], value[2]))
+
+
 def painting_preview_model(entry, frame, picture, fit: str, *, texture_entries_by_normalized_path,
                            texture_entries_by_basename, folder: Optional[Path] = None,
                            stop_event: Optional[threading.Event] = None, decode: Optional[Callable] = None,
@@ -145,6 +178,7 @@ def painting_preview_model(entry, frame, picture, fit: str, *, texture_entries_b
         raise PaintingPreviewError(f"The frame {frame.stem} could not be read for the 3D view.")
     # The decode may be cached and shared; the canvas is changed on a copy.
     model = clone_archive_preview_model(model)
+    _as_the_game_shows_it(model)
     if pami_text and texture_entry_of is not None:
         if texture_preview is None:
             from cdmw.core.archive_model_textures import _ensure_archive_model_texture_preview_path as texture_preview
