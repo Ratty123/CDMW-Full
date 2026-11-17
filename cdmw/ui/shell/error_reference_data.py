@@ -19895,7 +19895,7 @@ MESSAGE_REFERENCE = [
     "message": "No preview host is running.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/engine_capture.py": 201
+      "cdmw/services/engine_capture.py": 207
     }
   },
   {
@@ -20079,7 +20079,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview process could not capture the thumbnail.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/engine_capture.py": 121
+      "cdmw/services/engine_capture.py": 127
     }
   },
   {
@@ -20087,7 +20087,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview process did not answer the thumbnail capture in time.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/engine_capture.py": 117
+      "cdmw/services/engine_capture.py": 123
     }
   },
   {
