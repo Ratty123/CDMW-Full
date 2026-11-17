@@ -281,7 +281,7 @@ def test_with_the_list_off_the_texture_editor_still_goes_with_the_mesh(tmp_path:
         panels.set_wanted(False)
         _settle()
         assert _shown(page) == (False, True)
-        # The session ends (Close, Finish, or the first step of loading another mesh).
+        # The session ends (Close, or the first step of loading another mesh).
         textures.show_session(None)
         _settle()
         assert _shown(page) == (False, False)
