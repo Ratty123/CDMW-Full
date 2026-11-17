@@ -999,4 +999,25 @@ class MeshEditorTabShellMixin(
             from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import mark_discarded
 
             mark_discarded(self)  # the user chose to lose them
+        elif self._has_unkept_texture_edits():
+            # Texture edits are kept in the draft once it exists (Finish creates it).
+            # Until then Close would drop them without a word, so it asks, as closing
+            # a tab and closing CDMW already do.
+            confirmed = _tab.QMessageBox.question(
+                self,
+                "Close Without Keeping Texture Edits?",
+                "The texture edits made in this Mesh Editor session are not kept in a draft yet; "
+                "Finish Edit Mesh keeps them. Close this session without them?",
+                _tab.QMessageBox.Yes | _tab.QMessageBox.No,
+                _tab.QMessageBox.No,
+            )
+            if confirmed != _tab.QMessageBox.Yes:
+                return
         self.show_empty_state()
+
+    def _has_unkept_texture_edits(self) -> bool:
+        keeper = getattr(self, "_live_texture_keeping", None)
+        try:
+            return keeper is not None and keeper.unkept_count() > 0
+        except Exception:  # cannot tell: ask rather than lose them
+            return True

@@ -35357,6 +35357,16 @@
       ]
     },
     {
+      "key": "Close Without Keeping Texture Edits?",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_shell.py",
+          "line": 1006,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "Close Without Saving",
       "origins": [
         {
@@ -172968,6 +172978,16 @@
           "path": "cdmw/ui/mesh_editor/live_texture_keeping.py",
           "line": 192,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "The texture edits made in this Mesh Editor session are not kept in a draft yet; Finish Edit Mesh keeps them. Close this session without them?",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_shell.py",
+          "line": 1006,
+          "sink": "question"
         }
       ]
     },
