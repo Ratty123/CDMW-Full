@@ -166,7 +166,8 @@ public sealed partial class ArchiveCacheStore
         foreach (var family in root.EnumerateDirectories().Where(item => !IsLink(item) && IsHash(item.Name, 24)))
         {
             total += family.EnumerateFiles().Where(item => !IsLink(item)).Sum(item => item.Length);
-            var generations = new[] { "g", "generations", "quarantine" }
+            SweepAbandonedStaging(new DirectoryInfo(Path.Combine(family.FullName, "g")));
+            var generations =new[] { "g", "generations", "quarantine" }
                 .Select(name => new DirectoryInfo(Path.Combine(family.FullName, name)))
                 .Where(item => item.Exists && !IsLink(item))
                 .SelectMany(item => item.EnumerateDirectories())
@@ -220,6 +221,41 @@ public sealed partial class ArchiveCacheStore
                 if (IsOpeningGeneration(directory.Path)) break;
                 total -= RemovePreparedUnit(unit.Files);
                 if (total <= _targetBytes) return;
+            }
+        }
+    }
+
+    private static readonly TimeSpan AbandonedStagingAge = TimeSpan.FromMinutes(10);
+
+    // A worker killed while building a catalogue leaves ".<generation>.staging" and an
+    // unheld lease file. Nothing publishes or retires that generation, so they would stay
+    // for good. A live build takes its lease before creating the folder and holds it until
+    // it publishes or gives up, so an old folder whose lease opens exclusively is abandoned.
+    private void SweepAbandonedStaging(DirectoryInfo generationsRoot)
+    {
+        if (!generationsRoot.Exists || IsLink(generationsRoot)) return;
+        foreach (var staging in generationsRoot.EnumerateDirectories(".*.staging"))
+        {
+            var id = staging.Name[1..^".staging".Length];
+            if (IsLink(staging) || id.Length != 30 || IsRetired(staging.Name)) continue;
+            if (DateTime.UtcNow - staging.LastWriteTimeUtc < AbandonedStagingAge) continue;
+            var generationPath = Path.Combine(generationsRoot.FullName, id);
+            if (Directory.Exists(generationPath) || IsOpeningGeneration(generationPath)) continue;
+            var leasePath = GenerationUsePath(generationPath);
+            var leaseRoot = new DirectoryInfo(Path.GetDirectoryName(leasePath)!);
+            if (leaseRoot.Exists && IsLink(leaseRoot)) continue;
+            try
+            {
+                Directory.CreateDirectory(leaseRoot.FullName);
+                using (new FileStream(leasePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+                {
+                    TryDeleteDirectory(staging.FullName);
+                }
+                if (!Directory.Exists(staging.FullName)) File.Delete(leasePath);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Held by a build in another process, or busy: leave it for a later pass.
             }
         }
     }

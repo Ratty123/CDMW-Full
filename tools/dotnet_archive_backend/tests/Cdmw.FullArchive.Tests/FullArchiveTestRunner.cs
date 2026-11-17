@@ -21,6 +21,7 @@ internal static class FullArchiveTestRunner
             ("cache_maintenance_growth_release", CacheMaintenanceTests.GrowthAndReleaseAsync),
             ("cache_maintenance_warm_coalescing", CacheMaintenanceTests.WarmOpenAndCoalescingAsync),
             ("cache_maintenance_urgent_notifications", CacheMaintenanceTests.UrgentNotificationsAsync),
+            ("cache_maintenance_abandoned_staging", CacheMaintenanceTests.AbandonedStagingAsync),
             ("cache_maintenance_separate_owners", CacheMaintenanceTests.SeparateOwnersAsync),
             ("cache_maintenance_locked_files", CacheMaintenanceTests.LockedFilesAsync),
             ("cache_maintenance_busy_open_cancellation", CacheMaintenanceTests.BusyOpenCancellationAsync),
