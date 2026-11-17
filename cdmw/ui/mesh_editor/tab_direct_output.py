@@ -153,14 +153,13 @@ class MeshEditorDirectOutputMixin:
                 output = find_available_output_path(Path(parent) / (hair.payload["template"]["target_stem"] + "-hair-mod"))
                 self._start_mesh_direct_output_worker("overlay_package", entry, output_path=output, manager_profile="dmm")
             return
-        texture_plan = self._live_texture_plan() if hasattr(self, "_live_texture_plan") else None
-        if texture_plan is not None and texture_plan.refusals:
-            # Every edited texture with its status: the blocked ones say why.
-            message = "Some edited textures cannot be written:\n\n" + "\n".join(texture_plan.plan_lines)
-            self.status_message_requested.emit(message, True)
-            _tab.QMessageBox.warning(self, "Build Mod", message)
-            return
         bodies, named = self._mesh_mod_body_entries(controller, entry)
+        texture_plan_with_body = self._live_texture_plan() if hasattr(self, "_live_texture_plan") else None
+        # Include the body starts off, and the body's textures are left out with it.
+        texture_plan = (self._live_texture_plan(include_body=False)
+                        if bodies and texture_plan_with_body is not None else texture_plan_with_body)
+        if self._edited_textures_blocked(texture_plan):
+            return
         stem = Path(str(named.basename or "mesh")).stem or "mesh"
         dialog = MeshModExportDialog(
             self,
@@ -171,6 +170,8 @@ class MeshEditorDirectOutputMixin:
             manager_profile=str(self.settings.value("mesh_editor/last_mod_manager_profile", "dmm") or "dmm"),
             body_files=tuple(item.basename for item in bodies),
             texture_plan=texture_plan.plan_lines if texture_plan is not None else (),
+            texture_plan_with_body=(texture_plan_with_body.plan_lines
+                                    if bodies and texture_plan_with_body is not None else None),
         )
         try:
             if dialog.exec() != dialog.DialogCode.Accepted:
@@ -195,6 +196,16 @@ class MeshEditorDirectOutputMixin:
         ):
             self.status_message_requested.emit("Validation result ignored because the mesh changed; run validation again.", True)
             return
+        if include_body and bodies:
+            # The body is in the mod, so are the textures only it uses.
+            texture_plan = texture_plan_with_body
+            if self._edited_textures_blocked(texture_plan):
+                return
+        if textures_only and not (texture_plan is not None and texture_plan.outputs):
+            message = "No part in this mod uses the edited textures, so there is nothing to build."
+            self.status_message_requested.emit(message, True)
+            _tab.QMessageBox.warning(self, "Build Mod", message)
+            return
         self.settings.setValue("mesh_editor/last_mod_output_dir", str(output_path.parent))
         self.settings.setValue("mesh_editor/last_mod_manager_profile", manager_profile)
         self.settings.setValue("mesh_editor/last_mod_output_choice", output_choice)
@@ -217,6 +228,17 @@ class MeshEditorDirectOutputMixin:
             texture_outputs=texture_plan.outputs if texture_plan is not None else (),
             textures_only=textures_only,
         )
+
+    def _edited_textures_blocked(self, texture_plan) -> bool:
+        """Stop Build Mod, saying why, when an edited texture the mod holds cannot be written."""
+
+        if texture_plan is None or not texture_plan.refusals:
+            return False
+        # Every edited texture with its status: the blocked ones say why.
+        message = "Some edited textures cannot be written:\n\n" + "\n".join(texture_plan.plan_lines)
+        self.status_message_requested.emit(message, True)
+        _tab.QMessageBox.warning(self, "Build Mod", message)
+        return True
 
     def _mesh_mod_body_entries(self, controller, entry) -> tuple[tuple, object]:
         """Return the body files Build Mod leaves out by default, and the file to name the mod after.

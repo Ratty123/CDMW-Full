@@ -39,6 +39,7 @@ class MeshModExportDialog(QDialog):
         manager_profile: str,
         body_files: tuple[str, ...] = (),
         texture_plan: tuple[str, ...] = (),
+        texture_plan_with_body: tuple[str, ...] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Build Mod")
@@ -77,13 +78,14 @@ class MeshModExportDialog(QDialog):
         form.addRow("Description", self.description)
         layout.addLayout(form)
         # Step 8: each edited texture, written in the original's format, size and mips.
+        # With a body a Fit follows, the list follows Include the body: the body's
+        # textures are left out with it (item 5).
         self.texture_plan = QLabel(self)
         self.texture_plan.setObjectName("mesh_mod_texture_plan")
         self.texture_plan.setWordWrap(True)
         self.texture_plan.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        if texture_plan:
-            self.texture_plan.setText("Edited textures in this mod:\n" + "\n".join(texture_plan))
-        self.texture_plan.setVisible(bool(texture_plan))
+        self._texture_plans = (tuple(texture_plan), tuple(
+            texture_plan if texture_plan_with_body is None else texture_plan_with_body))
         layout.addWidget(self.texture_plan)
         # Off by default: the body a Fit follows is a reference, and shipping
         # it would override every other mod that changes that body.
@@ -97,6 +99,8 @@ class MeshModExportDialog(QDialog):
         layout.addWidget(self.include_body_hint)
         self.include_body.setVisible(bool(body_files))
         self.include_body_hint.setVisible(bool(body_files))
+        self._show_texture_plan(False)
+        self.include_body.toggled.connect(self._show_texture_plan)
         # Off by default: changing shrink rules also ships the shared descriptor.
         self.keep_layers = QCheckBox("Keep layers underneath (experimental)", self)
         self.keep_layers.setObjectName("mesh_mod_keep_layers")
@@ -163,6 +167,12 @@ class MeshModExportDialog(QDialog):
             return ()
         return tuple(self.layers.item(row).data(Qt.ItemDataRole.UserRole) for row in range(self.layers.count())
                      if self.layers.item(row).checkState() == Qt.CheckState.Checked)
+
+    def _show_texture_plan(self, include_body: bool) -> None:
+        lines = self._texture_plans[1 if include_body else 0]
+        if lines:
+            self.texture_plan.setText("Edited textures in this mod:\n" + "\n".join(lines))
+        self.texture_plan.setVisible(bool(lines))
 
     def _refresh_layers(self, *_args) -> None:
         enabled = self.keep_layers.isChecked()

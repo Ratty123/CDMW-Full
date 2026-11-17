@@ -342,3 +342,45 @@ def test_the_status_lines_are_in_the_app_s_language(tmp_path: Path) -> None:
         localizer.shutdown()
         parent.deleteLater()
         app.processEvents()
+
+
+def test_the_body_a_fit_follows_is_not_in_the_build_unless_it_is_included() -> None:
+    import threading
+
+    from cdmw.services.mesh_asset_context import MeshAssetContext
+    from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
+
+    assets = (SimpleNamespace(asset_id="c", entry=_entry("character/model/coat.pac"), part_indices=(0,), role="target"),
+              SimpleNamespace(asset_id="b", entry=_entry("character/model/body.pac"), part_indices=(1,), role="body"))
+    mesh = SimpleNamespace(submeshes=[SimpleNamespace(name="Coat"), SimpleNamespace(name="Body")])
+    session = SimpleNamespace(export_lock=threading.RLock(), archive_refit_context=MeshAssetContext(assets=assets),
+                              replacement_state=None)
+    service = SimpleNamespace(working_mesh=lambda session_id: mesh, _session=lambda session_id: session,
+                              cached_morph_state=lambda session_id: None)
+    host = SimpleNamespace(standalone_controller=SimpleNamespace(mesh_service=service, active_session_id="s1"))
+    assert MeshEditorRustProcessMixin._parts_in_build(host) == ("Coat (coat.pac)", "Body (body.pac)")
+    assert MeshEditorRustProcessMixin._parts_in_build(host, include_body=False) == ("Coat (coat.pac)",)
+
+
+def test_the_build_mod_list_follows_include_the_body() -> None:
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
+
+    QApplication.instance() or QApplication([])
+    parent = QWidget()
+    without = ("body_d.dds: left out, no part in this mod uses it (Body (body.pac))",)
+    with_body = ("body_d.dds: writes, BC7_UNORM_SRGB, 4 x 4, 3 mips",)
+    dialog = MeshModExportDialog(parent, title="Mod", description="", output_parent="", output_choice="",
+                                 manager_profile="dmm", body_files=("body.pac",), texture_plan=without,
+                                 texture_plan_with_body=with_body)
+    try:
+        assert dialog.texture_plan.text() == "Edited textures in this mod:\n" + without[0]
+        dialog.include_body.setChecked(True)
+        assert dialog.texture_plan.text() == "Edited textures in this mod:\n" + with_body[0]
+        dialog.include_body.setChecked(False)
+        assert dialog.texture_plan.text() == "Edited textures in this mod:\n" + without[0]
+    finally:
+        dialog.deleteLater()
+        parent.deleteLater()
+        QApplication.processEvents()

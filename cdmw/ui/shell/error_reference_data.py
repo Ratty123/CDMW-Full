@@ -44455,7 +44455,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1029
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1038
     }
   },
   {
@@ -49770,7 +49770,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1195
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1204
     }
   },
   {
@@ -49834,7 +49834,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 935
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 944
     }
   },
   {
@@ -49842,7 +49842,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1149,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1158,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 846
     }
   },
@@ -49934,7 +49934,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1705
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1714
     }
   },
   {
@@ -49950,7 +49950,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1492
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1501
     }
   },
   {
@@ -49958,7 +49958,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1488
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1497
     }
   },
   {
@@ -50105,7 +50105,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1518
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1527
     }
   },
   {
@@ -50145,7 +50145,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1199
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1208
     }
   },
   {
@@ -50170,7 +50170,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1274
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1283
     }
   },
   {
@@ -51348,7 +51348,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 368
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 390
     }
   },
   {
@@ -53303,6 +53303,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_service_morph_authoring.py": 150
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "No part in this mod uses the edited textures, so there is nothing to build.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 207
     }
   },
   {
@@ -59626,7 +59634,7 @@ MESSAGE_REFERENCE = [
     "message": "Some edited textures cannot be written: {detail}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 161
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 240
     }
   },
   {
@@ -60944,7 +60952,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was not built. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 455
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 477
     }
   },
   {
@@ -99626,7 +99634,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not know which game file this texture came from, so it cannot write it.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_live_texture_output.py": 274
+      "cdmw/services/mesh_live_texture_output.py": 279
     }
   },
   {
@@ -102033,7 +102041,7 @@ MESSAGE_REFERENCE = [
     "message": "The game file was not found in the archives.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_live_texture_output.py": 282
+      "cdmw/services/mesh_live_texture_output.py": 287
     }
   },
   {
@@ -108980,7 +108988,7 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/ui/mesh_editor/tab_direct_output.py": {
-    "dialog": 3,
+    "dialog": 4,
     "failure": 1,
     "report": 1
   },

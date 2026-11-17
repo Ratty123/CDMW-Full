@@ -849,8 +849,10 @@ class MeshEditorRustProcessMixin:
             self._live_textures().push(source_sha256, image, changed=changed)
             self._live_texture_keeper().edited()
 
-    def _live_texture_plan(self):
-        """What Build Mod writes for the textures edited live, or None when none were."""
+    def _live_texture_plan(self, *, include_body: bool = True):
+        """What Build Mod writes for the textures edited live, or None when none were.
+
+        ``include_body``: whether the mod holds the body a Fit follows (Include the body)."""
 
         live = getattr(self, "_live_texture_updates", None)
         edited = live.edited_textures() if live is not None else {}
@@ -878,12 +880,12 @@ class MeshEditorRustProcessMixin:
                 users=source.users,
             ))
         return plan_live_texture_outputs(edits, self._archive_texture_indexes()[0],
-                                         parts_in_build=self._parts_in_build())
+                                         parts_in_build=self._parts_in_build(include_body=include_body))
 
-    def _parts_in_build(self) -> tuple[str, ...] | None:
+    def _parts_in_build(self, *, include_body: bool = True) -> tuple[str, ...] | None:
         """The parts Build Mod writes (deleted parts are gone from the working mesh, parts
-        whose Include is off are left out), or None when they cannot be read: then no
-        texture is left out."""
+        whose Include is off are left out, and so is the body a Fit follows unless
+        ``include_body``), or None when they cannot be read: then no texture is left out."""
 
         from contextlib import nullcontext
 
@@ -899,7 +901,14 @@ class MeshEditorRustProcessMixin:
             with lock if lock is not None else nullcontext():
                 context = getattr(session, "archive_refit_context", None)
                 replacement = getattr(session, "replacement_state", None)
-            return parts_in_build(mesh, context, replacement)
+            body = ()
+            if not include_body:
+                from cdmw.services.mesh_archive_refit import archive_refit_body_assets
+
+                morph = getattr(service, "cached_morph_state", None)
+                body = tuple(index for asset in archive_refit_body_assets(
+                    context, morph(session_id) if callable(morph) else None) for index in asset.part_indices)
+            return parts_in_build(mesh, context, replacement, left_out_parts=body)
         except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
             return None
 

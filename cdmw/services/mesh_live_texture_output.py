@@ -193,14 +193,16 @@ def _part_in_build(user: str, kept: set[str]) -> bool:
     return str(user or "").strip().casefold() in kept or _part_name(user) in kept
 
 
-def parts_in_build(mesh, archive_refit_context=None, replacement_state=None) -> tuple[str, ...] | None:
+def parts_in_build(mesh, archive_refit_context=None, replacement_state=None, *,
+                   left_out_parts: Iterable[int] = ()) -> tuple[str, ...] | None:
     """The parts Build Mod writes, named as the Textures panel names them, or None when
     they cannot be read (then no edited texture is left out).
 
     Deleted parts are gone from ``mesh`` (the working mesh). A part whose Include is off
     stays in it and is not written: a set's part by its id in ``excluded_part_ids``, a
-    single file's part by its replacement binding. With two or more files open the panel
-    names each part with its file, and so does this."""
+    single file's part by its replacement binding. ``left_out_parts``: the indices of further
+    parts the mod does not hold (the body a Fit follows, unless Include the body is on).
+    With two or more files open the panel names each part with its file, and so does this."""
 
     from cdmw.services.mesh_asset_context import ASSET_ATTRIBUTE, PART_ATTRIBUTE, is_item_set
 
@@ -235,6 +237,9 @@ def parts_in_build(mesh, archive_refit_context=None, replacement_state=None) -> 
             for binding in replacement_state.parts:
                 if not binding.included:
                     kept[indices[binding.part_id]] = False
+    for index in left_out_parts:
+        if 0 <= int(index) < len(kept):
+            kept[int(index)] = False
     if len(assets) < 2:
         files = {}
     return tuple(names[index] + (f" ({files[index]})" if files.get(index) else "")

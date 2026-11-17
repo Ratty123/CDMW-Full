@@ -407,3 +407,43 @@ def test_a_blocked_texture_stops_build_mod_with_every_texture_s_status(accepted_
     assert warnings == [("Build Mod", "Some edited textures cannot be written:\n\n"
                          + GAME_PATH + ": writes, R8G8B8A8_UNORM, 4 x 2, 1 mips\n"
                          + MISSING_PATH + ": blocked. The game file was not found in the archives.")]
+
+
+@pytest.mark.parametrize("include_body", [False, True])
+def test_a_texture_only_the_body_uses_is_written_only_with_the_body(
+        accepted_cloth_edit, tmp_path, monkeypatch, include_body):
+    from tests.test_mesh_live_texture_output import BELT_PATH, GAME_PATH, _edit, _entry
+    from cdmw.services.mesh_live_texture_output import plan_live_texture_outputs
+
+    tab, _service, _session, entry, _source = accepted_cloth_edit
+    edits = [_edit(tmp_path, users=("Coat",)), _edit(tmp_path, game_path=BELT_PATH, users=("Body",))]
+    indexes = {GAME_PATH: (_entry(),), BELT_PATH: (_entry(BELT_PATH),)}
+    asked = []
+
+    def plan(*, include_body=True):
+        asked.append(include_body)
+        return plan_live_texture_outputs(edits, indexes,
+                                         parts_in_build=("Coat", "Body") if include_body else ("Coat",))
+
+    body = replace(entry, path="character/body.pac")
+    monkeypatch.setattr(tab, "_live_texture_plan", plan)
+    monkeypatch.setattr(tab, "_mesh_mod_body_entries", lambda _controller, _entry: ((body,), entry))
+    shown, started = [], []
+
+    def choose(dialog):
+        shown.append(dialog.texture_plan.text())
+        dialog.output_parent.setText(str(tmp_path / "exports"))
+        dialog.include_body.setChecked(include_body)
+        shown.append(dialog.texture_plan.text())
+        return dialog.DialogCode.Accepted
+
+    monkeypatch.setattr(MeshModExportDialog, "exec", choose)
+    monkeypatch.setattr(tab, "_start_mesh_direct_output_worker", lambda *args, **kwargs: started.append(kwargs))
+    tab._start_mesh_mod_build_requested()
+    assert sorted(asked) == [False, True]
+    assert BELT_PATH + ": left out, no part in this mod uses it (Body)" in shown[0]
+    assert (BELT_PATH + ": writes, R8G8B8A8_UNORM, 4 x 2, 1 mips" in shown[1]) is include_body
+    (kwargs,) = started
+    written = [output.game_path for output in kwargs["texture_outputs"]]
+    assert written == ([GAME_PATH, BELT_PATH] if include_body else [GAME_PATH])
+    assert kwargs["include_refit_body"] is include_body
