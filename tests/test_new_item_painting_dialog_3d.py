@@ -146,7 +146,7 @@ def test_the_3d_view_is_built_on_a_worker_only_when_its_tab_is_shown_and_ends_it
     UI thread, and "Preparing the 3D view" ends when the viewport says it is ready."""
     controller = ViewportController()
     view = viewport_dialog.open(controller)
-    view.frame.setCurrentIndex(1)
+    view.frame.set_current_frame_row(1)
     view._paintings[0]["picture"] = str(tmp_path / "mine.png")
     view._show_painting()
     _app().processEvents()
@@ -173,7 +173,7 @@ def test_a_3d_view_that_already_shows_the_package_is_not_left_busy(viewport_dial
     """As Body & Face Finder's wait (ed3a8f58f): asking again for what the viewport shows
     loads nothing and says nothing, so the dialog must not wait for a ready."""
     view = viewport_dialog.open(ViewportController())
-    view.frame.setCurrentIndex(0)
+    view.frame.set_current_frame_row(0)
     view.preview_tabs.setCurrentWidget(view.viewport_page)
     assert _until(lambda: _packages(viewport_dialog.loads))
     viewport_dialog.made[0].host.controller.state_changed.emit("ready", "")
@@ -187,7 +187,7 @@ def test_a_3d_view_that_already_shows_the_package_is_not_left_busy(viewport_dial
 
 def test_a_failed_3d_view_says_why_and_stops_waiting(viewport_dialog):
     view = viewport_dialog.open(ViewportController(fail=True))
-    view.frame.setCurrentIndex(0)
+    view.frame.set_current_frame_row(0)
     view.preview_tabs.setCurrentWidget(view.viewport_page)
     assert _until(lambda: not view.viewport_busy_now())
     assert "could not be read for the 3D view" in view.viewport_status.text()
@@ -217,7 +217,7 @@ def test_a_missing_viewport_says_so_instead_of_waiting(tmp_path, monkeypatch):
 
     view = PaintingDialog(ViewportController(), viewport_factory=factory)
     view.show()
-    view.frame.setCurrentIndex(0)
+    view.frame.set_current_frame_row(0)
     view.preview_tabs.setCurrentWidget(view.viewport_page)
     assert _until(lambda: not view.viewport_busy_now())
     assert "not available here" in view.viewport_status.text()
@@ -228,7 +228,7 @@ def test_a_missing_viewport_says_so_instead_of_waiting(tmp_path, monkeypatch):
 
 def test_close_stops_the_3d_view_and_opening_again_starts_a_new_one(viewport_dialog):
     view = viewport_dialog.open(ViewportController())
-    view.frame.setCurrentIndex(0)
+    view.frame.set_current_frame_row(0)
     view.preview_tabs.setCurrentWidget(view.viewport_page)
     assert _until(lambda: _packages(viewport_dialog.loads))
     first = viewport_dialog.made[0]

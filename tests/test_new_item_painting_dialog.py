@@ -91,13 +91,13 @@ def dialog():
 def test_the_frames_are_offered_after_the_read(dialog):
     view, _controller = dialog
     assert [view.frame.itemData(i) for i in range(view.frame.count())] == [SMALL, LARGE]
-    assert view.frame.currentIndex() == -1
+    assert view.frame.current_frame_row() == -1
     assert view.status.text() == "2 frames found; 1 left out because CDMW cannot map their canvas."
 
 
 def test_two_paintings_become_two_requests_with_their_own_texts(dialog, tmp_path):
     view, controller = dialog
-    view.frame.setCurrentIndex(0)
+    view.frame.set_current_frame_row(0)
     view.name.setText("First")
     view.name.textEdited.emit("First")
     view.language.setCurrentIndex(view.language.findData("ger"))
@@ -106,8 +106,8 @@ def test_two_paintings_become_two_requests_with_their_own_texts(dialog, tmp_path
     view.description.setPlainText("Beschreibung")
     view._paintings[0]["picture"] = str(tmp_path / "one.png")
     view.add_button.click()
-    assert view.frame.currentIndex() == -1  # a new painting has no frame yet
-    view.frame.setCurrentIndex(1)
+    assert view.frame.current_frame_row() == -1  # a new painting has no frame yet
+    view.frame.set_current_frame_row(1)
     view.language.setCurrentIndex(view.language.findData("eng"))
     view.name.setText("Second")
     view.name.textEdited.emit("Second")
@@ -193,7 +193,7 @@ def test_a_small_picture_fills_the_canvas_of_the_frame_drawn_to_scale(dialog, tm
     Image.new("RGB", (12, 24), (200, 30, 30)).save(picture)
     view.resize(1300, 850)
     view.show()
-    view.frame.setCurrentIndex(1)  # 1.5 x 2.0 m: a tall canvas
+    view.frame.set_current_frame_row(1)  # 1.5 x 2.0 m: a tall canvas
     view._paintings[0]["picture"] = str(picture)
     view.picture.setText(str(picture))
     view._request_preview()
@@ -241,7 +241,7 @@ def test_the_frame_list_shows_each_frame_with_its_icon_cut_to_the_frame():
     assert view.frame.iconSize().width() >= 64
     assert "1.50 x 2.00 m" in item.text()
     assert view.frame.item(view.frame.findData(SMALL)).icon().isNull()
-    view.frame.setCurrentIndex(view.frame.findData(LARGE))
+    view.frame.set_current_frame_row(view.frame.findData(LARGE))
     assert view.preview.has_frame()
     assert view.preview._colour.red() == 0x8A
     view.deleteLater()

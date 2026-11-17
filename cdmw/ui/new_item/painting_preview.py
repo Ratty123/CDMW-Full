@@ -191,7 +191,12 @@ class FrameList(QListWidget):
     """The frames as a list with their thumbnails, with the few calls a combo box has.
 
     Row numbers are the frames' places in the list; no row is current until a frame is
-    chosen, and `currentIndexChanged` gives the row (-1 for none)."""
+    chosen, and `currentIndexChanged` gives the row (-1 for none).
+
+    It never overrides QAbstractItemView's currentIndex() or setCurrentIndex(): those
+    take and give a QModelIndex, and code that reads any item view (Create New Item's
+    page describes every view it holds) failed on an int, which stopped the page from
+    updating at all (Fredric, 2026-11-17)."""
 
     currentIndexChanged = Signal(int)
 
@@ -228,13 +233,13 @@ class FrameList(QListWidget):
         item = self.item(row)
         return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
 
-    def currentIndex(self) -> int:  # noqa: N802 - as QComboBox
+    def current_frame_row(self) -> int:
         return self.currentRow()
 
     def currentData(self):  # noqa: N802 - as QComboBox
         return self.itemData(self.currentRow())
 
-    def setCurrentIndex(self, row: int) -> None:  # noqa: N802 - as QComboBox
+    def set_current_frame_row(self, row: int) -> None:
         if row < 0 or row >= self.count():
             if self.currentRow() >= 0:
                 self.setCurrentRow(-1)
