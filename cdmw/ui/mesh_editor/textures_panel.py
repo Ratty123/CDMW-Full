@@ -575,6 +575,9 @@ class MeshEditorTexturesPanel(QDockWidget):
     #: Why a double-clicked row cannot be edited (a colour made from several files).
     texture_refused = Signal(str)
     """A texture row's texture_id, on double-click."""
+    #: The part whose row, or one of whose textures, the pointer is over; NO_PART when
+    #: it left. The Mesh Editor lights that part up in the 3D view.
+    part_hovered = Signal(int)
     #: Whether a session's textures are listed (False once the mesh closes or another loads).
     session_shown = Signal(bool)
     #: The panel's own close button was pressed.
@@ -604,6 +607,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._opened_parts: set[int] = set()
         self._opened_parts_root: str | None = None
         self._has_session = False
+        self._hovered_part = NO_PART
         self._ui_font: QFont | None = None
 
         body = QWidget(self)
@@ -635,6 +639,10 @@ class MeshEditorTexturesPanel(QDockWidget):
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
         self.tree.itemExpanded.connect(lambda item: self._remember_part_open(item, True))
         self.tree.itemCollapsed.connect(lambda item: self._remember_part_open(item, False))
+        # Pointing at a part or a texture lights its part up in the 3D view.
+        self.tree.setMouseTracking(True)
+        self.tree.itemEntered.connect(self._on_item_entered)
+        self.tree.viewport().installEventFilter(self)
         self.stack.addWidget(self.placeholder_label)
         self.stack.addWidget(self.tree)
         layout.addWidget(self.stack)
@@ -711,6 +719,28 @@ class MeshEditorTexturesPanel(QDockWidget):
         event.ignore()
         self.close_requested.emit()
 
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().hideEvent(event)
+        self._set_hovered_part(NO_PART)
+
+    # ----- pointing at a part ---------------------------------------------------
+    def _on_item_entered(self, item: QTreeWidgetItem, _column: int = 0) -> None:
+        part = item.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE) if item is not None else None
+        self._set_hovered_part(NO_PART if part is None else int(part))
+
+    def _set_hovered_part(self, part_index: int) -> None:
+        if part_index != self._hovered_part:
+            self._hovered_part = part_index
+            self.part_hovered.emit(part_index)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
+        if watched is self.tree.viewport():
+            if event.type() == QEvent.Type.Leave:
+                self._set_hovered_part(NO_PART)
+            elif event.type() == QEvent.Type.MouseMove and self.tree.itemAt(event.position().toPoint()) is None:
+                self._set_hovered_part(NO_PART)  # over the empty space under the rows
+        return super().eventFilter(watched, event)
+
     @property
     def has_session(self) -> bool:
         """A session's textures are listed (or it has none); False with no mesh open."""
@@ -745,6 +775,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._items_by_path = {}
         self._roles_by_path = {}
         self.groups = groups
+        self._set_hovered_part(NO_PART)
         self.tree.clear()
         if not groups:
             self.placeholder_label.setText("No textures were resolved for this mesh.")
@@ -845,6 +876,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._items_by_path = {}
         self._roles_by_path = {}
         self.groups = []
+        self._set_hovered_part(NO_PART)
         self.tree.clear()
         self.placeholder_label.setText("Open a mesh to see its textures.")
         self.stack.setCurrentWidget(self.placeholder_label)

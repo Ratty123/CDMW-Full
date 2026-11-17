@@ -42508,7 +42508,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse's viewport cannot edit now",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 169
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 170
     }
   },
   {
@@ -42652,7 +42652,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no embedded Mesh Editor host.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 659
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 661
     }
   },
   {
@@ -42660,7 +42660,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no matching Rust shadow session",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 461
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 462
     }
   },
   {
@@ -44455,7 +44455,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1062
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1083
     }
   },
   {
@@ -49770,7 +49770,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1228
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1249
     }
   },
   {
@@ -49834,7 +49834,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 968
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 989
     }
   },
   {
@@ -49842,7 +49842,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1182,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1203,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 851
     }
   },
@@ -49868,7 +49868,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot reopen because the accepted session is closed.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 532
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 534
     }
   },
   {
@@ -49876,7 +49876,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot retry because the mesh session is closed.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 521
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 523
     }
   },
   {
@@ -49893,7 +49893,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor command queue is full",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 601
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 602
     }
   },
   {
@@ -49909,7 +49909,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not bind the resolved preview textures: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 802,
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 804,
       "cdmw/workers/mesh_rust_editor_workers.py": 177
     }
   },
@@ -49918,7 +49918,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not create its embedded native host window.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 150
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 151
     }
   },
   {
@@ -49926,7 +49926,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not prepare its shadow session: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 1071
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 1075
     }
   },
   {
@@ -49934,7 +49934,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1740
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1761
     }
   },
   {
@@ -49942,7 +49942,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not start because the selected mesh session changed.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 828
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 830
     }
   },
   {
@@ -49950,7 +49950,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1527
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1548
     }
   },
   {
@@ -49958,7 +49958,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1523
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1544
     }
   },
   {
@@ -49966,7 +49966,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor does not support the required embedded child-window contract.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 625
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 626
     }
   },
   {
@@ -49974,7 +49974,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor embedding failed: {reason or 'child window was rejected'}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 663
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 665
     }
   },
   {
@@ -49998,7 +49998,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor handshake failed: {exc}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 478
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 479
     }
   },
   {
@@ -50039,7 +50039,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor is not ready for authoring commands",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 579
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 580
     }
   },
   {
@@ -50097,7 +50097,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor preparation was cancelled because the mesh session changed.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 902
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 904
     }
   },
   {
@@ -50105,7 +50105,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1553
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1574
     }
   },
   {
@@ -50113,7 +50113,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor protocol buffer exceeded its limit.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 367
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 368
     }
   },
   {
@@ -50121,7 +50121,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor protocol message was not an object.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 360
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 361
     }
   },
   {
@@ -50129,7 +50129,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor provenance does not match the packaged renderer/backend contract.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 613
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 614
     }
   },
   {
@@ -50145,7 +50145,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1232
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1253
     }
   },
   {
@@ -50162,7 +50162,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor repeated its hello handshake.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 608
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 609
     }
   },
   {
@@ -50170,7 +50170,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1307
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1328
     }
   },
   {
@@ -50178,7 +50178,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request was replayed or out of order",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 586
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 587
     }
   },
   {
@@ -50186,7 +50186,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor sent an oversized protocol message.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 349
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 350
     }
   },
   {
@@ -50194,7 +50194,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor sent unsupported event '{event or '(empty)'}'.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 576
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 577
     }
   },
   {
@@ -50450,7 +50450,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor unavailable before launch: {incompatibility_reason}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 122
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 123
     }
   },
   {
@@ -50458,7 +50458,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor unavailable: {reason}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 794
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 796
     }
   },
   {
@@ -50466,7 +50466,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor wrote non-JSON data to its control stream.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 357
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 358
     }
   },
   {
@@ -58681,7 +58681,7 @@ MESSAGE_REFERENCE = [
     "message": "Rust renderer reported an error",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 573
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 574
     }
   },
   {
@@ -60391,7 +60391,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor executable package changed while its shadow session was being prepared. Open the mesh again to use the newly validated package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 133
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 134
     }
   },
   {
@@ -61072,7 +61072,7 @@ MESSAGE_REFERENCE = [
     "message": "The pre-started Mesh Editor did not accept its session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 315
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 316
     }
   },
   {
@@ -61693,7 +61693,7 @@ MESSAGE_REFERENCE = [
     "message": "This hair draft requires an updated Hair-capable Rust helper.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 643
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 645
     }
   },
   {
@@ -64058,7 +64058,7 @@ MESSAGE_REFERENCE = [
     "message": "cdmw_mesh_lab.exe was not found",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 261
+      "cdmw/services/mesh_rust_contract.py": 264
     }
   },
   {
@@ -64234,7 +64234,7 @@ MESSAGE_REFERENCE = [
     "message": "control contract is missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 329
+      "cdmw/services/mesh_rust_contract.py": 332
     }
   },
   {
@@ -64788,7 +64788,7 @@ MESSAGE_REFERENCE = [
     "message": "executable changed while being hashed",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 246
+      "cdmw/services/mesh_rust_contract.py": 249
     }
   },
   {
@@ -64796,7 +64796,7 @@ MESSAGE_REFERENCE = [
     "message": "executable could not be hashed",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 309
+      "cdmw/services/mesh_rust_contract.py": 312
     }
   },
   {
@@ -71179,7 +71179,7 @@ MESSAGE_REFERENCE = [
     "message": "process generation is invalid",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 469
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 470
     }
   },
   {
@@ -71187,7 +71187,7 @@ MESSAGE_REFERENCE = [
     "message": "process generation is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 471
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 472
     }
   },
   {
@@ -71203,7 +71203,7 @@ MESSAGE_REFERENCE = [
     "message": "protocol version does not match",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 463
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 464
     }
   },
   {
@@ -71211,7 +71211,7 @@ MESSAGE_REFERENCE = [
     "message": "provenance control contract hash is invalid",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 332
+      "cdmw/services/mesh_rust_contract.py": 335
     }
   },
   {
@@ -71219,7 +71219,7 @@ MESSAGE_REFERENCE = [
     "message": "provenance executable hash is invalid",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 305
+      "cdmw/services/mesh_rust_contract.py": 308
     }
   },
   {
@@ -71227,7 +71227,7 @@ MESSAGE_REFERENCE = [
     "message": "provenance manifest is missing",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 267
+      "cdmw/services/mesh_rust_contract.py": 270
     }
   },
   {
@@ -71528,7 +71528,7 @@ MESSAGE_REFERENCE = [
       "cdmw/services/mesh_service_rebuild.py": 107,
       "cdmw/services/model_library_preview.py": 209,
       "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 62,
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 375,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 376,
       "cdmw/ui/preview/dotnet_session.py": 1271,
       "cdmw/ui/preview/engine_channel.py": 99,
       "cdmw/ui/preview/engine_viewport.py": 115
@@ -72153,7 +72153,7 @@ MESSAGE_REFERENCE = [
     "message": "session id does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 465
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 466
     }
   },
   {
@@ -72177,7 +72177,7 @@ MESSAGE_REFERENCE = [
     "message": "shader compiler file is missing or unreadable: {name}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 324
+      "cdmw/services/mesh_rust_contract.py": 327
     }
   },
   {
@@ -72185,7 +72185,7 @@ MESSAGE_REFERENCE = [
     "message": "shader compiler provenance is invalid",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 318
+      "cdmw/services/mesh_rust_contract.py": 321
     }
   },
   {
@@ -72785,7 +72785,7 @@ MESSAGE_REFERENCE = [
     "message": "the bundled editor was not found",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 317
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 319
     }
   },
   {
@@ -74206,7 +74206,7 @@ MESSAGE_REFERENCE = [
     "message": "{path.resolve()}|missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_contract.py": 225
+      "cdmw/services/mesh_rust_contract.py": 228
     }
   },
   {

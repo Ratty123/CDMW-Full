@@ -268,6 +268,9 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
             texture_panels = self.standalone_workspace.texture_panels
             texture_panels.use_settings(getattr(self, "settings", None))
             textures_dock.texture_activated.connect(self.open_texture_in_window)
+            # Pointing at a part or one of its textures lights that part up on the model.
+            textures_dock.part_hovered.connect(
+                lambda part: self.live_edit.highlight_part_in_view(part if part >= 0 else None))
             textures_dock.texture_refused.connect(lambda reason: self.status_message_requested.emit(reason, True))
             if tools is not None:
                 tools.settings = getattr(self, "settings", None)
