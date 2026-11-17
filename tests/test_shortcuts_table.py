@@ -89,6 +89,16 @@ def test_search_and_show_filter_the_rows(page):
     assert page.command_ids() == ["shell.about"]
 
 
+def test_a_fresh_profile_shows_no_conflict(page):
+    # Delete is the default in both of the Mesh Editor's editors, which are never open together.
+    from cdmw.ui.commands.shortcuts_page import COLUMN_CONFLICTS, COLUMN_KEYS
+
+    assert page.conflict_count.text() == ""
+    for command_id in ("mesh_editor.hair.delete_guides", "mesh_editor.topology.delete_selection"):
+        item = page.item_for(command_id)
+        assert item.text(COLUMN_KEYS) == "Delete" and item.text(COLUMN_CONFLICTS) == ""
+
+
 def test_a_conflict_is_marked_on_its_row_and_counted(page):
     from cdmw.ui.commands.shortcuts_page import COLUMN_COMMAND, COLUMN_CONFLICTS
 

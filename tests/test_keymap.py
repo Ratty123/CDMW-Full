@@ -74,6 +74,25 @@ def test_conflicts_are_named_within_a_context_and_for_shell_keys(app):
     assert clashes["shell.about"] == ["browse.copy"]
 
 
+def test_a_fresh_profile_has_no_conflicts_and_delete_serves_mesh_and_hair(app, settings):
+    from cdmw.ui.commands.keymap import KeymapRow, conflicts, keymap_rows
+
+    rows = keymap_rows(CommandRegistry(), settings)
+    by_id = {row.command_id: row for row in rows}
+    assert by_id["mesh_editor.hair.delete_guides"].keys == by_id["mesh_editor.topology.delete_selection"].keys == ("Delete",)
+    assert (by_id["mesh_editor.hair.delete_guides"].helper_scope, by_id["mesh_editor.topology.delete_selection"].helper_scope,
+            by_id["mesh_editor.session.undo"].helper_scope) == ("Hair", "Mesh", "Global")
+    assert conflicts(rows) == {}
+    # The helper's editors are told apart; a clash inside one, or with a key live in both, is still named.
+    def helper(name, scope, key="Delete"):
+        return KeymapRow(f"mesh_editor.{name}", "mesh_editor", name, (), (key,), "Tools", scope)
+    clashes = conflicts([helper("hair.a", "Hair"), helper("hair.b", "Hair"), helper("mesh.c", "Mesh"), helper("view.d", "Global")])
+    assert clashes == {"mesh_editor.hair.a": ["mesh_editor.hair.b", "mesh_editor.view.d"],
+                       "mesh_editor.hair.b": ["mesh_editor.hair.a", "mesh_editor.view.d"],
+                       "mesh_editor.mesh.c": ["mesh_editor.view.d"],
+                       "mesh_editor.view.d": ["mesh_editor.hair.a", "mesh_editor.hair.b", "mesh_editor.mesh.c"]}
+
+
 def test_the_mesh_editor_s_command_list_is_committed(app):
     from cdmw.ui.commands.keymap import mesh_editor_command_list
 

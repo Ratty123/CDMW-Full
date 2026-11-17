@@ -35,6 +35,8 @@ class KeymapRow:
     keys: tuple[str, ...]
     #: The Mesh Editor helper's group for its own commands ("" otherwise).
     helper_group: str = ""
+    #: Where the helper listens for it: "Global", "Mesh" or "Hair" ("" otherwise).
+    helper_scope: str = ""
 
     @property
     def changed(self) -> bool:
@@ -83,12 +85,25 @@ def keymap_rows(registry: CommandRegistry, settings) -> list[KeymapRow]:
         defaults = tuple(str(key) for key in spec.get("defaults", ()))
         keys = tuple(overrides[command_id]) if command_id in overrides else defaults
         rows[command_id] = KeymapRow(command_id, "mesh_editor", str(spec.get("label", "")), defaults, keys,
-                                     str(spec.get("group", "") or "Tools"))
+                                     str(spec.get("group", "") or "Tools"), str(spec.get("scope", "") or "Global"))
     return sorted(rows.values(), key=lambda row: (row.context, row.label.casefold(), row.command_id))
 
 
 def _normal(key: str) -> str:
     return QKeySequence(key).toString(QKeySequence.SequenceFormat.PortableText) or key
+
+
+def _live_together(row: KeymapRow, other: KeymapRow) -> bool:
+    """Whether both commands can be waiting for a key at the same moment."""
+
+    if "shell" in (row.context, other.context):
+        return True
+    if row.context != other.context:
+        return False
+    # The helper's mesh and hair editors are never open together (its ShortcutScope::overlaps):
+    # Delete removes the selection in one and the selected hair in the other.
+    scopes = {row.helper_scope or "Global", other.helper_scope or "Global"}
+    return len(scopes) == 1 or "Global" in scopes
 
 
 def conflicts(rows: list[KeymapRow]) -> dict[str, list[str]]:
@@ -104,7 +119,7 @@ def conflicts(rows: list[KeymapRow]) -> dict[str, list[str]]:
             for other in holders:
                 if other is row:
                     continue
-                if row.context == other.context or "shell" in (row.context, other.context):
+                if _live_together(row, other):
                     result.setdefault(row.command_id, []).append(other.command_id)
     return result
 
