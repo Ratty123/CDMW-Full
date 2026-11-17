@@ -45,11 +45,16 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
     active_hair = None
     if authoring is not None and not authoring.closed:
         active_hair = authoring.shadow_service._session(authoring.shadow_session_id).hair_state
+    # Each read of .payload decodes the whole hairstyle, bindings included: read it once here.
+    hair = active_hair.payload if active_hair else None
+    hair_character_name = hair["template"]["character"] if hair else None
+    generated_only = bool(hair) and not hair["converted"] and all(g["mode"] == "generated" for g in hair["groups"])
+    del hair
     if character is None:
         profile = unique_hair_character(current_target.path) if current_target is not None else None
-        character = active_hair.payload["template"]["character"] if active_hair else profile.name if profile else None
-    reuse_target = (active_hair.payload["template"]["character"], current_target.identity) if (
-        active_hair and not active_hair.payload["converted"] and current_target is not None and all(g["mode"] == "generated" for g in active_hair.payload["groups"])) else None
+        character = hair_character_name or (profile.name if profile else None)
+    reuse_target = (hair_character_name, current_target.identity) if (
+        generated_only and current_target is not None) else None
     if not target_path and active_hair and current_target is not None:
         target_path = current_target.path
     dialog = HairSetupDialog(owner, character=character, mode=mode, preset=preset, target_path=target_path,
@@ -68,8 +73,8 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
             tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
             return
         same = live_target is not None and live_target.identity == target.identity
-        same_character = active_hair and active_hair.payload["template"]["character"] == dialog.context.character
-        if same and same_character and not active_hair.payload["converted"] and chosen_mode == "generated" and all(g["mode"] == "generated" for g in active_hair.payload["groups"]):
+        same_character = hair_character_name == dialog.context.character
+        if same and same_character and generated_only and chosen_mode == "generated":
             if not tab._send_rust_message(tab._rust_host_message("hair_preset", request_id=0, extra={"preset": chosen_preset})):
                 tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
                 return
@@ -97,11 +102,6 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
     return dialog
 
 
-def begin_hair_context(tab, session, event):
-    """Return immediately; resume the ordered protocol queue after preparation."""
-    from cdmw.ui.mesh_editor.hair_context_preparation import HairContextPreparation
-    owner = tab.window()
-    if isinstance(owner, DetachedToolWindow):
 def hair_character_for_target(tab, target):
     """The character whose head and body a hairstyle opened without a setup choice is fitted to.
 
@@ -116,6 +116,11 @@ def hair_character_for_target(tab, target):
     return owners[0]
 
 
+def begin_hair_context(tab, session, event):
+    """Return immediately; resume the ordered protocol queue after preparation."""
+    from cdmw.ui.mesh_editor.hair_context_preparation import HairContextPreparation
+    owner = tab.window()
+    if isinstance(owner, DetachedToolWindow):
         owner = owner.owner
     target = tab._current_target_entry()
     if target is None:

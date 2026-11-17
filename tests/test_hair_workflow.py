@@ -850,6 +850,40 @@ def test_setup_says_when_no_listed_hairstyle_can_be_opened(owner, monkeypatch):
     dialog.reject()
 
 
+def test_opening_setup_decodes_the_open_hairstyle_once(owner, monkeypatch):
+    # .payload decodes the whole hairstyle, bindings included, and this runs on the UI thread.
+    from cdmw.ui.mesh_editor import hair_flow, hair_setup_dialog
+    reads, opened = [], []
+
+    class State:
+        @property
+        def payload(self):
+            reads.append(1)
+            return {"template": {"character": "Kliff"}, "converted": False, "groups": [{"mode": "generated"}]}
+
+    class Setup:
+        _closed = False
+
+        def __init__(self, _owner, **options):
+            opened.append(options)
+            self.finished = SimpleNamespace(connect=lambda _slot: None)
+
+        def open(self):
+            pass
+
+    monkeypatch.setattr(hair_setup_dialog, "HairSetupDialog", Setup)
+    session = SimpleNamespace(hair_state=State())
+    tab = QWidget(owner)
+    tab.standalone_rust_authoring_session = SimpleNamespace(closed=False, shadow_session_id="shadow",
+        shadow_service=SimpleNamespace(_session=lambda _id: session))
+    target = SimpleNamespace(identity="hair", path="character/model/1_pc/1_phm/head/hair/phm_00_hair_00_0022_player.pac")
+    tab._current_target_entry = lambda: target
+    hair_flow.start_hair_workflow(tab)
+    assert len(reads) == 1
+    assert opened[0]["character"] == "Kliff" and opened[0]["reuse_target"] == ("Kliff", "hair")
+    assert opened[0]["target_path"] == target.path
+
+
 def test_a_character_left_by_an_unstarted_setup_is_not_used_for_another_hairstyle(owner):
     from cdmw.ui.mesh_editor import hair_flow
     started, resumed = [], []
