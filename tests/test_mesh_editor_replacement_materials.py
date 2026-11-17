@@ -347,13 +347,14 @@ def test_ver2_imports_get_a_default_layer_r(editor, tmp_path, fixture, mtl, expe
     assert _surface_binding(files, "_detailMaterialMaskR")[2] == expected
 
 
-def _two_shader_variant_pending(editor, tmp_path):
+def _two_shader_variant_pending(editor, tmp_path, layer_shader="SkinnedMeshStandard_Ver2",
+                                material_shader="SkinnedMeshStandard"):
     """target0 is Standard_Ver2 in variant 0 and SkinnedMeshStandard in variant 1,
     each with its own game surface texture, as ``cd_phm_00_ub_belt_0010_02`` is in
     the stock ``cd_m0001_00_so_phm_ub_33005`` armour."""
     service, session_id = editor
     snapshot = service.capture_export_snapshot(session_id)
-    target, context, model = material_fixture(tmp_path, snapshot, shader="SkinnedMeshStandard", surface=(120, 57))
+    target, context, model = material_fixture(tmp_path, snapshot, shader=material_shader, surface=(120, 57))
     layer = io.BytesIO()
     Image.new("RGBA", (4, 4), (255, 60, 250, 255)).save(layer, format="DDS")
     dependencies = list(capture_replacement_dependencies(target, context))
@@ -362,7 +363,7 @@ def _two_shader_variant_pending(editor, tmp_path):
             continue
         body = file.data.decode().removeprefix("<Root>").removesuffix("</Root>")
         first, rest = body.split('<SkinnedMeshMaterialWrapper _subMeshName="target1"')
-        ver2 = (first.replace('_materialName="SkinnedMeshStandard"', '_materialName="SkinnedMeshStandard_Ver2"')
+        ver2 = (first.replace(f'_materialName="{material_shader}"', f'_materialName="{layer_shader}"')
                 .replace("_materialTexture", "_detailMaterialMaskR").replace("original0_sp.dds", "layer0_sp.dds"))
         variants = (ver2 + '<SkinnedMeshMaterialWrapper _subMeshName="target1"' + rest, body)
         dependencies[index] = replace(file, data=('<ModelPropertyList>' + ''.join(
@@ -385,12 +386,18 @@ def _variant_surface(files, variant, parameter):
         return image.convert("RGBA").getpixel((0, 0))
 
 
-def test_a_part_with_a_different_shader_in_each_variant_gets_each_its_own_surface(editor, tmp_path):
+_VARIANT_SHADERS = [("SkinnedMeshStandard_Ver2", "SkinnedMeshStandard"), ("SkinnedMeshCloth_Ver2", "SkinnedMeshCloth"),
+                    ("SkinnedMeshFur_Ver2", "SkinnedMeshFur"), ("SkinnedMeshEmissive_Ver2", "SkinnedMeshEmissive")]
+
+
+@pytest.mark.parametrize("layer_shader, material_shader", _VARIANT_SHADERS)
+def test_a_part_with_a_different_shader_in_each_variant_gets_each_its_own_surface(editor, tmp_path, layer_shader,
+                                                                                   material_shader):
     """The stock south-faction armour 33005 uses Standard_Ver2 for its first part in
     one variant and SkinnedMeshStandard in the other. The default surface looked
     the shader up by part name, so the Ver2 wrapper was bound to an empty layer R
     (roughness 0, a mirror) and the Standard one took 0.5 instead of its own _sp."""
-    pending, key = _two_shader_variant_pending(editor, tmp_path)
+    pending, key = _two_shader_variant_pending(editor, tmp_path, layer_shader, material_shader)
     files = prepare_imported_materials(pending, (key,), tmp_path)
     text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
     assert not re.search(r'_name="(_detailMaterialMaskR|_materialTexture)"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_path=""', text)
@@ -398,11 +405,39 @@ def test_a_part_with_a_different_shader_in_each_variant_gets_each_its_own_surfac
     assert _variant_surface(files, 1, "_materialTexture") == (255, 120, 57, 255)
 
 
-def test_a_chosen_surface_reaches_each_variant_by_its_own_shader(editor, tmp_path):
-    pending, key = _two_shader_variant_pending(editor, tmp_path)
+@pytest.mark.parametrize("layer_shader, material_shader", _VARIANT_SHADERS)
+def test_a_chosen_surface_reaches_each_variant_by_its_own_shader(editor, tmp_path, layer_shader, material_shader):
+    pending, key = _two_shader_variant_pending(editor, tmp_path, layer_shader, material_shader)
     files = prepare_imported_materials(pending, (key,), tmp_path, surface=(0.8, 0.25))
     assert _variant_surface(files, 0, "_detailMaterialMaskR") == (0, 204, 64, 255)
     assert _variant_surface(files, 1, "_materialTexture") == (255, 204, 64, 255)
+
+
+def test_dependencies_include_the_textures_of_every_variant(editor, tmp_path):
+    """The shared reference reader keeps one wrapper per part name, so 33005's
+    variant-1 textures for cd_phm_00_ub_belt_0010_02 (its own _sp among them)
+    were not captured and that variant fell back to 50% roughness and no metal."""
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot, shader="SkinnedMeshStandard", surface=(120, 57))
+    xml_entry = next(items[0] for path, items in context.entries_by_normalized_path.items() if path.endswith(".pac_xml"))
+    body = xml_entry.paz_file.read_text().removeprefix("<Root>").removesuffix("</Root>")
+    xml = ('<ModelPropertyList>' + ''.join(f'<ModelProperty Index="{index}">{text}</ModelProperty>' for index, text in (
+        (0, body), (1, body.replace("original0_sp.dds", "variant1_sp.dds")))) + '</ModelPropertyList>').encode()
+    own = io.BytesIO()
+    Image.new("RGBA", (4, 4), (255, 140, 250, 255)).save(own, format="DDS")
+    (tmp_path / "variant").mkdir()
+    extra = [entry(tmp_path / "variant", xml_entry.path, xml), entry(tmp_path / "variant", "character/texture/variant1_sp.dds", own.getvalue())]
+    for item in extra:
+        context.entries_by_normalized_path[item.path.casefold()] = [item]
+        context.entries_by_basename[Path(item.path).name.casefold()] = [item]
+    dependencies = capture_replacement_dependencies(target, context)
+    assert "character/texture/variant1_sp.dds" in {file.path for file in dependencies}
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    assert _variant_surface(files, 0, "_materialTexture") == (255, 120, 57, 255)
+    assert _variant_surface(files, 1, "_materialTexture") == (255, 140, 250, 255)
 
 
 def test_a_surface_is_never_bound_to_an_empty_path():

@@ -190,6 +190,21 @@ def capture_replacement_dependencies(entry, context, stop_event=None):
             raise ValueError(f"Ambiguous original material dependency: {binding.texture_path}")
         if matches:
             selected.append(matches[0])
+    # The shared reference reader keeps one wrapper per part name, so a part's
+    # textures in a later model-property variant (another shader, another _sp)
+    # were left out, and the default surface could not read that variant's own
+    # game surface. Add every texture any variant names by its exact path.
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    for sidecar in tuple(selected):
+        if not sidecar.path.casefold().endswith(".pac_xml"):
+            continue
+        text = _sidecar_text(read_archive_entry_data(sidecar, stop_event=stop_event)[0])
+        for wrapper in find_material_wrappers(text):
+            for parameter in wrapper.parameters:
+                path = str(parameter.texture_path or "").replace("\\", "/").strip("/").casefold()
+                matches = tuple(by_path.get(path, ())) if path else ()
+                if len({match.path.casefold() for match in matches}) == 1:
+                    selected.append(matches[0])
     if entry.extension == ".pam":
         selected.extend(by_path.get(Path(entry.path).with_suffix(".pamlod").as_posix().casefold(), ()))
     result, seen, total = [], set(), 0

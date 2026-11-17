@@ -93402,7 +93402,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated material sidecar has no captured target: {payload.target_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 332
+      "cdmw/services/mesh_replacement_materials.py": 347
     }
   },
   {
@@ -93626,7 +93626,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: no representable source material textures",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 301
+      "cdmw/services/mesh_replacement_materials.py": 316
     }
   },
   {
@@ -93634,7 +93634,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material conversion failed: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 301
+      "cdmw/services/mesh_replacement_materials.py": 316
     }
   },
   {
@@ -93650,7 +93650,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported material {part.material or part.name} has no proven target binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 308
+      "cdmw/services/mesh_replacement_materials.py": 323
     }
   },
   {
@@ -93658,7 +93658,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials have no proven target sidecar wrapper mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 343
+      "cdmw/services/mesh_replacement_materials.py": 358
     }
   },
   {
@@ -93666,7 +93666,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials produced no output textures or sidecars; original-material fallback is disabled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 303
+      "cdmw/services/mesh_replacement_materials.py": 318
     }
   },
   {
@@ -93674,7 +93674,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a captured archive target identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 269
+      "cdmw/services/mesh_replacement_materials.py": 284
     }
   },
   {
@@ -93690,7 +93690,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a readable target material sidecar (.pac_xml or .pami).",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 288
+      "cdmw/services/mesh_replacement_materials.py": 303
     }
   },
   {
@@ -93698,7 +93698,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require one source material part per target part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 233
+      "cdmw/services/mesh_replacement_materials.py": 248
     }
   },
   {
@@ -93714,7 +93714,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require the original material sidecar and texture dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 235
+      "cdmw/services/mesh_replacement_materials.py": 250
     }
   },
   {
@@ -94523,7 +94523,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing imported texture: {path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 292
+      "cdmw/services/mesh_replacement_materials.py": 307
     }
   },
   {
@@ -94563,7 +94563,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required generated texture: {target_path or 'unresolved material slot'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 313
+      "cdmw/services/mesh_replacement_materials.py": 328
     }
   },
   {
@@ -95878,7 +95878,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement dependencies exceed the 512 MiB snapshot limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 205
+      "cdmw/services/mesh_replacement_materials.py": 220
     }
   },
   {
@@ -96142,7 +96142,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no replaced equipment material to apply to.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 381
+      "cdmw/services/mesh_replacement_materials.py": 396
     }
   },
   {
@@ -96715,7 +96715,7 @@ MESSAGE_REFERENCE = [
     "message": "The imported roughness and metallic maps could not be encoded as a game texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 638
+      "cdmw/services/mesh_replacement_materials.py": 653
     }
   },
   {

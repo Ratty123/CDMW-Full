@@ -1149,6 +1149,10 @@ variant 0 and SkinnedMeshStandard in variant 1. Looking the shader up by part
 name bound the Ver2 wrapper's layer R to an empty path (roughness 0) and gave
 the Standard one the 0.5 fallback. `apply_surface_layer` now refuses a wrapper
 whose surface path is empty.
+`capture_replacement_dependencies` also captures every texture any variant's
+wrappers name by exact path: the shared reference reader keeps one wrapper per
+part name, so variant 1's `cd_phm_00_ub_belt_0010_02_sp.dds` was missing and its
+mean (G 0.55, B 1.0) could not be read.
 
 `pending.materials.surface` carries the sliders' starting values (`roughness`,
 `metallic`): the import's own values, else the target wrappers' game surface mean,
