@@ -347,6 +347,73 @@ def test_ver2_imports_get_a_default_layer_r(editor, tmp_path, fixture, mtl, expe
     assert _surface_binding(files, "_detailMaterialMaskR")[2] == expected
 
 
+def _two_shader_variant_pending(editor, tmp_path):
+    """target0 is Standard_Ver2 in variant 0 and SkinnedMeshStandard in variant 1,
+    each with its own game surface texture, as ``cd_phm_00_ub_belt_0010_02`` is in
+    the stock ``cd_m0001_00_so_phm_ub_33005`` armour."""
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot, shader="SkinnedMeshStandard", surface=(120, 57))
+    layer = io.BytesIO()
+    Image.new("RGBA", (4, 4), (255, 60, 250, 255)).save(layer, format="DDS")
+    dependencies = list(capture_replacement_dependencies(target, context))
+    for index, file in enumerate(dependencies):
+        if not file.path.endswith(".pac_xml"):
+            continue
+        body = file.data.decode().removeprefix("<Root>").removesuffix("</Root>")
+        first, rest = body.split('<SkinnedMeshMaterialWrapper _subMeshName="target1"')
+        ver2 = (first.replace('_materialName="SkinnedMeshStandard"', '_materialName="SkinnedMeshStandard_Ver2"')
+                .replace("_materialTexture", "_detailMaterialMaskR").replace("original0_sp.dds", "layer0_sp.dds"))
+        variants = (ver2 + '<SkinnedMeshMaterialWrapper _subMeshName="target1"' + rest, body)
+        dependencies[index] = replace(file, data=('<ModelPropertyList>' + ''.join(
+            f'<ModelProperty Index="{i}">{text}</ModelProperty>' for i, text in enumerate(variants)
+        ) + '</ModelPropertyList>').encode())
+    game_sp = next(file for file in dependencies if file.path.endswith("original0_sp.dds"))
+    dependencies.append(replace(game_sp, path="character/texture/layer0_sp.dds", data=layer.getvalue()))
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    return prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=tuple(dependencies)), key
+
+
+def _variant_surface(files, variant, parameter):
+    from cdmw.core.material_shader_controls import material_variant_blocks
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    replaced = material_variant_blocks(text)[variant].group().split('_subMeshName="target1"')[0]
+    match = re.search(rf'_name="{parameter}"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_path="([^"]*)"', replaced)
+    assert match and match.group(1), f"variant {variant} has no {parameter}: {replaced}"
+    texture = next(file for file in files if file.path == match.group(1))
+    with Image.open(io.BytesIO(texture.data)) as image:
+        return image.convert("RGBA").getpixel((0, 0))
+
+
+def test_a_part_with_a_different_shader_in_each_variant_gets_each_its_own_surface(editor, tmp_path):
+    """The stock south-faction armour 33005 uses Standard_Ver2 for its first part in
+    one variant and SkinnedMeshStandard in the other. The default surface looked
+    the shader up by part name, so the Ver2 wrapper was bound to an empty layer R
+    (roughness 0, a mirror) and the Standard one took 0.5 instead of its own _sp."""
+    pending, key = _two_shader_variant_pending(editor, tmp_path)
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    assert not re.search(r'_name="(_detailMaterialMaskR|_materialTexture)"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_path=""', text)
+    assert _variant_surface(files, 0, "_detailMaterialMaskR") == (0, 60, 250, 255)
+    assert _variant_surface(files, 1, "_materialTexture") == (255, 120, 57, 255)
+
+
+def test_a_chosen_surface_reaches_each_variant_by_its_own_shader(editor, tmp_path):
+    pending, key = _two_shader_variant_pending(editor, tmp_path)
+    files = prepare_imported_materials(pending, (key,), tmp_path, surface=(0.8, 0.25))
+    assert _variant_surface(files, 0, "_detailMaterialMaskR") == (0, 204, 64, 255)
+    assert _variant_surface(files, 1, "_materialTexture") == (255, 204, 64, 255)
+
+
+def test_a_surface_is_never_bound_to_an_empty_path():
+    from cdmw.core.pac_xml_surface_layer import apply_surface_layer
+    text = ('<Root><SkinnedMeshMaterialWrapper _subMeshName="armour"><Material Name="_resourceMaterial" '
+            '_materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters"></Vector></Material>'
+            '</SkinnedMeshMaterialWrapper></Root>')
+    with pytest.raises(ValueError, match="no material texture to write"):
+        apply_surface_layer(text, {"armour"}, "", "material_sp.dds")
+
+
 @pytest.mark.parametrize("shader", ["SkinnedMeshCloth_Ver2", "SkinnedMeshBlendHeight"])
 def test_a_chosen_surface_replaces_the_default_and_zero_is_kept(editor, tmp_path, shader):
     """Moving a slider sets one uniform surface, 0% included: that is a choice now,

@@ -37027,7 +37027,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous duplicate material parameter: {name}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 154
+      "cdmw/core/material_shader_controls.py": 169
     }
   },
   {
@@ -37035,7 +37035,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous material binding: {name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 78
+      "cdmw/core/material_shader_controls.py": 93
     }
   },
   {
@@ -37219,7 +37219,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot identify the material shader.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 244
+      "cdmw/core/material_shader_controls.py": 259
     }
   },
   {
@@ -37763,7 +37763,7 @@ MESSAGE_REFERENCE = [
     "message": "Dye roughness is inactive because the source hair dye alpha is zero. This edit will not enable dye or change its colour.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 113
+      "cdmw/core/material_shader_controls.py": 128
     }
   },
   {
@@ -37795,7 +37795,7 @@ MESSAGE_REFERENCE = [
     "message": "EyeCover requires Create New Item texture preparation.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 196
+      "cdmw/core/material_shader_controls.py": 211
     }
   },
   {
@@ -37803,7 +37803,7 @@ MESSAGE_REFERENCE = [
     "message": "EyeCover requires an explicit {name} binding; its game default uses a face texture.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 235
+      "cdmw/core/material_shader_controls.py": 250
     }
   },
   {
@@ -38276,7 +38276,7 @@ MESSAGE_REFERENCE = [
     "message": "Material sidecar exceeds the supported size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 257
+      "cdmw/core/material_shader_controls.py": 272
     }
   },
   {
@@ -38789,7 +38789,7 @@ MESSAGE_REFERENCE = [
     "message": "Painted cutouts require owned mask texture preparation.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 238
+      "cdmw/core/material_shader_controls.py": 253
     }
   },
   {
@@ -39269,7 +39269,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader material bindings were not found: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 296
+      "cdmw/core/material_shader_controls.py": 311
     }
   },
   {
@@ -39893,7 +39893,7 @@ MESSAGE_REFERENCE = [
     "message": "The static material has no parameter block.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 178
+      "cdmw/core/material_shader_controls.py": 193
     }
   },
   {
@@ -40021,7 +40021,7 @@ MESSAGE_REFERENCE = [
     "message": "World-object and equipment shaders use different vertex pipelines.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 93
+      "cdmw/core/material_shader_controls.py": 108
     }
   },
   {
@@ -40381,7 +40381,7 @@ MESSAGE_REFERENCE = [
     "message": "{family.label} requires {family.shader} or a compatible plain material with a base colour texture.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 108
+      "cdmw/core/material_shader_controls.py": 123
     }
   },
   {
@@ -40389,7 +40389,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.label}: the owned texture override was not prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 205
+      "cdmw/core/material_shader_controls.py": 220
     }
   },
   {
@@ -40413,7 +40413,7 @@ MESSAGE_REFERENCE = [
     "message": "{name}: source parameter type does not match the decoded shader.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 157
+      "cdmw/core/material_shader_controls.py": 172
     }
   },
   {
@@ -40421,7 +40421,7 @@ MESSAGE_REFERENCE = [
     "message": "{name}: the source texture binding is incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 168
+      "cdmw/core/material_shader_controls.py": 183
     }
   },
   {
@@ -82408,7 +82408,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 163
+      "cdmw/core/pac_xml_surface_layer.py": 186
     }
   },
   {
@@ -82416,7 +82416,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no material texture to write.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 165
+      "cdmw/core/pac_xml_surface_layer.py": 189
     }
   },
   {
@@ -92671,7 +92671,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a replacement model first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 259
+      "cdmw/services/mesh_rust_replacement.py": 262
     }
   },
   {
@@ -93570,7 +93570,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement or change output inclusion before previewing output.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 223
+      "cdmw/services/mesh_rust_replacement.py": 226
     }
   },
   {
@@ -96134,7 +96134,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 185
+      "cdmw/services/mesh_rust_replacement.py": 188
     }
   },
   {
@@ -96150,7 +96150,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic must be between 0% and 100%.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 200
+      "cdmw/services/mesh_rust_replacement.py": 203
     }
   },
   {
@@ -96158,7 +96158,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic need the item's equipment material file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 183
+      "cdmw/services/mesh_rust_replacement.py": 186
     }
   },
   {
@@ -96209,7 +96209,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one target part before importing a replacement.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 248
+      "cdmw/services/mesh_rust_replacement.py": 251
     }
   },
   {
@@ -96715,7 +96715,7 @@ MESSAGE_REFERENCE = [
     "message": "The imported roughness and metallic maps could not be encoded as a game texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 599
+      "cdmw/services/mesh_replacement_materials.py": 638
     }
   },
   {
@@ -96755,7 +96755,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh changed after import preparation. Import again before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 263
+      "cdmw/services/mesh_rust_replacement.py": 266
     }
   },
   {
@@ -97003,7 +97003,7 @@ MESSAGE_REFERENCE = [
     "message": "This replacement mapping belongs to an older import. Review the current import before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 261
+      "cdmw/services/mesh_rust_replacement.py": 264
     }
   },
   {
@@ -97219,7 +97219,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown replacement comparison mode.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 219
+      "cdmw/services/mesh_rust_replacement.py": 222
     }
   },
   {
@@ -97259,7 +97259,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported replacement command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 328
+      "cdmw/services/mesh_rust_replacement.py": 331
     }
   },
   {
@@ -105860,7 +105860,7 @@ SOURCE_COVERAGE = {
     "raise": 12
   },
   "cdmw/core/pac_xml_surface_layer.py": {
-    "raise": 2
+    "raise": 3
   },
   "cdmw/core/painting_picture.py": {
     "raise": 10

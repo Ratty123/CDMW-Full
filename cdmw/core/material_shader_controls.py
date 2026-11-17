@@ -35,18 +35,33 @@ def edit_material_variants(text, edit):
     Part names repeat across variants, so name-keyed edits must never see two
     variants at once. Text without variant blocks is edited as one fragment.
     """
+    return edit_material_variants_indexed(text, lambda _index, fragment: edit(fragment))
+
+
+def edit_material_variants_indexed(text, edit):
+    """``edit_material_variants`` with ``edit(index, fragment)``: index is the variant's file-order position.
+
+    One part name can use a different shader and different game textures in
+    each variant, so per-variant values are looked up by this index.
+    """
     variants = material_variant_blocks(text)
     if not variants:
-        text, result = edit(text)
+        text, result = edit(0, text)
         return text, (result,)
     results = []
-    for match in reversed(variants):
+    for index, match in reversed(tuple(enumerate(variants))):
         block = match.group()
         start, end = block.find('>') + 1, len(block) - len('</ModelProperty>')
-        fragment, result = edit(block[start:end])
+        fragment, result = edit(index, block[start:end])
         text = text[:match.start()] + block[:start] + fragment + block[end:] + text[match.end():]
         results.append(result)
     return text, tuple(reversed(results))
+
+
+def material_variant_fragments(text):
+    """Each variant's wrapper text in file order, or the whole text when it has no variants."""
+    variants = material_variant_blocks(text)
+    return tuple(match.group() for match in variants) if variants else (text,)
 
 
 def control_material_variants(text, *, static=False):

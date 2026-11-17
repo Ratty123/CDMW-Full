@@ -1141,6 +1141,15 @@ packed as R 255, G roughness, B metal in the game `_sp` format (BC1, full mips);
 Ver2 wrappers take their mean as layer R. The stock wyvern body `_sp` averages
 G 0.47 and B 0.22 (B is a flat 57 on body, head and wings).
 
+Each model-property variant is handled on its own, wrapper by wrapper
+(`edit_material_variants_indexed`): one part can use a different shader and a
+different game texture in each variant. In the stock south-faction armour
+`cd_m0001_00_so_phm_ub_33005`, `cd_phm_00_ub_belt_0010_02` is Standard_Ver2 in
+variant 0 and SkinnedMeshStandard in variant 1. Looking the shader up by part
+name bound the Ver2 wrapper's layer R to an empty path (roughness 0) and gave
+the Standard one the 0.5 fallback. `apply_surface_layer` now refuses a wrapper
+whose surface path is empty.
+
 `pending.materials.surface` carries the sliders' starting values (`roughness`,
 `metallic`): the import's own values, else the target wrappers' game surface mean,
 else 0.5 and 0. The sliders send nothing until one is moved; a moved slider sends

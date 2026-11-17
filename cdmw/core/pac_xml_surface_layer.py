@@ -126,16 +126,39 @@ def _uniform_dds(red: int, green: int, blue: int) -> bytes:
 
 
 def wrapper_shaders(text: str, material_names) -> dict[str, str]:
-    """Shader of each named wrapper (folded name), across every model-property variant."""
+    """Shader of each named wrapper (folded name), across every model-property variant.
+
+    One name can use a different shader in each variant (the last one wins
+    here); use ``wrapper_shader_sets`` to see them all.
+    """
     names = {str(name).casefold() for name in material_names}
     return {wrapper.submesh_name.casefold(): wrapper.shader
             for wrapper in find_material_wrappers(text) if wrapper.submesh_name.casefold() in names}
 
 
+def wrapper_shader_sets(text: str, material_names) -> dict[str, frozenset[str]]:
+    """Every shader each named wrapper (folded name) uses, across the model-property variants.
+
+    A part can be ``SkinnedMeshStandard_Ver2`` in one variant and
+    ``SkinnedMeshStandard`` in another, as ``cd_phm_00_ub_belt_0010_02`` is in
+    ``cd_m0001_00_so_phm_ub_33005``; each reads its surface from a different texture.
+    """
+    names = {str(name).casefold() for name in material_names}
+    result: dict[str, set[str]] = {}
+    for wrapper in find_material_wrappers(text):
+        if wrapper.submesh_name.casefold() in names:
+            result.setdefault(wrapper.submesh_name.casefold(), set()).add(wrapper.shader)
+    return {name: frozenset(shaders) for name, shaders in result.items()}
+
 
 def material_texture_surface_needed(text: str, material_names) -> bool:
     """Whether any named wrapper takes its surface from _materialTexture."""
-    return any(shader in MATERIAL_TEXTURE_SURFACE_SHADERS for shader in wrapper_shaders(text, material_names).values())
+    return any(shaders & MATERIAL_TEXTURE_SURFACE_SHADERS for shaders in wrapper_shader_sets(text, material_names).values())
+
+
+def layer_surface_needed(text: str, material_names) -> bool:
+    """Whether any named wrapper takes its surface from layer R."""
+    return any(shaders & SURFACE_LAYER_SHADERS for shaders in wrapper_shader_sets(text, material_names).values())
 
 
 def _int_value(wrapper, name: str) -> int:
@@ -157,33 +180,45 @@ def apply_surface_layer(text: str, material_names, texture_path: str, material_t
     SURFACE_SHADERS (an eye, hair) keep their own surface; only when none of
     the named wrappers can take it is the surface refused.
     """
-    shaders = wrapper_shaders(text, material_names)
-    names = {name for name, shader in shaders.items() if shader in SURFACE_SHADERS}
+    shaders = wrapper_shader_sets(text, material_names)
+    names = {name for name, found in shaders.items() if found & SURFACE_SHADERS}
     if shaders and not names:
         raise ValueError("Roughness and Metallic are not available for this item's material shader.")
-    if not material_texture_path and material_texture_surface_needed(text, names):
+    if ((not material_texture_path and material_texture_surface_needed(text, names))
+            or (not texture_path and layer_surface_needed(text, names))):
         raise ValueError("Roughness and Metallic found no material texture to write.")
+    text, counts = edit_material_variants(
+        text, lambda fragment: apply_surface_fragment(fragment, names, texture_path, material_texture_path))
+    return text, sum(counts)
 
-    def edit(fragment):
-        changed = 0
-        for wrapper in reversed(find_material_wrappers(fragment)):
-            if wrapper.submesh_name.casefold() not in names:
-                continue
-            block = fragment[wrapper.start:wrapper.end]
-            if wrapper.shader in MATERIAL_TEXTURE_SURFACE_SHADERS:
-                name, kind, item_id = MATERIAL_TEXTURE
-                block = _write_parameter(block, name, kind, material_texture_path, item_id, static=False)
-                fragment = fragment[:wrapper.start] + block + fragment[wrapper.end:]
-                changed += 1
-                continue
-            flag = _int_value(wrapper, LAYER_FLAG[0]) | LAYER_FLAG_BIT
-            opacity = (_int_value(wrapper, LAYER_OPACITY[0]) & ~0xFF) | 0xFF
-            for (name, kind, item_id), value in ((LAYER_TEXTURE, texture_path), (LAYER_FLAG, str(flag)),
-                                                 (LAYER_OPACITY, str(opacity))):
-                block = _write_parameter(block, name, kind, value, item_id, static=False)
+
+def apply_surface_fragment(fragment: str, material_names, texture_path: str, material_texture_path: str) -> tuple[str, int]:
+    """``apply_surface_layer`` on one variant's wrappers, each by its own shader.
+
+    Wrappers outside SURFACE_SHADERS are left alone even when their name is
+    given. A wrapper whose path is empty is refused rather than bound to
+    nothing, which the game reads as roughness 0.
+    """
+    names = {str(name).casefold() for name in material_names}
+    changed = 0
+    for wrapper in reversed(find_material_wrappers(fragment)):
+        if wrapper.submesh_name.casefold() not in names or wrapper.shader not in SURFACE_SHADERS:
+            continue
+        block = fragment[wrapper.start:wrapper.end]
+        material = wrapper.shader in MATERIAL_TEXTURE_SURFACE_SHADERS
+        if not (material_texture_path if material else texture_path):
+            raise ValueError("Roughness and Metallic found no material texture to write.")
+        if material:
+            name, kind, item_id = MATERIAL_TEXTURE
+            block = _write_parameter(block, name, kind, material_texture_path, item_id, static=False)
             fragment = fragment[:wrapper.start] + block + fragment[wrapper.end:]
             changed += 1
-        return fragment, changed
-
-    text, counts = edit_material_variants(text, edit)
-    return text, sum(counts)
+            continue
+        flag = _int_value(wrapper, LAYER_FLAG[0]) | LAYER_FLAG_BIT
+        opacity = (_int_value(wrapper, LAYER_OPACITY[0]) & ~0xFF) | 0xFF
+        for (name, kind, item_id), value in ((LAYER_TEXTURE, texture_path), (LAYER_FLAG, str(flag)),
+                                             (LAYER_OPACITY, str(opacity))):
+            block = _write_parameter(block, name, kind, value, item_id, static=False)
+        fragment = fragment[:wrapper.start] + block + fragment[wrapper.end:]
+        changed += 1
+    return fragment, changed

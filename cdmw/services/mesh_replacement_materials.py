@@ -401,29 +401,34 @@ def _restore_own_surfaces(pending, files, sidecar_keys, names):
     own R, G and B means, with the game row's ItemID. The original texture is
     not kept: it is painted for the original UVs.
     """
+    from cdmw.core.material_shader_controls import edit_material_variants_indexed
     from cdmw.core.pac_xml_standard_material import find_material_wrappers
     from cdmw.core.pac_xml_surface_layer import SURFACE_SHADERS, bind_texture, surface_rgb_dds, surface_byte
 
     originals = _original_surface_means(pending, names)
     folder, stem = _surface_folder(pending.state.target_path)
-    for key in sidecar_keys:
-        if not key.endswith(".pac_xml"):
-            continue
-        file = files[key]
-        text = _sidecar_text(file.data)
-        for wrapper in find_material_wrappers(text):
+
+    def edit(index, fragment):
+        for wrapper in find_material_wrappers(fragment):
             name = wrapper.submesh_name.casefold()
             if name not in names or wrapper.shader in SURFACE_SHADERS:
                 continue
             present = {parameter.name for parameter in wrapper.parameters}
             for parameter in _OWN_SURFACE_PARAMETERS:
-                original = originals.get(name, {}).get(parameter)
+                original = _variant_means(originals, index).get(name, {}).get(parameter)
                 if original is None or parameter in present:
                     continue
                 red, green, blue = (surface_byte(original[kind]) for kind in ("red", "roughness", "metallic"))
                 path = f"{folder}/{stem}_cdmw_surface_{red:03d}_{green:03d}_{blue:03d}_sp.dds"
-                text, _ = bind_texture(text, {name}, parameter, path, original["item_id"])
+                fragment, _ = bind_texture(fragment, {name}, parameter, path, original["item_id"])
                 files[path.casefold()] = ReplacementFile(path, surface_rgb_dds(red, green, blue))
+        return fragment, None
+
+    for key in sidecar_keys:
+        if not key.endswith(".pac_xml"):
+            continue
+        file = files[key]
+        text, _ = edit_material_variants_indexed(_sidecar_text(file.data), edit)
         files[key] = replace(file, data=text.encode("utf-8"))
 
 
@@ -441,43 +446,63 @@ def _apply_default_surface(pending, targets, files, sidecar_keys, names, directo
     wrappers take the maps per pixel as their ``_materialTexture`` (the import's
     UVs, as its colour map); Ver2 wrappers rotate their layer UVs, so they get
     the maps' mean as a uniform layer R.
+
+    Each model-property variant is done on its own, wrapper by wrapper: one part
+    can be Ver2 in one variant and Standard in another, each with its own game
+    texture (``cd_phm_00_ub_belt_0010_02`` in ``cd_m0001_00_so_phm_ub_33005``).
     """
+    from cdmw.core.material_shader_controls import edit_material_variants_indexed
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
     from cdmw.core.pac_xml_surface_layer import (
-        MATERIAL_TEXTURE_SURFACE_SHADERS, SURFACE_SHADERS, apply_surface_layer, surface_byte,
-        surface_layer_dds, surface_material_dds, wrapper_shaders)
+        MATERIAL_TEXTURE_SURFACE_SHADERS, SURFACE_SHADERS, apply_surface_fragment, surface_byte,
+        surface_layer_dds, surface_material_dds)
 
     sources = _wrapper_source_materials(pending, targets)
     inputs = _source_surface_inputs(pending)
     originals = _original_surface_means(pending, names)
     folder, stem = _surface_folder(pending.state.target_path)
+
+    def surface(name, material, original):
+        channels = _merged_surface_inputs(inputs, sources.get(name, ()))
+        values = {}
+        for kind in ("roughness", "metallic"):
+            value = channels[kind]
+            if value is None:
+                value = ("value", original.get(kind, _FALLBACK_SURFACE[kind]))
+            elif value[0] == "map" and not material:
+                value = ("value", _map_mean(value))
+            values[kind] = value
+        if material and any(value[0] == "map" for value in values.values()):
+            data = _packed_material_dds(values, original.get("format", ""), directory)
+            path = f"{folder}/{stem}_cdmw_surface_{hashlib.sha256(data).hexdigest()[:12]}_sp.dds"
+        else:
+            roughness, metallic = (surface_byte(values[kind][1]) for kind in ("roughness", "metallic"))
+            path = f"{folder}/{stem}_cdmw_surface_{roughness:03d}_{metallic:03d}{'_sp' if material else ''}.dds"
+            data = (surface_material_dds if material else surface_layer_dds)(roughness / 255, metallic / 255)
+        files[path.casefold()] = ReplacementFile(path, data)
+        return path
+
+    def edit(index, fragment):
+        means = _variant_means(originals, index)
+        paths = {}
+        for wrapper in find_material_wrappers(fragment):
+            name = wrapper.submesh_name.casefold()
+            if name not in names or wrapper.shader not in SURFACE_SHADERS:
+                continue
+            material = wrapper.shader in MATERIAL_TEXTURE_SURFACE_SHADERS
+            if (name, material) not in paths:
+                original = means.get(name, {}).get("_materialTexture" if material else "_detailMaterialMaskR", {})
+                paths[name, material] = surface(name, material, original)
+        for name in sorted({name for name, _material in paths}):
+            fragment, _ = apply_surface_fragment(fragment, {name}, paths.get((name, False), ""),
+                                                 paths.get((name, True), ""))
+        return fragment, None
+
     for key in sidecar_keys:
         if not key.endswith(".pac_xml"):
             continue
         file = files[key]
-        text = _sidecar_text(file.data)
-        for name, shader in sorted(wrapper_shaders(text, names).items()):
-            if shader not in SURFACE_SHADERS:
-                continue
-            channels = _merged_surface_inputs(inputs, sources.get(name, ()))
-            material = shader in MATERIAL_TEXTURE_SURFACE_SHADERS
-            original = originals.get(name, {}).get("_materialTexture" if material else "_detailMaterialMaskR", {})
-            values = {}
-            for kind in ("roughness", "metallic"):
-                value = channels[kind]
-                if value is None:
-                    value = ("value", original.get(kind, _FALLBACK_SURFACE[kind]))
-                elif value[0] == "map" and not material:
-                    value = ("value", _map_mean(value))
-                values[kind] = value
-            if material and any(value[0] == "map" for value in values.values()):
-                data = _packed_material_dds(values, original.get("format", ""), directory)
-                path = f"{folder}/{stem}_cdmw_surface_{hashlib.sha256(data).hexdigest()[:12]}_sp.dds"
-            else:
-                roughness, metallic = (surface_byte(values[kind][1]) for kind in ("roughness", "metallic"))
-                path = f"{folder}/{stem}_cdmw_surface_{roughness:03d}_{metallic:03d}{'_sp' if material else ''}.dds"
-                data = (surface_material_dds if material else surface_layer_dds)(roughness / 255, metallic / 255)
-            text, _ = apply_surface_layer(text, {name}, "" if material else path, path if material else "")
-            files[path.casefold()] = ReplacementFile(path, data)
+        text, _ = edit_material_variants_indexed(_sidecar_text(file.data), edit)
         files[key] = replace(file, data=text.encode("utf-8"))
 
 
@@ -515,21 +540,35 @@ def _map_mean(value):
     return _image_channel_means(value[1], value[2])[0]
 
 
-def _original_surface_means(pending, names):
-    """Per replaced wrapper: the game part's own surface textures, averaged.
+def _variant_means(originals, index):
+    """One variant's entry of ``_original_surface_means``; {} when the game file has fewer."""
+    return originals[index] if index < len(originals) else {}
 
-    Read from the captured game files, never from an earlier edit, as
-    {parameter: {"roughness": G, "metallic": B, "format": DXGI format}}.
+
+def _original_surface_means(pending, names):
+    """Per model-property variant and replaced wrapper: the game part's own surface textures, averaged.
+
+    Read from the captured game files, never from an earlier edit, as one
+    {name: {parameter: {"roughness": G, "metallic": B, "format": DXGI format}}}
+    per variant in file order (one when the file has no variants), because a
+    part can use another shader and other textures in each variant.
     """
+    from cdmw.core.material_shader_controls import material_variant_fragments
+
+    sidecar = target_sidecar(pending)
+    if sidecar is None:
+        return ()
+    return tuple(_fragment_surface_means(pending, fragment, names)
+                 for fragment in material_variant_fragments(_sidecar_text(sidecar.data)))
+
+
+def _fragment_surface_means(pending, fragment, names):
     from PIL import Image
     from cdmw.core.pac_xml_standard_material import find_material_wrappers
 
     files = {file.path.replace("\\", "/").casefold(): file for file in pending.state.dependencies}
-    sidecar = target_sidecar(pending)
-    if sidecar is None:
-        return {}
     result = {}
-    for wrapper in find_material_wrappers(_sidecar_text(sidecar.data)):
+    for wrapper in find_material_wrappers(fragment):
         name = wrapper.submesh_name.casefold()
         if name not in names or name in result:
             continue
@@ -682,18 +721,18 @@ def imported_surface_start(pending):
     bindings = material_binding_names(pending.state)
     names = {material_binding_name(original.submeshes[part.target_index], bindings)
              for part in pending.state.parts if part.part_id in pending.target_part_ids}
-    shaders = _target_wrapper_shaders(pending, names)
+    wrappers = _target_variant_wrappers(pending, names)
     try:
         originals = _original_surface_means(pending, names)
     except (OSError, ValueError):
-        originals = {}
+        originals = ()
     for kind, value in start.items():
         if value is not None:
             continue
-        found = [originals.get(name, {}).get(
+        found = [_variant_means(originals, index).get(name, {}).get(
                      "_materialTexture" if shader in MATERIAL_TEXTURE_SURFACE_SHADERS else "_detailMaterialMaskR",
                      {}).get(kind, _FALLBACK_SURFACE[kind])
-                 for name, shader in shaders.items() if shader in SURFACE_SHADERS]
+                 for index, name, shader in wrappers if shader in SURFACE_SHADERS]
         start[kind] = round(sum(found) / len(found), 3) if found else _FALLBACK_SURFACE[kind]
     return start
 
@@ -707,8 +746,13 @@ def target_sidecar(pending):
                 sidecars[0] if len(sidecars) == 1 else None)
 
 
-def _target_wrapper_shaders(pending, names):
-    """Shader of each named wrapper in the target's captured ``.pac_xml``."""
-    from cdmw.core.pac_xml_surface_layer import wrapper_shaders
+def _target_variant_wrappers(pending, names):
+    """(variant index, folded name, shader) of each named wrapper in the target's captured ``.pac_xml``."""
+    from cdmw.core.material_shader_controls import material_variant_fragments
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
     sidecar = target_sidecar(pending)
-    return wrapper_shaders(_sidecar_text(sidecar.data), names) if sidecar is not None else {}
+    if sidecar is None:
+        return ()
+    return tuple((index, wrapper.submesh_name.casefold(), wrapper.shader)
+                 for index, fragment in enumerate(material_variant_fragments(_sidecar_text(sidecar.data)))
+                 for wrapper in find_material_wrappers(fragment) if wrapper.submesh_name.casefold() in names)
