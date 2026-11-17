@@ -40773,7 +40773,7 @@ MESSAGE_REFERENCE = [
     "message": "A PAC alone cannot contain these texture or material changes. Use Build Mod to include their companion files.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 309,
+      "cdmw/ui/mesh_editor/tab_reports.py": 307,
       "cdmw/workers/mesh_editor_workers.py": 385
     }
   },
@@ -45007,7 +45007,7 @@ MESSAGE_REFERENCE = [
     "message": "Editable mesh package export failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_packages.py": 96
+      "cdmw/ui/mesh_editor/tab_packages.py": 95
     }
   },
   {
@@ -45039,7 +45039,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited mesh package import failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_packages.py": 196
+      "cdmw/ui/mesh_editor/tab_packages.py": 195
     }
   },
   {
@@ -45047,7 +45047,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited mesh package imported and validated ({float(elapsed_ms)} ms): {'safe to rebuild' if ok else 'rebuild blocked'} ({blocker_count} blockers, {warning_count} warnings).",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_packages.py": 190
+      "cdmw/ui/mesh_editor/tab_packages.py": 189
     }
   },
   {
@@ -45561,7 +45561,7 @@ MESSAGE_REFERENCE = [
     "message": "Export PAC As requires a PAC mesh and a .pac destination.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 309,
+      "cdmw/ui/mesh_editor/tab_reports.py": 307,
       "cdmw/workers/mesh_editor_workers.py": 367
     }
   },
@@ -45875,7 +45875,7 @@ MESSAGE_REFERENCE = [
     "message": "Finish Edit Mesh or run Check mesh successfully before exporting the PAC.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 309
+      "cdmw/ui/mesh_editor/tab_reports.py": 307
     }
   },
   {
@@ -57080,7 +57080,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild report cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 419
+      "cdmw/ui/mesh_editor/tab_reports.py": 417
     }
   },
   {
@@ -57088,7 +57088,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuild report failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 426
+      "cdmw/ui/mesh_editor/tab_reports.py": 424
     }
   },
   {
@@ -60848,7 +60848,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh changed while choosing the destination. Finish or check it again before exporting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 325
+      "cdmw/ui/mesh_editor/tab_reports.py": 323
     }
   },
   {
@@ -61563,7 +61563,7 @@ MESSAGE_REFERENCE = [
     "message": "This edit needs multiple files. Use Build Mod to save the complete result.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 309,
+      "cdmw/ui/mesh_editor/tab_reports.py": 307,
       "cdmw/workers/mesh_editor_workers.py": 369
     }
   },
@@ -61572,7 +61572,7 @@ MESSAGE_REFERENCE = [
     "message": "This edit requires companion files. Use Build Mod to export the complete result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 309,
+      "cdmw/ui/mesh_editor/tab_reports.py": 307,
       "cdmw/workers/mesh_editor_workers.py": 379
     }
   },
@@ -62794,7 +62794,7 @@ MESSAGE_REFERENCE = [
     "message": "Validation failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 164
+      "cdmw/ui/mesh_editor/tab_reports.py": 162
     }
   },
   {
@@ -63066,7 +63066,7 @@ MESSAGE_REFERENCE = [
     "message": "Wait for the current Mesh Editor task to finish.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 309
+      "cdmw/ui/mesh_editor/tab_reports.py": 307
     }
   },
   {
@@ -70033,7 +70033,7 @@ MESSAGE_REFERENCE = [
     "message": "no rebuild report is available",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_reports.py": 701
+      "cdmw/ui/mesh_editor/tab_reports.py": 699
     }
   },
   {

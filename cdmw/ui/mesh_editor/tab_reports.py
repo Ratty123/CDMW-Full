@@ -13,7 +13,6 @@ from cdmw.services.archive_extraction_service import find_available_output_path
 from cdmw.services.new_item_service import game_is_running
 
 
-from cdmw.ui.mesh_editor.controller import controller_session_revision
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_support import _rebuild_report_json_payload
 
@@ -27,13 +26,12 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
     def _standalone_session_revision(self) -> int | None:
         """The geometry revision a finished report describes, or None if unknowable."""
         controller = getattr(self, "standalone_controller", None)
-        if not callable(getattr(controller, "session_revision", None)) and not callable(
-            getattr(controller, "session_view", None)
-        ):
+        session_view = getattr(controller, "session_view", None)
+        if not callable(session_view):
             return None
         try:
-            return controller_session_revision(controller)
-        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return int(getattr(session_view(), "revision", -1))
+        except (RuntimeError, TypeError, ValueError):
             return None
 
     def _standalone_validation_worker_active(self) -> bool:

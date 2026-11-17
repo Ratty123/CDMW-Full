@@ -7,7 +7,6 @@ from PySide6.QtCore import QThread, QUrl
 
 
 
-from cdmw.ui.mesh_editor.controller import controller_session_revision
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
@@ -61,7 +60,7 @@ class MeshEditorPackageMixin:
             controller.mesh_service,
             controller.active_session_id,
             output_dir,
-            expected_mesh_revision=controller_session_revision(controller),
+            expected_mesh_revision=controller.session_view().revision,
             texture_updates_waiter=self._wait_for_dotnet_export_updates,
         )
         thread = QThread(self)
