@@ -147,8 +147,7 @@ def _build_archive_texture_sidecar_path_rows_for_group(
                     if on_entry_processed is not None:
                         on_entry_processed(1)
                     continue
-                # The whole sidecar, so textures past the preview limit are indexed too.
-                text = try_decode_text_like_archive_data(raw_data, limit=None)
+                text = try_decode_text_like_archive_data(raw_data)
                 if not text:
                     if on_entry_processed is not None:
                         on_entry_processed(1)
