@@ -62,7 +62,7 @@ impl Node {
         self.stretch > 0
             || matches!(
                 self.kind.as_str(),
-                "viewport" | "table" | "scroll" | "image_crop"
+                "viewport" | "table" | "scroll" | "image_crop" | "picture"
             )
             || self.children.iter().any(Self::flexible)
             || self.kind == "text" && self.flag("multiline")

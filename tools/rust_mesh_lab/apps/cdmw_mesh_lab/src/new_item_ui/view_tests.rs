@@ -3364,3 +3364,66 @@ fn label_contents_margins_inset_the_text_from_its_pane_edge() {
         text.pos
     );
 }
+
+#[test]
+fn custom_painted_pictures_fill_their_slot_and_keep_their_hint_over_them() {
+    // New painting's Front view (2026-11-17): Qt draws the frame in paintEvent, so the
+    // page gets that drawing as a picture with the view's hint label laid over it.
+    let context = egui::Context::default();
+    let hint = control(
+        "hint",
+        "label",
+        "",
+        json!({"text":"Choose the frame; it decides the painting's size.","wrap":true}),
+    );
+    let mut layout = control("", "column", "", json!({}));
+    layout.children.push(hint);
+    let mut picture = control(
+        "front",
+        "picture",
+        "",
+        json!({"image":"front-image","width":300,"height":400,"min_width":280,"min_height":220}),
+    );
+    picture.children.push(layout);
+    picture.stretch = 1;
+    let mut tabs = control(
+        "views",
+        "tabs",
+        "",
+        json!({"selected":0,"tabs":[{"text":"Front view"},{"text":"3D view"}]}),
+    );
+    tabs.children.push(picture);
+    let mut root = control("page", "column", "", json!({}));
+    root.children = vec![
+        tabs,
+        control("info", "label", "", json!({"text":"Picture area 0.86 x 1.38 m."})),
+    ];
+    let state = state(root);
+    apply_theme(&context, &state.theme);
+    let mut view = PresentationView::default();
+    view.textures.insert(
+        "front-image".into(),
+        context.load_texture(
+            "front-image",
+            egui::ColorImage::filled([300, 400], Color32::BROWN),
+            egui::TextureOptions::LINEAR,
+        ),
+    );
+    for _ in 0..4 {
+        frame(&context, &mut view, &state, egui::vec2(960.0, 720.0), vec![]);
+    }
+    assert!(view.errors.is_empty(), "{:?}", view.errors);
+    let front = view.rects.iter().find(|rect| rect.id == "front").unwrap();
+    let hint = view.rects.iter().find(|rect| rect.id == "hint").unwrap();
+    let info = view.rects.iter().find(|rect| rect.id == "info").unwrap();
+    assert!(front.rect[3] >= 500.0, "the picture fills its tab: {front:?}");
+    assert!(front.rect[2] >= 900.0, "the picture fills its tab: {front:?}");
+    assert!(front.rect[1] + front.rect[3] <= info.rect[1] + 1.0, "{front:?} {info:?}");
+    let hint_middle = hint.rect[1] + hint.rect[3] / 2.0;
+    let front_middle = front.rect[1] + front.rect[3] / 2.0;
+    assert!(
+        (hint_middle - front_middle).abs() < 40.0,
+        "the hint sits over the picture's middle: {hint:?} {front:?}"
+    );
+}
+

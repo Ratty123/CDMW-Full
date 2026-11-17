@@ -477,6 +477,7 @@ impl PresentationView {
             "label" if node.text("text").is_empty() && node.text("image").is_empty() => None,
             "label" => Some(self.label(ui, node)),
             "image_crop" => Some(self.image_crop(ui, node)),
+            "picture" => Some(self.picture(ui, node)),
             "separator" => Some(ui.separator()),
             "progress" => {
                 if node.flag("indeterminate") {
@@ -1530,6 +1531,54 @@ impl PresentationView {
         response.on_hover_cursor(egui::CursorIcon::Crosshair)
     }
 
+    /// A custom-painted Qt surface: its drawing fills the slot at its own proportions,
+    /// and its labels (a hint such as "Choose a frame") sit centred over it.
+    fn picture(&mut self, ui: &mut Ui, node: &Node) -> egui::Response {
+        let size = Vec2::new(
+            ui.available_width().max(80.0),
+            bounded_height(ui).max(node.number("min_height", 120.0).clamp(80.0, 400.0) as f32),
+        );
+        let (rect, response) = ui.allocate_exact_size(size, egui::Sense::hover());
+        if let Some(texture) = self.textures.get(node.text("image")) {
+            let source = Vec2::new(
+                node.number("width", 1.0).max(1.0) as f32,
+                node.number("height", 1.0).max(1.0) as f32,
+            );
+            let scale = (rect.width() / source.x).min(rect.height() / source.y);
+            ui.painter().image(
+                texture.id(),
+                egui::Rect::from_center_size(rect.center(), source * scale),
+                egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
+        }
+        if !node.children.is_empty() {
+            let inner = rect.shrink(8.0);
+            let height = node
+                .children
+                .iter()
+                .map(|child| estimate_height(ui, child, inner.width()))
+                .sum::<f32>()
+                .min(inner.height());
+            let top = inner.top() + (inner.height() - height) / 2.0;
+            let mut overlay = ui.new_child(
+                egui::UiBuilder::new()
+                    .id_salt("picture-overlay")
+                    .max_rect(egui::Rect::from_min_max(
+                        egui::pos2(inner.left(), top),
+                        inner.right_bottom(),
+                    ))
+                    .layout(egui::Layout::top_down(egui::Align::Center)),
+            );
+            self.compact_depth += 1;
+            for (index, child) in node.children.iter().enumerate() {
+                overlay.push_id(index, |ui| self.node(ui, child));
+            }
+            self.compact_depth -= 1;
+        }
+        response
+    }
+
     fn label(&mut self, ui: &mut Ui, node: &Node) -> egui::Response {
         let margins = label_margins(node);
         if margins == egui::Margin::ZERO {
@@ -2179,7 +2228,7 @@ fn control_height(ui: &Ui) -> f32 {
 fn layout_flexible(node: &Node) -> bool {
     match node.kind.as_str() {
         "table" => node.stretch > 0 || node.number("total", 0.0) > 8.0,
-        "viewport" | "scroll" | "image_crop" => true,
+        "viewport" | "scroll" | "image_crop" | "picture" => true,
         "text" => node.flag("multiline"),
         _ => node.children.iter().any(layout_flexible),
     }
@@ -2247,6 +2296,7 @@ fn minimum_width(ui: &Ui, node: &Node) -> f32 {
                 .clamp(64.0, 180.0)
         }
         "slider" => 140.0,
+        "picture" => node.number("min_width", 180.0).clamp(80.0, 400.0) as f32,
         "button" | "action" | "check" | "radio" => {
             let font = TextStyle::Button.resolve(ui.style());
             if node.label.is_empty() && !node.text("image").is_empty() {
@@ -2375,6 +2425,7 @@ fn estimate_height(ui: &Ui, node: &Node, width: f32) -> f32 {
                 }
         }
         "viewport" => 260.0,
+        "picture" => node.number("min_height", 120.0).clamp(80.0, 400.0) as f32,
         "row" => {
             let mut used = 0.0;
             let mut height = 0.0;

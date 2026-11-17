@@ -30201,7 +30201,7 @@ MESSAGE_REFERENCE = [
     "message": "Editable text exceeds the protocol limit.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_document.py": 287
+      "cdmw/ui/new_item/rust_ui_document.py": 393
     }
   },
   {
@@ -33436,7 +33436,7 @@ MESSAGE_REFERENCE = [
     "message": "The presentation exceeds its control-tree limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_document.py": 202
+      "cdmw/ui/new_item/rust_ui_document.py": 308
     }
   },
   {
@@ -34575,7 +34575,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported control {unknown}: {}",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/view.rs": 528
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/view.rs": 529
     }
   },
   {
@@ -34583,7 +34583,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported control: {unknown}",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/view.rs": 531
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/view.rs": 532
     }
   },
   {

@@ -9,9 +9,10 @@ from __future__ import annotations
 import hashlib
 import re
 import weakref
+from collections import OrderedDict
 
-from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt
-from PySide6.QtGui import QAction, QIntValidator, QPalette, QTextDocument
+from PySide6.QtCore import QBuffer, QIODevice, QPoint, Qt
+from PySide6.QtGui import QAction, QImage, QIntValidator, QPainter, QPalette, QRegion, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractButton, QAbstractItemView, QApplication, QBoxLayout, QCheckBox, QComboBox,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox,
@@ -111,6 +112,52 @@ def theme_snapshot(widget):
     return result
 
 
+#: A custom-painted surface is sent at most this many device pixels on its long side,
+#: and its PNG at most this many bytes (the page refuses an image over 1024 pixels or
+#: 8 MB of hex, and the whole state is serialised on every update).
+PICTURE_MAX_SIDE = 900
+PICTURE_MAX_BYTES = 1_000_000
+#: Encoded images kept between snapshots, least recently used first out.
+IMAGE_CACHE_ENTRIES = 512
+
+_QT_MODULE_PREFIX = "PySide6"
+_PLAIN_CONTAINERS = (QWidget, QFrame)
+
+
+def _paints_itself(widget):
+    """Whether a Python subclass of a plain widget draws its own content in paintEvent."""
+
+    if isinstance(widget, (QDialog, QGroupBox, QDialogButtonBox)):
+        return False
+    for cls in type(widget).__mro__:
+        if cls in _PLAIN_CONTAINERS:
+            return False
+        if not cls.__module__.startswith(_QT_MODULE_PREFIX) and "paintEvent" in vars(cls):
+            return True
+    return False
+
+
+def _shows_only_text(widget):
+    """Whether every visible descendant is a label or a plain container: nothing to click."""
+
+    for child in widget.findChildren(QWidget):
+        if child.isHidden():
+            continue
+        if isinstance(child, QLabel):
+            continue
+        if type(child) in _PLAIN_CONTAINERS:
+            continue
+        return False
+    return True
+
+
+def _png(image):
+    buffer = QBuffer()
+    buffer.open(QIODevice.WriteOnly)
+    image.save(buffer, "PNG")
+    return bytes(buffer.data())
+
+
 class PresentationDocument:
     def __init__(self):
         self.registry = ControlRegistry()
@@ -119,7 +166,9 @@ class PresentationDocument:
         self.assets = {}
         self._depth = 0
         self._nodes = 0
-        self._images = {}
+        self._images = OrderedDict()
+        #: per custom-painted widget: (change key, content digest, asset id, asset)
+        self._pictures = weakref.WeakKeyDictionary()
         self.portals = {}
         self._text_revisions = {}
         self._formatted_text = {}
@@ -170,25 +219,82 @@ class PresentationDocument:
             self._document_texts[document] = revision, text
         return text
 
+    def _cached_image(self, cache_key, make):
+        """The asset id of an image, encoding it with `make()` only when it is not cached."""
+
+        cached = self._images.get(cache_key)
+        if cached is None:
+            pixmap = make()
+            if pixmap is None or pixmap.isNull():
+                return None
+            if max(pixmap.width(), pixmap.height()) > 1024:
+                pixmap = pixmap.scaled(1024, 1024, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            data = _png(pixmap)
+            identifier = hashlib.sha256(data).hexdigest()
+            cached = (identifier, {"png_hex": data.hex(), "width": pixmap.width(), "height": pixmap.height()})
+            self._images[cache_key] = cached
+            while len(self._images) > IMAGE_CACHE_ENTRIES:
+                self._images.popitem(last=False)
+        else:
+            self._images.move_to_end(cache_key)
+        self.assets[cached[0]] = cached[1]
+        return cached[0]
+
     def image(self, pixmap):
         if pixmap is None or pixmap.isNull():
             return None
-        cache_key = pixmap.cacheKey()
-        cached = self._images.get(cache_key)
-        if cached is None:
-            if max(pixmap.width(), pixmap.height()) > 1024:
-                pixmap = pixmap.scaled(1024, 1024, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            buffer = QBuffer()
-            buffer.open(QIODevice.WriteOnly)
-            pixmap.save(buffer, "PNG")
-            data = bytes(buffer.data())
-            identifier = hashlib.sha256(data).hexdigest()
-            cached = (identifier, {"png_hex": data.hex(), "width": pixmap.width(), "height": pixmap.height()})
-            if len(self._images) >= 128:
-                self._images.clear()
-            self._images[cache_key] = cached
-        self.assets[cached[0]] = cached[1]
-        return cached[0]
+        return self._cached_image(("pixmap", pixmap.cacheKey()), lambda: pixmap)
+
+    def picture(self, widget):
+        """A custom-painted widget's own drawing (its children are described apart).
+
+        It is drawn again only when its change key differs: its size, scale, palette and,
+        when it has one, its `presentation_revision()`. A widget without that hook is drawn
+        on every snapshot, but encoded only when its pixels differ."""
+
+        size = widget.size()
+        if size.width() <= 0 or size.height() <= 0:
+            return None
+        revision_of = getattr(widget, "presentation_revision", None)
+        revision = revision_of() if callable(revision_of) else None
+        ratio = max(1.0, float(widget.devicePixelRatioF()))
+        key = (revision, size.width(), size.height(), ratio, widget.palette().cacheKey())
+        cached = self._pictures.get(widget)
+        if cached is not None and revision is not None and cached[0] == key:
+            self.assets[cached[2]] = cached[3]
+            return cached[2]
+        scale = min(ratio, PICTURE_MAX_SIDE / max(size.width(), size.height()))
+        image = self._render(widget, scale)
+        digest = hashlib.blake2b(bytes(image.constBits()), digest_size=16).digest()
+        if cached is not None and cached[1] == digest:
+            self._pictures[widget] = (key, digest, cached[2], cached[3])
+            self.assets[cached[2]] = cached[3]
+            return cached[2]
+        data = _png(image)
+        while len(data) > PICTURE_MAX_BYTES and scale > 0.2:
+            scale *= 0.7
+            image = self._render(widget, scale)
+            data = _png(image)
+        identifier = hashlib.sha256(data).hexdigest()
+        asset = {"png_hex": data.hex(), "width": image.width(), "height": image.height()}
+        self._pictures[widget] = (key, digest, identifier, asset)
+        self.assets[identifier] = asset
+        return identifier
+
+    @staticmethod
+    def _render(widget, scale):
+        size = widget.size()
+        image = QImage(max(1, round(size.width() * scale)), max(1, round(size.height() * scale)),
+                       QImage.Format.Format_ARGB32_Premultiplied)
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        try:
+            painter.scale(image.width() / size.width(), image.height() / size.height())
+            # Only the widget's own paintEvent: its labels are described as children.
+            widget.render(painter, QPoint(), QRegion(), QWidget.RenderFlag(0))
+        finally:
+            painter.end()
+        return image
 
     def widget(self, widget, *, force=False):
         if widget is None or (widget.isHidden() and not force):
@@ -353,6 +459,22 @@ class PresentationDocument:
         elif isinstance(widget, QMenu):
             node["kind"] = "menu"
             node["children"] = [self.action(action) for action in widget.actions() if action.isVisible()]
+        elif _paints_itself(widget) and _shows_only_text(widget):
+            # A custom-painted surface (a drawing, not a control): its own drawing as an
+            # image, with its labels laid over it. Without this the page drew only the
+            # labels, and New painting's Front view showed no frame (2026-11-17).
+            node["kind"] = "picture"
+            minimum = widget.minimumSize()
+            props.update(image=self.picture(widget), width=widget.width(), height=widget.height(),
+                         min_width=min(minimum.width(), 4096), min_height=min(minimum.height(), 4096))
+            layout = widget.layout()
+            if layout is not None:
+                child = self.layout(layout)
+                node["children"] = [child] if child and child["children"] else []
+            else:
+                node["children"] = self._widgets(
+                    child for child in widget.findChildren(QWidget, options=Qt.FindDirectChildrenOnly)
+                    if not child.isHidden())
         else:
             if node['name'] == 'mod_management_workspace':
                 props['management_surface'] = widget.palette().color(QPalette.ToolTipBase).name()
