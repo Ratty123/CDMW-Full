@@ -30977,7 +30977,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid viewport rectangle.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_portals.py": 106
+      "cdmw/ui/new_item/rust_ui_portals.py": 121
     }
   },
   {
