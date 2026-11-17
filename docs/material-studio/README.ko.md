@@ -273,6 +273,11 @@
 - 염색 색은 구운 텍스처에 고정된다(Equipment glass와 같음).
 - 이 환경에는 bake에 쓰는 네이티브 DDS 디코더가 없어서 bake 테스트는 Windows CI에서 돈다(원작자 기존 bake 테스트도 같다). 디코드 단계를 바꿔 넣은 확인에서는 세 셰이더 모두 레이어 행이 빠지고 대상 셰이더로 쓰였다.
 
+### 마무리 보강 (2026-11-17 저녁)
+- Shift+H: 헤드리스 테스트에서는 누르고 떼기를 두 번 하면 정상적으로 꺼지고 켜진다. 사용자 환경에서 안 되는 이유는 확인하지 못했다(한/영 입력 상태나 포커스로 추정). 키보드와 무관하게 쓸 수 있도록 Viewport 설정에 "Hide selection highlight" 체크박스, 셰이더 패널에 "Hide / Show selection highlight" 버튼을 넣었다.
+- Ver2 → 망사·레이어 유리 변환을 Mesh Editor, Create New Item 템플릿, 가져온 모델 세 경로에서 확인했다(디코드 단계만 대체).
+- 최종 정리와 남은 작업은 `HANDOFF.ko.md`에 있다.
+
 ## 남긴 결정 사항
 
 1. `_screenSpaceDisplacementScale`은 슬라이더로 추가하지 않았다. 유일한 근거인 Angel Teddy 모드가 이 행에 작은 ItemID 3을 쓰는데, 작은 ID의 규칙이 밝혀지지 않았다. 다만 Glass를 "다시 쓰기"로 만들면 그 모드의 구성대로 이 행(ItemID 3)을 넣는다. 원본에 값이 있으면 그 값을, 없으면 0을 쓴다.
