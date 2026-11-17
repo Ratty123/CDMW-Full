@@ -156,9 +156,21 @@ def pytest_runtest_teardown(item, nextitem):
     """Free the finished test's cycles on the main thread, between Qt calls as the app does."""
 
     yield
-    from tests.gui_thread_gc import collect_after_test
+    from tests.gui_thread_gc import apply_layout_item_rule, collect_after_test
 
-    collect_after_test()
+    full = collect_after_test()
+    # The app sweeps every layout after a full collection; so does the test process.
+    apply_layout_item_rule(sweep=full)
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_setup(item):
+    """Drop PySide's records of deleted layout items as the app does (tests/gui_thread_gc.py)."""
+
+    from tests.gui_thread_gc import apply_layout_item_rule
+
+    apply_layout_item_rule()
+    yield
 
 
 #: Where a real Crimson Desert installation can be; tests never write under it.
