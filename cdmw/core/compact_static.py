@@ -83,6 +83,16 @@ def read_compact_layout(raw, kind="iteminfo"):
     else:
         programs = ((kind, None),)
     candidates, errors, failures = [], [], []
+    try:
+        return _select_compact_layout(raw, kind, programs, candidates, errors, failures)
+    finally:
+        # A kept exception's traceback holds this read's frames, and the list holds the
+        # exception: a cycle that only the garbage collector could free. Snapshots read
+        # tens of thousands of rows, and the window thread's collections then freed them.
+        failures.clear()
+
+
+def _select_compact_layout(raw, kind, programs, candidates, errors, failures):
     for label, program in programs:
         drop_seen = set()
         for enchant_width in (2, 3):
@@ -195,28 +205,35 @@ def _read_compact_layout(raw, kind, program=None, *, enchant_width=2, drop_seen=
         else:
             raise RecordError("Unknown compact static layout operation.")
 
-    walk(program if program is not None else READERS[TABLE_READERS[kind]])
+    try:
+        walk(program if program is not None else READERS[TABLE_READERS[kind]])
+    finally:
+        # walk calls itself through its own closure cell. Empty the cell so the cycle
+        # does not keep this read's cursor, fields and members for a collection.
+        walk = None
     cursor.finish()
     return ItemLayout(bytes(raw), kind, "compact", MappingProxyType(fields), tuple(members), ())
 
 
-def _field_shape(kind, field):
-    def find(op):
-        if op[0] == "field":
-            return op[3] if op[2] == field else None
-        if op[0] in ("seq", "repeat"):
-            for child in op[1:]:
-                if isinstance(child, tuple):
-                    found = find(child)
-                    if found is not None:
-                        return found
-        return None
+def _find_field_shape(op, field):
+    # A module function, not a closure that calls itself: such a closure is a cycle.
+    if op[0] == "field":
+        return op[3] if op[2] == field else None
+    if op[0] in ("seq", "repeat"):
+        for child in op[1:]:
+            if isinstance(child, tuple):
+                found = _find_field_shape(child, field)
+                if found is not None:
+                    return found
+    return None
 
-    op = find(READERS[TABLE_READERS[kind]])
+
+def _field_shape(kind, field):
+    op = _find_field_shape(READERS[TABLE_READERS[kind]], field)
     if op is None and kind == "iteminfo":
-        op = find(_ITEMINFO_3527)
+        op = _find_field_shape(_ITEMINFO_3527, field)
     if op is None and kind == "gimmickinfo":
-        op = find(_GIMMICKINFO_3663)
+        op = _find_field_shape(_GIMMICKINFO_3663, field)
     if op is None:
         raise RecordError("This compact static generation has no such field.")
     while op[0] == "call" or op[0] == "seq" and len(op) == 2:

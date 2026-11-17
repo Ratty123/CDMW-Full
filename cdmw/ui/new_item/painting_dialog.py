@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -34,7 +35,59 @@ from cdmw.domain.new_item.rules import LOCALIZATION_LANGUAGES
 from cdmw.ui.new_item.panels_identity import LANGUAGE_LABELS
 
 PICTURE_FILTER = "Pictures (*.png *.jpg *.jpeg *.bmp *.webp *.tga);;All files (*)"
-_PREVIEW_SIZE = 220
+#: The preview is made at most this big (shrunk only); its label scales it to the box.
+_PREVIEW_SIZE = 768
+#: The preview box, which grows with the dialog from this size.
+_PREVIEW_BOX = (360, 240)
+
+
+class _ScaledImage(QLabel):
+    """A picture shown as large as its box allows, scaled up or down, keeping its shape.
+
+    A QLabel shows a pixmap at its own pixel size, so a small picture or a game icon of a
+    few pixels stayed a few pixels big (Fredric, 2026-11-17)."""
+
+    def __init__(self, text: str = "", hint: tuple = (96, 96), parent: Optional[QWidget] = None) -> None:
+        super().__init__(text, parent)
+        self._image = QImage()
+        self._hint = hint
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def sizeHint(self) -> QSize:  # the pixmap's own size must not drive the layout
+        return QSize(*self._hint)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(min(self._hint[0], 48), min(self._hint[1], 48))
+
+    def set_image(self, image: QImage) -> None:
+        self._image = QImage(image)
+        if not self._image.isNull():
+            self.setText("")
+        self._rescale()
+
+    def clear_image(self, text: str = "") -> None:
+        self._image = QImage()
+        self.setPixmap(QPixmap())
+        self.setText(text)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._rescale()
+
+    def _rescale(self) -> None:
+        if self._image.isNull():
+            self.setPixmap(QPixmap())
+            return
+        box = self.contentsRect().size()
+        if box.width() < 2 or box.height() < 2:
+            return
+        ratio = self.devicePixelRatioF() or 1.0
+        scaled = self._image.scaled(int(box.width() * ratio), int(box.height() * ratio),
+                                    Qt.AspectRatioMode.KeepAspectRatio,
+                                    Qt.TransformationMode.SmoothTransformation)
+        pixmap = QPixmap.fromImage(scaled)
+        pixmap.setDevicePixelRatio(ratio)
+        self.setPixmap(pixmap)
 
 
 class _PreviewSignals(QObject):
@@ -117,9 +170,8 @@ class PaintingDialog(QDialog):
         self.frame.currentIndexChanged.connect(self._frame_changed)
         form.addRow("Frame:", self.frame)
         frame_row = QHBoxLayout()
-        self.frame_thumbnail = QLabel()
+        self.frame_thumbnail = _ScaledImage()
         self.frame_thumbnail.setFixedSize(96, 96)
-        self.frame_thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.frame_info = QLabel("Reading the frames...")
         self.frame_info.setWordWrap(True)
         frame_row.addWidget(self.frame_thumbnail)
@@ -139,9 +191,9 @@ class PaintingDialog(QDialog):
         self.fit.addItem("Show the whole picture (add bands)", "whole")
         self.fit.currentIndexChanged.connect(self._fit_changed)
         form.addRow("Fit:", self.fit)
-        self.preview = QLabel("No picture yet.")
-        self.preview.setMinimumSize(_PREVIEW_SIZE, _PREVIEW_SIZE // 2)
-        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview = _ScaledImage("No picture yet.", hint=_PREVIEW_BOX)
+        self.preview.setMinimumSize(*_PREVIEW_BOX)
+        self.preview.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.preview.setWordWrap(True)
         form.addRow("Preview:", self.preview)
         self.language = QComboBox()
@@ -191,6 +243,7 @@ class PaintingDialog(QDialog):
         self.close_button.clicked.connect(self.reject)
         layout.addWidget(self.button_box)
         controller.log_message.connect(self._log_line)
+        self._log_connected = True
         self._refresh_list()
         self._show_painting()
         self.reload_frames()
@@ -243,10 +296,13 @@ class PaintingDialog(QDialog):
 
     def _show_frame(self) -> None:
         frame = self._frame_of(str(self._paintings[self._current]["frame"]))
-        pixmap = QPixmap()
+        icon = QImage()
         if frame is not None and frame.mesh in self._thumbnails:
-            pixmap.loadFromData(self._thumbnails[frame.mesh], "PNG")
-        self.frame_thumbnail.setPixmap(pixmap)
+            icon.loadFromData(self._thumbnails[frame.mesh], "PNG")
+        if icon.isNull():
+            self.frame_thumbnail.clear_image()
+        else:
+            self.frame_thumbnail.set_image(icon)
         if frame is None:
             self.frame_info.setText("Choose the frame; it decides the painting's size." if self._frames else "")
             return
@@ -349,14 +405,12 @@ class PaintingDialog(QDialog):
         frame = self._frame_of(str(painting["frame"]))
         self._preview_token += 1
         if not painting["picture"]:
-            self.preview.setPixmap(QPixmap())
-            self.preview.setText("No picture yet.")
+            self.preview.clear_image("No picture yet.")
             return
         if frame is None:
-            self.preview.setPixmap(QPixmap())
-            self.preview.setText("Choose a frame to see how the picture fits.")
+            self.preview.clear_image("Choose a frame to see how the picture fits.")
             return
-        self.preview.setText("Preparing the preview...")
+        self.preview.clear_image("Preparing the preview...")
         QThreadPool.globalInstance().start(_PreviewJob(
             self._preview_token, str(painting["picture"]), frame.canvas.aspect, str(painting["fit"]), self._preview_signals))
 
@@ -364,11 +418,9 @@ class PaintingDialog(QDialog):
         if token != self._preview_token:
             return
         if message:
-            self.preview.setPixmap(QPixmap())
-            self.preview.setText(message)
+            self.preview.clear_image(message)
             return
-        self.preview.setText("")
-        self.preview.setPixmap(QPixmap.fromImage(image))
+        self.preview.set_image(image)
 
     # ------------------------------------------------------------------ build
 
@@ -429,13 +481,22 @@ class PaintingDialog(QDialog):
         if self._building:
             self.log.appendPlainText(str(message))
 
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API
+        # New painting... opens this dialog again after Close, which let the log go.
+        if not self._log_connected:
+            self._controller.log_message.connect(self._log_line)
+            self._log_connected = True
+        super().showEvent(event)
+
     def done(self, result: int) -> None:
         if self._building:
             self._controller.cancel_operation("paintings")
-        try:
-            self._controller.log_message.disconnect(self._log_line)
-        except (RuntimeError, TypeError):
-            pass
+        if self._log_connected:
+            self._log_connected = False
+            try:
+                self._controller.log_message.disconnect(self._log_line)
+            except (RuntimeError, TypeError):
+                pass
         super().done(result)
 
 

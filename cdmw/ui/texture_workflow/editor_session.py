@@ -147,6 +147,10 @@ def create_texture_editor_session(
     *,
     label: str,
 ) -> _TextureEditorSession:
+    """The open document's session. Safe on a worker thread (numpy only), so the flatten of a
+    large texture need not run on the window thread. The flatten is also the first composite
+    (no floating selection yet), so the editor does not flatten the same layers again."""
+
     original_flattened = flatten_texture_editor_layers(document, layer_pixels)
     original_flattened.setflags(write=False)
     return _TextureEditorSession(
@@ -160,8 +164,8 @@ def create_texture_editor_session(
         layer_property_dirty=False,
         floating_pixels=None,
         floating_mask=None,
-        composite_cache=None,
-        composite_cache_revision=-1,
+        composite_cache=original_flattened,
+        composite_cache_revision=texture_editor_document_composite_revision(document, has_floating_pixels=False),
         composite_dirty_bounds=None,
         thumbnail_cache={},
     )

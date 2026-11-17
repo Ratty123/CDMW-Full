@@ -479,6 +479,17 @@ static std::string shader_rule_for_family(const std::string& family) {
     // BlendHeight uses the same authored RGB detail inputs and packed surface
     // channels as Standard. Height displacement remains preview-only.
     if (lower == "skinnedmeshblendheight") return "standard";
+    // Decoded from every shipped 4-target G-buffer permutation (game 1.0.0.3446):
+    // Fur (72) and AmplifiedGlare (36) take roughness from `_materialTexture` G and
+    // metalness from its B with the colour-blend layers over it, exactly as
+    // Standard; StaticBlendHeight (26) does the same with BlendHeight's height
+    // blend. Fur is not hair: the hair rule declares G alone and dropped its metal.
+    if (lower == "skinnedmeshfur" || lower == "skinnedmeshamplifiedglare"
+        || lower == "skinnedmeshstaticblendheight") return "standard";
+    // The Ver2 trace (9 November 2026) found Fur_Ver2, AmplifiedGlare_Ver2 and
+    // TornCloth_Ver2 on the shared Ver2 layer-R surface path.
+    if (lower == "skinnedmeshfur_ver2" || lower == "skinnedmeshamplifiedglare_ver2") return "standard_v2";
+    if (lower == "skinnedmeshtorncloth_ver2") return "cloth_v2";
     if (lower.find("skinnedmeshhair") != std::string::npos || lower.find("skinnedmeshfur") != std::string::npos || lower.find("animalhair") != std::string::npos) return "hair";
     // SkinnedMeshTear is a decal shell laid over a head. It declares a normal, a
     // surface map and an `_m` atlas whose R, G and B are three selectable tear

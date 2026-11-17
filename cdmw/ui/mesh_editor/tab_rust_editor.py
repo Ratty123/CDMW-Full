@@ -256,6 +256,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_hello_received = False
         self.standalone_rust_ready = False
         self.standalone_rust_translation_parts_supported = False
+        self.standalone_rust_host_commands_supported = False
         self.standalone_rust_theme_digest = ""
         self.standalone_rust_gpu_failed = False
         self.standalone_rust_closing = False
@@ -981,6 +982,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_hello_received = False
         self.standalone_rust_ready = False
         self.standalone_rust_translation_parts_supported = False
+        self.standalone_rust_host_commands_supported = False
         self.standalone_rust_theme_digest = ""
         self.standalone_rust_closing = False
         self.standalone_rust_finish_accepted = False

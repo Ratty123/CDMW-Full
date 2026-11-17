@@ -16,6 +16,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_MESH_EDIT_BACKEND,
     RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_RENDERER,
+    RUST_HOST_CDMW_COMMAND_CAPABILITY,
     RUST_UI_TRANSLATION_PARTS_CAPABILITY,
 )
 from cdmw.ui.mesh_editor.process_io import (
@@ -49,6 +50,24 @@ _crash_prompt_open = False
 #: ``edit_in_place_blocker`` while Browse's process is (re)starting, and how long to wait for it.
 _BOUND_VIEWPORT_NOT_READY = "the viewport is not ready"
 _BOUND_VIEWPORT_WAIT_S = 20.0
+#: Tells the editor that CDMW's test automation drives it (``cdmw_ui/delete_guidance.rs``).
+RUST_AUTOMATION_ENV = "CDMW_MESH_EDITOR_AUTOMATION"
+
+
+def rust_helper_environment(environment: QProcessEnvironment) -> QProcessEnvironment:
+    """The Mesh Editor helper's environment, built from ``environment``."""
+
+    from cdmw.automation.policy import automation_requested
+
+    environment.insert("WGPU_BACKEND", "dx12")
+    environment.insert("RUST_BACKTRACE", "full")
+    if automation_requested():
+        # Under test automation nobody can close the editor's dialogs, so it reports
+        # a refusal to CDMW instead of waiting for a click.
+        environment.insert(RUST_AUTOMATION_ENV, "1")
+    else:
+        environment.remove(RUST_AUTOMATION_ENV)
+    return environment
 
 
 def _rust_stderr_failure_marker(line: str) -> bool:
@@ -228,10 +247,7 @@ class MeshEditorRustProcessMixin:
             ]
         )
         process.setWorkingDirectory(str(executable.parent))
-        environment = QProcessEnvironment.systemEnvironment()
-        environment.insert("WGPU_BACKEND", "dx12")
-        environment.insert("RUST_BACKTRACE", "full")
-        process.setProcessEnvironment(environment)
+        process.setProcessEnvironment(rust_helper_environment(QProcessEnvironment.systemEnvironment()))
         process.started.connect(lambda current=process: self._handle_rust_process_started(current))
         self._connect_rust_process_signals(process)
         self._take_rust_process(process, session)
@@ -490,6 +506,13 @@ class MeshEditorRustProcessMixin:
             return
         if event == "state_snapshot":
             return
+        if event == "notice":
+            # A refusal the editor explained (Delete unavailable): CDMW's status line and
+            # activity log carry it, so a driven run sees why nothing happened.
+            message = str(payload.get("message", "") or "").strip()
+            if message:
+                self._set_rust_status(message)
+            return
         if event == "switch_item_piece":
             index = payload.get("index")
             if (self.standalone_rust_ready and type(index) is int
@@ -608,6 +631,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_translation_parts_supported = (
             RUST_UI_TRANSLATION_PARTS_CAPABILITY in capability_set
         )
+        self.standalone_rust_host_commands_supported = RUST_HOST_CDMW_COMMAND_CAPABILITY in capability_set
         session = self.standalone_rust_authoring_session
         if session is not None and (
             session.hair_start_mode
@@ -1352,7 +1376,9 @@ class MeshEditorRustProcessMixin:
         revision = 0
         if session is not None and not session.closed:
             try:
-                revision = session.shadow_service.session_view(session.shadow_session_id).revision
+                # Not session_view: it waits for the session's lock and prunes the
+                # selection, which closing a tab paid for on the window thread.
+                revision = session.shadow_service.session_revision(session.shadow_session_id)
             except (KeyError, RuntimeError):
                 revision = 0
         payload: dict[str, object] = {

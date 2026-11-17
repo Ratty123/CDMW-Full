@@ -179,6 +179,45 @@ fn parts_delete_shortcut_keeps_supported_vertex_deletion_in_exact_output() -> Te
 }
 
 #[test]
+fn under_automation_a_refused_delete_opens_no_dialog_and_says_why() -> TestResult {
+    // Fredric (2026-11-17): driven runs left "Delete unavailable" open for good,
+    // since nobody is there to close it.
+    let mut application = triangle_application()?;
+    let mesh = application.mesh.as_mut().ok_or("mesh")?;
+    let vertex = mesh.vertices().next().ok_or("vertex")?.0;
+    mesh.set_selection(Selection {
+        vertices: HashSet::from([vertex]),
+        ..Selection::default()
+    })?;
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 1080.0));
+    ui.application.cdmw_driven_by_automation = true;
+    ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
+        request_id: 7,
+        event: "command_result",
+        label: "Select All".to_owned(),
+        origin: None,
+    });
+    ui.frame(vec![key_event(egui::Key::Delete, true)]);
+    ui.frame(vec![key_event(egui::Key::Delete, false)]);
+    ui.settle_layout();
+    assert!(!has_topology_action(&ui.last_actions, "delete"));
+    assert!(ui.label_rect("Delete unavailable").is_none());
+    assert!(ui.label_rect("Close").is_none());
+    assert_eq!(
+        ui.application.status,
+        "Still running: Select All. Delete again when it has finished."
+    );
+    // Nothing is left to close: the same Delete goes through once the request is done.
+    ui.application.cdmw_pending_request = None;
+    ui.last_actions.clear();
+    ui.frame(vec![key_event(egui::Key::Delete, true)]);
+    ui.frame(vec![key_event(egui::Key::Delete, false)]);
+    assert!(has_topology_action(&ui.last_actions, "delete"));
+    Ok(())
+}
+
+#[test]
 fn delete_while_a_request_runs_names_it_and_gives_no_free_edit_advice() -> TestResult {
     // Fredric saw "Wait for the current operation before deleting." followed by the
     // Free Edit advice, which has nothing to do with waiting (2026-11-15).

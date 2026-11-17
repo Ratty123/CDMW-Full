@@ -12,6 +12,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QEvent, QObject  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget  # noqa: E402
 
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab  # noqa: E402
@@ -66,3 +67,67 @@ def test_ensure_widget_still_builds_at_once():
     assert widget.parentWidget() is container
     assert container.widget_if_created() is widget
     container.deleteLater()
+
+
+class _StepBuiltTool(QWidget):
+    """Builds its rows in steps, as Texture Editor does (``build_in_steps``)."""
+
+    def __init__(self, steps: int = 3, rows: int = 40) -> None:
+        super().__init__()
+        self._layout = QVBoxLayout(self)
+        self._left = steps
+        self._rows = rows
+        self.parents_while_building: list[object] = []
+
+    @property
+    def construction_complete(self) -> bool:
+        return self._left == 0
+
+    def continue_construction(self) -> bool:
+        if self._left == 0:
+            return False
+        self.parents_while_building.append(self.parentWidget())
+        for index in range(self._rows):
+            self._layout.addWidget(QLabel(f"row {index}"))
+        self._left -= 1
+        return True
+
+
+class _StyleChanges(QObject):
+    def __init__(self) -> None:
+        super().__init__()
+        self.count = 0
+
+    def eventFilter(self, _watched, event) -> bool:  # noqa: N802 - Qt API
+        if event.type() == QEvent.Type.StyleChange:
+            self.count += 1
+        return False
+
+
+def test_a_tool_built_in_steps_is_attached_before_its_steps_restyle_nothing_later():
+    """Textures held the UI thread 106 ms (158 ms warm) in the attach step in the
+    2026-11-17 review: moving a finished widget into the container restyles every
+    widget in it. A step-built tool moves in while it is still nearly empty."""
+
+    app = _app()
+    previous_sheet = app.styleSheet()
+    app.setStyleSheet("QLabel { padding: 1px; }")  # the app always runs with a style sheet
+    tool = _StepBuiltTool()
+    container = LazyToolTab(lambda: tool)
+    counter = _StyleChanges()
+    try:
+        container._construct_requested_widget()
+        while container._next_load_step == container._continue_requested_construction:
+            container._run_load_step()
+        assert tool.parents_while_building == [container] * 3, "the steps built a widget outside its container"
+        assert container._next_load_step == container._attach_requested_widget
+        app.installEventFilter(counter)
+        container._run_load_step()  # the attach step
+        app.removeEventFilter(counter)
+        assert counter.count == 0, f"the attach step restyled {counter.count} widgets"
+        container._run_load_step()
+        assert container.widget_if_created() is tool
+    finally:
+        app.removeEventFilter(counter)
+        app.setStyleSheet(previous_sheet)
+        container.deleteLater()

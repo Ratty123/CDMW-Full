@@ -34,6 +34,9 @@ RUST_EMPTY_AUTHORING_PARTS_CAPABILITY = "empty_authoring_parts_v1"
 RUST_UI_TRANSLATION_PARTS_CAPABILITY = "ui_translation_parts_v1"
 RUST_UI_TRANSLATION_MAX_BYTES = 4 * 1024 * 1024
 RUST_UI_TRANSLATION_MAX_ENTRIES = 10_000
+# Optional hello capability: the helper takes "cdmw_command", which sends one of
+# its panel buttons' commands as the button does (automated test runs only).
+RUST_HOST_CDMW_COMMAND_CAPABILITY = "host_cdmw_command_v1"
 RUST_MESH_REQUIRED_CAPABILITIES = (
     "embedded_child_window_v1",
     "rust_preview_runtime_v1",

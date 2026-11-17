@@ -20,8 +20,10 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, Signal
 
 from cdmw.automation import inspect_commands, pass_commands, saved_work_commands
+from cdmw.automation import authoring_commands
 from cdmw.automation.pipe import LocalPipeServer, recv_json, send_json
 from cdmw.automation.policy import AutomationSettings
+from cdmw.automation import review_commands
 
 TITLE_MARK = " [automation]"
 _UI_COMMAND_TIMEOUT_S = 60.0
@@ -182,6 +184,8 @@ class AutomationBridge(QObject):
             "texture_window": self._texture_window,
             "texture_edit": self._texture_edit,
             "texture_dock": self._texture_dock,
+            # Import Replacement, Export Mesh File and New painting (authoring_commands.py).
+            **authoring_commands.ui_commands(self),
             # Drafts & Mods and whole-part selection (saved_work_commands.py).
             "saved_work_rows": lambda args: saved_work_commands.saved_work_rows(self.window, args),
             "saved_work_combine": lambda args: saved_work_commands.saved_work_combine(self.window, args),
@@ -197,6 +201,9 @@ class AutomationBridge(QObject):
             "draft_choice_answer": lambda args: pass_commands.draft_choice_answer(self.window, args),
             "set_appearance": lambda args: pass_commands.set_appearance(self.window, args),
         }
+        # The loading and responsiveness review's paths (review_commands.py).
+        self._ui_commands.update({name: (lambda args, run=run: run(self.window, args))
+                                  for name, run in review_commands.COMMANDS.items()})
 
     # ----- lifecycle -------------------------------------------------------
     def attach(self, window) -> None:

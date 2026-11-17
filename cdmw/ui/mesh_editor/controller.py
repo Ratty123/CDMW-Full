@@ -148,6 +148,14 @@ class MeshEditorController:
     def session_view(self) -> MeshEditSessionView:
         return self.mesh_service.session_view(self._session_id())
 
+    def session_revision(self) -> int:
+        """The open session's geometry revision, without its lock or a view (see MeshService)."""
+
+        reader = getattr(self.mesh_service, "session_revision", None)
+        if callable(reader):
+            return int(reader(self._session_id()))
+        return int(self.session_view().revision)
+
     def configure_output_policy(self, output_policy: object, *, output_destination: Path | str = "") -> MeshEditSessionView:
         return self.mesh_service.configure_output_policy(self._session_id(), output_policy, output_destination=output_destination)
 
@@ -999,4 +1007,18 @@ def _topology_refresh_source_indices(mesh: ParsedMesh, result: MeshEditResult) -
     return tuple(sorted(affected)), requested
 
 
-__all__ = ["MeshEditorActionExecution", "MeshEditorController", "MeshEditorNativeUpdate", "apply_native_update_to_host"]
+def controller_session_revision(controller: object) -> int:
+    """The revision of a Mesh Editor controller's open session, for the window thread.
+
+    Prefers the lock-free read; a controller without one (a stand-in) answers
+    through its session view, so a pending edit never reads as none.
+    """
+
+    reader = getattr(controller, "session_revision", None)
+    if callable(reader):
+        return int(reader())
+    return int(controller.session_view().revision)  # type: ignore[attr-defined]
+
+
+__all__ = ["MeshEditorActionExecution", "MeshEditorController", "MeshEditorNativeUpdate", "apply_native_update_to_host",
+           "controller_session_revision"]

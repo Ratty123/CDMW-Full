@@ -198,7 +198,8 @@ def test_a_real_editor_parks_its_view_and_keeps_its_session(tmp_path, monkeypatc
     channel = EngineEditChannel(lambda data: written.extend(json.loads(line) for line in bytes(data).splitlines()) or len(data),
                                 lambda: 7, lambda _channel: None, tab)
     session = SimpleNamespace(closed=False, session_id="draft-a", root=tmp_path,
-                              shadow_service=SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=4)),
+                              shadow_service=SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=4),
+                                                             session_revision=lambda _id: 4),
                               shadow_session_id="shadow")
     disposed: list[object] = []
     rewritten: list[object] = []
@@ -231,3 +232,37 @@ def test_writes_through_the_mesh_editor_reach_the_shown_document(view) -> None:
     assert second.archive_material_context_package_path == "package-b"
     assert not hasattr(first, "archive_material_context_package_path")
     assert "archive_material_context_package_path" not in view.__dict__
+
+
+def test_a_document_is_built_inside_the_stack_not_moved_into_it() -> None:
+    """Moving a built document into the stack restyles every widget in it: 16 to 31 ms
+    of an empty Mesh Editor document's 65 to 125 ms offscreen (probe_ui.py mesh_tab),
+    part of the 151 ms "Open ticked parts" held the window thread in the 2026-11-17 review."""
+
+    parents: list[object] = []
+
+    def build(parent=None) -> _Document:
+        parents.append(parent)
+        document = _Document()
+        if parent is not None:
+            document.setParent(parent)
+        return document
+
+    view = MeshDocumentsView(build)
+    try:
+        view.open_new_document()  # the first is empty, so it is reused
+        view.active.open_file("sword.pac", edited=True)
+        view.open_new_document()
+        assert parents == [view.stack, view.stack]
+        assert len(view.documents) == 2 and view.stack.count() == 2
+        assert all(document.parentWidget() is view.stack for document in view.documents)
+    finally:
+        view.deleteLater()
+
+
+def test_a_builder_without_a_parent_still_works() -> None:
+    view = MeshDocumentsView(_Document)
+    try:
+        assert view.active.parentWidget() is view.stack
+    finally:
+        view.deleteLater()

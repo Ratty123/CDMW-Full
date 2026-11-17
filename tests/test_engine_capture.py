@@ -66,8 +66,8 @@ def _capture_on_a_worker(app, router, tmp_path, **kwargs):
 def test_a_capture_from_a_worker_thread_is_rendered_by_the_capable_process(app, tmp_path):
     router = EngineCaptureRouter()
     plain, capable = FakeController(capable=False), FakeController()
-    router.register(plain)
-    router.register(capable)
+    router.register(plain, resident=True)
+    router.register(capable, resident=True)
 
     assert _capture_on_a_worker(app, router, tmp_path, size=256) == "captured"
     assert plain.sent == []
@@ -80,10 +80,10 @@ def test_a_capture_from_a_worker_thread_is_rendered_by_the_capable_process(app, 
 
 def test_without_a_capable_process_the_capture_is_unavailable_at_once(app, tmp_path):
     router = EngineCaptureRouter()
-    router.register(FakeController(capable=False))
+    router.register(FakeController(capable=False), resident=True)
     stopped = FakeController()
     stopped.is_running = False
-    router.register(stopped)
+    router.register(stopped, resident=True)
 
     assert isinstance(_capture_on_a_worker(app, router, tmp_path), CaptureUnavailable)
 
@@ -91,12 +91,12 @@ def test_without_a_capable_process_the_capture_is_unavailable_at_once(app, tmp_p
 def test_a_failed_capture_raises_and_a_stopped_process_hands_its_captures_back(app, tmp_path):
     router = EngineCaptureRouter()
     failing = FakeController(answer="error", message="no adapter")
-    router.register(failing)
+    router.register(failing, resident=True)
     result = _capture_on_a_worker(app, router, tmp_path)
     assert isinstance(result, RuntimeError) and "no adapter" in str(result)
 
     silent = FakeController(answer="")
-    router.register(silent)
+    router.register(silent, resident=True)
 
     def stop_soon():
         silent.is_running = False
@@ -105,6 +105,24 @@ def test_a_failed_capture_raises_and_a_stopped_process_hands_its_captures_back(a
     QTimer.singleShot(50, stop_soon)
     assert isinstance(_capture_on_a_worker(app, router, tmp_path), CaptureUnavailable)
     assert router.pending_count() == 0
+
+
+def test_a_capture_never_uses_a_tool_s_own_viewport(app, tmp_path):
+    # Browse's resident process takes the capture even when a tool's viewport (Create
+    # New Item's preview, registered later, so newer) also offers captures.
+    router = EngineCaptureRouter()
+    browse, tool = FakeController(), FakeController()
+    router.register(browse, resident=True)
+    router.register(tool)
+    assert _capture_on_a_worker(app, router, tmp_path) == "captured"
+    assert len(browse.sent) == 1 and tool.sent == []
+
+    # With only a tool's viewport running, the capture goes to a process of its own.
+    alone = EngineCaptureRouter()
+    viewport = FakeController()
+    alone.register(viewport)
+    assert isinstance(_capture_on_a_worker(app, alone, tmp_path), CaptureUnavailable)
+    assert viewport.sent == []
 
 
 def test_the_finder_uses_its_own_process_only_when_no_preview_process_takes_it(tmp_path, monkeypatch):

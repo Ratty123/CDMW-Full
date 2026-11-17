@@ -167,6 +167,13 @@ def normalize_shader_family(value: object) -> str:
         return "cloth_v2" if "v2" in compact or "ver2" in compact else "cloth"
     if "emissive" in compact:
         return "emissive_v2" if "v2" in compact or "ver2" in compact else "emissive"
+    # BlendHeight, StaticBlendHeight and AmplifiedGlare run Standard's surface
+    # path: every shipped G-buffer permutation reads roughness from
+    # _materialTexture G and metal from its B with the detail layers over it
+    # (game 1.0.0.3446). StaticBlendHeight is not StaticStandard, which never
+    # reads _materialTexture; the Ver2 AmplifiedGlare is on the Ver2 layer path.
+    if "blendheight" in compact or "amplifiedglare" in compact:
+        return "standard_v2" if "v2" in compact or "ver2" in compact else "standard"
     if any(marker in compact for marker in ("water", "shallowwater", "sea")):
         return "environment_water"
     if "static" in compact and ("multi" in compact or "rgbtexture" in compact):

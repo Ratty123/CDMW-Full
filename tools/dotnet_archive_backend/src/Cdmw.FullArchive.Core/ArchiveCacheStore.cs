@@ -183,14 +183,16 @@ public sealed partial class ArchiveCacheStore
             Directory.CreateDirectory(generationsRoot);
             var stagingPath = Path.Combine(generationsRoot, $".{generationId}.staging");
             var generationPath = Path.Combine(generationsRoot, generationId);
-            Directory.CreateDirectory(stagingPath);
             FileStream? generationUse = null;
             try
             {
                 // Other cache owners cannot see this instance's root gate. Hold
                 // the final generation's external lease before publishing its
                 // directory, through current.json replacement and session handoff.
+                // It is taken before the staging folder exists, so a sweep never
+                // finds a live build's staging folder without its lease held.
                 generationUse = await OpenGenerationUseAsync(generationPath, cancellationToken).ConfigureAwait(false);
+                Directory.CreateDirectory(stagingPath);
                 var indexPath = Path.Combine(stagingPath, "archive.ali");
                 var entryCount = await Task.Run(
                     () => native.BuildIndex(
@@ -244,6 +246,16 @@ public sealed partial class ArchiveCacheStore
             catch
             {
                 TryDeleteDirectory(stagingPath);
+                // A cancelled or failed build never published its generation, so no
+                // maintenance pass will ever retire it: release its lease and delete the
+                // lease file too, or it stays behind for good.
+                generationUse?.Dispose();
+                generationUse = null;
+                if (!Directory.Exists(generationPath))
+                {
+                    try { File.Delete(GenerationUsePath(generationPath)); }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+                }
                 throw;
             }
             finally

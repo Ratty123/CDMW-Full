@@ -2132,6 +2132,17 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
         with session.export_lock:
             return self._session_view_locked(session)
 
+    def session_revision(self, session_id: str) -> int:
+        """The session's geometry revision, read without its lock or a view.
+
+        For the window thread, which stamps each message to the Mesh Editor with
+        it. A view waits for the session's lock, which a worker holds through a
+        native job, and first brings the selection up to date, which can rebuild
+        the native session; the revision is one integer that only changes under
+        that lock, and a message sent a moment later may meet a newer one anyway.
+        """
+        return int(self._session(session_id).revision)
+
     def set_handoff_target(self, session_id: str, target: str) -> None:
         """Name the workflow an accepted edit goes back to ("new_item"), or "" for none.
 

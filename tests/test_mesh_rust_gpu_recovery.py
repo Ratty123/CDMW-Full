@@ -13,7 +13,8 @@ def test_gpu_failure_and_retry_keep_the_authoring_process_and_shadow_session(tmp
     tab = _tab(tmp_path)
     session = SimpleNamespace(
         session_id="gpu-session", closed=False, shadow_session_id="shadow",
-        shadow_service=SimpleNamespace(session_view=lambda _: SimpleNamespace(revision=7)),
+        shadow_service=SimpleNamespace(session_view=lambda _: SimpleNamespace(revision=7),
+                                       session_revision=lambda _: 7),
     )
     process = SimpleNamespace(state=lambda: QProcess.ProcessState.Running)
     tab.standalone_rust_authoring_session = session

@@ -188,3 +188,24 @@ def test_a_graphics_device_reset_reopens_the_interface_instead_of_stopping(prese
     tab._stderr = "thread 'main' panicked at an unrelated assertion"
     tab._process_finished()
     assert len(shown) == 2 and len(retries) == 3
+
+
+def test_finder_thumbnails_pause_while_the_page_is_in_front(monkeypatch):
+    # Body & Face Finder's background thumbnails share the archive worker and the
+    # preview process with this page's preview; they wait while the page is shown.
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(RustNewItemStudioTab, "_start_prepare", lambda self: None)
+    calls = []
+    warmup = SimpleNamespace(pause=lambda client, cancel_active=False: calls.append(("pause", client, cancel_active)),
+                             resume=lambda client: calls.append(("resume", client)))
+    window = SimpleNamespace(archive=SimpleNamespace(archive_character_finder_warmup_controller=warmup))
+    tab = RustNewItemStudioTab(window=window, workflow=_Workflow())
+    try:
+        tab.show()
+        app.processEvents()
+        assert calls == [("pause", tab, True)]
+        tab.hide()
+        app.processEvents()
+        assert calls == [("pause", tab, True), ("resume", tab)]
+    finally:
+        tab.request_shutdown()

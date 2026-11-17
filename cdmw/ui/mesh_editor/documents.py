@@ -14,6 +14,7 @@ and archive selection changes to every document.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 
 from PySide6.QtCore import QTimer, Signal
@@ -39,7 +40,9 @@ class MeshDocumentsView(QWidget):
     #: The shown document changed; the argument is its index.
     document_changed = Signal(int)
 
-    def __init__(self, build_document: Callable[[], QWidget], parent: QWidget | None = None) -> None:
+    def __init__(self, build_document: Callable[..., QWidget], parent: QWidget | None = None) -> None:
+        """``build_document`` makes an empty document; given ``parent=``, it builds it there."""
+
         super().__init__(parent)
         self.setObjectName("MeshEditorDocuments")
         self._build_document = build_document
@@ -76,7 +79,7 @@ class MeshDocumentsView(QWidget):
     def add_document(self) -> QWidget:
         """Open an empty document and show it."""
 
-        document = self._build_document()
+        document = self._new_document()
         self._documents.append(document)
         self.stack.addWidget(document)
         self.tab_bar.addTab(EMPTY_DOCUMENT_LABEL)
@@ -90,6 +93,15 @@ class MeshDocumentsView(QWidget):
             ready.connect(self.park_beyond_budget)
         self.set_active(len(self._documents) - 1)
         return document
+
+    def _new_document(self) -> QWidget:
+        # Built inside the stack: moving a built document in restyles every
+        # widget in it, about a fifth of an empty document's build.
+        try:
+            in_place = "parent" in inspect.signature(self._build_document).parameters
+        except (TypeError, ValueError):
+            in_place = False
+        return self._build_document(parent=self.stack) if in_place else self._build_document()
 
     def set_active(self, index: int) -> None:
         if 0 <= index < len(self._documents):

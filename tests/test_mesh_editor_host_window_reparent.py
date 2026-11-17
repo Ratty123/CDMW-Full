@@ -260,6 +260,10 @@ def test_shared_preview_child_moves_use_the_async_windows_flag() -> None:
         api = _FakeUser32(owner_pid=77, parent_hwnd=frame._host_hwnd())
         with patch("ctypes.windll.user32", api),                 patch("cdmw.ui.preview.dotnet_host_protocol._typed_user32", return_value=api):
             frame._sync_embedded_child_geometry()
+            # Sent from the mover's thread (see test_preview_child_window_mover).
+            from cdmw.ui.preview.child_window_mover import child_window_mover
+
+            assert child_window_mover(lambda: api).wait_idle(5)
         assert api.positions[-1][:2] == (800, 600)
     finally:
         frame.deleteLater()

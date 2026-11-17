@@ -614,6 +614,22 @@ static void run_head_eye_cover_identity_contract_self_test() {
         "missing source colour lost its neutral placeholder");
     require_material_contract(shader_rule_for_family("SkinnedMeshBlendHeight") == "standard",
         "authored BlendHeight detail layers were treated as an unknown shader");
+    // Every shipped G-buffer permutation of these reads `_materialTexture` G as
+    // roughness and B as metalness, so their `_sp` must declare both channels.
+    for (const char* family : {"SkinnedMeshFur", "SkinnedMeshAmplifiedGlare", "SkinnedMeshStaticBlendHeight",
+                               "SkinnedMeshFur_Ver2", "SkinnedMeshAmplifiedGlare_Ver2", "SkinnedMeshTornCloth_Ver2"}) {
+        const std::string rule = shader_rule_for_family(family);
+        require_material_contract(
+            packed_channels_for_role("material", "creature_sp.dds", "_materialTexture", rule)
+                == "layer:material_response,g=roughness,b=metalness",
+            (std::string(family) + " lost the metalness of its _sp map").c_str());
+        require_material_contract(rule != "generic" && rule != "hair",
+            (std::string(family) + " kept the hair or generic layer handling").c_str());
+    }
+    require_material_contract(shader_rule_for_family("SkinnedMeshFur_Ver2") == "standard_v2"
+        && shader_rule_for_family("SkinnedMeshTornCloth_Ver2") == "cloth_v2"
+        && shader_rule_for_family("SkinnedMeshStaticBlendHeight") == "standard",
+        "Ver2 and height-blend creature shaders lost their own surface path");
     MaterialParameterRecord declared_eye_base;
     declared_eye_base.name = "_baseColorTexture";
     declared_eye_base.texture_path = "eye_ball.dds";

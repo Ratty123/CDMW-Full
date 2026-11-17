@@ -140,9 +140,54 @@ internal static class CacheMaintenanceTests
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         Require(cancelledMarker is not null, "refresh never exercised publication cancellation");
-        using (var released = new FileStream(cancelledMarker!, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+        // The cancelled generation was never published, so nothing will ever retire it:
+        // its lease file must go with its staging folder, not stay behind for good.
+        Require(!File.Exists(cancelledMarker!), "a cancelled publication left its lease file behind");
         var reopened = await sessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
         Require(reopened.CacheHit, "a cancelled publication broke the previous current generation");
+    }
+
+    public static async Task AbandonedStagingAsync()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var cache = fixture.CreateCache();
+        using var sessions = new ArchiveSessionManager(fixture.Native, cache);
+        var handle = await fixture.OpenAsync(sessions, cache);
+        var generations = Directory.GetParent(sessions.GetRequired(handle.SessionId).GenerationPath)!.FullName;
+        string Staging(string id)
+        {
+            var path = Path.Combine(generations, $".{id}.staging");
+            Directory.CreateDirectory(path);
+            File.WriteAllText(Path.Combine(path, "archive.ali"), "half-written index");
+            return path;
+        }
+        // A worker killed mid-build leaves its staging folder and an unheld lease file.
+        var abandoned = Staging("20260101000000000-0123456789ab");
+        var abandonedLease = ArchiveCacheStore.GenerationUsePath(Path.Combine(generations, "20260101000000000-0123456789ab"));
+        Directory.CreateDirectory(Path.GetDirectoryName(abandonedLease)!);
+        File.WriteAllText(abandonedLease, "");
+        Directory.SetLastWriteTimeUtc(abandoned, DateTime.UtcNow.AddHours(-1));
+        // Another process still building holds its lease: its folder must stay, however old.
+        var building = Staging("20260101000000001-0123456789ac");
+        var buildingLease = ArchiveCacheStore.GenerationUsePath(Path.Combine(generations, "20260101000000001-0123456789ac"));
+        Directory.SetLastWriteTimeUtc(building, DateTime.UtcNow.AddHours(-1));
+        // A fresh folder whose builder has not taken its lease yet must stay too.
+        var fresh = Staging("20260101000000002-0123456789ad");
+        using (new FileStream(buildingLease, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite))
+        {
+            // A just-written file can be held briefly by the system (a virus scan); the
+            // sweep then leaves it for the next pass, so allow a few passes.
+            for (var pass = 0; pass < 20 && Directory.Exists(abandoned); pass++)
+            {
+                await cache.WaitForMaintenanceAsync(CancellationToken.None);
+                if (Directory.Exists(abandoned)) await Task.Delay(100);
+            }
+        }
+        Require(!Directory.Exists(abandoned), "an abandoned staging folder was never swept");
+        Require(!File.Exists(abandonedLease), "an abandoned staging folder's lease file was left behind");
+        Require(Directory.Exists(building), "maintenance deleted a staging folder another process is building");
+        Require(Directory.Exists(fresh), "maintenance deleted a fresh staging folder");
+        Require(sessions.GetRequired(handle.SessionId).ReadEntry(2).Path == "text/hello.txt", "sweeping staging broke the active index");
     }
 
     public static async Task UrgentNotificationsAsync()

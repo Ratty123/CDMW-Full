@@ -62,6 +62,7 @@ from cdmw.ui.texture_workflow.editor_export_tasks import (
 from cdmw.ui.texture_workflow.editor_floating_state import texture_editor_snapshot_floating_pixels
 from cdmw.ui.texture_workflow.editor_selection_state import current_texture_editor_selection_bounds
 from cdmw.ui.texture_workflow.editor_session import (
+    create_texture_editor_session,
     texture_editor_active_session_label_update_state,
     texture_editor_existing_project_session_index,
     texture_editor_existing_source_session_index,
@@ -267,15 +268,18 @@ class TextureEditorFileIoUiMixin:
             self._set_status(texture_editor_existing_source_status_text(resolved_source), False)
             return
         def _task() -> object:
-            return create_texture_editor_source_document_task(
+            document, layer_pixels = create_texture_editor_source_document_task(
                 resolved_source,
                 workspace_root=self.workspace_root,
                 binding=texture_binding,
             )
+            # The session's flatten (a full composite of the texture) runs here, on the
+            # worker, not in _handle_open on the window thread.
+            return document, layer_pixels, create_texture_editor_session(document, layer_pixels, label=document.title)
 
         def _handle_open(result: object) -> None:
-            document, layer_pixels = result  # type: ignore[misc]
-            self._create_session(document, layer_pixels, label=document.title)
+            document, layer_pixels, session = result  # type: ignore[misc]
+            self._create_session(document, layer_pixels, label=document.title, session=session)
             self._push_history(texture_editor_open_source_history_label())
             self._set_status(texture_editor_open_source_status_text(resolved_source), False)
 
