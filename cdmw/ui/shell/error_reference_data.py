@@ -75200,7 +75200,7 @@ MESSAGE_REFERENCE = [
     "message": "Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 1151
+      "cdmw/ui/character_finder/dialog.py": 1161
     }
   },
   {
@@ -77141,7 +77141,7 @@ MESSAGE_REFERENCE = [
     "message": "Create New Item is not open yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 887
+      "cdmw/automation/review_commands.py": 872
     }
   },
   {
@@ -80902,7 +80902,7 @@ MESSAGE_REFERENCE = [
     "message": "No Scene panel is shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 522
+      "cdmw/automation/review_commands.py": 535
     }
   },
   {
@@ -80910,7 +80910,7 @@ MESSAGE_REFERENCE = [
     "message": "No Scene panel row for {wanted or 'any file'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 535
+      "cdmw/automation/review_commands.py": 548
     }
   },
   {
@@ -83818,7 +83818,7 @@ MESSAGE_REFERENCE = [
     "message": "The finder is not shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 454
+      "cdmw/automation/review_commands.py": 467
     }
   },
   {
@@ -86206,7 +86206,7 @@ MESSAGE_REFERENCE = [
     "message": "action is show_all or isolate",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 542
+      "cdmw/automation/review_commands.py": 555
     }
   },
   {
@@ -90749,7 +90749,7 @@ MESSAGE_REFERENCE = [
     "message": "{source} is not a file.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/review_commands.py": 947
+      "cdmw/automation/review_commands.py": 932
     }
   },
   {

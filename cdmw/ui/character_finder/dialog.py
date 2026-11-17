@@ -916,6 +916,16 @@ class CharacterFinderDialog(QDialog):
         self._preview_busy.show()
         if not self._host.load_package(result.package_path, reset_view=True):
             self._preview_failed(key, "The interactive preview could not load this package.")
+            return
+        # The viewport may already show this package: the same row selected again
+        # after a search or a page reload. It then loads nothing and says nothing,
+        # so "Opening interactive preview" stayed up for good.
+        controller = self._host.controller
+        applied_path = str(getattr(controller, "applied_package_path", "") or "")
+        applied = int(getattr(controller, "applied_package_generation", 0) or 0)
+        if (applied > 0 and applied == int(getattr(controller, "package_generation", -1))
+                and applied_path and Path(applied_path) == Path(result.package_path)):
+            self._package_applied(applied_path, applied)
 
     def _package_applied(self, path, _generation):
         pending = self._pending_package

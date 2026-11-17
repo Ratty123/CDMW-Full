@@ -165,6 +165,37 @@ def test_underwear_toggle_updates_the_loaded_preview_without_preparation_and_fol
     assert dialog._host.hidden_parts[-1] == ()
 
 
+def test_a_package_the_viewport_already_shows_ends_the_opening_state(finder):
+    # The same row selected again after a search: the viewport has its package applied,
+    # loads nothing and sends no second "applied" (2026-11-17, the Finder stayed on
+    # "Opening interactive preview" after Item Finder had shown a set).
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(1)])
+    preview = CharacterRenderResult("render", "package", "", "base_appearance", ())
+    dialog._preview.package_ready.emit("asset:1", preview)
+    host = dialog._host
+    host.package_generation = host.applied_package_generation = 1
+    host.applied_package_path = preview.package_path
+    host.package_applied.emit(preview.package_path, 1)
+    assert dialog._preview_busy.isHidden()
+
+    dialog._selection_changed()  # as a search that lists the same first row does
+    assert not dialog._preview_busy.isHidden()
+    dialog._preview.package_ready.emit("asset:1", preview)
+    assert host.loaded == [preview.package_path, preview.package_path]
+    assert dialog._preview_busy.isHidden()
+    assert dialog._preview_status.text() == "Base appearance"
+    assert dialog._shown_key == "asset:1"
+
+    # A package still on its way is not taken as shown.
+    other = replace(preview, key="render-2", package_path="package-2")
+    host.package_generation = 2
+    dialog._selection_changed()
+    dialog._preview.package_ready.emit("asset:1", other)
+    assert not dialog._preview_busy.isHidden()
+    assert dialog._preview_status.text() == "Opening interactive preview…"
+
+
 def test_failed_cards_show_the_error_state_and_successful_retry_restores_the_caption(finder, tmp_path):
     from PySide6.QtGui import QImage
     dialog, service, _ = finder
