@@ -5069,3 +5069,28 @@ fn hair_root_click_beside_the_head_keeps_the_selection() {
     assert_eq!(app.hair.feedback, "Click the scalp to place the root");
     assert!(!app.hair.preparing());
 }
+
+#[test]
+fn hair_command_waits_for_the_edit_being_prepared() {
+    let (mut app, _) = ready_hair_app();
+    // A stroke is in progress: the host's hair does not have it yet.
+    app.hair.stroke = app.hair.state.clone();
+    app.handle_actions(vec![UiAction::CdmwCommand {
+        command: "hair_color",
+        arguments: json!({"color": [120, 80, 40]}),
+        label: "Hair color",
+    }]);
+    assert_eq!(
+        app.hair.feedback,
+        "Wait for the current hair edit to finish, then try again."
+    );
+    assert!(app.hair.stroke.is_some() && !app.cdmw_busy());
+    // The editor's own request for the character at the start of a session is never held back.
+    app.hair.feedback.clear();
+    app.handle_actions(vec![UiAction::CdmwCommand {
+        command: "hair_begin",
+        arguments: json!({"mode": "generated"}),
+        label: "Loading character",
+    }]);
+    assert!(app.hair.feedback.is_empty());
+}

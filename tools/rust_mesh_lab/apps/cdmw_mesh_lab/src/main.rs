@@ -3549,6 +3549,20 @@ impl LabApplication {
             self.status = "Finish the pending CDMW operation before starting another".to_owned();
             return;
         }
+        // The Hair panel's own requests; the editor's first hair_begin of a session is not one.
+        let from_hair_panel = matches!(
+            command,
+            "hair_color" | "hair_texture" | "hair_texture_export"
+        ) || (command == "hair_begin"
+            && arguments.get("change_references").is_some());
+        if from_hair_panel && self.hair.active() && self.hair.preparing() {
+            // The reply carries the host's hair, which does not have the edit still being
+            // prepared; taking it would drop that edit without a word.
+            let wait = "Wait for the current hair edit to finish, then try again.";
+            self.hair.feedback = wait.into();
+            self.status = wait.to_owned();
+            return;
+        }
         let origin = cdmw_request_origin(command, &arguments);
         let arguments = match self.cdmw_command_arguments(command, arguments) {
             Ok(arguments) => arguments,
