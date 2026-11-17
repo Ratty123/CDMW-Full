@@ -37,7 +37,7 @@ def test_close_asks_about_texture_edits_that_are_not_kept(tmp_path: Path, monkey
     try:
         # A draft that saves its geometry on close: only the texture edits can be lost.
         tab.standalone_controller = SimpleNamespace(active_session_id="session", closing_loses_work=lambda: False)
-        tab.live_edit._live_texture_keeping = SimpleNamespace(unkept_count=lambda: unkept)
+        tab.live_edit._live_texture_keeping = SimpleNamespace(unkept_count=lambda: unkept, forget=lambda: None)
         closes: list[bool] = []
         monkeypatch.setattr(tab, "show_empty_state", lambda *_args: closes.append(True))
         monkeypatch.setattr(QMessageBox, "question", staticmethod(question))
@@ -50,5 +50,37 @@ def test_close_asks_about_texture_edits_that_are_not_kept(tmp_path: Path, monkey
     finally:
         tab.standalone_controller = None
         tab.live_edit._live_texture_keeping = None
+        tab.deleteLater()
+        _APP.processEvents()
+
+
+def test_yes_forgets_the_edits_so_nothing_asks_about_them_again(tmp_path: Path, monkeypatch) -> None:
+    """With the real edits and keeper: after Yes the document holds no pending edit."""
+
+    from PySide6.QtGui import QColor, QImage
+
+    from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import has_pending_edit
+
+    tab = _tab(tmp_path)
+    try:
+        tab.standalone_controller = SimpleNamespace(active_session_id="session", closing_loses_work=lambda: False)
+        image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+        image.fill(QColor("#336699"))
+        tab.live_edit._on_texture_window_edit(tab.live_edit._live_texture_session_id(), "ab" * 32, image, True)
+        keeper = tab.live_edit._live_texture_keeping
+        assert keeper.unkept_count() == 1 and has_pending_edit(tab)
+        monkeypatch.setattr(tab, "show_empty_state", lambda *_args: None)
+        # No: everything stays as it was.
+        monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *_args: QMessageBox.StandardButton.No))
+        tab._close_standalone_session_requested()
+        assert keeper.unkept_count() == 1 and has_pending_edit(tab)
+        # Yes: the edits are given up, so closing CDMW or opening another mesh does not ask again.
+        monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *_args: QMessageBox.StandardButton.Yes))
+        tab._close_standalone_session_requested()
+        assert keeper.unkept_count() == 0 and not tab.live_edit._live_texture_updates.edited_textures()
+        tab.standalone_controller = None
+        assert not has_pending_edit(tab)
+    finally:
+        tab.standalone_controller = None
         tab.deleteLater()
         _APP.processEvents()

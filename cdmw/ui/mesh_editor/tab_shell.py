@@ -999,6 +999,7 @@ class MeshEditorTabShellMixin(
             from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import mark_discarded
 
             mark_discarded(self)  # the user chose to lose them
+            self._forget_unkept_texture_edits()
         elif self._has_unkept_texture_edits():
             # Texture edits are kept in the draft once it exists (Finish creates it).
             # Until then Close would drop them without a word, so it asks, as closing
@@ -1013,7 +1014,17 @@ class MeshEditorTabShellMixin(
             )
             if confirmed != _tab.QMessageBox.Yes:
                 return
+            self._forget_unkept_texture_edits()
         self.show_empty_state()
+
+    def _forget_unkept_texture_edits(self) -> None:
+        """The user chose to close without them: the document no longer counts as
+        holding an edit, so closing CDMW or opening another mesh does not ask again."""
+
+        if self._has_unkept_texture_edits():
+            from cdmw.ui.mesh_editor.live_texture_reset import start_texture_edits_afresh
+
+            start_texture_edits_afresh(self)
 
     def _has_unkept_texture_edits(self) -> bool:
         keeper = getattr(self, "_live_texture_keeping", None)
