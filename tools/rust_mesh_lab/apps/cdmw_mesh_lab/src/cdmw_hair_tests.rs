@@ -5047,3 +5047,25 @@ fn hair_erase_leaves_no_erased_lock_selected() {
     assert!(state.locks.iter().all(|lock| lock.id != id));
     assert!(app.hair.selected.is_empty());
 }
+
+#[test]
+fn hair_root_click_beside_the_head_keeps_the_selection() {
+    let (mut app, rect) = ready_hair_app();
+    let ids: HashSet<usize> = app
+        .hair
+        .state
+        .as_ref()
+        .unwrap()
+        .locks
+        .iter()
+        .take(2)
+        .map(|lock| lock.id as usize)
+        .collect();
+    assert_eq!(ids.len(), 2);
+    app.hair.selected = ids.clone();
+    app.hair.tool = Some(HairTool::Root);
+    hair_click(&mut app, rect, Vec2::new(3.0, 3.0));
+    assert_eq!(app.hair.selected, ids, "{}", app.hair.feedback);
+    assert_eq!(app.hair.feedback, "Click the scalp to place the root");
+    assert!(!app.hair.preparing());
+}

@@ -1175,6 +1175,13 @@ impl LabApplication {
                             .into(),
                     );
                 }
+                let ray = self
+                    .camera
+                    .screen_ray(pointer, rect)
+                    .ok_or("Point at the scalp")?;
+                let Some(root) = self.pick_hair_scalp(ray.0, ray.1) else {
+                    return Err("Click the scalp to place the root".into());
+                };
                 if self.hair.selected.len() > 1 {
                     let selected = self.hair.selected.clone();
                     let id = *selected.iter().min().unwrap() as u64;
@@ -1205,13 +1212,6 @@ impl LabApplication {
                     });
                     self.hair.selected = HashSet::from([id as usize]);
                 }
-                let ray = self
-                    .camera
-                    .screen_ray(pointer, rect)
-                    .ok_or("Point at the scalp")?;
-                let Some(root) = self.pick_hair_scalp(ray.0, ray.1) else {
-                    return Ok(());
-                };
                 let position = state.scalp.point(&root).map_err(|e| e.to_string())?;
                 let index = state
                     .locks
