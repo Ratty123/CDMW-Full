@@ -464,6 +464,14 @@ pub enum HostEvent {
     /// Select these whole parts, as a click on their rows in the Parts list does
     /// (CDMW's automated test runs use it to edit two files of a set).
     SelectParts(Vec<u32>),
+    /// Send one of the CDMW commands a panel button sends, as that button does
+    /// (`cdmw_command`). Only the commands of `host_cdmw_command` are taken:
+    /// CDMW's automated test runs drive Import Replacement and Export Mesh File.
+    CdmwCommand {
+        command: &'static str,
+        label: &'static str,
+        arguments: Value,
+    },
     VertexInspection {
         request_id: u64,
         ok: bool,
@@ -492,6 +500,22 @@ pub enum HostEvent {
     Ignored,
     Cancel(String),
     Fatal(String),
+}
+
+/// Hello capability: the helper takes `cdmw_command` (`HostEvent::CdmwCommand`).
+pub const HOST_CDMW_COMMAND_CAPABILITY: &str = "host_cdmw_command_v1";
+
+/// The commands `cdmw_command` may send, with the label their own button gives them:
+/// Import Replacement's two steps (choose a model, then apply its mapping), its Cancel
+/// Import, and Export Mesh File. Each still goes through `submit_cdmw_command`.
+pub fn host_cdmw_command(name: &str) -> Option<(&'static str, &'static str)> {
+    match name {
+        "replacement_choose" => Some(("replacement_choose", "Import replacement")),
+        "replacement_apply" => Some(("replacement_apply", "Apply replacement")),
+        "replacement_cancel" => Some(("replacement_cancel", "Cancel replacement import")),
+        "export_mesh" => Some(("export_mesh", "Export mesh")),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1090,6 +1114,7 @@ impl CdmwBridge {
                 "mesh_document_binary_v1",
                 "empty_authoring_parts_v1",
                 "control_contract_v2",
+                HOST_CDMW_COMMAND_CAPABILITY,
                 translation_transfer::CAPABILITY
             ]
         }))
@@ -1876,6 +1901,25 @@ impl CdmwBridge {
                         ));
                     }
                     Ok(HostEvent::HairPreset(preset.to_owned()))
+                }
+                "cdmw_command" => {
+                    let name = value.get("command").and_then(Value::as_str).unwrap_or("");
+                    let (command, label) = host_cdmw_command(name).ok_or_else(|| {
+                        SessionError::Protocol(
+                            "cdmw_command names no command CDMW may send".to_owned(),
+                        )
+                    })?;
+                    let arguments = value.get("arguments").cloned().unwrap_or_else(|| json!({}));
+                    if !arguments.is_object() {
+                        return Err(SessionError::Protocol(
+                            "cdmw_command arguments must be an object".to_owned(),
+                        ));
+                    }
+                    Ok(HostEvent::CdmwCommand {
+                        command,
+                        label,
+                        arguments,
+                    })
                 }
                 "tool_groups" => Ok(HostEvent::ToolGroups(value.clone())),
                 "save_status" => Ok(HostEvent::SaveStatus(
@@ -6257,6 +6301,53 @@ pub(crate) mod tests {
             HostEvent::Fatal(_)
         ));
         value["preset"] = json!("bob");
+        value["process_generation"] = json!(2);
+        assert!(matches!(
+            bridge.decode_host_event(value),
+            HostEvent::Fatal(_)
+        ));
+    }
+
+    #[test]
+    fn cdmw_command_event_takes_only_the_listed_commands_with_object_arguments() {
+        let root = tempdir().expect("root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
+        let mut value = json!({"event":"cdmw_command", "protocol":PROTOCOL, "session_id":"session",
+            "request_id":0, "base_revision":4, "process_generation":3,
+            "command":"replacement_choose", "arguments":{"scope":"entire", "part_ids":[]}});
+        for (name, label) in [
+            ("replacement_choose", "Import replacement"),
+            ("replacement_apply", "Apply replacement"),
+            ("replacement_cancel", "Cancel replacement import"),
+            ("export_mesh", "Export mesh"),
+        ] {
+            value["command"] = json!(name);
+            assert!(matches!(
+                bridge.decode_host_event(value.clone()),
+                HostEvent::CdmwCommand { command, label: l, arguments }
+                    if command == name && l == label && arguments["scope"] == "entire"
+            ));
+            assert_eq!(bridge.shadow_revision(), 4);
+        }
+        // Not a button's command, or arguments that are not an object: refused.
+        for name in ["topology", "replacement_export_rig", ""] {
+            value["command"] = json!(name);
+            assert!(matches!(
+                bridge.decode_host_event(value.clone()),
+                HostEvent::Fatal(_)
+            ));
+        }
+        value["command"] = json!("replacement_cancel");
+        value["arguments"] = json!([1, 2]);
+        assert!(matches!(
+            bridge.decode_host_event(value.clone()),
+            HostEvent::Fatal(_)
+        ));
+        value.as_object_mut().expect("object").remove("arguments");
+        assert!(matches!(
+            bridge.decode_host_event(value.clone()),
+            HostEvent::CdmwCommand { command: "replacement_cancel", arguments, .. } if arguments == json!({})
+        ));
         value["process_generation"] = json!(2);
         assert!(matches!(
             bridge.decode_host_event(value),
