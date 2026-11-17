@@ -212,6 +212,12 @@ def test_items_tables_and_strings(world) -> None:
     assert by_name["key"] == 1
     unknown = world.call("tables_row", {"table": "not_a_table", "key": 1})
     assert unknown["structuredContent"]["error"]["code"] == "invalid_arguments"
+    # The fixture's iteminfo row is the Item Finder's short form: there, but not a row the
+    # table's schema decodes. The tool says so instead of calling it missing.
+    undecoded = world.call("tables_row", {"table": "iteminfo", "key": 1234})["structuredContent"]["error"]
+    assert undecoded["code"] == "failed" and "cannot decode" in undecoded["message"], undecoded
+    missing = world.call("tables_row", {"table": "inventory", "key": 99})["structuredContent"]["error"]
+    assert missing["code"] == "not_found"
 
 
 def test_saved_work_and_the_model_library(world) -> None:

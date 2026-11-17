@@ -464,6 +464,7 @@ def _tables_row(call) -> dict[str, object]:
     if key is None and not name:
         raise ToolError(INVALID_ARGUMENTS, "Give key or name")
     found = []
+    refused: list[tuple[str, str]] = []
     for layer in layers:
         call.check_cancelled()
         decoded = decode_static_table(table, layer.header, layer.body)
@@ -471,6 +472,15 @@ def _tables_row(call) -> dict[str, object]:
             if (key is not None and record.key == int(key)) or (name and record.name == name):
                 found.append({"layer": layer.stem, "key": record.key, "name": record.name,
                               "fields": to_data(record.fields), "members": to_data(record.members)})
+        if key is not None:
+            refused.extend((layer.stem, reason) for row_id, reason in decoded.refused if row_id == int(key))
+    if not found and refused:
+        # The row is there, but its bytes do not fit the table's schema: say so, not "no row".
+        from cdmw.mcp.errors import FAILED
+
+        stem, reason = refused[-1]
+        raise ToolError(FAILED, f"{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}",
+                        {"layer": stem})
     if not found:
         raise ToolError(NOT_FOUND, f"{table} has no row {key if key is not None else name}.")
     # The game reads the last layer that has the row (a DLC copy over the base).
