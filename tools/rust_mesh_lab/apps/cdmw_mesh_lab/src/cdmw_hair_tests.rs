@@ -5006,3 +5006,26 @@ fn hair_shortcuts_choose_tools_undo_and_delete_through_the_keymap() {
         "{actions:?}"
     );
 }
+
+fn hair_click(app: &mut LabApplication, rect: egui::Rect, point: Vec2) {
+    for event in [
+        ViewportPointerEvent::PrimaryPressed(point),
+        ViewportPointerEvent::PrimaryReleased(point),
+    ] {
+        app.dispatch_hair_pointer(event, rect, false, false, false);
+    }
+}
+
+#[test]
+fn hair_select_click_keeps_the_motion_preview_playing() {
+    let (mut app, rect) = ready_hair_app();
+    let (point, id) = visible_lock(&app, rect);
+    app.hair.tool = Some(HairTool::Select);
+    app.hair.playing = true;
+    hair_click(&mut app, rect, point);
+    assert_eq!(app.hair.selected, HashSet::from([id as usize]));
+    assert!(
+        app.hair.playing,
+        "selecting edits nothing and must not pause the preview"
+    );
+}

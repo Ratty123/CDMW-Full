@@ -623,10 +623,13 @@ impl LabApplication {
                 self.hair.drawing_samples.clear();
                 // Keep the edited rest pose visible while its worker publishes.
                 // Resume at the same procedural pose after preparation completes.
-                self.hair.playing = self.hair.restart_after_stroke && self.hair.job.is_none();
-                self.hair.last_tick = Instant::now();
-                if self.hair.playing {
-                    self.hair.restart_after_stroke = false;
+                // Selecting edits nothing and never paused the preview, so it leaves it running.
+                if self.hair.tool != Some(HairTool::Select) {
+                    self.hair.playing = self.hair.restart_after_stroke && self.hair.job.is_none();
+                    self.hair.last_tick = Instant::now();
+                    if self.hair.playing {
+                        self.hair.restart_after_stroke = false;
+                    }
                 }
                 if let Some(scene) = &mut self.hair.scene {
                     scene.applied = false;
