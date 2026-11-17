@@ -91,6 +91,10 @@ class MeshDocumentsView(QWidget):
         ready = getattr(getattr(document, "live_edit", None), "became_ready", None)
         if ready is not None and hasattr(ready, "connect"):
             ready.connect(self.park_beyond_budget)
+        # A texture edit says nothing on the status line; its tab's marker follows it.
+        textures = getattr(getattr(document, "live_edit", None), "texture_edits_changed", None)
+        if textures is not None and hasattr(textures, "connect"):
+            textures.connect(self.refresh_labels)
         self.set_active(len(self._documents) - 1)
         return document
 
@@ -342,9 +346,10 @@ def document_label(document: QWidget) -> str:
     name = str(getattr(entry, "basename", "") or "")
     if not name:
         return EMPTY_DOCUMENT_LABEL
-    from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import has_pending_edit
+    from cdmw.ui.mesh_editor.live_edit.end_edit_prompt import has_unfinished_changes
 
-    label = f"{name} *" if has_pending_edit(document) else name
+    # Changed, not merely open: closing still asks while the editor is open.
+    label = f"{name} *" if has_unfinished_changes(document) else name
     # A parked document's view is closed; showing it opens the view again.
     return f"{label} (parked)" if getattr(document, "standalone_rust_parked", False) else label
 

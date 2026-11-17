@@ -7951,6 +7951,7 @@
     "Mesh Editor is preparing its renderer and textures...": "Редактор сетки подготавливает средство визуализации и текстуры...",
     "Mesh Editor is ready.": "Редактор сеток готов.",
     "Mesh Editor is ready. Changes remain isolated until Finish Edit Mesh.": "Редактор сеток готов. Изменения останутся изолированными до завершения редактирования сетки.",
+    "Mesh Editor is ready. {value_0} of {value_1} parts have no readable textures and use an untextured neutral surface: {value_2}": "Редактор сеток готов. У {value_0} из {value_1} частей нет читаемых текстур, и они используют нейтральную поверхность без текстуры: {value_2}",
     "Mesh Editor is ready. {value_0} of {value_1} parts use simplified materials to stay within the 768 MiB texture limit.": "Редактор сеток готов. {value_0} из {value_1} частей используют упрощённые материалы, чтобы не превысить лимит текстур в 768 MiB.",
     "Mesh Editor is still open for this model. Choose Finish and return to Create New Item there.": "Редактор сеток всё ещё открыт для этой модели. Выберите в нём „Завершить и вернуться к «Создать новый предмет»“.",
     "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Редактор сеток синхронизируется с модулем визуализации. Редактирование временно недоступно.",

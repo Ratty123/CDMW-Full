@@ -806,6 +806,9 @@ class MeshEditorRustProcessMixin:
         show = getattr(tools, "set_kept_text", None)
         if callable(show):
             show(text)
+        changed = getattr(self, "texture_edits_changed", None)
+        if changed is not None and hasattr(changed, "emit"):
+            changed.emit()
 
     def _live_texture_session_id(self) -> str:
         # The document, not one editor session: edits made after Finish still belong to it.
@@ -1017,10 +1020,21 @@ class MeshEditorRustProcessMixin:
             "material_synthesis_budget_parts",
             (0, 0),
         )
+        coverage = getattr(self.standalone_rust_authoring_session, "texture_coverage", None) or {}
+        untextured = len(tuple(coverage.get("untextured_parts", ()) or ()))
         if self.standalone_rust_texture_unavailable_reason:
             self._set_rust_status(
                 "Mesh Editor will use an untextured neutral surface: "
                 f"{self.standalone_rust_texture_unavailable_reason}",
+                error=True,
+            )
+        elif untextured and coverage.get("textured_part_count"):
+            # Textured by either route, except these: name them, not the whole mesh.
+            from cdmw.services.mesh_rust_authoring import untextured_part_names
+
+            self._set_rust_status(
+                f"Mesh Editor is ready. {untextured} of {int(coverage.get('part_count', 0) or 0)} parts have "
+                f"no readable textures and use an untextured neutral surface: {untextured_part_names(coverage)}",
                 error=True,
             )
         elif simplified_parts:

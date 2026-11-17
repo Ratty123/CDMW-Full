@@ -7951,6 +7951,7 @@
     "Mesh Editor is preparing its renderer and textures...": "Edytor siatki przygotowuje silnik renderowania i tekstury...",
     "Mesh Editor is ready.": "Edytor siatki jest gotowy.",
     "Mesh Editor is ready. Changes remain isolated until Finish Edit Mesh.": "Edytor siatki jest gotowe. Zmiany pozostaną odizolowane do zakończenia edycji siatki.",
+    "Mesh Editor is ready. {value_0} of {value_1} parts have no readable textures and use an untextured neutral surface: {value_2}": "Edytor siatki jest gotowy. {value_0} z {value_1} części nie ma czytelnych tekstur i używa neutralnej powierzchni bez tekstury: {value_2}",
     "Mesh Editor is ready. {value_0} of {value_1} parts use simplified materials to stay within the 768 MiB texture limit.": "Edytor siatki jest gotowy. {value_0} z {value_1} części używa uproszczonych materiałów, aby zmieścić się w limicie tekstur 768 MiB.",
     "Mesh Editor is still open for this model. Choose Finish and return to Create New Item there.": "Edytor siatki jest nadal otwarty dla tego modelu. Wybierz w nim «Zakończ i wróć do „Utwórz nowy przedmiot”».",
     "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Edytor siatki synchronizuje się z modułem renderującym. Edycja jest tymczasowo niedostępna.",

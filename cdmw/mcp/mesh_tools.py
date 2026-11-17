@@ -175,7 +175,9 @@ def _session_of(call):
             "session_folder": str(getattr(tab, "standalone_rust_session_root", "") or ""),
             "commands": len(registry.commands("mesh_editor")) if registry is not None else 0,
         })
-        reason = str(getattr(tab, "standalone_rust_texture_unavailable_reason", "") or "")
+        # The session's own reason: a set's Load Archive changes it after the open.
+        reason = str(getattr(session, "texture_unavailable_reason", "") or "") or str(
+            getattr(tab, "standalone_rust_texture_unavailable_reason", "") or "")
         if reason:
             facts["textures_unavailable"] = reason
         return facts, session
@@ -224,10 +226,39 @@ def _state(call) -> dict[str, object]:
         "output": {"policy": view.output_policy, "destination": view.output_destination,
                    "reason": view.output_policy_reason},
     })
+    textures = _textures(session, mesh, view, owners)
+    if textures is not None:
+        facts["textures"] = textures
+        if textures["available"] and "textures_unavailable" in facts:
+            # Some parts are drawn textured: the reason is about the others.
+            textures["warning"] = facts.pop("textures_unavailable")
     hair = _hair(service, session_id)
     if hair is not None:
         facts["hair"] = hair
     return facts
+
+
+def _textures(session, mesh, view, owners) -> dict[str, object] | None:
+    """Which parts the editor draws textured, from the materials it was given: DDS
+    payloads and Preview Core material layers, the two routes its view uses."""
+
+    coverage_of = getattr(session, "live_texture_coverage", None)
+    if not callable(coverage_of):
+        return None
+    try:
+        coverage = coverage_of(tuple(getattr(mesh, "submeshes", ()) or ()), int(view.lod_index))
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return None
+    untextured = []
+    for row in coverage["untextured_parts"]:
+        row = dict(row)
+        if row["index"] in owners:
+            row["file"] = owners[row["index"]][0]
+        untextured.append(row)
+    return {"available": bool(coverage["textured_part_count"]), "parts": coverage["part_count"],
+            "textured_parts": coverage["textured_part_count"],
+            "from_dds": coverage["dds_part_count"], "from_material_layers": coverage["material_graph_part_count"],
+            "untextured_parts": untextured}
 
 
 # ----- mesh.geometry --------------------------------------------------------------------
@@ -523,7 +554,8 @@ def mesh_tools() -> list[Tool]:
                          "ready, its status line, every part with its name, material, vertex and triangle "
                          "counts and (for a set) the file it belongs to, the selection (whole parts, and how "
                          "many vertices, edges and faces in each part), the history (steps, can undo, can "
-                         "redo), where its output goes and, for a hairstyle made with Hair Tools, its style, "
+                         "redo), where its output goes, which parts are drawn textured (and which are not, by name), "
+                         "and, for a hairstyle made with Hair Tools, its style, "
                          "template and how many guides, groups and locks it has.",
              input_schema=object_schema(), effect=READ, route="service:MeshService.session_view+working_mesh",
              handler=_state, runs_on=ON_WORKER, paged="parts"),

@@ -96,6 +96,8 @@ class LiveEditComponent(MeshEditorRustEditorMixin, QObject):
     morph_state_arrived = Signal(object, object)
     #: (session, error): the session files were written again after a crash.
     crash_rewrite_done = Signal(object, str)
+    #: Texture edits were made or kept in the draft: the tab's marker may change.
+    texture_edits_changed = Signal()
     #: Browse's viewport while an edit is bound to it (``edit_in_viewport``).
     _viewport_binding = None
     #: The view is closed to save memory; the session stays (P15 step 3).

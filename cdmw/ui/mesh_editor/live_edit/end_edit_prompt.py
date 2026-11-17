@@ -84,6 +84,36 @@ def has_pending_edit(tab: object) -> bool:
         return True
 
 
+def has_unfinished_changes(tab: object) -> bool:
+    """What a tab's ``*`` marks: a change no Finish has taken, or one not kept yet.
+
+    Narrower than ``has_pending_edit``, which also counts an editor that is merely
+    open in its viewport, so closing it can still offer Finish. A mesh or set just
+    opened is not changed. Read without the sessions' locks: every tab label asks.
+    """
+
+    if pending_edit_revision(tab) > 0:
+        return True
+    keeper = getattr(tab, "_live_texture_keeping", None)
+    if keeper is not None and keeper.unkept_count() > 0:
+        return True
+    if _preparing_over_recovery(tab):
+        return True
+    session = getattr(tab, "standalone_rust_authoring_session", None)
+    if session is None or getattr(session, "closed", True):
+        return False
+    changed = getattr(session, "has_unfinished_changes", None)
+    holds = getattr(session, "holds_recovery_point", None)
+    try:
+        if callable(changed) and changed():
+            return True
+        if not callable(changed) and unfinished_editor_steps(tab) > 0:
+            return True  # a stand-in session without the lock-free reader
+        return bool(callable(holds) and holds())
+    except Exception:
+        return True
+
+
 def ask_to_end_edit(parent: QWidget | None, file_label: str, *, finish_available: bool = True) -> str:
     """Show the question and return FINISH, DISCARD or KEEP."""
 
@@ -196,6 +226,6 @@ def _tell(parent: QWidget | None, text: str) -> None:
 
 
 __all__ = [
-    "DISCARD", "FINISH", "KEEP", "NONE", "ask_to_end_edit", "has_pending_edit",
+    "DISCARD", "FINISH", "KEEP", "NONE", "ask_to_end_edit", "has_pending_edit", "has_unfinished_changes",
     "pending_edit_revision", "prompt_override", "resolve_pending_edit", "unfinished_editor_steps",
 ]

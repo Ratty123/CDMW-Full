@@ -1466,6 +1466,79 @@ def concise_rust_texture_unavailable_reason(value: object) -> str:
     return text
 
 
+_PREVIEW_CORE_LAYER_RESOURCE_ROLES = ("diffuse", "normal", "material", "height", "mask", "detail_mask")
+#: Untextured parts named in a status line; the rest are counted.
+_UNTEXTURED_PART_NAME_LIMIT = 8
+
+
+def rust_texture_coverage(
+    parts: Sequence[object],
+    textures: Sequence[object],
+    material_graph: Mapping[str, object] | None,
+    lod_index: int = 0,
+) -> dict[str, object]:
+    """Which parts of one LOD the editor draws with textures, by either route.
+
+    A part is textured by a DDS payload that names it, or by a Preview Core
+    material whose layers carry a copied resource: the helper draws those
+    layers (``preview_core_material_graph``) without any DDS payload, which is
+    how set pieces and Browse's native materials reach the editor.
+    """
+
+    part_count = len(tuple(parts))
+    by_payload: set[int] = set()
+    for row in tuple(textures or ()):
+        indices = row.get("material_indices_by_lod", ()) if isinstance(row, Mapping) else ()
+        level = tuple(indices or ())
+        if 0 <= lod_index < len(level):
+            by_payload.update(int(index) for index in tuple(level[lod_index] or ()))
+    by_graph: set[int] = set()
+    graph = material_graph if isinstance(material_graph, Mapping) else {}
+    for material in tuple(graph.get("materials", ()) or ()):
+        if not isinstance(material, Mapping) or int(material.get("lod_index", 0) or 0) != lod_index:
+            continue
+        if any(
+            isinstance(layer, Mapping) and isinstance(layer.get(role), Mapping)
+            for layer in tuple(material.get("layers", ()) or ())
+            for role in _PREVIEW_CORE_LAYER_RESOURCE_ROLES
+        ):
+            by_graph.add(int(material.get("material_index", -1)))
+    owned = set(range(part_count))
+    textured = (by_payload | by_graph) & owned
+    untextured = [
+        {"index": index, "name": str(getattr(part, "name", "") or "")}
+        for index, part in enumerate(tuple(parts))
+        if index not in textured
+    ]
+    return {
+        "part_count": part_count,
+        "textured_part_count": len(textured),
+        "dds_part_count": len(by_payload & owned),
+        "material_graph_part_count": len(by_graph & owned),
+        "untextured_parts": untextured,
+    }
+
+
+def _session_texture_coverage(mesh: object, textures: Sequence[object],
+                              material_graph: Mapping[str, object] | None) -> dict[str, object]:
+    """rust_texture_coverage for the LOD the editor opens on."""
+
+    lods = _mesh_lods(mesh)
+    lod_index = int(getattr(mesh, "active_lod_index", 0) or 0)
+    lod_index = lod_index if 0 <= lod_index < len(lods) else 0
+    return rust_texture_coverage(lods[lod_index], textures, material_graph, lod_index)
+
+
+def untextured_part_names(coverage: Mapping[str, object] | None) -> str:
+    """The untextured parts' names for a status line, or "" when every part is textured."""
+
+    rows = tuple((coverage or {}).get("untextured_parts", ()) or ())
+    names = [str(row.get("name", "") or f"#{row.get('index', '?')}") for row in rows[:_UNTEXTURED_PART_NAME_LIMIT]]
+    if len(rows) > _UNTEXTURED_PART_NAME_LIMIT:
+        names.append("...")
+    return ", ".join(names)
+
+
 def prime_rust_mesh_preview_context(
     authoritative_controller: object,
     preview_model: object | None,
@@ -7752,6 +7825,10 @@ class RustMeshAuthoringSession:
     archive_refit_material_cache: dict[str, dict[str, object]] = field(default_factory=dict)
     archive_refit_material_references: dict[str, dict[str, object]] = field(default_factory=dict)
     texture_unavailable_reason: str = ""
+    # Which parts the editor opened textured (rust_texture_coverage); {} until written.
+    texture_coverage: dict[str, object] = field(default_factory=dict)
+    # The archive_refit_material_cache entry the editor draws now.
+    active_material_key: str = "base"
     # (skipped, total) parts whose composed materials did not fit the limit.
     material_synthesis_budget_parts: tuple[int, int] = (0, 0)
     material_package_path: str = ""
@@ -7785,6 +7862,9 @@ class RustMeshAuthoringSession:
     recovered_edits_at: float = 0.0
     #: The shadow session's revision when the editor opened (-1: not known yet).
     shadow_base_revision: int = -1
+    #: The shadow's (revision, layer revision, morph revision) when the editor
+    #: opened, or None; read without the session lock (has_unfinished_changes).
+    shadow_base_marks: tuple[int, int, int] | None = None
     #: Why unfinished edits that exist were not restored ("" when none were lost).
     recovery_problem: str = ""
     #: The user chose Discard for this session: its close ends the recovery point.
@@ -8052,6 +8132,7 @@ class RustMeshAuthoringSession:
             try:
                 instance.shadow_base_revision = int(
                     instance.shadow_service.session_view(instance.shadow_session_id).revision)
+                instance.shadow_base_marks = instance._shadow_marks()
             except Exception:
                 instance.shadow_base_revision = -1
             report("Preparing Mesh Editor files...")
@@ -8894,6 +8975,9 @@ class RustMeshAuthoringSession:
                 lambda: stop_event is not None and stop_event.is_set(),
             )
             material_contract = preview_core_material_contract(prepared_material_mesh)
+            # Both routes count: a set's pieces and Browse's native materials reach
+            # the editor as Preview Core layers, with no DDS payload of their own.
+            coverage = _session_texture_coverage(prepared_material_mesh, textures, material_graph)
             # Where an open's time goes (P4 V3), recorded with the launch.
             self.open_stage_ms.update(
                 texture_payloads_ms=round((textures_done - stage_started) * 1000.0, 1),
@@ -8920,9 +9004,11 @@ class RustMeshAuthoringSession:
         if self.shadow_service._session(self.shadow_session_id).archive_refit_context is not None:
             from cdmw.services.mesh_archive_refit import archive_refit_material_warning
             material_warning = archive_refit_material_warning(mesh)
+        self.texture_coverage = coverage
+        self.active_material_key = str(material_key)
         if material_warning:
             self.texture_unavailable_reason = material_warning
-        elif textures:
+        elif textures or self.texture_coverage["textured_part_count"]:
             self.texture_unavailable_reason = ""
         elif not self.texture_unavailable_reason:
             self.texture_unavailable_reason = (
@@ -8951,9 +9037,10 @@ class RustMeshAuthoringSession:
             "preview_core_material_graph": material_graph,
             "material_contract": material_contract,
             "texture_status": {
-                "available": bool(textures),
+                "available": bool(textures or coverage["textured_part_count"]),
                 "resource_count": len(textures),
                 "reason": self.texture_unavailable_reason,
+                "coverage": coverage,
                 "material_synthesis": {
                     "attempted": material_synthesis.attempted,
                     "generated_binding_count": (
@@ -9020,11 +9107,17 @@ class RustMeshAuthoringSession:
             manifest["preview_core_material_graph"] = active_materials.get("preview_core_material_graph")
             manifest["material_contract"] = active_materials.get("material_contract", {})
             self.texture_resource_count = len(active_materials["textures"])
-            self.texture_unavailable_reason = active_materials["reason"]
+            self.active_material_key = str(material_key)
+            self.texture_coverage = _session_texture_coverage(
+                mesh, active_materials["textures"], active_materials.get("preview_core_material_graph"))
+            self.texture_unavailable_reason = material_warning or (
+                "" if self.texture_coverage["textured_part_count"] else active_materials["reason"]
+            )
             manifest["texture_status"].update(
-                available=bool(self.texture_resource_count),
+                available=bool(self.texture_coverage["textured_part_count"]),
                 resource_count=self.texture_resource_count,
                 reason=self.texture_unavailable_reason,
+                coverage=self.texture_coverage,
             )
         _atomic_write_payload(
             self.root,
@@ -9269,6 +9362,8 @@ class RustMeshAuthoringSession:
                 material_key = "base"
         if material_key in self.archive_refit_material_references:
             state["archive_refit_materials"] = {"key": material_key, "file": self.archive_refit_material_references[material_key]}
+        if material_key in self.archive_refit_material_cache:
+            self.active_material_key = str(material_key)  # what live_texture_coverage reads
         try:
             from cdmw.services.mesh_rust_rig import cached_skeleton_summary, cached_selected_bone_influence
             with shadow_session.export_lock:
@@ -10653,6 +10748,44 @@ class RustMeshAuthoringSession:
                 return max(steps, 1)  # unreadable: count it, so nothing is closed unasked
             steps += max(0, current - self.shadow_base_revision)
         return steps
+
+    def _shadow_marks(self) -> tuple[int, int, int]:
+        shadow = self.shadow_service._session(self.shadow_session_id)
+        return int(shadow.revision), int(shadow.geometry_layer_revision), int(shadow.morph_session_revision)
+
+    def has_unfinished_changes(self) -> bool:
+        """Whether this editor holds a change no Finish has taken yet (the tab's ``*``).
+
+        Opening the editor, its set preparation and its seeded layers are not
+        changes: they happen before the marks are taken. A step moves the shadow's
+        revision; a layer rename, visibility or activation only its layer revision;
+        a Morph & Refit slider, definition or preset change its morph revision.
+        Read without the session lock, which a worker holds through a native job,
+        since every tab label asks this (see adcf12455).
+        """
+
+        if self._finish_accepted or self.closed:
+            return False
+        if self.recovered_edits_at > 0.0:
+            return True  # restored from a recovery point: not finished yet
+        if self.shadow_base_marks is None:
+            return False
+        try:
+            return self._shadow_marks() != self.shadow_base_marks
+        except Exception:
+            return True  # unreadable: mark it, as unfinished_steps counts it
+
+    def live_texture_coverage(self, parts: Sequence[object], lod_index: int = 0) -> dict[str, object]:
+        """rust_texture_coverage of ``parts`` from the materials the editor draws now.
+
+        A set's Load Archive, a replacement or Undo across them changes which
+        materials the editor draws; the coverage written at open would be stale.
+        """
+
+        payload = self.archive_refit_material_cache.get(self.active_material_key) or {}
+        return rust_texture_coverage(
+            parts, payload.get("textures", ()) or (), payload.get("preview_core_material_graph"), lod_index,
+        )
 
     def holds_recovery_point(self) -> bool:
         """Whether unfinished edits of this editor are kept on disk for a crash."""

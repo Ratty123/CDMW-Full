@@ -7951,6 +7951,7 @@
     "Mesh Editor is preparing its renderer and textures...": "L’editor mesh sta preparando il renderer e le texture...",
     "Mesh Editor is ready.": "Editor di mesh è pronto.",
     "Mesh Editor is ready. Changes remain isolated until Finish Edit Mesh.": "Editor di mesh è pronto. Le modifiche restano isolate fino al completamento della modifica mesh.",
+    "Mesh Editor is ready. {value_0} of {value_1} parts have no readable textures and use an untextured neutral surface: {value_2}": "Editor di mesh è pronto. {value_0} parti su {value_1} non hanno texture leggibili e usano una superficie neutra senza texture: {value_2}",
     "Mesh Editor is ready. {value_0} of {value_1} parts use simplified materials to stay within the 768 MiB texture limit.": "Editor di mesh è pronto. {value_0} parti su {value_1} usano materiali semplificati per restare entro il limite di texture di 768 MiB.",
     "Mesh Editor is still open for this model. Choose Finish and return to Create New Item there.": "L’Editor di mesh è ancora aperto per questo modello. Scegli lì «Termina e torna a Crea nuovo oggetto».",
     "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable.": "Editor di mesh si sta sincronizzando con il renderer. La modifica è temporaneamente non disponibile.",

@@ -154,7 +154,6 @@ def stage_archive_refit_materials(authoring, mesh, context, stop_event):
     candidate = {
         "key": context.context_id, "textures": textures,
         "material_presentations": [*retained["material_presentations"], *added_presentations],
-        "reason": "" if textures else "No readable archive preview textures were resolved for these meshes.",
     }
     from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
     from cdmw.services.mesh_preview_material_source import preview_core_material_contract
@@ -169,6 +168,11 @@ def stage_archive_refit_materials(authoring, mesh, context, stop_event):
         authoring.root, mesh, [*textures, *retained_layers], candidate["material_presentations"], "full", authoring.root_identity,
         lambda: stop_event is not None and stop_event.is_set())
     candidate["material_contract"] = preview_core_material_contract(mesh)
+    # Preview Core layers texture a part as much as a DDS payload does.
+    from cdmw.services.mesh_rust_authoring import rust_texture_coverage
+    covered = rust_texture_coverage(mesh.submeshes, textures, candidate["preview_core_material_graph"])
+    candidate["reason"] = ("" if textures or covered["textured_part_count"]
+                           else "No readable archive preview textures were resolved for these meshes.")
     pending = {key: payload for key, payload in {
         **authoring.archive_refit_material_cache, context.context_id: candidate,
     }.items() if key not in authoring.archive_refit_material_references}
