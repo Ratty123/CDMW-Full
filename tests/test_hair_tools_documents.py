@@ -93,6 +93,11 @@ def _document(settings: QSettings, parent: QWidget | None) -> MeshEditorTab:
     # No native stroke dispatcher and no texture resolution worker: neither is under test.
     document._ensure_standalone_live_stroke_dispatcher = lambda: None
     document._start_archive_material_context_resolution = lambda *_args: False
+    # No helper process either. Off the offscreen platform an open checks for the built
+    # helper and launches it; in a built tree that starts a real editor, which then runs
+    # for as long as the document is open.
+    document._rust_open_preflight_reason = lambda: ""
+    document._start_selected_mesh_editor = lambda _controller: None
     return document
 
 
