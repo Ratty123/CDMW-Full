@@ -471,6 +471,10 @@ pub enum HostEvent {
     /// Select these whole parts, as a click on their rows in the Parts list does
     /// (CDMW's automated test runs use it to edit two files of a set).
     SelectParts(Vec<u32>),
+    /// Light this whole part up in the 3D view, as pointing at its row in the Parts
+    /// list does; `None` ends it. CDMW's Textures panel sends it while the pointer is
+    /// over a part's row or one of its textures. The selection is not touched.
+    HighlightPart(Option<u32>),
     /// Send one of the CDMW commands a panel button sends, as that button does
     /// (`cdmw_command`). Only the commands of `host_cdmw_command` are taken:
     /// CDMW's automated test runs drive Import Replacement and Export Mesh File.
@@ -510,6 +514,9 @@ pub enum HostEvent {
     Cancel(String),
     Fatal(String),
 }
+
+/// Hello capability: the helper takes `highlight_part` (`HostEvent::HighlightPart`).
+pub const HOST_HIGHLIGHT_PART_CAPABILITY: &str = "host_highlight_part_v1";
 
 /// Hello capability: the helper takes `cdmw_command` (`HostEvent::CdmwCommand`).
 pub const HOST_CDMW_COMMAND_CAPABILITY: &str = "host_cdmw_command_v1";
@@ -1124,6 +1131,7 @@ impl CdmwBridge {
                 "empty_authoring_parts_v1",
                 "control_contract_v2",
                 HOST_CDMW_COMMAND_CAPABILITY,
+                HOST_HIGHLIGHT_PART_CAPABILITY,
                 translation_transfer::CAPABILITY
             ]
         }))
@@ -1971,6 +1979,18 @@ impl CdmwBridge {
                     .ok_or_else(|| {
                         SessionError::Protocol("select_parts needs part numbers".to_owned())
                     }),
+                "highlight_part" => match value.get("index") {
+                    None | Some(Value::Null) => Ok(HostEvent::HighlightPart(None)),
+                    Some(index) => index
+                        .as_u64()
+                        .and_then(|index| u32::try_from(index).ok())
+                        .map(|index| HostEvent::HighlightPart(Some(index)))
+                        .ok_or_else(|| {
+                            SessionError::Protocol(
+                                "highlight_part needs a part number or null".to_owned(),
+                            )
+                        }),
+                },
                 "hair_preset" => {
                     let preset = value.get("preset").and_then(Value::as_str).unwrap_or("");
                     if !matches!(preset, "cropped" | "bob" | "long" | "ponytail" | "empty") {
