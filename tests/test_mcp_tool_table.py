@@ -87,7 +87,7 @@ def test_a_listing_carries_the_class_as_mcp_hints_and_pages_get_their_arguments(
 
 
 def test_every_registry_command_becomes_an_argument_free_tool_of_its_own_class(app, monkeypatch) -> None:
-    # The mechanism; command tools are listed once the control branch switches them on.
+    # The mechanism, when switched on.
     monkeypatch.setattr(mcp_tools, "COMMAND_TOOLS_BUILT", True)
     registry = CommandRegistry()
     registry.register(Command("shell.look", "Look", "shell", lambda: None, effect=READ))
@@ -99,9 +99,12 @@ def test_every_registry_command_becomes_an_argument_free_tool_of_its_own_class(a
     assert set(tools) == {"shell.look", "shell.change"}
     assert tools["shell.look"].effect == READ and tools["shell.look"].built
     assert tools["shell.look"].input_schema == EMPTY_SCHEMA and tools["shell.look"].wire == "shell_look"
-    # Edit commands are tools of class edit, not built in this part of stage C.
-    assert tools["shell.change"].effect == EDIT and not tools["shell.change"].built
-    assert [tool.name for tool in table.built()] == ["search.example", "shell.look"]
+    # An edit command is a tool of class edit: it asks before it runs.
+    assert tools["shell.change"].effect == EDIT and tools["shell.change"].built
+    assert [tool.name for tool in table.built()] == ["search.example", "shell.look", "shell.change"]
+    # Left off, commands are not listed one tool each: app.run_command runs them by id.
+    monkeypatch.setattr(mcp_tools, "COMMAND_TOOLS_BUILT", False)
+    assert [tool.name for tool in table.built()] == ["search.example"]
     assert table.find("shell_look").name == table.find("shell.look").name == "shell.look"
     assert table.find("shell_nothing") is None
 

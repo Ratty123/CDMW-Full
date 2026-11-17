@@ -51,12 +51,20 @@ def test_every_built_tool_covers_a_capability_and_every_named_tool_exists() -> N
     for row in document["capabilities"]:
         if "tool" in row:
             assert row["class"] == built[row["tool"]].effect, row
+        # The generic tools that reach a gap meanwhile exist too.
+        assert set(row.get("also", ())) <= set(built), row
 
 
-def test_every_edit_destructive_and_output_capability_is_a_gap_today() -> None:
+def test_nothing_that_changes_writes_or_deletes_is_covered_by_a_tool_that_does_not_ask() -> None:
+    built = {tool.name: tool for tool in ToolTable(typed_tools()).typed()}
     for row in load_coverage()["capabilities"]:
-        if row["class"] != "read":
-            assert row.get("gap") in ("not_built", "needs_pointer", "writes_into_game"), row
+        if row["class"] != "read" and "tool" in row:
+            assert built[row["tool"]].effect == row["class"] != "read", row
+    document = load_coverage()
+    for row in [*document["commands"].values(), *document["command_patterns"]]:
+        if "tool" in row:
+            # A command runs with its own class, worked out for each call.
+            assert built[row["tool"]].effect_of is not None, row
 
 
 def test_nothing_that_writes_into_the_game_has_a_tool() -> None:
@@ -130,8 +138,7 @@ def test_every_registry_command_has_a_row_and_no_row_names_a_missing_command(app
     for command_id, command in commands.items():
         row = command_row(command_id)
         if "tool" in row:
-            assert row["tool"] == command_id, row
-            assert command.effect == "read", f"{command_id} is covered by a tool but is not a read command"
+            assert row["tool"] == "app.run_command", row
         if "class" in row and "prefix" not in row:
             # The row's class is the one its approval will ask for: the command's own.
             assert row["class"] == command.effect, f"{command_id}: row says {row['class']}, command {command.effect}"

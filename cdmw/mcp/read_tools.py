@@ -82,7 +82,7 @@ def _normal(path: str) -> str:
 # ----- commands ---------------------------------------------------------------------
 def _commands_list(call) -> dict[str, object]:
     from cdmw.mcp.classification import USER_ONLY_COMMANDS
-    from cdmw.mcp.tools import command_tool
+    from cdmw.mcp.control_tools import command_effect
 
     registry = call.context.command_registry()
     if registry is None:
@@ -97,13 +97,13 @@ def _commands_list(call) -> dict[str, object]:
         if query and query not in command.label.casefold() and query not in command.id.casefold():
             continue
         reason = registry.reason(command.id)
-        tool = None if command.id in USER_ONLY_COMMANDS else command_tool(command)
         bound = keymap.get(command.id)
         rows.append({"id": command.id, "label": command.label, "context": command.context,
                      "keys": list(bound.keys if bound is not None else command.keys),
                      "default_keys": list(bound.defaults if bound is not None else command.keys),
-                     "effect": command.effect, "available": not reason, "reason": reason,
-                     "tool": tool.wire if tool is not None and tool.built else None})
+                     "effect": command_effect(command), "available": not reason, "reason": reason,
+                     # Only the user runs a command that could change the AI settings or the game.
+                     "tool": None if command.id in USER_ONLY_COMMANDS else "app_run_command"})
     return {"commands": rows}
 
 
@@ -568,7 +568,8 @@ def read_tools() -> list[Tool]:
         tool("commands.list", "Commands",
              "Every command of the interface with its id, label, context, keys (as Settings > Shortcuts has them "
              "now, and the defaults) and class, whether it can run now "
-             "and, when not, the interface's reason. 'tool' names the AI tool that runs it, when one is built.",
+             "and, when not, the interface's reason. Run one with app_run_command and its id; 'tool' is empty "
+             "for the few only the user may run.",
              {"context": {"type": "string", "enum": ["", *_contexts()]}, "query": _TEXT}, [], _commands_list,
              "registry:CommandRegistry.commands", paged="commands", runs_on=ON_UI),
         tool("search.archive", "Search archives",

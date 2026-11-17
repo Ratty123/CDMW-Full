@@ -148,7 +148,8 @@ def _textures(call) -> dict[str, object]:
     for group in texture_rows_from_manifest(manifest, session_root=root):
         parts.append({
             "part_index": group.part_index, "part": group.part_name, "source_file": group.source_file,
-            "textures": [{"role": row.role, "role_label": texture_role_label(row.role), "game_path": row.game_path,
+            "textures": [{"texture_id": row.texture_id, "role": row.role,
+                          "role_label": texture_role_label(row.role), "game_path": row.game_path,
                           "file_name": row.file_name, "shared": row.shared,
                           # A colour CDMW made from several files: no game file of its own.
                           "not_one_file": made_from_several_files(row),

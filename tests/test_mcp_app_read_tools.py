@@ -108,6 +108,8 @@ def test_textures_are_the_panels_rows_for_the_shown_tab_without_the_panel(app, t
         (0, "Chest", "upper.pac"), (1, "Arms", "arms.pac")]
     chest = result["parts"][0]["textures"]
     base = next(row for row in chest if row["role"] == "base_color")
+    # texture_id is what textures_open takes.
+    assert base.pop("texture_id")
     assert base == {"role": "base_color", "role_label": "Base colour",
                     "game_path": "character/texture/cd_armor_01_d.dds", "file_name": "cd_armor_01_d.dds",
                     "shared": True, "not_one_file": False, "made_from": [],
