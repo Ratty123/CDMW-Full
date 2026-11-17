@@ -109,6 +109,34 @@ def test_p17_hair_tools_find_each_characters_head_and_base_body(game):
         assert sorted(nude) == sorted(bodies), (profile.name, sorted(set(nude) - set(bodies))[:5])
 
 
+def test_hair_tools_read_each_characters_barber_list(game):
+    """Hair Tools' setup reads every playable character's barber list and finds hairstyles to open.
+
+    The November 2026 update (1.0.0.3663 era files of 13 November) left the hair slot without
+    `Default`, gave hidden hairstyles (`ShowInGame="False"`) no `IconPath` and spelt two of
+    Damiane's names in mixed case; the reader refused all three tables and no hairstyle loaded.
+    On that build: Kliff 11 listed, Damiane 78 (10 offered by the barber), Oongka 10.
+    """
+
+    from cdmw.domain.hair_characters import HAIR_CHARACTERS
+    from cdmw.domain.hair_registration import icon_donor_for, read_hair_choices
+
+    for profile in HAIR_CHARACTERS:
+        choices = read_hair_choices(game.read(profile.mesh_param_path))
+        usable = [choice for choice in choices if choice.usable]
+        offered = [choice for choice in usable if choice.shown_in_game]
+        assert len(offered) >= 8, (profile.name, len(choices), len(usable), len(offered))
+        # A new kind of set would show up here as unusable: look at its reason before raising the floor.
+        assert len(usable) == len(choices), (profile.name, [c.problem for c in choices if not c.usable][:3])
+        # Every hairstyle the barber offers has its mesh and its icon in the game's files.
+        for choice in offered:
+            assert profile.hair_root + choice.prefab_stem + ".pac" in game.by_path, (profile.name, choice)
+            assert choice.icon_path.lower() in game.by_path, (profile.name, choice)
+        # Build Mod can give any hairstyle's copy an icon the game ships.
+        for choice in usable:
+            assert icon_donor_for(choices, choice.index).lower() in game.by_path, (profile.name, choice)
+
+
 def test_p17_attachment_preview_finds_its_preferred_base_bodies(game):
     """Archive Browser's attachment preview finds a preferred body per family.
 
