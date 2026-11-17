@@ -338,7 +338,7 @@ def test_scan_start_and_cancel_use_refresh_and_its_cancel_text() -> None:
 # ----- 5. closing during a job --------------------------------------------------------------
 
 
-def test_close_during_job_reports_the_app_s_processes_and_closes_without_a_question(monkeypatch) -> None:
+def test_close_during_job_reports_the_app_s_processes_and_closes_without_a_question(monkeypatch, profile) -> None:
     import cdmw.core.common as common
     from cdmw.ui.mesh_editor.live_edit import end_edit_prompt
 
@@ -349,8 +349,18 @@ def test_close_during_job_reports_the_app_s_processes_and_closes_without_a_quest
     window.archive = SimpleNamespace(archive_remote_query_pending=True, archive_game_fingerprint_task=None,
                                      archive_refresh_scan_button=None)
     window.shell = SimpleNamespace(mesh_editor_tab=None)
+    recorded: list[str] = []
+    window._record_runtime_event = lambda event, **_fields: recorded.append(event)
+    close_log = profile / "logs" / "close.jsonl"
     try:
-        reply = review_commands.close_during_job(window, {})
+        reply = review_commands.close_during_job(window, {"close_log": str(close_log)})
+        assert reply["close_log"] == str(close_log.resolve())
+        window._record_runtime_event("close_waiting_for_workers", workers=("archive_preview_thread",))
+        window._record_runtime_event("archive_preview_request")
+        assert recorded == ["close_waiting_for_workers", "archive_preview_request"]
+        lines = [json.loads(line) for line in close_log.read_text(encoding="utf-8").splitlines()]
+        assert [line["event"] for line in lines] == ["close_waiting_for_workers"]
+        assert lines[0]["workers"] == ["archive_preview_thread"]
         assert reply["pids"] == [os.getpid(), 4242] and reply["running"] == {"build_mod": False, "scan": True}
         assert window.isVisible()  # closed from the event loop, after the reply
         _pump(lambda: not window.isVisible())
@@ -402,6 +412,99 @@ def test_new_item_commands_search_pick_and_read_the_preview() -> None:
         holder.deleteLater()
 
 
+class _HostController(QObject):
+    state_changed = Signal(str, str)
+    protocol_event = Signal(object)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._visible = False
+        self._renderer_ready = True
+        self._package_generation = 2
+        self._applied_package_generation = 1
+        self.desired_package_path = "C:/cache/materials"
+        self.applied_package_path = "C:/cache/geometry"
+        self.process = None
+
+
+def test_new_item_state_says_where_the_preview_viewport_is_and_what_it_last_said() -> None:
+    from PySide6.QtCore import Qt
+
+    workflow = QWidget()
+    workflow.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    page = QWidget()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    host = QWidget(workflow)
+    host.controller = _HostController()
+    preview = _Preview()
+    preview.host = host
+    preview._loaded_stage = "geometry"
+    panel = SimpleNamespace(filter_edit=QLineEdit(workflow), matches=QTreeWidget(workflow), _match_options=())
+    tab = QWidget(page)
+    tab.workflow = SimpleNamespace(template_panel=panel, model_panel=SimpleNamespace(preview=preview))
+    tab.controller = SimpleNamespace(ready=True, busy=False)
+    tab._portals = SimpleNamespace(_attached={})
+    window = SimpleNamespace(shell=SimpleNamespace(new_item_studio_tab=tab))
+    workflow.show()
+    try:
+        review_commands.new_item_state(window, {})
+        host.controller.state_changed.emit("inactive", "Preview paused while hidden.")
+        state = review_commands.new_item_state(window, {})["preview_host"]
+        assert state["host"] and state["visible"] and state["parent"] == "QWidget"
+        assert not state["window_on_screen"] and not state["portal_attached"]
+        controller = state["controller"]
+        assert not controller["visible"] and controller["renderer_ready"]
+        assert controller["package_generation"] == 2 and controller["applied_package_generation"] == 1
+        assert controller["desired_package"] == "materials" and controller["applied_package"] == "geometry"
+        assert [entry[1:] for entry in controller["states"]] == [["inactive", "Preview paused while hidden."]]
+        assert controller["first_states"] == controller["states"] and controller["events"] == []
+        tab._portals._attached = {"viewport": (host, workflow, None, 0)}
+        assert review_commands.new_item_state(window, {})["preview_host"]["portal_attached"]
+        assert review_commands.new_item_state(window, {"measure_publish": True})["publish"] == {"bridge": False}
+        tab._bridge = SimpleNamespace(snapshot=lambda: {"generation": 4, "root": {"kind": "column"}, "assets": {"a": 1}})
+        tab._sent_generation = 4
+        cost = review_commands.new_item_state(window, {"measure_publish": True})["publish"]
+        assert cost["bridge"] and cost["assets"] == 1 and cost["json_bytes"] > 0 and cost["sent_generation"] == 4
+        assert not cost["same_as_last_sent"]
+    finally:
+        workflow.deleteLater()
+        page.deleteLater()
+
+
+def test_new_item_state_records_a_preview_host_from_its_creation() -> None:
+    made: list[QWidget] = []
+
+    def factory(parent):
+        host = QWidget(parent)
+        host.controller = _HostController()
+        made.append(host)
+        return host
+
+    preview = _Preview()
+    preview.host = None
+    preview._host_factory = factory
+    holder = QWidget()
+    panel = SimpleNamespace(filter_edit=QLineEdit(holder), matches=QTreeWidget(holder), _match_options=())
+    tab = QWidget(holder)
+    tab.workflow = SimpleNamespace(template_panel=panel, model_panel=SimpleNamespace(preview=preview))
+    tab.controller = SimpleNamespace(ready=True, busy=False)
+    window = SimpleNamespace(shell=SimpleNamespace(new_item_studio_tab=tab))
+    try:
+        assert review_commands.new_item_state(window, {})["preview_host"] == {"host": False, "host_error": ""}
+        preview.host = preview._host_factory(holder)  # as _ensure_host does
+        controller = preview.host.controller
+        controller.state_changed.emit("preparing", "Preview is preparing the selected model…")
+        controller.protocol_event.emit({"event": "package_load_applied"})
+        controller.protocol_event.emit({"event": "view_state_changed"})
+        controller.state_changed.emit("inactive", "Preview paused while hidden.")
+        shown = review_commands.new_item_state(window, {})["preview_host"]["controller"]
+        assert [entry[1] for entry in shown["first_states"]] == ["preparing", "inactive"]
+        assert [entry[1] for entry in shown["events"]] == ["package_load_applied"]
+        assert made == [preview.host]
+    finally:
+        holder.deleteLater()
+
+
 def test_model_library_and_textures_states(profile) -> None:
     holder = QWidget()
     library = QWidget(holder)
@@ -410,6 +513,9 @@ def test_model_library_and_textures_states(profile) -> None:
     library.results_tree = QTreeWidget(library)
     library.status_label = QLabel("Searching...", library)
     library.results_status_label = QLabel("", library)
+    library._active_results_view = "mirror"
+    library.local_roots = []
+    library.catalogue_db_path = lambda: profile / "catalogue" / "mirror_catalogue.sqlite"
     editor = QWidget(holder)
     editor._task_thread = None
     editor._busy = lambda: False
@@ -430,6 +536,8 @@ def test_model_library_and_textures_states(profile) -> None:
     try:
         state = review_commands.model_library_state(window, {})
         assert state["busy"] and state["status"] == "Searching..." and state["rows"] == 0
+        assert state["view"] == "mirror" and state["local_folders"] == 0
+        assert not state["catalogue_downloaded"] and not state["catalogue_indexed"]
         assert review_commands.textures_open(window, {"path": str(dds)})["bytes"] == 128
         assert opened == [[dds]] and activated == ["editor-tab"]
         shown = review_commands.textures_state(window, {})

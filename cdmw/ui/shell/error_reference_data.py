@@ -10686,7 +10686,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save the folder exclusion: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/scan_lifecycle.py": 80
+      "cdmw/ui/archive_browser/scan_lifecycle.py": 81
     }
   },
   {
@@ -16300,7 +16300,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/ui/archive_browser/controller.py": 530,
       "cdmw/ui/archive_browser/filter_workers.py": 17,
-      "cdmw/ui/archive_browser/scan_lifecycle.py": 140
+      "cdmw/ui/archive_browser/scan_lifecycle.py": 142
     }
   },
   {
@@ -16907,7 +16907,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: archive folder filters could not be loaded from the worker: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_window_bridge.py": 878
+      "cdmw/ui/archive_browser/remote_window_bridge.py": 883
     }
   },
   {
@@ -77141,7 +77141,7 @@ MESSAGE_REFERENCE = [
     "message": "Create New Item is not open yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 706
+      "cdmw/automation/review_commands.py": 884
     }
   },
   {
@@ -90749,7 +90749,7 @@ MESSAGE_REFERENCE = [
     "message": "{source} is not a file.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/review_commands.py": 754
+      "cdmw/automation/review_commands.py": 944
     }
   },
   {
