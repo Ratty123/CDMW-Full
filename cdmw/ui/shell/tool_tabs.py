@@ -187,7 +187,7 @@ class ShellToolTabsMixin:
 
         return MeshDocumentsView(self._build_mesh_editor_document)
 
-    def _build_mesh_editor_document(self) -> QWidget:
+    def _build_mesh_editor_document(self, parent: QWidget | None = None) -> QWidget:
         from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
         from cdmw.ui.mesh_editor.tab import MeshEditorTab
 
@@ -231,6 +231,7 @@ class ShellToolTabsMixin:
             get_archive_mutation_service=_archive_mutations,
             get_archive_material_preview_model=_archive_material_preview_model,
             character_context_service=getattr(self.archive, "character_context_service", None),
+            parent=parent,
         )
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(

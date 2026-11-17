@@ -91,7 +91,7 @@ class _SteppedWidget(QWidget):
         return True
 
 
-def test_the_lazy_tab_runs_one_construction_step_per_turn_before_attaching():
+def test_the_lazy_tab_runs_one_construction_step_per_turn_before_publishing():
     _app()
     widget = _SteppedWidget(3)
     container = LazyToolTab(lambda: widget)
@@ -102,7 +102,8 @@ def test_the_lazy_tab_runs_one_construction_step_per_turn_before_attaching():
         for expected_calls in (1, 2, 3):
             assert container._next_load_step == container._continue_requested_construction
             container._run_load_step()
-            assert widget.calls == expected_calls and widget.parentWidget() is None and not created
+            # In its container from the start (see test_lazy_tool_attach_step), not published yet.
+            assert widget.calls == expected_calls and widget.parentWidget() is container and not created
         container._run_load_step()  # the last check finds it complete
         assert container._next_load_step == container._attach_requested_widget
         container._run_load_step()
@@ -140,3 +141,25 @@ def test_shutdown_mid_construction_finishes_and_owns_the_widget():
         assert container.widget_if_created() is widget and widget.parentWidget() is container
     finally:
         container.deleteLater()
+
+
+def test_the_inspector_is_built_inside_the_editor_not_moved_in_at_the_end(tmp_path):
+    """The inspector (right panel) was built on its own over five steps and moved into
+    its scroll area and the splitter in the last one, which restyles all of it: that
+    step took 60 to 92 ms offscreen and held the window thread 107 ms in the warm
+    2026-11-17 review (texture_editor_tab.py:1501)."""
+
+    editor = _editor(tmp_path, build_in_steps=True)
+    try:
+        outside: list[int] = []
+        step = 0
+        while editor.continue_construction():
+            step += 1
+            panel = getattr(editor, "right_panel", None)
+            if panel is not None and not editor.isAncestorOf(panel):
+                outside.append(step)
+        assert outside == [], f"the inspector was built outside the editor in steps {outside}"
+        assert editor.right_scroll.widget() is editor.right_panel
+        assert editor.main_splitter.indexOf(editor.right_scroll) == editor.main_splitter.count() - 1
+    finally:
+        _close(editor)

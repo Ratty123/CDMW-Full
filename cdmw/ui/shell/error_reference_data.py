@@ -45529,7 +45529,7 @@ MESSAGE_REFERENCE = [
     "message": "Expected renderer {RUST_MESH_RENDERER}; received {backend or '<missing>'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 472
+      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 473
     }
   },
   {
@@ -49974,7 +49974,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no active edit session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 846
+      "cdmw/ui/mesh_editor/controller.py": 854
     }
   },
   {
@@ -61000,7 +61000,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview window could not be placed in its viewport (Windows error {code}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview/dotnet_host_protocol.py": 19
+      "cdmw/ui/preview/dotnet_host_protocol.py": 20
     }
   },
   {
@@ -62126,7 +62126,7 @@ MESSAGE_REFERENCE = [
     "message": "Unexpected editing backend",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 475
+      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 476
     }
   },
   {
@@ -62142,7 +62142,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown Mesh Editor action: {key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 858
+      "cdmw/ui/mesh_editor/controller.py": 866
     }
   },
   {
@@ -63298,7 +63298,7 @@ MESSAGE_REFERENCE = [
     "message": "active Mesh Editor result for {result.action} did not include native preview payload; legacy Python preview rebuild is disabled",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 729
+      "cdmw/ui/mesh_editor/controller.py": 737
     }
   },
   {
@@ -63306,7 +63306,7 @@ MESSAGE_REFERENCE = [
     "message": "active native {result.action} result did not include preview payload; Python preview rebuild is disabled",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 683
+      "cdmw/ui/mesh_editor/controller.py": 691
     }
   },
   {
@@ -66853,7 +66853,7 @@ MESSAGE_REFERENCE = [
     "message": "legacy Python preview rebuild is archive-only; active Mesh Editor requires native preview payloads",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 742
+      "cdmw/ui/mesh_editor/controller.py": 750
     }
   },
   {
@@ -69769,7 +69769,7 @@ MESSAGE_REFERENCE = [
     "message": "native selection result did not include selection groups; Python selection rebuild is disabled",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 605
+      "cdmw/ui/mesh_editor/controller.py": 613
     }
   },
   {
@@ -69873,7 +69873,7 @@ MESSAGE_REFERENCE = [
     "message": "native topology result for {result.action} did not include final submesh count",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 627
+      "cdmw/ui/mesh_editor/controller.py": 635
     }
   },
   {
@@ -69881,7 +69881,7 @@ MESSAGE_REFERENCE = [
     "message": "native topology result for {result.action} did not include preview triangle groups; Python preview rebuild is disabled",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 688
+      "cdmw/ui/mesh_editor/controller.py": 696
     }
   },
   {
@@ -69937,7 +69937,7 @@ MESSAGE_REFERENCE = [
     "message": "native vertex update result for {result.action} did not include preview vertex groups; Python vertex preview rebuild is disabled",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 673
+      "cdmw/ui/mesh_editor/controller.py": 681
     }
   },
   {
@@ -69969,7 +69969,7 @@ MESSAGE_REFERENCE = [
     "message": "native {result.action} result did not include preview payload; Python preview rebuild is disabled",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 703
+      "cdmw/ui/mesh_editor/controller.py": 711
     }
   },
   {
@@ -71415,7 +71415,7 @@ MESSAGE_REFERENCE = [
       "cdmw/services/mesh_service_payloads.py": 360,
       "cdmw/services/mesh_service_rebuild.py": 107,
       "cdmw/services/model_library_preview.py": 209,
-      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 61,
+      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 62,
       "cdmw/ui/mesh_editor/tab_rust_process.py": 375,
       "cdmw/ui/preview/dotnet_session.py": 1271,
       "cdmw/ui/preview/engine_channel.py": 99,
@@ -72249,7 +72249,7 @@ MESSAGE_REFERENCE = [
     "message": "status JSON could not be parsed",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 127
+      "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py": 128
     }
   },
   {
@@ -73483,7 +73483,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} is legacy display-shape cleanup and is not available in active Mesh Editor",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/controller.py": 553,
+      "cdmw/ui/mesh_editor/controller.py": 561,
       "cdmw/workers/mesh_editor_workers.py": 246
     }
   },
@@ -109483,6 +109483,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/policy_preview_dialog.py": {},
   "cdmw/ui/preview/__init__.py": {},
+  "cdmw/ui/preview/child_window_mover.py": {},
   "cdmw/ui/preview/dotnet_host.py": {
     "diagnostic_field": 1,
     "raise": 2,

@@ -12,6 +12,7 @@ from cdmw.services.mesh_edit_session_state import MeshEditSessionState
 from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
 from cdmw.ui.shell.settings_bridge import read_bool_setting
 from cdmw.ui.native_window_clipping import ensure_native_host_clipping
+from cdmw.ui.mesh_editor.controller import controller_session_revision
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_dotnet_session_events import (
     MeshEditorDotNetSessionEventMixin,
@@ -436,8 +437,8 @@ class MeshEditorDotNetLifecycleMixin(MeshEditorDotNetSessionEventMixin):
         revision = None
         if controller is not None:
             try:
-                revision = int(controller.session_view().revision)
-            except (AttributeError, RuntimeError, TypeError, ValueError):
+                revision = controller_session_revision(controller)
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                 revision = None
         self._edit_session_transition(
             MeshEditSessionState.EDIT_COMMITTED,
