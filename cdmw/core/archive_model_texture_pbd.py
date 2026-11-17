@@ -29,7 +29,7 @@ def _read_archive_text_entry(
     stop_event: Optional[threading.Event] = None,
 ) -> str:
     data, _decompressed, _note = read_archive_entry_data(entry, stop_event=stop_event)
-    return try_decode_text_like_archive_data(data) or ""
+    return try_decode_text_like_archive_data(data, limit=None) or ""
 
 def _collect_archive_model_pbd_sidecar_texts(
     source_entry: ArchiveEntry,

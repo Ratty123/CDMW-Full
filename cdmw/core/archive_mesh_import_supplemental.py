@@ -259,7 +259,7 @@ def _collect_original_mesh_sidecar_texts(
             )
         except (OSError, RuntimeError, ValueError):
             continue
-        sidecar_text = try_decode_text_like_archive_data(sidecar_data)
+        sidecar_text = try_decode_text_like_archive_data(sidecar_data, limit=None)
         if sidecar_text:
             sidecars.append((sidecar_entry, sidecar_text))
     return tuple(sidecars)
