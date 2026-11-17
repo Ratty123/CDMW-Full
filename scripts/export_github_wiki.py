@@ -12,7 +12,6 @@ from functools import lru_cache
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -24,6 +23,8 @@ from cdmw.ui.localization import _translate_html_text
 from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 from cdmw.ui.shell.about_documentation_en import AboutDocumentationEnglishMixin
 from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
+# Shared with Help > Documentation, which opens these manuals (cdmw/ui/shell/wiki_links.py).
+from cdmw.ui.shell.wiki_links import WIKI, manual_slug, manual_url
 from cdmw.ui.shell.error_reference_guidance import (
     MESSAGE_AREAS, MESSAGE_REFERENCE_INTRO, RECOVERY_GUIDANCE, EXTERNAL_ERROR_GUIDE,
     WIKI_REFERENCE_FILES,
@@ -43,7 +44,6 @@ WIKI_PAGE_LIMIT = 450_000
 #: while a Help edit still has room, instead of at publication with nothing left to trim.
 WIKI_PAGE_BUDGET = 430_000
 
-WIKI = "https://github.com/Ratty123/CDMW-Full/wiki/"
 REPOSITORY = "https://github.com/Ratty123/CDMW-Full"
 WIKI_RAW = "https://raw.githubusercontent.com/wiki/Ratty123/CDMW-Full/"
 PAGE_TOPICS = {
@@ -759,15 +759,6 @@ def build_pages() -> dict[str, str]:
     result["_Sidebar.md"] = "\n\n".join(sidebar) + "\n"
     result["_Footer.md"] = f"[CDMW Full]({REPOSITORY}) · [🌐 Languages]({WIKI}Languages) · `{APP_VERSION}`\n"
     return result
-
-
-def manual_slug(locale: str) -> str:
-    language = next(entry for entry in BUILTIN_LANGUAGES if entry.code == locale)
-    return "Home" if locale == "en" else language.display_name.replace(" ", "-")
-
-
-def manual_url(locale: str, anchor: str = "") -> str:
-    return WIKI + quote(manual_slug(locale), safe="-") + ("#" + anchor if anchor else "")
 
 
 def manual_path(locale: str) -> str:

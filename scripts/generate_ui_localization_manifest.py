@@ -73,6 +73,13 @@ MANUAL_SOURCE_KEYS = frozenset(
         # Settings > Shortcuts: a context name and the conflict line, both translated at run time.
         "Everywhere",
         "Also used by: {names}",
+        # Settings > Shortcuts' table (item 12): the line under it, its tooltips, its menu and
+        # the Restore all defaults question, all set at run time.
+        "Press the new key. Escape cancels.",
+        "Default: {keys}",
+        "Conflicts: {count}",
+        "Record a new key",
+        "Restore the default keys of every command, in every tool?",
         # Item-set preparation forwards these through worker callbacks/signals.
         "Preparing reference meshes...",
         "The archive catalogue changed while preparing the item set.",

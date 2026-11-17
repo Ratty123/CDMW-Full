@@ -109831,6 +109831,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/shell/utility_controller.py": {
     "display": 6
   },
+  "cdmw/ui/shell/wiki_links.py": {},
   "cdmw/ui/shell/window_bootstrap_state.py": {},
   "cdmw/ui/shell/window_runtime_state.py": {},
   "cdmw/ui/shell/workbench.py": {},

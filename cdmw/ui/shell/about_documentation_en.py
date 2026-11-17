@@ -146,7 +146,7 @@ class AboutDocumentationEnglishMixin:
                 "summary": "High-level tour of the app and its main surfaces.",
                 "keywords": "overview about features tools archive create item model icon mesh placement texture retrofit format translations research search settings",
                 "html": """
-                <p>Use the <a href="topic:documentation_index">Documentation Index</a> for the complete reference or search across every topic from the field above.</p>
+                <p>Use the <a href="topic:documentation_index">Documentation Index</a> for the complete reference.</p>
                 <table>
                   <tr><th>Area</th><th>Tools</th></tr>
                   <tr><td>Assets</td><td><a href="topic:new_item_studio">Create New Item</a>, <a href="topic:archive_browser">Archive Browser</a>, <a href="topic:model_library">Model Library</a>, and <a href="topic:icon_creator">Icon Creator</a></td></tr>
@@ -154,6 +154,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
+                <p><b>Help &gt; Documentation</b> opens the online manual on the GitHub Wiki in your browser.</p>
                 <p>Documentation follows the source build it describes. Published releases and development builds can differ; check the release notes when controls or output options differ from your installed version.</p>
                 """,
             },
@@ -1078,13 +1079,14 @@ class AboutDocumentationEnglishMixin:
                   <li>Profiles do not save open archives, active documents, or per-tab project sessions.</li>
                   <li><b>Export Diagnostics</b> includes the same profile payload plus logs, cache summaries, chain analysis, crash context when available, a paste-ready issue summary, README, license, and third-party notices. Reports stay local until you export and share them.</li>
                 </ul>
-                <p>Settings has five pages in its left-hand list: <b>Setup</b>, <b>General</b>, <b>Paths</b>, <b>Performance</b>, and <b>Appearance</b>.</p>
+                <p>Settings has these pages in its left-hand list: <b>Setup</b>, <b>General</b>, <b>Paths</b>, <b>Performance</b>, <b>Appearance</b>, <b>Shortcuts</b>, and <b>AI connections</b>.</p>
                 <ul>
                   <li><b>Settings / Setup</b> holds workspace initialization, external tool discovery, and asset-authoring helper status.</li>
                   <li><b>Settings / General</b> combines archive auto-load, cache preference, last-tab restore, cleanup confirmations, diagnostic context, verbose Archive Browser logging, and direct profile import/export. Archive filters start neutral after launch.</li>
                   <li><b>Settings / Paths</b> holds workflow roots, archive locations, game/package roots, and extraction roots.</li>
                   <li><b>Settings / Performance</b> controls workload presets, archive-list batching/native helper use, optional DDS related-file indexing, preview caches, and Preview package caching.</li>
                   <li><b>Settings / Appearance</b> controls layout, the shared theme, pane-size memory, all 14 built-in app languages plus imported custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults. <b>Preview Settings...</b> opens the existing full preview-settings window and reuses the same live controls and stored values.</li>
+                  <li><b>Settings / Shortcuts</b> lists the keys of every command in every tool, the Mesh Editor's and the Texture Editor's included, in a table with the command, its keys, where it works and what it clashes with. Group it by area, sort by any column, search, or show only conflicts or changed keys. Double-click a key and press the new one to change it in place; Change... also sets a second key. Reset to default restores one command and Restore all defaults restores every command.</li>
                 </ul>
                 <p>Language export writes a JSON file with English keys and translated values. Keep keys unchanged, edit only values, then import the file from Settings / Appearance.</p>
                 """,

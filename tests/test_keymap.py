@@ -90,14 +90,16 @@ def test_the_shortcuts_page_rebinds_resets_and_tells_every_consumer(app, setting
     registry.keymap_changed.connect(lambda: heard.append(1))
     page = ShortcutsPage(registry, settings)
     try:
-        ids = {page.table.item(row, 0).data(Qt.ItemDataRole.UserRole + 1) for row in range(page.table.rowCount())}
+        from cdmw.ui.commands.shortcuts_page import COLUMN_KEYS
+
+        ids = set(page.command_ids())
         assert "shell.about" in ids and "mesh_editor.tool.move" in ids  # editor rows without an editor running
         page.search.setText("about")
-        assert page.table.rowCount() == 1
-        page.table.selectRow(0)
+        assert page.command_ids() == ["shell.about"]
+        assert page.select_command("shell.about")
         page._save("shell.about", ["F1"])
         assert heard == [1] and keymap_store.load_keymap(settings) == {"shell.about": ["F1"]}
-        assert page.table.item(0, 2).text() == "F1"
+        assert page.item_for("shell.about").text(COLUMN_KEYS) == "F1"
         # A key another command holds is named before it is saved.
         page.search.setText("")
         move = next(r for r in page.rows() if r.command_id == "mesh_editor.tool.move")
