@@ -9048,6 +9048,11 @@ fn veil_shader_state() -> Value {
                 {"name": "_screenSpaceDisplacementScale", "label": "Thread width scale", "default": [1.0], "minimum": 0.0, "maximum": 4.0, "integer": false},
                 {"name": "_detailScreenSpaceDisplacementScale", "label": "Lace strength", "default": [0.0], "minimum": 0.0, "maximum": 4.0, "integer": false},
                 {"name": "_dyeingColor", "label": "Veil colour RGB", "default": [1.0, 1.0, 1.0], "minimum": 0.0, "maximum": 1.0, "integer": false}],
+            "extras": [
+                {"name": "veilDetailRepeat", "label": "Lace repeat X / Y", "default": [1.0, 1.0], "minimum": 1.0, "maximum": 255.0},
+                {"name": "veilDetailOffset", "label": "Lace offset X / Y", "default": [0.0, 0.0], "minimum": 0.0, "maximum": 1.0},
+                {"name": "veilDetailRotation", "label": "Lace rotation (degrees)", "default": [0.0], "minimum": -180.0, "maximum": 180.0}
+            ],
             "presets": [{"label": "Wedding veil A", "values": {"_netPitch": [0.334], "_netThread": [0.538], "_glow": [0.443], "_sheen": [0.625]}}]}],
         "parts": [{"index": 1, "id": "b", "name": "Part B", "shader_controls": null,
             "source_shader": "SkinnedMeshTransparency", "shader_options": {"SkinnedMeshTransparency": ""},
@@ -9256,7 +9261,7 @@ fn shader_layout_rebuild_is_an_explicit_choice_sent_with_the_controls() -> TestR
 fn shader_panel_shows_a_layered_veils_values_and_hides_the_rows_it_does_not_read() -> TestResult {
     let shows = |ui: &HeadlessUi, start: &str| ui.output.shapes.iter().any(|shape|
         matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with(start)));
-    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 3000.0));
     let mut state = veil_shader_state();
     state["parts"][0]["preview_warning"] = json!("layered_veil");
     state["parts"][0]["veil_layers"] = json!({"channel": "R", "gain": 1.0, "repeat": [5.667, 5.667], "offset": [0.0, 0.0],
@@ -9273,8 +9278,10 @@ fn shader_panel_shows_a_layered_veils_values_and_hides_the_rows_it_does_not_read
     assert!(shows(&ui, "This net veil uses detail layers"));
     assert!(shows(&ui, "Net spacing"));
     assert!(!shows(&ui, "Thread map scale") && !shows(&ui, "Veil colour RGB"));
-    // The two displacement scales are sliders on a layered veil only.
+    // The two displacement scales and the lace transform are controls on a layered veil only.
     assert!(shows(&ui, "Thread width scale") && shows(&ui, "Lace strength"));
+    assert!(shows(&ui, "Lace repeat X / Y") && shows(&ui, "Lace rotation (degrees)"));
+    assert!(shows(&ui, "Original: 5.667, 5.667") || shows(&ui, "Original: 5.6670, 5.6670"));
     ui.click("Detail layer values (read only)")?;
     ui.settle_layout();
     assert!(shows(&ui, "Detail repeat: 5.67 x 5.67"));
@@ -9284,7 +9291,7 @@ fn shader_panel_shows_a_layered_veils_values_and_hides_the_rows_it_does_not_read
     ui.settle_layout();
     assert!(!shows(&ui, "This net veil uses detail layers"));
     assert!(shows(&ui, "Thread map scale") && shows(&ui, "Veil colour RGB"));
-    assert!(!shows(&ui, "Thread width scale") && !shows(&ui, "Lace strength"));
+    assert!(!shows(&ui, "Thread width scale") && !shows(&ui, "Lace strength") && !shows(&ui, "Lace repeat X / Y"));
 
     // A rewrite to the older layout previews without the detail layers.
     let family = json!({"shader": "SkinnedMeshTransparency", "fields": []});
@@ -9296,6 +9303,13 @@ fn shader_panel_shows_a_layered_veils_values_and_hides_the_rows_it_does_not_read
     let row = json!({"preview_base": {"SkinnedMeshTransparency": base}});
     let kept = crate::cdmw_shader_controls::shader_live_factors(&row, &family, &json!({"shader": "SkinnedMeshTransparency", "values": {}})).unwrap();
     assert_eq!((kept[10], kept[15], kept[16]), (1.732, 1.0, 1.0));
+    // The lace transform previews as the stored bytes: 255 / 8 -> 32, 0.25 -> 64, 90 degrees -> 191.
+    let moved = crate::cdmw_shader_controls::shader_live_factors(&row, &family, &json!({"shader": "SkinnedMeshTransparency",
+        "values": {"veilDetailRepeat": [8.0, 4.0], "veilDetailOffset": [0.5, 0.25], "veilDetailRotation": [90.0]}})).unwrap();
+    for (lane, expected) in [(17, 32.0 / 255.0), (18, 64.0 / 255.0), (19, 128.0 / 255.0), (20, 64.0 / 255.0),
+                             (21, 191.0 / 255.0 * std::f32::consts::TAU - std::f32::consts::PI)] {
+        assert!((moved[lane] - expected).abs() < 1e-5, "lane {lane}: {}", moved[lane]);
+    }
     let rebuilt = crate::cdmw_shader_controls::shader_live_factors(&row, &family,
         &json!({"shader": "SkinnedMeshTransparency", "values": {}, "rebuild": true})).unwrap();
     assert_eq!((rebuilt[10], rebuilt[15], rebuilt[16]), (1.732, 0.0, 0.0));

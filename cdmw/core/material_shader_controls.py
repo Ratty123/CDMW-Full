@@ -7,7 +7,8 @@ from xml.sax.saxutils import escape
 
 from cdmw.core.pac_xml_emission import append_emission_parameter
 from cdmw.core.pac_xml_standard_material import find_material_wrappers
-from cdmw.domain.mesh.shader_controls import (VEIL_LAYER_FIELDS, VEIL_PRE_PATCH_FIELDS, NEW_ITEM_FAMILIES, EYE_COVER, EYE_COVER_TEXTURE_FIELDS,
+from cdmw.domain.mesh.shader_controls import (VEIL_LAYER_FIELDS, VEIL_PRE_PATCH_FIELDS, VEIL_LAYERS_KEY, VEIL_LAYER_TRANSFORMS,
+                                             VEIL_REPEAT, VEIL_OFFSET, VEIL_ROTATION, veil_layer_inputs, veil_transform_bytes, NEW_ITEM_FAMILIES, EYE_COVER, EYE_COVER_TEXTURE_FIELDS,
                                              BLENDED_SHADERS, ShaderControls, family_for, validate_choices)
 
 
@@ -227,6 +228,46 @@ def _write_parameter(block, name, kind, value, item_id, *, static):
     return append_emission_parameter(block, row)
 
 
+# ItemIDs as the game's own veil and crown wrappers carry them.
+_VEIL_TRANSFORM_ITEM_IDS = {"_dyeingTransformProperty0": "2380709743296510", "_dyeingTransformProperty1": "2427310400602110",
+                            "_dyeingTransformProperty3": "3193012944371710", "_dyeingPropertyBlend": "3323518988058622"}
+
+
+def _write_veil_layer_transform(block, parameters, edits, *, layered):
+    """Store an edited lace repeat, offset or rotation in the bytes of the detail channel in use.
+
+    The other bytes of both rows belong to the other channels and are kept. A
+    veil without detail layers does not read these rows, so nothing is added to it.
+    """
+    scale, offset, turn = veil_transform_bytes(edits.get(VEIL_REPEAT), edits.get(VEIL_OFFSET), edits.get(VEIL_ROTATION))
+    if not layered or (scale is None and offset is None and turn is None):
+        return block
+    values = {name: row.get("_value", "") for name, row in parameters.items()}
+    textures = {name: next((child.get("_path", "") for child in row), "") for name, row in parameters.items()}
+    channel = veil_layer_inputs("SkinnedMeshTransparency", values, textures).get(VEIL_LAYERS_KEY, "r")
+
+    def raw(name, default):
+        try:
+            return int(values.get(name, "") or default)
+        except ValueError:
+            return default
+
+    if scale is not None or offset is not None:
+        name = VEIL_LAYER_TRANSFORMS[channel]
+        number = raw(name, 0x0000FFFF)  # Definition default: scale 1, offset 0.
+        if scale is not None:
+            number = (number & 0xFFFF0000) | scale[0] | scale[1] << 8
+        if offset is not None:
+            number = (number & 0x0000FFFF) | offset[0] << 16 | offset[1] << 24
+        block = _write_parameter(block, name, "Byte4", str(number), _VEIL_TRANSFORM_ITEM_IDS[name], static=False)
+    if turn is not None:
+        shift = 8 * "rgb".index(channel)
+        number = (raw("_dyeingPropertyBlend", 0x80808080) & ~(0xFF << shift) & 0xFFFFFFFF) | turn << shift
+        block = _write_parameter(block, "_dyeingPropertyBlend", "Byte4", str(number),
+                                 _VEIL_TRANSFORM_ITEM_IDS["_dyeingPropertyBlend"], static=False)
+    return block
+
+
 def _has_veil_layers(parameters):
     row = parameters.get("_colorBlendingFlag")
     try:
@@ -250,7 +291,13 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
     if controls.shader == "SkinnedMeshTransparency":
         layered = shader == controls.shader and not controls.rebuild and _has_veil_layers(parameters)
         unread = VEIL_PRE_PATCH_FIELDS if layered else VEIL_LAYER_FIELDS
-    for name, numbers in controls.effective_values().items():
+    edits = controls.effective_values()
+    if family.extras:
+        block = _write_veil_layer_transform(block, parameters, edits,
+                                            layered=bool(unread) and unread is VEIL_PRE_PATCH_FIELDS)
+    for name, numbers in edits.items():
+        if name not in fields:
+            continue  # An extra control, written above.
         field = fields[name]
         if name in unread and name not in parameters:
             continue

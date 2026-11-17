@@ -295,3 +295,57 @@ def test_an_archive_part_bound_by_extracted_files_alone_still_gets_its_detail_te
         "_colorBlendingMaskTexture": "C:/cache/11_temp_g.dds", "_detailHeightMaskR": "r.dds", "_detailHeightMaskG": "g.dds",
         "_overlayColorTexture": "C:/cache/22_nonetexture0x40ffffff.dds"})
     assert layers["_cdmwVeilLayers"] == "g" and float(layers["_cdmwVeilOverlayAlpha"]) == pytest.approx(64 / 255)
+
+
+TRANSFORM_ROWS = (
+    '<MaterialParameterByte4 StringItemID="_dyeingTransformProperty0" ItemID="2380709743296510" '
+    '_name="_dyeingTransformProperty0" _value="11565" Index="5"/>'
+    '<MaterialParameterByte4 StringItemID="_dyeingPropertyBlend" ItemID="3323518988058622" '
+    '_name="_dyeingPropertyBlend" _value="2139062016" Index="6"/>')
+LAYERED_WITH_TRANSFORM = LAYERED_VEIL.replace("</Vector></Material>", TRANSFORM_ROWS + "</Vector></Material>")
+
+
+def test_lace_repeat_offset_and_rotation_are_stored_as_the_channels_bytes():
+    from cdmw.domain.mesh.shader_controls import veil_transform_bytes
+
+    # 255 / repeat, offset x 255 and (degrees + 180) / 360 x 255, each one byte.
+    assert veil_transform_bytes((5.667, 2.0), (0.0, 0.25), (-180.0,)) == ((45, 128), (0, 64), 0)
+    assert veil_transform_bytes((64.0, 1.0), None, (180.0,)) == ((4, 255), None, 255)
+    edits = (("veilDetailRepeat", (8.0, 4.0)), ("veilDetailOffset", (0.5, 0.25)), ("veilDetailRotation", (90.0,)))
+    ShaderControls(VEIL, edits).validate()
+    with pytest.raises(ValueError):
+        ShaderControls(VEIL, (("veilDetailRepeat", (0.5, 1.0)),)).validate()
+    with pytest.raises(ValueError):
+        ShaderControls("SkinnedMeshGlass", (("veilDetailRotation", (0.0,)),)).validate()
+
+    edited, _ = rewrite_shader_controls(LAYERED_WITH_TRANSFORM, (("veil", ShaderControls(VEIL, edits)),))
+    _, values, textures = control_material_sources(edited)["veil"]
+    # Scale bytes 32 and 64, offset bytes 128 and 64; the rotation byte of R only (191), G/B/A kept (0x7F7F7F).
+    assert int(values["_dyeingTransformProperty0"]) == 32 | 64 << 8 | 128 << 16 | 64 << 24
+    assert int(values["_dyeingPropertyBlend"]) == 0x7F7F7F00 | 191
+    assert edited.count('StringItemID="_dyeingTransformProperty0"') == 1
+    # The preview of the edit and the readback of the written material agree.
+    live = preview_factors(ShaderControls(VEIL, edits), {**CLOTH_VALUES, **veil_layer_inputs(VEIL, CLOTH_VALUES, CLOTH_TEXTURES)})
+    written = preview_factors(ShaderControls(VEIL), {**values, **veil_layer_inputs(VEIL, values, textures)})
+    assert live[17:22] == pytest.approx(written[17:22])
+    assert live[17:22] == pytest.approx((32 / 255, 64 / 255, 128 / 255, 64 / 255, 191 / 255 * 2 * math.pi - math.pi))
+
+    # One control alone leaves the other bytes as authored.
+    edited, _ = rewrite_shader_controls(LAYERED_WITH_TRANSFORM, (("veil", ShaderControls(VEIL, edits[2:])),))
+    values = control_material_sources(edited)["veil"][1]
+    assert values["_dyeingTransformProperty0"] == "11565" and int(values["_dyeingPropertyBlend"]) == 0x7F7F7F00 | 191
+    # Rows the material lacks are added with the game's ItemIDs, from the definition defaults.
+    edited, _ = rewrite_shader_controls(LAYERED_VEIL, (("veil", ShaderControls(VEIL, edits[:1] + edits[2:])),))
+    values = control_material_sources(edited)["veil"][1]
+    assert int(values["_dyeingTransformProperty0"]) == 32 | 64 << 8
+    assert int(values["_dyeingPropertyBlend"]) == 0x80808000 | 191
+    assert 'StringItemID="_dyeingTransformProperty0" ItemID="2380709743296510"' in edited
+    assert 'StringItemID="_dyeingPropertyBlend" ItemID="3323518988058622"' in edited
+
+
+def test_a_veil_without_detail_layers_gets_no_transform_rows():
+    before = LAYERED_VEIL.replace(texture_row("_detailHeightMaskR", "9", 1, "cd_phw_00_hel_00_0219_disp.dds"), "").replace(
+        '<MaterialParameterUint StringItemID="_colorBlendingFlag" ItemID="11" _name="_colorBlendingFlag" _value="13" Index="2"/>', "")
+    edits = (("veilDetailRepeat", (8.0, 4.0)), ("veilDetailRotation", (90.0,)), ("_netPitch", (0.2,)))
+    edited, _ = rewrite_shader_controls(before, (("veil", ShaderControls(VEIL, edits)),))
+    assert "_dyeing" not in edited and control_material_sources(edited)["veil"][1]["_netPitch"].startswith("0.2")

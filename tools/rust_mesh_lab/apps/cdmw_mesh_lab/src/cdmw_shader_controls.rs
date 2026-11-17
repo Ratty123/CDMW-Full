@@ -55,6 +55,23 @@ pub(crate) fn shader_live_factors(row: &Value, family: &Value, value: &Value) ->
     if value["rebuild"].as_bool() == Some(true) && factors[0] == 11.0 {
         // Rewriting a net veil to the older layout drops its detail layers.
         factors[15..23].fill(0.0);
+    } else if factors[0] == 11.0 && factors[15] > 0.5 {
+        // The lace transform previews as the bytes the host will store:
+        // 255 / repeat, offset x 255 and (degrees + 180) / 360 x 255.
+        let edit = |name: &str, index: usize| value["values"][name][index].as_f64();
+        let byte = |number: f64| number.round().clamp(0.0, 255.0);
+        for index in 0..2 {
+            if let Some(repeat) = edit("veilDetailRepeat", index) {
+                factors[17 + index] = (byte(255.0 / repeat.max(1.0)).max(1.0) / 255.0) as f32;
+            }
+            if let Some(offset) = edit("veilDetailOffset", index) {
+                factors[19 + index] = (byte(offset * 255.0) / 255.0) as f32;
+            }
+        }
+        if let Some(degrees) = edit("veilDetailRotation", 0) {
+            let turn = byte((degrees + 180.0) / 360.0 * 255.0) / 255.0;
+            factors[21] = (turn * std::f64::consts::TAU - std::f64::consts::PI) as f32;
+        }
     }
     Some(factors)
 }
@@ -298,9 +315,15 @@ impl LabApplication {
                                 "Thread map scale and Veil colour are not read by this material, so they are hidden."));
                         });
                     }
-                    for field in family["fields"].as_array().into_iter().flatten() {
+                    // The lace transform of a layered veil: its originals come from the layer state.
+                    let layer_originals = veil_layers.map(|layers| json!({
+                        "veilDetailRepeat": layers["repeat"], "veilDetailOffset": layers["offset"],
+                        "veilDetailRotation": [layers["rotation_degrees"]]}));
+                    let extras = family["extras"].as_array().filter(|_| veil_layers.is_some());
+                    for field in family["fields"].as_array().into_iter().flatten().chain(extras.into_iter().flatten()) {
                         let Some(name) = field["name"].as_str() else { continue; };
-                        let declared = authored.map(|fields| &fields[name]).filter(|numbers| numbers.is_array());
+                        let declared = authored.map(|fields| &fields[name]).filter(|numbers| numbers.is_array())
+                            .or_else(|| layer_originals.as_ref().map(|originals| &originals[name]).filter(|numbers| numbers.is_array()));
                         let original = declared.unwrap_or(&field["default"]).clone();
                         let overridden = value["values"][name].is_array();
                         if veil_field_unread(&shader, name, veil_layers.is_some()) && declared.is_none() {

@@ -34,6 +34,32 @@ class ShaderFamily:
     fields: tuple[ShaderField, ...]
     mask: str = ""
     default_mask: str = ""
+    # Controls that are not one parameter row each and take no preview lane of
+    # their own (see VEIL_LAYER_EXTRAS).
+    extras: tuple[ShaderField, ...] = ()
+
+
+# The detail layer's UV transform of a veil with Ver2 detail layers. The game
+# packs it into two Byte4 rows shared by the three mask channels
+# (_dyeingTransformProperty0/1/3: scale X, scale Y, offset X, offset Y bytes;
+# _dyeingPropertyBlend: one rotation byte per channel), so these controls edit
+# the bytes of the channel in use instead of owning a row each.
+VEIL_REPEAT, VEIL_OFFSET, VEIL_ROTATION = "veilDetailRepeat", "veilDetailOffset", "veilDetailRotation"
+VEIL_LAYER_EXTRAS = (
+    ShaderField(VEIL_REPEAT, "Lace repeat X / Y", (1., 1.), 1, 64),
+    ShaderField(VEIL_OFFSET, "Lace offset X / Y", (0., 0.), 0, 1),
+    ShaderField(VEIL_ROTATION, "Lace rotation (degrees)", (0.,), -180, 180),
+)
+
+
+def veil_transform_bytes(repeat=None, offset=None, rotation=None):
+    """The bytes the game stores for a lace repeat, offset and rotation: the
+    scale byte is 255 / repeat, the offset byte offset x 255 and the rotation
+    byte (degrees + 180) / 360 x 255. None where a control was not edited."""
+    byte = lambda number: min(max(int(round(number)), 0), 255)
+    scale = tuple(max(byte(255.0 / value), 1) for value in repeat) if repeat is not None else None
+    return (scale, tuple(byte(value * 255.0) for value in offset) if offset is not None else None,
+            byte((rotation[0] + 180.0) / 360.0 * 255.0) if rotation is not None else None)
 
 
 FAMILIES = (
@@ -157,7 +183,7 @@ BLENDED_FAMILIES = (
         ShaderField("_screenSpaceDisplacementScale", "Thread width scale", (1.,), 0, 4, item_id="3"),
         ShaderField("_detailScreenSpaceDisplacementScale", "Lace strength", (0.,), 0, 4, item_id="3900249546424318"),
         ShaderField("_dyeingColor", "Veil colour RGB", (1., 1., 1.), 0, 1, "Color", "2595737222250494"),
-    )),
+    ), extras=VEIL_LAYER_EXTRAS),
 )
 BLENDED_FIELD_HELP = {
     "_tintOpacity": "How much of the background the glass hides when seen straight on: 0 clear, 1 solid. Multiplied by base-colour alpha and the glass colour's alpha. Unchecked: retain the authored value, or 0.1.",
@@ -323,7 +349,7 @@ class ShaderControls:
                 or any(name not in slots or not isinstance(digest, str) or len(digest) != 64
                        or any(c not in "0123456789abcdef" for c in digest) for name, digest in self.textures)):
             raise ValueError("Unknown or duplicate replacement texture.")
-        fields = {field.name: field for field in family.fields}
+        fields = {field.name: field for field in (*family.fields, *family.extras)}
         seen = set()
         for name, values in self.values:
             if name not in fields or name in seen:
@@ -382,6 +408,13 @@ def validate_choices(choices, *, glow_parts=(), translucent_parts=(), equipment=
             raise ValueError("World-object shaders require a static object in Mesh Editor; they cannot be applied to New Item equipment.")
 
 
+VEIL_EXTRA_HELP = {
+    VEIL_REPEAT: "How many times the lace texture repeats across the mesh UV, horizontally and vertically. The game stores 255 / repeat as one byte, so the value snaps to what a byte can hold. Unchecked: retain the authored repeat.",
+    VEIL_OFFSET: "Slides the lace texture, as a fraction of the mesh UV. Unchecked: retain the authored offset.",
+    VEIL_ROTATION: "Turns the lace texture about the UV centre. Stored as one byte, in steps of about 1.4 degrees. Unchecked: retain the authored rotation.",
+}
+
+
 def catalogue_payload():
     return [{"shader": f.shader, "label": f.label, "note": f.note,
              "fields": [{"name": p.name, "label": p.label, "default": list(p.default),
@@ -390,6 +423,9 @@ def catalogue_payload():
                          **({"note": GLASS_FIELD_HELP[p.name]} if f in GLASS_FAMILIES else
                             {"note": BLENDED_FIELD_HELP[p.name]} if f in BLENDED_FAMILIES else {})}
                         for p in f.fields],
+             "extras": [{"name": p.name, "label": p.label, "default": list(p.default),
+                         "minimum": p.minimum, "maximum": p.maximum, "note": VEIL_EXTRA_HELP[p.name]}
+                        for p in f.extras],
              "presets": [{"label": label, "values": {name: list(numbers) for name, numbers in values}}
                          for label, values in SHADER_PRESETS.get(f.shader, ())],
              "textures": [{"name": name, "label": label} for name, label in TEXTURE_SLOTS.get(f.shader, ())],
@@ -530,7 +566,7 @@ VEIL_LAYER_FIELDS = ("_screenSpaceDisplacementScale", "_detailScreenSpaceDisplac
 VEIL_PRE_PATCH_FIELDS = ("_uvScale", "_dyeingColor")
 
 
-def veil_layer_factors(authored):
+def veil_layer_factors(authored, edits=None):
     """Lanes 15-22 for the Ver2 veil, or () for the veil before the patch.
 
     The family's own fields come first: 4 pitch, 5 thread, 6 glow, 7 sheen,
@@ -549,7 +585,17 @@ def veil_layer_factors(authored):
     # An absent row takes the shader definition's default: opacity 0, scale 1,
     # offset 0 and rotation 0.5 (byte 128).
     gain = (opacity[index] if opacity else 0.0) * clamp(_authored_number(authored.get(VEIL_LAYER_MASK_KEY), 1.0), 1.0)
-    angle = (rotation[index] if rotation else 128 / 255) * 2.0 * math.pi - math.pi
+    turn = rotation[index] if rotation else 128 / 255
+    # An edited control previews as the bytes the writer will store.
+    edits = edits or {}
+    scale, offset, turned = veil_transform_bytes(edits.get(VEIL_REPEAT), edits.get(VEIL_OFFSET), edits.get(VEIL_ROTATION))
+    if scale is not None:
+        transform = (scale[0] / 255, scale[1] / 255, *transform[2:])
+    if offset is not None:
+        transform = (*transform[:2], offset[0] / 255, offset[1] / 255)
+    if turned is not None:
+        turn = turned / 255
+    angle = turn * 2.0 * math.pi - math.pi
     return (1.0, gain, max(transform[0], 1e-5), max(transform[1], 1e-5), transform[2], transform[3], angle,
             clamp(_authored_number(authored.get(VEIL_OVERLAY_ALPHA_KEY), 1.0), 1.0))
 
@@ -615,7 +661,7 @@ def preview_factors(controls, authored=None):
         colour = family.fields[-1].name
         result.append(_colour_alpha(authored.get(colour)))
     if family.shader == "SkinnedMeshTransparency":
-        result.extend(veil_layer_factors(authored))
+        result.extend(veil_layer_factors(authored, values))
     result.extend([0.] * (32 - len(result)))
     result[30] = float(controls.cutout_mask is not None)
     return tuple(result)
