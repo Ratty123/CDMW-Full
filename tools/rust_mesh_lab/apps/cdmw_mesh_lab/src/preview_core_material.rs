@@ -1566,7 +1566,6 @@ struct RgbLayerChannel {
     opacity: f32,
     mean: f32,
     flags: u32,
-    seed: [f32; 4],
 }
 
 fn linear_pixel(pixels: &[u8], offset: usize) -> [f32; 3] {
@@ -1609,7 +1608,6 @@ fn compose_rgb_layer_base_color(
         opacity: 0.0,
         mean: 1.0,
         flags: 15,
-        seed: [0.0; 4],
     });
     for layer in material.layers.iter().skip(1) {
         let k = channel_index(&layer.mask_channel).min(2);
@@ -1625,7 +1623,7 @@ fn compose_rgb_layer_base_color(
             layer.tint[3],
         ];
         if layer.layer_role == "color_seed" {
-            channels[k].seed = [dye[0], dye[1], dye[2], dye[3] * layer.weight];
+            // `_dyeingColorMask*` is read by no Ver2 shader of the game.
             continue;
         }
         let Some(reference) = layer.diffuse.as_ref() else {
@@ -1691,20 +1689,14 @@ fn compose_rgb_layer_base_color(
             } else {
                 weights.map(|value| value / sum)
             };
-            let mut color = [0.0_f32; 3];
-            for (k, channel) in channels.iter().enumerate() {
-                let c = if let Some(pixels) = channel.pixels.as_deref() {
-                    // The game's dye rule; the opacity byte does not scale colour.
-                    ver2_tint(linear_pixel(pixels, offset), channel.tint)
-                } else if channel.seed[3] > 0.0 {
-                    rgb_layer_dye(base_rgb, channel.seed, base_mean, 1.0)
-                } else {
-                    base_rgb
-                };
-                for (sum, value) in color.iter_mut().zip(c) {
-                    *sum += value * weights[k];
-                }
-            }
+            // The game draws one colour layer per pixel: the largest mask channel.
+            let channel = &channels[ver2_slot(weights)];
+            let mut color = if let Some(pixels) = channel.pixels.as_deref() {
+                // The game's dye rule; the opacity byte does not scale colour.
+                ver2_tint(linear_pixel(pixels, offset), channel.tint)
+            } else {
+                base_rgb
+            };
             // Grime of the layer with the largest mask channel, as on the GPU.
             if let Some((layer, pixels, detail)) = grime[ver2_slot(weights)].as_ref() {
                 let coverage =

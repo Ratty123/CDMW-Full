@@ -298,9 +298,8 @@ fn build(
             sources,
         ));
         if layer.layer_role == "color_seed" {
-            let mut seed = dye(layer.tint);
-            seed[3] *= layer.weight;
-            result.uniform.seeds[k] = seed;
+            // `_dyeingColorMask*` is read by no Ver2 shader of the game: a channel
+            // without a colour layer shows the surface beneath, undyed.
             continue;
         }
         if layer.is_ver2_grime() {
@@ -667,14 +666,15 @@ mod tests {
     fn layered_material_without_base_matches_on_gpu_uniform_and_cpu_fallback() {
         // cd_phm_02_sword_0015 shape: channelled detail layers, one blend
         // mask, no base colour map. Both routes use white beneath the layers,
-        // the normalised mask, and the authored _dyeingGlobalOpacity byte.
+        // draw the layer of the largest mask channel as the game does, and
+        // carry the authored _dyeingGlobalOpacity byte.
         let make = |pixel: [u8; 4]| {
             cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
         };
         let bytes = [
             make([255, 0, 0, 255]),
             make([0, 255, 0, 255]),
-            make([128, 128, 0, 255]),
+            make([100, 150, 0, 255]),
         ];
         let refs = [
             reference(&bytes[0], "red.dds"),
@@ -691,7 +691,13 @@ mod tests {
         let mut green = layer("detail", "g", &refs[1]);
         green.mask = Some(refs[2].clone());
         green.source_parameter = "_detailDiffuseMaskG".into();
-        let value = material(vec![base, red, green]);
+        // A colour seed on the empty blue channel: the game's shader ignores it.
+        let mut seed = layer("color_seed", "b", &refs[2]);
+        seed.diffuse = None;
+        seed.diffuse_declared = false;
+        seed.diffuse_archive_path = String::new();
+        seed.tint = [0.0, 0.0, 1.0, 1.0];
+        let value = material(vec![base, seed, red, green]);
         assert!(eligible(&value));
         let graph = PreviewCoreMaterialGraph {
             schema_version: 1,
@@ -699,7 +705,7 @@ mod tests {
             semantics_version: 10,
             quality: "full".into(),
             resources_included: true,
-            source_edge_count: 4,
+            source_edge_count: 5,
             unique_resource_count: 3,
             copied_resource_count: 3,
             unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
@@ -733,6 +739,7 @@ mod tests {
                 assert_eq!(layers.len(), 1);
                 let uniform = &layers[0].uniform;
                 assert_eq!(uniform.control[0], 1, "one blend mask selects layers");
+                assert_eq!(uniform.seeds, [[0.0; 4]; 3], "colour seeds are not drawn");
                 assert_eq!(uniform.control[3], 1, "missing base samples white");
                 assert_eq!(
                     uniform.layers[0].properties[0], 0.5,
@@ -749,18 +756,10 @@ mod tests {
                     .find(|r| r.role == TextureRole::BaseColor)
                     .expect("composed base colour");
                 let decoded = cdmw_texture::decode_dds_rgba8(&base.bytes, base.role).unwrap();
-                // Half red, half green in linear light, no grey and no first-layer base.
-                let expected = (0.5_f32.powf(1.0 / 2.4) * 1.055 - 0.055) * 255.0;
-                assert!(
-                    (f32::from(decoded.pixels[0]) - expected).abs() <= 3.0,
-                    "{:?}",
-                    &decoded.pixels[..4]
-                );
-                assert!(
-                    (f32::from(decoded.pixels[1]) - expected).abs() <= 3.0,
-                    "{:?}",
-                    &decoded.pixels[..4]
-                );
+                // Green has the largest mask channel (150 over 100): its layer
+                // alone, no mix with red, no grey and no first-layer base.
+                assert!(decoded.pixels[0] <= 3, "{:?}", &decoded.pixels[..4]);
+                assert!(decoded.pixels[1] >= 252, "{:?}", &decoded.pixels[..4]);
                 assert!(decoded.pixels[2] <= 3, "{:?}", &decoded.pixels[..4]);
             }
         }
@@ -1147,7 +1146,10 @@ mod tests {
         let mut value = material(vec![base, detail]);
         assert!(eligible(&value));
         value.layers.push(layer("color_seed", "b", &reference));
-        assert!(eligible(&value), "common colour seeds stay on the GPU");
+        assert!(
+            eligible(&value),
+            "colour seeds do not push a material off the GPU"
+        );
         for role in ["grime", "skin_detail", "cloth_detail", "damage", "layer"] {
             let mut other = value.clone();
             other.layers.push(layer(role, "g", &reference));

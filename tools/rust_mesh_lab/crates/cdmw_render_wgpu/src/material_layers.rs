@@ -42,6 +42,8 @@ pub struct LayerEntryUniform {
 #[derive(Debug, Clone, Copy, Pod, Zeroable, Default)]
 pub struct LayerUniform {
     pub layers: [LayerEntryUniform; 3],
+    /// Reserved. It held `_dyeingColorMask*` colour seeds, which no Ver2 shader
+    /// of the game reads; the layer shader no longer draws them.
     pub seeds: [[f32; 4]; 3],
     pub base_color: [f32; 4],
     /// Mode (1 normalized mask, 2 masked overlays, 3 eye alpha overlays), skin flag, eye flag, reserved.
@@ -67,10 +69,10 @@ pub struct MaterialLayerSet {
 
 impl MaterialLayerSet {
     /// Whether `evaluate_material_layers` leaves the base colour map's colour off the
-    /// surface. Outside the masked-overlay (2) and eye (3) modes each channel's colour is
-    /// its layer when it has one, and the base only where a channel has none; with a
-    /// layer on R, G and B the base colour never shows. Its alpha and the base normal
-    /// map still do.
+    /// surface. Outside the masked-overlay (2) and eye (3) modes a pixel's colour is the
+    /// layer of its largest mask channel, and the base only where that channel has none;
+    /// with a layer on R, G and B the base colour never shows. Its alpha and the base
+    /// normal map still do.
     #[must_use]
     pub fn hides_base_colour(&self) -> bool {
         !matches!(self.uniform.control[0], 2 | 3)
@@ -322,10 +324,5 @@ mod tests {
         set.uniform.control[0] = 1;
         set.uniform.layers[2].properties[2] = 0.0;
         assert!(!set.hides_base_colour(), "channel B shows the base");
-        set.uniform.seeds[2] = [1.0, 0.0, 0.0, 1.0];
-        assert!(
-            !set.hides_base_colour(),
-            "a colour seed dyes the base, which still shows"
-        );
     }
 }

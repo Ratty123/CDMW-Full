@@ -32,11 +32,15 @@ packages carry the corresponding six-float affine to Rust. Transforms are scoped
 to the exact component and material wrapper; old graph-v4 packages retain
 identity sampling when the optional field is absent.
 
-Full preview packages bind up to three RGB detail channels sharing a mask,
-plus colour seeds, directly on the GPU. Authored DDS mips stay compressed; dye uses linear
-luminance measured from a mip no larger than 64 pixels. The shader applies the
-affine, blends normals and reads layer occlusion, roughness and metal directly.
-Colour seeds can supply channels without a detail layer. Technical detail masks
+Full preview packages bind up to three RGB detail channels sharing a mask
+directly on the GPU. Authored DDS mips stay compressed. The shader applies the
+affine and, for the colour-blend (Ver2) families, mixes as the game does: colour
+and normal come from the one layer with the largest mask channel; roughness and
+metal start from layer R times its opacity and move to G and then B by mask
+channel times opacity, each gated by its `_colorBlendingFlag` bits. A channel
+without a layer shows the surface beneath. `_dyeingColorMask*` colour seeds stay
+in the graph but are not drawn there: no Ver2 shader of the game reads them.
+Technical detail masks
 use sequential overlays with authored channel flags and opacity, preserving base
 colour when only normals are enabled. An absent dye has zero strength; an
 explicit white dye remains white. Colour-blend (Ver2) layers take the game's dye

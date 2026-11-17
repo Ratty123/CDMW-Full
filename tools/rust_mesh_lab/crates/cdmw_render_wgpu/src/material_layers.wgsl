@@ -97,6 +97,7 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     var out = LayerSurface(sampled_base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0));
     if (material.flags & MATERIAL_GPU_LAYERS) == 0u { return out; }
     var mask = textureSampleBias(blend_mask, material_sampler, uv, 0.0).rgb;
+    let raw_mask = mask;
     let sum = dot(mask, vec3<f32>(1.0));
     if layer_uniform.control.x == 1u {
         mask = select(mask / max(sum,0.00001), vec3<f32>(1.0,0.0,0.0), sum < 0.00001);
@@ -132,9 +133,18 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     let ur = layer_uv(layer_uniform.layers[0], uv);
     let ug = layer_uv(layer_uniform.layers[1], uv);
     let ub = layer_uv(layer_uniform.layers[2], uv);
-    colors[0] = textureSampleBias(layer_r_color, material_sampler, ur, 0.0).rgb;
-    colors[1] = textureSampleBias(layer_g_color, material_sampler, ug, 0.0).rgb;
-    colors[2] = textureSampleBias(layer_b_color, material_sampler, ub, 0.0).rgb;
+    let texel_r = textureSampleBias(layer_r_color, material_sampler, ur, 0.0);
+    let texel_g = textureSampleBias(layer_g_color, material_sampler, ug, 0.0);
+    let texel_b = textureSampleBias(layer_b_color, material_sampler, ub, 0.0);
+    colors[0] = texel_r.rgb;
+    colors[1] = texel_g.rgb;
+    colors[2] = texel_b.rgb;
+    let alphas = vec3<f32>(texel_r.a, texel_g.a, texel_b.a);
+    // Mode 1 keeps each channel's own surface: the game draws one of them.
+    var layer_colors: array<vec3<f32>,3>;
+    var layer_normals: array<vec3<f32>,3>;
+    var layer_responses: array<vec3<f32>,3>;
+    var response_opacity = vec3<f32>(1.0);
     normals[0] = textureSampleBias(layer_r_normal, material_sampler, ur, 0.0).rgb;
     normals[1] = textureSampleBias(layer_g_normal, material_sampler, ug, 0.0).rgb;
     normals[2] = textureSampleBias(layer_b_normal, material_sampler, ub, 0.0).rgb;
@@ -193,19 +203,36 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
             c = layer_tint(colors[k], layer.dye);
             n = layer_normal(normals[k], layer);
             sp = responses[k];
-        } else if layer_uniform.seeds[k].a > 0.0 {
-            // Color-seed-only channels retain the base's local lightness.
-            c = layer_dye(c, layer_uniform.seeds[k], layer_uniform.base_color.a, 1.0);
         }
-        color += c * mask[k];
-        normal += n * mask[k];
+        if layer.properties.z > 0.5 {
+            // The layer opacity byte, times the texel's alpha when flag bit 0 asks
+            // for it, weighs the layer normal, which needs flag bit 1. The byte
+            // alone weighs the response, which needs flag bit 2.
+            let flags = u32(layer.offset.z);
+            let opacity = clamp(layer.properties.x, 0.0, 1.0);
+            let normal_opacity = opacity * select(1.0, alphas[k], (flags & 1u) != 0u) * select(0.0, 1.0, (flags & 2u) != 0u);
+            n = safe_normalize(mix(vec3<f32>(0.0,0.0,1.0), n, normal_opacity), vec3<f32>(0.0,0.0,1.0));
+            response_opacity[k] = opacity * select(0.0, 1.0, (flags & 4u) != 0u);
+        }
+        layer_colors[k] = c;
+        layer_normals[k] = n;
+        layer_responses[k] = sp;
         orm += sp * mask[k];
     }
     if layer_uniform.control.x == 1u {
-        // Grime belongs to the layer with the largest mask channel, as in the game.
+        // The game draws one colour layer per pixel: the largest mask channel.
+        // Its grime and scratches follow.
         var slot = 2u;
         if mask.r >= mask.g && mask.r >= mask.b { slot = 0u; } else if mask.g >= mask.b { slot = 1u; }
         let layer = layer_uniform.layers[slot];
+        color = layer_colors[slot];
+        normal = layer_normals[slot];
+        // Roughness and metal start from layer R and move to G and B by their
+        // mask channel times opacity, in that order.
+        var response = layer_responses[0].gb * response_opacity.r;
+        response = mix(response, layer_responses[1].gb, clamp(raw_mask.g * response_opacity.g, 0.0, 1.0));
+        response = mix(response, layer_responses[2].gb, clamp(raw_mask.b * response_opacity.b, 0.0, 1.0));
+        orm = vec3<f32>(orm.r, response);
         let weight = grime_weight(layer, detail_texel.g) * step(0.00001, mask[slot]);
         color = mix(color, layer_tint(grime_colors[slot], layer.grime_tint), weight);
         orm = vec3<f32>(orm.r, mix(orm.gb, grime_responses[slot].gb, weight));

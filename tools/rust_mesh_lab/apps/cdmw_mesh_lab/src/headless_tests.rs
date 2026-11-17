@@ -113,29 +113,28 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
         material_indices_by_lod: &ownership,
     }];
     let temporary = tempdir()?;
-    let reference = |r: [f32; 3], g: [f32; 3], weights: [f32; 3]| {
-        let sum = weights.iter().sum::<f32>();
-        let w = if sum < 1e-5 {
-            [1.0, 0.0, 0.0]
-        } else {
-            weights.map(|x| x / sum)
-        };
-        [
-            r[0] * w[0] + g[0] * w[1],
-            r[1] * w[0] + g[1] * w[1],
-            r[2] * w[0] + g[2] * w[1],
-        ]
-    };
     for (name, mode, flags, mask, second, tint, affine, expected) in [
         (
-            "two layers",
+            // One colour layer per pixel, as the game draws: the largest mask
+            // channel. A tie goes to the first.
+            "two layers, red and green tie",
             1,
             15,
             [128, 128, 0, 255],
             true,
             [1.0, 1.0, 1.0, 0.0],
             [0.0; 4],
-            reference([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [128.0, 128.0, 0.0]),
+            [1.0, 0.0, 0.0],
+        ),
+        (
+            "two layers, green largest",
+            1,
+            15,
+            [100, 150, 0, 255],
+            true,
+            [1.0, 1.0, 1.0, 0.0],
+            [0.0; 4],
+            [0.0, 0.0, 1.0],
         ),
         (
             "zero mask",
@@ -182,14 +181,15 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             [0.0, 0.0, 1.0],
         ),
         (
+            // Green is largest and has no layer: the base (green) shows there.
             "absent channel",
             1,
             15,
-            [128, 128, 0, 255],
+            [100, 150, 0, 255],
             false,
             [1.0, 1.0, 1.0, 0.0],
             [0.0; 4],
-            [0.5, 0.5, 0.0],
+            [0.0, 1.0, 0.0],
         ),
         (
             "normal only",
@@ -305,6 +305,76 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             );
         }
     }
+    // Roughness and metal are not picked: they start from layer R times its
+    // opacity and move to G by the green mask channel times G's opacity, when
+    // the layer's flag bit 2 allows its response at all.
+    for (name, opacity_r, flags_g, expected) in [
+        ("response lerp", 1.0_f32, 15.0_f32, [150.4_f32, 99.6]),
+        ("response of G switched off", 1.0, 11.0, [50.0, 200.0]),
+        ("half opacity on R", 0.5, 15.0, [137.9, 49.8]),
+    ] {
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture(&[255, 128, 0, 255], 1, TextureRole::LayerMask)?);
+        layer.textures[1] = Some(source.clone());
+        layer.textures[3] = Some(texture(&[255, 50, 200, 255], 1, TextureRole::Material)?);
+        layer.textures[4] = Some(source.clone());
+        layer.textures[6] = Some(texture(&[255, 250, 0, 255], 1, TextureRole::Material)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            affine: [0.0; 4],
+            offset: [0.25, 0.5, 15.0, 0.0],
+            properties: [opacity_r, 1.0, 1.0, 0.0],
+            ..Default::default()
+        };
+        layer.uniform.layers[1] = LayerEntryUniform {
+            affine: [0.0; 4],
+            offset: [0.75, 0.5, flags_g, 0.0],
+            properties: [1.0, 1.0, 1.0, 0.0],
+            ..Default::default()
+        };
+        let response = temporary.path().join(format!("{name}-response.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &temporary.path().join(format!("{name}-base.bmp")),
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: Some(&response),
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(response)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        assert!(
+            (f32::from(pixel[1]) - expected[0]).abs() <= 3.0,
+            "{name}: roughness {} != {}",
+            pixel[1],
+            expected[0]
+        );
+        assert!(
+            (f32::from(pixel[2]) - expected[1]).abs() <= 3.0,
+            "{name}: metal {} != {}",
+            pixel[2],
+            expected[1]
+        );
+    }
     let mut skin_lit = Vec::new();
     for red in [0, 196] {
         let mut layer = MaterialLayerSet {
@@ -323,7 +393,7 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
         layer.uniform.layers[0] = LayerEntryUniform {
             dye: [0.0; 4],
             affine: [0.0; 4],
-            offset: [0.25, 0.5, 0.0, 0.0],
+            offset: [0.25, 0.5, 15.0, 0.0],
             properties: [1.0, 1.0, 1.0, 0.0],
             ..Default::default()
         };
@@ -459,6 +529,8 @@ fn offscreen_ver2_grime_follows_the_detail_mask_ramp() -> TestResult {
         layer.uniform.layers[0] = LayerEntryUniform {
             dye: [1.0, 1.0, 1.0, 0.0],
             affine: [1.0, 0.0, 0.0, 1.0],
+            // Flags 15: the layer's colour, normal and response all count.
+            offset: [0.0, 0.0, 15.0, 0.0],
             properties: [1.0, 0.2158, 1.0, 0.0],
             grime_affine: [1.0, 0.0, 0.0, 1.0],
             grime_offset: [0.0, 0.0, 147.0 / 255.0, 1.0],
@@ -603,6 +675,8 @@ fn offscreen_ver2_scratch_moves_roughness_and_metal_where_the_detail_mask_marks_
         layer.uniform.layers[0] = LayerEntryUniform {
             dye: [1.0, 1.0, 1.0, 0.0],
             affine: [1.0, 0.0, 0.0, 1.0],
+            // Flags 15: the layer's colour, normal and response all count.
+            offset: [0.0, 0.0, 15.0, 0.0],
             properties: [1.0, 0.2158, 1.0, 0.0],
             scratch: [steps[0], steps[1], 1.0, 0.0],
             scratch_tint: tint,
