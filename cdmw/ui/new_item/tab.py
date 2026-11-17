@@ -1371,6 +1371,9 @@ class NewItemStudioTab(QWidget):
                 pass
         if self._perks_panel is not None:
             workers.extend(self._perks_panel.iter_shutdown_workers())
+        template_panel = getattr(self, "template_panel", None)
+        if template_panel is not None:
+            workers.extend(template_panel.iter_shutdown_workers())
         return tuple(workers)
 
     def request_shutdown(self) -> None:
@@ -1389,6 +1392,9 @@ class NewItemStudioTab(QWidget):
                 pass
         if self._perks_panel is not None:
             self._perks_panel.request_shutdown()
+        template_panel = getattr(self, "template_panel", None)
+        if template_panel is not None:
+            template_panel.request_shutdown()
 
     def shutdown(self) -> None:
         self.request_shutdown()

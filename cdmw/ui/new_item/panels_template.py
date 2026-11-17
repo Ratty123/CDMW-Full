@@ -170,6 +170,15 @@ class TemplatePanel(QGroupBox):
             self._painting_dialog.reload_frames()
         self._painting_dialog.open()
 
+    def iter_shutdown_workers(self):
+        """New painting's 3D view builds, for CDMW's exit."""
+        dialog = self._painting_dialog
+        return tuple(dialog.iter_shutdown_workers()) if dialog is not None else ()
+
+    def request_shutdown(self) -> None:
+        if self._painting_dialog is not None:
+            self._painting_dialog.request_shutdown()
+
     def _refresh_categories(self):
         snapshot = self._controller.snapshot
         with QSignalBlocker(self.category):

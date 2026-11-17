@@ -206,6 +206,9 @@ class PaintingFrame:
     texture_size: Tuple[int, int]
     source: PaintingSourceRow
     shipped_paintings: int
+    #: The canvas seen from the front, in metres from the frame's top left corner:
+    #: (left, top, right, bottom). Empty when it is not known.
+    canvas_box: Tuple[float, ...] = ()
 
     @property
     def stem(self) -> str:
@@ -350,9 +353,23 @@ def discover_painting_frames(source: PaintingSource, *, stop_event: Optional[thr
         low, high = parsed.bbox_min, parsed.bbox_max
         frames.append(PaintingFrame(
             mesh=mesh, size_m=(abs(high[0] - low[0]), abs(high[1] - low[1])), canvas=canvas, texture_size=size,
-            source=replace(chosen, picture_texture=picture), shipped_paintings=len(rows)))
+            source=replace(chosen, picture_texture=picture), shipped_paintings=len(rows),
+            canvas_box=_canvas_box(parsed, canvas.material)))
     frames.sort(key=lambda value: (value.size_m[0] * value.size_m[1], value.mesh))
     return PaintingFrameCatalogue(frames=tuple(frames), left_out=tuple(left_out))
+
+
+def _canvas_box(mesh, material: str) -> Tuple[float, ...]:
+    """Where the canvas sits in the frame seen from the front (x right, y up), from the top left."""
+
+    points = [vertex for submesh in getattr(mesh, "submeshes", ()) if str(submesh.material).strip() == material
+              for vertex in (submesh.vertices or ())]
+    low, high = getattr(mesh, "bbox_min", None), getattr(mesh, "bbox_max", None)
+    if not points or low is None or high is None:
+        return ()
+    xs, ys = [float(point[0]) for point in points], [float(point[1]) for point in points]
+    left, top = min(float(low[0]), float(high[0])), max(float(low[1]), float(high[1]))
+    return (min(xs) - left, top - max(ys), max(xs) - left, top - min(ys))
 
 
 # ----------------------------------------------------------------------------- planning
@@ -772,11 +789,13 @@ def build_painting_mod(snapshot, requests: Sequence[PaintingRequest], folder: Pa
     return PaintingBuild(plan=plan, export=export, paintings=tuple(plan.manifest["paintings"]))
 
 
-def frame_thumbnails(source: PaintingSource, catalogue: PaintingFrameCatalogue, *, size: int = 96,
+def frame_thumbnails(source: PaintingSource, catalogue: PaintingFrameCatalogue, *, size: int = 192,
                      stop_event: Optional[threading.Event] = None) -> Dict[str, bytes]:
     """`{frame mesh: PNG bytes}` of each frame's source painting icon, for the frame list.
 
-    A frame whose icon Pillow cannot decode simply has no thumbnail.
+    The icon is cut to its visible part, so the frame fills the thumbnail instead of
+    sitting small in the icon's empty margin. A frame whose icon Pillow cannot decode
+    simply has no thumbnail.
     """
 
     import io
@@ -792,6 +811,9 @@ def frame_thumbnails(source: PaintingSource, catalogue: PaintingFrameCatalogue, 
                 picture = image.convert("RGBA")
         except (OSError, ValueError, PaintingPlanError):
             continue
+        visible = picture.getchannel("A").point(lambda alpha: 255 if alpha > 8 else 0).getbbox()
+        if visible:
+            picture = picture.crop(visible)
         picture.thumbnail((size, size))
         buffer = io.BytesIO()
         picture.save(buffer, "PNG")
