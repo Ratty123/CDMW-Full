@@ -428,10 +428,15 @@ def run_gui() -> int:
     _persisted_runtime_event_log_path = _runtime_event_log_path
     _persisted_native_diagnostic_log_path = _native_diagnostic_log_path
     _enable_native_fault_log()
+    from cdmw.services.native_crash_dump import install_native_crash_dump
+
+    # faulthandler cannot read a C stack on Windows: a crash also leaves a minidump here.
+    _native_crash_dump_path = install_native_crash_dump(crash_reports_dir)
     _record_runtime_event(
         "session_start",
         crash_reports_dir=str(crash_reports_dir),
         previous_session_unclean=bool(_previous_session_unclean),
+        native_crash_dump=str(_native_crash_dump_path or ""),
     )
     _write_heartbeat("starting")
     _start_hang_watchdog()
