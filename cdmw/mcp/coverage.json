@@ -423,6 +423,12 @@
       "gap": "not_built",
       "class": "read",
       "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+    },
+    "saved_work.combine": {
+      "gap": "not_built",
+      "class": "output",
+      "milestone": "P13 stage C part 2: saved work tools (Combine needs P7's screens)",
+      "note": "Registered by Drafts & Mods when its page is first built (cdmw/ui/mesh_editor/saved_work_commands.py)."
     }
   },
   "command_patterns": [

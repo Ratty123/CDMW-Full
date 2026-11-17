@@ -31,8 +31,9 @@ def combine_command(page) -> Command:
         except RuntimeError:
             return
 
+    # Output: it writes a new mod folder (AI connections ask for that class).
     return Command(COMMAND_ID, LABEL, CONTEXT, run, reason,
-                   keywords=("combine", "merge", "drafts", "mods", "issue 31"))
+                   keywords=("combine", "merge", "drafts", "mods", "issue 31"), effect="output")
 
 
 def install_saved_work_commands(page) -> CommandRegistry | None:
