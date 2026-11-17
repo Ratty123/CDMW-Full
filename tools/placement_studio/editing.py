@@ -140,6 +140,8 @@ class EditSession:
         self._operation_records: Dict[str, EditOperation] = {}
         self._operation_counter = itertools.count(1)
         self._baseline_revision: str = ""
+        #: The undo group commands are recorded into, or 0. See `undo_step`.
+        self._undo_group = 0
         self._replay()
 
     # ── base access ─────────────────────────────────────────────────
@@ -244,16 +246,36 @@ class EditSession:
     def undo(self) -> bool:
         if not self.can_undo:
             return False
+        group = self._commands[self._cursor - 1].undo_group
         self._cursor -= 1
+        while group and self._cursor > 0 and self._commands[self._cursor - 1].undo_group == group:
+            self._cursor -= 1
         self._replay()
         return True
 
     def redo(self) -> bool:
         if not self.can_redo:
             return False
+        group = self._commands[self._cursor].undo_group
         self._cursor += 1
+        while (group and self._cursor < len(self._commands)
+               and self._commands[self._cursor].undo_group == group):
+            self._cursor += 1
         self._replay()
         return True
+
+    @contextmanager
+    def undo_step(self):
+        """Record the edits made inside as one step of undo and redo."""
+
+        if self._undo_group:
+            yield
+            return
+        self._undo_group = max((c.undo_group for c in self._commands), default=0) + 1
+        try:
+            yield
+        finally:
+            self._undo_group = 0
 
     def reset(self) -> None:
         self._commands = []
@@ -272,9 +294,13 @@ class EditSession:
                 scope_kind=active.scope.kind,
                 created_order=active.next_order(),
             )
+        if self._undo_group:
+            command = replace(command, undo_group=self._undo_group)
         # A new edit discards any redo tail, as in every editor.
         self._commands = self._commands[: self._cursor]
-        if self._commands and self._commands[-1].coalesce_key == command.coalesce_key:
+        last = self._commands[-1] if self._commands else None
+        if (last is not None and last.coalesce_key == command.coalesce_key
+                and last.undo_group == command.undo_group):
             self._commands[-1] = command  # a drag is one edit, not one per mouse event
         else:
             self._commands.append(command)

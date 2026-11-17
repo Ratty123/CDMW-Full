@@ -22,6 +22,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -211,7 +212,46 @@ class TaskPanelMixin:
                                  stretch=False))
         form.add("", kit.row(self._turn_over_button, self._revert_button))
         form.add("", kit.row(*self._build_carry_point_actions()))
+        self._back_move_row = kit.row(*self._build_back_move_controls())
+        self._back_move_caption = form.add("On the back", self._back_move_row)
+        form.add_wide(self._back_move_note)
+        self._back_move_caption.setVisible(False)
+        self._back_move_row.setVisible(False)
         return kit.Section("Fine-tune", form)
+
+    def _build_back_move_controls(self):
+        """Move the item in the back's plane by its own point, with the files in step with it."""
+
+        from .back_move import MOVES
+
+        self._back_move_box = QComboBox()
+        # One call each, so the localization scanner reads the labels and not the keys.
+        out, along, across, turn, tip_out = MOVES
+        self._back_move_box.addItem("Out from the back", out)
+        self._back_move_box.addItem("Up the blade", along)
+        self._back_move_box.addItem("Across the blade", across)
+        self._back_move_box.addItem("Turn seen from behind", turn)
+        self._back_move_box.addItem("Tip out", tip_out)
+        self._back_move_box.setToolTip(
+            "Moves the item in the plane it lies in on the back, by changing the point in its "
+            "own file. The body point stays where it is, so spears, hammers and tools that "
+            "share it do not move. Turns are made about the guard.")
+        self._back_move_buttons = []
+        for glyph, sign in (("−", -1.0), ("+", 1.0)):
+            button = QPushButton(glyph)
+            button.setFixedWidth(34)
+            button.setToolTip("One step: the Step distance, or the By angle for a turn.")
+            button.clicked.connect(lambda _checked=False, s=sign: self._move_on_back(s))
+            self._back_move_buttons.append(button)
+        self._back_in_step_box = QCheckBox("With the files in step")
+        self._back_in_step_box.setChecked(True)
+        self._back_in_step_box.setToolTip(
+            "Also move the other files that hang this kind of item the same way, such as the "
+            "sword's sheaths, so they stay together.")
+        self._back_in_step_box.toggled.connect(lambda _on: self._refresh_carry_point_actions())
+        self._back_move_note = _hint("")
+        self._back_move_note.setVisible(False)
+        return (self._back_move_box, *self._back_move_buttons, self._back_in_step_box)
 
     def _build_carry_point_actions(self):
         """Over the other shoulder and Hang like, offered only where they apply."""
@@ -253,6 +293,28 @@ class TaskPanelMixin:
             action.setToolTip(source.socket_file)
             action.triggered.connect(lambda _checked=False, s=source: self._hang_like(s))
         self._hang_like_button.setVisible(bool(sources))
+        self._refresh_back_move()
+
+    def _refresh_back_move(self) -> None:
+        """Offer On the back for an item's own point it hangs from on the back."""
+
+        from .back_move import labels
+
+        target = self._back_move_target()
+        shown = target is not None
+        self._back_move_caption.setVisible(shown)
+        self._back_move_row.setVisible(shown)
+        in_step = target.in_step if target is not None else ()
+        self._back_in_step_box.setEnabled(bool(in_step))
+        note = ""
+        if shown and in_step:
+            names = ", ".join(labels(step.socket_file for step in in_step))
+            if self._back_in_step_box.isChecked():
+                note = translate_active_ui_text(f"Moves these files with it: {names}.")
+            else:
+                note = translate_active_ui_text(f"These files stay as they are: {names}.")
+        self._back_move_note.setText(note)
+        self._back_move_note.setVisible(bool(note))
 
     def _set_mode(self, value: str) -> None:
         position = self._mode_box.findData(value)

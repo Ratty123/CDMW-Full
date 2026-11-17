@@ -40,6 +40,9 @@ class Command:
     equipment_unit_id: str = ""
     scope_kind: str = ""
     created_order: int = 0
+    #: Commands sharing a non-zero group are undone and redone together (`undo_step`): one
+    #: step of On the back writes a point in several files, which must not come apart.
+    undo_group: int = 0
 
     @property
     def coalesce_key(self) -> Tuple[str, str, str, str, str]:

@@ -271,6 +271,16 @@ def build_readme(
             "  applies these patches to whatever copy it has assembled instead of replacing it.",
             "",
         ]
+        from .documents import is_weapon_socket_file
+
+        if any(is_weapon_socket_file(path) for path in patched):
+            lines += [
+                "  An item's own socket file (under weapon/) is patched only where its points",
+                "  change. Another mod that ships a whole copy of the same file (Weapon Carry's",
+                "  2H Sword on Hip parts do, for the 2H sword files) sets every point in it, and",
+                "  which of the two wins in DMM has not been checked. Turn such a part off.",
+                "",
+            ]
 
     if new_paths:
         lines += ["New files (not present in vanilla)", "----------------------------------"]

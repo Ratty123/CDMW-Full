@@ -92221,7 +92221,7 @@ MESSAGE_REFERENCE = [
     "message": "A body socket file needs exactly one SocketList",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 263
+      "tools/placement_studio/dmm_patch.py": 311
     }
   },
   {
@@ -92230,6 +92230,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/paa_motion/edit.py": 438
+    }
+  },
+  {
+    "area": "placement",
+    "message": "A direction of zero length cannot be followed",
+    "recovery": "input",
+    "sources": {
+      "tools/placement_studio/back_move.py": 101
     }
   },
   {
@@ -92245,7 +92253,7 @@ MESSAGE_REFERENCE = [
     "message": "A patch cannot remove sockets ({', '.join(removed)})",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 275
+      "tools/placement_studio/dmm_patch.py": 323
     }
   },
   {
@@ -92254,6 +92262,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/material_replacement_pipeline.py": 548
+    }
+  },
+  {
+    "area": "placement",
+    "message": "A socket was added or removed, which an item's file only takes whole",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/dmm_patch.py": 274
     }
   },
   {
@@ -92461,7 +92477,7 @@ MESSAGE_REFERENCE = [
     "message": "Applying the patch to the game's file does not give the edited file",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 416
+      "tools/placement_studio/dmm_patch.py": 464
     }
   },
   {
@@ -92557,7 +92573,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot apply {command.kind} to {command.game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 739
+      "tools/placement_studio/editing.py": 765
     }
   },
   {
@@ -93145,7 +93161,7 @@ MESSAGE_REFERENCE = [
     "message": "Event {animation}:{event} in {game_path} is not a weapon hand-off",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 832
+      "tools/placement_studio/editing.py": 858
     }
   },
   {
@@ -93346,7 +93362,7 @@ MESSAGE_REFERENCE = [
     "message": "Finish the current edit before preparing a replacement",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 151
+      "tools/placement_studio/editing.py": 153
     }
   },
   {
@@ -94563,7 +94579,7 @@ MESSAGE_REFERENCE = [
     "message": "Mod name must be a valid folder name, without paths or reserved characters.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/packaging.py": 346
+      "tools/placement_studio/packaging.py": 356
     }
   },
   {
@@ -94747,7 +94763,7 @@ MESSAGE_REFERENCE = [
     "message": "No attribute tells the {len(same)} rows named {name} apart, so a patch cannot edit just one of them",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 208
+      "tools/placement_studio/dmm_patch.py": 215
     }
   },
   {
@@ -94795,7 +94811,7 @@ MESSAGE_REFERENCE = [
     "message": "No descriptor row {part_name}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/documents.py": 213
+      "tools/placement_studio/documents.py": 221
     }
   },
   {
@@ -94883,7 +94899,7 @@ MESSAGE_REFERENCE = [
     "message": "No operation selected, so there is nothing to package",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/packaging.py": 653
+      "tools/placement_studio/packaging.py": 663
     }
   },
   {
@@ -94939,7 +94955,7 @@ MESSAGE_REFERENCE = [
     "message": "No socket {name} in {game_path}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 894
+      "tools/placement_studio/editing.py": 920
     }
   },
   {
@@ -95040,6 +95056,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Not a back move: {key}",
+    "recovery": "input",
+    "sources": {
+      "tools/placement_studio/back_move.py": 335
+    }
+  },
+  {
+    "area": "placement",
     "message": "Not a complete motion space",
     "recovery": "input",
     "sources": {
@@ -95051,7 +95075,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a loaded action chart: {command.game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 751
+      "tools/placement_studio/editing.py": 777
     }
   },
   {
@@ -95059,7 +95083,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a loaded action chart: {game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 823
+      "tools/placement_studio/editing.py": 849
     }
   },
   {
@@ -95067,7 +95091,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a loaded file: {command.game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 722
+      "tools/placement_studio/editing.py": 748
     }
   },
   {
@@ -95075,7 +95099,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a package destination: {root}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/packaging.py": 363
+      "tools/placement_studio/packaging.py": 373
     }
   },
   {
@@ -95083,8 +95107,8 @@ MESSAGE_REFERENCE = [
     "message": "Not a routable field: {field_name}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/documents.py": 210,
-      "tools/placement_studio/editing.py": 1019
+      "tools/placement_studio/documents.py": 218,
+      "tools/placement_studio/editing.py": 1045
     }
   },
   {
@@ -95092,7 +95116,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a socket file: {game_path}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 1002
+      "tools/placement_studio/editing.py": 1028
     }
   },
   {
@@ -95100,7 +95124,7 @@ MESSAGE_REFERENCE = [
     "message": "Not an <xml-patch> document",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 326
+      "tools/placement_studio/dmm_patch.py": 374
     }
   },
   {
@@ -95148,7 +95172,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to package: no edited files",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/packaging.py": 444
+      "tools/placement_studio/packaging.py": 454
     }
   },
   {
@@ -95212,7 +95236,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation {handle.operation_id} is already closed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 326
+      "tools/placement_studio/editing.py": 352
     }
   },
   {
@@ -95228,7 +95252,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation {self._active.operation_id} is still open; commit or roll it back before starting another",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 313
+      "tools/placement_studio/editing.py": 339
     }
   },
   {
@@ -95236,7 +95260,7 @@ MESSAGE_REFERENCE = [
     "message": "Operation {self._active.operation_id} is still open; commit or roll it back first",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 433
+      "tools/placement_studio/editing.py": 459
     }
   },
   {
@@ -95300,7 +95324,7 @@ MESSAGE_REFERENCE = [
     "message": "Package destination already exists: {root}",
     "recovery": "conflict",
     "sources": {
-      "tools/placement_studio/packaging.py": 526
+      "tools/placement_studio/packaging.py": 536
     }
   },
   {
@@ -95308,7 +95332,7 @@ MESSAGE_REFERENCE = [
     "message": "Package destination already exists; confirm replacement or choose another name: {root}",
     "recovery": "conflict",
     "sources": {
-      "tools/placement_studio/packaging.py": 368
+      "tools/placement_studio/packaging.py": 378
     }
   },
   {
@@ -95316,7 +95340,7 @@ MESSAGE_REFERENCE = [
     "message": "Package destination is not a folder: {root}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/packaging.py": 366
+      "tools/placement_studio/packaging.py": 376
     }
   },
   {
@@ -95324,7 +95348,7 @@ MESSAGE_REFERENCE = [
     "message": "Package destination must stay inside the selected folder: {destination}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/packaging.py": 356
+      "tools/placement_studio/packaging.py": 366
     }
   },
   {
@@ -95332,7 +95356,7 @@ MESSAGE_REFERENCE = [
     "message": "Package manager destinations must be unique",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/packaging.py": 351
+      "tools/placement_studio/packaging.py": 361
     }
   },
   {
@@ -95742,7 +95766,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing a non-normalized quaternion",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 948
+      "tools/placement_studio/editing.py": 974
     }
   },
   {
@@ -95750,7 +95774,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing to write a non-normalized quaternion for {name}",
     "recovery": "write",
     "sources": {
-      "tools/placement_studio/documents.py": 121
+      "tools/placement_studio/documents.py": 129
     }
   },
   {
@@ -95758,7 +95782,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing to write an empty clip to {game_path}",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/editing.py": 801
+      "tools/placement_studio/editing.py": 827
     }
   },
   {
@@ -96159,7 +96183,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/placement_studio/animation.py": 238,
-      "tools/placement_studio/editing.py": 858
+      "tools/placement_studio/editing.py": 884
     }
   },
   {
@@ -96241,7 +96265,7 @@ MESSAGE_REFERENCE = [
     "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Move it, which gives it a point of its own.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_tasks.py": 346
+      "tools/placement_studio/window_tasks.py": 408
     }
   },
   {
@@ -96294,10 +96318,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Socket {name or '(unnamed)'} has no Name and Parent to find it by",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/dmm_patch.py": 287
+    }
+  },
+  {
+    "area": "placement",
     "message": "Socket {name or '(unnamed)'} is defined more than once",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 271
+      "tools/placement_studio/dmm_patch.py": 319
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Socket {name} gained or lost an attribute",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/dmm_patch.py": 289
     }
   },
   {
@@ -96305,7 +96345,23 @@ MESSAGE_REFERENCE = [
     "message": "Socket {name} is defined more than once in this file, so a patch cannot edit just one of them",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 250
+      "tools/placement_studio/dmm_patch.py": 257
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Socket {name} on {parent} is defined more than once in this file, so a patch cannot edit just one of them",
+    "recovery": "input",
+    "sources": {
+      "tools/placement_studio/dmm_patch.py": 296
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Socket {name} was renamed or moved to another bone",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/dmm_patch.py": 291
     }
   },
   {
@@ -96313,7 +96369,7 @@ MESSAGE_REFERENCE = [
     "message": "Socket {new_name} is not defined by any loaded file; create the definition before retargeting to it",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 862
+      "tools/placement_studio/editing.py": 888
     }
   },
   {
@@ -96321,8 +96377,8 @@ MESSAGE_REFERENCE = [
     "message": "Socket {socket.name} already defined",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/documents.py": 131,
-      "tools/placement_studio/editing.py": 1007
+      "tools/placement_studio/documents.py": 139,
+      "tools/placement_studio/editing.py": 1033
     }
   },
   {
@@ -96330,7 +96386,15 @@ MESSAGE_REFERENCE = [
     "message": "Socket {socket_name} is not defined by any loaded file; create the definition before routing to it",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 1021
+      "tools/placement_studio/editing.py": 1047
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Something other than a socket's values was changed",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/dmm_patch.py": 278
     }
   },
   {
@@ -96338,7 +96402,7 @@ MESSAGE_REFERENCE = [
     "message": "Something other than equipment rows was changed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 437
+      "tools/placement_studio/dmm_patch.py": 485
     }
   },
   {
@@ -96579,7 +96643,7 @@ MESSAGE_REFERENCE = [
     "message": "The descriptor has {len(edited_rows)} equipment rows where the game's has {len(base_rows)}; a patch can change rows but not add or remove them",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 220
+      "tools/placement_studio/dmm_patch.py": 227
     }
   },
   {
@@ -96587,7 +96651,7 @@ MESSAGE_REFERENCE = [
     "message": "The descriptor's rows are in a different order from the game's (at {before.attributes()[_DESCRIPTOR_KEY]})",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 227
+      "tools/placement_studio/dmm_patch.py": 234
     }
   },
   {
@@ -96619,7 +96683,7 @@ MESSAGE_REFERENCE = [
     "message": "The file is neither UTF-8 nor cp1252 text",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 131
+      "tools/placement_studio/dmm_patch.py": 138
     }
   },
   {
@@ -96664,6 +96728,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "The item lies edge-on to the back, so it has no back plane to move in",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/back_move.py": 152
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The item points straight out of the back, so it cannot tip further out",
+    "recovery": "input",
+    "sources": {
+      "tools/placement_studio/back_move.py": 198
+    }
+  },
+  {
+    "area": "placement",
     "message": "The item's model could not be read for the placement preview.",
     "recovery": "internal",
     "sources": {
@@ -96699,7 +96779,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod already ships {collisions[0]}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 481
+      "tools/placement_studio/dmm_patch.py": 545
     }
   },
   {
@@ -96787,7 +96867,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected operation changes no file, so there is nothing to package",
     "recovery": "empty",
     "sources": {
-      "tools/placement_studio/packaging.py": 670
+      "tools/placement_studio/packaging.py": 680
     }
   },
   {
@@ -96860,6 +96940,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "tools/placement_studio/event_timeline.py": 58
+    }
+  },
+  {
+    "area": "placement",
+    "message": "This character has no skeleton to measure the back on",
+    "recovery": "internal",
+    "sources": {
+      "tools/placement_studio/back_move.py": 337
     }
   },
   {
@@ -97051,7 +97139,7 @@ MESSAGE_REFERENCE = [
     "message": "Two kinds of change edit the same file, so they cannot share one mod: {detail}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/packaging.py": 676
+      "tools/placement_studio/packaging.py": 686
     }
   },
   {
@@ -97091,7 +97179,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown manager profile",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/packaging.py": 349
+      "tools/placement_studio/packaging.py": 359
     }
   },
   {
@@ -97099,7 +97187,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown manager profile: {manager}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/packaging.py": 442
+      "tools/placement_studio/packaging.py": 452
     }
   },
   {
@@ -97307,7 +97395,7 @@ MESSAGE_REFERENCE = [
     "message": "add_socket without a socket",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 734
+      "tools/placement_studio/editing.py": 760
     }
   },
   {
@@ -97459,7 +97547,7 @@ MESSAGE_REFERENCE = [
     "message": "insert into {op.into}: the container is never closed",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 369
+      "tools/placement_studio/dmm_patch.py": 417
     }
   },
   {
@@ -97467,7 +97555,7 @@ MESSAGE_REFERENCE = [
     "message": "insert into {op.into}: {len(containers)} containers found",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 366
+      "tools/placement_studio/dmm_patch.py": 414
     }
   },
   {
@@ -97776,7 +97864,7 @@ MESSAGE_REFERENCE = [
     "message": "replace_file without a payload",
     "recovery": "format",
     "sources": {
-      "tools/placement_studio/editing.py": 711
+      "tools/placement_studio/editing.py": 737
     }
   },
   {
@@ -98009,7 +98097,7 @@ MESSAGE_REFERENCE = [
     "message": "{exc}. DMM merges a full copy of this file with other mods' copies by position, which breaks next to Character Creator, so the mod is not saved this way.",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/packaging.py": 389
+      "tools/placement_studio/packaging.py": 399
     }
   },
   {
@@ -98033,7 +98121,7 @@ MESSAGE_REFERENCE = [
     "message": "{game_path} has no change to write",
     "recovery": "write",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 432
+      "tools/placement_studio/dmm_patch.py": 480
     }
   },
   {
@@ -98041,7 +98129,7 @@ MESSAGE_REFERENCE = [
     "message": "{game_path} has no frame event {animation}:{event} ({exc})",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 830
+      "tools/placement_studio/editing.py": 856
     }
   },
   {
@@ -98049,7 +98137,7 @@ MESSAGE_REFERENCE = [
     "message": "{game_path} is not a file Placement & Animations writes as a patch",
     "recovery": "write",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 429
+      "tools/placement_studio/dmm_patch.py": 477
     }
   },
   {
@@ -98201,7 +98289,7 @@ MESSAGE_REFERENCE = [
     "message": "{new_name} is not a valid retarget for {old_name}",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/editing.py": 868
+      "tools/placement_studio/editing.py": 894
     }
   },
   {
@@ -98209,7 +98297,7 @@ MESSAGE_REFERENCE = [
     "message": "{op.kind} needs find and attr",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 378
+      "tools/placement_studio/dmm_patch.py": 426
     }
   },
   {
@@ -98217,7 +98305,7 @@ MESSAGE_REFERENCE = [
     "message": "{op.notation()}: matched {len(hits)} elements, not one",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 382
+      "tools/placement_studio/dmm_patch.py": 430
     }
   },
   {
@@ -98225,7 +98313,7 @@ MESSAGE_REFERENCE = [
     "message": "{op.notation()}: set without a value",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 391
+      "tools/placement_studio/dmm_patch.py": 439
     }
   },
   {
@@ -98233,7 +98321,7 @@ MESSAGE_REFERENCE = [
     "message": "{op.notation()}: the element has no such attribute",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/dmm_patch.py": 388
+      "tools/placement_studio/dmm_patch.py": 436
     }
   },
   {
@@ -98489,7 +98577,7 @@ MESSAGE_REFERENCE = [
     "message": "{seconds} s is outside the stretch animation {animation} plays ({entry.start_time} to {entry.end_time} s)",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/editing.py": 836
+      "tools/placement_studio/editing.py": 862
     }
   },
   {
@@ -111015,6 +111103,9 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 1,
     "raise": 19
   },
+  "tools/placement_studio/back_move.py": {
+    "raise": 5
+  },
   "tools/placement_studio/background.py": {
     "diagnostic_field": 1
   },
@@ -111060,7 +111151,7 @@ SOURCE_COVERAGE = {
     "raise": 7
   },
   "tools/placement_studio/dmm_patch.py": {
-    "raise": 21
+    "raise": 28
   },
   "tools/placement_studio/documents.py": {
     "finding": 2,

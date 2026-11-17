@@ -13,9 +13,14 @@ The rules below come from DMM 4.7.4 mount logs and in-game mounts, not from docu
 * each `match-<attr>` filter narrows the rows and several are ANDed;
 * `<insert into="SocketList">` appends the element it holds to that container.
 
-Two kinds of file are lowered: character descriptors (`PartInOutSocket` rows, keyed by
-`PartName`) and body socket files (`<model>.pab.sockets.xml`, sockets keyed by `Name`).
-Weapon socket files, prefabs, clips and charts stay whole: they belong to one item.
+Three kinds of file are lowered: character descriptors (`PartInOutSocket` rows, keyed by
+`PartName`), body socket files (`<model>.pab.sockets.xml`, sockets keyed by `Name`), and an
+item's own socket file (`.../weapon/**.sockets.xml`) when every change is a `<set>` of a value
+its sockets already hold. That last form, one `<set find="Socket" match-Name match-Parent>` per
+changed attribute, is the one Weapon Carry's Custom Cores write for a 2H sword's child point,
+and it moved Kliff's 2H sword in game on 2026-11-17 while the spear on the same body point
+stayed put. Any other change to an item's file (a new child socket, a changed Count) keeps the
+file whole, as before. Prefabs, clips and charts stay whole: they belong to one item.
 
 Every patch is proven before it is used: `apply_patch` replays it the way DMM does, every
 operation has to hit exactly one element, and the result has to hold the edited rows. What
@@ -29,7 +34,7 @@ import re
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from .documents import is_body_socket_file, is_descriptor_file
+from .documents import is_body_socket_file, is_descriptor_file, is_weapon_socket_file
 
 #: What DMM expects after the target's own file name.
 PATCH_SUFFIX = ".patch"
@@ -65,12 +70,14 @@ def target_of(patch_game_path: str) -> str:
 
 
 def patchable(game_path: str) -> str:
-    """`descriptor`, `body_sockets`, or "" for a file that ships whole."""
+    """`descriptor`, `body_sockets`, `weapon_sockets`, or "" for a file that ships whole."""
 
     if is_descriptor_file(game_path):
         return "descriptor"
     if is_body_socket_file(game_path):
         return "body_sockets"
+    if is_weapon_socket_file(game_path):
+        return "weapon_sockets"
     return ""
 
 
@@ -249,6 +256,47 @@ def _socket_filters(name: str, attrs: Mapping[str, str], tags: Sequence[_Tag]) -
             return filters
     raise PatchError(f"Socket {name} is defined more than once in this file, so a patch cannot "
                      f"edit just one of them")
+
+
+def weapon_socket_patch(base: str, edited: str) -> str:
+    """A patch turning an item's socket file `base` into `edited`, with `<set>` lines only.
+
+    Each line finds its socket by `Name` and `Parent` together, the form seen working in game,
+    which also keeps a bare `<Socket Name=...>` reference elsewhere in the file from matching.
+    Refuses anything else: a socket added, removed or renamed, a changed Count, an attribute
+    added or removed, or an edit outside the socket definitions.
+    """
+
+    base_tags, edited_tags = _tags(base), _tags(edited)
+    before = [tag for tag in base_tags if _is_socket_definition(tag)]
+    after = [tag for tag in edited_tags if _is_socket_definition(tag)]
+    if len(before) != len(after):
+        raise PatchError("A socket was added or removed, which an item's file only takes "
+                         "whole")
+    if ([_token(tag) for tag in base_tags if not _is_socket_definition(tag)]
+            != [_token(tag) for tag in edited_tags if not _is_socket_definition(tag)]):
+        raise PatchError("Something other than a socket's values was changed")
+    lines: List[str] = []
+    for old_tag, new_tag in zip(before, after):
+        old, new = old_tag.attributes(), new_tag.attributes()
+        if old == new:
+            continue
+        name, parent = old.get(_SOCKET_KEY, ""), old.get("Parent", "")
+        if not name or not parent:
+            # `match-Parent=""` has not been seen in DMM, so such a file stays whole.
+            raise PatchError(f"Socket {name or '(unnamed)'} has no Name and Parent to find it by")
+        if set(old) != set(new):
+            raise PatchError(f"Socket {name} gained or lost an attribute")
+        if new.get(_SOCKET_KEY) != name or new.get("Parent") != parent:
+            raise PatchError(f"Socket {name} was renamed or moved to another bone")
+        hits = [tag for tag in base_tags if not tag.closing and tag.name == _SOCKET_TAG
+                and tag.attributes().get(_SOCKET_KEY) == name
+                and tag.attributes().get("Parent") == parent]
+        if len(hits) != 1:
+            raise PatchError(f"Socket {name} on {parent} is defined more than once in this "
+                             f"file, so a patch cannot edit just one of them")
+        lines += _attribute_ops(_SOCKET_TAG, [(_SOCKET_KEY, name), ("Parent", parent)], old, new)
+    return _wrap(lines)
 
 
 def _socket_lists(tags: Sequence[_Tag]) -> List[_Tag]:
@@ -436,6 +484,8 @@ def make_patch(game_path: str, base: bytes, edited: bytes) -> bytes:
             if _outside_rows(before) != _outside_rows(after):
                 raise PatchError("Something other than equipment rows was changed")
             patch = descriptor_patch(before, after)
+        elif kind == "weapon_sockets":
+            patch = weapon_socket_patch(before, after)
         else:
             patch = socket_patch(before, after)
         prove(before, after, patch, kind)
@@ -454,29 +504,43 @@ class Lowered:
     files: Mapping[str, bytes]
     #: Game path of every file now shipped as a patch.
     patched: Tuple[str, ...] = ()
+    #: `(path, why)` for an item's socket file kept whole because a patch cannot express it.
+    kept_whole: Tuple[Tuple[str, str], ...] = ()
 
     def path_for(self, game_path: str) -> str:
         return patch_path(game_path) if game_path in self.patched else game_path
 
 
 def lower_for_dmm(files: Mapping[str, bytes], base_for: Callable[[str], Optional[bytes]]) -> Lowered:
-    """Write every descriptor and body socket file the game ships as a proven `.xml.patch`.
+    """Write every descriptor and body socket file the game ships as a proven `.xml.patch`,
+    and every item socket file whose change is `<set>` lines only.
 
     `base_for(path)` returns the game's bytes for a path, or None for a file the game does not
     ship; such a file is new, belongs to this mod alone, and stays whole. Raises `PatchError`
-    for a file whose edit a patch cannot express.
+    for a descriptor or body socket file whose edit a patch cannot express. An item's own file
+    whose edit a patch cannot express stays whole, as every item file did before, and is
+    listed in `kept_whole`.
     """
 
     out: Dict[str, bytes] = {}
     patched: List[str] = []
+    kept: List[Tuple[str, str]] = []
     for path, data in files.items():
-        base = base_for(path) if patchable(path) else None
+        kind = patchable(path)
+        base = base_for(path) if kind else None
         if base is None or base == data:
             out[path] = data
             continue
-        out[patch_path(path)] = make_patch(path, base, data)
+        try:
+            out[patch_path(path)] = make_patch(path, base, data)
+        except PatchError as exc:
+            if kind != "weapon_sockets":
+                raise
+            out[path] = data
+            kept.append((path, str(exc)))
+            continue
         patched.append(path)
     collisions = sorted(set(patch_path(path) for path in patched) & set(files))
     if collisions:
         raise PatchError(f"The mod already ships {collisions[0]}")
-    return Lowered(out, tuple(sorted(patched)))
+    return Lowered(out, tuple(sorted(patched)), tuple(sorted(kept)))

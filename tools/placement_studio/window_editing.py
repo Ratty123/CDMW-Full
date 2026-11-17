@@ -1375,6 +1375,79 @@ class EditPanelMixin:
         self.statusBar().showMessage(
             f"{socket_label(name)} now hangs like the {source.label}.")
 
+    def _back_move_target(self):
+        """The selected item's own point and the body point it is put away on, or None.
+
+        On the back applies to a point of the selected item's own file, shown put away, on a
+        body point of a character with a skeleton, when the item lies flat to the back.
+        """
+
+        from . import back_move
+
+        session, edits = self._session, self._edits
+        name = self._selected_socket
+        weapon = session.weapon if session is not None else None
+        if (edits is None or weapon is None or not name or name not in weapon.sockets
+                or session.bind_hierarchy is None
+                or (self._mesh_role_box.currentData() or "held") == "held"
+                or weapon.game_path not in set(edits.paths)):
+            return None
+        body_name = self._attached_body_socket(name)
+        body = next((s for s in session.body_sockets() if s.name == body_name), None)
+        if body is None:
+            return None
+        child = edits.socket(weapon.game_path, name) or weapon.sockets.get(name)
+        game_child = edits.original_socket(weapon.game_path, name) or child
+        try:
+            back_move.back_plane(back_move.weapon_world(session.bind_hierarchy, body, game_child))
+        except back_move.BackMoveError:
+            return None
+        in_step = back_move.in_step_files(session.weapons(), edits, weapon.game_path, name,
+                                          hierarchy=session.bind_hierarchy, body_socket=body)
+        return back_move.BackMoveTarget(weapon.game_path, child, game_child, body,
+                                        tuple(in_step))
+
+    def _move_on_back(self, sign: float) -> None:
+        """One step of the chosen On the back move, in every file in step with this one."""
+
+        from . import back_move
+
+        target = self._back_move_target()
+        if target is None:
+            self.statusBar().showMessage(
+                "Select the item's own point, shown put away on the back, first.")
+            return
+        key = str(self._back_move_box.currentData() or "out")
+        if key in back_move.TURNS:
+            amount = sign * float(self._angle_box.currentData() or 5.0)
+        else:
+            amount = sign * self._snap_step()
+        in_step = target.in_step if self._back_in_step_box.isChecked() else ()
+        try:
+            plan = back_move.plan_back_move(
+                self._session.bind_hierarchy, target.body_socket, target.socket_file,
+                target.child, target.game_child, key=key, amount=amount, in_step=in_step)
+        except back_move.BackMoveError as exc:
+            self.statusBar().showMessage(str(exc))
+            return
+        edits = self._edits
+        try:
+            with edits.undo_step():  # one Undo puts every file back together
+                for path, socket in plan.sockets:
+                    edits.set_translation(path, socket.name, socket.translation)
+                    edits.set_rotation_quaternion(path, socket.name, socket.rotation)
+        except EditError as exc:
+            self.statusBar().showMessage(str(exc))
+            return
+        self._after_edit()
+        self._refresh_meshes()
+        label = self._back_move_box.currentText()
+        if len(plan.files) > 1:
+            self.statusBar().showMessage(
+                f"{label}: moved {socket_label(target.child.name)} in {len(plan.files)} files.")
+        else:
+            self.statusBar().showMessage(f"{label}: moved {socket_label(target.child.name)}.")
+
     def _export(self) -> None:
         if self._edits is None or not self._edits.modified_paths():
             return

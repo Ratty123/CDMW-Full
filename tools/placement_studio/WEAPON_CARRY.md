@@ -1,7 +1,8 @@
 # Carry a weapon somewhere else: design note
 
 Agreed with Fredric on 2026-11-09, including the first slice and two of its decisions (an
-unprovable patch blocks the save; weapon socket files stay whole). Written after the Weapon Carry mod (Nexus, DMM) was built by hand on
+unprovable patch blocks the save; weapon socket files stay whole, revised on 2026-11-17 once a
+weapon file patch was seen working in game: see *One kind of item on the back*). Written after the Weapon Carry mod (Nexus, DMM) was built by hand on
 2026-11-08 and 2026-11-09. The findings it rests on are in
 `docs/crimson-desert-research.md`, sections 7.5 (weapon carry) and 12.3 (DMM patch and
 partial-file rules). This note says what Placement & Animations should do so that a user can
@@ -104,10 +105,12 @@ index does.
   - Refuses what a patch cannot express (a removed or reordered row, a new descriptor row),
     with a plain reason.
 - Saving for DMM lowers character descriptors (`characterdescription/*.xml` and the root
-  alias) and body socket files (`*.pab.sockets.xml`) to `.xml.patch`. Weapon socket files,
-  prefabs, clips and charts stay whole files: they belong to the item, and full copies of
-  them are what the in-game mod shipped. A file whose patch cannot be proven blocks the save
-  with the reason rather than falling back to a full copy.
+  alias) and body socket files (`*.pab.sockets.xml`) to `.xml.patch`. Prefabs, clips and
+  charts stay whole files: they belong to the item, and full copies of them are what the
+  in-game mod shipped. A descriptor or body file whose patch cannot be proven blocks the save
+  with the reason rather than falling back to a full copy. Weapon socket files stayed whole
+  too until 2026-11-17; since then a `<set>`-only change to one is a patch as well (see *One
+  kind of item on the back*).
 - The manifest and README name the patch files; `inspect_package` reads a patch by applying
   it to the baseline.
 - Tests on owned fixtures: patch generation, DMM-style application, duplicate row names,
@@ -231,3 +234,85 @@ shield files from the installed game into a temporary folder).
 
 Not in this slice: Help and the Wiki do not describe the two new actions yet, and nothing has
 been tried in game.
+
+## One kind of item on the back
+
+Built on 2026-11-17, with `tests/test_placement_studio_back_move.py` (its `real_game` tests read
+Kliff's and Damiane's 2H sword files, body files and rigs from the installed game into a
+temporary folder). The findings are Weapon Carry's (NOTES item 26 in
+`.work/research/2026-11-11-weapon-carry/`, item 20 for shield types).
+
+**What the game does.** Every 2H sword hangs from the body point `Spine2_B_SubWeapon_Socket`
+(Damiane and female Kliff: `Spine2_B_MainWeapon_Socket`), which spears, pikes, halberds,
+hammers, the cannon and tools share, so moving that point moves all of them. Each item hangs
+from it by `Spine2_B_SubWeapon_ChildSocket` in its own socket file, and only 2H swords read
+the 2H sword files. From a scan of all 7553 player prefabs (game 2.05): Kliff's 42 2H swords
+read `cd_phm_02_sword_0001.sockets.xml` and his 7 sheaths `cd_phm_02_sword_0001_in` (3) or
+`_0015_in` (4); one lance (`cd_phm_01_lance_0001`, a `TwoHandWeapon_Spear` row) and one rod
+(`cd_phm_02_rod_0014`) read the sword file too and move with it. `cd_phm_02_sword_0045` reads a
+file of its own. Damiane's swords read `cd_phw_02_sword_0001` (1) and `_0002` (6, a child turned
+half about the blade and 12 cm along it, on the same line in the world). Female Kliff carries
+Kliff's files on her own body point. Neither Character Creator 9.1.40 nor Heroine of Pywel
+2.4.2 ships any of these files. All three of Kliff's files and `cd_phw_02_sword_0001` hang by
+(0 1 0 0), (0 0 -0.470292). The same holds for shield types: every round, tower and kite shield
+reads its type's one file, and the type's `Spine2_B_Shield_ChildSocket` is the difference.
+
+**Evidence.** A Weapon Carry Custom Core holding two `<set find="Socket" match-Name
+match-Parent attr="Rotation|Translation">` lines per file for those five files moved Kliff's
+2H sword in game and left the spear on the same body point alone (Fredric, 2026-11-17: "Yes,
+it works"). It is the first in-game proof that DMM applies a patch of a weapon's own socket
+file, and it backs the shield-type patches of the same form. Not seen in game: the shield
+patches themselves, the women's files, and any patch written by this tab.
+
+**The math** (row-vector form, as `carry_plan`): the item hangs at `W = inverse(C) * S`, with
+`S` the body point in the world. The move is made on the item, `W' = W * M`, and turned back
+into the child point, `C' = S * inverse(W')`; the body point is not touched.
+
+**What the tab does.**
+
+- `dmm_patch` lowers an item's own socket file (`socketbonedata/1_pc/<model>/weapon/**`) to a
+  `.sockets.xml.patch` when every change is a `<set>` of a value its sockets already hold. Each
+  line finds the socket by `Name` and `Parent` together, the in-game form, which also keeps a
+  bare `<Socket Name>` reference under `StackEquipInfo` from matching. Anything else (a new
+  child socket from **Move it**, a changed Count, a socket with an empty `Parent`, since
+  `match-Parent=""` has not been seen in DMM) keeps the file whole, as before, rather than
+  blocking the save. The README warns that another mod's whole copy of the file may override
+  the patch, which of the two wins in DMM has not been checked: Weapon Carry's 2H Sword on Hip
+  parts ship whole copies of the 2H sword files with the hip child (rotation 0.38, -0.15), so
+  they have to be off.
+- `back_move.py` (pure): the back plane is read from the item as the game hangs it (its own y
+  axis, the flat side, turned out of the back, +z; across is level toward the left arm). Five
+  moves in the generator's order: out from the back, up the blade, across the blade, turn
+  seen from behind (clockwise, about the normal) and tip out, the turns about the guard, 16 cm
+  up the blade for a 2H sword (`TWO_HAND_GUARD`) and the item's origin otherwise.
+  `in_step_files` finds the files that move with it: same kind and hands folder, the same child
+  name on the same bone, and the same value now or the same line in the world. Each gets the
+  same move about its own guard, as the generator does.
+- **Carry > Fine-tune > On the back**: a move, **−** / **+** by the Step distance or the By
+  angle, and **With the files in step** (on). Offered for the selected item's own point shown
+  put away, on a character with a skeleton, when the item lies flat to the back. The note
+  names the files in step, and one Undo puts all of them back (`EditSession.undo_step`). The
+  body point is the one the tab shows, so a Damiane session measures on whichever of her
+  body files the session reads. Female Kliff carries Kliff's 2H sword files, so a move made
+  in a Kliff session moves her 2H sword too, relative to the sword, over her other shoulder.
+
+**Checked.** On the installed game's files, Turn +35, Out 3 cm and Up -25 cm on Kliff's sword
+file give (0 0.953717 0 0.300706), (0.177976 -0.03 -0.164176) in all three of his files, and the
+saved patches are byte for byte those of the Core seen working in game. On Damiane's files
+`_0002` comes out at the Core's values to within 3e-6 (three rounded steps). The game has six
+2H sword socket files (the four of Kliff's and Damiane's two named above); over all 21 of
+Kliff's item files `in_step_files` takes under a millisecond. A move saved through the game's
+own Kliff descriptor passes the preflight: each file is read by one row (the sword's by
+`TwoHandWeapon_Sword`, the sheaths' by `TwoHandWeapon_Sword_IN`).
+
+**`cd_phm_02_sword_0045` is left alone**, as the generator leaves it (Fredric, 2026-11-17). It
+hangs its sword on the same line as the others (child (0 1 0 0), (0 0 -0.003718)), 47 cm lower,
+and nothing in the files tells it apart from Damiane's `_0002`, which sits 12 cm along her line
+and does move, so it is named in `back_move.HANGS_ITS_OWN_WAY`: it neither comes along nor
+takes the others along. Selected on its own, it can still be moved alone. Untick **With the
+files in step** to move any one file alone.
+
+Not in this slice: Help and the Wiki do not describe On the back yet; the research reference
+(`docs/crimson-desert-research.md` 7.5 and 12.3) still says weapon socket files ship whole,
+because that file has another session's uncommitted change; nothing saved by the tab has been
+tried in game.
