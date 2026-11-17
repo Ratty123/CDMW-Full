@@ -18,9 +18,9 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, Signal
 
 from cdmw.automation import inspect_commands, pass_commands, saved_work_commands
-from cdmw.automation import review_commands
 from cdmw.automation.pipe import LocalPipeServer, recv_json, send_json
 from cdmw.automation.policy import AutomationSettings
+from cdmw.automation import review_commands
 
 TITLE_MARK = " [automation]"
 _UI_COMMAND_TIMEOUT_S = 60.0
