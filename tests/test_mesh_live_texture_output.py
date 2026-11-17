@@ -49,7 +49,7 @@ def test_the_plan_names_the_game_file_and_the_original_format(tmp_path: Path) ->
     (output,) = plan.outputs
     assert output.entry.path == GAME_PATH
     assert (output.original.dds_format, output.original.width, output.original.height) == ("R8G8B8A8_UNORM", 4, 2)
-    assert plan.plan_lines == (GAME_PATH + ": R8G8B8A8_UNORM, 4 x 2, 1 mips (shared by Upper body, Belt)",)
+    assert plan.plan_lines == (GAME_PATH + ": writes, R8G8B8A8_UNORM, 4 x 2, 1 mips (shared by Upper body, Belt)",)
     assert live_texture_metadata(plan.outputs)[0]["parts"] == ["Upper body", "Belt"]
 
 
@@ -287,3 +287,58 @@ def test_build_mod_writes_no_texture_only_an_excluded_part_uses(tmp_path: Path, 
     assert not isinstance(result, str), result
     written = sorted(p.name for p in result.output_path.rglob("*.dds"))
     assert written == ["cd_phm_00_ub_00_0374_d.dds"], written
+
+
+BELT_PATH = "character/texture/cd_phm_00_belt_0001_d.dds"
+MISSING_PATH = "character/texture/missing.dds"
+
+
+def mixed_plan(tmp_path: Path):
+    """One edited texture of each status: written, left out (only Belt uses it), blocked."""
+
+    return plan_live_texture_outputs(
+        [_edit(tmp_path, users=("Upper body",)), _edit(tmp_path, game_path=BELT_PATH, users=("Belt",)),
+         _edit(tmp_path, game_path=MISSING_PATH, users=("Upper body",))],
+        {GAME_PATH: (_entry(),), BELT_PATH: (_entry(BELT_PATH),)}, parts_in_build=("Upper body",))
+
+
+def test_each_edited_texture_says_whether_it_writes_is_left_out_or_is_blocked(tmp_path: Path) -> None:
+    plan = mixed_plan(tmp_path)
+    written = GAME_PATH + ": writes, R8G8B8A8_UNORM, 4 x 2, 1 mips"
+    left_out = BELT_PATH + ": left out, no part in this mod uses it (Belt)"
+    blocked = MISSING_PATH + ": blocked. The game file was not found in the archives."
+    assert plan.plan_lines == (written, left_out, blocked)
+    assert [row.status for row in plan.statuses] == ["writes", "left out", "blocked"]
+    assert [output.game_path for output in plan.outputs] == [GAME_PATH]
+    assert plan.refusals == (blocked,) and plan.left_out == (left_out,)
+
+
+def test_the_status_lines_are_in_the_app_s_language(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from cdmw.services.active_ui_translation import ACTIVE_UI_LOCALIZER_PROPERTY
+    from cdmw.ui.localization import UiLocalizer
+    from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
+
+    app = QApplication.instance() or QApplication([])
+    previous = app.property(ACTIVE_UI_LOCALIZER_PROPERTY)
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="de")
+    app.setProperty(ACTIVE_UI_LOCALIZER_PROPERTY, localizer)
+    parent = QWidget()
+    try:
+        lines = mixed_plan(tmp_path).plan_lines
+        assert lines == (
+            GAME_PATH + ": wird geschrieben, R8G8B8A8_UNORM, 4 x 2, 1 Mips",
+            BELT_PATH + ": weggelassen, kein Teil dieser Mod verwendet sie (Belt)",
+            MISSING_PATH + ": blockiert. Die Spieldatei wurde in den Archiven nicht gefunden.",
+        )
+        dialog = MeshModExportDialog(parent, title="Mod", description="", output_parent="", output_choice="",
+                                     manager_profile="dmm", texture_plan=lines)
+        localizer.apply(dialog)
+        assert dialog.texture_plan.text() == "Bearbeitete Texturen in dieser Mod:\n" + "\n".join(lines)
+        dialog.deleteLater()
+    finally:
+        app.setProperty(ACTIVE_UI_LOCALIZER_PROPERTY, previous)
+        localizer.shutdown()
+        parent.deleteLater()
+        app.processEvents()

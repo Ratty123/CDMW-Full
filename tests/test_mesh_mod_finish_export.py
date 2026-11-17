@@ -365,3 +365,45 @@ def test_late_result_cannot_open_export_folder(accepted_cloth_edit, tmp_path, mo
     result = MeshDirectOutputResult("loose_mod", tmp_path, zip_path=tmp_path / "mod.zip")
     tab._handle_mesh_direct_output_completed(tab.standalone_output_request_id - 1, result, open_folder=True)
     assert not opened
+
+
+def test_build_mod_lists_each_edited_texture_with_its_status(accepted_cloth_edit, tmp_path, monkeypatch):
+    """Item 5: the list says which edited textures are written and which are left out."""
+
+    from tests.test_mesh_live_texture_output import BELT_PATH, GAME_PATH, _edit, _entry
+    from cdmw.services.mesh_live_texture_output import plan_live_texture_outputs
+
+    tab, _service, _session, _entry_, _source = accepted_cloth_edit
+    plan = plan_live_texture_outputs(
+        [_edit(tmp_path, users=("Upper body",)), _edit(tmp_path, game_path=BELT_PATH, users=("Belt",))],
+        {GAME_PATH: (_entry(),), BELT_PATH: (_entry(BELT_PATH),)}, parts_in_build=("Upper body",))
+    monkeypatch.setattr(tab, "_live_texture_plan", lambda: plan)
+    shown = []
+
+    def look(dialog):
+        shown.append(dialog.texture_plan.text())
+        return dialog.DialogCode.Rejected
+
+    monkeypatch.setattr(MeshModExportDialog, "exec", look)
+    tab._start_mesh_mod_build_requested()
+    assert shown == ["Edited textures in this mod:\n"
+                     + GAME_PATH + ": writes, R8G8B8A8_UNORM, 4 x 2, 1 mips\n"
+                     + BELT_PATH + ": left out, no part in this mod uses it (Belt)"]
+
+
+def test_a_blocked_texture_stops_build_mod_with_every_texture_s_status(accepted_cloth_edit, tmp_path, monkeypatch):
+    from tests.test_mesh_live_texture_output import GAME_PATH, MISSING_PATH, _edit, _entry
+    from cdmw.services.mesh_live_texture_output import plan_live_texture_outputs
+
+    tab, _service, _session, _entry_, _source = accepted_cloth_edit
+    plan = plan_live_texture_outputs(
+        [_edit(tmp_path, users=("Upper body",)), _edit(tmp_path, game_path=MISSING_PATH, users=("Upper body",))],
+        {GAME_PATH: (_entry(),)})
+    monkeypatch.setattr(tab, "_live_texture_plan", lambda: plan)
+    warnings = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda _parent, title, message: warnings.append((title, message)))
+    monkeypatch.setattr(MeshModExportDialog, "exec", lambda _dialog: pytest.fail("A blocked texture opened Build Mod"))
+    tab._start_mesh_mod_build_requested()
+    assert warnings == [("Build Mod", "Some edited textures cannot be written:\n\n"
+                         + GAME_PATH + ": writes, R8G8B8A8_UNORM, 4 x 2, 1 mips\n"
+                         + MISSING_PATH + ": blocked. The game file was not found in the archives.")]

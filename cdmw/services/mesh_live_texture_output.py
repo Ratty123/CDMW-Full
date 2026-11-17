@@ -28,6 +28,42 @@ from cdmw.models import ArchiveEntry
 
 ENCODE_DIRNAME = "texture_encode"
 
+#: Build Mod's line for each edited texture, by its status (item 5): it is written, it is
+#: left out (no part in the mod uses it), or it is blocked (it cannot be written, and
+#: Build Mod stops). Each is translated through the catalogues when it is shown.
+WRITES_TEXT = "{path}: writes, {format}, {width} x {height}, {mips} mips"
+SHARED_BY_TEXT = "(shared by {parts})"
+ALSO_USED_BY_TEXT = "(also used by {files})"
+LEFT_OUT_TEXT = "{path}: left out, no part in this mod uses it ({parts})"
+BLOCKED_TEXT = "{path}: blocked. {reason}"
+UNKNOWN_GAME_FILE_REASON = "CDMW does not know which game file this texture came from, so it cannot write it."
+NOT_IN_ARCHIVES_REASON = "The game file was not found in the archives."
+WRONG_SIZE_REASON = "The edit is not the original's size."
+
+WRITES = "writes"
+LEFT_OUT = "left out"
+BLOCKED = "blocked"
+
+
+def _say(template: str, **values: str) -> str:
+    """``template`` with ``values``, in the language the app shows (English without one)."""
+
+    from cdmw.services.active_ui_translation import active_ui_localizer
+
+    localizer = active_ui_localizer()
+    render = getattr(localizer, "format", None)
+    if callable(render):
+        return str(render(template, **values))
+    return template.format(**values)
+
+
+def _said(text: str) -> str:
+    """A sentence already written out (a reason), in the language the app shows."""
+
+    from cdmw.services.active_ui_translation import translate_active_ui_text
+
+    return translate_active_ui_text(text)
+
 
 @dataclass(frozen=True, slots=True)
 class LiveTextureOutput:
@@ -43,14 +79,15 @@ class LiveTextureOutput:
 
     @property
     def plan_line(self) -> str:
-        line = (f"{self.game_path}: {self.original.dds_format}, {self.original.width} x {self.original.height}, "
-                f"{self.original.mip_count} mips")
+        line = _say(WRITES_TEXT, path=self.game_path, format=self.original.dds_format,
+                    width=str(self.original.width), height=str(self.original.height),
+                    mips=str(self.original.mip_count))
         if len(self.users) > 1:
-            line += " (shared by " + ", ".join(self.users) + ")"
+            line += " " + _say(SHARED_BY_TEXT, parts=", ".join(self.users))
         if self.other_files:
             from cdmw.ui.mesh_editor.shared_texture_check import joined_file_names
 
-            line += " (also used by " + joined_file_names(self.other_files) + ")"
+            line += " " + _say(ALSO_USED_BY_TEXT, files=joined_file_names(self.other_files))
         return line
 
 
@@ -81,21 +118,57 @@ class LiveTextureEdit:
     other_files: tuple[str, ...] = ()
 
 
-LEFT_OUT_TEXT = "{path}: left out, no part in this mod uses it ({parts})"
+@dataclass(frozen=True, slots=True)
+class LiveTextureStatus:
+    """What Build Mod does with one edited texture: ``WRITES``, ``LEFT_OUT`` or ``BLOCKED``."""
+
+    game_path: str
+    status: str
+    #: How it is written (``WRITES`` only).
+    output: LiveTextureOutput | None = None
+    #: The parts that use it (``LEFT_OUT``).
+    parts: tuple[str, ...] = ()
+    #: Why it cannot be written (``BLOCKED``), one English sentence.
+    reason: str = ""
+
+    @property
+    def line(self) -> str:
+        if self.status == WRITES and self.output is not None:
+            return self.output.plan_line
+        if self.status == LEFT_OUT:
+            return _say(LEFT_OUT_TEXT, path=self.game_path, parts=", ".join(self.parts))
+        return _say(BLOCKED_TEXT, path=self.game_path, reason=_said(self.reason))
 
 
 @dataclass(frozen=True, slots=True)
 class LiveTexturePlan:
-    outputs: tuple[LiveTextureOutput, ...] = ()
-    #: One sentence per edited texture that cannot be written, saying why.
-    refusals: tuple[str, ...] = ()
-    #: One line per edited texture that is not written because no part in the build
-    #: uses it any more (its parts were deleted or left out), as the native app says.
-    left_out: tuple[str, ...] = ()
+    #: Every edited texture once, in the order they were edited, with its status.
+    statuses: tuple[LiveTextureStatus, ...] = ()
+
+    @property
+    def outputs(self) -> tuple[LiveTextureOutput, ...]:
+        """The textures Build Mod writes; nothing else edited reaches the mod."""
+
+        return tuple(row.output for row in self.statuses if row.status == WRITES and row.output is not None)
+
+    @property
+    def refusals(self) -> tuple[str, ...]:
+        """One line per edited texture that cannot be written, saying why (Build Mod stops)."""
+
+        return tuple(row.line for row in self.statuses if row.status == BLOCKED)
+
+    @property
+    def left_out(self) -> tuple[str, ...]:
+        """One line per edited texture that is not written because no part in the build
+        uses it any more (its parts were deleted or their Include is off)."""
+
+        return tuple(row.line for row in self.statuses if row.status == LEFT_OUT)
 
     @property
     def plan_lines(self) -> tuple[str, ...]:
-        return tuple(output.plan_line for output in self.outputs) + self.left_out
+        """Each edited texture's line, saying whether it writes, is left out or is blocked."""
+
+        return tuple(row.line for row in self.statuses)
 
 
 def _normalized(path: str) -> str:
@@ -181,21 +254,24 @@ def plan_live_texture_outputs(
     """``parts_in_build``: the parts the mod holds, as ``parts_in_build()`` names them
     (None: not known, so every edited texture counts as used)."""
 
-    outputs: list[LiveTextureOutput] = []
-    refusals: list[str] = []
-    left_out: list[str] = []
+    statuses: list[LiveTextureStatus] = []
     seen: set[str] = set()
     kept = None if parts_in_build is None else {str(name).strip().casefold() for name in parts_in_build}
+
+    def blocked(edit: LiveTextureEdit, reason: str) -> None:
+        statuses.append(LiveTextureStatus(edit.game_path, BLOCKED, reason=reason))
+
     for edit in edits:
         key = _normalized(edit.game_path)
+        # Left out comes first: a texture no part in the mod uses is not written, so
+        # whether it could be does not stop Build Mod.
         if kept is not None and edit.users and not any(_part_in_build(user, kept) for user in edit.users):
             if key not in seen:
                 seen.add(key)
-                left_out.append(LEFT_OUT_TEXT.format(path=edit.game_path, parts=", ".join(edit.users)))
+                statuses.append(LiveTextureStatus(edit.game_path, LEFT_OUT, parts=tuple(edit.users)))
             continue
         if "/" not in key:
-            refusals.append(f"{edit.game_path}: CDMW does not know which game file this texture came from, "
-                            "so it cannot write it.")
+            blocked(edit, UNKNOWN_GAME_FILE_REASON)
             continue
         if key in seen:
             continue
@@ -203,22 +279,23 @@ def plan_live_texture_outputs(
         entry = active_archive_entry_for_virtual_path(
             [item for item in entries_by_normalized_path.get(key, ()) if isinstance(item, ArchiveEntry)])
         if entry is None:
-            refusals.append(f"{edit.game_path}: the game file was not found in the archives.")
+            blocked(edit, NOT_IN_ARCHIVES_REASON)
             continue
         original = edit.original
         if original is None:
             try:
                 original = check_texture_editable(Path(edit.original_path))
             except TextureOutputRefused as exc:
-                refusals.append(f"{edit.game_path}: {exc.reason}")
+                blocked(edit, exc.reason)
                 continue
         rgba = np.asarray(edit.rgba)
         if rgba.ndim != 3 or (int(rgba.shape[1]), int(rgba.shape[0])) != (original.width, original.height):
-            refusals.append(f"{edit.game_path}: the edit is not the original's size.")
+            blocked(edit, WRONG_SIZE_REASON)
             continue
-        outputs.append(LiveTextureOutput(entry=entry, game_path=edit.game_path, original=original,
-                                         rgba=rgba, users=tuple(edit.users), other_files=tuple(edit.other_files)))
-    return LiveTexturePlan(outputs=tuple(outputs), refusals=tuple(refusals), left_out=tuple(left_out))
+        output = LiveTextureOutput(entry=entry, game_path=edit.game_path, original=original,
+                                   rgba=rgba, users=tuple(edit.users), other_files=tuple(edit.other_files))
+        statuses.append(LiveTextureStatus(edit.game_path, WRITES, output=output))
+    return LiveTexturePlan(statuses=tuple(statuses))
 
 
 def encode_live_texture_outputs(
@@ -269,6 +346,7 @@ __all__ = [
     "LiveTextureOutput",
     "LiveTexturePlan",
     "LiveTextureSource",
+    "LiveTextureStatus",
     "encode_live_texture_outputs",
     "live_texture_metadata",
     "parts_in_build",

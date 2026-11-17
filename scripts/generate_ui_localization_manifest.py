@@ -76,6 +76,16 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Checking whether other game files use this texture...",
         "Whether other game files use this texture is not known: {reason}",
         "Other game files use this texture, and the mod changes it for them too: {files}.",
+        # Build Mod's line for each edited texture, by its status: writes, left out or blocked
+        # (cdmw/services/mesh_live_texture_output.py, step 8 item 5); rendered at run time.
+        "{path}: writes, {format}, {width} x {height}, {mips} mips",
+        "(shared by {parts})",
+        "(also used by {files})",
+        "{path}: left out, no part in this mod uses it ({parts})",
+        "{path}: blocked. {reason}",
+        "CDMW does not know which game file this texture came from, so it cannot write it.",
+        "The game file was not found in the archives.",
+        "The edit is not the original's size.",
         # While the bulkier formats are still being read, and when the search stopped short.
         "Checking whether other game files use this texture: none found yet, still searching the rest of the game files...",
         "Other game files use this texture, and the mod changes it for them too: {files}. Still searching the rest of the game files for more...",

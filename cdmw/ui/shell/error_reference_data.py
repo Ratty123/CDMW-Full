@@ -51348,7 +51348,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 367
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 368
     }
   },
   {
@@ -59626,7 +59626,7 @@ MESSAGE_REFERENCE = [
     "message": "Some edited textures cannot be written: {detail}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 160
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 161
     }
   },
   {
@@ -60944,7 +60944,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was not built. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_direct_output.py": 454
+      "cdmw/ui/mesh_editor/tab_direct_output.py": 455
     }
   },
   {
@@ -99623,6 +99623,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "CDMW does not know which game file this texture came from, so it cannot write it.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/mesh_live_texture_output.py": 274
+    }
+  },
+  {
+    "area": "textures",
     "message": "CSV log is enabled, but the CSV log path is empty.",
     "recovery": "empty",
     "sources": {
@@ -102018,6 +102026,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/texture_editor_service.py": 289
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The game file was not found in the archives.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/mesh_live_texture_output.py": 282
     }
   },
   {
@@ -107243,7 +107259,9 @@ SOURCE_COVERAGE = {
     "finding": 1,
     "raise": 2
   },
-  "cdmw/services/mesh_live_texture_output.py": {},
+  "cdmw/services/mesh_live_texture_output.py": {
+    "report": 2
+  },
   "cdmw/services/mesh_material_publication.py": {
     "diagnostic_text": 1
   },

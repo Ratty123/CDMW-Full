@@ -155,7 +155,8 @@ class MeshEditorDirectOutputMixin:
             return
         texture_plan = self._live_texture_plan() if hasattr(self, "_live_texture_plan") else None
         if texture_plan is not None and texture_plan.refusals:
-            message = "Some edited textures cannot be written:\n\n" + "\n".join(texture_plan.refusals)
+            # Every edited texture with its status: the blocked ones say why.
+            message = "Some edited textures cannot be written:\n\n" + "\n".join(texture_plan.plan_lines)
             self.status_message_requested.emit(message, True)
             _tab.QMessageBox.warning(self, "Build Mod", message)
             return
