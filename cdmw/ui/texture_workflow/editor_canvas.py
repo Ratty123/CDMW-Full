@@ -736,226 +736,229 @@ class TextureEditorCanvas(QWidget):
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#222733"))
-        if self._image is None or self._display_image is None:
-            painter.setPen(QColor("#9CA6B8"))
-            painter.drawText(
-                self.rect(),
-                Qt.AlignCenter,
-                translate_active_ui_text("Open a texture to start editing."),
-            )
-            return
-        target_rect = self._display_target_rect()
-        if target_rect.isEmpty():
-            return
-        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-        if self._view_mode == "split" and self._original_image is not None and self._edited_image is not None:
-            split_ratio = max(0.05, min(0.95, float(self._split_percent) / 100.0))
-            split_x = int(round(target_rect.width() * split_ratio))
-            source_split_x = int(round(self._edited_image.width() * split_ratio))
-            if split_x > 0 and source_split_x > 0:
-                painter.drawImage(
-                    target_rect.adjusted(0, 0, -(target_rect.width() - split_x), 0),
-                    self._original_image,
-                    self._original_image.rect().adjusted(0, 0, -(self._original_image.width() - source_split_x), 0),
+        try:
+            painter.fillRect(self.rect(), QColor("#222733"))
+            if self._image is None or self._display_image is None:
+                painter.setPen(QColor("#9CA6B8"))
+                painter.drawText(
+                    self.rect(),
+                    Qt.AlignCenter,
+                    translate_active_ui_text("Open a texture to start editing."),
                 )
-            if split_x < target_rect.width() and source_split_x < self._edited_image.width():
-                painter.drawImage(
-                    target_rect.adjusted(split_x, 0, 0, 0),
-                    self._edited_image,
-                    self._edited_image.rect().adjusted(source_split_x, 0, 0, 0),
-                )
-            painter.setPen(QPen(QColor("#8ED0FF"), 2))
-            painter.drawLine(split_x, 0, split_x, target_rect.height())
-        else:
-            painter.drawImage(target_rect, self._display_image)
-        if self._quick_mask_image is not None:
-            painter.drawImage(target_rect, self._quick_mask_image)
-        if self._grid_enabled and self._grid_size > 1:
-            grid_step = float(self._grid_size) * max(0.01, self._display_scale)
-            if grid_step >= 6.0:
-                base_color = QColor(self._grid_color if self._grid_color.isValid() else QColor("#74C1FF"))
-                opacity_ratio = max(0.05, min(1.0, float(self._grid_opacity) / 100.0))
-                minor_color = QColor(base_color)
-                major_color = QColor(base_color)
-                minor_color.setAlpha(max(8, int(round(255.0 * opacity_ratio * 0.38))))
-                major_color.setAlpha(max(minor_color.alpha() + 12, int(round(255.0 * opacity_ratio * 0.72))))
-                minor_pen = QPen(minor_color, 1)
-                major_pen = QPen(major_color, 1)
-                x = grid_step
-                line_index = 1
-                while x < target_rect.width():
-                    painter.setPen(major_pen if (line_index % 4 == 0) else minor_pen)
-                    painter.drawLine(int(round(x)), 0, int(round(x)), target_rect.height())
-                    x += grid_step
-                    line_index += 1
-                y = grid_step
-                line_index = 1
-                while y < target_rect.height():
-                    painter.setPen(major_pen if (line_index % 4 == 0) else minor_pen)
-                    painter.drawLine(0, int(round(y)), target_rect.width(), int(round(y)))
-                    y += grid_step
-                    line_index += 1
-        if self._guides_enabled:
-            guide_pen = QPen(QColor(116, 193, 255, 165), 1)
-            guide_pen.setStyle(Qt.DashLine)
-            painter.setPen(guide_pen)
-            for guide_x in self._vertical_guides:
-                x = int(round(float(guide_x) * max(0.01, self._display_scale)))
-                painter.drawLine(x, 0, x, target_rect.height())
-            for guide_y in self._horizontal_guides:
-                y = int(round(float(guide_y) * max(0.01, self._display_scale)))
-                painter.drawLine(0, y, target_rect.width(), y)
-        if self._symmetry_mode != "off":
-            symmetry_pen = QPen(QColor(116, 193, 255, 110), 1)
-            symmetry_pen.setStyle(Qt.DashLine)
-            painter.setPen(symmetry_pen)
-            if self._symmetry_mode in {"horizontal", "both"}:
-                guide_x = int(round((self._image.width() * 0.5) * max(0.01, self._display_scale)))
-                painter.drawLine(guide_x, 0, guide_x, target_rect.height())
-            if self._symmetry_mode in {"vertical", "both"}:
-                guide_y = int(round((self._image.height() * 0.5) * max(0.01, self._display_scale)))
-                painter.drawLine(0, guide_y, target_rect.width(), guide_y)
-        scale = self._display_scale
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        selection_pen = QPen(QColor("#69B8FF"))
-        selection_pen.setStyle(Qt.DashLine)
-        selection_pen.setWidth(2)
-        painter.setPen(selection_pen)
-        if self._selection.mask_polygons:
-            for polygon_points in self._selection.mask_polygons:
-                if len(polygon_points) < 3:
-                    continue
+                return
+            target_rect = self._display_target_rect()
+            if target_rect.isEmpty():
+                return
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            if self._view_mode == "split" and self._original_image is not None and self._edited_image is not None:
+                split_ratio = max(0.05, min(0.95, float(self._split_percent) / 100.0))
+                split_x = int(round(target_rect.width() * split_ratio))
+                source_split_x = int(round(self._edited_image.width() * split_ratio))
+                if split_x > 0 and source_split_x > 0:
+                    painter.drawImage(
+                        target_rect.adjusted(0, 0, -(target_rect.width() - split_x), 0),
+                        self._original_image,
+                        self._original_image.rect().adjusted(0, 0, -(self._original_image.width() - source_split_x), 0),
+                    )
+                if split_x < target_rect.width() and source_split_x < self._edited_image.width():
+                    painter.drawImage(
+                        target_rect.adjusted(split_x, 0, 0, 0),
+                        self._edited_image,
+                        self._edited_image.rect().adjusted(source_split_x, 0, 0, 0),
+                    )
+                painter.setPen(QPen(QColor("#8ED0FF"), 2))
+                painter.drawLine(split_x, 0, split_x, target_rect.height())
+            else:
+                painter.drawImage(target_rect, self._display_image)
+            if self._quick_mask_image is not None:
+                painter.drawImage(target_rect, self._quick_mask_image)
+            if self._grid_enabled and self._grid_size > 1:
+                grid_step = float(self._grid_size) * max(0.01, self._display_scale)
+                if grid_step >= 6.0:
+                    base_color = QColor(self._grid_color if self._grid_color.isValid() else QColor("#74C1FF"))
+                    opacity_ratio = max(0.05, min(1.0, float(self._grid_opacity) / 100.0))
+                    minor_color = QColor(base_color)
+                    major_color = QColor(base_color)
+                    minor_color.setAlpha(max(8, int(round(255.0 * opacity_ratio * 0.38))))
+                    major_color.setAlpha(max(minor_color.alpha() + 12, int(round(255.0 * opacity_ratio * 0.72))))
+                    minor_pen = QPen(minor_color, 1)
+                    major_pen = QPen(major_color, 1)
+                    x = grid_step
+                    line_index = 1
+                    while x < target_rect.width():
+                        painter.setPen(major_pen if (line_index % 4 == 0) else minor_pen)
+                        painter.drawLine(int(round(x)), 0, int(round(x)), target_rect.height())
+                        x += grid_step
+                        line_index += 1
+                    y = grid_step
+                    line_index = 1
+                    while y < target_rect.height():
+                        painter.setPen(major_pen if (line_index % 4 == 0) else minor_pen)
+                        painter.drawLine(0, int(round(y)), target_rect.width(), int(round(y)))
+                        y += grid_step
+                        line_index += 1
+            if self._guides_enabled:
+                guide_pen = QPen(QColor(116, 193, 255, 165), 1)
+                guide_pen.setStyle(Qt.DashLine)
+                painter.setPen(guide_pen)
+                for guide_x in self._vertical_guides:
+                    x = int(round(float(guide_x) * max(0.01, self._display_scale)))
+                    painter.drawLine(x, 0, x, target_rect.height())
+                for guide_y in self._horizontal_guides:
+                    y = int(round(float(guide_y) * max(0.01, self._display_scale)))
+                    painter.drawLine(0, y, target_rect.width(), y)
+            if self._symmetry_mode != "off":
+                symmetry_pen = QPen(QColor(116, 193, 255, 110), 1)
+                symmetry_pen.setStyle(Qt.DashLine)
+                painter.setPen(symmetry_pen)
+                if self._symmetry_mode in {"horizontal", "both"}:
+                    guide_x = int(round((self._image.width() * 0.5) * max(0.01, self._display_scale)))
+                    painter.drawLine(guide_x, 0, guide_x, target_rect.height())
+                if self._symmetry_mode in {"vertical", "both"}:
+                    guide_y = int(round((self._image.height() * 0.5) * max(0.01, self._display_scale)))
+                    painter.drawLine(0, guide_y, target_rect.width(), guide_y)
+            scale = self._display_scale
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            selection_pen = QPen(QColor("#69B8FF"))
+            selection_pen.setStyle(Qt.DashLine)
+            selection_pen.setWidth(2)
+            painter.setPen(selection_pen)
+            if self._selection.mask_polygons:
+                for polygon_points in self._selection.mask_polygons:
+                    if len(polygon_points) < 3:
+                        continue
+                    path = QPainterPath()
+                    first = polygon_points[0]
+                    path.moveTo(first[0] * scale, first[1] * scale)
+                    for point in polygon_points[1:]:
+                        path.lineTo(point[0] * scale, point[1] * scale)
+                    path.closeSubpath()
+                    painter.drawPath(path)
+            elif self._selection.mode == "rect" and self._selection.rect is not None:
+                x, y, w, h = self._selection.rect
+                painter.drawRect(int(x * scale), int(y * scale), int(w * scale), int(h * scale))
+            elif self._selection.mode == "lasso" and self._selection.polygon_points:
                 path = QPainterPath()
-                first = polygon_points[0]
+                first = self._selection.polygon_points[0]
                 path.moveTo(first[0] * scale, first[1] * scale)
-                for point in polygon_points[1:]:
+                for point in self._selection.polygon_points[1:]:
                     path.lineTo(point[0] * scale, point[1] * scale)
                 path.closeSubpath()
                 painter.drawPath(path)
-        elif self._selection.mode == "rect" and self._selection.rect is not None:
-            x, y, w, h = self._selection.rect
-            painter.drawRect(int(x * scale), int(y * scale), int(w * scale), int(h * scale))
-        elif self._selection.mode == "lasso" and self._selection.polygon_points:
-            path = QPainterPath()
-            first = self._selection.polygon_points[0]
-            path.moveTo(first[0] * scale, first[1] * scale)
-            for point in self._selection.polygon_points[1:]:
-                path.lineTo(point[0] * scale, point[1] * scale)
-            path.closeSubpath()
-            painter.drawPath(path)
-        overlay_pen = QPen(QColor("#F8D25C"))
-        overlay_pen.setWidth(2)
-        painter.setPen(overlay_pen)
-        if self._drag_points and self._tool in {"paint", "erase", "sharpen", "soften", "clone", "heal"}:
-            overlay_path = QPainterPath()
-            first = self._drag_points[0]
-            overlay_path.moveTo(first[0] * scale, first[1] * scale)
-            for point in self._drag_points[1:]:
-                overlay_path.lineTo(point[0] * scale, point[1] * scale)
-            brush_width = max(1.0, float(self._brush_size) * scale)
-            fill_color = {
-                "paint": QColor(116, 193, 255, 58),
-                "erase": QColor(255, 118, 118, 52),
-                "sharpen": QColor(255, 212, 92, 56),
-                "soften": QColor(134, 196, 255, 52),
-                "clone": QColor(104, 236, 194, 48),
-                "heal": QColor(104, 236, 194, 48),
-            }.get(self._tool, QColor(255, 212, 92, 52))
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(fill_color, brush_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            if len(self._drag_points) == 1:
-                painter.drawEllipse(
-                    int(round((first[0] * scale) - (brush_width / 2.0))),
-                    int(round((first[1] * scale) - (brush_width / 2.0))),
-                    int(round(brush_width)),
-                    int(round(brush_width)),
+            overlay_pen = QPen(QColor("#F8D25C"))
+            overlay_pen.setWidth(2)
+            painter.setPen(overlay_pen)
+            if self._drag_points and self._tool in {"paint", "erase", "sharpen", "soften", "clone", "heal"}:
+                overlay_path = QPainterPath()
+                first = self._drag_points[0]
+                overlay_path.moveTo(first[0] * scale, first[1] * scale)
+                for point in self._drag_points[1:]:
+                    overlay_path.lineTo(point[0] * scale, point[1] * scale)
+                brush_width = max(1.0, float(self._brush_size) * scale)
+                fill_color = {
+                    "paint": QColor(116, 193, 255, 58),
+                    "erase": QColor(255, 118, 118, 52),
+                    "sharpen": QColor(255, 212, 92, 56),
+                    "soften": QColor(134, 196, 255, 52),
+                    "clone": QColor(104, 236, 194, 48),
+                    "heal": QColor(104, 236, 194, 48),
+                }.get(self._tool, QColor(255, 212, 92, 52))
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(fill_color, brush_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                if len(self._drag_points) == 1:
+                    painter.drawEllipse(
+                        int(round((first[0] * scale) - (brush_width / 2.0))),
+                        int(round((first[1] * scale) - (brush_width / 2.0))),
+                        int(round(brush_width)),
+                        int(round(brush_width)),
+                    )
+                else:
+                    painter.drawPath(overlay_path)
+            elif self._drag_points and self._tool == "move":
+                move_pen = QPen(QColor("#8BD0FF"), 2.0)
+                move_pen.setCapStyle(Qt.RoundCap)
+                painter.setPen(move_pen)
+                start = self._drag_points[0]
+                end = self._drag_points[-1]
+                painter.drawLine(
+                    int(round(start[0] * scale)),
+                    int(round(start[1] * scale)),
+                    int(round(end[0] * scale)),
+                    int(round(end[1] * scale)),
                 )
-            else:
-                painter.drawPath(overlay_path)
-        elif self._drag_points and self._tool == "move":
-            move_pen = QPen(QColor("#8BD0FF"), 2.0)
-            move_pen.setCapStyle(Qt.RoundCap)
-            painter.setPen(move_pen)
-            start = self._drag_points[0]
-            end = self._drag_points[-1]
-            painter.drawLine(
-                int(round(start[0] * scale)),
-                int(round(start[1] * scale)),
-                int(round(end[0] * scale)),
-                int(round(end[1] * scale)),
-            )
-            handle_radius = 5
-            painter.setPen(QPen(QColor(255, 255, 255, 160), 1.2))
-            painter.setBrush(QColor(139, 208, 255, 84))
-            painter.drawEllipse(
-                int(round(end[0] * scale)) - handle_radius,
-                int(round(end[1] * scale)) - handle_radius,
-                handle_radius * 2,
-                handle_radius * 2,
-            )
-        if self._lasso_points and self._tool == "lasso":
-            path = QPainterPath()
-            first = self._lasso_points[0]
-            path.moveTo(first[0] * scale, first[1] * scale)
-            for point in self._lasso_points[1:]:
-                path.lineTo(point[0] * scale, point[1] * scale)
-            painter.drawPath(path)
-        if self._rect_origin is not None and self._drag_points and self._tool == "select_rect":
-            start = self._rect_origin
-            end = self._drag_points[-1]
-            x = min(start[0], end[0])
-            y = min(start[1], end[1])
-            w = abs(end[0] - start[0])
-            h = abs(end[1] - start[1])
-            painter.drawRect(int(x * scale), int(y * scale), int(w * scale), int(h * scale))
-        if self._clone_source_point is not None:
-            x = int(self._clone_source_point[0] * scale)
-            y = int(self._clone_source_point[1] * scale)
-            painter.setPen(QPen(QColor("#FF7A7A"), 2))
-            painter.drawLine(x - 10, y, x + 10, y)
-            painter.drawLine(x, y - 10, x, y + 10)
-        if self._editable and self._floating_bounds is not None:
-            x, y, w, h = self._floating_bounds
-            painter.setPen(QPen(QColor("#F2C14E"), 2, Qt.DashLine))
-            painter.setBrush(Qt.NoBrush)
-            painter.drawRect(int(round(x * scale)), int(round(y * scale)), int(round(w * scale)), int(round(h * scale)))
-            if self._tool == "move":
-                handle_pen = QPen(QColor("#FFD97A"), 1.2)
-                painter.setPen(handle_pen)
-                painter.setBrush(QColor(38, 45, 58, 220))
-                handle_rects = self._floating_handle_rects()
-                rotate_rect = handle_rects.get("rotate")
-                if rotate_rect is not None:
-                    center_x = int(round((x + (w / 2.0)) * scale))
-                    center_y = int(round(y * scale))
-                    rotate_center = rotate_rect.center()
-                    painter.drawLine(center_x, center_y, int(round(rotate_center.x())), int(round(rotate_center.y())))
-                for rect in handle_rects.values():
-                    painter.drawEllipse(rect)
-        hover_point = self._drag_points[-1] if self._drag_points else self._hover_point
-        if self._editable and hover_point is not None and self._tool in self._brush_tools():
-            center_x = float(hover_point[0]) * scale
-            center_y = float(hover_point[1]) * scale
-            self._draw_brush_outline(painter, center_x, center_y)
-            self._draw_brush_hud(painter, center_x, center_y)
-        if self._editable and self._tool in {"clone", "heal"} and self._clone_source_point is not None and hover_point is not None:
-            source_x = float(self._clone_source_point[0]) * scale
-            source_y = float(self._clone_source_point[1]) * scale
-            if self._drag_points:
-                dx = hover_point[0] - self._drag_points[0][0]
-                dy = hover_point[1] - self._drag_points[0][1]
-                source_x = float(self._clone_source_point[0] + dx) * scale
-                source_y = float(self._clone_source_point[1] + dy) * scale
-            painter.setPen(QPen(QColor("#8ED0FF"), 1.0, Qt.DashLine))
-            painter.drawLine(
-                int(round(hover_point[0] * scale)),
-                int(round(hover_point[1] * scale)),
-                int(round(source_x)),
-                int(round(source_y)),
-            )
-            painter.setPen(QPen(QColor("#FFDA79"), 1.2))
-            painter.drawEllipse(int(round(source_x - 4)), int(round(source_y - 4)), 8, 8)
+                handle_radius = 5
+                painter.setPen(QPen(QColor(255, 255, 255, 160), 1.2))
+                painter.setBrush(QColor(139, 208, 255, 84))
+                painter.drawEllipse(
+                    int(round(end[0] * scale)) - handle_radius,
+                    int(round(end[1] * scale)) - handle_radius,
+                    handle_radius * 2,
+                    handle_radius * 2,
+                )
+            if self._lasso_points and self._tool == "lasso":
+                path = QPainterPath()
+                first = self._lasso_points[0]
+                path.moveTo(first[0] * scale, first[1] * scale)
+                for point in self._lasso_points[1:]:
+                    path.lineTo(point[0] * scale, point[1] * scale)
+                painter.drawPath(path)
+            if self._rect_origin is not None and self._drag_points and self._tool == "select_rect":
+                start = self._rect_origin
+                end = self._drag_points[-1]
+                x = min(start[0], end[0])
+                y = min(start[1], end[1])
+                w = abs(end[0] - start[0])
+                h = abs(end[1] - start[1])
+                painter.drawRect(int(x * scale), int(y * scale), int(w * scale), int(h * scale))
+            if self._clone_source_point is not None:
+                x = int(self._clone_source_point[0] * scale)
+                y = int(self._clone_source_point[1] * scale)
+                painter.setPen(QPen(QColor("#FF7A7A"), 2))
+                painter.drawLine(x - 10, y, x + 10, y)
+                painter.drawLine(x, y - 10, x, y + 10)
+            if self._editable and self._floating_bounds is not None:
+                x, y, w, h = self._floating_bounds
+                painter.setPen(QPen(QColor("#F2C14E"), 2, Qt.DashLine))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRect(int(round(x * scale)), int(round(y * scale)), int(round(w * scale)), int(round(h * scale)))
+                if self._tool == "move":
+                    handle_pen = QPen(QColor("#FFD97A"), 1.2)
+                    painter.setPen(handle_pen)
+                    painter.setBrush(QColor(38, 45, 58, 220))
+                    handle_rects = self._floating_handle_rects()
+                    rotate_rect = handle_rects.get("rotate")
+                    if rotate_rect is not None:
+                        center_x = int(round((x + (w / 2.0)) * scale))
+                        center_y = int(round(y * scale))
+                        rotate_center = rotate_rect.center()
+                        painter.drawLine(center_x, center_y, int(round(rotate_center.x())), int(round(rotate_center.y())))
+                    for rect in handle_rects.values():
+                        painter.drawEllipse(rect)
+            hover_point = self._drag_points[-1] if self._drag_points else self._hover_point
+            if self._editable and hover_point is not None and self._tool in self._brush_tools():
+                center_x = float(hover_point[0]) * scale
+                center_y = float(hover_point[1]) * scale
+                self._draw_brush_outline(painter, center_x, center_y)
+                self._draw_brush_hud(painter, center_x, center_y)
+            if self._editable and self._tool in {"clone", "heal"} and self._clone_source_point is not None and hover_point is not None:
+                source_x = float(self._clone_source_point[0]) * scale
+                source_y = float(self._clone_source_point[1]) * scale
+                if self._drag_points:
+                    dx = hover_point[0] - self._drag_points[0][0]
+                    dy = hover_point[1] - self._drag_points[0][1]
+                    source_x = float(self._clone_source_point[0] + dx) * scale
+                    source_y = float(self._clone_source_point[1] + dy) * scale
+                painter.setPen(QPen(QColor("#8ED0FF"), 1.0, Qt.DashLine))
+                painter.drawLine(
+                    int(round(hover_point[0] * scale)),
+                    int(round(hover_point[1] * scale)),
+                    int(round(source_x)),
+                    int(round(source_y)),
+                )
+                painter.setPen(QPen(QColor("#FFDA79"), 1.2))
+                painter.drawEllipse(int(round(source_x - 4)), int(round(source_y - 4)), 8, 8)
+        finally:
+            painter.end()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # type: ignore[override]
         if self._image is None:

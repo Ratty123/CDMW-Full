@@ -288,39 +288,42 @@ class PacXmlCodeEditor(QPlainTextEdit):
 
     def paint_line_number_area(self, event) -> None:  # type: ignore[no-untyped-def]
         painter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), self._theme_colors["gutter_background"])
-        painter.setPen(self._theme_colors["gutter_border"])
-        painter.drawLine(
-            self.line_number_area.width() - 1,
-            event.rect().top(),
-            self.line_number_area.width() - 1,
-            event.rect().bottom(),
-        )
+        try:
+            painter.fillRect(event.rect(), self._theme_colors["gutter_background"])
+            painter.setPen(self._theme_colors["gutter_border"])
+            painter.drawLine(
+                self.line_number_area.width() - 1,
+                event.rect().top(),
+                self.line_number_area.width() - 1,
+                event.rect().bottom(),
+            )
 
-        block = self.firstVisibleBlock()
-        block_number = block.blockNumber()
-        top = round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
-        bottom = top + round(self.blockBoundingRect(block).height())
-        active_block = self.textCursor().blockNumber()
-        while block.isValid() and top <= event.rect().bottom():
-            if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(
-                    self._theme_colors["gutter_active"]
-                    if block_number == active_block
-                    else self._theme_colors["gutter_foreground"]
-                )
-                painter.drawText(
-                    0,
-                    top,
-                    self.line_number_area.width() - 8,
-                    self.fontMetrics().height(),
-                    Qt.AlignRight,
-                    str(block_number + 1),
-                )
-            block = block.next()
-            top = bottom
+            block = self.firstVisibleBlock()
+            block_number = block.blockNumber()
+            top = round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
             bottom = top + round(self.blockBoundingRect(block).height())
-            block_number += 1
+            active_block = self.textCursor().blockNumber()
+            while block.isValid() and top <= event.rect().bottom():
+                if block.isVisible() and bottom >= event.rect().top():
+                    painter.setPen(
+                        self._theme_colors["gutter_active"]
+                        if block_number == active_block
+                        else self._theme_colors["gutter_foreground"]
+                    )
+                    painter.drawText(
+                        0,
+                        top,
+                        self.line_number_area.width() - 8,
+                        self.fontMetrics().height(),
+                        Qt.AlignRight,
+                        str(block_number + 1),
+                    )
+                block = block.next()
+                top = bottom
+                bottom = top + round(self.blockBoundingRect(block).height())
+                block_number += 1
+        finally:
+            painter.end()
 
 
 class PacXmlSourceChangesView(QWidget):

@@ -198,14 +198,17 @@ class StartupSignalMark(QFrame):
         if rect.width() <= 8 or rect.height() <= 8:
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(Qt.NoBrush)
-        inner = rect.adjusted(10, 4, -10, -4)
-        width = max(1.0, float(inner.width()))
-        height = max(1.0, float(inner.height()))
+        try:
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(Qt.NoBrush)
+            inner = rect.adjusted(10, 4, -10, -4)
+            width = max(1.0, float(inner.width()))
+            height = max(1.0, float(inner.height()))
 
-        self._draw_cdmw_block_wave(painter, inner, width, height)
+            self._draw_cdmw_block_wave(painter, inner, width, height)
+        finally:
+            painter.end()
 
 class StartupProgressCard(QFrame):
     def __init__(self, parent: Optional[QWidget] = None, *, theme_key: str = DEFAULT_UI_THEME) -> None:
@@ -348,34 +351,37 @@ class StartupProgressCard(QFrame):
         if card_rect.width() <= 4 or card_rect.height() <= 4:
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(_splash_theme_color(self._theme_key, "surface", "#252526"))
-        painter.drawRoundedRect(card_rect, 10, 10)
+        try:
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(_splash_theme_color(self._theme_key, "surface", "#252526"))
+            painter.drawRoundedRect(card_rect, 10, 10)
 
-        rect = card_rect.adjusted(1, 1, -1, -1)
-        self._draw_falling_blocks(painter, rect.adjusted(16, 10, -16, -32))
-        painter.setBrush(Qt.NoBrush)
-        painter.setPen(QPen(_splash_color_with_alpha(_splash_theme_color(self._theme_key, "border_strong", "#3c3c3c"), 190), 1.0))
-        painter.drawRoundedRect(rect, 10, 10)
+            rect = card_rect.adjusted(1, 1, -1, -1)
+            self._draw_falling_blocks(painter, rect.adjusted(16, 10, -16, -32))
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(_splash_color_with_alpha(_splash_theme_color(self._theme_key, "border_strong", "#3c3c3c"), 190), 1.0))
+            painter.drawRoundedRect(rect, 10, 10)
 
-        rail = QRectF(rect.left() + 24, rect.bottom() - 18, rect.width() - 48, 3)
-        accent = _splash_theme_color(self._theme_key, "accent", "#c56d43")
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(_splash_color_with_alpha(accent, 42))
-        painter.drawRoundedRect(rail, 1.5, 1.5)
-        if self._has_determinate_progress:
-            progress = min(max(self._display_progress, 0.0), 1.0)
-            if progress > 0.01:
-                fill = QRectF(rail.left(), rail.top(), rail.width() * progress, rail.height())
+            rail = QRectF(rect.left() + 24, rect.bottom() - 18, rect.width() - 48, 3)
+            accent = _splash_theme_color(self._theme_key, "accent", "#c56d43")
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(_splash_color_with_alpha(accent, 42))
+            painter.drawRoundedRect(rail, 1.5, 1.5)
+            if self._has_determinate_progress:
+                progress = min(max(self._display_progress, 0.0), 1.0)
+                if progress > 0.01:
+                    fill = QRectF(rail.left(), rail.top(), rail.width() * progress, rail.height())
+                    painter.setBrush(accent)
+                    painter.drawRoundedRect(fill, 1.5, 1.5)
+            else:
+                sweep_width = rail.width() * 0.24
+                sweep_left = rail.left() + ((rail.width() + sweep_width) * self._phase) - sweep_width
+                sweep = QRectF(sweep_left, rail.top(), sweep_width, rail.height())
                 painter.setBrush(accent)
-                painter.drawRoundedRect(fill, 1.5, 1.5)
-        else:
-            sweep_width = rail.width() * 0.24
-            sweep_left = rail.left() + ((rail.width() + sweep_width) * self._phase) - sweep_width
-            sweep = QRectF(sweep_left, rail.top(), sweep_width, rail.height())
-            painter.setBrush(accent)
-            painter.drawRoundedRect(sweep.intersected(rail), 1.5, 1.5)
+                painter.drawRoundedRect(sweep.intersected(rail), 1.5, 1.5)
+        finally:
+            painter.end()
 
 class StartupSplashDialog(QDialog):
     def __init__(

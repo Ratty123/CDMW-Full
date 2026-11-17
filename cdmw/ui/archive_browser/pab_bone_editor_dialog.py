@@ -177,50 +177,53 @@ class SkeletonSketch(QWidget):
 
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        palette = self.palette()
-        painter.fillRect(self.rect(), palette.base())
-        self._joints = []
-        document = self._document
-        if document is None or not document.bones:
-            return
-        positions = [bone.bind_matrix[12:15] for bone in document.bones]
-        projected = [[project(*position) for position in positions] for _title, project in self.PANELS]
-        span = max(max(max(p[0] for p in panel) - min(p[0] for p in panel),
-                       max(p[1] for p in panel) - min(p[1] for p in panel)) for panel in projected)
-        span = max(span, 1e-3)
-        margin, header = 16.0, 22.0
-        panel_width = self.width() / len(self.PANELS)
-        scale = min(panel_width - 2 * margin, self.height() - 2 * margin - header) / span
-        shipped = QColor(palette.text().color())
-        shipped.setAlpha(110)
-        added_colour = QColor(palette.highlight().color())
-        for panel_index, ((title, _project), points) in enumerate(zip(self.PANELS, projected)):
-            left = panel_index * panel_width
-            xs, ys = [p[0] for p in points], [p[1] for p in points]
-            centre_x, centre_y = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
-            screen = [QPointF(left + panel_width / 2 + (x - centre_x) * scale,
-                              header + (self.height() - header) / 2 + (y - centre_y) * scale) for x, y in points]
-            for index, bone in enumerate(document.bones):
-                if bone.parent_index < 0:
-                    continue
-                is_added = bone.name in self._added
-                colour = _SELECTED_COLOUR if bone.name == self._selected else added_colour if is_added else shipped
-                painter.setPen(QPen(colour, 3.0 if is_added or bone.name == self._selected else 1.0))
-                painter.drawLine(screen[bone.parent_index], screen[index])
-            for index, bone in enumerate(document.bones):
-                self._joints.append((bone.name, screen[index]))
-                if bone.name in self._added or bone.name == self._selected:
-                    painter.setPen(Qt.NoPen)
-                    painter.setBrush(_SELECTED_COLOUR if bone.name == self._selected else added_colour)
-                    radius = 5.0 if bone.name == self._selected else 3.5
-                    painter.drawEllipse(screen[index], radius, radius)
-            painter.setPen(palette.text().color())
-            painter.drawText(QRectF(left + 8, 4, panel_width - 16, header - 4), Qt.AlignLeft,
-                             "Front view" if title == "Front" else "Side view")
-            if panel_index:
-                painter.setPen(QPen(shipped, 1.0))
-                painter.drawLine(QPointF(left, 0), QPointF(left, self.height()))
+        try:
+            painter.setRenderHint(QPainter.Antialiasing)
+            palette = self.palette()
+            painter.fillRect(self.rect(), palette.base())
+            self._joints = []
+            document = self._document
+            if document is None or not document.bones:
+                return
+            positions = [bone.bind_matrix[12:15] for bone in document.bones]
+            projected = [[project(*position) for position in positions] for _title, project in self.PANELS]
+            span = max(max(max(p[0] for p in panel) - min(p[0] for p in panel),
+                           max(p[1] for p in panel) - min(p[1] for p in panel)) for panel in projected)
+            span = max(span, 1e-3)
+            margin, header = 16.0, 22.0
+            panel_width = self.width() / len(self.PANELS)
+            scale = min(panel_width - 2 * margin, self.height() - 2 * margin - header) / span
+            shipped = QColor(palette.text().color())
+            shipped.setAlpha(110)
+            added_colour = QColor(palette.highlight().color())
+            for panel_index, ((title, _project), points) in enumerate(zip(self.PANELS, projected)):
+                left = panel_index * panel_width
+                xs, ys = [p[0] for p in points], [p[1] for p in points]
+                centre_x, centre_y = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+                screen = [QPointF(left + panel_width / 2 + (x - centre_x) * scale,
+                                  header + (self.height() - header) / 2 + (y - centre_y) * scale) for x, y in points]
+                for index, bone in enumerate(document.bones):
+                    if bone.parent_index < 0:
+                        continue
+                    is_added = bone.name in self._added
+                    colour = _SELECTED_COLOUR if bone.name == self._selected else added_colour if is_added else shipped
+                    painter.setPen(QPen(colour, 3.0 if is_added or bone.name == self._selected else 1.0))
+                    painter.drawLine(screen[bone.parent_index], screen[index])
+                for index, bone in enumerate(document.bones):
+                    self._joints.append((bone.name, screen[index]))
+                    if bone.name in self._added or bone.name == self._selected:
+                        painter.setPen(Qt.NoPen)
+                        painter.setBrush(_SELECTED_COLOUR if bone.name == self._selected else added_colour)
+                        radius = 5.0 if bone.name == self._selected else 3.5
+                        painter.drawEllipse(screen[index], radius, radius)
+                painter.setPen(palette.text().color())
+                painter.drawText(QRectF(left + 8, 4, panel_width - 16, header - 4), Qt.AlignLeft,
+                                 "Front view" if title == "Front" else "Side view")
+                if panel_index:
+                    painter.setPen(QPen(shipped, 1.0))
+                    painter.drawLine(QPointF(left, 0), QPointF(left, self.height()))
+        finally:
+            painter.end()
 
     def mousePressEvent(self, event) -> None:
         position = event.position() if hasattr(event, "position") else QPointF(event.pos())

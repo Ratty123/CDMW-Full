@@ -848,19 +848,21 @@ class RemoteArchiveFinderDialog(QDialog):
         palette = self.palette()
         pixmap.fill(palette.color(QPalette.Window))
         painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setPen(palette.color(QPalette.Mid))
-        painter.setBrush(palette.color(QPalette.AlternateBase))
-        painter.drawRoundedRect(4, 4, 104, 104, 9, 9)
-        painter.setPen(palette.color(QPalette.Text))
-        font = painter.font()
-        font.setBold(True)
-        font.setPixelSize(icon_letter_pixels(side))
-        painter.setFont(font)
-        display_name = row.display_name or row.internal_name or "?"
-        fallback = next((character.upper() for character in display_name if character.isalnum()), "?")
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, fallback)
-        painter.end()
+        try:
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setPen(palette.color(QPalette.Mid))
+            painter.setBrush(palette.color(QPalette.AlternateBase))
+            painter.drawRoundedRect(4, 4, 104, 104, 9, 9)
+            painter.setPen(palette.color(QPalette.Text))
+            font = painter.font()
+            font.setBold(True)
+            font.setPixelSize(icon_letter_pixels(side))
+            painter.setFont(font)
+            display_name = row.display_name or row.internal_name or "?"
+            fallback = next((character.upper() for character in display_name if character.isalnum()), "?")
+            painter.drawText(pixmap.rect(), Qt.AlignCenter, fallback)
+        finally:
+            painter.end()
         return QIcon(pixmap)
 
     def _selected_row(self) -> ItemCatalogRow | None:

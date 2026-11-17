@@ -65,6 +65,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- CDMW no longer closes now and then while its start-up splash is drawn. It happened when a tool read CDMW's thread stacks at that moment, as the automation bridge's `ui_stack` and `thread_stacks` commands and the "GUI heartbeat stalled" report did: the read kept one part of the splash drawing after it should have finished, and the next part then failed in Qt. Those stacks are now read as text, which keeps nothing alive, and every drawing CDMW does ends with its own step, not when Python gets round to it.
 - **Sharpen** at its default strength now sharpens a game texture's fine grain. Strength scaled both the sharpening and how much of it was blended in, and the sharpened image was rounded before the blend, so at 25 % a stroke over gentle shading, such as an armour's detail layer, changed nothing. At 100 % it is as strong as before.
 - **Clear History** is greyed out in the Mesh Editor's **Texture Editor** panel, and its tooltip says why: the Mesh Editor's Undo history holds the texture's edits. Clearing it there made an edited texture count as unchanged once you undid an edit made after the Clear, so **Build Mod** would have left it out.
 - A **Hue / Saturation** or **Vibrance** adjustment with its sliders at 0 no longer changes the texture. Its colour maths worked in 8-bit steps, so adding one moved most coloured pixels by a few levels, and the texture counted as edited for **Build Mod**.

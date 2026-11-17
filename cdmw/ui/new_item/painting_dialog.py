@@ -143,8 +143,10 @@ def _square_icon(image: QImage) -> QIcon:
     square = QPixmap(side, side)
     square.fill(Qt.GlobalColor.transparent)
     painter = QPainter(square)
-    painter.drawImage((side - image.width()) // 2, (side - image.height()) // 2, image)
-    painter.end()
+    try:
+        painter.drawImage((side - image.width()) // 2, (side - image.height()) // 2, image)
+    finally:
+        painter.end()
     return QIcon(square)
 
 

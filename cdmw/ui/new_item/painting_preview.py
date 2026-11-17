@@ -159,31 +159,32 @@ class PaintingFrameView(QWidget):
             return
         canvas = self.canvas_rect()
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        # A soft shadow on the wall, then the frame with light from the top left.
-        shadow = max(3.0, frame.width() * 0.012)
-        painter.fillRect(frame.translated(shadow, shadow * 1.4), QColor(0, 0, 0, 90))
-        gradient = QLinearGradient(frame.topLeft(), frame.bottomRight())
-        gradient.setColorAt(0.0, self._colour.lighter(135))
-        gradient.setColorAt(0.5, self._colour)
-        gradient.setColorAt(1.0, self._colour.darker(150))
-        painter.fillRect(frame, QBrush(gradient))
-        painter.setPen(QPen(self._colour.darker(200), 1.0))
-        painter.drawRect(frame.adjusted(0.5, 0.5, -0.5, -0.5))
-        if canvas.isEmpty():
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            # A soft shadow on the wall, then the frame with light from the top left.
+            shadow = max(3.0, frame.width() * 0.012)
+            painter.fillRect(frame.translated(shadow, shadow * 1.4), QColor(0, 0, 0, 90))
+            gradient = QLinearGradient(frame.topLeft(), frame.bottomRight())
+            gradient.setColorAt(0.0, self._colour.lighter(135))
+            gradient.setColorAt(0.5, self._colour)
+            gradient.setColorAt(1.0, self._colour.darker(150))
+            painter.fillRect(frame, QBrush(gradient))
+            painter.setPen(QPen(self._colour.darker(200), 1.0))
+            painter.drawRect(frame.adjusted(0.5, 0.5, -0.5, -0.5))
+            if canvas.isEmpty():
+                return
+            # The canvas sits a little into the frame: a darker lip around it.
+            lip = max(1.5, min(canvas.width(), canvas.height()) * 0.01)
+            painter.fillRect(canvas.adjusted(-lip, -lip, lip, lip), self._colour.darker(230))
+            if self._picture.isNull():
+                painter.fillRect(canvas, QColor(222, 214, 198))
+                painter.setPen(QPen(QColor(190, 180, 160), 1.0, Qt.PenStyle.DashLine))
+                painter.drawRect(canvas.adjusted(4, 4, -4, -4))
+            else:
+                painter.drawImage(canvas, self._picture)
+        finally:
             painter.end()
-            return
-        # The canvas sits a little into the frame: a darker lip around it.
-        lip = max(1.5, min(canvas.width(), canvas.height()) * 0.01)
-        painter.fillRect(canvas.adjusted(-lip, -lip, lip, lip), self._colour.darker(230))
-        if self._picture.isNull():
-            painter.fillRect(canvas, QColor(222, 214, 198))
-            painter.setPen(QPen(QColor(190, 180, 160), 1.0, Qt.PenStyle.DashLine))
-            painter.drawRect(canvas.adjusted(4, 4, -4, -4))
-        else:
-            painter.drawImage(canvas, self._picture)
-        painter.end()
 
 
 class FrameList(QListWidget):
