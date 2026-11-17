@@ -1949,7 +1949,7 @@ impl PresentationView {
         let height = if fill_height {
             height
         } else {
-            height.min(rows * (control_height(ui) + ui.spacing().item_spacing.y) + header_space)
+            height.min(rows * (row_height(ui, node) + ui.spacing().item_spacing.y) + header_space)
         };
         let mut at_end = false;
         let response = egui::ScrollArea::horizontal().id_salt("table-columns").auto_shrink([false,!fill_height])
@@ -2071,13 +2071,13 @@ impl PresentationView {
                 ui.push_id(row["path"].to_string(), |ui| {
                     ui.horizontal(|ui| {
                         if node.flag("row_headers") {
-                            ui.add_sized(Vec2::new(row_header_width, control_height(ui)), egui::Label::new(row["label"].as_str().unwrap_or("")).truncate());
+                            ui.add_sized(Vec2::new(row_header_width, row_height(ui, node)), egui::Label::new(row["label"].as_str().unwrap_or("")).truncate());
                         }
                         for (column, width) in columns.iter().zip(widths) {
                             let col = column["index"].as_u64().unwrap_or(0) as usize;
                             let cell = &row["cells"][col];
                             ui.push_id(col, |ui| {
-                                ui.allocate_ui_with_layout(Vec2::new(*width, control_height(ui)), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                ui.allocate_ui_with_layout(Vec2::new(*width, row_height(ui, node)), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                     // Empty/check-only cells still occupy their column.
                                     // Otherwise the next editor slides left on those rows.
                                     ui.set_min_width(*width);
@@ -2124,13 +2124,23 @@ impl PresentationView {
                                             if cell["italic"] == true { text = text.italics(); }
                                             if cell["selected"] == true { text = text.color(ui.visuals().selection.stroke.color); }
                                             else if let Ok(color) = Color32::from_hex(cell["foreground"].as_str().unwrap_or("")) { text = text.color(color); }
-                                            let mut button = egui::Button::selectable(cell["selected"] == true, "").left_text(text).truncate();
+                                            let icon = node.icon_size().zip(self.textures.get(cell["image"].as_str().unwrap_or("")));
+                                            let mut button = if let Some((size, texture)) = icon {
+                                                // left_text prepends each atom in turn: the icon is
+                                                // listed last so it is drawn first, as Qt places it.
+                                                // Icon rows are tall, so their text wraps (Qt does too).
+                                                egui::Button::selectable(cell["selected"] == true, "")
+                                                    .left_text((text, egui::AtomExt::atom_size(egui::Image::new(texture), size)))
+                                                    .wrap()
+                                            } else {
+                                                egui::Button::selectable(cell["selected"] == true, "").left_text(text).truncate()
+                                            };
                                             if cell["selected"] != true
                                                 // A selectable cell draws no frame, so a row colour needs one to show.
                                                 && let Ok(color) = Color32::from_hex(cell["background"].as_str().unwrap_or("")) {
                                                 button = button.fill(color).frame(true).frame_when_inactive(true).stroke(egui::Stroke::NONE);
                                             }
-                                            let response = ui.add_enabled_ui(cell["enabled"] != false,|ui|ui.add_sized(Vec2::new(text_width,control_height(ui)),button)).inner;
+                                            let response = ui.add_enabled_ui(cell["enabled"] != false,|ui|ui.add_sized(Vec2::new(text_width,row_height(ui, node)),button)).inner;
                                             if response.clicked() || response.double_clicked() {
                                                 response.request_focus();
                                                 self.table_focus.insert(node.id.clone(),response.id);
@@ -2223,6 +2233,13 @@ fn control_height(ui: &Ui) -> f32 {
     (ui.text_style_height(&TextStyle::Button) + 2.0 * ui.spacing().button_padding.y)
         .max(ui.spacing().interact_size.y)
         .ceil()
+}
+
+/// A table row's height: tall enough for the view's item icons when it shows them, as
+/// Qt sizes such a row, and never less than one control.
+fn row_height(ui: &Ui, node: &Node) -> f32 {
+    let icon = node.icon_size().map_or(0.0, |size| size.y + 4.0);
+    control_height(ui).max(icon)
 }
 
 fn layout_flexible(node: &Node) -> bool {
@@ -2417,7 +2434,7 @@ fn estimate_height(ui: &Ui, node: &Node, width: f32) -> f32 {
         "text" if node.flag("multiline") => 100.0,
         "table" => {
             node.number("total", 0.0).clamp(1.0, 8.0) as f32
-                * (control_height(ui) + ui.spacing().item_spacing.y)
+                * (row_height(ui, node) + ui.spacing().item_spacing.y)
                 + if node.flag("headers") {
                     control_height(ui) + ui.spacing().item_spacing.y
                 } else {

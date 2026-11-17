@@ -150,3 +150,24 @@ def test_an_unchanged_front_view_is_not_drawn_again(presented, monkeypatch):
     dialog.frame.set_current_frame_row(1)  # another frame: drawn again
     snapshot()
     assert len(paints) > drawn
+
+
+def test_the_frame_list_rows_carry_their_thumbnails_at_the_list_s_icon_size(presented):
+    dialog, snapshot = presented
+    state, window = snapshot()
+    frames = _find(window, "new_item_painting_frame")
+    assert frames["kind"] == "table"
+    assert frames["props"]["icon_size"] == [72, 72]
+    rows = frames["props"]["rows"]
+    assert [row["cells"][0]["text"].splitlines()[0] for row in rows] == ["0.50 x 0.40 m", "1.50 x 2.00 m"]
+    assert all(len(row["cells"][0]["text"].splitlines()) == 2 for row in rows)  # size and picture area
+    thumbnails = [_image(state, row["cells"][0]["image"]) for row in rows]
+    ratio = dialog.frame.devicePixelRatioF()
+    # At the list's icon size, centred and never enlarged, as Qt draws them.
+    assert all((image.width(), image.height()) == (round(72 * ratio), round(72 * ratio)) for image in thumbnails)
+    # Each row its own frame's icon: blue for the small frame, brown for the large one.
+    middle = [image.pixelColor(image.width() // 2, image.height() // 2) for image in thumbnails]
+    assert (middle[0].red(), middle[0].green(), middle[0].blue()) == (0x33, 0x66, 0xCC)
+    assert (middle[1].red(), middle[1].green(), middle[1].blue()) == (0x8B, 0x5A, 0x2B)
+    # The painting list sets no icon size, so it sends no icons.
+    assert "icon_size" not in _find(window, "new_item_painting_list")["props"]

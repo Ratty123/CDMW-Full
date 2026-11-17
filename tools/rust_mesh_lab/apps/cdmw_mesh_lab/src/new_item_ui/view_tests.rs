@@ -3427,3 +3427,47 @@ fn custom_painted_pictures_fill_their_slot_and_keep_their_hint_over_them() {
     );
 }
 
+#[test]
+fn icon_rows_are_as_tall_as_their_icons() {
+    // New painting's frame list: 72 px thumbnails beside two lines of sizes.
+    let mut heights = Vec::new();
+    for icons in [false, true] {
+        let context = egui::Context::default();
+        let mut props = json!({"total":3,
+            "columns":[{"index":0,"text":"","width":200,"stretch":true}]});
+        if icons {
+            props["icon_size"] = json!([72, 72]);
+        }
+        let mut table = control("frames", "table", "", props);
+        table.props["rows"] = json!(
+            (0..3)
+                .map(|index| json!({"path":[index], "cells":[{
+                    "text":format!("0.86 x 1.38 m\npicture 0.70 x 1.2{index} m"),
+                    "enabled":true,"selectable":true,"image":"thumb"}]}))
+                .collect::<Vec<_>>()
+        );
+        let mut root = control("page", "column", "", json!({}));
+        root.children = vec![table, control("after", "button", "Add", json!({}))];
+        let state = state(root);
+        apply_theme(&context, &state.theme);
+        let mut view = PresentationView::default();
+        view.textures.insert(
+            "thumb".into(),
+            context.load_texture(
+                "thumb",
+                egui::ColorImage::filled([72, 72], Color32::BROWN),
+                egui::TextureOptions::LINEAR,
+            ),
+        );
+        for _ in 0..4 {
+            frame(&context, &mut view, &state, egui::vec2(480.0, 720.0), vec![]);
+        }
+        assert!(view.errors.is_empty(), "{:?}", view.errors);
+        let table = view.rects.iter().find(|rect| rect.id == "frames").unwrap();
+        let after = view.rects.iter().find(|rect| rect.id == "after").unwrap();
+        assert!(table.rect[1] + table.rect[3] <= after.rect[1] + 1.0, "{table:?} {after:?}");
+        heights.push(table.rect[3]);
+    }
+    assert!(heights[0] < 3.0 * 76.0, "rows without icons stay one control tall: {heights:?}");
+    assert!(heights[1] >= 3.0 * 76.0, "icon rows fit their 72 px icons: {heights:?}");
+}

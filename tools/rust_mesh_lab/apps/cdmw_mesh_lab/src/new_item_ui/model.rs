@@ -58,6 +58,18 @@ impl Node {
             .map(Vec::as_slice)
             .unwrap_or_default()
     }
+    /// The item icons' size of a table that shows icons, in logical pixels.
+    pub fn icon_size(&self) -> Option<egui::Vec2> {
+        match self.array("icon_size") {
+            [width, height] => {
+                let width = width.as_f64().filter(|v| v.is_finite())? as f32;
+                let height = height.as_f64().filter(|v| v.is_finite())? as f32;
+                (width >= 1.0 && height >= 1.0)
+                    .then(|| egui::Vec2::new(width.min(256.0), height.min(256.0)))
+            }
+            _ => None,
+        }
+    }
     pub fn flexible(&self) -> bool {
         self.stretch > 0
             || matches!(

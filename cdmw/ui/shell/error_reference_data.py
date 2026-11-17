@@ -30201,7 +30201,7 @@ MESSAGE_REFERENCE = [
     "message": "Editable text exceeds the protocol limit.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_document.py": 393
+      "cdmw/ui/new_item/rust_ui_document.py": 435
     }
   },
   {
@@ -32049,7 +32049,7 @@ MESSAGE_REFERENCE = [
     "message": "Presentation control-tree limit exceeded.",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/model.rs": 151
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/model.rs": 163
     }
   },
   {
@@ -32057,7 +32057,7 @@ MESSAGE_REFERENCE = [
     "message": "Presentation image limit exceeded.",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/model.rs": 170
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/model.rs": 182
     }
   },
   {
@@ -32651,7 +32651,7 @@ MESSAGE_REFERENCE = [
     "message": "The New Item presentation session does not match.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/model.rs": 145
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/model.rs": 157
     }
   },
   {
@@ -33436,7 +33436,7 @@ MESSAGE_REFERENCE = [
     "message": "The presentation exceeds its control-tree limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_document.py": 308
+      "cdmw/ui/new_item/rust_ui_document.py": 350
     }
   },
   {
@@ -33678,7 +33678,7 @@ MESSAGE_REFERENCE = [
     "message": "The table has {columns} columns; the limit is {MAX_COLUMNS}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/new_item/rust_ui_models.py": 90
+      "cdmw/ui/new_item/rust_ui_models.py": 94
     }
   },
   {

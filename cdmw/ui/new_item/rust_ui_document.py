@@ -12,7 +12,7 @@ import weakref
 from collections import OrderedDict
 
 from PySide6.QtCore import QBuffer, QIODevice, QPoint, Qt
-from PySide6.QtGui import QAction, QImage, QIntValidator, QPainter, QPalette, QRegion, QTextDocument
+from PySide6.QtGui import QAction, QIcon, QImage, QIntValidator, QPainter, QPalette, QPixmap, QRegion, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractButton, QAbstractItemView, QApplication, QBoxLayout, QCheckBox, QComboBox,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox,
@@ -151,6 +151,29 @@ def _shows_only_text(widget):
     return True
 
 
+def _icon_cell(icon, size, ratio):
+    """The icon as Qt draws it in a view: within the icon size, centred, never enlarged.
+    The page draws the result at exactly the icon size."""
+
+    cell = QImage(round(size.width() * ratio), round(size.height() * ratio),
+                  QImage.Format.Format_ARGB32_Premultiplied)
+    cell.fill(Qt.GlobalColor.transparent)
+    pixmap = icon.pixmap(size, ratio)
+    if pixmap.isNull():
+        return None
+    shown = pixmap.size().scaled(cell.size(), Qt.KeepAspectRatio)
+    if shown.width() > pixmap.width() or shown.height() > pixmap.height():
+        shown = pixmap.size()
+    painter = QPainter(cell)
+    try:
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.drawPixmap((cell.width() - shown.width()) // 2, (cell.height() - shown.height()) // 2,
+                           shown.width(), shown.height(), pixmap)
+    finally:
+        painter.end()
+    return QPixmap.fromImage(cell)
+
+
 def _png(image):
     buffer = QBuffer()
     buffer.open(QIODevice.WriteOnly)
@@ -244,6 +267,25 @@ class PresentationDocument:
         if pixmap is None or pixmap.isNull():
             return None
         return self._cached_image(("pixmap", pixmap.cacheKey()), lambda: pixmap)
+
+    def icon(self, value, size):
+        """An item's decoration (an icon, pixmap or image) at the view's icon size."""
+
+        if size is None or not size.isValid() or size.isEmpty():
+            return None
+        if not isinstance(value, (QIcon, QPixmap, QImage)) or value.isNull():
+            return None
+        ratio = max(1.0, float(QApplication.instance().devicePixelRatio()))
+        # Keyed on the icon, not on the pixmap it gives: QIcon.pixmap() may make a new
+        # pixmap on every call, which would encode every row on every update.
+        key = (type(value).__name__, value.cacheKey(), size.width(), size.height(), ratio)
+
+        def make():
+            icon = value if isinstance(value, QIcon) else QIcon(
+                value if isinstance(value, QPixmap) else QPixmap.fromImage(value))
+            return _icon_cell(icon, size, ratio)
+
+        return self._cached_image(key, make)
 
     def picture(self, widget):
         """A custom-painted widget's own drawing (its children are described apart).
@@ -404,7 +446,7 @@ class PresentationDocument:
             props.update(self.models.combo(widget, identifier))
         elif isinstance(widget, QAbstractItemView):
             node["kind"] = "table"
-            props.update(self.models.view(widget, identifier, self.widget))
+            props.update(self.models.view(widget, identifier, self.widget, self.icon))
             props['empty_text'] = widget.accessibleDescription()
             if node['name'] == 'mod_management_archives':
                 props['folder_states'] = dict(widget.property('modManagementFolderStates') or {})

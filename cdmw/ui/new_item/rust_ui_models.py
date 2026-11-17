@@ -81,8 +81,12 @@ class ModelProjection:
                 "total": combo.count(), "selected": combo.currentIndex(),
                 "text": combo.currentText(), "editable": combo.isEditable()}
 
-    def view(self, view: QAbstractItemView, identifier, widget_writer):
+    def view(self, view: QAbstractItemView, identifier, widget_writer, image_writer=None):
         model, root = view.model(), view.rootIndex()
+        # Item icons go with the rows only where the view sets their size, as Qt draws them.
+        icon_size = view.iconSize()
+        icons = image_writer is not None and icon_size.isValid() and not icon_size.isEmpty()
+        has_icons = [False]
         if model is None:
             return {"rows": [], "columns": [], "total": 0, "offset": 0}
         columns = column_count(model, root)
@@ -140,6 +144,11 @@ class ModelProjection:
                     font = idx.data(Qt.FontRole)
                     if isinstance(font, QFont):
                         cell.update(bold=font.bold(), italic=font.italic())
+                    if icons:
+                        image = image_writer(idx.data(Qt.DecorationRole), icon_size)
+                        if image is not None:
+                            cell["image"] = image
+                            has_icons[0] = True
                     if check is not None and flags & Qt.ItemIsUserCheckable:
                         cell["check"] = int(check.value if hasattr(check, "value") else check)
                     embedded = view.indexWidget(idx)
@@ -165,4 +174,6 @@ class ModelProjection:
                        "context_menu": view.contextMenuPolicy() == Qt.CustomContextMenu,
                        "row_headers": bool(is_table and not view.verticalHeader().isHidden()),
                        "tree": is_tree and view.rootIsDecorated()})
+        if has_icons[0]:
+            result["icon_size"] = [icon_size.width(), icon_size.height()]
         return result
