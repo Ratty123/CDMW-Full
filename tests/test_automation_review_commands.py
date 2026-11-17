@@ -515,6 +515,57 @@ def test_new_item_state_records_a_preview_host_from_its_creation() -> None:
         holder.deleteLater()
 
 
+def test_preview_hosts_lists_every_embedded_preview_with_its_controller() -> None:
+    from cdmw.ui.preview.dotnet_host import RustPreviewHostFrame
+
+    holder = QWidget()
+    holder.setObjectName("FinderDialog")
+    host = RustPreviewHostFrame(holder, terminate_on_close=True)
+    window = SimpleNamespace(archive=SimpleNamespace(archive_character_finder_warmup_controller=SimpleNamespace(
+        _paused=True, _clients={holder}, _rendering=False, _pages=[1, 2])))
+    try:
+        review_commands.preview_hosts(window, {})  # the first call starts recording the controller
+        host.controller.state_changed.emit("preparing", "Preview is preparing the selected model…")
+        shown = review_commands.preview_hosts(window, {})
+        mine = [entry for entry in shown["hosts"] if entry["owners"][:1] == ["QWidget#FinderDialog"]]
+        assert len(mine) == 1
+        entry = mine[0]
+        assert not entry["visible"] and not entry["resident"] and entry["profile"] == "preview"
+        assert entry["native"]["child_hwnd"] == 0 and entry["native"]["embedding_error"] == ""
+        controller = entry["controller"]
+        assert not controller["running"] and not controller["visible"] and controller["process"] == ""
+        assert controller["package_generation"] == 0 and controller["viewports_held"] == 0
+        assert controller["timers"] == {"ready": False, "package": False, "activation": False, "retry": False}
+        assert [state[1] for state in controller["states"]] == ["preparing"]
+        assert shown["capture_router"]["registered"] >= 1 and shown["capture_router"]["pending"] == 0
+        assert shown["finder_warmup"] == {"paused": True, "paused_by": ["QWidget"], "rendering": False,
+                                          "pages_queued": 2}
+        assert "review_preview_hosts" in review_commands.COMMANDS
+    finally:
+        host.controller.shutdown()
+        holder.deleteLater()
+
+
+def test_finder_state_says_whether_the_selected_row_is_the_one_previewed(finder) -> None:
+    dialog, service, _scopes = finder
+    window = dialog._window
+    window._character_finder_dialogs = {dialog}
+    publish_rows(dialog, service, [row(1), row(2, label="Face 2", key="asset:2")])
+    assert not review_commands.finder_state(window, {"finder": "character"})["preview_shown"]
+    controller = SimpleNamespace(applied_package_generation=3, package_generation=3)
+    real_host, dialog._host = dialog._host, SimpleNamespace(controller=controller)
+    try:
+        dialog._shown_key = dialog._selected_key()
+        assert review_commands.finder_state(window, {"finder": "character"})["preview_shown"]
+        controller.package_generation = 4  # a newer package is on its way
+        assert not review_commands.finder_state(window, {"finder": "character"})["preview_shown"]
+        dialog._shown_key = "asset:other"
+        controller.package_generation = 3
+        assert not review_commands.finder_state(window, {"finder": "character"})["preview_shown"]
+    finally:
+        dialog._host = real_host
+
+
 def test_model_library_and_textures_states(profile) -> None:
     holder = QWidget()
     library = QWidget(holder)

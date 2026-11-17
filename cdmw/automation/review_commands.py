@@ -386,6 +386,17 @@ def _finder(window, which: str):
     return None
 
 
+def _finder_preview_shown(dialog) -> bool:
+    try:
+        shown = getattr(dialog, "_shown_key", None)
+        controller = getattr(getattr(dialog, "_host", None), "controller", None)
+        applied = int(getattr(controller, "applied_package_generation", 0) or 0)
+        return bool(shown is not None and shown == dialog._selected_key() and applied > 0
+                    and applied == int(getattr(controller, "package_generation", -1)))
+    except (RuntimeError, AttributeError, TypeError, ValueError):
+        return False
+
+
 def finder_open(window, args: dict) -> dict[str, object]:
     """Open Item Finder (``finder`` item, the default) or Body & Face Finder (character) with
     its button. Item Finder is modal (its exec runs a nested event loop), so the click is
@@ -416,6 +427,8 @@ def finder_state(window, args: dict) -> dict[str, object]:
         extra = {
             "preview_status": _text(getattr(dialog, "_preview_status", None)),
             "preview_busy": _alive(getattr(dialog, "_preview_busy", None)),
+            # The interactive preview shows the selected row's package (not an earlier one).
+            "preview_shown": _finder_preview_shown(dialog),
             "requests": sorted(str(k) for k in (getattr(dialog, "_requests", None) or {})),
             "scene_parts": len(getattr(scene, "_parts", {}) or {}) if scene is not None else 0,
             "scene_visible": _alive(scene),
@@ -775,41 +788,13 @@ def _preview_host_state(tab, preview) -> dict[str, object] | None:
     portals = getattr(tab, "_portals", None)
     attached = [entry[0] is host for entry in (getattr(portals, "_attached", {}) or {}).values()]
 
-    def flag(name):
-        return bool(getattr(controller, name, False))
-
-    def number(name):
-        try:
-            return int(getattr(controller, name, 0) or 0)
-        except (TypeError, ValueError):
-            return 0
-
-    process = getattr(controller, "process", None)
     return {
         "host": True, **shown, "portal_attached": any(attached),
         "rust_page": {"ready": bool(getattr(tab, "_ready", False)),
                       "first_frame": bool(getattr(tab, "_first_frame_ready", False)),
                       "sent_generation": int(getattr(tab, "_sent_generation", 0) or 0),
                       "received_generation": int(getattr(tab, "_received_generation", 0) or 0)},
-        "controller": None if controller is None else {
-            "visible": flag("_visible"), "running": flag("is_running"),
-            "process": type(process).__name__ if process is not None else "",
-            "protocol_ready": flag("_protocol_ready"), "renderer_ready": flag("_renderer_ready"),
-            "session_established": flag("_session_established"),
-            "localization_established": flag("_localization_initial_established"),
-            "gpu_failed": flag("_gpu_failed"), "active": flag("_active"),
-            "edit_held": getattr(controller, "_edit_channel", None) is not None,
-            "package_generation": number("_package_generation"),
-            "pending_package_generation": number("_pending_package_generation"),
-            "applied_package_generation": number("_applied_package_generation"),
-            "deferred_for_interaction": number("_interaction_deferred_package_generation"),
-            "activation_pending": getattr(controller, "_pending_activation", None) is not None,
-            "desired_package": Path(str(getattr(controller, "desired_package_path", "") or "")).name,
-            "applied_package": Path(str(getattr(controller, "applied_package_path", "") or "")).name,
-            "retry_attempt": number("_retry_attempt"),
-            "first_states": list(log.get("first_states", ())), "states": list(log.get("states", ())),
-            "events": list(log.get("events", ())),
-        },
+        "controller": _controller_state(controller, log),
         "frame": {"loaded_stage": str(getattr(preview, "_loaded_stage", "") or ""),
                   "loaded_is_pending": (getattr(preview, "_pending", None) or (None,))[0]
                   == getattr(preview, "_loaded_token", None),
@@ -972,7 +957,174 @@ def textures_state(window, _args: dict) -> dict[str, object]:
     }
 
 
+# ----- 7. Every embedded 3D preview --------------------------------------------------------
+
+
+def _owner_names(widget) -> list[str]:
+    """The widget's ancestors by class (and object name), nearest first, up to its window."""
+
+    names = []
+    parent = widget.parentWidget()
+    while parent is not None and len(names) < 10:
+        label = type(parent).__name__
+        if parent.objectName():
+            label += "#" + parent.objectName()
+        names.append(label)
+        if parent.isWindow():
+            break
+        parent = parent.parentWidget()
+    return names
+
+
+def _native_child_state(host) -> dict[str, object]:
+    """Where Windows has the helper's window: its parent, size and owner against the host's."""
+
+    import sys
+
+    child = int(getattr(host, "_embedded_child_hwnd", 0) or 0)
+    state: dict[str, object] = {"child_hwnd": child, "embedding_error": str(getattr(host, "embedding_error", "") or "")}
+    try:
+        viewport_hwnd = int(host._host_hwnd())
+    except (RuntimeError, AttributeError, TypeError, ValueError):
+        viewport_hwnd = 0
+    state["viewport_hwnd"] = viewport_hwnd
+    if not child or sys.platform != "win32":
+        return state
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.GetParent.argtypes = [wintypes.HWND]
+        user32.GetParent.restype = wintypes.HWND
+        handle = wintypes.HWND(child)
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(handle, ctypes.byref(owner))
+        rect, parent_rect = wintypes.RECT(), wintypes.RECT()
+        user32.GetClientRect(handle, ctypes.byref(rect))
+        user32.GetClientRect(wintypes.HWND(viewport_hwnd), ctypes.byref(parent_rect))
+        parent = int(user32.GetParent(handle) or 0)
+        state.update({
+            "child_is_window": bool(user32.IsWindow(handle)), "child_visible": bool(user32.IsWindowVisible(handle)),
+            "child_owner_pid": int(owner.value), "child_parent_hwnd": parent,
+            "child_in_viewport": parent == viewport_hwnd and viewport_hwnd > 0,
+            "child_size": [int(rect.right - rect.left), int(rect.bottom - rect.top)],
+            "viewport_size": [int(parent_rect.right - parent_rect.left), int(parent_rect.bottom - parent_rect.top)],
+        })
+    except (OSError, AttributeError, TypeError, ValueError) as exc:
+        state["native_error"] = f"{type(exc).__name__}: {exc}"[:200]
+    return state
+
+
+def _controller_state(controller, log) -> dict[str, object] | None:
+    """A preview controller's handshake gates, package generations and what it last said."""
+
+    if controller is None:
+        return None
+
+    def flag(name):
+        try:
+            return bool(getattr(controller, name, False))
+        except RuntimeError:
+            return False
+
+    def number(name):
+        try:
+            return int(getattr(controller, name, 0) or 0)
+        except (RuntimeError, TypeError, ValueError):
+            return 0
+
+    process = getattr(controller, "process", None)
+    return {
+        "visible": flag("_visible"), "running": flag("is_running"), "closed": flag("_closed"),
+        "process": type(process).__name__ if process is not None else "", "process_id": number("process_id"),
+        "process_generation": number("_process_generation"),
+        "protocol_ready": flag("_protocol_ready"), "renderer_ready": flag("_renderer_ready"),
+        "session_established": flag("_session_established"),
+        "localization_established": flag("_localization_initial_established"),
+        "gpu_failed": flag("_gpu_failed"), "active": flag("_active"),
+        "edit_held": getattr(controller, "_edit_channel", None) is not None,
+        "viewports_held": len(getattr(controller, "_viewport_channels", ()) or ()),
+        "pages_held": len(getattr(controller, "_page_channels", ()) or ()),
+        "package_generation": number("_package_generation"),
+        "pending_package_generation": number("_pending_package_generation"),
+        "applied_package_generation": number("_applied_package_generation"),
+        "deferred_for_interaction": number("_interaction_deferred_package_generation"),
+        "activation_pending": getattr(controller, "_pending_activation", None) is not None,
+        "desired_package": Path(str(getattr(controller, "desired_package_path", "") or "")).name,
+        "applied_package": Path(str(getattr(controller, "applied_package_path", "") or "")).name,
+        "retry_attempt": number("_retry_attempt"),
+        "retry_reason": str(getattr(controller, "_retry_reason", "") or "")[:300],
+        "timers": {name: bool(getattr(getattr(controller, "_" + name + "_timer", None), "isActive", lambda: False)())
+                   for name in ("ready", "package", "activation", "retry")},
+        "stdout_tail": str(getattr(controller, "_stdout_tail", "") or "")[-700:],
+        "stderr_tail": str(getattr(controller, "_stderr_tail", "") or "")[-400:],
+        "first_states": list((log or {}).get("first_states", ())), "states": list((log or {}).get("states", ())),
+        "events": list((log or {}).get("events", ())),
+    }
+
+
+def preview_hosts(window, _args: dict) -> dict[str, object]:
+    """Every embedded 3D preview in the app: where its viewport is (widget and Win32),
+    what its controller holds and last said, and the shared pieces behind them (the
+    thumbnail capture router, the helper-window mover, the Finder warm-up's pauses).
+    Each host is recorded from the first call that sees it."""
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from cdmw.services import engine_capture
+    from cdmw.ui.preview import child_window_mover as mover_module
+    from cdmw.ui.preview.dotnet_host import RustPreviewHostFrame
+
+    hosts = []
+    for widget in QApplication.allWidgets():
+        if not isinstance(widget, RustPreviewHostFrame):
+            continue
+        try:
+            controller = getattr(widget, "controller", None)
+            log = _watch_preview_host(widget)
+            top = widget.window()
+            status = getattr(widget, "_status_label", None)
+            panel = getattr(widget, "_status_panel", None)
+            hosts.append({
+                "owners": _owner_names(widget), "window": type(top).__name__,
+                "window_title": str(top.windowTitle() or "")[:80],
+                "profile": str(getattr(getattr(widget, "_profile", None), "value", "") or ""),
+                "resident": any(ref() is controller for ref in getattr(engine_capture.engine_capture_router(),
+                                                                         "_resident", ())),
+                "visible": bool(widget.isVisible()), "hidden": bool(widget.isHidden()),
+                "geometry": list(widget.geometry().getRect()),
+                "window_on_screen": not top.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen),
+                "status_text": _text(status), "status_shown": bool(panel is not None and not panel.isHidden()),
+                "sync_timer_active": bool(widget._geometry_sync_timer.isActive()),
+                "native": _native_child_state(widget),
+                "controller": _controller_state(controller, log),
+            })
+        except RuntimeError:
+            continue  # deleted while it was read
+    router = engine_capture.engine_capture_router()
+    mover = getattr(mover_module, "_MOVER", None)
+    warmup = getattr(getattr(window, "archive", None), "archive_character_finder_warmup_controller", None)
+    return {
+        "hosts": hosts,
+        "capture_router": {"pending": int(router.pending_count()),
+                           "registered": sum(ref() is not None for ref in router._controllers),
+                           "resident": sum(ref() is not None for ref in router._resident),
+                           "capable": len(router._capable())},
+        "mover": None if mover is None else {
+            "pending": len(mover._pending), "busy": bool(mover._busy),
+            "thread_alive": bool(mover._thread is not None and mover._thread.is_alive())},
+        "finder_warmup": None if warmup is None else {
+            "paused": bool(getattr(warmup, "_paused", False)),
+            "paused_by": sorted(type(client).__name__ for client in getattr(warmup, "_clients", ()) or ()),
+            "rendering": bool(getattr(warmup, "_rendering", False)),
+            "pages_queued": len(getattr(warmup, "_pages", ()) or ())},
+    }
+
+
 COMMANDS = {
+    "review_preview_hosts": preview_hosts,
     "review_fake_game_update": fake_game_update,
     "review_cache_state": cache_state,
     "review_scroll_start": scroll_start,
@@ -998,4 +1150,4 @@ COMMANDS = {
 
 # The commands that only read: a stall inside one is the driver's own read (drive_review.py).
 READ_ONLY = frozenset({"cache_state", "scroll_state", "finder_state", "job_state", "new_item_state",
-                       "model_library_state", "textures_state"})
+                       "model_library_state", "textures_state", "preview_hosts"})
