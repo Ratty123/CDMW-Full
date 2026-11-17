@@ -5,7 +5,8 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from cdmw.core.common import raise_if_cancelled
-from cdmw.core.material_shader_controls import control_material_sources, control_material_variants, equipment_glass_needs_bake
+from cdmw.core.material_shader_controls import (BAKED_CONVERSION_SHADERS, control_material_sources, control_material_variants,
+                                                equipment_glass_needs_bake)
 from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.domain.mesh.shader_controls import GLASS_FAMILIES, family_for, preview_factors, veil_layer_inputs, veil_layer_texture
 from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
@@ -28,7 +29,7 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
         if path.endswith(".pac_xml"):
             for variant in control_material_variants(_sidecar_text(file.data)):
                 for name, (shader, values, textures) in variant.items():
-                    if (name in selected_names and selected_names[name].shader == "SkinnedMeshTranslucent"
+                    if (name in selected_names and selected_names[name].shader in BAKED_CONVERSION_SHADERS
                             and equipment_glass_needs_bake(shader, {*values, *textures})):
                         baked_names.add(name)
     files.update({file.path.replace("\\", "/").casefold(): file

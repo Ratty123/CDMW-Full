@@ -243,7 +243,8 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
     if not choices:
         return mesh
     from cdmw.services.new_item_materials import appearance_preview_part_names
-    from cdmw.core.material_shader_controls import control_material_sources, rewrite_shader_controls, equipment_glass_needs_bake
+    from cdmw.core.material_shader_controls import (BAKED_CONVERSION_SHADERS, control_material_sources, rewrite_shader_controls,
+                                                    equipment_glass_needs_bake)
     settings = {name.casefold(): controls for name, controls in choices}
     result = copy.copy(mesh)
     result.submeshes = []
@@ -282,7 +283,7 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
                 # output, including Wing's visible starting pose on conversion.
                 shader, authored, source_textures = sources[source_name]
                 source_shader = shader
-                layered_glass = (controls.shader == "SkinnedMeshTranslucent"
+                layered_glass = (controls.shader in BAKED_CONVERSION_SHADERS
                                  and equipment_glass_needs_bake(shader, {*authored, *source_textures}))
                 if controls.shader == EYE_COVER.shader or controls.cutout_mask is not None or layered_glass:
                     # Read inherited values without generating export BC7 maps

@@ -265,6 +265,14 @@
 - 인게임 확인 필요: 이 쓰기 규칙은 셰이더의 읽기 식에서 유도한 것이라, 값을 바꾼 모드를 게임에 넣어 실제로 반복·회전이 바뀌는지 확인해야 한다.
 - 체커 배경과 선택 외곽선은 렌더 파이프라인을 새로 만들어야 하고 이 환경에는 GPU가 없어 실행 확인을 할 수 없으므로, 편집기 전체가 깨질 위험을 피하려고 넣지 않았다.
 
+### StandardMesh_Ver2 의상을 망사·레이어 유리로 바꾸기 (2026-11-17 오후)
+- 사용자 보고: Ver2 재질 의상에서 Sheer net veil이 비활성.
+- 원인: 원작자 규칙상 Sheer net veil과 Layered glass는 plain 재질(`SkinnedMeshStandard`/`SkinnedMeshEmissive`)에서만 바꿀 수 있다. `SkinnedMeshStandard_Ver2`는 염색 색과 디테일 레이어를 셰이더 안에서 섞는 재질이라, 그대로 바꾸면 base 레이어만 남는다. Equipment glass만 "레이어를 먼저 한 장의 텍스처로 굽는(bake)" 경로가 있었다.
+- 수정: 같은 bake 경로를 두 셰이더에도 쓴다(`BAKED_CONVERSION_SHADERS`). bake 결과는 plain `SkinnedMeshStandard`(base, normal, material 맵)이고, 그 위에 망사/유리 행을 쓴다. 미리보기도 Equipment glass처럼 구운 맵으로 다시 그린다.
+- 망사로 바꾼 의상에는 `_heightTexture`가 없어서 실 굵기가 고르다. 텍스처 교체(Thread width texture)로 높이 맵을 넣을 수 있다.
+- 염색 색은 구운 텍스처에 고정된다(Equipment glass와 같음).
+- 이 환경에는 bake에 쓰는 네이티브 DDS 디코더가 없어서 bake 테스트는 Windows CI에서 돈다(원작자 기존 bake 테스트도 같다). 디코드 단계를 바꿔 넣은 확인에서는 세 셰이더 모두 레이어 행이 빠지고 대상 셰이더로 쓰였다.
+
 ## 남긴 결정 사항
 
 1. `_screenSpaceDisplacementScale`은 슬라이더로 추가하지 않았다. 유일한 근거인 Angel Teddy 모드가 이 행에 작은 ItemID 3을 쓰는데, 작은 ID의 규칙이 밝혀지지 않았다. 다만 Glass를 "다시 쓰기"로 만들면 그 모드의 구성대로 이 행(ItemID 3)을 넣는다. 원본에 값이 있으면 그 값을, 없으면 0을 쓴다.

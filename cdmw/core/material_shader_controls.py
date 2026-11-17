@@ -120,6 +120,11 @@ def equipment_authored_values(text):
     return result
 
 
+# Shaders a layered equipment material can be converted to once the appearance
+# baker has flattened its layers into a plain base, normal and material map.
+BAKED_CONVERSION_SHADERS = frozenset({"SkinnedMeshTranslucent", *BLENDED_SHADERS})
+
+
 def equipment_glass_needs_bake(shader, parameters):
     """Only the decoded equipment layer families can use the appearance baker."""
     return shader in {"SkinnedMeshStandard_Ver2", "SkinnedMeshEmissive_Ver2"} and any(
@@ -131,7 +136,7 @@ def validate_source(shader, controls, parameters, *, static=False, allow_bake=Fa
     family = family_for(controls.shader)
     if static != (controls.shader in {"Dissolve", "Translucent"}):
         raise ValueError("World-object and equipment shaders use different vertex pipelines.")
-    if (allow_bake and controls.shader == "SkinnedMeshTranslucent"
+    if (allow_bake and controls.shader in BAKED_CONVERSION_SHADERS
             and equipment_glass_needs_bake(shader, parameters)):
         return
     if shader != family.shader:
