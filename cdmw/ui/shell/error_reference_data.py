@@ -78523,7 +78523,7 @@ MESSAGE_REFERENCE = [
     "message": "GUI garbage collection must be installed on the GUI thread",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/garbage_collection.py": 141
+      "cdmw/ui/shell/garbage_collection.py": 153
     }
   },
   {
@@ -99153,7 +99153,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown GUI startup smoke target: {target}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/app_startup.py": 130
+      "cdmw/ui/shell/app_startup.py": 133
     }
   },
   {
@@ -108774,6 +108774,7 @@ SOURCE_COVERAGE = {
     "display": 2
   },
   "cdmw/ui/item_icons_tab.py": {},
+  "cdmw/ui/layout_item_wrappers.py": {},
   "cdmw/ui/layout_metrics.py": {},
   "cdmw/ui/layout_persistence.py": {},
   "cdmw/ui/layout_utils.py": {},
