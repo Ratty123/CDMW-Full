@@ -49,8 +49,27 @@ def _std_streams() -> tuple[BinaryIO, BinaryIO, object]:
 
     stdin = stream(sys.stdin, 0, -10, "rb")
     stdout = stream(sys.stdout, 1, -11, "wb")
-    stderr = sys.stderr if sys.stderr is not None else open(os.devnull, "w", encoding="utf-8")
-    return stdin, stdout, stderr
+    return stdin, stdout, _std_error()
+
+
+def _std_error():
+    """Text stderr for the reason a client's log shows; in a windowed build the client's own handle."""
+
+    if sys.stderr is not None:
+        return sys.stderr
+    if os.name == "nt":
+        # A windowed build has no sys.stderr, but a client that starts it passes one (its log).
+        try:
+            import _winapi
+            import msvcrt
+
+            handle = _winapi.GetStdHandle(-12)
+            if handle:
+                return os.fdopen(msvcrt.open_osfhandle(handle, os.O_WRONLY), "w", encoding="utf-8",
+                                 errors="replace", buffering=1)
+        except OSError:
+            pass
+    return open(os.devnull, "w", encoding="utf-8")
 
 
 def _kind(line: bytes) -> str:
