@@ -446,6 +446,15 @@ impl LabApplication {
             // The rest of this block changes only how the viewport shows the material.
             let inspection = self.material_inspection;
             let mut hide_selection = inspection.hide_selection;
+            // Always reachable, whatever the keyboard layout or focus (Shift+H does the same).
+            let (label, hidden) = if self.selection_highlight_hidden {
+                ("Show selection highlight", false)
+            } else {
+                ("Hide selection highlight", true)
+            };
+            if ui.small_button(crate::localization::tr(label)).clicked() {
+                actions.push(UiAction::SetSelectionHighlightHidden(hidden));
+            }
             if ui.checkbox(&mut hide_selection, crate::localization::tr("Hide the selection highlight while this panel is open"))
                 .on_hover_text(crate::localization::tr(
                     "The highlight tints the selected part and hides what a material change does. The part stays selected. \

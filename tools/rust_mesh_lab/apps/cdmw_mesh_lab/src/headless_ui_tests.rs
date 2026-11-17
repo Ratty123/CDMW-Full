@@ -9258,6 +9258,41 @@ fn shader_layout_rebuild_is_an_explicit_choice_sent_with_the_controls() -> TestR
 }
 
 #[test]
+fn shift_h_hides_and_shows_the_selection_highlight_without_changing_the_selection() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, egui::vec2(1440.0, 1800.0));
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.settle_layout();
+    let selected = ui.application.selected_part_indices();
+    assert!(!selected.is_empty());
+    assert!(ui.application.face_selection_overlay.is_some(), "a selected part is tinted");
+    // Press and release: egui reports a second press of a held key as a repeat.
+    let shift_h = |key| [true, false].map(|pressed| Event::Key { key, physical_key: Some(egui::Key::H), pressed,
+                                                                 repeat: false, modifiers: egui::Modifiers::SHIFT }).to_vec();
+    ui.frame(shift_h(egui::Key::H));
+    ui.frame(Vec::new());
+    assert!(ui.application.selection_highlight_hidden);
+    assert!(ui.application.face_selection_overlay.is_none());
+    assert_eq!(ui.application.selected_part_indices(), selected);
+    ui.frame(shift_h(egui::Key::H));
+    ui.frame(Vec::new());
+    assert!(!ui.application.selection_highlight_hidden);
+    assert!(ui.application.face_selection_overlay.is_some());
+    // The inspector button does the same.
+    ui.application.cdmw_state["shader_controls"] = veil_shader_state();
+    ui.settle_layout();
+    ui.click("Shader experiments")?;
+    ui.settle_layout();
+    ui.click("Hide selection highlight")?;
+    ui.settle_layout();
+    assert!(ui.application.selection_highlight_hidden && ui.application.face_selection_overlay.is_none());
+    ui.click("Show selection highlight")?;
+    ui.settle_layout();
+    assert!(!ui.application.selection_highlight_hidden);
+    Ok(())
+}
+
+#[test]
 fn shader_panel_shows_a_layered_veils_values_and_hides_the_rows_it_does_not_read() -> TestResult {
     let shows = |ui: &HeadlessUi, start: &str| ui.output.shapes.iter().any(|shape|
         matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with(start)));

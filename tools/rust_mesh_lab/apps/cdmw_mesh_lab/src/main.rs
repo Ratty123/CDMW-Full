@@ -1610,6 +1610,8 @@ enum UiAction {
     CdmwShaderPreview(Vec<(u32, Option<[f32; 32]>)>),
     /// Viewport backdrop only; see-through materials read very differently against light and dark.
     SetViewportBackground(Color32),
+    /// Show or hide the selection tint; the selection is unchanged.
+    SetSelectionHighlightHidden(bool),
     /// Viewport-only aids for judging a material; never part of the model or its export.
     MaterialInspection(MaterialInspectionChange),
     /// Ask for a texture file, then hand it to the host with the panel's current controls.
@@ -1691,6 +1693,7 @@ impl UiAction {
                 | Self::OrbitYaw(_)
                 | Self::CdmwShaderPreview(_)
                 | Self::SetViewportBackground(_)
+                | Self::SetSelectionHighlightHidden(_)
                 | Self::MaterialInspection(_)
         )
     }
@@ -4860,7 +4863,7 @@ impl LabApplication {
         if actions.iter().any(|action| match action {
             UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode
             | UiAction::CdmwShaderPreview(_) | UiAction::SetViewportBackground(_)
-            | UiAction::MaterialInspection(_) => false,
+            | UiAction::SetSelectionHighlightHidden(_) | UiAction::MaterialInspection(_) => false,
             UiAction::CdmwCommand { command, arguments, .. }
                 if cdmw_request_origin(command, arguments) == Some(CdmwRequestOrigin::WeaponPlacement) => false,
             _ => true,
@@ -5278,6 +5281,10 @@ impl LabApplication {
                 } => self.submit_cdmw_command(command, arguments, label),
                 UiAction::CdmwShaderPreview(changes) => self.set_cdmw_shader_live_preview(changes),
                 UiAction::SetViewportBackground(colour) => self.viewport_background_colour = colour,
+                UiAction::SetSelectionHighlightHidden(hidden) => {
+                    self.selection_highlight_hidden = hidden;
+                    self.face_selection_overlay = None;
+                }
                 UiAction::MaterialInspection(change) => self.apply_material_inspection(change),
                 UiAction::ChooseCdmwShaderTexture { part_ids, controls, parameter } => {
                     self.choose_cdmw_shader_texture(part_ids, controls, parameter)
