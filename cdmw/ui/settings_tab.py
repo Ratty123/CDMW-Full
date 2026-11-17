@@ -1027,8 +1027,9 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         notes.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         notes.setObjectName("HintLabel")
         self.safety_page_layout.addWidget(notes)
-        for page_layout in self._settings_section_layouts.values():
-            page_layout.addStretch(1)
+        for key, page_layout in self._settings_section_layouts.items():
+            if key not in self._full_height_settings_pages:
+                page_layout.addStretch(1)
 
         self.theme_combo.currentIndexChanged.connect(self._handle_appearance_changed)
         self._connect_compact_workspace_settings()
@@ -1117,6 +1118,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.section_stack = QStackedWidget()
         settings_workspace_layout.addWidget(self.section_stack, stretch=1)
         self._settings_section_layouts: dict[str, QVBoxLayout] = {}
+        #: Pages whose last widget takes the page's height instead of sitting above a stretch.
+        self._full_height_settings_pages: set[str] = set()
 
         def _add_settings_page(key: str, title: str, summary_text: str) -> QVBoxLayout:
             item = QListWidgetItem(title)
@@ -1194,7 +1197,10 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         registry = command_registry()
         if registry is not None:
             self.shortcuts_page = ShortcutsPage(registry, self.settings)
-            self.shortcuts_page_layout.addWidget(self.shortcuts_page)
+            # The table fills the page: no top alignment and no stretch below it.
+            self.shortcuts_page_layout.setAlignment(Qt.AlignmentFlag(0))
+            self.shortcuts_page_layout.addWidget(self.shortcuts_page, 1)
+            self._full_height_settings_pages.add("shortcuts")
         self.section_nav_list.currentRowChanged.connect(self.section_stack.setCurrentIndex)
         self.section_nav_list.setCurrentRow(0)
 

@@ -1079,13 +1079,14 @@ class AboutDocumentationEnglishMixin:
                   <li>Profiles do not save open archives, active documents, or per-tab project sessions.</li>
                   <li><b>Export Diagnostics</b> includes the same profile payload plus logs, cache summaries, chain analysis, crash context when available, a paste-ready issue summary, README, license, and third-party notices. Reports stay local until you export and share them.</li>
                 </ul>
-                <p>Settings has five pages in its left-hand list: <b>Setup</b>, <b>General</b>, <b>Paths</b>, <b>Performance</b>, and <b>Appearance</b>.</p>
+                <p>Settings has these pages in its left-hand list: <b>Setup</b>, <b>General</b>, <b>Paths</b>, <b>Performance</b>, <b>Appearance</b>, <b>Shortcuts</b>, and <b>AI connections</b>.</p>
                 <ul>
                   <li><b>Settings / Setup</b> holds workspace initialization, external tool discovery, and asset-authoring helper status.</li>
                   <li><b>Settings / General</b> combines archive auto-load, cache preference, last-tab restore, cleanup confirmations, diagnostic context, verbose Archive Browser logging, and direct profile import/export. Archive filters start neutral after launch.</li>
                   <li><b>Settings / Paths</b> holds workflow roots, archive locations, game/package roots, and extraction roots.</li>
                   <li><b>Settings / Performance</b> controls workload presets, archive-list batching/native helper use, optional DDS related-file indexing, preview caches, and Preview package caching.</li>
                   <li><b>Settings / Appearance</b> controls layout, the shared theme, pane-size memory, all 14 built-in app languages plus imported custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults. <b>Preview Settings...</b> opens the existing full preview-settings window and reuses the same live controls and stored values.</li>
+                  <li><b>Settings / Shortcuts</b> lists the keys of every command in every tool, the Mesh Editor's and the Texture Editor's included, in a table with the command, its keys, where it works and what it clashes with. Group it by area, sort by any column, search, or show only conflicts or changed keys. Double-click a key and press the new one to change it in place; Change... also sets a second key. Reset to default restores one command and Restore all defaults restores every command.</li>
                 </ul>
                 <p>Language export writes a JSON file with English keys and translated values. Keep keys unchanged, edit only values, then import the file from Settings / Appearance.</p>
                 """,
