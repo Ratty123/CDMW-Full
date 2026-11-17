@@ -271,6 +271,7 @@ class _Controller(QObject):
 def _frame(stem, aspect):
     return SimpleNamespace(mesh=f"object/00_common/interior/decopropw/{stem}.pam", stem=stem,
                            label=f"{stem} (1.0 x {1 / aspect:.1f} m)", texture_size=(512, 256),
+                           size_m=(1.2, 1.2 / aspect),
                            canvas=SimpleNamespace(aspect=aspect, size_m=(1.0, 1.0 / aspect)),
                            source=SimpleNamespace(name="CD_Painting_01"), shipped_paintings=2)
 

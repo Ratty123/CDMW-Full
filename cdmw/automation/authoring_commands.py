@@ -311,8 +311,8 @@ def painting_state(window, _args: dict) -> dict[str, object]:
         "current": int(dialog._current),
         "listed": [dialog.painting_list.item(row).text() for row in range(dialog.painting_list.count())],
         "frame_info": dialog.frame_info.text(),
-        "preview": dialog.preview.text(),
-        "preview_shown": not dialog.preview.pixmap().isNull(),
+        "preview": dialog.preview.message.text(),
+        "preview_shown": dialog.preview.has_picture(),
         "mod_name": dialog.mod_name.text(),
         "folder": dialog.folder.text(),
         "status": dialog.status.text(),
@@ -352,9 +352,9 @@ def painting_set(window, args: dict) -> dict[str, object]:
         wanted = str(args["frame"])
         index = dialog.frame.findData(wanted)
         if index < 0:
-            index = next((row for row in range(1, dialog.frame.count())
+            index = next((row for row in range(dialog.frame.count())
                           if Path(str(dialog.frame.itemData(row) or "")).stem.casefold() == wanted.casefold()), -1)
-        if index <= 0:
+        if index < 0:
             raise ValueError(f"No frame {wanted} is offered.")
         dialog.frame.setCurrentIndex(index)
     if "picture" in args:
