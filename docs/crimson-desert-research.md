@@ -562,7 +562,9 @@ the metalness byte (the low byte of `SV_Target0.y`, packed as in Ver2):
 - BlendHeight and StaticBlendHeight blend by height instead: each layer weighs
   `_maskTexture` × `_detailHeightMask*` R × its opacity byte against
   `_heightTexture` R × `_screenSpaceDisplacementScale`, with no colour-blend flag.
-  When every layer weight is 0 the surface is `_materialTexture` alone.
+  When every layer weight is 0 the surface is `_materialTexture` alone: the
+  shader branches on the largest layer weight being above 0 and otherwise takes
+  `_materialTexture` G without the height blend, so `_heightTexture` is not needed.
 - `_materialTexture` defaults to `NoneTexture0x00000000`, so the same material with
   its layers and `_materialTexture` removed renders at roughness and metalness 0.
 - The same check finds no `_materialTexture` read in any permutation of
@@ -574,6 +576,13 @@ the other six use `ItemID="6"`), so Mesh Editor writes it only for the other six
 The dragon and wyvern bodies use BlendHeight. Hair, eye, skin and
 `SkinnedMeshAnisotropy` (horse coats) also read `_materialTexture` G for
 roughness but shade differently and were not traced further.
+
+The shipped wyvern `_sp` maps (BC1, 1024², 11 mips) hold R 246 to 255, G 53 to 160
+(mean 0.47) and a flat B of 57 (0.224) on body, head and wings; the eye's `_sp` is
+G 0, B 33. Its BlendHeight detail layers' `_sp` have B 0. Mesh Editor's imported
+materials therefore default to the import's own roughness/metallic maps or values
+and otherwise to the mean of the replaced part's own `_sp`, never to the
+unbound default.
 
 Sources: [renderer contract][renderer-contract], [rendering ownership][rendering-notes],
 [shader compatibility guide][shader-controls], [effect consumer reference][effect-preview].

@@ -227,8 +227,10 @@ def test_mapping_reports_imported_material_status(editor, tmp_path):
     status = imported_material_status(prepare_import(snapshot, present))
     assert {key: status[key] for key in ("error", "textures")} == {"error": "", "textures": 1}
     # This target has no captured equipment material, so Roughness/Metallic say why.
-    assert status["surface"] == {"roughness": None, "metallic": None,
-                                 "reason": "Roughness and Metallic need the item's equipment material file."}
+    # They would start where Apply's default does: matte, without metal.
+    assert status["surface"] == {"roughness": 0.5, "metallic": 0.0,
+                                 "reason": "Roughness and Metallic need the item's equipment material file.",
+                                 "unsupported": []}
 
     (tmp_path / "plain").mkdir()
     plain = imported_material_status(prepare_import(snapshot, source_obj(tmp_path / "plain")))

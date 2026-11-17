@@ -1981,3 +1981,22 @@ def test_preview_core_missing_base_with_layer_albedo_marks_layered_base_only() -
         source({"missing": True, "visible_layer_albedo_used": False})
     )
     assert not _source_base_comes_from_layers(SimpleNamespace())
+
+
+def test_creature_standard_technique_shaders_get_the_standard_material_policy() -> None:
+    """The wyvern's BlendHeight body had no family in Python, so its preview took
+    the generic fallback policy. These shaders read _materialTexture G/B with the
+    detail layers over it in every shipped G-buffer permutation, as Standard does;
+    StaticBlendHeight is not StaticStandard, which never reads _materialTexture."""
+    from cdmw.rendering.crimson_shader_registry import decode_profile_for_family
+    from cdmw.rendering.native_preview_material_contract import _material_decode_policy
+
+    standard = _material_decode_policy("SkinnedMeshStandard")
+    for family, expected in (("SkinnedMeshBlendHeight", standard),
+                             ("SkinnedMeshStaticBlendHeight", standard),
+                             ("SkinnedMeshAmplifiedGlare", standard),
+                             ("SkinnedMeshAmplifiedGlare_Ver2", _material_decode_policy("SkinnedMeshStandard_Ver2"))):
+        policy = _material_decode_policy(family)
+        assert policy["roughness_source"] == expected["roughness_source"], family
+        assert policy["layered_diffuse"] is True, family
+        assert decode_profile_for_family(family)["authority"] == "authoritative", family
