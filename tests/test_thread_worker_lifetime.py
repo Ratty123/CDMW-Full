@@ -82,7 +82,12 @@ def test_search_batch_threads_survive_the_gui_dropping_their_workers():
 
 @pytest.fixture
 def app():
-    return QCoreApplication.instance() or QCoreApplication([])
+    # A full QApplication, not a QCoreApplication: a later test module asks for
+    # QApplication.instance() and builds widgets on it, which Qt refuses (and aborts)
+    # on a core application.
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])
 
 
 class _Worker(QObject):
