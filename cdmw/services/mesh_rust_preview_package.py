@@ -749,7 +749,21 @@ def _preview_core_layer_parameter_index(parameters):
     return result
 
 
-def _preview_core_ver2_grime(layer, role, channel, mask_parameter, parameters):
+def _preview_core_detail_mask(values, source_package):
+    """The wrapper's `_detailMaskTexture` as (source, archive path), when its file is there.
+
+    The map is optional: without it the layer keeps its plain form, so a pruned
+    or unresolved mask costs the wear, not the preview.
+    """
+    mask = values.get("detailmasktexture")
+    if not isinstance(mask, Mapping) or not mask.get("source") or not mask.get("archive_path"):
+        return None
+    if _preview_core_material_source(source_package, mask["source"]) is None:
+        return None
+    return str(mask["source"]), str(mask["archive_path"]).replace("\\", "/")
+
+
+def _preview_core_ver2_grime(layer, role, channel, mask_parameter, parameters, source_package):
     """State the game's grime rule on a Ver2 grime layer; return its detail mask.
 
     The game draws grime where `_detailMaskTexture` green passes a ramp, sampled
@@ -762,24 +776,18 @@ def _preview_core_ver2_grime(layer, role, channel, mask_parameter, parameters):
     values = {str(name).casefold().lstrip("_"): value for name, value in parameters}
     blend = pac_grime_blend_bytes(parameters, channel)
     transform = pac_grime_uv_transform(values.get(f"grimeblendingparameter{channel}"))
-    mask = values.get("detailmasktexture")
-    if (
-        blend is None
-        or transform is None
-        or not isinstance(mask, Mapping)
-        or not mask.get("source")
-        or not mask.get("archive_path")
-    ):
+    mask = _preview_core_detail_mask(values, source_package)
+    if blend is None or transform is None or mask is None:
         return None
     layer["uv_transform"] = list(transform)
     layer["grime_blend"] = list(blend)
     tint = pac_color_bytes(values.get(f"tintcolor{channel}"))
     # No authored `_tintColor` leaves the grime texture's own colour.
     layer["tint"] = list(tint) if tint is not None else [1.0, 1.0, 1.0, 0.0]
-    return str(mask["source"]), str(mask["archive_path"]).replace("\\", "/")
+    return mask
 
 
-def _preview_core_ver2_scratch(layer, role, channel, mask_parameter, parameters):
+def _preview_core_ver2_scratch(layer, role, channel, mask_parameter, parameters, source_package):
     """State the game's scratch rule on a Ver2 colour layer; return its detail mask.
 
     Where `_detailMaskTexture` red marks a scratch, the game moves the layer's
@@ -790,19 +798,14 @@ def _preview_core_ver2_scratch(layer, role, channel, mask_parameter, parameters)
     values = {str(name).casefold().lstrip("_"): value for name, value in parameters}
     scratch = pac_scratch_bytes(parameters, channel)
     tint = pac_color_bytes(values.get(f"scratchtintcolor{channel}"))
-    mask = values.get("detailmasktexture")
-    if (
-        (scratch is None and tint is None)
-        or not isinstance(mask, Mapping)
-        or not mask.get("source")
-        or not mask.get("archive_path")
-    ):
+    mask = _preview_core_detail_mask(values, source_package)
+    if (scratch is None and tint is None) or mask is None:
         return None
     if scratch is not None:
         layer["scratch"] = list(scratch)
     if tint is not None:
         layer["scratch_tint"] = list(tint)
-    return str(mask["source"]), str(mask["archive_path"]).replace("\\", "/")
+    return mask
 
 
 def _copy_preview_core_material_layers(
@@ -892,8 +895,10 @@ def _copy_preview_core_material_layers(
                         # A native default white is not an authored white dye.
                         layer["tint"][3] = 0.0
                 detail_mask = _preview_core_ver2_grime(
-                    layer, role, channel, mask_parameter, parameters,
-                ) or _preview_core_ver2_scratch(layer, role, channel, mask_parameter, parameters)
+                    layer, role, channel, mask_parameter, parameters, source_package,
+                ) or _preview_core_ver2_scratch(
+                    layer, role, channel, mask_parameter, parameters, source_package,
+                )
             else:
                 detail_mask = None
             layer_has_source = False

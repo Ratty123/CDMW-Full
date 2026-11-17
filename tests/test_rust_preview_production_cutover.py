@@ -302,6 +302,74 @@ def test_ver2_grime_layers_state_the_game_ramp_and_their_detail_mask(tmp_path: P
     assert graph["unique_resource_count"] == 2
 
 
+def _ver2_grime_fixture(tmp_path: Path, *, detail_mask_exists: bool = True):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    detail_mask = tmp_path / "plate_mg.dds"
+    if detail_mask_exists:
+        detail_mask.write_bytes(b"DDS " + b"M" * 512)
+    base = native["batches"][0]["material_layers"][0]
+    native["batches"][0]["material_layers"].append(dict(
+        base, layer_role="grime", component_scope_id="piece-a", mask_channel="r",
+        source_parameter="_grimeDiffuseTextureR", mask_parameter="_colorBlendingMaskTexture",
+        mask_source=base["diffuse_source"], mask_archive_path="character/texture/plate_ma.dds"))
+    wrapper = dict(component_scope_id="piece-a", owner_wrapper_item_id="fixture-wrapper-1",
+                   material_wrapper_index=0)
+    parameters = [
+        dict(wrapper, parameter_name="_grimeBlendingParameterR", integer_value=0x8E003333),
+        dict(wrapper, parameter_name="_grimeBlendingOpacityParameter", integer_value=0xA7E0FF93),
+        dict(wrapper, parameter_name="_detailMaskTexture", value="",
+             resolved_source_path=str(detail_mask),
+             resolved_archive_path="character/texture/plate_mg.dds"),
+    ]
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=3,
+                                           transported_parameter_count=3)
+    (source / "manifest.json").write_text(json.dumps(native))
+    return source, native, detail_mask
+
+
+def test_ver2_grime_survives_direct_promotion_and_the_package_cache(tmp_path: Path):
+    from cdmw.domain.material_layer_uv import detail_mask_sources
+    from cdmw.rendering.native_preview_core import _native_preview_core_manifest_dds_paths
+    from cdmw.services.mesh_rust_preview_promotion import promote_rust_preview_package_from_preview_core
+
+    source, native, detail_mask = _ver2_grime_fixture(tmp_path)
+    assert detail_mask_sources(native) == (str(detail_mask),)
+    # The post-job prune of the DDS cache must keep the mask: no layer row names it.
+    assert detail_mask in _native_preview_core_manifest_dds_paths(source)
+    direct = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "direct", material_quality="direct")
+    promoted = promote_rust_preview_package_from_preview_core(
+        direct, source, source_manifest=native, output_package_dir=tmp_path / "promoted")
+    first = build_or_lookup_rust_preview_package(
+        source, cache_root=tmp_path / "cache", archive_identity="ver2-grime")
+    cached = build_or_lookup_rust_preview_package(
+        source, cache_root=tmp_path / "cache", archive_identity="ver2-grime")
+    for package, full in ((direct, False), (promoted, True), (first, True), (cached, True)):
+        manifest = json.loads(package.manifest_path.read_text())
+        graph = manifest["preview_core_material_graph"]
+        grime = graph["materials"][0]["layers"][1]
+        assert grime["grime_blend"] == [0x93, 0xFF, 0x8E]
+        assert grime["detail_mask_declared"] is True
+        assert grime["detail_mask_archive_path"] == "character/texture/plate_mg.dds"
+        if full:
+            reference = grime["detail_mask"]
+            assert (package.manifest_path.parent / reference["path"]).read_bytes() == detail_mask.read_bytes()
+        else:
+            assert grime["detail_mask"] is None
+        # The base colour and the grime layer's colour and mask, plus its detail mask.
+        assert graph["source_edge_count"] == 4
+
+
+def test_a_missing_detail_mask_costs_the_wear_not_the_preview(tmp_path: Path):
+    source, _native, detail_mask = _ver2_grime_fixture(tmp_path, detail_mask_exists=False)
+    assert not detail_mask.exists()
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    grime = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"][1]
+    assert "grime_blend" not in grime and "detail_mask" not in grime
+
+
 def test_ver2_colour_layers_state_their_scratch_bytes_tint_and_detail_mask(tmp_path: Path):
     source, *_ = _write_schema8_preview_core_fixture(tmp_path)
     native = json.loads((source / "manifest.json").read_text())

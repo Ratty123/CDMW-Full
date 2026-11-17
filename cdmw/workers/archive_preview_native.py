@@ -28,6 +28,7 @@ from cdmw.models import (
     ModelPreviewRenderSettings,
     RunCancelled,
 )
+from cdmw.domain.material_layer_uv import detail_mask_sources
 from cdmw.rendering.native_preview_core import (
     NativePreviewCoreAttempt,
     render_settings_to_native_preview_core_dict,
@@ -607,6 +608,10 @@ class ArchivePreviewNativeMixin:
                         check_path(layer.get(f"{role}_source"), package_relative=False)
             if len(missing) >= 8:
                 break
+        # The Ver2 grime and scratch rules read `_detailMaskTexture`, which no
+        # layer row names. An expired one would cost the preview its wear.
+        for source in detail_mask_sources(manifest):
+            check_path(source, package_relative=False)
         return not missing, tuple(missing[:8])
 
     def _archive_entry_for_native_asset_path(self, path: str) -> Optional[ArchiveEntry]:

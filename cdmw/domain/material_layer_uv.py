@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 IDENTITY_UV_TRANSFORM = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 
@@ -145,3 +145,25 @@ def pac_color_bytes(value: object) -> tuple[float, float, float, float] | None:
     if not re.fullmatch(r"#[0-9a-fA-F]{8}", text):
         return None
     return tuple(int(text[index:index + 2], 16) / 255.0 for index in (1, 3, 5, 7))  # type: ignore[return-value]
+
+
+def detail_mask_sources(manifest: object) -> tuple[str, ...]:
+    """Resolved `_detailMaskTexture` files of a native preview package manifest.
+
+    The Ver2 grime and scratch rules read this map. No material layer row names
+    it, so readers that protect, check or copy layer sources ask here as well.
+    """
+    conservation = manifest.get("material_conservation") if isinstance(manifest, Mapping) else None
+    parameters = conservation.get("parameters") if isinstance(conservation, Mapping) else None
+    if not isinstance(parameters, (list, tuple)):
+        return ()
+    sources: list[str] = []
+    for parameter in parameters:
+        if not isinstance(parameter, Mapping):
+            continue
+        if str(parameter.get("parameter_name", "")).casefold().lstrip("_") != "detailmasktexture":
+            continue
+        source = str(parameter.get("resolved_source_path", "") or "").strip()
+        if source and source not in sources:
+            sources.append(source)
+    return tuple(sources)
