@@ -43,9 +43,9 @@ class AiConnectionsSettingsSection(QGroupBox):
 
         self.enabled_checkbox = QCheckBox("Allow AI connections")
         self.enabled_checkbox.setObjectName("AiConnectionsEnabled")
-        hint = QLabel("Lets AI apps on this computer, such as Claude and Codex CLI, search the archives and "
-                      "answer questions about files through CDMW's tools. Off by default; while it is off "
-                      "nothing listens.")
+        hint = QLabel("Lets AI apps on this computer, such as Claude and Codex CLI, see and use CDMW through "
+                      "its tools: search the archives, read files, and work in its tools as you do. Off by "
+                      "default; while it is off nothing listens.")
         hint.setWordWrap(True)
         hint.setObjectName("HintLabel")
         self.status_label = QLabel()

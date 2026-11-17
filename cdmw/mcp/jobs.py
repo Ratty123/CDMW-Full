@@ -53,13 +53,13 @@ class Job:
     def progress(self, done: float, total: float = 0.0, message: str = "") -> None:
         self.done, self.total, self.message = float(done), float(total), str(message or "")
 
-    def check_output(self, path) -> object:
+    def check_output(self, path, *, allow_existing: bool = False) -> object:
         """The job runner's path rule: call before writing ``path``; returns the resolved path."""
 
         from cdmw.domain.output_paths import OutputPathRefused, check_output_path
 
         try:
-            return check_output_path(path, game_folder=self.game_folder())
+            return check_output_path(path, game_folder=self.game_folder(), allow_existing=allow_existing)
         except OutputPathRefused as refused:
             raise ToolError(REFUSED, str(refused)) from None
 
@@ -90,6 +90,8 @@ class JobRegistry:
         # The runner checks every output path again before the work starts.
         for name in getattr(call.tool, "output_paths", ()):
             job.check_output(str(call.arguments.get(name) or ""))
+        for name in getattr(call.tool, "output_folders", ()):
+            job.check_output(str(call.arguments.get(name) or ""), allow_existing=True)
         with self._lock:
             self._jobs[job.id] = job
             self._trim()

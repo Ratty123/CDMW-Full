@@ -39536,7 +39536,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
-          "line": 141,
+          "line": 229,
           "sink": "translate_active_ui_text"
         },
         {
@@ -83657,7 +83657,7 @@
       ]
     },
     {
-      "key": "Lets AI apps on this computer, such as Claude and Codex CLI, search the archives and answer questions about files through CDMW's tools. Off by default; while it is off nothing listens.",
+      "key": "Lets AI apps on this computer, such as Claude and Codex CLI, see and use CDMW through its tools: search the archives, read files, and work in its tools as you do. Off by default; while it is off nothing listens.",
       "origins": [
         {
           "path": "cdmw/ui/ai_connections/settings_section.py",
@@ -100261,7 +100261,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
-          "line": 143,
+          "line": 231,
           "sink": "translate_active_ui_text"
         },
         {
@@ -125021,7 +125021,7 @@
         },
         {
           "path": "cdmw/ui/new_item/rust_ui_document.py",
-          "line": 142,
+          "line": 230,
           "sink": "translate_active_ui_text"
         },
         {
@@ -202657,7 +202657,7 @@
       ]
     },
     {
-      "key": "lets AI apps on this computer, such as Claude Desktop, Claude Code and Codex CLI, use CDMW's read-only tools while CDMW is open. Turn on Allow AI connections, add CDMW to the app with a line this page shows, then restart the app. These tools change nothing; no tool writes into the game or changes these settings, and CDMW logs every call.",
+      "key": "lets AI apps on this computer, such as Claude Desktop, Claude Code and Codex CLI, see and do in CDMW what you can while CDMW is open: search the archives and read files, work in Browse Archives, the Mesh Editor, the Texture Editor and Create New Item, press the buttons and fill the fields of any page, and take pictures of the windows and 3D views. Turn on Allow AI connections, add CDMW to the app with a line this page shows, then restart the app. Tools that only read always run. Tools that change something, write a file or delete something ask you in CDMW first, unless you set that kind to allow or turn on Full access. No tool writes into the game, changes these settings or the game folder, or answers its own question, and CDMW logs every call.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",

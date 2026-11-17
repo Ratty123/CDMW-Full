@@ -13,10 +13,15 @@ kinds exist:
 
 Clients see names with dots as underscores (``names.wire_name``).
 
-This part of stage C builds read tools only. A command tool whose command is
-an edit, destructive or output command, and every typed tool of those
-classes, is listed in ``coverage.json`` as "not built yet" with the milestone
-that builds it; the table neither lists nor runs it.
+Tools of every class are built: read tools run without asking; edit,
+destructive and output tools go through the approval of their class
+(``approvals.ApprovalPolicy``). A tool whose class depends on its arguments
+(``app.run_command``: the class is the command's) sets ``effect_of``.
+
+Registry commands are not listed one tool each (several hundred with the Mesh
+Editor's): ``app.run_command`` runs any of them by id, and ``commands.list``
+lists them. The one-tool-per-command mechanism stays behind
+``COMMAND_TOOLS_BUILT``.
 """
 
 from __future__ import annotations
@@ -38,10 +43,10 @@ from cdmw.mcp.schema import check_schema_shape
 
 #: The command tools' family. Not a typed family, so not a reserved prefix.
 COMMAND_FAMILY = "command"
-#: Effect classes whose tools exist in this part of stage C.
-BUILT_EFFECTS = frozenset({READ})
-#: Registry commands as tools are P13 stage C part 2 (the control branch): until it
-#: switches this on, a classified command is listed in coverage, not as a tool.
+#: Effect classes whose tools exist: all of them.
+BUILT_EFFECTS = frozenset(EFFECT_CLASSES)
+#: One tool per registry command. Off: ``app.run_command`` runs commands by id instead,
+#: so a client's tool list stays short.
 COMMAND_TOOLS_BUILT = False
 #: Where a tool's work runs. The UI thread only starts work or reads widget
 #: state; anything slow runs on a worker.
@@ -84,6 +89,15 @@ class Tool:
     #: Argument names that are output paths; the server checks each with
     #: ``cdmw.domain.output_paths.check_output_path`` before asking anyone.
     output_paths: tuple[str, ...] = ()
+    #: Argument names that are existing folders the tool writes new files into; the
+    #: same rule, except that the folder itself must exist.
+    output_folders: tuple[str, ...] = ()
+    #: ``effect_of(call)``: the class of this one call, for a tool whose class depends
+    #: on its arguments. ``effect`` is then the class shown in the tool list.
+    effect_of: Callable[..., str] | None = None
+    #: ``approval_key(call)``: what "Allow for this session" allows, when that is
+    #: narrower than the whole tool (one command, one control).
+    approval_key: Callable[..., str] | None = None
     #: For a command tool: the registry id it runs.
     command_id: str = ""
     title: str = ""
@@ -136,9 +150,12 @@ def _check_tool(tool: Tool) -> None:
         raise ToolTableError(f"{tool.name}: clients cannot call {tool.wire!r}")
     if tool.runs_on not in (ON_WORKER, ON_UI, ON_CALL):
         raise ToolTableError(f"{tool.name}: runs_on must be {ON_WORKER}, {ON_UI} or {ON_CALL}")
-    if tool.effect == OUTPUT and not tool.output_paths and tool.family != COMMAND_FAMILY:
+    if (tool.effect == OUTPUT and not tool.output_paths and not tool.output_folders
+            and tool.family != COMMAND_FAMILY):
         raise ToolTableError(f"{tool.name}: an output tool names the arguments it writes to")
-    for name in tool.output_paths:
+    if tool.effect_of is not None and tool.effect == READ:
+        raise ToolTableError(f"{tool.name}: a tool whose class depends on the call is not listed as read")
+    for name in (*tool.output_paths, *tool.output_folders):
         if name not in dict(tool.input_schema.get("properties") or {}):
             raise ToolTableError(f"{tool.name}: output path {name!r} is not an argument")
     try:

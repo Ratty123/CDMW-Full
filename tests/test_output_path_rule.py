@@ -105,3 +105,19 @@ def test_an_output_never_replaces_a_file_or_folder(tmp_path) -> None:
         with pytest.raises(OutputPathRefused, match="never replace"):
             check_output_path(target)
     assert check_output_path(existing, allow_existing=True) == Path(os.path.realpath(existing))
+
+
+def test_a_typed_text_is_refused_only_when_it_is_a_place_in_the_game(tmp_path, game) -> None:
+    from cdmw.domain.output_paths import game_path_reason
+
+    # A field's text that may become an output: the game rules alone, whatever exists.
+    for inside in (game, game / "mods" / "not there yet" / "a.dds", f'"{game}"', str(game).upper()):
+        assert "does not write into the game folder" in game_path_reason(inside, game_folder=game)
+    copy = tmp_path / "copy"
+    (copy / "meta").mkdir(parents=True)
+    (copy / "meta" / "0.papgt").write_bytes(b"\0")
+    assert "a game installation" in game_path_reason(copy / "0009" / "x.paz")
+    assert "a DLC folder" in game_path_reason(tmp_path / "dlc" / "dlc_0001" / "x.paz")
+    for fine in (tmp_path / "mods", tmp_path / "missing" / "deep" / "a.dds", "Kliff's Blade", "mods/mine", "",
+                 "#FF00FF", "character/model/a.pac"):
+        assert game_path_reason(fine, game_folder=game) == "", fine

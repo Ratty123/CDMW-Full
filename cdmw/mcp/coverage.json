@@ -1,141 +1,114 @@
 {
   "schema": 1,
-  "about": "Every registry command and every capability of every panel, with the AI tool that covers it or an accepted gap. Gaps: not_built (names the milestone that builds it), needs_pointer (names the tool that takes points instead), writes_into_game (no tool ever covers it), user_only (only the user may do it). tests/test_mcp_coverage.py keeps this file current.",
+  "about": "Every registry command and every capability of every panel, with the AI tool that covers it or an accepted gap. Gaps: not_built (names the milestone that builds it), needs_pointer (names the tool that takes points instead), writes_into_game (no tool ever covers it), user_only (only the user may do it). A row may add 'also': the generic tools that reach it meanwhile. tests/test_mcp_coverage.py keeps this file current.",
   "commands": {
     "browse.appearance_composite": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "browse.asset_family": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "browse.asset_family_panel": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "browse.batch_export_fbx": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.batch_export_glb": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.batch_export_obj": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.character_dependencies": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "browse.copy_filename": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.export_family": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.export_fbx": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.export_file": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.export_glb": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.export_obj": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.extract_file": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.filter_to_family": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "browse.hkx_edit": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "browse.hkx_export_havok_xml_view": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.hkx_export_json": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.hkx_export_xml": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.hkx_import_json": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "browse.hkx_import_xml": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "browse.hkx_physics_editor": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "browse.hkx_placement": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "browse.import_mesh": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "browse.open_in_mesh_editor": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "browse.open_preview_window": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "browse.preview": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "browse.remove_old_install": {
       "gap": "user_only",
@@ -146,305 +119,246 @@
       "reason": "Writes backed-up files back into the game folder; only the user may confirm it."
     },
     "browse.show_only_file": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "browse.sidecar_export_json": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "browse.sidecar_inspect": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "shell.about": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "shell.attach_all_tools": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "shell.attach_tool": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "shell.copy_problem_summary": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "shell.detach_tool": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "shell.documentation": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "shell.export_diagnostics": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "shell.export_profile": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "shell.import_profile": {
       "gap": "user_only",
       "reason": "A profile carries the AI connection settings and the game folder; only the user imports one."
     },
     "shell.open_crash_reports": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "shell.report_problem": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "shell.settings": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.actual_size": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.brush_larger": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.brush_smaller": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.clear_selection": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.copy_layer": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.copy_selection_layer": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.cut_selection": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.export_dds": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "texture_editor.fit_view": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.hardness_harder": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.hardness_softer": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.new_layer": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.open_archive": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.open_compare": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.open_file": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.open_project": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.paste_centered": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.paste_layer": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.preview_compressed": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.redo": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.save_png": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "texture_editor.save_project": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "output"
     },
     "texture_editor.send_item_icons": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.send_replace": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.send_workflow": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.toggle_quick_mask": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.tool_clone": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_dodge_burn": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_erase": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_fill": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_gradient": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_heal": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_lasso": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_move": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_paint": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_patch": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_rect": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.tool_smudge": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "texture_editor.transform_float_layer": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "texture_editor.undo": {
-      "gap": "not_built",
-      "class": "edit",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "edit"
     },
     "shell.command_palette": {
-      "gap": "not_built",
-      "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class"
+      "tool": "app.run_command",
+      "class": "read"
     },
     "saved_work.combine": {
-      "gap": "not_built",
-      "class": "output",
-      "milestone": "P13 stage C part 2: saved work tools (Combine needs P7's screens)",
-      "note": "Registered by Drafts & Mods when its page is first built (cdmw/ui/mesh_editor/saved_work_commands.py)."
+      "tool": "app.run_command",
+      "class": "output"
     }
   },
   "command_patterns": [
     {
       "prefix": "shell.open.",
-      "gap": "not_built",
+      "tool": "app.run_command",
       "class": "read",
-      "milestone": "P13 stage C part 2: command tools, once the main thread sets each command's class",
-      "note": "One per rail entry (cdmw/ui/shell/shell_commands.py tool_commands)."
+      "note": "One per rail entry (cdmw/ui/shell/shell_commands.py tool_commands); app.open_tool runs them by key."
     },
     {
       "prefix": "mesh_editor.",
-      "gap": "not_built",
+      "tool": "app.run_command",
       "class": "edit",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)",
-      "note": "Mirrored from the Mesh Editor helper's keymap at run time; each gets its class with the Mesh Editor tools."
+      "note": "Mirrored from the Mesh Editor helper's keymap at run time; mesh.command runs them by the helper's id. One whose id or label says build, export, delete or remove asks as output or destructive."
     }
   ],
   "capabilities": [
@@ -575,495 +489,6 @@
       "tool": "app.cancel_job"
     },
     {
-      "id": "local_file.describe",
-      "area": "Browse Archives",
-      "what": "Describe a local file",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: questions about local files"
-    },
-    {
-      "id": "local_file.bytes",
-      "area": "Browse Archives",
-      "what": "Bytes of a local file",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: questions about local files"
-    },
-    {
-      "id": "local_file.parse",
-      "area": "Browse Archives",
-      "what": "Parsed content of a local file",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: questions about local files"
-    },
-    {
-      "id": "view.open",
-      "area": "Browse Archives",
-      "what": "Open and preview an entry (refused while an edit holds the viewport)",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: view and capture tools"
-    },
-    {
-      "id": "view.parts",
-      "area": "Scene panel",
-      "what": "Parts and their visibility",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: view and capture tools"
-    },
-    {
-      "id": "view.camera",
-      "area": "3D preview",
-      "what": "Get or set the camera",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: view and capture tools"
-    },
-    {
-      "id": "view.settings",
-      "area": "Preview settings",
-      "what": "Get or set view settings",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: view and capture tools"
-    },
-    {
-      "id": "view.capture",
-      "area": "3D preview",
-      "what": "A picture of the viewport",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: view and capture tools"
-    },
-    {
-      "id": "view.texture_image",
-      "area": "Texture preview",
-      "what": "A picture of any texture or layer",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: view and capture tools"
-    },
-    {
-      "id": "mesh.select",
-      "area": "Mesh Editor",
-      "what": "Select parts, vertices, edges, faces, islands",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.transform",
-      "area": "Mesh Editor",
-      "what": "Move, rotate, scale",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.stroke",
-      "area": "Mesh Editor",
-      "what": "Sculpt strokes",
-      "class": "edit",
-      "gap": "needs_pointer",
-      "by_points": "mesh.stroke",
-      "note": "The tool takes the stroke as points and pressure; it is built with the Mesh Editor tools."
-    },
-    {
-      "id": "mesh.topology",
-      "area": "Mesh Editor",
-      "what": "Topology operations, Clean Up included",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.findings",
-      "area": "Mesh Editor",
-      "what": "Mesh findings and the fix each names",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.uv",
-      "area": "Mesh Editor",
-      "what": "UV operations",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.weights",
-      "area": "Mesh Editor",
-      "what": "Rig and weights",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.morph",
-      "area": "Mesh Editor",
-      "what": "Morphs",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.cloth",
-      "area": "Mesh Editor",
-      "what": "Cloth",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.import_replacement",
-      "area": "Mesh Editor",
-      "what": "Import Replacement by path",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.history",
-      "area": "Mesh Editor",
-      "what": "Undo, redo, history",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.finish",
-      "area": "Mesh Editor",
-      "what": "Finish an edit",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.discard",
-      "area": "Mesh Editor",
-      "what": "Discard an edit",
-      "class": "destructive",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.export_pac",
-      "area": "Mesh Editor",
-      "what": "Export PAC As",
-      "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "mesh.build_mod",
-      "area": "Mesh Editor",
-      "what": "Build Mod",
-      "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: Mesh Editor tools (after the whole of P12, and P17 for findings and Clean Up)"
-    },
-    {
-      "id": "textures.list",
-      "area": "Mesh Editor > Textures panel",
-      "what": "Every texture the shown mesh's parts use",
-      "class": "read",
-      "tool": "textures.list"
-    },
-    {
-      "id": "textures.open",
-      "area": "Texture Editor",
-      "what": "Open a texture",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.stroke",
-      "area": "Texture Editor",
-      "what": "Paint strokes",
-      "class": "edit",
-      "gap": "needs_pointer",
-      "by_points": "textures.stroke",
-      "note": "The tool takes canvas or UV points; it is built with the texture tools."
-    },
-    {
-      "id": "textures.layer",
-      "area": "Texture Editor",
-      "what": "Layers",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.adjust",
-      "area": "Texture Editor",
-      "what": "Adjustments",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.fill",
-      "area": "Texture Editor",
-      "what": "Fills",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.select",
-      "area": "Texture Editor",
-      "what": "Selections",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.stencil",
-      "area": "Texture Editor",
-      "what": "Stencils",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.compare",
-      "area": "Texture Editor",
-      "what": "Compare",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.import_pixels",
-      "area": "Texture Editor",
-      "what": "Pixels from a file or sent in the call",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.write_region",
-      "area": "Texture Editor",
-      "what": "Write pixels by region",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.read_region",
-      "area": "Texture Editor",
-      "what": "Read pixels by region",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.generate",
-      "area": "Texture Editor",
-      "what": "Fills, gradients, noise, patterns, tiles",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.derive",
-      "area": "Texture Editor",
-      "what": "Normal from height, pack, unpack, resize, mips, conversion",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.new_for_slot",
-      "area": "Texture Editor",
-      "what": "A new texture for a material slot (Make unique)",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.export",
-      "area": "Texture Editor",
-      "what": "Export a texture",
-      "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "textures.output_plan",
-      "area": "Texture Editor",
-      "what": "The output plan for a mod",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
-    },
-    {
-      "id": "materials.get",
-      "area": "Material panel",
-      "what": "Every factor of a material",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: material tools"
-    },
-    {
-      "id": "materials.set",
-      "area": "Material panel",
-      "what": "Set a factor",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: material tools"
-    },
-    {
-      "id": "materials.variants",
-      "area": "Material panel",
-      "what": "Variants",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: material tools"
-    },
-    {
-      "id": "materials.recolour",
-      "area": "Material panel",
-      "what": "Recolour",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: material tools"
-    },
-    {
-      "id": "saved.continue",
-      "area": "Drafts & Mods",
-      "what": "Continue a draft",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: saved work tools (Combine needs P7's screens)"
-    },
-    {
-      "id": "saved.rename",
-      "area": "Drafts & Mods",
-      "what": "Rename a row",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: saved work tools (Combine needs P7's screens)"
-    },
-    {
-      "id": "saved.combine",
-      "area": "Drafts & Mods",
-      "what": "Combine into one mod",
-      "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: saved work tools (Combine needs P7's screens)"
-    },
-    {
-      "id": "saved.delete",
-      "area": "Drafts & Mods",
-      "what": "Delete a draft or row",
-      "class": "destructive",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: saved work tools (Combine needs P7's screens)"
-    },
-    {
-      "id": "new_item.steps",
-      "area": "Create New Item",
-      "what": "Every step",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "new_item.build",
-      "area": "Create New Item",
-      "what": "Build",
-      "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "mods.list",
-      "area": "Mod Management",
-      "what": "List mods",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "mods.change",
-      "area": "Mod Management",
-      "what": "Enable, order",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "mods.export",
-      "area": "Mod Management",
-      "what": "Export and merge",
-      "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "placement.edit",
-      "area": "Placement & Animations",
-      "what": "Every action",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "translation.edit",
-      "area": "Translation Studio",
-      "what": "Load and edit",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "translation.save",
-      "area": "Translation Studio",
-      "what": "Save",
-      "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "item_icons.make",
-      "area": "Item Icons",
-      "what": "Make and export icons",
-      "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "research.read",
-      "area": "Research",
-      "what": "Read research notes",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: tools for Create New Item, Mod Management and the other tools, after their P12 commands"
-    },
-    {
-      "id": "app.settings_get",
-      "area": "Settings",
-      "what": "Read settings",
-      "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: app tools"
-    },
-    {
-      "id": "app.settings_set",
-      "area": "Settings",
-      "what": "Change settings (never AI connections, approvals, Full access or the game folder)",
-      "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: app tools"
-    },
-    {
       "id": "shortcuts.list",
       "area": "Settings > Shortcuts",
       "what": "Every command's keys, defaults and clashes",
@@ -1071,12 +496,933 @@
       "tool": "app.shortcuts"
     },
     {
+      "id": "app.manual",
+      "area": "Help",
+      "what": "The Help topics (the Wiki manual's source) as text",
+      "class": "read",
+      "tool": "app.manual"
+    },
+    {
+      "id": "app.state",
+      "area": "The app",
+      "what": "What is shown: the open tool, dialogs, windows, access",
+      "class": "read",
+      "tool": "app.state"
+    },
+    {
+      "id": "app.open_tool",
+      "area": "The app",
+      "what": "Show a tool, as the rail does",
+      "class": "read",
+      "tool": "app.open_tool"
+    },
+    {
+      "id": "app.run_command",
+      "area": "Command palette",
+      "what": "Run any command by id, with its own class",
+      "class": "edit",
+      "tool": "app.run_command"
+    },
+    {
+      "id": "app.ui",
+      "area": "The app",
+      "what": "The controls of the shown window, dialog or widget",
+      "class": "read",
+      "tool": "app.ui"
+    },
+    {
+      "id": "app.ui_act",
+      "area": "The app",
+      "what": "Press, fill, tick, pick or select a control",
+      "class": "edit",
+      "tool": "app.ui_act"
+    },
+    {
+      "id": "app.screenshot",
+      "area": "The app",
+      "what": "A picture of a window, dialog or widget",
+      "class": "read",
+      "tool": "app.screenshot"
+    },
+    {
+      "id": "app.settings_get",
+      "area": "Settings",
+      "what": "Read settings",
+      "class": "read",
+      "tool": "app.settings_get"
+    },
+    {
+      "id": "view.selection",
+      "area": "Browse Archives",
+      "what": "The selected and previewed entry and the preview's state",
+      "class": "read",
+      "tool": "view.selection"
+    },
+    {
+      "id": "view.open",
+      "area": "Browse Archives",
+      "what": "Open and preview an entry (refused while an edit holds the viewport)",
+      "class": "read",
+      "tool": "view.open"
+    },
+    {
+      "id": "view.parts",
+      "area": "Scene panel",
+      "what": "Parts and their visibility",
+      "class": "read",
+      "tool": "view.parts"
+    },
+    {
+      "id": "view.set_parts",
+      "area": "Scene panel",
+      "what": "Tick or untick parts, Show all, Isolate",
+      "class": "read",
+      "tool": "view.set_parts"
+    },
+    {
+      "id": "view.camera",
+      "area": "3D preview",
+      "what": "Set or reset the camera",
+      "class": "read",
+      "tool": "view.camera"
+    },
+    {
+      "id": "view.settings",
+      "area": "Preview settings",
+      "what": "Get or set view settings",
+      "class": "edit",
+      "tool": "view.settings"
+    },
+    {
+      "id": "view.capture",
+      "area": "3D preview",
+      "what": "A picture of the viewport",
+      "class": "read",
+      "tool": "view.capture"
+    },
+    {
+      "id": "mesh.state",
+      "area": "Mesh Editor",
+      "what": "Documents, parts, counts, selection, history, status",
+      "class": "read",
+      "tool": "mesh.state"
+    },
+    {
+      "id": "mesh.geometry",
+      "area": "Mesh Editor",
+      "what": "A part's vertices, triangles, UVs, normals and selection",
+      "class": "read",
+      "tool": "mesh.geometry"
+    },
+    {
+      "id": "mesh.open",
+      "area": "Mesh Editor",
+      "what": "Open an archive mesh in the Mesh Editor",
+      "class": "edit",
+      "tool": "mesh.open"
+    },
+    {
+      "id": "mesh.show_document",
+      "area": "Mesh Editor",
+      "what": "Show one of the open documents",
+      "class": "read",
+      "tool": "mesh.show_document"
+    },
+    {
+      "id": "mesh.select",
+      "area": "Mesh Editor",
+      "what": "Select whole parts",
+      "class": "edit",
+      "tool": "mesh.select_parts"
+    },
+    {
+      "id": "mesh.highlight",
+      "area": "Mesh Editor",
+      "what": "Light a part up in the view",
+      "class": "read",
+      "tool": "mesh.highlight_part"
+    },
+    {
+      "id": "mesh.command",
+      "area": "Mesh Editor",
+      "what": "Run any of the editor's commands: tools, modes, topology, transforms",
+      "class": "edit",
+      "tool": "mesh.command"
+    },
+    {
+      "id": "mesh.history",
+      "area": "Mesh Editor",
+      "what": "Undo, redo, history",
+      "class": "edit",
+      "tool": "mesh.undo"
+    },
+    {
+      "id": "mesh.redo",
+      "area": "Mesh Editor",
+      "what": "Redo",
+      "class": "edit",
+      "tool": "mesh.redo"
+    },
+    {
+      "id": "mesh.finish",
+      "area": "Mesh Editor",
+      "what": "Finish an edit",
+      "class": "edit",
+      "tool": "mesh.finish"
+    },
+    {
+      "id": "mesh.discard",
+      "area": "Mesh Editor",
+      "what": "Discard an edit",
+      "class": "destructive",
+      "tool": "mesh.discard"
+    },
+    {
+      "id": "mesh.build_mod",
+      "area": "Mesh Editor",
+      "what": "Build Mod",
+      "class": "output",
+      "tool": "mesh.build_mod"
+    },
+    {
+      "id": "mesh.export_mesh",
+      "area": "Mesh Editor",
+      "what": "Export Mesh File (OBJ, GLB)",
+      "class": "output",
+      "tool": "mesh.export"
+    },
+    {
+      "id": "mesh.replacement_state",
+      "area": "Mesh Editor",
+      "what": "Import Replacement: what is offered and the mapping step",
+      "class": "read",
+      "tool": "mesh.replacement_state"
+    },
+    {
+      "id": "mesh.import_replacement",
+      "area": "Mesh Editor",
+      "what": "Import Replacement by path",
+      "class": "edit",
+      "tool": "mesh.replacement_import"
+    },
+    {
+      "id": "mesh.replacement_apply",
+      "area": "Mesh Editor",
+      "what": "Apply Replacement with its mapping",
+      "class": "edit",
+      "tool": "mesh.replacement_apply"
+    },
+    {
+      "id": "mesh.replacement_cancel",
+      "area": "Mesh Editor",
+      "what": "Cancel Import",
+      "class": "edit",
+      "tool": "mesh.replacement_cancel"
+    },
+    {
+      "id": "hair.state",
+      "area": "Hair Tools",
+      "what": "The hairstyle being made: style, template, guides, groups, locks",
+      "class": "read",
+      "tool": "mesh.state"
+    },
+    {
+      "id": "hair.build",
+      "area": "Hair Tools",
+      "what": "Build Mod for a hairstyle",
+      "class": "output",
+      "tool": "mesh.build_mod"
+    },
+    {
+      "id": "textures.panel",
+      "area": "Mesh Editor",
+      "what": "The Textures panel's rows",
+      "class": "read",
+      "tool": "textures.list"
+    },
+    {
+      "id": "textures.state",
+      "area": "Texture Editor",
+      "what": "The open texture, its tool, layers, history and live state",
+      "class": "read",
+      "tool": "textures.state"
+    },
+    {
+      "id": "textures.open",
+      "area": "Texture Editor",
+      "what": "Open a texture",
+      "class": "edit",
+      "tool": "textures.open"
+    },
+    {
+      "id": "textures.tool",
+      "area": "Texture Editor",
+      "what": "Choose a tool and its settings",
+      "class": "edit",
+      "tool": "textures.tool"
+    },
+    {
+      "id": "textures.adjust",
+      "area": "Texture Editor",
+      "what": "Adjustments",
+      "class": "edit",
+      "tool": "textures.adjust"
+    },
+    {
+      "id": "textures.stroke",
+      "area": "Texture Editor",
+      "what": "Paint strokes, by points",
+      "class": "edit",
+      "tool": "textures.stroke"
+    },
+    {
+      "id": "textures.undo",
+      "area": "Texture Editor",
+      "what": "Undo",
+      "class": "edit",
+      "tool": "textures.undo"
+    },
+    {
+      "id": "textures.redo",
+      "area": "Texture Editor",
+      "what": "Redo",
+      "class": "edit",
+      "tool": "textures.redo"
+    },
+    {
+      "id": "new_item.state",
+      "area": "Create New Item",
+      "what": "The page shown: templates, the step, the preview",
+      "class": "read",
+      "tool": "new_item.state"
+    },
+    {
+      "id": "new_item.search",
+      "area": "Create New Item",
+      "what": "Search the templates",
+      "class": "edit",
+      "tool": "new_item.search"
+    },
+    {
+      "id": "new_item.pick",
+      "area": "Create New Item",
+      "what": "Pick a template",
+      "class": "edit",
+      "tool": "new_item.pick"
+    },
+    {
+      "id": "new_item.painting_open",
+      "area": "Create New Item",
+      "what": "Open New painting",
+      "class": "edit",
+      "tool": "new_item.painting_open"
+    },
+    {
+      "id": "new_item.painting_state",
+      "area": "Create New Item",
+      "what": "New painting as shown",
+      "class": "read",
+      "tool": "new_item.painting_state"
+    },
+    {
+      "id": "new_item.painting_set",
+      "area": "Create New Item",
+      "what": "New painting: frame, picture, fit, texts, mod name",
+      "class": "edit",
+      "tool": "new_item.painting_set"
+    },
+    {
+      "id": "new_item.painting_build",
+      "area": "Create New Item",
+      "what": "New painting: Build",
+      "class": "output",
+      "tool": "new_item.painting_build"
+    },
+    {
+      "id": "new_item.painting_close",
+      "area": "Create New Item",
+      "what": "Close New painting",
+      "class": "edit",
+      "tool": "new_item.painting_close"
+    },
+    {
+      "id": "mesh.select_components",
+      "area": "Mesh Editor",
+      "what": "Select vertices, edges, faces and islands by index",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
+      "also": [
+        "mesh.command",
+        "mesh.geometry"
+      ]
+    },
+    {
+      "id": "mesh.transform",
+      "area": "Mesh Editor",
+      "what": "Move, rotate, scale by numbers",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
+      "also": [
+        "mesh.command"
+      ]
+    },
+    {
+      "id": "mesh.stroke",
+      "area": "Mesh Editor",
+      "what": "Sculpt strokes",
+      "class": "edit",
+      "gap": "needs_pointer",
+      "by_points": "mesh.stroke"
+    },
+    {
+      "id": "mesh.findings",
+      "area": "Mesh Editor",
+      "what": "Mesh findings and the fix each names",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
+      "also": [
+        "mesh.state"
+      ]
+    },
+    {
+      "id": "mesh.uv",
+      "area": "Mesh Editor",
+      "what": "UV operations by numbers",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
+      "also": [
+        "mesh.command"
+      ]
+    },
+    {
+      "id": "mesh.weights",
+      "area": "Mesh Editor",
+      "what": "Rig and weights by numbers",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
+      "also": [
+        "mesh.command"
+      ]
+    },
+    {
+      "id": "mesh.morph",
+      "area": "Mesh Editor",
+      "what": "Morphs by numbers",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
+      "also": [
+        "mesh.command"
+      ]
+    },
+    {
+      "id": "mesh.cloth",
+      "area": "Mesh Editor",
+      "what": "Cloth by numbers",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
+      "also": [
+        "mesh.command"
+      ]
+    },
+    {
+      "id": "mesh.camera",
+      "area": "Mesh Editor",
+      "what": "Set the editor's camera by numbers",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
+      "also": [
+        "mesh.command"
+      ]
+    },
+    {
+      "id": "mesh.export_pac",
+      "area": "Mesh Editor",
+      "what": "Export PAC As",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "hair.tools",
+      "area": "Hair Tools",
+      "what": "Guides and brushes by numbers",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
+      "also": [
+        "mesh.command",
+        "app.ui_act"
+      ]
+    },
+    {
+      "id": "materials.get",
+      "area": "Material panel",
+      "what": "Every factor of a material",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+    },
+    {
+      "id": "materials.set",
+      "area": "Material panel",
+      "what": "Set a factor or surface slider",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+    },
+    {
+      "id": "materials.variants",
+      "area": "Material panel",
+      "what": "Variants",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+    },
+    {
+      "id": "materials.recolour",
+      "area": "Material panel",
+      "what": "Recolour",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+    },
+    {
+      "id": "view.texture_image",
+      "area": "Texture preview",
+      "what": "A picture of any texture or layer",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.screenshot"
+      ]
+    },
+    {
+      "id": "local_file.describe",
+      "area": "Browse Archives",
+      "what": "Describe a local file",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "local_file.bytes",
+      "area": "Browse Archives",
+      "what": "Bytes of a local file",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "local_file.parse",
+      "area": "Browse Archives",
+      "what": "Parsed content of a local file",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.layer",
+      "area": "Texture Editor",
+      "what": "Layers",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.fill",
+      "area": "Texture Editor",
+      "what": "Fills",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.select",
+      "area": "Texture Editor",
+      "what": "Selections",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.stencil",
+      "area": "Texture Editor",
+      "what": "Stencils",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.compare",
+      "area": "Texture Editor",
+      "what": "Compare",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.import_pixels",
+      "area": "Texture Editor",
+      "what": "Pixels from a file or sent in the call",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.write_region",
+      "area": "Texture Editor",
+      "what": "Write pixels by region",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.read_region",
+      "area": "Texture Editor",
+      "what": "Read pixels by region",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.generate",
+      "area": "Texture Editor",
+      "what": "Fills, gradients, noise, patterns, tiles",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.derive",
+      "area": "Texture Editor",
+      "what": "Normal from height, pack, unpack, resize, mips, conversion",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.new_for_slot",
+      "area": "Texture Editor",
+      "what": "A new texture for a material slot (Make unique)",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.export",
+      "area": "Texture Editor",
+      "what": "Export a texture",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "textures.output_plan",
+      "area": "Texture Editor",
+      "what": "The output plan for a mod",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "saved.continue",
+      "area": "Drafts & Mods",
+      "what": "Continue a draft",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "saved.rename",
+      "area": "Drafts & Mods",
+      "what": "Rename a row",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "saved.combine",
+      "area": "Drafts & Mods",
+      "what": "Combine into one mod",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "saved.delete",
+      "area": "Drafts & Mods",
+      "what": "Delete a draft or row",
+      "class": "destructive",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "new_item.steps",
+      "area": "Create New Item",
+      "what": "Every other step's fields",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "new_item.build",
+      "area": "Create New Item",
+      "what": "Build",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "mods.list",
+      "area": "Mod Management",
+      "what": "List mods",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "mods.change",
+      "area": "Mod Management",
+      "what": "Enable, order",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "mods.export",
+      "area": "Mod Management",
+      "what": "Export and merge",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "placement.edit",
+      "area": "Placement & Animations",
+      "what": "Every action",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "translation.edit",
+      "area": "Translation Studio",
+      "what": "Load and edit",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "translation.save",
+      "area": "Translation Studio",
+      "what": "Save",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "item_icons.make",
+      "area": "Item Icons",
+      "what": "Make and export icons",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "research.read",
+      "area": "Research",
+      "what": "Read research notes",
+      "class": "read",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "app.settings_set",
+      "area": "Settings",
+      "what": "Change settings (never AI connections, approvals, Full access or the game folder)",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
       "id": "shortcuts.change",
       "area": "Settings > Shortcuts",
       "what": "Rebind, unbind, reset",
       "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 stage C part 2: app tools"
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
     },
     {
       "id": "app.undo",
@@ -1084,7 +1430,12 @@
       "what": "Undo and redo, one group per turn",
       "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 stage C part 2: app tools"
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
     },
     {
       "id": "app.turn_end",
@@ -1092,7 +1443,12 @@
       "what": "Mark the end of an assistant turn",
       "class": "read",
       "gap": "not_built",
-      "milestone": "P13 stage C part 2: app tools"
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
     },
     {
       "id": "app.diagnostics",
@@ -1100,14 +1456,12 @@
       "what": "Diagnostics",
       "class": "read",
       "gap": "not_built",
-      "milestone": "P13 stage C part 2: app tools"
-    },
-    {
-      "id": "app.manual",
-      "area": "Help",
-      "what": "The Help topics (the Wiki manual's source) as text",
-      "class": "read",
-      "tool": "app.manual"
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
     },
     {
       "id": "archive.overlay_install",
