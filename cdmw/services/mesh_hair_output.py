@@ -24,7 +24,7 @@ from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_texture
 from cdmw.core.pbd_cloth import parse_pbd_config_materials
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.domain.hair_registration import read_hair_choices
+from cdmw.domain.hair_registration import icon_donor_for, read_hair_choices
 from cdmw.domain.mesh.hair import hair_state_from_payload
 from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
@@ -237,11 +237,11 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes,
     template = state["template"]
     from cdmw.domain.hair_characters import hair_character
     profile = hair_character(template["character"])
-    donor_stem = PurePosixPath(template["path"].replace("\\", "/")).stem
+    donor_stem = PurePosixPath(template["path"].replace("\\", "/")).stem.lower()
     choices = read_hair_choices(files[profile.mesh_param_path])
     # Repeated slots can share a prefab. Match the chooser's first occurrence
     # and clone that slot's settings and icon without disturbing any other slot.
-    choice = next((choice for choice in choices if choice.prefab_stem == donor_stem), None)
+    choice = next((choice for choice in choices if choice.usable and choice.prefab_stem == donor_stem), None)
     if choice is None:
         raise ValueError("The donor must be a current barber choice for this character.")
     plan = prepare_hair_registration(files, new_stem=template["target_stem"],
@@ -298,7 +298,7 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes,
     additions = tuple(replace(item, data=rebuilt.data if item.path.endswith(".pac") else material)
                       if item.path.endswith((".pac", ".pac_xml")) else item for item in plan.additions)
     icon = next(item for item in additions if item.path.endswith(".dds"))
-    icon_donor = choice.icon_path.casefold()
+    icon_donor = plan.icon_donor
     registry = register_texture(registry, icon.path, like=icon_donor, dds_header=icon.data,
                                 reference_tables=reference_tables)
     encoded = encode_pathc(registry)
@@ -366,8 +366,8 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
         return files[key]
 
     choices = read_hair_choices(read(profile.mesh_param_path))
-    donor_stem = PurePosixPath(donor_path).stem
-    choice = next((row for row in choices if row.prefab_stem == donor_stem), None)
+    donor_stem = PurePosixPath(donor_path).stem.lower()
+    choice = next((row for row in choices if row.usable and row.prefab_stem == donor_stem), None)
     if choice is None:
         raise ValueError("The loaded hair is not a current barber choice for this character.")
     record = parse_pappt(read(PART_PREFAB_TABLE)).find(donor_stem)
@@ -377,7 +377,7 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
     read(donor_path)
     physics_path = donor_path.replace("character/model/", "character/bin__/meshphysics/", 1)[:-4] + ".hkx"
     read(physics_path)
-    read(choice.icon_path)
+    read(icon_donor_for(choices, choice.index))
     material_path = donor_path.replace("character/model/", "character/modelproperty/", 1) + "_xml"
     _, textures = material_texture_paths(read(material_path))
     for path in textures:

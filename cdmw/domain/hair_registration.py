@@ -18,9 +18,21 @@ class HairRegistrationError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class HairChoice:
+    """One MeshSet of the hair slot, in table order; every set is kept so indexes stay the game's."""
+
     index: int
+    #: Lower case, as archive paths are; the table itself may spell it in mixed case.
     prefab_stem: str
+    #: "" when the game gives this hairstyle no barber icon.
     icon_path: str
+    #: False for sets the game marks ShowInGame="False" (hairstyles the barber does not offer).
+    shown_in_game: bool = True
+    #: Why this set cannot be opened or used as a base; "" when it can.
+    problem: str = ""
+
+    @property
+    def usable(self) -> bool:
+        return not self.problem
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,8 +43,11 @@ class HairChoiceAppend:
     inserted_bytes: bytes
 
 
+_STEM = re.compile(r"[a-z][a-z0-9_]{0,126}")
+
+
 def validate_hair_stem(stem: str) -> None:
-    if not re.fullmatch(r"[a-z][a-z0-9_]{0,126}", stem):
+    if not _STEM.fullmatch(stem):
         raise HairRegistrationError("Hair prefab names must be lowercase ASCII file stems (at most 127 characters).")
 
 
@@ -57,27 +72,55 @@ def _hair_slot(data: bytes) -> ET.Element:
 
 
 def read_hair_choices(data: bytes) -> tuple[HairChoice, ...]:
+    """Every hairstyle of the slot. A set this tool cannot use is kept, with its reason."""
     slot = _hair_slot(data)
     result = []
     for node in slot:
         if node.tag != "MeshSet" or node.get("Index") != str(len(result)):
-            raise HairRegistrationError("Hair MeshSet indexes must be unique and contiguous from zero.")
-        if len(node) != 1 or node[0].tag != "MeshList":
-            raise HairRegistrationError("The registration proof supports one MeshList per hairstyle.")
-        stem = node[0].get("MeshFileName", "")
-        validate_hair_stem(stem)
-        icon = node[0].get("IconPath", "")
-        _validate_icon(icon)
-        result.append(HairChoice(len(result), stem, icon))
-    if not result or slot.get("Default") not in {str(choice.index) for choice in result}:
-        raise HairRegistrationError("The hair slot must contain a valid default choice.")
+            raise HairRegistrationError(
+                f"Hairstyle {len(result) + 1} in the barber list is out of order: "
+                "its MeshSet indexes must be unique and contiguous from zero.")
+        lists = [child for child in node if child.tag == "MeshList"]
+        stem = lists[0].get("MeshFileName", "") if lists else ""
+        problem = ""
+        if len(node) != 1 or len(lists) != 1:
+            problem = "This hairstyle is built from more than one mesh list, which Hair Tools cannot edit yet."
+        elif not _STEM.fullmatch(stem.lower()):
+            problem = "This hairstyle's mesh name is not a plain file name."
+        # The game leaves the icon out of hairstyles its barber does not show.
+        icon = lists[0].get("IconPath", "") if lists else ""
+        result.append(HairChoice(len(result), stem.lower(), icon if _icon_ok(icon) else "",
+                                 node.get("ShowInGame", "").strip().lower() != "false", problem))
+    if not result:
+        raise HairRegistrationError("The barber list has no hairstyles.")
+    # The game's own tables carry no Default; one that is given must name a listed hairstyle.
+    default = slot.get("Default")
+    if default is not None and default not in {str(choice.index) for choice in result}:
+        raise HairRegistrationError("The barber list's default hairstyle is not in the list.")
     return tuple(result)
 
 
-def _validate_icon(path: str) -> None:
+def icon_donor_for(choices: tuple[HairChoice, ...], index: int) -> str:
+    """The barber icon a copy of ``choices[index]`` shows: its own, else its player twin's, else the first."""
+    donor = choices[index]
+    if donor.icon_path:
+        return donor.icon_path
+    with_icon = [choice for choice in choices if choice.icon_path]
+    twin = next((choice for choice in with_icon
+                 if choice.prefab_stem in {donor.prefab_stem, donor.prefab_stem + "_player"}), None)
+    if twin is None and not with_icon:
+        raise HairRegistrationError("No hairstyle in the barber list has an icon to copy for the new one.")
+    return (twin or with_icon[0]).icon_path
+
+
+def _icon_ok(path: str) -> bool:
     parts = path.replace("\\", "/").split("/")
-    if (not path.lower().startswith("ui/texture/") or not path.lower().endswith(".dds") or
-            any(part in {"", ".", ".."} for part in parts) or ":" in path or "\x00" in path):
+    return not (not path.lower().startswith("ui/texture/") or not path.lower().endswith(".dds") or
+                any(part in {"", ".", ".."} for part in parts) or ":" in path or "\x00" in path)
+
+
+def _validate_icon(path: str) -> None:
+    if not _icon_ok(path):
         raise HairRegistrationError("The hair icon must be a contained ui/texture DDS path.")
 
 
@@ -89,6 +132,8 @@ def append_hair_choice(data: bytes, *, template_index: int, prefab_stem: str,
     _validate_icon(icon_path)
     if isinstance(template_index, bool) or not isinstance(template_index, int) or not 0 <= template_index < len(choices):
         raise HairRegistrationError("The template hair choice does not exist.")
+    if not choices[template_index].usable:
+        raise HairRegistrationError(choices[template_index].problem)
     if any(choice.prefab_stem.casefold() == prefab_stem.casefold() for choice in choices):
         raise HairRegistrationError("That hair prefab is already selectable.")
     if len(choices) >= 255:
@@ -98,6 +143,9 @@ def append_hair_choice(data: bytes, *, template_index: int, prefab_stem: str,
     clone.set("Index", str(len(choices)))
     clone[0].set("MeshFileName", prefab_stem)
     clone[0].set("IconPath", icon_path)
+    # A copy of a hairstyle the barber hides must itself be offered.
+    for name in [key for key in clone.attrib if key.lower() == "showingame"]:
+        del clone.attrib[name]
     clone.tail = "\n\t"
     # Expat supplies byte offsets, preserving BOM, comments, whitespace and every
     # unrelated slot. Searching text for </ParamDesc> would also match comments.

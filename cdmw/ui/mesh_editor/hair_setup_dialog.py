@@ -131,11 +131,13 @@ class HairSetupDialog(QDialog):
         def ready(choices):
             if self._closed or generation != self._generation:
                 return
+            # Sets Hair Tools cannot open stay in the table but are not offered.
+            choices = tuple(choice for choice in choices if choice.usable)
             creating = self.mode.currentData() == "generated"
             picker = HairReferencePickerDialog(self._owner, "hair", character=profile.name,
                 styles=tuple((c.index, c.prefab_stem) for c in choices), audit_hair=True,
                 preferred_path=self._target_path, base_only=creating,
-                icons={c.prefab_stem: c.icon_path for c in reversed(choices)})
+                icons={c.prefab_stem: c.icon_path for c in reversed(choices) if c.icon_path})
             self._picker = picker
             picker.setParent(self, Qt.Widget)
             picker.choose.setText("Start")

@@ -566,6 +566,7 @@ def test_hair_page_failure_continues_queued_choices_and_preserves_unavailable_re
     dialog.reject()
 
 
+
 def test_picker_opens_the_page_containing_the_requested_hairstyle(owner):
     styles = tuple((i, f"style{i}") for i in range(180))
     dialog = picker_module.HairReferencePickerDialog(owner, "hair", styles=styles,
@@ -604,7 +605,8 @@ def test_create_dialog_loads_scene_only_after_start_and_mode_change_invalidates_
     dialog = HairSetupDialog(owner, character="Damiane")
     context = SimpleNamespace(character="Damiane", dependencies=SimpleNamespace(entry_for_path=lambda _: object()))
     dialog._context_ready(context)
-    tasks.pop()["on_complete"]([SimpleNamespace(index=0, prefab_stem="first", icon_path="")])
+    from cdmw.domain.hair_registration import HairChoice
+    tasks.pop()["on_complete"]([HairChoice(0, "first", "")])
     picker = dialog._picker
     assert picker.isHidden() and dialog.preset.currentData() == "empty"
     started = []
@@ -738,3 +740,34 @@ def test_reference_cache_cancellation_releases_unpublished_assets(monkeypatch, f
         worker.prepare_hair_reference_source(args, stop)
     assert released == ([] if failure == "cancel_cached_copy" else [True])
     assert len(worker._hair_references) == (1 if failure == "cancel_cached_copy" else 0)
+
+
+def _setup_with_remembered_character(owner, monkeypatch, data, mode="existing"):
+    from cdmw.core import archive_extraction
+    from cdmw.ui.mesh_editor.hair_setup_dialog import HairSetupDialog
+    from tests.test_hair_catalogue_icons import IconService
+    service = IconService()
+    service.current_session = owner.archive_catalogue_service.current_session
+    owner.archive_catalogue_service = service
+    tasks = []
+    owner._run_utility_task_when_idle = lambda **kwargs: tasks.append(kwargs)
+    monkeypatch.setattr(archive_extraction, "read_archive_entry_data", lambda entry: (data, ""))
+    dialog = HairSetupDialog(owner, mode=mode)
+    context = SimpleNamespace(character="Damiane", session_id="session-a", arguments=lambda: {"character": "Damiane"},
+        dependencies=SimpleNamespace(entry_for_path=lambda _: SimpleNamespace(orig_size=len(data))))
+    dialog._resolver._cache = context  # the character this dialog already resolved once
+    dialog.character.setCurrentIndex(dialog.character.findData("Damiane"))
+    return dialog, tasks
+
+
+def test_setup_lists_the_game_table_with_hidden_iconless_and_mixed_case_hairstyles(owner, monkeypatch):
+    from tests.test_hair_registration import OTHER, OTHER_ICON, game_table, hidden, shown
+    data = game_table(shown(0), hidden(1, "phw_00_hair_00_0001"), hidden(2, "PHW_00_Hair_00_0521"), hidden(3, OTHER))
+    dialog, tasks = _setup_with_remembered_character(owner, monkeypatch, data)
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    picker = dialog._picker
+    assert picker is not None and "Choose an existing hairstyle" in dialog.status.text()
+    assert picker._styles == ((0, OTHER), (1, "phw_00_hair_00_0001"), (2, "phw_00_hair_00_0521"))
+    assert picker._icon_paths == {OTHER: OTHER_ICON}
+    dialog.reject()
