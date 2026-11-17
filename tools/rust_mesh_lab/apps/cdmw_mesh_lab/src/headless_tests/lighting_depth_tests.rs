@@ -372,3 +372,108 @@ fn verify_depth(preset: LightingPreset) -> TestResult {
     }
     Ok(())
 }
+
+/// A polished conductor has no diffuse term: away from the highlights its colour
+/// is its reflectance times the room. Mid-grey steel (the Ver2 plate layer:
+/// roughness 0.18, metal 1) facing the camera used to draw near-black navy.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_fixed_studio_polished_steel_reflects_a_lit_room() -> TestResult {
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions.clear();
+    snapshot.normals.clear();
+    snapshot.uvs.clear();
+    snapshot.shader_masks.clear();
+    snapshot.indices.clear();
+    snapshot.triangle_materials.clear();
+    // One plate towards each side, so the test does not depend on the camera's side.
+    for (z, facing) in [(0.01_f32, 1.0_f32), (-0.01, -1.0)] {
+        let start = snapshot.positions.len() as u32;
+        snapshot.positions.extend([
+            [-facing, -1.0, z],
+            [facing, -1.0, z],
+            [facing, 1.0, z],
+            [-facing, 1.0, z],
+        ]);
+        snapshot.normals.extend([[0.0, 0.0, facing]; 4]);
+        snapshot.uvs.extend([[0.5, 0.5]; 4]);
+        snapshot.shader_masks.extend([[1.0, 1.0, 0.0]; 4]);
+        snapshot
+            .indices
+            .extend([0, 1, 2, 0, 2, 3].map(|i| i + start));
+        snapshot.triangle_materials.extend([0; 2]);
+    }
+    let steel =
+        cdmw_texture::encode_rgba8_dds(1, 1, &[128, 128, 128, 255], TextureRole::BaseColor)?;
+    let owner = [vec![0]];
+    let textures = [HeadlessMaterialTexture {
+        bytes: &steel,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &owner,
+    }];
+    let factors = [HeadlessMaterialFactors {
+        factors: MaterialPreviewFactors {
+            translucency_surface: Some([Some(0.18), Some(1.0)]),
+            ..MaterialPreviewFactors::default()
+        },
+        material_indices_by_lod: &owner,
+    }];
+    let folder = tempdir()?;
+    let lit = folder.path().join("steel-lit.bmp");
+    let base = folder.path().join("steel-base.bmp");
+    let parts = folder.path().join("steel-parts.bmp");
+    pollster::block_on(
+        cdmw_render_wgpu::run_headless_layered_material_capture_with_lighting(
+            &snapshot,
+            &textures,
+            &factors,
+            &[],
+            LightingPreset::StudioFixed,
+            LightingDepthSettings {
+                shadows: false,
+                ambient_occlusion: false,
+            },
+            HeadlessMaterialCaptureOptions {
+                width: 64,
+                height: 64,
+                camera: Some(HeadlessMaterialCaptureCamera {
+                    yaw_degrees: 0.0,
+                    pitch_degrees: 0.0,
+                }),
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &lit,
+                base_color_bmp: &base,
+                part_id_bmp: &parts,
+                normal_map: None,
+                material_response: None,
+                layer_mask: None,
+            },
+        ),
+    )?;
+    let image = std::fs::read(lit)?;
+    let centre = 54 + (32 * 64 + 32) * 4;
+    let (blue, green, red) = (
+        i32::from(image[centre]),
+        i32::from(image[centre + 1]),
+        i32::from(image[centre + 2]),
+    );
+    // Reflectance 0.216 of a room at about 0.66 radiance, at the preset's 0.7
+    // environment scale: about (85, 86, 88) on screen. It was (54, 57, 61).
+    for channel in [red, green, blue] {
+        assert!(
+            (76..=100).contains(&channel),
+            "steel centre is ({red}, {green}, {blue})"
+        );
+    }
+    assert!(
+        blue - red <= 5,
+        "steel centre is tinted blue: ({red}, {green}, {blue})"
+    );
+    Ok(())
+}
