@@ -11,6 +11,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from PySide6.QtCore import QSettings
@@ -48,12 +49,25 @@ def _prepared(entry: ArchiveEntry) -> MeshArchiveSessionLoadResult:
 
 
 def _settle(seconds: float = 0.4) -> None:
-    """Long enough for a queued open (retried every 25 ms) and a session's dispose thread."""
-
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         _APP.processEvents()
         time.sleep(0.005)
+
+
+def _settle_opens(view: MeshDocumentsView, timeout: float = 20.0) -> None:
+    """Until no document has an open queued behind a session that is still stopping
+    (retried every 25 ms) and none is disposing of one, then a little longer."""
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        _settle(0.05)
+        if not any(getattr(document, "archive_session_open_pending", None) is not None
+                   or document._mesh_session_load_is_retiring() for document in view.documents):
+            break
+    else:
+        raise AssertionError("a Mesh Editor document did not settle")
+    _settle(0.1)
 
 
 class _Shell(MeshEditorShellBridgeMixin):
@@ -112,8 +126,8 @@ def rig(tmp_path, monkeypatch):
 
         entry = _entry(tmp_path, path)
         document.open_archive_session(entry, prepared_result=_prepared(entry))
-        root = tmp_path / f"session-{len(list(tmp_path.glob('session-*')))}"
-        root.mkdir()
+        root = Path(document.standalone_rust_owned_root) / f"session-{uuid4().hex}"  # where the editor keeps them
+        root.mkdir(parents=True)
         session = _authoring(root)
         if edited:
             _editor_step(session)
@@ -126,7 +140,7 @@ def rig(tmp_path, monkeypatch):
 
         chosen.update(entry=_entry(tmp_path, path, offset), mode=mode)
         hair_flow.start_hair_workflow(tab).accept()
-        _settle()
+        _settle_opens(view)
         return chosen["entry"]
 
     try:
@@ -204,7 +218,7 @@ def test_a_mesh_opened_while_a_hairstyle_is_edited_gets_its_own_document(rig) ->
     second = view.active
     assert second is not first and len(view.documents) == 2
     rig.shell.mesh_editor_tab.open_archive_session(sword, prepared_result=_prepared(sword))
-    _settle()
+    _settle_opens(view)
     assert first._current_target_entry().identity == hair.identity
     assert first.standalone_rust_authoring_session is session and not session.closed
     assert session.unfinished_steps() == 1
@@ -273,3 +287,30 @@ def test_setting_up_the_open_hairstyle_again_asks_before_replacing_it(rig, monke
     assert session.closed
     assert first._current_target_entry().identity == hair.identity
     assert first._pending_hair_start == (hair.identity, "edit")
+
+
+def _host_text(document) -> str:
+    return document.standalone_native_host_frame._status_label.text()
+
+
+def test_an_empty_document_does_not_say_it_is_preparing_the_editor(rig) -> None:
+    """The host under an empty document said "Preparing the embedded Mesh Editor..." with
+    nothing being prepared, for as long as the document stayed empty: at startup, in a
+    document opened for a mesh whose open then stopped, and after closing a session."""
+
+    view = rig.view
+    first = view.active
+    assert first.empty_state.isVisibleTo(first) and _host_text(first) == ""
+    rig.open_mesh(first, SWORD, edited=False)
+    assert "Preparing" in _host_text(first)  # a session is open: the editor is on its way
+
+    second = view.add_document()  # opened for another mesh; that open never starts
+    assert second.empty_state.isVisibleTo(second) and _host_text(second) == ""
+    assert not second.standalone_native_host_frame._retry_button.isVisibleTo(second)
+
+    view.close_document(1)
+    assert view.documents == (first,)
+    view.close_document(0)  # the last document stays, empty
+    assert first.empty_state.isVisibleTo(first) and _host_text(first) == ""
+    _settle_opens(view)  # the closed session is disposed of; a warning about that may show
+    assert "Preparing" not in _host_text(first)

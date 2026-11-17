@@ -50106,7 +50106,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_native_preview.py": 16,
-      "cdmw/ui/mesh_editor/tab_shell.py": 945
+      "cdmw/ui/mesh_editor/tab_shell.py": 950
     }
   },
   {
