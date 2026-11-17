@@ -18124,6 +18124,7 @@
     "unhealthy": "Niesprawne",
     "unique runtime DDS byte count overflow": "unikalny czas wykonywania DDS przekroczenie liczby bajtów",
     "unknown": "Nieznane",
+    "unknown lighting preset {value_0}": "Nieznane ustawienie oświetlenia {value_0}",
     "unknown; rare in shipped archives": "nieznany; rzadki w wysyłanych archiwach",
     "unresolved": "Nierozwiązane",
     "unresolved: {value_0}": "nierozwiązane: {value_0}",

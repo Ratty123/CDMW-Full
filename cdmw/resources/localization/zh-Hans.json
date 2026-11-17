@@ -18124,6 +18124,7 @@
     "unhealthy": "不正常",
     "unique runtime DDS byte count overflow": "独特运行时 DDS 字节计数溢出",
     "unknown": "未知",
+    "unknown lighting preset {value_0}": "未知的光照预设 {value_0}",
     "unknown; rare in shipped archives": "未知；在已发布归档中很少见",
     "unresolved": "未解决",
     "unresolved: {value_0}": "未解决：{value_0}",
