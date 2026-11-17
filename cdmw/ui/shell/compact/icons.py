@@ -47,8 +47,10 @@ class _LineIconEngine(QIconEngine):
         pixmap.setDevicePixelRatio(scale)
         pixmap.fill(Qt.transparent)
         painter = QPainter(pixmap)
-        self.paint(painter, QRect(0, 0, size.width(), size.height()), mode, state)
-        painter.end()
+        try:
+            self.paint(painter, QRect(0, 0, size.width(), size.height()), mode, state)
+        finally:
+            painter.end()
         return pixmap
 
 

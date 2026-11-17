@@ -986,12 +986,20 @@ def check_previous_unclean_exit(
 
 
 def format_thread_dump() -> str:
-    frames = sys._current_frames()
-    thread_names = {thread.ident: thread.name for thread in threading.enumerate()}
+    # Not sys._current_frames(): a held frame keeps another thread's locals alive
+    # past their function (see cdmw/services/thread_stacks.py).
+    from cdmw.services.thread_stacks import python_thread_stacks
+
     parts: list[str] = []
-    for thread_id, frame in sorted(frames.items(), key=lambda item: str(thread_names.get(item[0], item[0]))):
-        parts.append(f"\n--- Thread {thread_names.get(thread_id, 'unknown')} ({thread_id}) ---")
-        parts.extend(traceback.format_stack(frame))
+    for stack in sorted(python_thread_stacks(), key=lambda item: str(item.name or item.ident)):
+        parts.append(f"\n--- Thread {stack.name or 'unknown'} ({stack.ident}) ---\n")
+        if stack.truncated:
+            parts.append("  (outer calls not shown)\n")
+        parts.extend(
+            traceback.StackSummary.from_list(
+                [(frame.filename, frame.lineno, frame.name, None) for frame in stack.frames]
+            ).format()
+        )
     return "".join(parts).strip()
 
 

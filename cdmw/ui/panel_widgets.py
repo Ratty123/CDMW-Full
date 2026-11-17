@@ -121,35 +121,38 @@ class EmptyStateTreeWidget(QTreeWidget):
         if self.topLevelItemCount() > 0 or not (self.empty_title or self.empty_detail):
             return
         painter = QPainter(self.viewport())
-        painter.setRenderHint(QPainter.TextAntialiasing, True)
-        rect = self.viewport().rect().adjusted(scaled_px(24, self), scaled_px(24, self), -scaled_px(24, self), -scaled_px(24, self))
-        palette = self.palette()
-        title_font = QFont(self.font())
-        title_font.setBold(True)
-        painter.setFont(title_font)
-        painter.setPen(palette.color(QPalette.Text))
-        metrics = painter.fontMetrics()
-        title_height = metrics.boundingRect(rect, Qt.AlignCenter | Qt.TextWordWrap, self.empty_title).height()
-        detail_height = 0
-        if self.empty_detail:
-            detail_font = QFont(self.font())
-            detail_font.setBold(False)
-            painter.setFont(detail_font)
-            detail_height = painter.fontMetrics().boundingRect(rect, Qt.AlignCenter | Qt.TextWordWrap, self.empty_detail).height()
-        gap = scaled_px(8, self) if self.empty_title and self.empty_detail else 0
-        total_height = title_height + detail_height + gap
-        y = rect.center().y() - total_height // 2
-        if self.empty_title:
-            title_rect = QRect(rect.left(), y, rect.width(), title_height)
+        try:
+            painter.setRenderHint(QPainter.TextAntialiasing, True)
+            rect = self.viewport().rect().adjusted(scaled_px(24, self), scaled_px(24, self), -scaled_px(24, self), -scaled_px(24, self))
+            palette = self.palette()
+            title_font = QFont(self.font())
+            title_font.setBold(True)
             painter.setFont(title_font)
             painter.setPen(palette.color(QPalette.Text))
-            painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, self.empty_title)
-            y += title_height + gap
-        if self.empty_detail:
-            detail_rect = QRect(rect.left(), y, rect.width(), detail_height)
-            painter.setFont(self.font())
-            painter.setPen(palette.color(QPalette.PlaceholderText))
-            painter.drawText(detail_rect, Qt.AlignCenter | Qt.TextWordWrap, self.empty_detail)
+            metrics = painter.fontMetrics()
+            title_height = metrics.boundingRect(rect, Qt.AlignCenter | Qt.TextWordWrap, self.empty_title).height()
+            detail_height = 0
+            if self.empty_detail:
+                detail_font = QFont(self.font())
+                detail_font.setBold(False)
+                painter.setFont(detail_font)
+                detail_height = painter.fontMetrics().boundingRect(rect, Qt.AlignCenter | Qt.TextWordWrap, self.empty_detail).height()
+            gap = scaled_px(8, self) if self.empty_title and self.empty_detail else 0
+            total_height = title_height + detail_height + gap
+            y = rect.center().y() - total_height // 2
+            if self.empty_title:
+                title_rect = QRect(rect.left(), y, rect.width(), title_height)
+                painter.setFont(title_font)
+                painter.setPen(palette.color(QPalette.Text))
+                painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, self.empty_title)
+                y += title_height + gap
+            if self.empty_detail:
+                detail_rect = QRect(rect.left(), y, rect.width(), detail_height)
+                painter.setFont(self.font())
+                painter.setPen(palette.color(QPalette.PlaceholderText))
+                painter.drawText(detail_rect, Qt.AlignCenter | Qt.TextWordWrap, self.empty_detail)
+        finally:
+            painter.end()
 
 class CollapsibleSection(QWidget):
     toggled = Signal(bool)

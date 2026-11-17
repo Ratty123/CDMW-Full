@@ -540,39 +540,42 @@ class CodePreviewEditor(QPlainTextEdit):
 
     def line_number_area_paint_event(self, event) -> None:
         painter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), self._gutter_background)
+        try:
+            painter.fillRect(event.rect(), self._gutter_background)
 
-        block = self.firstVisibleBlock()
-        block_number = block.blockNumber()
-        top = round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
-        bottom = top + round(self.blockBoundingRect(block).height())
-        current_block_number = self.textCursor().blockNumber()
-
-        while block.isValid() and top <= event.rect().bottom():
-            if block.isVisible() and bottom >= event.rect().top():
-                number = str(block_number + 1)
-                if block_number == current_block_number:
-                    painter.setPen(self._line_number_active_color)
-                    font = painter.font()
-                    font.setBold(True)
-                    painter.setFont(font)
-                else:
-                    painter.setPen(self._line_number_color)
-                    font = painter.font()
-                    font.setBold(False)
-                    painter.setFont(font)
-                painter.drawText(
-                    0,
-                    top,
-                    self.line_number_area.width() - 6,
-                    self.fontMetrics().height(),
-                    Qt.AlignRight | Qt.AlignVCenter,
-                    number,
-                )
-            block = block.next()
-            top = bottom
+            block = self.firstVisibleBlock()
+            block_number = block.blockNumber()
+            top = round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
             bottom = top + round(self.blockBoundingRect(block).height())
-            block_number += 1
+            current_block_number = self.textCursor().blockNumber()
+
+            while block.isValid() and top <= event.rect().bottom():
+                if block.isVisible() and bottom >= event.rect().top():
+                    number = str(block_number + 1)
+                    if block_number == current_block_number:
+                        painter.setPen(self._line_number_active_color)
+                        font = painter.font()
+                        font.setBold(True)
+                        painter.setFont(font)
+                    else:
+                        painter.setPen(self._line_number_color)
+                        font = painter.font()
+                        font.setBold(False)
+                        painter.setFont(font)
+                    painter.drawText(
+                        0,
+                        top,
+                        self.line_number_area.width() - 6,
+                        self.fontMetrics().height(),
+                        Qt.AlignRight | Qt.AlignVCenter,
+                        number,
+                    )
+                block = block.next()
+                top = bottom
+                bottom = top + round(self.blockBoundingRect(block).height())
+                block_number += 1
+        finally:
+            painter.end()
 
     def set_match_selections(self, selections: list[QTextEdit.ExtraSelection]) -> None:
         self._match_selections = list(selections)

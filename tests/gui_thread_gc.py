@@ -26,6 +26,7 @@ allocation, so it may leave a finished test's windows for a later test.
 from __future__ import annotations
 
 import gc
+import sys
 import threading
 
 FULL_COLLECTION_EVERY = 100
@@ -40,8 +41,39 @@ def install() -> None:
     gc.disable()
 
 
-def collect_after_test() -> None:
-    """Free the finished test's cycles on the main thread."""
+def apply_layout_item_rule(*, sweep: bool = False) -> None:
+    """The app's rule for PySide's records of Qt-made layout items, in the test process.
+
+    Qt deletes a widget's layout item when the widget is deleted or moved to another
+    parent, and PySide keeps its record of the item under the freed address. The app
+    drops such records as widgets leave their parents and sweeps every layout after a
+    full collection (`cdmw/ui/layout_item_wrappers.py`, installed at app start). A
+    pytest process never runs app start-up, so the records stayed, and the next QThread
+    or list item Qt made at such an address took the process down natively: about 1 in
+    14 runs of tests/test_texture_editor_tool_audit.py under load, in `QThread(self)` or
+    in `QListWidget.clear()`.
+
+    Called before and after every test. It does nothing until a test has made the
+    QApplication; from then on the rule is in place, as in the app."""
+
+    widgets = sys.modules.get("PySide6.QtWidgets")
+    if widgets is None:
+        return
+    app = widgets.QApplication.instance()
+    if not isinstance(app, widgets.QApplication):  # none yet, or a bare QCoreApplication
+        return
+    from cdmw.ui.layout_item_wrappers import (
+        ensure_app_layout_item_wrapper_release,
+        release_all_layout_item_wrappers,
+    )
+
+    ensure_app_layout_item_wrapper_release(app)
+    if sweep:
+        release_all_layout_item_wrappers()
+
+
+def collect_after_test() -> bool:
+    """Free the finished test's cycles on the main thread. True after a full collection."""
 
     global _tests_since_full_collection
     if threading.get_ident() != _main_thread_ident:
@@ -50,5 +82,6 @@ def collect_after_test() -> None:
     if _tests_since_full_collection >= FULL_COLLECTION_EVERY:
         _tests_since_full_collection = 0
         gc.collect()
-    else:
-        gc.collect(0)
+        return True
+    gc.collect(0)
+    return False

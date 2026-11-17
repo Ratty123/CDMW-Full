@@ -36,16 +36,17 @@ def _render_mesh_editor_action_icon(
     pixmap = QPixmap(20, 20)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing, True)
-    painter.setBrush(Qt.NoBrush)
-    painter.setPen(_icon_pen(primary))
+    try:
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(_icon_pen(primary))
 
-    if not _draw_selection_transform_icon(painter, key, primary, accent):
-        if not _draw_brush_icon(painter, key, primary, accent, subtle):
-            if not _draw_mesh_operation_icon(painter, key, primary, accent):
-                _draw_general_icon(painter, key, primary, accent, subtle)
-
-    painter.end()
+        if not _draw_selection_transform_icon(painter, key, primary, accent):
+            if not _draw_brush_icon(painter, key, primary, accent, subtle):
+                if not _draw_mesh_operation_icon(painter, key, primary, accent):
+                    _draw_general_icon(painter, key, primary, accent, subtle)
+    finally:
+        painter.end()
     return QIcon(pixmap)
 
 

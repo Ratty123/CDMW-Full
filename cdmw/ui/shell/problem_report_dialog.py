@@ -54,11 +54,14 @@ class _ReportComboBox(QComboBox):
             QStyle.SubControl.SC_ComboBoxArrow, self)
         center = rect.center()
         painter = QPainter(self)
-        painter.setPen(QPen(option.palette.color(QPalette.ColorRole.ButtonText), 1.5,
-            Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        painter.drawPolyline([QPoint(center.x() - 4, center.y() - 2),
-                              QPoint(center.x(), center.y() + 2),
-                              QPoint(center.x() + 4, center.y() - 2)])
+        try:
+            painter.setPen(QPen(option.palette.color(QPalette.ColorRole.ButtonText), 1.5,
+                Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+            painter.drawPolyline([QPoint(center.x() - 4, center.y() - 2),
+                                  QPoint(center.x(), center.y() + 2),
+                                  QPoint(center.x() + 4, center.y() - 2)])
+        finally:
+            painter.end()
 
 
 class _ReportCheckBox(QCheckBox):
@@ -71,12 +74,15 @@ class _ReportCheckBox(QCheckBox):
         rect = self.style().subElementRect(QStyle.SubElement.SE_CheckBoxIndicator, option, self)
         center = rect.center()
         painter = QPainter(self)
-        role = QPalette.ColorRole.HighlightedText if self.isEnabled() else QPalette.ColorRole.Window
-        painter.setPen(QPen(option.palette.color(role), 1.8,
-            Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        painter.drawPolyline([QPoint(center.x() - 4, center.y()),
-                              QPoint(center.x() - 1, center.y() + 3),
-                              QPoint(center.x() + 5, center.y() - 4)])
+        try:
+            role = QPalette.ColorRole.HighlightedText if self.isEnabled() else QPalette.ColorRole.Window
+            painter.setPen(QPen(option.palette.color(role), 1.8,
+                Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+            painter.drawPolyline([QPoint(center.x() - 4, center.y()),
+                                  QPoint(center.x() - 1, center.y() + 3),
+                                  QPoint(center.x() + 5, center.y() - 4)])
+        finally:
+            painter.end()
 
 
 class _ScreenshotPreview(QScrollArea):

@@ -142,17 +142,19 @@ class _BusySpinner(QWidget):
 
     def paintEvent(self, _event) -> None:  # noqa: N802 - Qt override
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.translate(self.width() / 2.0, self.height() / 2.0)
-        painter.rotate(float(self._frame * 30))
-        base = QColor(self.palette().highlight().color())
-        for index in range(12):
-            colour = QColor(base)
-            colour.setAlpha(45 + index * 17)
-            painter.setPen(QPen(colour, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-            painter.drawLine(0, -6, 0, -9)
-            painter.rotate(30.0)
-        painter.end()
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.translate(self.width() / 2.0, self.height() / 2.0)
+            painter.rotate(float(self._frame * 30))
+            base = QColor(self.palette().highlight().color())
+            for index in range(12):
+                colour = QColor(base)
+                colour.setAlpha(45 + index * 17)
+                painter.setPen(QPen(colour, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                painter.drawLine(0, -6, 0, -9)
+                painter.rotate(30.0)
+        finally:
+            painter.end()
 
 
 class ModelPanel(ModelPanelPreviewMixin, QGroupBox):

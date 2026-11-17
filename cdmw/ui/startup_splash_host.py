@@ -485,32 +485,35 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             del event
             card = self.rect().adjusted(0, 0, -1, -1)
             painter = QPainter(self)
-            painter.setRenderHint(QPainter.Antialiasing, True)
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(_theme_color(self._theme_key, "surface", "#252526"))
-            painter.drawRoundedRect(card, 10, 10)
+            try:
+                painter.setRenderHint(QPainter.Antialiasing, True)
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(_theme_color(self._theme_key, "surface", "#252526"))
+                painter.drawRoundedRect(card, 10, 10)
 
-            rect = QRectF(card.adjusted(1, 1, -1, -1))
-            self._draw_falling_blocks(painter, rect.adjusted(16, 10, -16, -32))
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(_with_alpha(_theme_color(self._theme_key, "border_strong", "#3c3c3c"), 190), 1.0))
-            painter.drawRoundedRect(rect, 10, 10)
+                rect = QRectF(card.adjusted(1, 1, -1, -1))
+                self._draw_falling_blocks(painter, rect.adjusted(16, 10, -16, -32))
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(_with_alpha(_theme_color(self._theme_key, "border_strong", "#3c3c3c"), 190), 1.0))
+                painter.drawRoundedRect(rect, 10, 10)
 
-            self._draw_block_wave_mark(painter, QRectF(rect.left() + 52, rect.top() + 14, rect.width() - 104, 70))
+                self._draw_block_wave_mark(painter, QRectF(rect.left() + 52, rect.top() + 14, rect.width() - 104, 70))
 
-            rail = QRectF(rect.left() + 72, rect.bottom() - 42, rect.width() - 144, 3)
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(_with_alpha(_theme_color(self._theme_key, "accent", "#c56d43"), 42))
-            painter.drawRoundedRect(rail, 1.5, 1.5)
-            painter.setBrush(_theme_color(self._theme_key, "accent", "#c56d43"))
-            if self._has_determinate_progress:
-                progress = min(max(self._display_progress, 0.0), 1.0)
-                if progress > 0.01:
-                    painter.drawRoundedRect(QRectF(rail.left(), rail.top(), rail.width() * progress, rail.height()), 1.5, 1.5)
-            else:
-                sweep_width = rail.width() * 0.24
-                sweep_left = rail.left() + ((rail.width() + sweep_width) * self._phase) - sweep_width
-                painter.drawRoundedRect(QRectF(sweep_left, rail.top(), sweep_width, rail.height()).intersected(rail), 1.5, 1.5)
+                rail = QRectF(rect.left() + 72, rect.bottom() - 42, rect.width() - 144, 3)
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(_with_alpha(_theme_color(self._theme_key, "accent", "#c56d43"), 42))
+                painter.drawRoundedRect(rail, 1.5, 1.5)
+                painter.setBrush(_theme_color(self._theme_key, "accent", "#c56d43"))
+                if self._has_determinate_progress:
+                    progress = min(max(self._display_progress, 0.0), 1.0)
+                    if progress > 0.01:
+                        painter.drawRoundedRect(QRectF(rail.left(), rail.top(), rail.width() * progress, rail.height()), 1.5, 1.5)
+                else:
+                    sweep_width = rail.width() * 0.24
+                    sweep_left = rail.left() + ((rail.width() + sweep_width) * self._phase) - sweep_width
+                    painter.drawRoundedRect(QRectF(sweep_left, rail.top(), sweep_width, rail.height()).intersected(rail), 1.5, 1.5)
+            finally:
+                painter.end()
 
     try:
         initial_payload = _command_payload()

@@ -455,6 +455,14 @@ class MeshEditorTextureTools(QDockWidget):
         return TextureEditorTab(settings=self.settings, base_dir=self.base_dir, get_png_root=lambda: "", parent=self)
 
     def _lay_out(self, editor: QWidget) -> None:
+        # The editor's canvas, tool buttons and sections move out of the editor's own
+        # layouts below. Qt deletes their layout items there, and PySide must drop its
+        # records of them or a later QThread or list item made at a freed address gets
+        # one (cdmw/ui/layout_item_wrappers.py). The app sets that up at start; a
+        # process that only builds this panel, such as a test, gets it here.
+        from cdmw.ui.layout_item_wrappers import ensure_app_layout_item_wrapper_release
+
+        ensure_app_layout_item_wrapper_release(QApplication.instance())
         for name, step in (("undo_button", "undo"), ("redo_button", "redo")):
             button = getattr(editor, name, None)
             if button is not None:

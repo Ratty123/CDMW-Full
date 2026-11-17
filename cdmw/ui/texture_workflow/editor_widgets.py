@@ -95,33 +95,36 @@ class TextureEditorNavigator(QWidget):
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#1B202A"))
-        target = self._target_rect()
-        if target.isEmpty():
-            painter.setPen(QColor("#8B97AA"))
-            painter.drawText(self.rect(), Qt.AlignCenter, translate_active_ui_text("Navigator"))
-            return
-        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-        painter.setPen(QPen(QColor(255, 255, 255, 18), 1))
-        painter.setBrush(QColor(255, 255, 255, 6))
-        painter.drawRoundedRect(target, 6, 6)
-        if self._image is not None:
-            painter.drawImage(target, self._image)
-        else:
-            painter.setPen(QColor("#8B97AA"))
-            painter.drawText(target.toRect(), Qt.AlignCenter, translate_active_ui_text("No preview"))
-        if self._viewport_rect is not None and self._image_width > 0 and self._image_height > 0:
-            vx, vy, vw, vh = self._viewport_rect
-            view = QRectF(
-                target.x() + ((vx / float(self._image_width)) * target.width()),
-                target.y() + ((vy / float(self._image_height)) * target.height()),
-                max(6.0, (vw / float(self._image_width)) * target.width()),
-                max(6.0, (vh / float(self._image_height)) * target.height()),
-            )
-            view = view.intersected(target)
-            painter.setBrush(QColor(116, 193, 255, 30))
-            painter.setPen(QPen(QColor("#74C1FF"), 1.4))
-            painter.drawRoundedRect(view, 4, 4)
+        try:
+            painter.fillRect(self.rect(), QColor("#1B202A"))
+            target = self._target_rect()
+            if target.isEmpty():
+                painter.setPen(QColor("#8B97AA"))
+                painter.drawText(self.rect(), Qt.AlignCenter, translate_active_ui_text("Navigator"))
+                return
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            painter.setPen(QPen(QColor(255, 255, 255, 18), 1))
+            painter.setBrush(QColor(255, 255, 255, 6))
+            painter.drawRoundedRect(target, 6, 6)
+            if self._image is not None:
+                painter.drawImage(target, self._image)
+            else:
+                painter.setPen(QColor("#8B97AA"))
+                painter.drawText(target.toRect(), Qt.AlignCenter, translate_active_ui_text("No preview"))
+            if self._viewport_rect is not None and self._image_width > 0 and self._image_height > 0:
+                vx, vy, vw, vh = self._viewport_rect
+                view = QRectF(
+                    target.x() + ((vx / float(self._image_width)) * target.width()),
+                    target.y() + ((vy / float(self._image_height)) * target.height()),
+                    max(6.0, (vw / float(self._image_width)) * target.width()),
+                    max(6.0, (vh / float(self._image_height)) * target.height()),
+                )
+                view = view.intersected(target)
+                painter.setBrush(QColor(116, 193, 255, 30))
+                painter.setPen(QPen(QColor("#74C1FF"), 1.4))
+                painter.drawRoundedRect(view, 4, 4)
+        finally:
+            painter.end()
 
     def _emit_center_request(self, pos) -> None:
         target = self._target_rect()
@@ -201,56 +204,59 @@ class TextureEditorRuler(QWidget):
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#1C212B"))
-        if self._image_length <= 0:
-            return
-        painter.setPen(QPen(QColor(255, 255, 255, 18), 1))
-        if self._orientation == Qt.Horizontal:
-            painter.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
-            visible_pixels = self.width() / self._display_scale
-        else:
-            painter.drawLine(self.width() - 1, 0, self.width() - 1, self.height())
-            visible_pixels = self.height() / self._display_scale
-        start_pixel = -float(self._viewport_offset) / self._display_scale
-        end_pixel = min(float(self._image_length), start_pixel + visible_pixels)
-        step = self._tick_step()
-        first_tick = int(math.floor(start_pixel / float(step)) * step)
-        painter.setPen(QPen(QColor("#A9B6CB"), 1))
-        value = first_tick
-        while value <= end_pixel + step:
-            widget_pos = (float(value) - start_pixel) * self._display_scale
+        try:
+            painter.fillRect(self.rect(), QColor("#1C212B"))
+            if self._image_length <= 0:
+                return
+            painter.setPen(QPen(QColor(255, 255, 255, 18), 1))
             if self._orientation == Qt.Horizontal:
-                x = int(round(widget_pos))
-                painter.drawLine(x, self.height() - 8, x, self.height())
-                painter.drawText(x + 2, 12, str(value))
+                painter.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
+                visible_pixels = self.width() / self._display_scale
             else:
-                y = int(round(widget_pos))
-                painter.drawLine(self.width() - 8, y, self.width(), y)
-                painter.save()
-                painter.translate(8, y + 16)
-                painter.rotate(-90)
-                painter.drawText(0, 0, str(value))
-                painter.restore()
-            value += step
-        guide_pen = QPen(QColor(116, 193, 255, 140), 1)
-        hover_pen = QPen(QColor("#F2C14E"), 1)
-        for guide in self._guides:
-            pos = self._viewport_offset + (float(guide) * self._display_scale)
-            painter.setPen(guide_pen)
-            if self._orientation == Qt.Horizontal:
-                x = int(round(pos))
-                painter.drawLine(x, 0, x, self.height())
-            else:
-                y = int(round(pos))
-                painter.drawLine(0, y, self.width(), y)
-        if self._hover_position is not None:
-            pos = self._viewport_offset + (float(self._hover_position) * self._display_scale)
-            painter.setPen(hover_pen)
-            if self._orientation == Qt.Horizontal:
-                x = int(round(pos))
-                painter.drawLine(x, 0, x, self.height())
-            else:
-                y = int(round(pos))
-                painter.drawLine(0, y, self.width(), y)
+                painter.drawLine(self.width() - 1, 0, self.width() - 1, self.height())
+                visible_pixels = self.height() / self._display_scale
+            start_pixel = -float(self._viewport_offset) / self._display_scale
+            end_pixel = min(float(self._image_length), start_pixel + visible_pixels)
+            step = self._tick_step()
+            first_tick = int(math.floor(start_pixel / float(step)) * step)
+            painter.setPen(QPen(QColor("#A9B6CB"), 1))
+            value = first_tick
+            while value <= end_pixel + step:
+                widget_pos = (float(value) - start_pixel) * self._display_scale
+                if self._orientation == Qt.Horizontal:
+                    x = int(round(widget_pos))
+                    painter.drawLine(x, self.height() - 8, x, self.height())
+                    painter.drawText(x + 2, 12, str(value))
+                else:
+                    y = int(round(widget_pos))
+                    painter.drawLine(self.width() - 8, y, self.width(), y)
+                    painter.save()
+                    painter.translate(8, y + 16)
+                    painter.rotate(-90)
+                    painter.drawText(0, 0, str(value))
+                    painter.restore()
+                value += step
+            guide_pen = QPen(QColor(116, 193, 255, 140), 1)
+            hover_pen = QPen(QColor("#F2C14E"), 1)
+            for guide in self._guides:
+                pos = self._viewport_offset + (float(guide) * self._display_scale)
+                painter.setPen(guide_pen)
+                if self._orientation == Qt.Horizontal:
+                    x = int(round(pos))
+                    painter.drawLine(x, 0, x, self.height())
+                else:
+                    y = int(round(pos))
+                    painter.drawLine(0, y, self.width(), y)
+            if self._hover_position is not None:
+                pos = self._viewport_offset + (float(self._hover_position) * self._display_scale)
+                painter.setPen(hover_pen)
+                if self._orientation == Qt.Horizontal:
+                    x = int(round(pos))
+                    painter.drawLine(x, 0, x, self.height())
+                else:
+                    y = int(round(pos))
+                    painter.drawLine(0, y, self.width(), y)
+        finally:
+            painter.end()
 
 __all__ = ["CollapsibleSection", "TextureEditorNavigator", "TextureEditorRuler"]

@@ -9740,7 +9740,7 @@ MESSAGE_REFERENCE = [
     "message": "Bone {clash} already exists; choose another prefix.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 722
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 725
     }
   },
   {
@@ -10681,7 +10681,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save the draft: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 820
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 823
     }
   },
   {
@@ -11234,7 +11234,7 @@ MESSAGE_REFERENCE = [
     "message": "Fix the error above to see it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 576
+      "cdmw/ui/archive_browser/pab_bone_editor_dialog.py": 579
     }
   },
   {
@@ -16862,7 +16862,7 @@ MESSAGE_REFERENCE = [
     "message": "Validation error: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/pac_xml_editor_source_view.py": 391
+      "cdmw/ui/archive_browser/pac_xml_editor_source_view.py": 394
     }
   },
   {
@@ -29961,7 +29961,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the layers: {message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/panels_model.py": 1550
+      "cdmw/ui/new_item/panels_model.py": 1552
     }
   },
   {
@@ -32593,7 +32593,7 @@ MESSAGE_REFERENCE = [
     "message": "The 3D view could not be shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/painting_dialog.py": 650
+      "cdmw/ui/new_item/painting_dialog.py": 652
     }
   },
   {
@@ -32601,7 +32601,7 @@ MESSAGE_REFERENCE = [
     "message": "The 3D view is not available here: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/painting_dialog.py": 594
+      "cdmw/ui/new_item/painting_dialog.py": 596
     }
   },
   {
@@ -35008,7 +35008,7 @@ MESSAGE_REFERENCE = [
     "message": "WorkflowHeader requires at least one step",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/workflow_header.py": 284
+      "cdmw/ui/new_item/workflow_header.py": 286
     }
   },
   {
@@ -36421,7 +36421,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(self._frames)} frames found; {left_out} left out because CDMW cannot map their canvas.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/painting_dialog.py": 420
+      "cdmw/ui/new_item/painting_dialog.py": 422
     }
   },
   {
@@ -74593,7 +74593,7 @@ MESSAGE_REFERENCE = [
     "message": "A capture is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 983
+      "cdmw/automation/bridge.py": 984
     }
   },
   {
@@ -74881,7 +74881,7 @@ MESSAGE_REFERENCE = [
     "message": "Actual result: describe what stalled or stopped responding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 720
+      "cdmw/ui/shell/problem_report_dialog.py": 726
     }
   },
   {
@@ -74889,7 +74889,7 @@ MESSAGE_REFERENCE = [
     "message": "Affected action: choose an operation or panel.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 704
+      "cdmw/ui/shell/problem_report_dialog.py": 710
     }
   },
   {
@@ -75547,7 +75547,7 @@ MESSAGE_REFERENCE = [
     "message": "Browser check cancelled. Your draft is kept.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 1163
+      "cdmw/ui/shell/problem_report_dialog.py": 1169
     }
   },
   {
@@ -75587,7 +75587,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod output is written inside the run's own profile folder only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 656
+      "cdmw/automation/bridge.py": 657
     }
   },
   {
@@ -75595,7 +75595,7 @@ MESSAGE_REFERENCE = [
     "message": "Build Mod refuses until validation passes: finish the edit first.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 664
+      "cdmw/automation/bridge.py": 665
     }
   },
   {
@@ -78694,7 +78694,7 @@ MESSAGE_REFERENCE = [
     "message": "Game files or mods involved: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 722
+      "cdmw/ui/shell/problem_report_dialog.py": 728
     }
   },
   {
@@ -79254,7 +79254,7 @@ MESSAGE_REFERENCE = [
     "message": "How long did you wait: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 716
+      "cdmw/ui/shell/problem_report_dialog.py": 722
     }
   },
   {
@@ -79318,7 +79318,7 @@ MESSAGE_REFERENCE = [
     "message": "Input / source: choose the format or source you used.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 710
+      "cdmw/ui/shell/problem_report_dialog.py": 716
     }
   },
   {
@@ -79334,7 +79334,7 @@ MESSAGE_REFERENCE = [
     "message": "Install method: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 730
+      "cdmw/ui/shell/problem_report_dialog.py": 736
     }
   },
   {
@@ -79342,7 +79342,7 @@ MESSAGE_REFERENCE = [
     "message": "Installed mods: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 725
+      "cdmw/ui/shell/problem_report_dialog.py": 731
     }
   },
   {
@@ -80039,7 +80039,7 @@ MESSAGE_REFERENCE = [
     "message": "Item or file: name the affected item, or choose that you do not know it.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 713
+      "cdmw/ui/shell/problem_report_dialog.py": 719
     }
   },
   {
@@ -80616,7 +80616,7 @@ MESSAGE_REFERENCE = [
     "message": "Manager / installation tool: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 728
+      "cdmw/ui/shell/problem_report_dialog.py": 734
     }
   },
   {
@@ -81601,7 +81601,7 @@ MESSAGE_REFERENCE = [
     "message": "Other tool / feature: name the feature, or write Not sure.",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 706
+      "cdmw/ui/shell/problem_report_dialog.py": 712
     }
   },
   {
@@ -82370,7 +82370,7 @@ MESSAGE_REFERENCE = [
     "message": "Progress / response: choose an option.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 718
+      "cdmw/ui/shell/problem_report_dialog.py": 724
     }
   },
   {
@@ -82522,7 +82522,7 @@ MESSAGE_REFERENCE = [
     "message": "Relevant mods: name the mods, or write Not sure.",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 732
+      "cdmw/ui/shell/problem_report_dialog.py": 738
     }
   },
   {
@@ -83749,7 +83749,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive has no entry {args['path']}",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/bridge.py": 603
+      "cdmw/automation/bridge.py": 604
     }
   },
   {
@@ -83869,7 +83869,7 @@ MESSAGE_REFERENCE = [
     "message": "The browser check expired. Send the saved draft again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 1134
+      "cdmw/ui/shell/problem_report_dialog.py": 1140
     }
   },
   {
@@ -84517,7 +84517,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot capture a frame now.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/bridge.py": 987
+      "cdmw/automation/bridge.py": 988
     }
   },
   {
@@ -84741,7 +84741,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/automation/bridge.py": 581
+      "cdmw/automation/bridge.py": 582
     }
   },
   {
@@ -85222,7 +85222,7 @@ MESSAGE_REFERENCE = [
     "message": "Tool: choose where the problem happened.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 702
+      "cdmw/ui/shell/problem_report_dialog.py": 708
     }
   },
   {
@@ -86473,7 +86473,7 @@ MESSAGE_REFERENCE = [
     "message": "actual",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 720
+      "cdmw/ui/shell/problem_report_dialog.py": 726
     }
   },
   {
@@ -87074,7 +87074,7 @@ MESSAGE_REFERENCE = [
     "message": "game_involved",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 722
+      "cdmw/ui/shell/problem_report_dialog.py": 728
     }
   },
   {
@@ -87987,7 +87987,7 @@ MESSAGE_REFERENCE = [
     "message": "input_item",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 713
+      "cdmw/ui/shell/problem_report_dialog.py": 719
     }
   },
   {
@@ -87995,7 +87995,7 @@ MESSAGE_REFERENCE = [
     "message": "input_source",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 710
+      "cdmw/ui/shell/problem_report_dialog.py": 716
     }
   },
   {
@@ -88011,7 +88011,7 @@ MESSAGE_REFERENCE = [
     "message": "install_method",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 730
+      "cdmw/ui/shell/problem_report_dialog.py": 736
     }
   },
   {
@@ -88275,7 +88275,7 @@ MESSAGE_REFERENCE = [
     "message": "mod_manager",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 728
+      "cdmw/ui/shell/problem_report_dialog.py": 734
     }
   },
   {
@@ -88283,7 +88283,7 @@ MESSAGE_REFERENCE = [
     "message": "mod_setup",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 732
+      "cdmw/ui/shell/problem_report_dialog.py": 738
     }
   },
   {
@@ -88291,7 +88291,7 @@ MESSAGE_REFERENCE = [
     "message": "mod_state",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 725
+      "cdmw/ui/shell/problem_report_dialog.py": 731
     }
   },
   {
@@ -88539,7 +88539,7 @@ MESSAGE_REFERENCE = [
     "message": "other_tool",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 706
+      "cdmw/ui/shell/problem_report_dialog.py": 712
     }
   },
   {
@@ -88643,7 +88643,7 @@ MESSAGE_REFERENCE = [
     "message": "progress_state",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 718
+      "cdmw/ui/shell/problem_report_dialog.py": 724
     }
   },
   {
@@ -89585,7 +89585,7 @@ MESSAGE_REFERENCE = [
     "message": "tool",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 702
+      "cdmw/ui/shell/problem_report_dialog.py": 708
     }
   },
   {
@@ -89641,7 +89641,7 @@ MESSAGE_REFERENCE = [
     "message": "waited",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 716
+      "cdmw/ui/shell/problem_report_dialog.py": 722
     }
   },
   {
@@ -89657,7 +89657,7 @@ MESSAGE_REFERENCE = [
     "message": "workflow",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/shell/problem_report_dialog.py": 704
+      "cdmw/ui/shell/problem_report_dialog.py": 710
     }
   },
   {
@@ -108299,6 +108299,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/texture_workflow_service.py": {
     "raise": 1
   },
+  "cdmw/services/thread_stacks.py": {},
   "cdmw/services/translucency_surface.py": {
     "raise": 7
   },

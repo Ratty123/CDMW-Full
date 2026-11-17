@@ -124,88 +124,90 @@ class _StepButton(QAbstractButton):
         owner = self._owner
         palette = self.palette()
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        active = owner._active_color
-        active_text = owner._active_text_color
-        base = _palette_color(palette, QPalette.ColorRole.Button, palette.color(QPalette.ColorRole.Window))
-        button_text = _palette_color(palette, QPalette.ColorRole.ButtonText, palette.color(QPalette.ColorRole.WindowText))
-        window_text = _palette_color(palette, QPalette.ColorRole.WindowText, button_text)
-        mid = _palette_color(palette, QPalette.ColorRole.Mid, palette.color(QPalette.ColorRole.WindowText))
-        circle = self.circle_rect()
-        current = self.index == owner.currentRow()
-        state = owner.stepState(self.index)
-        hovered = self.underMouse()
-        completed = state == WorkflowStepState.COMPLETED
-        attention = state in {WorkflowStepState.WARNING, WorkflowStepState.BLOCKED}
+            active = owner._active_color
+            active_text = owner._active_text_color
+            base = _palette_color(palette, QPalette.ColorRole.Button, palette.color(QPalette.ColorRole.Window))
+            button_text = _palette_color(palette, QPalette.ColorRole.ButtonText, palette.color(QPalette.ColorRole.WindowText))
+            window_text = _palette_color(palette, QPalette.ColorRole.WindowText, button_text)
+            mid = _palette_color(palette, QPalette.ColorRole.Mid, palette.color(QPalette.ColorRole.WindowText))
+            circle = self.circle_rect()
+            current = self.index == owner.currentRow()
+            state = owner.stepState(self.index)
+            hovered = self.underMouse()
+            completed = state == WorkflowStepState.COMPLETED
+            attention = state in {WorkflowStepState.WARNING, WorkflowStepState.BLOCKED}
 
-        if current:
-            circle_fill = active
-            circle_text = active_text
-            label_color = active
-        elif completed:
-            circle_fill = base
-            circle_text = window_text
-            label_color = window_text
-        elif attention:
-            circle_fill = base
-            circle_text = button_text
-            label_color = owner._warning_text
-        else:
-            circle_fill = base
-            circle_text = button_text
-            label_color = window_text
-            if hovered:
+            if current:
                 circle_fill = active
                 circle_text = active_text
+                label_color = active
+            elif completed:
+                circle_fill = base
+                circle_text = window_text
+                label_color = window_text
+            elif attention:
+                circle_fill = base
+                circle_text = button_text
+                label_color = owner._warning_text
+            else:
+                circle_fill = base
+                circle_text = button_text
+                label_color = window_text
+                if hovered:
+                    circle_fill = active
+                    circle_text = active_text
 
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(circle_fill)
-        painter.drawEllipse(circle)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(circle_fill)
+            painter.drawEllipse(circle)
 
-        border = active if current else owner._warning_text if attention else mid
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(border, 1))
-        painter.drawEllipse(circle.adjusted(0, 0, -1, -1))
-
-        number_font = QFont(self.font())
-        number_font.setBold(True)
-        painter.setFont(number_font)
-        painter.setPen(circle_text)
-        painter.drawText(circle, Qt.AlignmentFlag.AlignCenter, "✓" if completed else str(self.index + 1))
-
-        if attention:
-            badge = QRect(circle.right() - 4, max(1, circle.top() - 5), 12, 12)
-            painter.setBrush(owner._warning_background)
-            painter.setPen(QPen(owner._warning_text, 1))
-            painter.drawEllipse(badge)
-            badge_font = QFont(self.font())
-            badge_font.setBold(True)
-            badge_font.setPointSizeF(small_font_points(badge_font.pointSizeF()))
-            painter.setFont(badge_font)
-            painter.setPen(owner._warning_text)
-            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "!")
-
-        label_rect = QRect(
-            circle.right() + 7,
-            0,
-            max(0, self.width() - circle.right() - 11),
-            self.height() - _PROGRESS_HEIGHT,
-        )
-        label_font = QFont(self.font())
-        label_font.setBold(current)
-        painter.setFont(label_font)
-        painter.setPen(label_color)
-        label = QFontMetrics(label_font).elidedText(
-            self.text(), Qt.TextElideMode.ElideRight, label_rect.width()
-        )
-        painter.drawText(label_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, label)
-
-        if self.hasFocus():
+            border = active if current else owner._warning_text if attention else mid
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(active, 1, Qt.PenStyle.DashLine))
-            painter.drawRoundedRect(self.rect().adjusted(2, 3, -2, -5), 5, 5)
-        painter.end()
+            painter.setPen(QPen(border, 1))
+            painter.drawEllipse(circle.adjusted(0, 0, -1, -1))
+
+            number_font = QFont(self.font())
+            number_font.setBold(True)
+            painter.setFont(number_font)
+            painter.setPen(circle_text)
+            painter.drawText(circle, Qt.AlignmentFlag.AlignCenter, "✓" if completed else str(self.index + 1))
+
+            if attention:
+                badge = QRect(circle.right() - 4, max(1, circle.top() - 5), 12, 12)
+                painter.setBrush(owner._warning_background)
+                painter.setPen(QPen(owner._warning_text, 1))
+                painter.drawEllipse(badge)
+                badge_font = QFont(self.font())
+                badge_font.setBold(True)
+                badge_font.setPointSizeF(small_font_points(badge_font.pointSizeF()))
+                painter.setFont(badge_font)
+                painter.setPen(owner._warning_text)
+                painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "!")
+
+            label_rect = QRect(
+                circle.right() + 7,
+                0,
+                max(0, self.width() - circle.right() - 11),
+                self.height() - _PROGRESS_HEIGHT,
+            )
+            label_font = QFont(self.font())
+            label_font.setBold(current)
+            painter.setFont(label_font)
+            painter.setPen(label_color)
+            label = QFontMetrics(label_font).elidedText(
+                self.text(), Qt.TextElideMode.ElideRight, label_rect.width()
+            )
+            painter.drawText(label_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, label)
+
+            if self.hasFocus():
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.setPen(QPen(active, 1, Qt.PenStyle.DashLine))
+                painter.drawRoundedRect(self.rect().adjusted(2, 3, -2, -5), 5, 5)
+        finally:
+            painter.end()
 
 
 class WorkflowStepItem:
@@ -430,14 +432,16 @@ class WorkflowHeader(QWidget):
 
     def paintEvent(self, _event) -> None:  # noqa: N802 - Qt override
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        palette = self.palette()
-        connector = _palette_color(palette, QPalette.ColorRole.Mid, palette.color(QPalette.ColorRole.WindowText))
-        track = QRect(_SIDE_PADDING, self.height() - _PROGRESS_HEIGHT, max(0, self.width() - 2 * _SIDE_PADDING), _PROGRESS_HEIGHT)
-        painter.fillRect(track, connector)
-        fraction = min(1.0, max(0.0, (self._progress_position + 1.0) / max(1, self.count())))
-        painter.fillRect(QRect(track.x(), track.y(), round(track.width() * fraction), track.height()), self._active_color)
-        painter.end()
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            palette = self.palette()
+            connector = _palette_color(palette, QPalette.ColorRole.Mid, palette.color(QPalette.ColorRole.WindowText))
+            track = QRect(_SIDE_PADDING, self.height() - _PROGRESS_HEIGHT, max(0, self.width() - 2 * _SIDE_PADDING), _PROGRESS_HEIGHT)
+            painter.fillRect(track, connector)
+            fraction = min(1.0, max(0.0, (self._progress_position + 1.0) / max(1, self.count())))
+            painter.fillRect(QRect(track.x(), track.y(), round(track.width() * fraction), track.height()), self._active_color)
+        finally:
+            painter.end()
 
     def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt override
         key = event.key()

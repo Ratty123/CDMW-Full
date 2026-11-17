@@ -332,15 +332,19 @@ class AutomationBridge(QObject):
     @staticmethod
     def _ui_stack() -> list[str]:
         """The UI thread's Python stack right now, read on the listener thread, so it
-        answers while the UI thread is busy (to find what blocks it)."""
+        answers while the UI thread is busy (to find what blocks it).
 
-        import sys
-        import traceback
+        Read as text (``thread_stacks``), never through ``sys._current_frames()``: a
+        frame held here keeps the UI thread's locals alive past their function, and a
+        QPainter that outlives its paint event crashes the next paint."""
 
-        frame = sys._current_frames().get(threading.main_thread().ident)
-        if frame is None:
-            return []
-        return [f"{Path(item.filename).name}:{item.lineno} {item.name}" for item in traceback.extract_stack(frame)]
+        from cdmw.services.thread_stacks import python_thread_stacks
+
+        main = threading.main_thread().ident
+        for stack in python_thread_stacks():
+            if stack.ident == main:
+                return [f"{Path(frame.filename).name}:{frame.lineno} {frame.name}" for frame in stack.frames]
+        return []
 
     @staticmethod
     def _thread_stacks() -> list[dict[str, object]]:
@@ -352,20 +356,17 @@ class AutomationBridge(QObject):
         holder let go: a busy worker appears inside its Python code.
         """
 
-        import sys
-        import traceback
+        from cdmw.services.thread_stacks import python_thread_stacks
 
-        own = threading.get_ident()
         main = threading.main_thread().ident
-        names = {thread.ident: thread.name for thread in threading.enumerate()}
         rows = []
-        for ident, frame in sys._current_frames().items():
-            if ident == own:
+        for stack in python_thread_stacks():
+            if stack.current:
                 continue
             rows.append({
-                "ident": int(ident), "name": names.get(ident, ""), "main": ident == main,
-                "frames": [f"{Path(item.filename).name}:{item.lineno} {item.name}"
-                           for item in traceback.extract_stack(frame)],
+                "ident": int(stack.ident), "name": stack.name, "main": stack.ident == main,
+                "frames": [f"{Path(frame.filename).name}:{frame.lineno} {frame.name}"
+                           for frame in stack.frames],
             })
         rows.sort(key=lambda row: (not row["main"], row["name"], row["ident"]))
         return rows

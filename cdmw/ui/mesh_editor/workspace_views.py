@@ -180,49 +180,50 @@ class MeshUvCanvas(QFrame):
 
     def paintEvent(self, _event: object) -> None:
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        background = QColor(28, 32, 36)
-        grid = QColor(74, 84, 94)
-        accent = QColor(90, 170, 255)
-        selected = QColor(255, 190, 72)
-        text = QColor(225, 230, 235)
-        painter.fillRect(self.rect(), background)
-        tile = self._tile_rect()
-        painter.fillRect(tile, QColor(42, 46, 52))
-        for index in range(1, 4):
-            x = tile.left() + tile.width() * index / 4.0
-            y = tile.top() + tile.height() * index / 4.0
-            painter.setPen(QPen(grid, 1))
-            painter.drawLine(int(x), int(tile.top()), int(x), int(tile.bottom()))
-            painter.drawLine(int(tile.left()), int(y), int(tile.right()), int(y))
-        painter.setPen(QPen(QColor(150, 160, 170), 1.4))
-        painter.drawRect(tile)
-        summary = self._summary
-        if summary is None or not summary.islands:
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            background = QColor(28, 32, 36)
+            grid = QColor(74, 84, 94)
+            accent = QColor(90, 170, 255)
+            selected = QColor(255, 190, 72)
+            text = QColor(225, 230, 235)
+            painter.fillRect(self.rect(), background)
+            tile = self._tile_rect()
+            painter.fillRect(tile, QColor(42, 46, 52))
+            for index in range(1, 4):
+                x = tile.left() + tile.width() * index / 4.0
+                y = tile.top() + tile.height() * index / 4.0
+                painter.setPen(QPen(grid, 1))
+                painter.drawLine(int(x), int(tile.top()), int(x), int(tile.bottom()))
+                painter.drawLine(int(tile.left()), int(y), int(tile.right()), int(y))
+            painter.setPen(QPen(QColor(150, 160, 170), 1.4))
+            painter.drawRect(tile)
+            summary = self._summary
+            if summary is None or not summary.islands:
+                painter.setPen(QPen(text, 1))
+                painter.drawText(tile, Qt.AlignmentFlag.AlignCenter, translate_active_ui_text("No UV islands"))
+                return
+            for island in summary.islands:
+                rect = self._island_rect(tile, island.uv_min, island.uv_max)
+                painter.setPen(QPen(selected if island.selected else accent, 2.0 if island.selected else 1.3))
+                painter.drawRect(rect)
+                painter.drawText(rect.adjusted(3, 2, -2, -2), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, str(island.index))
+            if self._drag_start_uv is not None and self._drag_current_uv is not None:
+                rect = self._island_rect(tile, self._drag_start_uv, self._drag_current_uv)
+                painter.setPen(QPen(selected, 1.6, Qt.PenStyle.DashLine))
+                painter.drawRect(rect)
+            if self._lasso_points_uv:
+                painter.setPen(QPen(selected, 1.6, Qt.PenStyle.DashLine))
+                previous = self._position_from_uv(tile, self._lasso_points_uv[0])
+                for point in self._lasso_points_uv[1:]:
+                    current = self._position_from_uv(tile, point)
+                    painter.drawLine(previous, current)
+                    previous = current
+            texture_names = str(self.property("uvTextureNames") or translate_active_ui_text("missing texture"))
             painter.setPen(QPen(text, 1))
-            painter.drawText(tile, Qt.AlignmentFlag.AlignCenter, translate_active_ui_text("No UV islands"))
+            painter.drawText(self.rect().adjusted(8, 4, -8, -4), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, texture_names)
+        finally:
             painter.end()
-            return
-        for island in summary.islands:
-            rect = self._island_rect(tile, island.uv_min, island.uv_max)
-            painter.setPen(QPen(selected if island.selected else accent, 2.0 if island.selected else 1.3))
-            painter.drawRect(rect)
-            painter.drawText(rect.adjusted(3, 2, -2, -2), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, str(island.index))
-        if self._drag_start_uv is not None and self._drag_current_uv is not None:
-            rect = self._island_rect(tile, self._drag_start_uv, self._drag_current_uv)
-            painter.setPen(QPen(selected, 1.6, Qt.PenStyle.DashLine))
-            painter.drawRect(rect)
-        if self._lasso_points_uv:
-            painter.setPen(QPen(selected, 1.6, Qt.PenStyle.DashLine))
-            previous = self._position_from_uv(tile, self._lasso_points_uv[0])
-            for point in self._lasso_points_uv[1:]:
-                current = self._position_from_uv(tile, point)
-                painter.drawLine(previous, current)
-                previous = current
-        texture_names = str(self.property("uvTextureNames") or translate_active_ui_text("missing texture"))
-        painter.setPen(QPen(text, 1))
-        painter.drawText(self.rect().adjusted(8, 4, -8, -4), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, texture_names)
-        painter.end()
 
     def mousePressEvent(self, event: object) -> None:
         button = getattr(event, "button", lambda: None)()

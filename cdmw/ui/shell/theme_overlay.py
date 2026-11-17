@@ -81,57 +81,60 @@ class ThemeChangeBusyOverlay(QFrame):
             return
         theme = get_theme(self._theme_key)
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
+        try:
+            painter.setRenderHint(QPainter.Antialiasing, True)
 
-        scrim = QColor(str(theme.get("window", "#111111")))
-        scrim.setAlpha(196)
-        painter.fillRect(rect, scrim)
+            scrim = QColor(str(theme.get("window", "#111111")))
+            scrim.setAlpha(196)
+            painter.fillRect(rect, scrim)
 
-        panel_width = min(380.0, max(280.0, rect.width() * 0.34))
-        panel = QRectF(
-            rect.center().x() - panel_width / 2.0,
-            rect.center().y() - 61.0,
-            panel_width,
-            122.0,
-        )
-        surface = QColor(str(theme.get("surface", "#252526")))
-        border = QColor(str(theme.get("border_strong", "#3c3c3c")))
-        painter.setPen(QPen(border, 1.0))
-        painter.setBrush(surface)
-        painter.drawRoundedRect(panel, 8.0, 8.0)
+            panel_width = min(380.0, max(280.0, rect.width() * 0.34))
+            panel = QRectF(
+                rect.center().x() - panel_width / 2.0,
+                rect.center().y() - 61.0,
+                panel_width,
+                122.0,
+            )
+            surface = QColor(str(theme.get("surface", "#252526")))
+            border = QColor(str(theme.get("border_strong", "#3c3c3c")))
+            painter.setPen(QPen(border, 1.0))
+            painter.setBrush(surface)
+            painter.drawRoundedRect(panel, 8.0, 8.0)
 
-        spinner_rect = QRectF(panel.left() + 26.0, panel.top() + 40.0, 36.0, 36.0)
-        track = QColor(str(theme.get("border", "#2a2d2e")))
-        track.setAlpha(150)
-        painter.setPen(QPen(track, 3.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        painter.drawArc(spinner_rect, 0, 360 * 16)
-        accent = QColor(str(theme.get("accent", "#007acc")))
-        painter.setPen(QPen(accent, 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        painter.drawArc(spinner_rect, -self._spinner_degrees * 16, 245 * 16)
+            spinner_rect = QRectF(panel.left() + 26.0, panel.top() + 40.0, 36.0, 36.0)
+            track = QColor(str(theme.get("border", "#2a2d2e")))
+            track.setAlpha(150)
+            painter.setPen(QPen(track, 3.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.drawArc(spinner_rect, 0, 360 * 16)
+            accent = QColor(str(theme.get("accent", "#007acc")))
+            painter.setPen(QPen(accent, 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.drawArc(spinner_rect, -self._spinner_degrees * 16, 245 * 16)
 
-        title_font = QFont(self.font())
-        title_font.setBold(True)
-        title_font.setPointSize(int(title_font_points(title_font.pointSize(), 1)))
-        painter.setFont(title_font)
-        painter.setPen(QColor(str(theme.get("text_strong", "#f3f3f3"))))
-        text_left = spinner_rect.right() + 18.0
-        text_rect = QRectF(text_left, panel.top() + 30.0, panel.right() - text_left - 22.0, 28.0)
-        painter.drawText(
-            text_rect,
-            Qt.AlignLeft | Qt.AlignVCenter,
-            translate_active_ui_text(self._overlay_title),
-        )
+            title_font = QFont(self.font())
+            title_font.setBold(True)
+            title_font.setPointSize(int(title_font_points(title_font.pointSize(), 1)))
+            painter.setFont(title_font)
+            painter.setPen(QColor(str(theme.get("text_strong", "#f3f3f3"))))
+            text_left = spinner_rect.right() + 18.0
+            text_rect = QRectF(text_left, panel.top() + 30.0, panel.right() - text_left - 22.0, 28.0)
+            painter.drawText(
+                text_rect,
+                Qt.AlignLeft | Qt.AlignVCenter,
+                translate_active_ui_text(self._overlay_title),
+            )
 
-        body_font = QFont(self.font())
-        body_font.setPointSize(clamp_font_points(body_font.pointSize()))
-        painter.setFont(body_font)
-        painter.setPen(QColor(str(theme.get("text_muted", "#9da0a6"))))
-        body_rect = QRectF(text_left, panel.top() + 60.0, panel.right() - text_left - 22.0, 34.0)
-        painter.drawText(
-            body_rect,
-            Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap,
-            translate_active_ui_text(self._overlay_detail),
-        )
+            body_font = QFont(self.font())
+            body_font.setPointSize(clamp_font_points(body_font.pointSize()))
+            painter.setFont(body_font)
+            painter.setPen(QColor(str(theme.get("text_muted", "#9da0a6"))))
+            body_rect = QRectF(text_left, panel.top() + 60.0, panel.right() - text_left - 22.0, 34.0)
+            painter.drawText(
+                body_rect,
+                Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap,
+                translate_active_ui_text(self._overlay_detail),
+            )
+        finally:
+            painter.end()
 
 
 __all__ = ["ThemeChangeBusyOverlay"]
