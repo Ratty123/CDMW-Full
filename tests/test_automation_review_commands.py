@@ -402,6 +402,57 @@ def test_new_item_commands_search_pick_and_read_the_preview() -> None:
         holder.deleteLater()
 
 
+class _HostController(QObject):
+    state_changed = Signal(str, str)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._visible = False
+        self._renderer_ready = True
+        self._package_generation = 2
+        self._applied_package_generation = 1
+        self.desired_package_path = "C:/cache/materials"
+        self.applied_package_path = "C:/cache/geometry"
+        self.process = None
+
+
+def test_new_item_state_says_where_the_preview_viewport_is_and_what_it_last_said() -> None:
+    from PySide6.QtCore import Qt
+
+    workflow = QWidget()
+    workflow.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    page = QWidget()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    host = QWidget(workflow)
+    host.controller = _HostController()
+    preview = _Preview()
+    preview.host = host
+    preview._loaded_stage = "geometry"
+    panel = SimpleNamespace(filter_edit=QLineEdit(workflow), matches=QTreeWidget(workflow), _match_options=())
+    tab = QWidget(page)
+    tab.workflow = SimpleNamespace(template_panel=panel, model_panel=SimpleNamespace(preview=preview))
+    tab.controller = SimpleNamespace(ready=True, busy=False)
+    tab._portals = SimpleNamespace(_attached={})
+    window = SimpleNamespace(shell=SimpleNamespace(new_item_studio_tab=tab))
+    workflow.show()
+    try:
+        review_commands.new_item_state(window, {})
+        host.controller.state_changed.emit("inactive", "Preview paused while hidden.")
+        state = review_commands.new_item_state(window, {})["preview_host"]
+        assert state["host"] and state["visible"] and state["parent"] == "QWidget"
+        assert not state["window_on_screen"] and not state["portal_attached"]
+        controller = state["controller"]
+        assert not controller["visible"] and controller["renderer_ready"]
+        assert controller["package_generation"] == 2 and controller["applied_package_generation"] == 1
+        assert controller["desired_package"] == "materials" and controller["applied_package"] == "geometry"
+        assert [entry[1:] for entry in controller["states"]] == [["inactive", "Preview paused while hidden."]]
+        tab._portals._attached = {"viewport": (host, workflow, None, 0)}
+        assert review_commands.new_item_state(window, {})["preview_host"]["portal_attached"]
+    finally:
+        workflow.deleteLater()
+        page.deleteLater()
+
+
 def test_model_library_and_textures_states(profile) -> None:
     holder = QWidget()
     library = QWidget(holder)

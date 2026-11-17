@@ -661,6 +661,81 @@ def close_during_job(window, args: dict) -> dict[str, object]:
 # ----- 6. Create New Item, Model Library, Textures --------------------------------------------
 
 _PREVIEW_STATUS: dict[int, list[str]] = {}
+#: id(controller) -> the viewport controller's states, oldest first (the last 24)
+_PREVIEW_HOST_STATES: dict[int, list[list[object]]] = {}
+
+
+def _preview_host_state(tab, preview) -> dict[str, object] | None:
+    """Where the preview's viewport is and what its controller last said: whether the
+    host exists and is shown, which widget holds it (the off-screen workflow or the
+    Rust page's host), whether the Rust page has attached it, and the controller's
+    handshake gates, package generations and recent states."""
+
+    from PySide6.QtCore import Qt
+
+    host = getattr(preview, "host", None)
+    if host is None:
+        return {"host": False, "host_error": str(getattr(preview, "_host_error", "") or "")}
+    controller = getattr(host, "controller", None)
+    states = _PREVIEW_HOST_STATES.get(id(controller))
+    if controller is not None and states is None:
+        states = _PREVIEW_HOST_STATES[id(controller)] = []
+
+        def kept(state, message, states=states) -> None:
+            states.append([round(time.monotonic(), 2), str(state), str(message)[:160]])
+            del states[:-24]
+
+        controller.state_changed.connect(kept)
+    try:
+        parent = host.parentWidget()
+        shown = {"visible": bool(host.isVisible()), "hidden": bool(host.isHidden()),
+                 "parent": type(parent).__name__ if parent is not None else "",
+                 "geometry": list(host.geometry().getRect()),
+                 "window_on_screen": not host.window().testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)}
+    except (RuntimeError, AttributeError):
+        shown = {"visible": False, "deleted": True}
+    portals = getattr(tab, "_portals", None)
+    attached = [entry[0] is host for entry in (getattr(portals, "_attached", {}) or {}).values()]
+
+    def flag(name):
+        return bool(getattr(controller, name, False))
+
+    def number(name):
+        try:
+            return int(getattr(controller, name, 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    process = getattr(controller, "process", None)
+    return {
+        "host": True, **shown, "portal_attached": any(attached),
+        "rust_page": {"ready": bool(getattr(tab, "_ready", False)),
+                      "first_frame": bool(getattr(tab, "_first_frame_ready", False)),
+                      "sent_generation": int(getattr(tab, "_sent_generation", 0) or 0),
+                      "received_generation": int(getattr(tab, "_received_generation", 0) or 0)},
+        "controller": None if controller is None else {
+            "visible": flag("_visible"), "running": flag("is_running"),
+            "process": type(process).__name__ if process is not None else "",
+            "protocol_ready": flag("_protocol_ready"), "renderer_ready": flag("_renderer_ready"),
+            "session_established": flag("_session_established"),
+            "localization_established": flag("_localization_initial_established"),
+            "gpu_failed": flag("_gpu_failed"), "active": flag("_active"),
+            "edit_held": getattr(controller, "_edit_channel", None) is not None,
+            "package_generation": number("_package_generation"),
+            "pending_package_generation": number("_pending_package_generation"),
+            "applied_package_generation": number("_applied_package_generation"),
+            "deferred_for_interaction": number("_interaction_deferred_package_generation"),
+            "activation_pending": getattr(controller, "_pending_activation", None) is not None,
+            "desired_package": Path(str(getattr(controller, "desired_package_path", "") or "")).name,
+            "applied_package": Path(str(getattr(controller, "applied_package_path", "") or "")).name,
+            "retry_attempt": number("_retry_attempt"),
+            "states": list(states or ()),
+        },
+        "frame": {"loaded_stage": str(getattr(preview, "_loaded_stage", "") or ""),
+                  "loaded_is_pending": (getattr(preview, "_pending", None) or (None,))[0]
+                  == getattr(preview, "_loaded_token", None),
+                  "package": Path(str(getattr(preview, "_package_dir", "") or "")).name},
+    }
 
 
 def _new_item(window):
@@ -695,6 +770,8 @@ def new_item_state(window, _args: dict) -> dict[str, object]:
             "deferred": getattr(preview, "_deferred_package", None) is not None,
             "status": (_PREVIEW_STATUS.get(id(preview)) or [""])[-1],
         },
+        "preview_statuses": list((_PREVIEW_STATUS.get(id(preview)) or [])[-12:]),
+        "preview_host": None if preview is None else _preview_host_state(tab, preview),
     }
 
 
