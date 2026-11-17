@@ -61,6 +61,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Clear History** is greyed out in the Mesh Editor's **Texture Editor** panel, and its tooltip says why: the Mesh Editor's Undo history holds the texture's edits. Clearing it there made an edited texture count as unchanged once you undid an edit made after the Clear, so **Build Mod** would have left it out.
 - A **Hue / Saturation** or **Vibrance** adjustment with its sliders at 0 no longer changes the texture. Its colour maths worked in 8-bit steps, so adding one moved most coloured pixels by a few levels, and the texture counted as edited for **Build Mod**.
 - The Texture Editor's brush **Opacity** is now the most one stroke covers: a stroke at 30 % stays at 30 % where its stamps overlap, and **Flow** is how much each stamp adds as they build up. Opacity used to act as a second Flow, so a 30 % stroke built up to nearly full colour along its length. It applies to Paint, Erase, Smudge, Dodge/Burn, Clone, Heal, Sharpen and Soften, and to Create New Item's transparency brush. A pen's pressure now scales the opacity where each stamp lands, so a lighter press paints a lighter stroke.
 - An adjustment changed with the keyboard, the mouse wheel, a click beside a slider's handle or **Selective Color**'s colour list is now an Undo step of its own and shows on the model at once, as a drag does when you release it. Until some later edit it showed only in the Texture Editor panel, and Undo took it back together with that edit.

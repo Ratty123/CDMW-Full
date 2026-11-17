@@ -14292,6 +14292,7 @@
     "The Mesh Editor keeps the 3D view of up to 4 open documents. When you open more, the one shown longest ago is parked: its view closes, and it opens again with its edits and history when you show it.": "メッシュ エディタは、開いているドキュメントのうち最大 4 個の 3D ビューを保持します。それ以上開くと、最も前に表示したドキュメントが待機状態になります。そのビューは閉じ、表示すると編集と履歴を保ったまま再び開きます。",
     "The Mesh Editor revision could not be captured safely.": "メッシュ エディタのリビジョンを安全に取得できませんでした。",
     "The Mesh Editor still has unsaved geometry or layer changes.": "メッシュ エディタ には、保存されていないジオメトリまたはレイヤーの変更が残っています。",
+    "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here.": "メッシュ エディタの元に戻す履歴にこのテクスチャの編集が含まれているため、ここではクリアされません。",
     "The New Item metadata is too large.": "新規アイテムのメタデータが大きすぎます。",
     "The Preview is not render-ready yet.": "プレビューはまだレンダリングの準備ができていません。",
     "The Rust New Item interface cannot start: {value_0}.": "新規アイテム作成用Rust UIを起動できません: {value_0}。",

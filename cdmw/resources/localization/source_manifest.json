@@ -26206,7 +26206,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 739,
+          "line": 765,
           "sink": "EditError"
         }
       ]
@@ -53741,7 +53741,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 832,
+          "line": 858,
           "sink": "EditError"
         }
       ]
@@ -56676,7 +56676,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1453,
+          "line": 1454,
           "sink": "getExistingDirectory"
         }
       ]
@@ -57286,7 +57286,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1457,
+          "line": 1458,
           "sink": "information"
         }
       ]
@@ -61821,7 +61821,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 151,
+          "line": 153,
           "sink": "EditError"
         }
       ]
@@ -104021,22 +104021,22 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 894,
+          "line": 920,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 903,
+          "line": 929,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 910,
+          "line": 936,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 934,
+          "line": 960,
           "sink": "EditError"
         }
       ]
@@ -104631,7 +104631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/editor_refresh_ui.py",
-          "line": 250,
+          "line": 251,
           "sink": "setText"
         }
       ]
@@ -105246,22 +105246,22 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 751,
+          "line": 777,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 766,
+          "line": 792,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 823,
+          "line": 849,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 856,
+          "line": 882,
           "sink": "EditError"
         }
       ]
@@ -105271,7 +105271,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 722,
+          "line": 748,
           "sink": "EditError"
         }
       ]
@@ -105281,7 +105281,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 1019,
+          "line": 1045,
           "sink": "EditError"
         }
       ]
@@ -105291,7 +105291,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 1002,
+          "line": 1028,
           "sink": "EditError"
         }
       ]
@@ -110456,7 +110456,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 326,
+          "line": 352,
           "sink": "EditError"
         }
       ]
@@ -110466,12 +110466,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 313,
+          "line": 339,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 568,
+          "line": 594,
           "sink": "EditError"
         }
       ]
@@ -110481,12 +110481,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 433,
+          "line": 459,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 512,
+          "line": 538,
           "sink": "EditError"
         }
       ]
@@ -131871,7 +131871,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 948,
+          "line": 974,
           "sink": "EditError"
         }
       ]
@@ -131911,7 +131911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 801,
+          "line": 827,
           "sink": "EditError"
         }
       ]
@@ -142356,7 +142356,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 858,
+          "line": 884,
           "sink": "EditError"
         }
       ]
@@ -157966,7 +157966,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 1007,
+          "line": 1033,
           "sink": "EditError"
         }
       ]
@@ -157976,7 +157976,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 862,
+          "line": 888,
           "sink": "EditError"
         }
       ]
@@ -157986,7 +157986,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 1021,
+          "line": 1047,
           "sink": "EditError"
         }
       ]
@@ -166873,6 +166873,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
           "line": 110,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/editor_refresh_ui.py",
+          "line": 351,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -191571,7 +191581,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1457,
+          "line": 1458,
           "sink": "information"
         }
       ]
@@ -193051,7 +193061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 734,
+          "line": 760,
           "sink": "EditError"
         }
       ]
@@ -196931,7 +196941,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 86,
+          "line": 89,
           "sink": "python-return:describe"
         }
       ]
@@ -204431,7 +204441,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 79,
+          "line": 82,
           "sink": "python-return:describe"
         }
       ]
@@ -206161,7 +206171,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 477,
+          "line": 503,
           "sink": "python-return:adopt_loose_commands"
         }
       ]
@@ -209001,7 +209011,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 84,
+          "line": 87,
           "sink": "python-return:describe"
         }
       ]
@@ -209091,7 +209101,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 91,
+          "line": 94,
           "sink": "python-return:describe"
         }
       ]
@@ -209101,7 +209111,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 711,
+          "line": 737,
           "sink": "EditError"
         }
       ]
@@ -209681,7 +209691,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 93,
+          "line": 96,
           "sink": "python-return:describe"
         }
       ]
@@ -209691,7 +209701,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 95,
+          "line": 98,
           "sink": "python-return:describe"
         }
       ]
@@ -209901,7 +209911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 82,
+          "line": 85,
           "sink": "python-return:describe"
         }
       ]
@@ -209966,7 +209976,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 88,
+          "line": 91,
           "sink": "python-return:describe"
         }
       ]
@@ -216271,7 +216281,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 311,
+          "line": 314,
           "sink": "python-return:describe"
         }
       ]
@@ -217241,7 +217251,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing_operations.py",
-          "line": 334,
+          "line": 337,
           "sink": "python-return:describe"
         }
       ]
@@ -218636,7 +218646,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 830,
+          "line": 856,
           "sink": "EditError"
         }
       ]
@@ -219076,7 +219086,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 868,
+          "line": 894,
           "sink": "EditError"
         }
       ]
@@ -220251,7 +220261,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 836,
+          "line": 862,
           "sink": "EditError"
         }
       ]
@@ -222501,7 +222511,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1445,
+          "line": 1446,
           "sink": "showMessage"
         }
       ]
@@ -222511,7 +222521,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1448,
+          "line": 1449,
           "sink": "showMessage"
         }
       ]
@@ -223116,17 +223126,17 @@
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 741,
+          "line": 767,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 756,
+          "line": 782,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 773,
+          "line": 799,
           "sink": "EditError"
         },
         {

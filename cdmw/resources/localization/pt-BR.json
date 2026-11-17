@@ -14292,6 +14292,7 @@
     "The Mesh Editor keeps the 3D view of up to 4 open documents. When you open more, the one shown longest ago is parked: its view closes, and it opens again with its edits and history when you show it.": "O Editor de malha mantém a visualização 3D de até 4 documentos abertos. Se você abrir mais, o exibido há mais tempo é estacionado: a visualização dele fecha e abre de novo com as edições e o histórico quando você o exibe.",
     "The Mesh Editor revision could not be captured safely.": "Não foi possível capturar com segurança a revisão do Editor de malha.",
     "The Mesh Editor still has unsaved geometry or layer changes.": "O Editor de malha ainda possui geometria não salva ou alterações de camada.",
+    "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here.": "O histórico de Desfazer do Editor de malha contém as edições desta textura, por isso ele não é limpo aqui.",
     "The New Item metadata is too large.": "Os metadados de Novo item são muito grandes.",
     "The Preview is not render-ready yet.": "A visualização ainda não está pronta para renderização.",
     "The Rust New Item interface cannot start: {value_0}.": "A interface Rust de criação de itens não pode iniciar: {value_0}.",

@@ -381,3 +381,58 @@ def test_adding_an_adjustment_at_its_defaults_changes_nothing_on_the_model(dock)
                  "selective_color", "levels", "curves"):
         _add_adjustment(editor, kind)
         assert np.array_equal(dock.composite(), opened), kind
+
+
+# History -------------------------------------------------------------------------
+
+
+def test_the_dock_keeps_the_texture_history_the_mesh_editor_undoes_through(dock) -> None:
+    """Clear History made the opened texture's edits look undone: after Clear, an edit and
+    its Undo, the panel told the Mesh Editor the texture was as opened, so Build Mod would
+    have left the edited texture out."""
+    editor = dock.editor
+    opened = dock.composite()
+    editor.tool_buttons["paint"].click()
+    editor.paint_color_edit.setText("#00FF00")
+    editor.canvas.stroke_committed.emit({"tool": "paint", "points": [(10, 10), (40, 10)]})
+    _pump(0.05)
+    assert not editor.history_clear_button.isEnabled()
+    assert "Undo history" in editor.history_clear_button.toolTip()
+    steps = len(editor.history_snapshots)
+    editor.clear_history()
+    assert len(editor.history_snapshots) == steps
+    editor.canvas.stroke_committed.emit({"tool": "paint", "points": [(10, 40), (40, 40)]})
+    _pump(0.05)
+    dock.edits.clear()
+    editor.undo()
+    assert not np.array_equal(dock.composite(), opened)
+    assert _shows_on_the_model(dock, changed=True), "the first stroke is still an edit"
+    editor.undo()
+    assert np.array_equal(dock.composite(), opened)
+    assert _shows_on_the_model(dock, changed=False)
+
+
+def test_a_texture_opened_on_its_own_can_still_clear_its_history(tmp_path) -> None:
+    from cdmw.services.settings_service import create_settings
+    from cdmw.models import TextureEditorDocument, TextureEditorLayer
+    from cdmw.ui.texture_editor_tab import TextureEditorTab
+
+    _app()
+    editor = TextureEditorTab(settings=create_settings(settings_file_path=tmp_path / "settings.cfg"),
+                              base_dir=tmp_path, get_png_root=lambda: str(tmp_path))
+    try:
+        document = TextureEditorDocument("Own", 16, 16, active_layer_id="base",
+                                         layers=(TextureEditorLayer("base", "Base", "base.png"),))
+        editor._create_session(document, {"base": np.full((16, 16, 4), 200, dtype=np.uint8)}, label="Own")
+        editor._push_history("Open")
+        editor.canvas.stroke_committed.emit({"tool": "paint", "points": [(2, 2), (12, 2)]})
+        editor._refresh_ui()
+        assert editor.history_clear_button.isEnabled()
+        editor.clear_history()
+        assert len(editor.history_snapshots) == 1 and editor.history_index == 0
+    finally:
+        from PySide6.QtCore import QEvent
+
+        editor.request_shutdown()
+        editor.deleteLater()
+        _app().sendPostedEvents(None, QEvent.Type.DeferredDelete)

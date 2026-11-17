@@ -202,3 +202,12 @@ def texture_editor_history_action_state(
     return TextureEditorHistoryActionState(
         restore_enabled=available and 0 <= row < int(history_count) and row != int(history_index),
     )
+
+
+def texture_editor_history_shared_with_mesh_editor(document: Optional[TextureEditorDocument]) -> bool:
+    """A texture opened from the Mesh Editor's Textures panel: its steps are part of the
+    Mesh Editor's one Undo history, and the panel reads from them whether the texture
+    still differs from the one opened, so its own history is never cleared."""
+
+    binding = getattr(document, "source_binding", None)
+    return bool(binding is not None and getattr(binding, "launch_origin", "") == "mesh_editor")

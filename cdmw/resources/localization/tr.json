@@ -14292,6 +14292,7 @@
     "The Mesh Editor keeps the 3D view of up to 4 open documents. When you open more, the one shown longest ago is parked: its view closes, and it opens again with its edits and history when you show it.": "Mesh Düzenleyici açık belgelerden en fazla 4 tanesinin 3B görünümünü tutar. Daha fazlasını açarsanız, en uzun süre önce gösterilen park edilir: görünümü kapanır ve gösterdiğinizde düzenlemeleri ve geçmişiyle yeniden açılır.",
     "The Mesh Editor revision could not be captured safely.": "Mesh Düzenleyici revizyonu güvenli şekilde yakalanamadı.",
     "The Mesh Editor still has unsaved geometry or layer changes.": "Mesh Düzenleyici'de henüz kaydedilmemiş geometri veya katman değişiklikleri var.",
+    "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here.": "Mesh Düzenleyici'nin Geri al geçmişi bu dokunun düzenlemelerini içerdiği için burada temizlenmez.",
     "The New Item metadata is too large.": "Yeni Öğe Oluştur üst verileri çok büyük.",
     "The Preview is not render-ready yet.": "Önizleme henüz görüntülenmeye hazır değil.",
     "The Rust New Item interface cannot start: {value_0}.": "Rust Yeni Öğe Oluştur arayüzü başlatılamıyor: {value_0}.",

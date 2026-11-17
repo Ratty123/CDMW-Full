@@ -14292,6 +14292,7 @@
     "The Mesh Editor keeps the 3D view of up to 4 open documents. When you open more, the one shown longest ago is parked: its view closes, and it opens again with its edits and history when you show it.": "El Editor de mallas mantiene la vista 3D de hasta 4 documentos abiertos. Si abres más, el que se mostró hace más tiempo se aparca: su vista se cierra y vuelve a abrirse con sus ediciones e historial cuando lo muestras.",
     "The Mesh Editor revision could not be captured safely.": "No se pudo capturar de forma segura la revisión del Editor de mallas.",
     "The Mesh Editor still has unsaved geometry or layer changes.": "El archivo Editor de mallas aún contiene geometría o cambios de capa sin guardar.",
+    "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here.": "El historial de Deshacer del Editor de mallas contiene las ediciones de esta textura, así que no se limpia aquí.",
     "The New Item metadata is too large.": "Los metadatos de Nuevo objeto son demasiado grandes.",
     "The Preview is not render-ready yet.": "La vista previa aún no está lista para renderizarse.",
     "The Rust New Item interface cannot start: {value_0}.": "La interfaz Rust de creación de objetos no puede iniciarse: {value_0}.",
