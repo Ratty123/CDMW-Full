@@ -75190,7 +75190,7 @@ MESSAGE_REFERENCE = [
     "message": "An AI tool's interface action failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_actions.py": 357
+      "cdmw/mcp/ui_actions.py": 362
     }
   },
   {
@@ -80244,7 +80244,7 @@ MESSAGE_REFERENCE = [
     "message": "It is disabled now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 492
+      "cdmw/mcp/ui_tree.py": 513
     }
   },
   {
@@ -80252,7 +80252,7 @@ MESSAGE_REFERENCE = [
     "message": "It is not shown now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 492
+      "cdmw/mcp/ui_tree.py": 513
     }
   },
   {
@@ -81503,7 +81503,7 @@ MESSAGE_REFERENCE = [
     "message": "No control shown has the text {text}. Call app_ui for the controls shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 365
+      "cdmw/mcp/ui_tree.py": 386
     }
   },
   {
@@ -81847,7 +81847,7 @@ MESSAGE_REFERENCE = [
     "message": "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool. It was put back.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/ui_actions.py": 365
+      "cdmw/mcp/ui_actions.py": 372
     }
   },
   {
@@ -81871,7 +81871,7 @@ MESSAGE_REFERENCE = [
     "message": "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 318
+      "cdmw/mcp/view_tools.py": 308
     }
   },
   {
@@ -84035,7 +84035,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor's view can only be copied from the screen while CDMW is the window in front: click CDMW's window, then ask again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 329
+      "cdmw/mcp/view_tools.py": 333
     }
   },
   {
@@ -84043,7 +84043,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor's view is not on screen: show the Mesh Editor (app_open_tool mesh_editor) with CDMW's window visible.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 326
+      "cdmw/mcp/view_tools.py": 330
     }
   },
   {
@@ -84115,7 +84115,7 @@ MESSAGE_REFERENCE = [
     "message": "The action is one of {', '.join(ACTIONS)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 488
+      "cdmw/mcp/ui_tree.py": 509
     }
   },
   {
@@ -84499,7 +84499,7 @@ MESSAGE_REFERENCE = [
     "message": "The field is read-only.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 527
+      "cdmw/mcp/ui_tree.py": 548
     }
   },
   {
@@ -84771,7 +84771,7 @@ MESSAGE_REFERENCE = [
     "message": "The list has no item {row}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 565
+      "cdmw/mcp/ui_tree.py": 586
     }
   },
   {
@@ -84779,7 +84779,7 @@ MESSAGE_REFERENCE = [
     "message": "The list has no row {wanted}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 226
+      "cdmw/mcp/ui_tree.py": 242
     }
   },
   {
@@ -84787,7 +84787,7 @@ MESSAGE_REFERENCE = [
     "message": "The list is empty.",
     "recovery": "empty",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 193
+      "cdmw/mcp/ui_tree.py": 209
     }
   },
   {
@@ -85364,7 +85364,7 @@ MESSAGE_REFERENCE = [
     "message": "The text is read-only.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 538
+      "cdmw/mcp/ui_tree.py": 559
     }
   },
   {
@@ -85452,7 +85452,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no control {text} now. Call app_ui for the controls shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 74
+      "cdmw/mcp/ui_tree.py": 76
     }
   },
   {
@@ -85468,7 +85468,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no tab {row}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 573
+      "cdmw/mcp/ui_tree.py": 594
     }
   },
   {
@@ -89281,7 +89281,7 @@ MESSAGE_REFERENCE = [
     "message": "row is needed: a row's number or its text.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 561
+      "cdmw/mcp/ui_tree.py": 582
     }
   },
   {
@@ -90159,7 +90159,7 @@ MESSAGE_REFERENCE = [
     "message": "value must be a number.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 544
+      "cdmw/mcp/ui_tree.py": 565
     }
   },
   {
@@ -90231,7 +90231,7 @@ MESSAGE_REFERENCE = [
     "message": "{action} does not apply to a {kind_of(widget) or 'widget'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 499
+      "cdmw/mcp/ui_tree.py": 520
     }
   },
   {
@@ -90839,7 +90839,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(found)} controls have the text {text}; name one by its widget id.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 367
+      "cdmw/mcp/ui_tree.py": 388
     }
   },
   {
@@ -107641,7 +107641,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/view_tools.py": {
     "code": 4,
-    "raise": 18,
+    "raise": 19,
     "report": 3
   },
   "cdmw/modding/__init__.py": {},

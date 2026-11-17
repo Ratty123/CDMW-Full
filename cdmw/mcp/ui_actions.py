@@ -182,16 +182,21 @@ _CONFIRM = {"yes": "Yes", "no": "No", "ok": "Ok", "cancel": "Cancel", "save": "S
 _DECLINE = ("No", "Cancel", "Close", "Abort")
 
 
-#: Questions only the user answers, whatever runs meanwhile: the two flows that write
-#: into the game folder ask them (remove what an older CDMW installed, restore a backup).
-USER_ONLY_TITLES = frozenset({"Remove What an Older CDMW Installed", "Restore Backup"})
+def user_only_titles() -> frozenset[str]:
+    """Titles of the questions only the user answers, whatever runs meanwhile: the two flows
+    that write into the game folder ask them (remove what an older CDMW installed, restore a
+    backup)."""
+
+    from cdmw.ui.archive_browser.old_install_removal import TITLE
+
+    return frozenset({TITLE, "Restore Backup", "Restore Archive Patch Backup"})
 
 
 def _message(original, kind: str):
     def answered(*args, **kwargs):
         current = _current()
         title = _argument(args, kwargs, 1, "title")
-        if current is None or str(title or "") in USER_ONLY_TITLES:
+        if current is None or str(title or "") in user_only_titles():
             return original(*args, **kwargs)
         from PySide6.QtWidgets import QMessageBox
 
@@ -358,7 +363,9 @@ def run_action(context, function: Callable[[], object], answers: Mapping[str, ob
             box["error"] = ToolError(FAILED, str(exc) or type(exc).__name__)
         finally:
             try:
-                changed = _restore_protected(settings, before)
+                # Once a dialog was handed over, what changed since may be the user's own
+                # doing in Settings; every later tool call guards itself.
+                changed = [] if box.get("handed_over") else _restore_protected(settings, before)
             except Exception:
                 changed = []
             if changed:
@@ -382,6 +389,7 @@ def run_action(context, function: Callable[[], object], answers: Mapping[str, ob
             if not done.is_set():
                 if waiting is not None:
                     record.active = False  # the dialog is the user's (and app_ui_act's) from here
+                    box["handed_over"] = True
                     return {"waiting_on": waiting, "asked": list(record.asked),
                             "message": "The action opened a dialog that waits for an answer. Read it with "
                                        "app_ui and answer it with app_ui_act."}
@@ -395,4 +403,5 @@ def run_action(context, function: Callable[[], object], answers: Mapping[str, ob
     return {"result": box.get("result"), "asked": list(record.asked)}
 
 
-__all__ = ["ACTION_WAIT_S", "ANSWERS_SCHEMA", "DialogAnswers", "answering", "modal_dialog", "run_action"]
+__all__ = ["ACTION_WAIT_S", "ANSWERS_SCHEMA", "DialogAnswers", "answering", "modal_dialog", "run_action",
+           "user_only_titles"]

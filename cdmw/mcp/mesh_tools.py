@@ -447,7 +447,7 @@ def _build_mod(call) -> dict[str, object]:
                 self.create_zip.setChecked(bool(a.get("create_zip", False)))
                 self.open_folder.setChecked(False)
                 shown.update(mod_name=self.mod_name.text(), output_folder=self.output_parent.text())
-                return self.DialogCode.Accepted
+                return int(self.DialogCode.Accepted)
 
         tab_direct_output.MeshModExportDialog = _Answered
         try:

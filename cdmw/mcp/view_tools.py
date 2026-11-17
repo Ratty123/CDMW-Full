@@ -297,31 +297,35 @@ def _one_colour(image) -> bool:
     return len(data) < 8 or data == data[:4] * (len(data) // 4)
 
 
-def _capture_mesh_editor(context, max_side: int):
-    """On the UI thread: the shown Mesh Editor document's viewport.
+def _editor_window(context) -> dict[str, object]:
+    """On the UI thread: the shown Mesh Editor document's native window and its name."""
 
-    First the helper window's own picture. When Windows cannot give that, the viewport's
-    rectangle is copied from the screen, and only while CDMW is the window in front: a
-    read that needs no approval must not copy another program's window.
-    """
+    from cdmw.mcp.mesh_tools import NO_EDITOR, shown_document
+    from cdmw.ui.mesh_editor.documents import document_label
+
+    tab = shown_document(context)
+    if tab is None or getattr(tab, "standalone_native_host_frame", None) is None:
+        raise ToolError(UNAVAILABLE, NO_EDITOR)
+    ready = bool(getattr(tab, "standalone_rust_ready", False))
+    return {"document": document_label(tab),
+            # A helper that is still starting, or stuck, is not asked: the call would wait on it.
+            "hwnd": int(getattr(tab, "standalone_rust_child_hwnd", 0) or 0) if ready else 0}
+
+
+def _screen_copy(context, max_side: int, facts: dict[str, object]):
+    """On the UI thread: the viewport's rectangle copied from the screen, only while CDMW is
+    the window in front: a read that needs no approval must not copy another program's window."""
 
     from PySide6.QtCore import QPoint
 
     from cdmw.mcp.control_tools import png_of
     from cdmw.mcp.mesh_tools import NO_EDITOR, shown_document
     from cdmw.mcp.server import ImageResult
-    from cdmw.ui.mesh_editor.documents import document_label
 
     tab = shown_document(context)
     frame = getattr(tab, "standalone_native_host_frame", None)
     if tab is None or frame is None:
         raise ToolError(UNAVAILABLE, NO_EDITOR)
-    facts: dict[str, object] = {"view": "mesh_editor", "document": document_label(tab)}
-    image = window_picture(int(getattr(tab, "standalone_rust_child_hwnd", 0) or 0))
-    if image is not None and not _one_colour(image):
-        data, width, height = png_of(image, max_side)
-        return ImageResult(data, {**facts, "how": "drawn by the editor's window", "width": width,
-                                  "height": height})
     if not frame.isVisible() or frame.window().isMinimized():
         raise ToolError(UNAVAILABLE, "The Mesh Editor's view is not on screen: show the Mesh Editor "
                                      "(app_open_tool mesh_editor) with CDMW's window visible.")
@@ -333,6 +337,26 @@ def _capture_mesh_editor(context, max_side: int):
     pixmap = screen.grabWindow(0, origin.x(), origin.y(), frame.width(), frame.height())
     data, width, height = png_of(pixmap, max_side)
     return ImageResult(data, {**facts, "how": "copied from the screen", "width": width, "height": height})
+
+
+def _capture_mesh_editor(context, max_side: int):
+    """The shown Mesh Editor document's viewport, from the call's own thread.
+
+    First the helper window's own picture: asked here, not on the UI thread, since Windows
+    waits for the helper to draw. When that gives nothing, the screen is copied.
+    """
+
+    from cdmw.mcp.control_tools import png_of
+    from cdmw.mcp.server import ImageResult
+
+    window = context.ui_call(lambda: _editor_window(context))
+    facts: dict[str, object] = {"view": "mesh_editor", "document": window["document"]}
+    image = window_picture(int(window["hwnd"]))
+    if image is not None and not _one_colour(image):
+        data, width, height = png_of(image, max_side)
+        return ImageResult(data, {**facts, "how": "drawn by the editor's window", "width": width,
+                                  "height": height})
+    return context.ui_call(lambda: _screen_copy(context, max_side, facts))
 
 
 def _capture(call):
@@ -356,7 +380,7 @@ def _capture(call):
         return "mesh_editor" if shown == "mesh_editor" and tab is not None and not in_browse else "browse"
 
     if context.ui_call(where) == "mesh_editor":
-        return context.ui_call(lambda: _capture_mesh_editor(context, max_side))
+        return _capture_mesh_editor(context, max_side)
     return _capture_browse(call)
 
 

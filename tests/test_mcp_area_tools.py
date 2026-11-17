@@ -466,8 +466,9 @@ def test_the_mesh_editors_picture_is_what_its_own_window_draws(browse, app) -> N
     assert hwnd
     frame = QWidget()  # hidden: the helper's window gives the picture, the screen is not needed
     holder = QWidget()
-    holder.active = SimpleNamespace(standalone_native_host_frame=frame, standalone_rust_child_hwnd=hwnd,
-                                    live_edit=None, _current_target_entry=lambda: None)
+    document = SimpleNamespace(standalone_native_host_frame=frame, standalone_rust_child_hwnd=hwnd,
+                               standalone_rust_ready=False, live_edit=None, _current_target_entry=lambda: None)
+    holder.active = document
     browse.window.shell.mesh_editor_tab = holder
     try:
         from cdmw.mcp.view_tools import _one_colour, window_picture
@@ -476,6 +477,9 @@ def test_the_mesh_editors_picture_is_what_its_own_window_draws(browse, app) -> N
         picture = browse.mcp.wait_until(lambda: (lambda p: p if p is not None and not _one_colour(p) else None)(
             window_picture(hwnd)))
         assert (picture.width(), picture.height()) == (200, 120)
+        # A helper that is not ready is not asked for its picture (the call would wait on it).
+        assert "not on screen" in browse.mcp.error("view_capture", {"view": "mesh_editor"})["message"]
+        document.standalone_rust_ready = True
         result = browse.mcp.call("view_capture", {"view": "mesh_editor"})
         assert not result["isError"], result["structuredContent"]
         facts = result["structuredContent"]

@@ -35,9 +35,11 @@ USER_ONLY_MESSAGE = ("Only you can use this control in CDMW: AI connections, the
 _USER_ONLY_CONTROLS = ("archive_package_root_edit", "archive_package_root_browse_button",
                        "archive_package_root_detect_button", "archive_remove_old_install_button",
                        "archive_restore_patch_backup_button")
-#: Windows whose every control is the user's: the AI settings, the approval question, and
-#: the first-run dialog that sets the game folder.
-_USER_ONLY_WINDOWS = ("AiConnectionsSettingsSection", "ApprovalPrompt", "StartupArchivePathDialog")
+#: Windows whose every control is the user's: the AI settings, the approval question, the
+#: first-run dialog that sets the game folder, and the command palette (it runs any command,
+#: the user-only ones too; a tool runs commands with app.run_command, which refuses those).
+_USER_ONLY_WINDOWS = ("AiConnectionsSettingsSection", "ApprovalPrompt", "StartupArchivePathDialog",
+                      "CommandPalette")
 
 _IDS: dict[int, object] = {}
 _NUMBERS: dict[int, int] = {}
@@ -73,6 +75,20 @@ def widget_by_id(text: str):
     if not _valid(widget):
         raise ToolError(NOT_FOUND, f"There is no control {text} now. Call app_ui for the controls shown.")
     return widget
+
+
+def source_text(widget) -> str:
+    """A control's text in English, as the code wrote it: the interface keeps it beside the
+    translation it shows, and what a control does is told by that, in every language."""
+
+    try:
+        source = widget.property("_i18n_source_text")
+    except (AttributeError, RuntimeError):
+        source = None
+    if isinstance(source, str) and source.strip():
+        return _clean(source)
+    text = getattr(widget, "text", None)
+    return _clean(text()) if callable(text) else ""
 
 
 def _clean(text: object) -> str:
@@ -243,6 +259,9 @@ def describe(widget, *, rows: bool = True, offset: int = 0, limit: int = ROWS_SH
     tip = _clean(widget.toolTip())
     if isinstance(widget, QAbstractButton):
         row["text"] = _clean(widget.text()) or tip
+        english = source_text(widget)
+        if english and english != row["text"]:
+            row["english"] = english  # the interface is shown in another language
         if widget.isCheckable():
             row["checked"] = widget.isChecked()
     elif isinstance(widget, QLabel):
@@ -356,9 +375,11 @@ def find_by_text(root, text: str, kind: str = ""):
         if kind and row["kind"] != kind:
             continue
         label = str(row.get("text", "")).casefold()
-        if wanted in (label, str(row.get("name", "")).casefold(), label.rstrip(".:")):
+        english = str(row.get("english", "")).casefold()
+        if wanted in (label, str(row.get("name", "")).casefold(), label.rstrip(".:"), english,
+                      english.rstrip(".:")) and wanted:
             exact.append(row)
-        elif wanted and wanted in label:
+        elif wanted and (wanted in label or wanted in english):
             partial.append(row)
     found = exact or partial
     if not found:
@@ -441,7 +462,7 @@ def user_only_reason(widget, window=None) -> str:
         return USER_ONLY_MESSAGE
     if isinstance(widget, QAbstractButton):
         registry = command_registry()
-        text = _clean(widget.text()).casefold()
+        text = source_text(widget).casefold()
         for command_id in USER_ONLY_COMMANDS:
             if registry is not None and command_id in registry:
                 if text and text == display_label(registry.get(command_id).label).casefold():
@@ -459,7 +480,7 @@ def effect_of_action(widget, action: str) -> str:
     if isinstance(widget, (QTabWidget, QTabBar)):
         return READ  # showing another page changes no document
     if isinstance(widget, QAbstractButton) and action == "click":
-        words = (_clean(widget.text()) or _clean(widget.toolTip())).casefold().split()
+        words = (source_text(widget) or _clean(widget.toolTip())).casefold().split()
         first = words[0].strip(".:") if words else ""
         if first in DESTRUCTIVE_WORDS:
             return DESTRUCTIVE
@@ -587,4 +608,4 @@ def act(widget, action: str, *, value: object = None, row: object = None, window
 
 
 __all__ = ["ACTIONS", "act", "describe", "describe_tree", "effect_of_action", "find_by_text", "kind_of",
-           "mirrored_gate", "mirrored_page", "shown_to_user", "user_only_reason", "widget_by_id", "widget_id"]
+           "mirrored_gate", "mirrored_page", "shown_to_user", "source_text", "user_only_reason", "widget_by_id", "widget_id"]

@@ -428,6 +428,22 @@ def test_no_tool_drives_the_ai_settings_the_approval_prompt_or_the_game_folder(m
     assert mcp.read()["isError"] and window.seen == []
 
 
+def test_a_translated_button_keeps_its_class_and_is_found_by_either_text(mcp, window, settings) -> None:
+    # As the interface shows it in German: the English source is kept beside the shown text.
+    window.delete_button.setProperty("_i18n_source_text", "Delete draft")
+    window.delete_button.setText("Entwurf löschen")
+    row = _controls(mcp)["Entwurf löschen"]
+    assert row["english"] == "Delete draft"
+    settings.setValue(approvals.FULL_ACCESS_KEY, False)
+    for name in ("Entwurf löschen", "Delete draft"):
+        mcp.send("app_ui_act", {"text": name, "action": "click"})
+        prompt = mcp.wait_for_prompt()
+        assert prompt.request.effect == "destructive", name
+        prompt.deny_button.click()
+        assert mcp.read()["isError"]
+    assert window.seen == []
+
+
 def test_no_tool_types_a_place_in_the_game_into_a_field(mcp, window, settings, tmp_path) -> None:
     # A field may be where an output goes (Build Mod's folder, an extract folder).
     game = tmp_path / "Crimson Desert"
@@ -464,6 +480,18 @@ def test_the_controls_that_write_into_the_game_or_set_its_folder_are_the_users(m
 
     first_run = StartupArchivePathDialog(window)
     use = QPushButton("Use this folder", first_run)
+    # The command palette runs any command, the user-only ones too: a tool has app_run_command.
+    from cdmw.ui.commands.palette import CommandPalette
+
+    palette = CommandPalette(command_registry(), ("shell",), window, popup=False)
+    palette.show()
+    app.processEvents()
+    for control in palette.findChildren(QLineEdit) + palette.findChildren(QListWidget):
+        action = "set_text" if isinstance(control, QLineEdit) else "activate"
+        error = mcp.error("app_ui_act", {"widget": widget_id(control), "action": action, "value": "Restore",
+                                         "row": 0})
+        assert error["code"] == "refused" and "Only you" in error["message"]
+    palette.close()
     for button in (remove, restore, use):
         button.clicked.connect(lambda _checked=False, b=button: pressed.append(b.text()))
     for button in (remove, restore):
@@ -486,15 +514,20 @@ def test_a_question_of_a_flow_that_writes_into_the_game_is_never_answered_for_th
         lambda _parent, title, _text, *_more: shown.append(title) or QMessageBox.StandardButton.No))
     answers: list[object] = []
 
+    from cdmw.ui.archive_browser.old_install_removal import TITLE
+
     def ask() -> None:
-        # As when the user's own Restore Backup reaches its question while a tool's action runs.
-        answers.append(QMessageBox.question(None, "Restore Backup", "Restore the game's files?"))
+        # As when the user's own Restore Backup or removal reaches its question while a
+        # tool's action runs: the titles those two flows give their questions.
+        answers.append(QMessageBox.question(None, "Restore Archive Patch Backup", "Restore the game's files?"))
+        answers.append(QMessageBox.question(None, TITLE, "Remove these from the game folder?"))
         answers.append(QMessageBox.question(None, "Probe", "Go on?"))
 
     commands(Command("shell.mcp_question", "Question", "shell", ask))
     asked = mcp.ok("app_run_command", {"command": "shell.mcp_question", "answers": {"confirm": "yes"}})["asked"]
-    assert shown == ["Restore Backup"], "the real question was shown to the user"
-    assert answers == [QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes]
+    assert shown == ["Restore Archive Patch Backup", TITLE], "the real questions were shown to the user"
+    assert answers == [QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
+                       QMessageBox.StandardButton.Yes]
     assert [row["title"] for row in asked] == ["Probe"]
 
 
