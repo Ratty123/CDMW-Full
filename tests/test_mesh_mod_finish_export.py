@@ -447,3 +447,35 @@ def test_a_texture_only_the_body_uses_is_written_only_with_the_body(
     written = [output.game_path for output in kwargs["texture_outputs"]]
     assert written == ([GAME_PATH, BELT_PATH] if include_body else [GAME_PATH])
     assert kwargs["include_refit_body"] is include_body
+
+
+def test_a_texture_only_build_with_every_texture_left_out_says_there_is_nothing_to_build(
+        accepted_cloth_edit, tmp_path, monkeypatch):
+    from tests.test_mesh_live_texture_output import BELT_PATH, _edit, _entry
+    from cdmw.services.mesh_live_texture_output import plan_live_texture_outputs
+
+    tab, _service, _session, entry, _source = accepted_cloth_edit
+    edits = [_edit(tmp_path, game_path=BELT_PATH, users=("Body",))]
+
+    def plan(*, include_body=True):
+        return plan_live_texture_outputs(edits, {BELT_PATH: (_entry(BELT_PATH),)},
+                                         parts_in_build=("Coat", "Body") if include_body else ("Coat",))
+
+    # No mesh change: only the body's texture was edited, and the body stays out.
+    monkeypatch.setattr(tab, "_standalone_export_validation_ok", lambda: False)
+    monkeypatch.setattr("cdmw.ui.mesh_editor.live_edit.end_edit_prompt.unfinished_editor_steps", lambda _tab: ())
+    monkeypatch.setattr(tab, "_live_texture_plan", plan)
+    monkeypatch.setattr(tab, "_mesh_mod_body_entries",
+                        lambda _controller, _entry: ((replace(entry, path="character/body.pac"),), entry))
+
+    def choose(dialog):
+        dialog.output_parent.setText(str(tmp_path / "exports"))
+        return dialog.DialogCode.Accepted
+
+    warnings, started = [], []
+    monkeypatch.setattr(MeshModExportDialog, "exec", choose)
+    monkeypatch.setattr(QMessageBox, "warning", lambda _parent, title, message: warnings.append((title, message)))
+    monkeypatch.setattr(tab, "_start_mesh_direct_output_worker", lambda *args, **kwargs: started.append(kwargs))
+    tab._start_mesh_mod_build_requested()
+    assert not started
+    assert warnings == [("Build Mod", "No part in this mod uses the edited textures, so there is nothing to build.")]
