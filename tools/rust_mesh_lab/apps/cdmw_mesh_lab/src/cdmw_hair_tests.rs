@@ -5029,3 +5029,21 @@ fn hair_select_click_keeps_the_motion_preview_playing() {
         "selecting edits nothing and must not pause the preview"
     );
 }
+
+#[test]
+fn hair_erase_leaves_no_erased_lock_selected() {
+    let (mut app, rect) = ready_hair_app();
+    let (point, id) = visible_lock(&app, rect);
+    app.hair.tool = Some(HairTool::Erase);
+    app.hair.erase_whole_locks = true;
+    hair_click(&mut app, rect, point);
+    assert!(app.hair.preparing(), "{}", app.hair.feedback);
+    assert!(
+        app.hair.selected.is_empty(),
+        "an erased lock must not stay selected for Delete or Apply to selected locks"
+    );
+    await_hair(&mut app);
+    let state = app.hair.state.as_ref().unwrap();
+    assert!(state.locks.iter().all(|lock| lock.id != id));
+    assert!(app.hair.selected.is_empty());
+}

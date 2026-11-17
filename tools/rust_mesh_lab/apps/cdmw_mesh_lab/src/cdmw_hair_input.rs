@@ -621,6 +621,10 @@ impl LabApplication {
                 self.hair.last_pointer = None;
                 self.hair.drawing.clear();
                 self.hair.drawing_samples.clear();
+                // Erase gathers the locks it removes in the selection; they are gone now.
+                if self.hair.tool == Some(HairTool::Erase) {
+                    self.hair.selected.clear();
+                }
                 // Keep the edited rest pose visible while its worker publishes.
                 // Resume at the same procedural pose after preparation completes.
                 // Selecting edits nothing and never paused the preview, so it leaves it running.
@@ -657,6 +661,9 @@ impl LabApplication {
         self.hair.move_anchor = None;
         self.hair.cuts.clear();
         self.hair.erased_faces.clear();
+        if self.hair.tool == Some(HairTool::Erase) {
+            self.hair.selected.clear();
+        }
         self.hair.scene = None;
         if editing {
             self.hair.playing = self.hair.restart_after_stroke;
