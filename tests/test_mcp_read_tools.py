@@ -153,8 +153,23 @@ def test_every_read_tool_is_listed_and_nothing_else(world) -> None:
     assert names == sorted([
         "app_jobs", "app_job", "app_cancel_job", "commands_list", "search_archive", "search_items",
         "search_characters", "search_text", "search_models", "search_saved_work", "files_describe", "files_bytes",
-        "files_parse", "files_references", "files_used_by", "files_format_report", "tables_row", "strings_get"])
+        "files_parse", "files_references", "files_used_by", "files_format_report", "tables_row", "strings_get",
+        "app_shortcuts", "app_manual", "textures_list"])
     assert all(tool["annotations"]["readOnlyHint"] for tool in listed["result"]["tools"])
+
+
+def test_shortcuts_help_and_the_textures_panel_answer_through_the_bridge(world) -> None:
+    shortcuts = world.call("app_shortcuts", {"context": "mesh_editor", "limit": 5})
+    assert not shortcuts["isError"], shortcuts
+    rows = shortcuts["structuredContent"]
+    assert len(rows["shortcuts"]) == 5 and rows["total"] > 5 and "next_page_token" in rows
+    assert {"command", "keys", "default_keys", "changed", "clashes_with"} <= set(rows["shortcuts"][0])
+    manual = world.call("app_manual", {"topic": "profile_settings"})
+    assert not manual["isError"], manual
+    assert "/wiki/" in manual["structuredContent"]["url"]
+    # No main window, so no Mesh Editor: the tool says what to open.
+    textures = world.call("textures_list")
+    assert textures["structuredContent"]["error"]["code"] == "unavailable"
 
 
 def test_search_the_archives_as_browse_does(world) -> None:

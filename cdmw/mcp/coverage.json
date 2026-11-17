@@ -769,11 +769,10 @@
     },
     {
       "id": "textures.list",
-      "area": "Texture Editor",
-      "what": "Every texture a model uses",
+      "area": "Mesh Editor > Textures panel",
+      "what": "Every texture the shown mesh's parts use",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: texture tools (needs P6)"
+      "tool": "textures.list"
     },
     {
       "id": "textures.open",
@@ -1065,9 +1064,16 @@
       "milestone": "P13 stage C part 2: app tools"
     },
     {
-      "id": "app.shortcuts",
+      "id": "shortcuts.list",
       "area": "Settings > Shortcuts",
-      "what": "List, rebind, reset",
+      "what": "Every command's keys, defaults and clashes",
+      "class": "read",
+      "tool": "app.shortcuts"
+    },
+    {
+      "id": "shortcuts.change",
+      "area": "Settings > Shortcuts",
+      "what": "Rebind, unbind, reset",
       "class": "edit",
       "gap": "not_built",
       "milestone": "P13 stage C part 2: app tools"
@@ -1099,10 +1105,9 @@
     {
       "id": "app.manual",
       "area": "Help",
-      "what": "The manual as MCP resources",
+      "what": "The Help topics (the Wiki manual's source) as text",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 stage C part 2: app tools"
+      "tool": "app.manual"
     },
     {
       "id": "archive.overlay_install",
