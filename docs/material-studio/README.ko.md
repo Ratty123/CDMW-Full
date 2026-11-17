@@ -288,6 +288,7 @@
 - 대가: 원본이 셰이더 안에서 섞던 염색 색과 디테일 레이어는 사라진다. base 텍스처가 회색인 의상은 회색이 된다. 미리보기로 판단한다.
 - 데이터: `ShaderControls.force`, `ShaderControls.dropped_textures`. force는 rebuild 없이 쓸 수 없고, dropped_textures에는 그 셰이더 구성의 텍스처 이름(base 제외)만 들어간다.
 - 테스트: `tests/test_material_studio_force_replace.py`(Cloth_Ver2 + Cloth 픽스처, 거부·교체·텍스처 제외·직렬화·Ver2 직접 교체), Rust 헤드리스 `force_replace_opens_a_refused_shader_and_sends_the_rewrite_with_the_kept_textures`.
+- 결과: Rust `cdmw_mesh_lab` 724 통과 / 2 실패(기준선에서도 실패하는 `loader` 테스트, 단독 실행 시 통과하는 60초 제한 hair 테스트). 관련 Python 테스트 83개 파일은 원작자 기준선과 파일별 결과가 같다. 새로 실패한 것은 bake를 쓰는 Ver2 변환 테스트 4개뿐이며, 네이티브 DDS 디코더가 없어서다(Windows CI에서 확인).
 - 인게임 확인 필요: Cloth 계열을 망사로 바꾼 모드가 게임에서 깨지지 않고 비쳐 보이는지. Cloth 셰이더 고유의 물리·바람 설정은 재질 행이 아니라 메시 쪽에 있다고 보고 있지만 확인하지 않았다.
 
 ## 남긴 결정 사항
