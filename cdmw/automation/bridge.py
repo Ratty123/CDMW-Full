@@ -18,6 +18,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, Signal
 
 from cdmw.automation import inspect_commands, pass_commands, saved_work_commands
+from cdmw.automation import review_commands
 from cdmw.automation.pipe import LocalPipeServer, recv_json, send_json
 from cdmw.automation.policy import AutomationSettings
 
@@ -189,6 +190,9 @@ class AutomationBridge(QObject):
             "scene_panel_tick": lambda args: pass_commands.scene_panel_tick(self.window, args),
             "draft_choice_answer": lambda args: pass_commands.draft_choice_answer(self.window, args),
         }
+        # The loading and responsiveness review's paths (review_commands.py).
+        self._ui_commands.update({name: (lambda args, run=run: run(self.window, args))
+                                  for name, run in review_commands.COMMANDS.items()})
 
     # ----- lifecycle -------------------------------------------------------
     def attach(self, window) -> None:
