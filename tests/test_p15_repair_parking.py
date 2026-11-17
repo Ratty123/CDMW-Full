@@ -44,6 +44,7 @@ def _ready_tab(tmp_path, monkeypatch, *, stub_dispose=True):
         closed=False, session_id="draft-a", root=tmp_path, hair_start_mode="",
         shadow_session_id="shadow",
         shadow_service=SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=4),
+                                       session_revision=lambda _id: 4,
                                        _session=lambda _id: SimpleNamespace(hair_state=None)),
         rewrite_for_relaunch=lambda generation: None,
         request_cancel=lambda: True,

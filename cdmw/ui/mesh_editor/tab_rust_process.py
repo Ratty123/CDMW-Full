@@ -1058,7 +1058,9 @@ class MeshEditorRustProcessMixin:
         revision = 0
         if session is not None and not session.closed:
             try:
-                revision = session.shadow_service.session_view(session.shadow_session_id).revision
+                # Not session_view: it waits for the session's lock and prunes the
+                # selection, which closing a tab paid for on the window thread.
+                revision = session.shadow_service.session_revision(session.shadow_session_id)
             except (KeyError, RuntimeError):
                 revision = 0
         payload: dict[str, object] = {

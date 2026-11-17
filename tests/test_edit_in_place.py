@@ -294,7 +294,8 @@ class _KeptSession:
         self.session_id = "shadow-1"
         self.rewrites: list[int] = []
         self.shadow_session_id = "s"
-        self.shadow_service = SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=4))
+        self.shadow_service = SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=4),
+                                              session_revision=lambda _id: 4)
 
     def rewrite_for_relaunch(self, generation: int) -> None:
         self.rewrites.append(generation)
@@ -568,7 +569,8 @@ def test_the_morph_group_is_preparing_until_its_data_comes(tmp_path: Path) -> No
         shadow_session_id = "x"
         defer_morph_state = True
         deferred_morph_ready = False
-        shadow_service = SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=1))
+        shadow_service = SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=1),
+                                         session_revision=lambda _id: 1)
 
         def query_deferred_morph_state(self, done):
             self.done = done

@@ -198,7 +198,8 @@ def test_a_real_editor_parks_its_view_and_keeps_its_session(tmp_path, monkeypatc
     channel = EngineEditChannel(lambda data: written.extend(json.loads(line) for line in bytes(data).splitlines()) or len(data),
                                 lambda: 7, lambda _channel: None, tab)
     session = SimpleNamespace(closed=False, session_id="draft-a", root=tmp_path,
-                              shadow_service=SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=4)),
+                              shadow_service=SimpleNamespace(session_view=lambda _id: SimpleNamespace(revision=4),
+                                                             session_revision=lambda _id: 4),
                               shadow_session_id="shadow")
     disposed: list[object] = []
     rewritten: list[object] = []
