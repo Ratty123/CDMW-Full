@@ -13,8 +13,8 @@ from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import QEvent, QPoint, Qt
-from PySide6.QtTest import QTest
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.mesh_editor.textures_panel import NO_PART, MeshEditorTexturesPanel, TextureThumbnailLoader
@@ -58,9 +58,16 @@ def test_the_panel_says_which_part_the_pointer_is_over(tmp_path: Path) -> None:
         _settle()
         tree, viewport = panel.tree, panel.tree.viewport()
 
-        def point_at(item) -> None:
-            QTest.mouseMove(viewport, tree.visualItemRect(item).center())
+        def move_to(point: QPoint) -> None:
+            # The move itself, not QTest.mouseMove: that one depends on where the real
+            # pointer is and on which window is active when many tests share the app.
+            _APP.sendEvent(viewport, QMouseEvent(
+                QEvent.Type.MouseMove, QPointF(point), QPointF(viewport.mapToGlobal(point)),
+                Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
             _settle()
+
+        def point_at(item) -> None:
+            move_to(tree.visualItemRect(item).center())
 
         point_at(arms)  # a part's own row
         assert hovered == [3]
@@ -73,8 +80,7 @@ def test_the_panel_says_which_part_the_pointer_is_over(tmp_path: Path) -> None:
         point_at(arms.child(0))
         assert hovered[-1] == 3
         # Below the rows, and off the list altogether, nothing is lit.
-        QTest.mouseMove(viewport, QPoint(40, viewport.height() - 4))
-        _settle()
+        move_to(QPoint(40, viewport.height() - 4))
         assert hovered[-1] == NO_PART
         point_at(arms)
         _APP.sendEvent(viewport, QEvent(QEvent.Type.Leave))
