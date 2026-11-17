@@ -257,3 +257,53 @@ def test_a_patch_for_one_texture_is_not_sent_once_another_is_shown(dock) -> None
     _pump(0.05)
     assert editor.document.source_binding.mesh_resource_id == SHA
     assert SHA not in dock.edited_shas, "the second texture's edit went out as the first's"
+
+
+# Adjustments ---------------------------------------------------------------------
+
+
+def _add_adjustment(editor, kind: str) -> None:
+    editor.adjustment_add_combo.setCurrentIndex(editor.adjustment_add_combo.findData(kind))
+    editor.adjustment_add_button.click()
+    _pump(0.05)
+
+
+def test_an_adjustment_changed_by_key_or_wheel_is_an_undo_step_and_shows_on_the_model(dock) -> None:
+    editor = dock.editor
+    _add_adjustment(editor, "brightness_contrast")
+    before = dock.composite()
+    steps = editor.history_index
+    dock.edits.clear()
+    slider = editor.adjustment_param_a_slider
+    slider.setValue(slider.maximum())  # a key press or the wheel: the slider is never pressed
+    _pump(0.1)
+    after = dock.composite()
+    assert not np.array_equal(after, before)
+    assert editor.history_index == steps + 1, "the change is its own Undo step"
+    assert _shows_on_the_model(dock), "the model shows the brighter texture"
+    editor.undo()
+    _pump(0.05)
+    assert np.array_equal(dock.composite(), before)
+    editor.redo()
+    _pump(0.05)
+    assert np.array_equal(dock.composite(), after)
+
+
+def test_an_adjustment_drag_is_one_undo_step_when_released(dock) -> None:
+    editor = dock.editor
+    _add_adjustment(editor, "brightness_contrast")
+    before = dock.composite()
+    steps = editor.history_index
+    slider = editor.adjustment_param_a_slider
+    slider.setSliderDown(True)
+    for value in (10, 30, 60):
+        slider.setValue(value)
+        _pump(0.05)
+    assert editor.history_index == steps, "nothing is committed while the slider is held"
+    slider.setSliderDown(False)
+    _pump(0.05)
+    assert editor.history_index == steps + 1
+    assert _shows_on_the_model(dock)
+    editor.undo()
+    _pump(0.05)
+    assert np.array_equal(dock.composite(), before)

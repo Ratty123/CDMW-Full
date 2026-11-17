@@ -61,6 +61,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- An adjustment changed with the keyboard, the mouse wheel, a click beside a slider's handle or **Selective Color**'s colour list is now an Undo step of its own and shows on the model at once, as a drag does when you release it. Until some later edit it showed only in the Texture Editor panel, and Undo took it back together with that edit.
 - Texture edits in the Mesh Editor's **Texture Editor** panel that the model did not show now show there too: **Move**, hiding, showing or removing a layer, and **Undo**, **Redo** or a **History** restore of a layer or adjustment change. The panel showed the change but the model kept the texture as it was until the next brush stroke.
 - **Recolor**'s **Preserve shading / luminance** keeps each pixel's brightness and gives it the target colour's hue. A dark target colour on a lighter texture came out as a flat, over-bright pure colour (a dark blue turned every pixel the same vivid blue), so the shading was lost.
 - The Texture Editor's **Recolor** in **Replace selected color** mode changes only colours within the **Recolor tolerance** of the source colour. It turned nearly every pixel into the target colour, whatever the tolerance, because the colour distance was worked out in 8-bit numbers that wrapped around. Recolor also no longer stops CDMW for several seconds on a large texture.

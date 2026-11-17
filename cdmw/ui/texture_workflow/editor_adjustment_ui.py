@@ -256,6 +256,19 @@ class TextureEditorAdjustmentUiMixin:
         self._adjustment_property_dirty = texture_editor_adjustment_properties_dirty(before_document, self.document)
         self._refresh_canvas()
         self._refresh_canvas_status_strip()
+        # A drag commits when its slider is released; keys, the wheel, groove clicks and
+        # the mode list never press a slider, so their change is committed here (an Undo
+        # step, and shown on the model) instead of waiting for some later edit.
+        if not any(slider.isSliderDown() for slider in self._adjustment_property_sliders()):
+            self.commit_selected_adjustment_properties()
+
+    def _adjustment_property_sliders(self) -> tuple:
+        return (
+            self.adjustment_opacity_slider,
+            self.adjustment_param_a_slider,
+            self.adjustment_param_b_slider,
+            self.adjustment_param_c_slider,
+        )
 
     def commit_selected_adjustment_enabled(self) -> None:
         if self._adjustment_preview_timer.isActive():
