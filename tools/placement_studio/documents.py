@@ -35,6 +35,14 @@ def is_body_socket_file(game_path: str) -> bool:
     return game_path.lower().endswith(".pab.sockets.xml")
 
 
+def is_weapon_socket_file(game_path: str) -> bool:
+    """An item's own socket file: `socketbonedata/1_pc/<model>/weapon/**.sockets.xml`."""
+
+    lowered = game_path.replace("\\", "/").lower()
+    return (lowered.endswith(".sockets.xml") and "/weapon/" in lowered
+            and not is_body_socket_file(lowered))
+
+
 class SocketDocument:
     """A `*.sockets.xml` file: socket definitions plus stack-equip references."""
 

@@ -159,8 +159,11 @@ def test_changing_the_tower_shields_point_saves_but_a_truly_shared_one_does_not(
     edits.nudge(TOWER, SHIELD_POINT, 0.0, 0.02, 0.0)
     outcome, written = _save(edits, files, _users(session))
     assert outcome.saved, outcome.problems
-    # Weapon socket files are written whole, as before.
-    assert any(path.endswith("cd_phm_03_towershield_0001.sockets.xml") for path in written)
+    # An item's own file whose change is set lines only goes out as a patch (since 2026-11-17).
+    patch = next(data for path, data in written.items()
+                 if path.endswith("cd_phm_03_towershield_0001.sockets.xml.patch"))
+    assert b'match-Name="Spine2_B_Shield_ChildSocket" match-Parent="B_Weapon_0001"' in patch
+    assert not any(path.endswith("cd_phm_03_towershield_0001.sockets.xml") for path in written)
 
     # Counted by name, as the check used to, the same change was refused.
     by_name = {k: v for k, v in _users(session).items() if isinstance(k, str)}
@@ -414,8 +417,9 @@ def test_hang_like_copies_the_tower_shields_point_and_saves_the_file(window_fact
     outcome, written = _save(window._edits, files, window._shared_socket_users())
     assert outcome.saved, outcome.problems
     saved = next(data for path, data in written.items()
-                 if path.endswith("cd_phm_03_shield_0001.sockets.xml"))
-    assert b"0.254602" in saved and b"<SocketBoneData>" in saved
+                 if path.endswith("cd_phm_03_shield_0001.sockets.xml.patch"))
+    assert b"0.254602" in saved and saved.startswith(b"<xml-patch>")
+    assert saved.count(b"<set ") == 2
 
 
 def test_where_it_hangs_explains_a_point_another_mod_adds(window_factory) -> None:
