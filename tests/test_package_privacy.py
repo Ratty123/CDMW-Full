@@ -35,6 +35,7 @@ def machine(monkeypatch, tmp_path):
     profile = tmp_path / "Users" / "Builder"
     monkeypatch.setenv("USERPROFILE", str(profile))
     monkeypatch.setenv("USERNAME", "Builder")
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     for name in ("CARGO_HOME", "RUSTUP_HOME", "TEMP", "TMP", "LOCALAPPDATA", "APPDATA", "VCPKG_ROOT"):
         monkeypatch.delenv(name, raising=False)
     return profile
@@ -53,6 +54,28 @@ def test_every_spelling_of_a_local_path_is_found(machine) -> None:
     }
     for label, data in samples.items():
         assert scan_bytes(label, data, needles), label
+
+
+def test_a_hosted_runner_profile_is_not_a_needle_but_its_checkout_is(machine, monkeypatch, tmp_path) -> None:
+    runner = tmp_path / "Users" / "runneradmin"
+    monkeypatch.setenv("USERPROFILE", str(runner))
+    monkeypatch.setenv("USERNAME", "runneradmin")
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("LOCALAPPDATA", str(runner / "AppData" / "Local"))
+    monkeypatch.setenv("TEMP", str(runner / "AppData" / "Local" / "Temp"))
+    monkeypatch.setenv("CARGO_HOME", r"C:\Users\runneradmin\.cargo")
+    needles = machine_needles([r"D:\a\CDMW-Full\CDMW-Full"])
+    # Third-party wheels built on other GitHub runners record the same public profile.
+    assert not scan_bytes("numpy", rb"C:\Users\runneradmin\AppData\Local\Temp\cibw-run\x", needles)
+    assert not scan_bytes("numpy config", rb"C:/Users/runneradmin/AppData/Local/Temp/build-env/python.exe", needles)
+    assert scan_bytes("ours", rb"panic at D:\a\CDMW-Full\CDMW-Full\native\lib.rs", needles)
+    # The same profile off GitHub Actions, or another user on it, is still refused.
+    monkeypatch.delenv("GITHUB_ACTIONS")
+    assert scan_bytes("numpy", rb"C:\Users\runneradmin\x", machine_needles())
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("USERPROFILE", str(machine))
+    monkeypatch.setenv("USERNAME", "Builder")
+    assert scan_bytes("profile", rb"D:\Users\Builder\x", machine_needles())
 
 
 def test_a_bare_publisher_name_is_not_a_local_path(machine) -> None:

@@ -261,3 +261,45 @@ def test_translucency_bakes_each_model_variant_from_its_own_layers(route):
     assert len(set(paths)) == 2
     pixels = [Image.open(BytesIO(output[path])).convert("RGB").getpixel((1, 1)) for path in paths]
     assert pixels[0][0] > pixels[0][2] and pixels[1][2] > pixels[1][0]
+
+
+@pytest.mark.parametrize("route", ["mesh", "prepared_import"])
+@pytest.mark.parametrize("target", ["SkinnedMeshTransparency", "SkinnedMeshGlass"])
+def test_layered_equipment_converts_to_the_net_veil_and_layered_glass_through_the_bake(route, target):
+    """SkinnedMeshStandard_Ver2 mixes its dye and detail layers in the shader, so the
+    plain-material shaders only read its base layer. The baker flattens the layers
+    first, as it does for Equipment glass; the shader rewrite then takes the plain result."""
+    files = layered_source("SkinnedMeshStandard_Ver2")
+    before = dict(files.side_files)
+    assert target in equipment_shader_options(before[XML].decode())["blade"][1]
+    value = ("_netPitch", (.2,)) if target == "SkinnedMeshTransparency" else ("_tintOpacity", (.25,))
+    choice = (("Blade", ShaderControls(target, (value,))),)
+    if route == "mesh":
+        mesh, state = mesh_state(files)
+        state = replace(state, parts=(replace(state.parts[0], shader_controls=choice[0][1]), state.parts[1]))
+        side = {file.path: file.data for file in build_shader_control_files(state, mesh, ())}
+    else:
+        side = apply_shader_controls(files, choice).side_files
+    text = side[XML].decode()
+    blade, handle = find_material_wrappers(text)
+    old_handle = find_material_wrappers(before[XML].decode())[1]
+    assert blade.shader == target
+    assert float(blade.value(value[0])) == pytest.approx(value[1][0])
+    assert "_detailDiffuseMaskR" not in blade.textures and "_extinctionTint" not in text
+    assert "_thickness" not in blade.textures and blade.value("_extinctionCoefficient") in ("", None)
+    with Image.open(BytesIO(side[blade.textures["_baseColorTexture"]])) as image:
+        left, right = image.convert("RGB").getpixel((1, 1)), image.convert("RGB").getpixel((6, 1))
+    assert left[0] > left[1] > left[2] and all(a > b for a, b in zip(left, right)), (left, right)
+    assert text[handle.start:handle.end] == before[XML].decode()[old_handle.start:old_handle.end]
+    assert files.side_files == before
+
+
+def test_the_net_veil_option_is_enabled_for_layered_equipment_in_mesh_editor():
+    files = layered_source("SkinnedMeshStandard_Ver2")
+    mesh, state = mesh_state(files)
+    for part, rule in zip(mesh.submeshes, state.parts):
+        setattr(part, PART_ID_ATTRIBUTE, rule.part_id)
+    session = SimpleNamespace(replacement_state=state, mesh_format="pac", working_mesh=mesh, base_mesh=mesh)
+    options = _shader_source_options(session)[0]["shader_options"]
+    assert options["SkinnedMeshTransparency"] == "" and options["SkinnedMeshGlass"] == ""
+    assert options["SkinnedMeshWing"]  # Shaders that cannot take a baked material stay disabled.

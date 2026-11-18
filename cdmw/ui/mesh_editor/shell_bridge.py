@@ -379,11 +379,11 @@ class MeshEditorShellBridgeMixin:
         )
         has_textures = getattr(self.archive, "_archive_active_package_has_textures", None)
         if package_path is None or not callable(has_textures):
-            return None
+            return self._mesh_editor_retained_textured_package_for_entry(entry)
         try:
             package = Path(package_path)
             if not bool(has_textures()):
-                return None
+                return self._mesh_editor_retained_textured_package_for_entry(entry)
             package = native_material_package_for_rust_preview(package) or package
         except (OSError, RuntimeError, TypeError, ValueError):
             return None
@@ -392,6 +392,45 @@ class MeshEditorShellBridgeMixin:
             if self._mesh_editor_package_matches_archive_entry(package, entry)
             else None
         )
+
+    def _mesh_editor_retained_textured_package_for_entry(
+        self,
+        entry: ArchiveEntry,
+    ) -> Path | None:
+        """The textured package of the preview the Archive Browser still holds for ``entry``.
+
+        Opening Mesh Editor pauses the Archive Browser's renderer, so a second
+        open of the same model (Close, then Open Selected Mesh) finds no active
+        package. The preview result keeps its resolved material model and its
+        package, which stays on disk; reusing them opens the model exactly as
+        the first time instead of rebuilding its materials from the package's
+        flattened batches, which can pair a part with another part's material.
+        """
+        current_preview = getattr(self.archive, "current_archive_preview_result", None)
+        if getattr(current_preview, "preview_model", None) is None:
+            return None
+        current_entry_getter = getattr(self.archive, "_current_archive_entry", None)
+        current_entry = current_entry_getter() if callable(current_entry_getter) else None
+        requested_entry = getattr(self.archive, "archive_preview_request_entry", None)
+        if not (
+            isinstance(current_entry, ArchiveEntry)
+            and archive_entry_identity_key(current_entry) == archive_entry_identity_key(entry)
+            and (not isinstance(requested_entry, ArchiveEntry)
+                 or archive_entry_identity_key(requested_entry) == archive_entry_identity_key(entry))
+        ):
+            return None
+        package_text = str(getattr(current_preview, "dotnet_preview_package_path", "") or "").strip()
+        if not package_text:
+            return None
+        from cdmw.ui.archive_browser.preview_state import archive_model_package_has_textures
+
+        try:
+            package = native_material_package_for_rust_preview(Path(package_text)) or Path(package_text)
+            if not package.is_dir() or not archive_model_package_has_textures(package):
+                return None
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return None
+        return package if self._mesh_editor_package_matches_archive_entry(package, entry) else None
 
     def _defer_rust_mesh_editor_for_archive_textures(
         self,

@@ -2807,6 +2807,13 @@ impl LabApplication {
                         .text(crate::localization::tr("Vertex size")),
                 );
                 colour_row(ui, "Background", &mut self.viewport_background_colour);
+                // Also Shift+H; this works whatever the keyboard layout or focus.
+                if ui.checkbox(&mut self.selection_highlight_hidden, crate::localization::tr("Hide selection highlight"))
+                    .on_hover_text(crate::localization::tr(
+                        "Stops tinting the selected part so its material can be judged. The part stays selected. Shortcut: Shift+H."))
+                    .changed() {
+                    self.face_selection_overlay = None;
+                }
                 ui.add_enabled_ui(screen_grid_visible, |ui| {
                     colour_row(ui, "Screen grid", &mut self.viewport_grid_colour);
                 });
