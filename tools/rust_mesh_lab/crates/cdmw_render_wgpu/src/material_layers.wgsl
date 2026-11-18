@@ -62,7 +62,10 @@ fn layer_normal(sampled: vec3<f32>, layer: LayerEntry) -> vec3<f32> {
     let signed = layer.properties.w == 2.0;
     let xy = select(sampled.xy * 2.0 - vec2<f32>(1.0), sampled.xy, signed);
     let z = select(sampled.z * 2.0 - 1.0, sqrt(max(1.0-dot(xy,xy),0.0)), layer.properties.w > 0.0);
-    let rotated = vec2<f32>(dot(layer.affine.xy, xy), dot(layer.affine.zw, xy)) / max(length(layer.affine.xy), 0.00001);
+    // Each row of the placement is the angle's row over that axis's scale, so
+    // each is divided by its own length: the normal turns by the angle only.
+    let rotated = vec2<f32>(dot(layer.affine.xy, xy) / max(length(layer.affine.xy), 0.00001),
+                            dot(layer.affine.zw, xy) / max(length(layer.affine.zw), 0.00001));
     return safe_normalize(vec3<f32>(rotated,z), vec3<f32>(0.0,0.0,1.0));
 }
 
@@ -337,6 +340,9 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     var layer_normals: array<vec3<f32>,3>;
     var layer_responses: array<vec3<f32>,3>;
     var response_opacity = vec3<f32>(1.0);
+    // Mode 1: each layer's normal weight, the game's
+    // w = opacity byte * (flag bit 4k ? alpha : 1) * ceil(mask[k]) where bit 4k+1 is set.
+    var normal_weights = vec3<f32>(0.0);
     normals[0] = textureSampleBias(layer_r_normal, material_sampler, ur, 0.0).rgb;
     normals[1] = textureSampleBias(layer_g_normal, material_sampler, ug, 0.0).rgb;
     normals[2] = textureSampleBias(layer_b_normal, material_sampler, ub, 0.0).rgb;
@@ -437,7 +443,7 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
             let flags = u32(layer.offset.z);
             let opacity = clamp(layer.properties.x, 0.0, 1.0);
             let normal_opacity = opacity * select(1.0, alphas[k], (flags & 1u) != 0u) * select(0.0, 1.0, (flags & 2u) != 0u);
-            n = safe_normalize(mix(vec3<f32>(0.0,0.0,1.0), n, normal_opacity), vec3<f32>(0.0,0.0,1.0));
+            normal_weights[k] = normal_opacity * ceil(clamp(raw_mask[k], 0.0, 1.0));
             response_opacity[k] = opacity * select(0.0, 1.0, (flags & 4u) != 0u);
         }
         layer_colors[k] = c;
@@ -451,7 +457,12 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
         if mask.r >= mask.g && mask.r >= mask.b { slot = 0u; } else if mask.g >= mask.b { slot = 1u; }
         let layer = layer_uniform.layers[slot];
         color = layer_colors[slot];
-        normal = layer_normals[slot];
+        // The game lays the drawn layer's normal over the surface's own:
+        // N = normalize(lerp(N, layering(N, d), w)) (%655-%732); no fixed share.
+        normal = base_normal;
+        if normal_weights[slot] > 0.0 {
+            normal = safe_normalize(mix(base_normal, ver2_layer_normal(base_normal, layer_normals[slot]), normal_weights[slot]), base_normal);
+        }
         // Roughness and metal start from layer R and move to G and B by their
         // mask channel times opacity, in that order.
         var response = layer_responses[0].gb * response_opacity.r;
@@ -504,7 +515,6 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     out.normal = normal;
     if layer_uniform.control.x == 1u {
         out.color *= layer_uniform.base_color.rgb;
-        out.normal = layer_rnm(base_normal, safe_normalize(vec3<f32>(normal.xy*0.7,normal.z), vec3<f32>(0.0,0.0,1.0)));
         // The symbol's normal, last (%1794-%1867): it replaces the surface's when
         // option bit 6 asks for it, else it is laid over it by the weight.
         if symbol_weight > 0.0 && layer_uniform.blend_switches.y > 0.5 {

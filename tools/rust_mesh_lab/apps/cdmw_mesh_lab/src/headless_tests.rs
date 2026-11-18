@@ -1333,6 +1333,110 @@ fn offscreen_layer_sp_red_is_no_occlusion() -> TestResult {
     Ok(())
 }
 
+/// The Ver2 layer normal (permutation d4ae32939fa23e46, %655-%732): the drawn
+/// layer's normal d is laid over the surface's, N = normalize(lerp(N,
+/// layering(N, d), w)) with w = opacity byte * (flag bit 4k ? alpha : 1) *
+/// ceil(mask[k]). No constant scales it. CDMW blended d towards flat by w and
+/// then took 70% of its slope.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_ver2_layer_normal_has_no_fixed_share() -> TestResult {
+    use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    // A steep layer normal: x = 250 / 255 * 2 - 1, y = 0, z rebuilt.
+    let x = 250.0_f32 / 255.0 * 2.0 - 1.0;
+    let z = (1.0 - x * x).max(0.0).sqrt();
+    for opacity in [1.0_f32, 0.5] {
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[1] = Some(texture([128, 128, 128, 255], TextureRole::BaseColor)?);
+        layer.textures[2] = Some(texture([250, 128, 0, 255], TextureRole::Normal)?);
+        layer.textures[3] = Some(texture([255, 128, 40, 255], TextureRole::Material)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [1.0, 1.0, 1.0, 0.0],
+            affine: [1.0, 0.0, 0.0, 1.0],
+            offset: [0.0, 0.0, 15.0, 0.0],
+            // Encoding 1: red and green, z rebuilt.
+            properties: [opacity, 0.2158, 1.0, 1.0],
+            ..Default::default()
+        };
+        let name = format!("opacity{opacity}");
+        let path = temporary.path().join(format!("{name}-normal.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &temporary.path().join(format!("{name}-base.bmp")),
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: Some(&path),
+                material_response: None,
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(path)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        // Over a flat surface the layering returns d, so N = normalize(lerp((0,0,1), d, w)).
+        let v = [opacity * x, 1.0 - opacity + opacity * z];
+        let expected = v[1] / (v[0] * v[0] + v[1] * v[1]).sqrt();
+        let drawn = (f32::from(pixel[0]) / 255.0 * 2.0 - 1.0).abs();
+        assert!(
+            (drawn - expected).abs() <= 0.02,
+            "opacity {opacity}: the normal's z {drawn} != {expected}"
+        );
+    }
+    Ok(())
+}
+
 /// The game's Ver2 scratch rule: where `_detailMaskTexture` red marks a scratch,
 /// the drawn layer's roughness moves through its remaining range and its metal by
 /// the plain step, and the scratch tint is overlaid on the colour.
