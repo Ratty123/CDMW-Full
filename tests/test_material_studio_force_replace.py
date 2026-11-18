@@ -140,3 +140,17 @@ def test_the_panel_offers_force_only_for_known_equipment_sources_and_previews_it
     # No source shader, or a world object: nothing to force.
     assert not any(_panel_row(_preview_part("", {}))["forceable"].values())
     assert not any(_panel_row(_preview_part("Standard", {}), static=True)["forceable"].values())
+
+
+def test_a_layer_coloured_material_without_a_base_texture_gets_a_constant_colour_base():
+    # Layered Ver2 outfits (cd_phw_00_uw_00_0001) take all their colour from detail layers.
+    source = CLOTH.replace(texture("_baseColorTexture", "character/texture/shirt.dds"), "").replace(
+        '<MaterialParameterFloat StringItemID="_sheen"',
+        '<MaterialParameterColor StringItemID="_dyeingDetailLayerColorMaskR" ItemID="79" '
+        '_name="_dyeingDetailLayerColorMaskR" _value="#d1c1b2ff" Index="6"/><MaterialParameterFloat StringItemID="_sheen"')
+    with pytest.raises(ValueError, match="base colour"):
+        rewrite_shader_controls(source, (("Blade", ShaderControls("SkinnedMeshGlass", (), rebuild=True)),))
+    edited, _ = rewrite_shader_controls(source, (("Blade", forced()),))
+    _shader, _values, textures = control_material_sources(edited)["blade"]
+    assert textures["_baseColorTexture"] == "texture/nonetexture0xffd1c1b2.dds"
+    assert textures["_heightTexture"].endswith("shirt_disp.dds")

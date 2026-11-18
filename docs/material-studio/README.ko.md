@@ -285,6 +285,7 @@
   - 원본 셰이더 검사와 레이어 굽기(bake)를 건너뛴다. 장비가 아닌 정적 메시, 원본 재질 정보가 없는 부위, Glow·Translucency를 적용한 부위에는 체크박스가 나오지 않는다(호스트가 부위별 `forceable`로 알려준다).
   - 강제로 고른 셰이더도 슬라이더를 움직이는 동안 실시간 미리보기가 된다(`preview_base`에 포함).
   - "원본 재질에서 유지할 텍스처" 체크박스가 나온다. `_baseColorTexture`는 항상 유지하고, normal / material / height 텍스처는 끌 수 있다. 끈 텍스처는 셰이더 기본값(비어 있음)으로 쓴다.
+- base 텍스처가 없는 재질(색을 전부 디테일 레이어에서 가져오는 Ver2 의상, 예: `cd_phw_00_uw_00_0001`)은 게임의 단색 텍스처 `texture/nonetexture0xffRRGGBB.dds`를 base로 쓴다. 색은 `_dyeingDetailLayerColorMaskR` → `_tintColorR` → `_dyeingColor` 순으로 찾고, 없으면 회색(888888)이다. 게임 정의 파일이 기본값으로 같은 형식(`nonetexture0xff888888`)을 쓰지만, base 자리에서 동작하는지는 인게임 확인이 필요하다.
 - 대가: 원본이 셰이더 안에서 섞던 염색 색과 디테일 레이어는 사라진다. base 텍스처가 회색인 의상은 회색이 된다. 미리보기로 판단한다.
 - 데이터: `ShaderControls.force`, `ShaderControls.dropped_textures`. force는 rebuild 없이 쓸 수 없고, dropped_textures에는 그 셰이더 구성의 텍스처 이름(base 제외)만 들어간다.
 - 테스트: `tests/test_material_studio_force_replace.py`(Cloth_Ver2 + Cloth 픽스처, 거부·교체·텍스처 제외·직렬화·Ver2 직접 교체), Rust 헤드리스 `force_replace_opens_a_refused_shader_and_sends_the_rewrite_with_the_kept_textures`.

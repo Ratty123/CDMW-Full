@@ -363,11 +363,24 @@ def _rewrite_block(block, shader, controls, *, static, texture_paths=None):
     if controls.rebuild:
         if static:
             raise ValueError("Rebuilding the parameter layout is supported on equipment models only.")
-        block = rebuild_material_layout(block, family, controls.dropped_textures)
+        block = rebuild_material_layout(block, family, controls.dropped_textures, force=controls.force)
     return block
 
 
-def rebuild_material_layout(block, family, dropped=()):
+def _solid_base_texture(existing):
+    """A texture row naming the engine's constant colour, from the main layer colour."""
+    colour = "ff888888"
+    for name in ("_dyeingDetailLayerColorMaskR", "_tintColorR", "_dyeingColor"):
+        raw = existing[name].get("_value", "") if name in existing else ""
+        if re.fullmatch(r"#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?", raw):
+            colour = "ff" + raw[1:7].lower()
+            break
+    row = ET.Element("MaterialParameterTexture")
+    ET.SubElement(row, "ResourceReferencePath_ITexture", {"Name": "_value", "_path": f"texture/nonetexture0x{colour}.dds"})
+    return row
+
+
+def rebuild_material_layout(block, family, dropped=(), *, force=False):
     """Rewrite one equipment material with the shader's own row set.
 
     Values come from the block as it stands, so call this after the changed
@@ -385,7 +398,11 @@ def rebuild_material_layout(block, family, dropped=()):
         raise ValueError("Cannot identify the material's parameter block.")
     existing = _parameter_rows(block)
     if "_baseColorTexture" not in existing:
-        raise ValueError("Rebuilding needs a source material with a base colour texture.")
+        if not force:
+            raise ValueError("Rebuilding needs a source material with a base colour texture.")
+        # A layered material can take all its colour from detail layers. Force
+        # replace then uses the game's constant-colour texture in that layer's colour.
+        existing = {**existing, "_baseColorTexture": _solid_base_texture(existing)}
     fields = {field.name: field for field in family.fields}
     indent = re.search(r'\n[ \t]*(?=<MaterialParameter)', vector.group("body") or "")
     indent = indent.group() if indent else ""
