@@ -148,6 +148,8 @@ const MATERIAL_ALPHA_BLEND: u32 = 33554432u;
 const MATERIAL_GLTF_PBR: u32 = 67108864u;
 const MATERIAL_GPU_LAYERS: u32 = 134217728u;
 const MATERIAL_MIP_LOD_BIAS: f32 = -2.0;
+// SkinnedMeshSkin's subsurface offset, _skinBaseSubsurface * 2 - 1 at its default 1.0.
+const SKIN_BASE_SUBSURFACE_ADD: f32 = 1.0;
 
 struct LayerSurface { color: vec3<f32>, normal: vec3<f32>, orm: vec3<f32>, mask: vec3<f32>, };
 // MATERIAL_LAYER_FUNCTIONS
@@ -882,10 +884,18 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     var roughness = 0.66;
     var metalness = 0.0;
     var skin_subsurface_multiplier = 1.0;
+    var skin_occlusion = -1.0;
+    let skin_surface_map = is_skin && !gltf_pbr && !has_skin_specular_response
+        && (material.flags & MATERIAL_SURFACE) != 0u;
     if (material.flags & MATERIAL_SURFACE) != 0u {
         let packed = textureSampleBias(material_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
         roughness = clamp(packed.g, 0.04, 1.0);
         metalness = clamp(packed.b, 0.0, 1.0);
+        if skin_surface_map {
+            // The skin map bound as the packed surface map: the same reading as below.
+            skin_occlusion = clamp(packed.r, 0.0, 1.0);
+            skin_subsurface_multiplier = mix(0.65, 1.10, clamp(packed.b + SKIN_BASE_SUBSURFACE_ADD, 0.0, 1.0));
+        }
     }
     if (material.flags & MATERIAL_ROUGHNESS) != 0u {
         roughness = clamp(textureSampleBias(roughness_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r, 0.04, 1.0);
@@ -899,13 +909,15 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             material_sampler,
             sample_uv,
             MATERIAL_MIP_LOD_BIAS).rgb;
-        // SkinnedMeshSkin packs subsurface response in R and direct roughness
-        // in G. B is deliberately ignored: unlike equipment `_sp`, it is not
-        // a metalness channel for this shader family.
+        // SkinnedMeshSkin (permutation 35a6e962b807d560) reads `_materialTexture`
+        // R as ambient occlusion, G as roughness and B as subsurface; B is never
+        // metal. The subsurface it writes is saturate(B + _skinBaseSubsurface * 2 - 1),
+        // and no wrapper sets _skinBaseSubsurface (default 1.0), so it is 1.
+        skin_occlusion = clamp(skin_specular_response.r, 0.0, 1.0);
         skin_subsurface_multiplier = mix(
             0.65,
             1.10,
-            clamp(skin_specular_response.r, 0.0, 1.0));
+            clamp(skin_specular_response.b + SKIN_BASE_SUBSURFACE_ADD, 0.0, 1.0));
         roughness = clamp(skin_specular_response.g, 0.04, 1.0);
     }
     if has_source_glossiness {
@@ -966,10 +978,16 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             material_sampler,
             skin_detail_uv,
             MATERIAL_MIP_LOD_BIAS);
+        // The skin shader scales its maps by the detail material where the
+        // detail mask is set: x = lerp(x, x * detail, weight) for occlusion (R)
+        // and roughness (G).
         roughness = clamp(
-            mix(roughness, skin_detail_surface.g, skin_detail_weight),
+            mix(roughness, roughness * skin_detail_surface.g, skin_detail_weight),
             0.04,
             1.0);
+        if skin_occlusion >= 0.0 {
+            skin_occlusion = mix(skin_occlusion, skin_occlusion * skin_detail_surface.r, skin_detail_weight);
+        }
     }
     if is_skin && !gltf_pbr {
         metalness = 0.0;
@@ -977,6 +995,10 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     if (material.flags & MATERIAL_HEIGHT) != 0u {
         let height_relief = (height_value - 0.5) * clamp(material.relief_factors.x, 0.0, 1.0);
         roughness = clamp(roughness - height_relief * 0.10, 0.04, 1.0);
+    }
+    if has_skin_specular_response || skin_surface_map {
+        // The skin shader writes roughness capped at 0.7.
+        roughness = min(roughness, 0.7);
     }
     // Explicit surface edits replace packed G/B, matching the exported DDS.
     // Apply after source layers and factors; never alter absorption or emission.
@@ -999,6 +1021,8 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     var raw_occlusion = 1.0;
     if (material.flags & MATERIAL_OCCLUSION) != 0u {
         raw_occlusion = clamp(textureSampleBias(occlusion_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
+    } else if skin_occlusion >= 0.0 {
+        raw_occlusion = skin_occlusion;
     }
     var occlusion_category_weight = 0.78;
     if is_metal { occlusion_category_weight = 1.0; }
@@ -12961,40 +12985,45 @@ mod tests {
         assert!(SHADER.contains("skin_detail_mask_texture,"));
         assert!(SHADER.contains("MATERIAL_MIP_LOD_BIAS).r * material.skin_detail_opacity"));
         assert!(SHADER.contains("tangent_normal.xy + detail_normal.xy"));
-        assert!(SHADER.contains("mix(roughness, skin_detail_surface.g, skin_detail_weight)"));
+        assert!(SHADER.contains("mix(roughness, roughness * skin_detail_surface.g, skin_detail_weight)"));
         assert!(SHADER.contains("if is_skin && !gltf_pbr {\n        metalness = 0.0;"));
     }
 
     #[test]
-    fn skin_specular_response_uses_green_roughness_and_red_scatter_without_equipment_drift() {
+    fn skin_material_map_reads_red_occlusion_green_roughness_blue_subsurface() {
+        // SkinnedMeshSkin (35a6e962b807d560): R ambient occlusion, G roughness
+        // capped at 0.7, B subsurface (never metal), saturate(B + 1) at the
+        // default _skinBaseSubsurface.
         fn apply_skin_specular_reference(
             is_skin: bool,
             has_specular: bool,
             sample: Vec3,
             roughness: f32,
             metalness: f32,
-        ) -> (f32, f32, f32) {
+        ) -> (f32, f32, f32, f32) {
             if !is_skin || !has_specular {
-                return (roughness, metalness, 1.0);
+                return (roughness, metalness, 1.0, -1.0);
             }
             (
-                sample.y.clamp(0.04, 1.0),
+                sample.y.clamp(0.04, 1.0).min(0.7),
                 0.0,
-                0.65 + (1.10 - 0.65) * sample.x.clamp(0.0, 1.0),
+                0.65 + (1.10 - 0.65) * (sample.z + 1.0).clamp(0.0, 1.0),
+                sample.x,
             )
         }
 
         let authored_skin =
-            apply_skin_specular_reference(true, true, Vec3::new(0.77, 0.42, 0.997), 0.66, 0.81);
-        assert!((authored_skin.0 - 0.42).abs() < 1e-6);
+            apply_skin_specular_reference(true, true, Vec3::new(0.77, 0.78, 0.375), 0.66, 0.81);
+        assert!((authored_skin.0 - 0.7).abs() < 1e-6, "skin roughness caps at 0.7");
         assert_eq!(authored_skin.1, 0.0, "skin blue never becomes metalness");
-        assert!((0.65..=1.10).contains(&authored_skin.2));
+        assert!((authored_skin.2 - 1.10).abs() < 1e-6);
+        assert!((authored_skin.3 - 0.77).abs() < 1e-6, "skin red is occlusion");
 
         let standard =
             apply_skin_specular_reference(false, true, Vec3::new(0.12, 0.91, 0.84), 0.28, 0.73);
         assert_eq!(
             standard,
-            (0.28, 0.73, 1.0),
+            (0.28, 0.73, 1.0, -1.0),
             "equipment surface channels remain outside the skin-only response"
         );
 
@@ -13012,8 +13041,10 @@ mod tests {
         );
         assert!(skin_response.contains("|| has_skin_specular_response;"));
         assert!(skin_response.contains("roughness = clamp(skin_specular_response.g, 0.04, 1.0);"));
-        assert!(skin_response.contains("clamp(skin_specular_response.r, 0.0, 1.0)"));
-        assert!(!skin_response.contains("skin_specular_response.b"));
+        assert!(skin_response.contains("skin_occlusion = clamp(skin_specular_response.r, 0.0, 1.0);"));
+        assert!(skin_response.contains("clamp(skin_specular_response.b + SKIN_BASE_SUBSURFACE_ADD, 0.0, 1.0)"));
+        assert!(SHADER.contains("roughness = min(roughness, 0.7);"));
+        assert!(SHADER.contains("raw_occlusion = skin_occlusion;"));
         assert!(SHADER.contains("* skin_subsurface_multiplier,"));
         assert!(SHADER.contains("if (material.flags & MATERIAL_SPECULAR) != 0u && !is_skin {"));
         assert!(
