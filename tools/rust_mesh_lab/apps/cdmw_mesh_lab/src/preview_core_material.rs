@@ -1085,19 +1085,93 @@ impl ImageCache {
     }
 }
 
+/// `evaluate_eye` in material_layers.wgsl, for the colour: the sclera at uvP,
+/// the iris at uvI by its alpha, the pupil at uvPu by its alpha, all times
+/// twice `_irisBrightness`, capped at 1. Mixed in linear light.
+fn compose_eye_base_color(
+    material: &PreviewCoreMaterial,
+    cache: &mut ImageCache,
+) -> Result<Option<DecodedRgba8>, SessionError> {
+    let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
+        return Ok(None);
+    };
+    let base = &material.layers[0];
+    let words = base.eye_properties.expect("eye words");
+    let (p0, p1) = (
+        crate::cdmw_session::byte4(words[0]),
+        crate::cdmw_session::byte4(words[1]),
+    );
+    let brightness = base.iris_brightness.unwrap_or(0.5) * 2.0;
+    let find = |parameter: &str| {
+        material
+            .layers
+            .iter()
+            .skip(1)
+            .find(|layer| layer.layer_role == "overlay" && layer.source_parameter == parameter)
+            .and_then(|layer| layer.diffuse.as_ref())
+    };
+    let mapped = |cache: &mut ImageCache,
+                  reference: Option<&FileReference>,
+                  pick: fn(([f32; 2], [f32; 2], [f32; 2], f32)) -> [f32; 2]|
+     -> Result<Option<Vec<u8>>, SessionError> {
+        reference
+            .map(|reference| {
+                sample_mapped_repeat(cache.image(reference)?, width, height, |uv| {
+                    pick(crate::cdmw_session::eye_uvs(uv, p0, p1))
+                })
+            })
+            .transpose()
+    };
+    let sclera = mapped(cache, base.diffuse.as_ref(), |uvs| uvs.0)?;
+    let iris = mapped(cache, find("_irisDiffuseTexture"), |uvs| uvs.1)?;
+    let pupil = mapped(cache, find("_pupilTexture"), |uvs| uvs.2)?;
+    let pixel_count = checked_pixel_count(width, height)?;
+    let mut target = sclera.unwrap_or_else(|| vec![255; pixel_count * 4]);
+    for pixel in 0..pixel_count {
+        let offset = pixel * 4;
+        let mut color: [f32; 3] = std::array::from_fn(|k| srgb_to_linear(unit(target[offset + k])));
+        for layer in [iris.as_deref(), pupil.as_deref()].into_iter().flatten() {
+            let alpha = unit(layer[offset + 3]);
+            color = std::array::from_fn(|k| mix(color[k], srgb_to_linear(unit(layer[offset + k])), alpha));
+        }
+        for k in 0..3 {
+            target[offset + k] = unit_byte(linear_to_srgb((color[k] * brightness).min(1.0)));
+        }
+        target[offset + 3] = 255;
+    }
+    Ok(Some(DecodedRgba8 {
+        width,
+        height,
+        pixels: target,
+    }))
+}
+
 fn sample_affine_repeat(
     image: &DecodedRgba8,
     width: u32,
     height: u32,
     a: [f32; 6],
 ) -> Result<Vec<u8>, SessionError> {
+    sample_mapped_repeat(image, width, height, |[u, v]| {
+        [a[0] * u + a[2] * v + a[4], a[1] * u + a[3] * v + a[5]]
+    })
+}
+
+/// Bilinear, wrapping samples of `image` at `map(uv)` for each target pixel centre.
+fn sample_mapped_repeat(
+    image: &DecodedRgba8,
+    width: u32,
+    height: u32,
+    map: impl Fn([f32; 2]) -> [f32; 2],
+) -> Result<Vec<u8>, SessionError> {
     let mut result = vec![0; checked_pixel_count(width, height)?.saturating_mul(4)];
     for y in 0..height {
         for x in 0..width {
             let u = (x as f32 + 0.5) / width as f32;
             let v = (y as f32 + 0.5) / height as f32;
-            let sx = (a[0] * u + a[2] * v + a[4]).rem_euclid(1.0) * image.width as f32 - 0.5;
-            let sy = (a[1] * u + a[3] * v + a[5]).rem_euclid(1.0) * image.height as f32 - 0.5;
+            let [mu, mv] = map([u, v]);
+            let sx = mu.rem_euclid(1.0) * image.width as f32 - 0.5;
+            let sy = mv.rem_euclid(1.0) * image.height as f32 - 0.5;
             let ix = sx.floor() as i64;
             let iy = sy.floor() as i64;
             let tx = sx - sx.floor();
@@ -1281,6 +1355,13 @@ fn compose_base_color(
         // The same RGB-layer rule as material_layers.wgsl, so a material looks
         // the same whether the GPU path or this fallback composes it.
         return compose_rgb_layer_base_color(material, cache);
+    }
+    if material
+        .layers
+        .first()
+        .is_some_and(|base| base.eye_properties.is_some())
+    {
+        return compose_eye_base_color(material, cache);
     }
     let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
         return Ok(None);
@@ -2876,6 +2957,8 @@ mod tests {
             detail_mask_declared: false,
             detail_mask_archive_path: String::new(),
             detail_mask: None,
+            eye_properties: None,
+            iris_brightness: None,
         }
     }
 

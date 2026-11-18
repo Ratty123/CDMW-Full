@@ -296,6 +296,51 @@ pub struct PreviewCoreMaterialLayer {
     pub detail_mask_archive_path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail_mask: Option<FileReference>,
+    /// An eye's base row: `_eyeProperty0/1/2` as the game's packed words
+    /// (defaults filled in), which place the iris and pupil and switch the
+    /// iris roughness on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eye_properties: Option<[u32; 3]>,
+    /// An eye's base row: `_irisBrightness` (0.5 is neutral; the colour is
+    /// scaled by twice it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iris_brightness: Option<f32>,
+}
+
+/// The bytes of a packed `Byte4` parameter, byte 0 first.
+pub fn byte4(word: u32) -> [f32; 4] {
+    std::array::from_fn(|k| ((word >> (8 * k)) & 255) as f32)
+}
+
+/// SkinnedMeshEye's UVs (permutation a4b73dd211913bc3, parallax left out):
+/// returns (uvP for `_baseColorTexture`, uvI for `_irisDiffuseTexture`,
+/// uvPu for the pupil, normal and material maps, r). `p0` and `p1` are the
+/// bytes of `_eyeProperty0` and `_eyeProperty1`.
+pub fn eye_uvs(uv: [f32; 2], p0: [f32; 4], p1: [f32; 4]) -> ([f32; 2], [f32; 2], [f32; 2], f32) {
+    // EyeImageScale: byte 255 leaves the mesh UV.
+    let image = 1.0 - p1[3] / 510.0;
+    let uvp = uv.map(|v| (2.0 * v - 1.0) * image + 0.5);
+    let r = ((2.0 * uvp[0].abs() - 1.0).powi(2) + (2.0 * uvp[1].abs() - 1.0).powi(2)).sqrt();
+    let pupil = p0[0] / 255.0;
+    let pw = if r < 0.5 {
+        let stretch = (2.0 * (p0[1] / 255.0 + 0.05 + (p0[2] - p0[1]).abs() / 255.0 * pupil)).clamp(0.0, 1.0);
+        (2.0 * r).powf(1.0 - 2.0 * stretch)
+    } else {
+        1.0
+    };
+    // IrisSize: byte 128 leaves the UV (to 0.4%).
+    let iris = 1.0 - p0[3] / 255.0;
+    let uvi = uvp.map(|v| (2.0 * v - 1.0) * iris + 0.5);
+    let mut uvpu = uvi;
+    if p1[0] > 0.0 && p1[1] > 0.0 {
+        let weight = p1[0] / 255.0;
+        for k in 0..2 {
+            let a = p1[k] * 2.0 / 255.0;
+            let s = a.min(a + (1.0 - a) * weight);
+            uvpu[k] = (uvi[k] - 0.5) * s / pw.max(1e-6) + 0.5;
+        }
+    }
+    (uvp, uvi, uvpu, r)
 }
 
 impl PreviewCoreMaterialLayer {

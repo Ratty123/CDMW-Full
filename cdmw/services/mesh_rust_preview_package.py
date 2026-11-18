@@ -736,6 +736,8 @@ def _preview_core_layer_parameter_index(parameters):
             "dyeingcustompropertymaskb",
             "detaildiffuseblend", "dyeingdetaillayercolorblend", "dyeingtransformproperty4",
             "dyeingblendtexturetranslation", "colorblendingoptionbitflag",
+            "eyeproperty0", "eyeproperty1", "eyeproperty2", "irisbrightness",
+            "irisnormaltexture", "irismaterialtexture",
         }:
             continue
         key = (
@@ -748,6 +750,7 @@ def _preview_core_layer_parameter_index(parameters):
             value = parameter.get("value", "")
         if name.casefold().lstrip("_") in {
             "detailmasktexture", "masktexture", "overlaycolortexture", "detaildiffuseblend",
+            "irisnormaltexture", "irismaterialtexture",
         }:
             # A texture parameter: the layer rule needs the file, not a number.
             value = {
@@ -1007,6 +1010,62 @@ def _preview_core_ver2_blend_layer(raw_layers, parameter_index, source_package):
     }]
 
 
+# `_eyeProperty0/1/2` at the game's defaults (skinnedmeshparameters.xml, Byte4: byte i is
+# DefaultValue{i} * 255, rounded). P0: PupilSize 0, PupilStretchMinSize 0.1, PupilStretchMaxSize
+# 0.25, IrisSize 0.5. P1: UVScaleX 1, UVScaleY 1, UseMaterialTextureRoughness 0, EyeImageScale 1.
+# P2: IrisEmissiveIntensity 0, DynamicEyeColor 1.
+_EYE_PROPERTY_DEFAULTS = (0x80401A00, 0xFF00FFFF, 0x0000FF00)
+
+
+def _preview_core_eye_layers(raw_layers, parameter_index, source_package):
+    """The eye's own surface inputs, stated on its rows.
+
+    SkinnedMeshEye mixes sclera, iris and pupil by the iris and pupil alphas, at
+    UVs set by `_eyeProperty0/1` (EyeImageScale, IrisSize, the pupil's size and
+    stretch), and lerps the normal (`_irisNormalTexture`) and, with
+    UseMaterialTextureRoughness, the roughness (`_irisMaterialTexture` green)
+    toward the iris by the same alpha. The base row gets the three property words
+    and `_irisBrightness`; the iris row gets the iris normal and material maps
+    when their files are there.
+    """
+    base = raw_layers[0] if raw_layers else None
+    if (
+        not isinstance(base, Mapping)
+        or str(base.get("layer_role", "") or "").strip().casefold() != "base"
+        or str(base.get("shader_family", "") or "").strip().casefold() != "skinnedmesheye"
+    ):
+        return raw_layers
+    parameters = parameter_index.get(
+        (
+            str(base.get("component_scope_id", "") or ""),
+            str(base.get("owner_wrapper_item_id", "") or "").strip(),
+            _preview_core_int(base.get("material_wrapper_index"), -1),
+        ),
+        (),
+    )
+    values = {str(name).casefold().lstrip("_"): value for name, value in parameters}
+    words = []
+    for index, default in enumerate(_EYE_PROPERTY_DEFAULTS):
+        # An empty value is the parameter left at its default.
+        word = _preview_core_int(values.get(f"eyeproperty{index}"), -1)
+        words.append(word & 0xFFFFFFFF if word >= 0 else default)
+    brightness = _preview_core_float(values.get("irisbrightness"), 0.5)
+    result = [dict(base, eye_properties=words, iris_brightness=max(0.0, min(1.0, brightness)))]
+    for layer in raw_layers[1:]:
+        if (
+            isinstance(layer, Mapping)
+            and str(layer.get("source_parameter", "") or "").strip() == "_irisDiffuseTexture"
+            and str(layer.get("layer_role", "") or "").strip().casefold() == "overlay"
+        ):
+            layer = dict(layer)
+            for role, name in (("normal", "irisnormaltexture"), ("material", "irismaterialtexture")):
+                found = _preview_core_detail_mask(values, source_package, name)
+                if found is not None and not str(layer.get(f"{role}_source", "") or "").strip():
+                    layer[f"{role}_source"], layer[f"{role}_archive_path"] = found
+        result.append(layer)
+    return result
+
+
 def _copy_preview_core_material_layers(
     raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes, copied_sources,
     materials, source_edge_count, cancelled, expected_root_identity, parameter_index, durable=True,
@@ -1029,6 +1088,7 @@ def _copy_preview_core_material_layers(
                 + _preview_core_ver2_blend_layer(raw_layers, parameter_index, source_package)
             )[: _PREVIEW_CORE_MATERIAL_LAYER_LIMIT - len(raw_layers)]
         )
+        raw_layers = _preview_core_eye_layers(raw_layers, parameter_index, source_package)
         layers: list[dict[str, object]] = []
         for raw_layer in raw_layers:
             if not isinstance(raw_layer, Mapping):
@@ -1117,6 +1177,9 @@ def _copy_preview_core_material_layers(
                 )
             else:
                 detail_mask = None
+            if role == "base" and "eye_properties" in raw_layer:
+                layer["eye_properties"] = [int(word) & 0xFFFFFFFF for word in raw_layer["eye_properties"]][:3]
+                layer["iris_brightness"] = _preview_core_layer_float(raw_layer.get("iris_brightness"), fallback=0.5)
             if role == "overlay" and source_parameter == "_overlayColorTexture" and "blend_flags" in raw_layer:
                 layer["blend_flags"] = _preview_core_int(raw_layer.get("blend_flags"), 0) & 7
             if role == "overlay" and source_parameter == "_detailDiffuseBlend" and "uv_transform" in raw_layer:

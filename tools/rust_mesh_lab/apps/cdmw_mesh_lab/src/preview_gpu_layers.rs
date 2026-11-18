@@ -313,13 +313,19 @@ fn build(
         // The package's neutral geometry placeholder is not an eye tint.
         // Authored eye colour comes from these source maps and their coverage.
         result.uniform.base_color = [1.0; 4];
+        // Layer slot B is free on an eye: it carries the wrapper's eye words.
+        // dye = `_eyeProperty0` bytes, affine = `_eyeProperty1` bytes,
+        // properties = (`_irisBrightness`, iris normal bound, iris material
+        // bound, iris normal encoding).
+        let base = &material.layers[0];
+        let words = base.eye_properties.unwrap_or([0x80401A00, 0xFF00FFFF, 0x0000FF00]);
+        result.uniform.layers[2].dye = crate::cdmw_session::byte4(words[0]);
+        result.uniform.layers[2].affine = crate::cdmw_session::byte4(words[1]);
+        result.uniform.layers[2].properties[0] = base.iris_brightness.unwrap_or(0.5);
         for layer in material.layers.iter().skip(1) {
             let k = eye_channel(layer).expect("eligible eye layer");
-            let affine = layer.sampling_transform();
             result.uniform.layers[k] = LayerEntryUniform {
-                affine: [affine[0], affine[1], affine[2], affine[3]],
-                offset: [affine[4], affine[5], 0.0, 0.0],
-                properties: [layer.weight, 0.0, 1.0, 0.0],
+                properties: [1.0, 0.0, 1.0, 0.0],
                 ..Default::default()
             };
             result.textures[1 + k * 3] = Some(layer_texture(
@@ -327,6 +333,19 @@ fn build(
                 TextureRole::BaseColor,
                 sources,
             ));
+            if k == 0 {
+                if let Some(reference) = &layer.normal {
+                    let texture = layer_texture(reference, TextureRole::Normal, sources);
+                    result.uniform.layers[2].properties[1] = 1.0;
+                    result.uniform.layers[2].properties[3] = normal_encoding(&texture)?;
+                    result.textures[2] = Some(texture);
+                }
+                if let Some(reference) = &layer.material {
+                    result.uniform.layers[2].properties[2] = 1.0;
+                    result.textures[3] =
+                        Some(layer_texture(reference, TextureRole::Material, sources));
+                }
+            }
         }
         return Ok(result);
     }
@@ -776,6 +795,116 @@ mod tests {
                 assert_eq!(decoded.pixels[3], 255, "eye coverage stays opaque");
             }
         }
+    }
+
+    #[test]
+    fn eye_layers_carry_the_iris_surface_maps_and_the_eye_words() {
+        // SkinnedMeshEye lerps the normal and (with UseMaterialTextureRoughness)
+        // the roughness toward `_irisNormalTexture` / `_irisMaterialTexture` by
+        // the iris alpha, at UVs set by `_eyeProperty0/1`.
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let bytes = [
+            make([200, 200, 200, 255]),
+            make([40, 80, 160, 255]),
+            make([128, 128, 255, 255]),
+            make([255, 90, 30, 255]),
+        ];
+        let refs: Vec<_> = bytes
+            .iter()
+            .enumerate()
+            .map(|(k, b)| reference(b, &format!("eye-{k}.dds")))
+            .collect();
+        let mut base = layer("base", "r", &refs[0]);
+        base.shader_family = "SkinnedMeshEye".into();
+        base.source_parameter = "_baseColorTexture".into();
+        base.mask = None;
+        base.eye_properties = Some([0xB6FF2600, 0xFF01FF61, 0x0000FF00]);
+        base.iris_brightness = Some(0.25);
+        let mut iris = layer("overlay", "a", &refs[1]);
+        iris.shader_family = "SkinnedMeshEye".into();
+        iris.source_parameter = "_irisDiffuseTexture".into();
+        iris.normal = Some(refs[2].clone());
+        iris.material = Some(refs[3].clone());
+        let eye = material(vec![base, iris]);
+        assert!(eligible(&eye));
+        let sources = refs
+            .iter()
+            .zip(&bytes)
+            .map(|(r, b)| (r.sha256.clone(), Arc::from(b.clone())))
+            .collect();
+        let built = build(&eye, &sources).unwrap();
+        assert_eq!(built.uniform.control[0], 3);
+        assert_eq!(built.textures[2].as_ref().unwrap().source_sha256, refs[2].sha256);
+        assert_eq!(built.textures[3].as_ref().unwrap().source_sha256, refs[3].sha256);
+        assert_eq!(built.uniform.layers[2].dye, [0.0, 38.0, 255.0, 182.0]);
+        assert_eq!(built.uniform.layers[2].affine, [97.0, 255.0, 1.0, 255.0]);
+        assert_eq!(built.uniform.layers[2].properties[..3], [0.25, 1.0, 1.0]);
+        // The CPU fallback: the iris (opaque) times twice `_irisBrightness`.
+        let graph = PreviewCoreMaterialGraph {
+            schema_version: 1,
+            graph_version: 5,
+            semantics_version: 10,
+            quality: "full".into(),
+            resources_included: true,
+            source_edge_count: 4,
+            unique_resource_count: 4,
+            copied_resource_count: 4,
+            unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+            materials: vec![eye],
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let mut resources = Vec::new();
+        prepare(
+            &graph,
+            &[],
+            &document,
+            &mut resources,
+            false,
+            false,
+            |r| Ok(bytes[refs.iter().position(|p| p.path == r.path).unwrap()].clone()),
+            &|| false,
+        )
+        .unwrap();
+        let base = resources
+            .iter()
+            .find(|r| r.role == TextureRole::BaseColor)
+            .unwrap();
+        let decoded = cdmw_texture::decode_dds_rgba8(&base.bytes, base.role).unwrap();
+        for (k, iris) in [40.0_f32, 80.0, 160.0].iter().enumerate() {
+            let expected = linear(iris / 255.0) * 0.5;
+            assert!((linear(f32::from(decoded.pixels[k]) / 255.0) - expected).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn eye_uvs_follow_the_games_iris_size_and_pupil_stretch() {
+        use crate::cdmw_session::{byte4, eye_uvs};
+        // Defaults: IrisSize 128 and EyeImageScale 255 leave the mesh UV (to 0.4%).
+        let (uvp, uvi, uvpu, r) = eye_uvs([0.8, 0.5], byte4(0x80401A00), byte4(0xFF00FFFF));
+        assert_eq!(uvp, [0.8, 0.5]);
+        assert!((r - 0.6).abs() < 1e-5);
+        assert!((uvi[0] - (0.6 * (1.0 - 128.0 / 255.0) + 0.5)).abs() < 1e-5);
+        assert!((uvpu[0] - uvi[0]).abs() < 1e-5, "outside r 0.5 the pupil is not warped");
+        // The commonest animal eye: IrisSize 182 magnifies the iris 1.75 times;
+        // UVScale (97, 255) squeezes the pupil's U and stretches its V.
+        let (_, uvi, uvpu, _) = eye_uvs([0.8, 0.8], byte4(0xB6FF2600), byte4(0xFF01FF61));
+        let iris = 1.0 - 182.0 / 255.0;
+        assert!((uvi[0] - (0.6 * iris + 0.5)).abs() < 1e-5);
+        let a: [f32; 2] = [97.0 * 2.0 / 255.0, 2.0];
+        let s = [a[0].min(a[0] + (1.0 - a[0]) * 97.0 / 255.0), a[1].min(a[1] + (1.0 - a[1]) * 97.0 / 255.0)];
+        assert!((uvpu[0] - (0.6 * iris * s[0] + 0.5)).abs() < 1e-5);
+        assert!((uvpu[1] - (0.6 * iris * s[1] + 0.5)).abs() < 1e-5);
+        // Inside r 0.5 the pupil is warped by pow(2r, 1 - 2 stretch).
+        let (_, uvi, uvpu, r) = eye_uvs([0.6, 0.5], byte4(0x80401A00), byte4(0xFF00FFFF));
+        let stretch = (2.0_f32 * (26.0 / 255.0 + 0.05 + 38.0 / 255.0 * 0.0)).clamp(0.0, 1.0);
+        let pw = (2.0 * r).powf(1.0 - 2.0 * stretch);
+        assert!((uvpu[0] - ((uvi[0] - 0.5) / pw + 0.5)).abs() < 1e-5);
     }
 
     #[test]

@@ -118,6 +118,72 @@ fn legacy_dye(base: vec3<f32>, m: vec4<f32>) -> vec3<f32> {
     return mix(base, dyed, clamp(c.a, 0.0, 1.0));
 }
 
+fn eye_tangent_normal(sampled: vec3<f32>, encoding: f32) -> vec3<f32> {
+    var xy = select(sampled.xy * 2.0 - vec2<f32>(1.0), sampled.xy, encoding == 2.0);
+    if (material.flags & MATERIAL_NORMAL_Y_INVERTED) != 0u { xy.y = -xy.y; }
+    return vec3<f32>(xy, sqrt(max(1.0 - dot(xy, xy), 0.0)));
+}
+
+// SkinnedMeshEye (permutation a4b73dd211913bc3), without the parallax search,
+// the scene-exposure DynamicEyeColor term and the camera-distance roughness:
+//   uvP  = (2uv - 1)(1 - P1.b3/510) + 0.5                        EyeImageScale
+//   uvI  = (2uvP - 1)(1 - P0.b3/255) + 0.5                       IrisSize
+//   uvPu = (uvI - 0.5) s / pw + 0.5 (P1.b0, P1.b1 > 0)           pupil size and stretch
+//   c = lerp(lerp(base(uvP), iris.rgb, iris.a), pupil.rgb, pupil.a);  albedo = min(1, c * _irisBrightness * 2)
+//   rough = P1.b2 ? lerp(_materialTexture.g, _irisMaterialTexture.g, iris.a) : (1 - pupil.a) (r < 0.5 ? 0 : 0.1)
+//   rough = max(rough, 0.1)          (the game adds 0.1 * saturate(distance * 2/3))
+//   normal = lerp(sclera normal, iris normal, iris.a)
+// Slot B's entry holds P0 (dye), P1 (affine) and (brightness, iris normal,
+// iris material, normal encoding). The eye writes no metal and no occlusion map:
+// its `_materialTexture.b` lerp lands in the G-buffer's subsurface slot.
+fn evaluate_eye(uv: vec2<f32>) -> LayerSurface {
+    let p0 = layer_uniform.layers[2].dye;
+    let p1 = layer_uniform.layers[2].affine;
+    let info = layer_uniform.layers[2].properties;
+    let uvp = (2.0 * uv - vec2<f32>(1.0)) * (1.0 - p1.w / 510.0) + vec2<f32>(0.5);
+    let r = length(2.0 * abs(uvp) - vec2<f32>(1.0));
+    var pw = 1.0;
+    if r < 0.5 {
+        let stretch = clamp(2.0 * (p0.y / 255.0 + 0.05 + abs(p0.z - p0.y) / 255.0 * (p0.x / 255.0)), 0.0, 1.0);
+        pw = pow(2.0 * r, 1.0 - 2.0 * stretch);
+    }
+    let uvi = (2.0 * uvp - vec2<f32>(1.0)) * (1.0 - p0.w / 255.0) + vec2<f32>(0.5);
+    var uvpu = uvi;
+    if p1.x > 0.0 && p1.y > 0.0 {
+        let a = p1.xy * 2.0 / 255.0;
+        let s = min(a, mix(a, vec2<f32>(1.0), p1.x / 255.0));
+        uvpu = (uvi - vec2<f32>(0.5)) * s / max(pw, 1e-6) + vec2<f32>(0.5);
+    }
+    let sclera = textureSampleBias(base_texture, material_sampler, uvp, MATERIAL_MIP_LOD_BIAS);
+    var iris = vec4<f32>(0.0);
+    if layer_uniform.layers[0].properties.z > 0.5 {
+        iris = textureSampleBias(layer_r_color, material_sampler, uvi, 0.0);
+    }
+    var pupil = vec4<f32>(0.0);
+    if layer_uniform.layers[1].properties.z > 0.5 {
+        pupil = textureSampleBias(layer_g_color, material_sampler, uvpu, 0.0);
+    }
+    var color = select(sclera.rgb, vec3<f32>(1.0), (layer_uniform.control.w & 1u) != 0u);
+    color = mix(color, iris.rgb, clamp(iris.a, 0.0, 1.0));
+    color = mix(color, pupil.rgb, clamp(pupil.a, 0.0, 1.0));
+    color = min(color * info.x * 2.0, vec3<f32>(1.0));
+    var sclera_sp = vec3<f32>(0.0);
+    if (material.flags & MATERIAL_SURFACE) != 0u { sclera_sp = textureSampleBias(material_texture, material_sampler, uvpu, 0.0).rgb; }
+    var iris_sp = vec3<f32>(0.0);
+    if info.z > 0.5 { iris_sp = textureSampleBias(layer_r_sp, material_sampler, uvpu, 0.0).rgb; }
+    var rough = (1.0 - pupil.a) * select(0.1, 0.0, r < 0.5);
+    if p1.z > 0.0 { rough = mix(sclera_sp.g, iris_sp.g, iris.a); }
+    rough = max(rough, 0.1);
+    var sclera_n = vec3<f32>(0.0, 0.0, 1.0);
+    if (material.flags & MATERIAL_NORMAL) != 0u {
+        sclera_n = eye_tangent_normal(textureSampleBias(normal_texture, material_sampler, uvpu, 0.0).rgb, 0.0);
+    }
+    var iris_n = vec3<f32>(0.0, 0.0, 1.0);
+    if info.y > 0.5 { iris_n = eye_tangent_normal(textureSampleBias(layer_r_normal, material_sampler, uvpu, 0.0).rgb, info.w); }
+    let normal = safe_normalize(mix(sclera_n, iris_n, clamp(iris.a, 0.0, 1.0)), vec3<f32>(0.0, 0.0, 1.0));
+    return LayerSurface(color, normal, vec3<f32>(1.0, clamp(rough, 0.0, 1.0), 0.0), vec3<f32>(iris.a, pupil.a, 0.0));
+}
+
 fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurface {
     // control.w bit 0: no base colour map, so the surface beneath the layers is
     // white rather than the grey placeholder bound for untextured geometry.
@@ -149,19 +215,7 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     var base_sp = vec3<f32>(1.0,0.66,0.0);
     if (material.flags & MATERIAL_SURFACE) != 0u { base_sp = textureSampleBias(material_texture, material_sampler, uv, 0.0).rgb; }
     if layer_uniform.control.x == 3u {
-        var color = base.rgb * layer_uniform.base_color.rgb;
-        let iris = textureSampleBias(layer_r_color, material_sampler, layer_uv(layer_uniform.layers[0], uv), 0.0);
-        let pupil = textureSampleBias(layer_g_color, material_sampler, layer_uv(layer_uniform.layers[1], uv), 0.0);
-        if layer_uniform.layers[0].properties.z > 0.5 {
-            color = mix(color, iris.rgb * layer_uniform.base_color.rgb, clamp(iris.a * layer_uniform.layers[0].properties.x, 0.0, 1.0));
-        }
-        if layer_uniform.layers[1].properties.z > 0.5 {
-            color = mix(color, pupil.rgb * layer_uniform.base_color.rgb, clamp(pupil.a * layer_uniform.layers[1].properties.x, 0.0, 1.0));
-        }
-        out.color = color;
-        out.normal = base_normal;
-        out.orm = vec3<f32>(base_sp.r, clamp(base_sp.g, 0.045, 1.0), 0.0);
-        return out;
+        return evaluate_eye(uv);
     }
     var colors: array<vec3<f32>,3>;
     var normals: array<vec3<f32>,3>;

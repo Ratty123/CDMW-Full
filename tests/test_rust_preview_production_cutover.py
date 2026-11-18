@@ -660,6 +660,60 @@ def test_the_blend_layer_is_left_out_when_the_game_would_not_draw_it(tmp_path: P
     assert rows == []
 
 
+def _eye_fixture(tmp_path: Path, parameters):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    base = native["batches"][0]["material_layers"][0]
+    base["shader_family"] = "SkinnedMeshEye"
+    iris = tmp_path / "eye_iris.dds"
+    iris.write_bytes(b"DDS " + b"I" * 512)
+    native["batches"][0]["material_layers"].append(dict(
+        base, layer_role="overlay", mask_channel="a", source_parameter="_irisDiffuseTexture",
+        mask_parameter="_irisDiffuseTexture", diffuse_source=str(iris),
+        diffuse_archive_path="character/texture/eye_iris.dds", mask_source=str(iris),
+        mask_archive_path="character/texture/eye_iris.dds"))
+    wrapper = dict(owner_wrapper_item_id=base["owner_wrapper_item_id"],
+                   material_wrapper_index=base["material_wrapper_index"])
+    rows = []
+    for name, value in parameters.items():
+        if name.endswith("Texture"):
+            path = tmp_path / f"{name}.dds"
+            path.write_bytes(b"DDS " + name.encode() * 40)
+            rows.append(dict(wrapper, parameter_name=name, value="", resolved_source_path=str(path),
+                             resolved_archive_path=f"character/texture/{name}.dds"))
+        else:
+            rows.append(dict(wrapper, parameter_name=name, value=str(value),
+                             integer_value=value if isinstance(value, int) else None))
+    native["material_conservation"].update(parameters=rows, declared_parameter_count=len(rows),
+                                           transported_parameter_count=len(rows))
+    (source / "manifest.json").write_text(json.dumps(native))
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    return json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"]
+
+
+def test_an_eye_states_its_iris_surface_maps_and_eye_words(tmp_path: Path):
+    """SkinnedMeshEye lerps normal and roughness toward the iris maps; CDMW dropped them."""
+    base, iris = _eye_fixture(tmp_path, {
+        "_eyeProperty0": 0xB6FF2600, "_eyeProperty1": 0xFF01FF61, "_eyeProperty2": "",
+        "_irisBrightness": "0.400000",
+        "_irisNormalTexture": None, "_irisMaterialTexture": None,
+    })
+    assert base["eye_properties"] == [0xB6FF2600, 0xFF01FF61, 0x0000FF00]
+    assert base["iris_brightness"] == pytest.approx(0.4)
+    assert iris["normal_archive_path"] == "character/texture/_irisNormalTexture.dds"
+    assert iris["material_archive_path"] == "character/texture/_irisMaterialTexture.dds"
+    assert iris["normal"] is not None and iris["material"] is not None
+
+
+def test_an_eye_without_its_properties_takes_the_games_defaults(tmp_path: Path):
+    base, iris = _eye_fixture(tmp_path, {})
+    # IrisSize 0.5, UseMaterialTextureRoughness 0, EyeImageScale 1, DynamicEyeColor 1.
+    assert base["eye_properties"] == [0x80401A00, 0xFF00FFFF, 0x0000FF00]
+    assert base["iris_brightness"] == pytest.approx(0.5)
+    assert iris["normal"] is None and iris["material"] is None
+
+
 def _called_names(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     result: set[str] = set()
