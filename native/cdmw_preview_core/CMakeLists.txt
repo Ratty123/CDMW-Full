@@ -63,4 +63,5 @@ set_target_properties(cdmw-preview-core PROPERTIES
     UNITY_BUILD_CODE_AFTER_INCLUDE "\n}  // namespace cdmw_preview_core\n"
 )
 target_compile_definitions(cdmw-preview-core PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_compile_options(cdmw-preview-core PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
 target_include_directories(cdmw-preview-core PRIVATE src)

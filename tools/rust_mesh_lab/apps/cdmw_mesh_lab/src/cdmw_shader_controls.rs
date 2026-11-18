@@ -1,10 +1,86 @@
 #![forbid(unsafe_code)]
+//! Shader experiments inspector.
+//!
+//! Every field starts at the number the source material declares, a changed
+//! field is an override, and the viewport follows the sliders at once. The
+//! host commits the edit shortly after the control is released, so there is
+//! no separate Apply step and undo history stays in the host.
 use super::*;
+
+/// Quiet time after the last change before the edit is sent to the host.
+const COMMIT_DELAY_SECONDS: f64 = 0.12;
+/// Quick viewport backdrops for judging translucency; the first is the default.
+const VIEWPORT_BACKDROPS: [(&str, Color32); 5] = [
+    ("Default", Color32::from_rgb(6, 8, 10)),
+    ("Black", Color32::BLACK),
+    ("Gray", Color32::from_gray(128)),
+    ("White", Color32::WHITE),
+    ("Skin tone", Color32::from_rgb(224, 172, 150)),
+];
+const MASK_KEYS: [&str; 5] = ["transparency_mask", "surface_response_mask", "cutout_mask", "coverage_mapping", "colour_coverage"];
+
+fn numbers_text(numbers: &Value) -> String {
+    numbers.as_array().into_iter().flatten().filter_map(Value::as_f64)
+        .map(|n| format!("{n:.3}")).collect::<Vec<_>>().join(", ")
+}
+
+/// The factor vector the viewport draws for `value` on one part: the host's
+/// base vector for that family with the overridden fields' lanes replaced.
+/// Lanes follow the catalogue: four header lanes, then each field in order.
+pub(crate) fn shader_live_factors(row: &Value, family: &Value, value: &Value) -> Option<[f32; 32]> {
+    if MASK_KEYS.iter().any(|key| !value[*key].is_null()) {
+        return None; // Painted masks need the host's textures.
+    }
+    let base = row["preview_base"][family["shader"].as_str()?].as_array()?;
+    if base.len() != 32 {
+        return None;
+    }
+    let mut factors = [0.0_f32; 32];
+    for (lane, number) in factors.iter_mut().zip(base) {
+        *lane = number.as_f64()? as f32;
+    }
+    let mut lane = 4_usize;
+    for field in family["fields"].as_array()? {
+        let width = field["default"].as_array()?.len();
+        if let Some(numbers) = value["values"][field["name"].as_str()?].as_array()
+            && numbers.len() == width
+        {
+            let (minimum, maximum) = (field["minimum"].as_f64().unwrap_or(0.0), field["maximum"].as_f64().unwrap_or(1.0));
+            for (offset, number) in numbers.iter().enumerate() {
+                *factors.get_mut(lane + offset)? = number.as_f64()?.clamp(minimum, maximum) as f32;
+            }
+        }
+        lane += width;
+    }
+    if value["rebuild"].as_bool() == Some(true) && factors[0] == 11.0 {
+        // Rewriting a net veil to the older layout drops its detail layers.
+        factors[15..23].fill(0.0);
+    } else if factors[0] == 11.0 && factors[15] > 0.5 {
+        // The lace transform previews as the bytes the host will store:
+        // 255 / repeat, offset x 255 and (degrees + 180) / 360 x 255.
+        let edit = |name: &str, index: usize| value["values"][name][index].as_f64();
+        let byte = |number: f64| number.round().clamp(0.0, 255.0);
+        for index in 0..2 {
+            if let Some(repeat) = edit("veilDetailRepeat", index) {
+                factors[17 + index] = (byte(255.0 / repeat.max(1.0)).max(1.0) / 255.0) as f32;
+            }
+            if let Some(offset) = edit("veilDetailOffset", index) {
+                factors[19 + index] = (byte(offset * 255.0) / 255.0) as f32;
+            }
+        }
+        if let Some(degrees) = edit("veilDetailRotation", 0) {
+            let turn = byte((degrees + 180.0) / 360.0 * 255.0) / 255.0;
+            factors[21] = (turn * std::f64::consts::TAU - std::f64::consts::PI) as f32;
+        }
+    }
+    Some(factors)
+}
 
 impl LabApplication {
     pub(super) fn draw_cdmw_shader_controls(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let Some(state) = self.cdmw_state.get("shader_controls") else { return; };
         crate::localization::collapsing("Shader experiments").id_salt("shader_controls").show(ui, |ui| {
+            self.cdmw_shader_panel_shown.set(true);
             let selected = self.selected_part_indices();
             let rows = state["parts"].as_array().into_iter().flatten()
                 .filter(|row| row["index"].as_u64().is_some_and(|i| selected.contains(&(i as u32))))
@@ -12,25 +88,27 @@ impl LabApplication {
             let ids = rows.iter().map(|row| row["id"].clone()).collect::<Vec<_>>();
             let saved = rows.first().map(|row| row["shader_controls"].clone()).unwrap_or(Value::Null);
             let any_saved = rows.iter().any(|row| !row["shader_controls"].is_null());
-            let key = egui::Id::new(("shader_control_values", ids.iter().map(Value::to_string).collect::<Vec<_>>(),
+            let key = egui::Id::new(("shader_control_values", self.cdmw_shader_panel_epoch,
+                ids.iter().map(Value::to_string).collect::<Vec<_>>(),
                 rows.iter().map(|row| row["shader_controls"].to_string()).collect::<Vec<_>>()));
             let is_static = state["static"].as_bool().unwrap_or(false);
             let families = state["catalogue"].as_array().into_iter().flatten()
                 .filter(|family| (family["shader"] == "Dissolve" || family["shader"] == "Translucent") == is_static).collect::<Vec<_>>();
-            let unavailable_reason = |shader: &str| -> Option<String> {
+            let base_reason = |shader: &str| -> Option<String> {
                 rows.iter().find_map(|row| {
                     let reason = row["shader_options"][shader].as_str()
                         .unwrap_or("Source material information is unavailable; shader experiments are disabled.");
                     (!reason.is_empty()).then(|| format!("{}: {reason}", row["name"].as_str().unwrap_or("Part")))
                 })
             };
-            let mut value = ui.ctx().data_mut(|data| data.get_temp::<Value>(key)).unwrap_or_else(|| {
-                if saved.is_null() {
-                    let family = families.iter().find(|f| unavailable_reason(f["shader"].as_str().unwrap_or("")).is_none())
-                        .or_else(|| families.first());
-                    json!({"shader": family.map(|f| &f["shader"]), "values": {}})
-                } else { saved.clone() }
-            });
+            // A material that already uses one of these shaders opens on its own numbers.
+            let source_shader = rows.first().and_then(|row| row["source_shader"].as_str()).unwrap_or("");
+            let source_family = families.iter()
+                .find(|family| family["shader"] == source_shader && base_reason(source_shader).is_none())
+                .and_then(|family| family["shader"].as_str()).unwrap_or("");
+            let baseline = if saved.is_null() { json!({"shader": source_family, "values": {}}) } else { saved.clone() };
+            let mut value = ui.ctx().data_mut(|data| data.get_temp::<Value>(key)).unwrap_or_else(|| baseline.clone());
+            let before = value.clone();
             let available = state["available"].as_bool().unwrap_or(false);
             if !available { ui.small(crate::localization::tr(state["reason"].as_str().unwrap_or("Shader controls are unavailable."))); }
             if ids.is_empty() { ui.small(crate::localization::tr("Open Parts above, select one or more, then choose Back to Inspector.")); }
@@ -45,14 +123,123 @@ impl LabApplication {
                     ui.small(crate::localization::tr(format!("{}: {note}", row["name"].as_str().unwrap_or("Part"))));
                 }
             }
+            // Model variants can declare different numbers for the same part.
+            let variants = rows.first().and_then(|row| row["authored"].as_array()).cloned().unwrap_or_default();
+            let variant_key = key.with("variant");
+            let mut variant = ui.ctx().data_mut(|data| data.get_temp::<usize>(variant_key)).unwrap_or(0).min(variants.len().saturating_sub(1));
+            // Where the numbers below come from, so they can be checked against the file.
+            let viewport_slot = rows.first().and_then(|row| row["source"]["viewport_slot"].as_i64()).unwrap_or(-1);
+            let variant_label = |index: usize| -> String {
+                let row = &variants[index];
+                let indexes = row["variants"].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>().join(", ");
+                let shown = viewport_slot >= 0 && row["slot"].as_i64() == Some(viewport_slot);
+                match (indexes.is_empty(), shown) {
+                    (true, _) => crate::localization::tr(format!("Model variant {}", index + 1)),
+                    (false, true) => crate::localization::tr(format!("Model variant Index {indexes} (shown in the viewport)")),
+                    (false, false) => crate::localization::tr(format!("Model variant Index {indexes}")),
+                }
+            };
+            if let Some(row) = rows.first() {
+                // The host names a known limit by code; the sentence is the inspector's.
+                if row["preview_warning"].as_str() == Some("layered_veil") {
+                    ui.label(crate::localization::tr(
+                        "This net veil uses detail layers. The preview adds the detail height texture to the thread width, \
+                         as the game shader does. Lighting is still approximate; judge the final look in game."));
+                }
+                let path = row["source"]["path"].as_str().unwrap_or("");
+                if !path.is_empty() {
+                    ui.small(crate::localization::tr(format!("Material file: {}", path.rsplit('/').next().unwrap_or(path))))
+                        .on_hover_text(path);
+                }
+                if let Some(shown) = variants.get(variant) {
+                    let part = row["source"]["part"].as_str().unwrap_or("");
+                    let slot = shown["slot"].as_i64().unwrap_or(-1);
+                    ui.small(if slot >= 0 {
+                        crate::localization::tr(format!("Part {part}: material wrapper {} in that file.", slot + 1))
+                    } else {
+                        crate::localization::tr(format!("Part {part}."))
+                    });
+                    let source_rows = shown["rows"].as_array().cloned().unwrap_or_default();
+                    if !source_rows.is_empty() {
+                        crate::localization::collapsing("Source material rows").id_salt("shader_source_rows").show(ui, |ui| {
+                            ui.small(crate::localization::tr(
+                                "The rows of this wrapper as the file writes them. Compare them with the pac_xml to check the Original values."));
+                            let cell = |value: &Value| -> String {
+                                value.as_str().map(str::to_owned).or_else(|| value.as_i64().map(|n| n.to_string())).unwrap_or_default()
+                            };
+                            if ui.small_button(crate::localization::tr("Copy rows")).clicked() {
+                                let text = source_rows.iter().map(|item| ["kind", "name", "item_id", "index", "value"]
+                                    .map(|column| cell(&item[column])).join("\t")).collect::<Vec<_>>().join("\n");
+                                ui.ctx().copy_text(text);
+                            }
+                            egui::Grid::new("shader_source_rows_grid").striped(true).num_columns(3).show(ui, |ui| {
+                                for item in &source_rows {
+                                    let id = cell(&item["item_id"]);
+                                    ui.small(cell(&item["name"])).on_hover_text(if id.is_empty() { cell(&item["kind"]) }
+                                        else { format!("{} · ItemID {id} · Index {}", cell(&item["kind"]), cell(&item["index"])) });
+                                    let value = cell(&item["value"]);
+                                    ui.small(value.rsplit('/').next().unwrap_or(&value).to_owned()).on_hover_text(value.clone());
+                                    ui.end_row();
+                                }
+                            });
+                        });
+                    }
+                }
+            }
             let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
                 && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
-            ui.add_enabled_ui(available && editing && !self.cdmw_busy() && !ids.is_empty(), |ui| {
+            let enabled = available && editing && !self.cdmw_busy() && !ids.is_empty();
+            // Force replace: a shader with a known row set may replace any equipment
+            // material, even one the source checks refuse (Cloth, Cloth_Ver2, ...).
+            // The host says where: never without a source material or over Glow.
+            let forceable = |shader: &str| !is_static && !rows.is_empty()
+                && families.iter().any(|family| family["shader"] == shader && family["rebuild"].as_bool() == Some(true))
+                && rows.iter().all(|row| row["forceable"][shader].as_bool() == Some(true));
+            let force_key = key.with("force");
+            let any_forceable = families.iter().filter_map(|family| family["shader"].as_str()).any(|shader| forceable(shader));
+            let mut force_mode = any_forceable && ui.ctx().data_mut(|data| data.get_temp::<bool>(force_key))
+                .unwrap_or(value["force"].as_bool() == Some(true));
+            if any_forceable {
+                if ui.add_enabled(enabled, egui::Checkbox::new(&mut force_mode,
+                        crate::localization::tr("Replace the material outright (force)")))
+                    .on_hover_text(crate::localization::tr(
+                        "Lets the net veil and layered glass replace any equipment material, including ones the source checks refuse \
+                         (Cloth, Cloth_Ver2 and others). Every row of the material is deleted and written anew; only the textures \
+                         kept below carry over. Colours the source mixes from dye or layers are lost."))
+                    .changed() {
+                    let shader = value["shader"].as_str().unwrap_or("").to_owned();
+                    if force_mode && forceable(&shader) {
+                        value["rebuild"] = json!(true);
+                        value["force"] = json!(true);
+                    } else if let Some(object) = value.as_object_mut() {
+                        object.remove("force");
+                    }
+                    if !force_mode && !shader.is_empty() && base_reason(&shader).is_some() {
+                        // Without force the source refuses this shader: keep the source's.
+                        value = json!({"shader": "", "values": {}});
+                    }
+                }
+                ui.ctx().data_mut(|data| data.insert_temp(force_key, force_mode));
+                if force_mode {
+                    ui.colored_label(ui.visuals().warn_fg_color, crate::localization::tr(
+                        "Force replace deletes every row of the material and writes the chosen shader's own rows. If the outfit's colour \
+                         comes from dye or detail layers, it turns grey; judge it in the preview."));
+                }
+            }
+            let unavailable_reason = |shader: &str| -> Option<String> {
+                if force_mode && forceable(shader) { None } else { base_reason(shader) }
+            };
+            let mut reason = None;
+            ui.add_enabled_ui(enabled, |ui| {
                 let mut shader = value["shader"].as_str().unwrap_or("").to_owned();
-                let before = shader.clone();
+                let chosen = shader.clone();
                 let label = families.iter().find(|f| f["shader"] == shader)
-                    .and_then(|f| f["label"].as_str()).unwrap_or("Choose experiment");
+                    .and_then(|f| f["label"].as_str()).unwrap_or("Keep source shader");
                 egui::ComboBox::from_id_salt("shader_experiment_family").selected_text(crate::localization::tr(label)).show_ui(ui, |ui| {
+                    if ui.add(egui::Button::selectable(shader.is_empty(), crate::localization::tr("Keep source shader")))
+                        .on_hover_text(crate::localization::tr("Use the material exactly as the source declares it.")).clicked() {
+                        shader.clear();
+                    }
                     for family in &families {
                         let name = family["shader"].as_str().unwrap_or("");
                         let reason = unavailable_reason(name);
@@ -64,52 +251,386 @@ impl LabApplication {
                     }
                 }).response.on_hover_text(crate::localization::tr(families.iter().find(|f| f["shader"] == shader)
                     .and_then(|f| f["note"].as_str()).unwrap_or("")));
-                if shader != before { value = json!({"shader": shader, "values": {}}); }
-                let reason = unavailable_reason(&shader);
+                if shader != chosen {
+                    value = json!({"shader": shader, "values": {}});
+                    if force_mode && forceable(&shader) {
+                        value["rebuild"] = json!(true);
+                        value["force"] = json!(true);
+                    }
+                }
+                reason = if shader.is_empty() { None } else { unavailable_reason(&shader) };
                 if let Some(note) = &reason { ui.small(crate::localization::tr(note)); }
                 ui.add_enabled_ui(reason.is_none(), |ui| {
                 if let Some(family) = families.iter().find(|f| f["shader"] == shader) {
-                    for field in family["fields"].as_array().into_iter().flatten() {
-                        let Some(name) = field["name"].as_str() else { continue; };
-                        let mut enabled = !value["values"][name].is_null();
-                        ui.vertical(|ui| {
-                            ui.checkbox(&mut enabled, crate::localization::tr(field["label"].as_str().unwrap_or(name)))
-                                .on_hover_text(crate::localization::tr(field["note"].as_str().unwrap_or(
-                                    "Unchecked fields retain authored values. Compatibility is checked when applying.")));
-                            let mut numbers = if value["values"][name].is_array() { value["values"][name].clone() } else { field["default"].clone() };
-                            ui.add_enabled_ui(enabled, |ui| {
-                                if let Some(values) = numbers.as_array_mut() {
-                                    for number in values {
-                                        let mut n = number.as_f64().unwrap_or(0.0);
-                                        let integer = field["integer"].as_bool().unwrap_or(false);
-                                        let mut slider = crate::cdmw_ui::numeric::slider(&mut n,
-                                            field["minimum"].as_f64().unwrap_or(0.0)..=field["maximum"].as_f64().unwrap_or(1.0))
-                                            .fixed_decimals(if integer { 0 } else { 4 });
-                                        if integer { slider = slider.step_by(1.0); }
-                                        ui.add(slider);
-                                        *number = json!(if integer { n.round() } else { n });
+                    if family["rebuild"].as_bool() == Some(true) {
+                        let forced = value["force"].as_bool() == Some(true);
+                        let mut rebuild = value["rebuild"].as_bool().unwrap_or(false) || forced;
+                        // Force replace always writes the shader's own rows.
+                        if ui.add_enabled(!forced, egui::Checkbox::new(&mut rebuild,
+                                crate::localization::tr("Rewrite with this shader's own parameter set")))
+                            .on_hover_text(crate::localization::tr(
+                                "Off: changed values are added to the source material's rows. On: the material is written with this shader's usual rows, order and IDs; other rows are dropped. Compare both in game."))
+                            .changed() {
+                            if rebuild {
+                                value["rebuild"] = json!(true);
+                            } else if let Some(object) = value.as_object_mut() {
+                                object.remove("rebuild");
+                                object.remove("dropped_textures");
+                            }
+                        }
+                        // The textures a rewrite takes from the source; the base colour always stays.
+                        let layout = family["layout_textures"].as_array().cloned().unwrap_or_default();
+                        if value["rebuild"].as_bool() == Some(true) && !layout.is_empty() {
+                            ui.small(crate::localization::tr("Keep these textures from the source material:"));
+                            ui.horizontal_wrapped(|ui| {
+                                for item in &layout {
+                                    let (Some(name), Some(label)) = (item[0].as_str(), item[1].as_str()) else { continue; };
+                                    let mut dropped: Vec<String> = value["dropped_textures"].as_array().into_iter().flatten()
+                                        .filter_map(|n| n.as_str().map(str::to_owned)).collect();
+                                    let mut keep = !dropped.iter().any(|n| n == name);
+                                    if ui.checkbox(&mut keep, crate::localization::tr(label)).changed() {
+                                        dropped.retain(|n| n != name);
+                                        if !keep { dropped.push(name.to_owned()); }
+                                        if dropped.is_empty() {
+                                            if let Some(object) = value.as_object_mut() { object.remove("dropped_textures"); }
+                                        } else {
+                                            value["dropped_textures"] = json!(dropped);
+                                        }
                                     }
                                 }
                             });
-                            if enabled { value["values"][name] = numbers; }
-                            else if let Some(values) = value["values"].as_object_mut() { values.remove(name); }
+                        }
+                    }
+                    let presets = family["presets"].as_array().cloned().unwrap_or_default();
+                    let is_user = |preset: &Value| preset["user"].as_bool() == Some(true);
+                    // A user's preset keeps the name it was given; built-in labels are translated.
+                    let preset_label = |preset: &Value| {
+                        let label = preset["label"].as_str().unwrap_or("");
+                        if is_user(preset) { label.to_owned() } else { crate::localization::tr(label) }
+                    };
+                    if !presets.is_empty() {
+                        egui::ComboBox::from_id_salt("shader_experiment_preset")
+                            .selected_text(crate::localization::tr("Choose a preset")).show_ui(ui, |ui| {
+                            for preset in &presets {
+                                if ui.add(egui::Button::selectable(false, preset_label(preset))).clicked() {
+                                    value["values"] = preset["values"].clone();
+                                }
+                            }
+                        }).response.on_hover_text(crate::localization::tr(
+                            "Numbers taken from shipped materials and released mods. Choosing one replaces this part's changed values."));
+                    }
+                    // Save what the sliders show now, under a name, for any other part or model.
+                    let name_key = egui::Id::new("shader_experiment_preset_name");
+                    let mut name = ui.ctx().data_mut(|data| data.get_temp::<String>(name_key)).unwrap_or_default();
+                    ui.horizontal(|ui| {
+                        ui.add(egui::TextEdit::singleline(&mut name).desired_width(150.0).char_limit(48)
+                            .hint_text(crate::localization::tr("Preset name")));
+                        if ui.add_enabled(!name.trim().is_empty(), egui::Button::new(crate::localization::tr("Save preset")))
+                            .on_hover_text(crate::localization::tr(
+                                "Saves every value shown below under this name on this computer. A preset of the same name is replaced."))
+                            .clicked() {
+                            let authored = variants.get(variant).map(|row| &row["fields"][shader.as_str()]);
+                            let layered = veil_reads_detail_layers(rows.first().copied(), &shader, &value);
+                            let shown = family["fields"].as_array().into_iter().flatten().filter_map(|field| {
+                                let field_name = field["name"].as_str()?;
+                                if veil_field_unread(&shader, field_name, layered)
+                                    && !authored.is_some_and(|fields| fields[field_name].is_array()) {
+                                    return None; // Not shown, so not part of "every value shown".
+                                }
+                                let numbers = [&value["values"][field_name], authored.map_or(&Value::Null, |fields| &fields[field_name]),
+                                    &field["default"]].into_iter().find(|numbers| numbers.is_array())?.clone();
+                                Some((field_name.to_owned(), numbers))
+                            }).collect::<serde_json::Map<String, Value>>();
+                            actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
+                                arguments: json!({"preset": {"action": "save", "shader": shader, "name": name.trim(), "values": shown}}),
+                                label: "Save shader preset" });
+                            name.clear();
+                        }
+                        if presets.iter().any(is_user) {
+                            egui::ComboBox::from_id_salt("shader_experiment_preset_delete")
+                                .selected_text(crate::localization::tr("Delete a saved preset")).show_ui(ui, |ui| {
+                                for preset in presets.iter().filter(|preset| is_user(preset)) {
+                                    if ui.add(egui::Button::selectable(false, preset_label(preset))).clicked() {
+                                        actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
+                                            arguments: json!({"preset": {"action": "delete", "shader": shader, "name": preset["label"]}}),
+                                            label: "Delete shader preset" });
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    ui.ctx().data_mut(|data| data.insert_temp(name_key, name));
+                    if variants.len() > 1 {
+                        egui::ComboBox::from_id_salt("shader_experiment_variant")
+                            .selected_text(variant_label(variant)).show_ui(ui, |ui| {
+                            for index in 0..variants.len() {
+                                if ui.add(egui::Button::selectable(variant == index, variant_label(index))).clicked() {
+                                    variant = index;
+                                }
+                            }
+                        }).response.on_hover_text(crate::localization::tr(
+                            "This part's source material differs between model variants. Original values are shown for the chosen variant; an edit applies to all of them."));
+                    }
+                    let authored = variants.get(variant).map(|row| &row["fields"][shader.as_str()]);
+                    // A net veil with Ver2 detail layers, unless it is rewritten to the older layout.
+                    let veil_layers = rows.first().map(|row| &row["veil_layers"])
+                        .filter(|_| veil_reads_detail_layers(rows.first().copied(), &shader, &value));
+                    if let Some(layers) = veil_layers {
+                        let number = |key: &str| layers[key].as_f64().unwrap_or(0.0);
+                        let pair = |key: &str| (layers[key][0].as_f64().unwrap_or(0.0), layers[key][1].as_f64().unwrap_or(0.0));
+                        crate::localization::collapsing("Detail layer values (read only)").id_salt("shader_veil_layers").show(ui, |ui| {
+                            ui.small(format!("{}: {}", crate::localization::tr("Detail channel"), layers["channel"].as_str().unwrap_or("")));
+                            ui.small(format!("{}: {:.2} x {:.2}", crate::localization::tr("Detail repeat"), pair("repeat").0, pair("repeat").1));
+                            ui.small(format!("{}: {:.3}, {:.3}", crate::localization::tr("Detail offset"), pair("offset").0, pair("offset").1));
+                            ui.small(format!("{}: {:.1}", crate::localization::tr("Detail rotation (degrees)"), number("rotation_degrees")));
+                            ui.small(crate::localization::tr(
+                                "Thread map scale and Veil colour are not read by this material, so they are hidden."));
+                        });
+                    }
+                    // The lace transform of a layered veil: its originals come from the layer state.
+                    let layer_originals = veil_layers.map(|layers| json!({
+                        "veilDetailRepeat": layers["repeat"], "veilDetailOffset": layers["offset"],
+                        "veilDetailRotation": [layers["rotation_degrees"]]}));
+                    let extras = family["extras"].as_array().filter(|_| veil_layers.is_some());
+                    for field in family["fields"].as_array().into_iter().flatten().chain(extras.into_iter().flatten()) {
+                        let Some(name) = field["name"].as_str() else { continue; };
+                        let declared = authored.map(|fields| &fields[name]).filter(|numbers| numbers.is_array())
+                            .or_else(|| layer_originals.as_ref().map(|originals| &originals[name]).filter(|numbers| numbers.is_array()));
+                        let original = declared.unwrap_or(&field["default"]).clone();
+                        let overridden = value["values"][name].is_array();
+                        if veil_field_unread(&shader, name, veil_layers.is_some()) && declared.is_none() {
+                            continue;
+                        }
+                        let mut numbers = if overridden { value["values"][name].clone() } else { original.clone() };
+                        let mut edited = false;
+                        let mut restore = false;
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                let caption = crate::localization::tr(field["label"].as_str().unwrap_or(name));
+                                let caption = if overridden {
+                                    // A plain ASCII marker: it must survive every interface font.
+                                    egui::RichText::new(format!("{caption} *")).strong().color(ui.visuals().warn_fg_color)
+                                } else { egui::RichText::new(caption) };
+                                ui.label(caption).on_hover_text(format!("{}\n{name} · {}–{}",
+                                    crate::localization::tr(field["note"].as_str().unwrap_or("Changed values are previewed at once and saved when you release the control.")),
+                                    field["minimum"].as_f64().unwrap_or(0.0), field["maximum"].as_f64().unwrap_or(1.0)));
+                                if overridden && ui.small_button(crate::localization::tr("Original"))
+                                    .on_hover_text(crate::localization::tr("Return this value to the source material's.")).clicked() {
+                                    restore = true;
+                                }
+                            });
+                            if let Some(values) = numbers.as_array_mut() {
+                                for number in values {
+                                    let old = number.as_f64().unwrap_or(0.0);
+                                    let mut n = old;
+                                    let integer = field["integer"].as_bool().unwrap_or(false);
+                                    let mut slider = crate::cdmw_ui::numeric::slider(&mut n,
+                                        field["minimum"].as_f64().unwrap_or(0.0)..=field["maximum"].as_f64().unwrap_or(1.0))
+                                        .fixed_decimals(if integer { 0 } else { 4 });
+                                    if integer { slider = slider.step_by(1.0); }
+                                    ui.add(slider);
+                                    let n = if integer { n.round() } else { n };
+                                    if (n - old).abs() > 1e-9 {
+                                        edited = true;
+                                        *number = json!(n);
+                                    }
+                                }
+                            }
+                            ui.small(crate::localization::tr(if declared.is_some() {
+                                format!("Original: {}", numbers_text(&original))
+                            } else {
+                                format!("Not set by this material. Default: {}", numbers_text(&original))
+                            }));
+                        });
+                        if restore {
+                            if let Some(values) = value["values"].as_object_mut() { values.remove(name); }
+                        } else if edited {
+                            value["values"][name] = numbers;
+                        }
+                    }
+                    // Textures this shader reads: the source's own, or a file of the user's.
+                    let textures = variants.get(variant).and_then(|row| row["textures"].as_object()).cloned().unwrap_or_default();
+                    let slots = family["textures"].as_array().cloned().unwrap_or_default();
+                    for slot in &slots {
+                        let Some(parameter) = slot["name"].as_str() else { continue; };
+                        let replaced = value["textures"][parameter].as_str().map(str::to_owned);
+                        let source = textures.get(parameter).and_then(Value::as_str).unwrap_or("");
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(crate::localization::tr(slot["label"].as_str().unwrap_or(parameter))).on_hover_text(parameter);
+                            if ui.button(crate::localization::tr("Replace...")).on_hover_text(crate::localization::tr(
+                                "Choose a DDS, or a PNG, TGA, JPG or BMP image to encode as DDS. The mod ships it under a name of its own; the game's texture is not changed.")).clicked() {
+                                actions.push(UiAction::ChooseCdmwShaderTexture {
+                                    part_ids: json!(ids), controls: value.clone(), parameter: parameter.to_owned() });
+                            }
+                            if ui.add_enabled(replaced.is_some(), egui::Button::new(crate::localization::tr("Original")))
+                                .on_hover_text(crate::localization::tr("Use the source material's texture again.")).clicked() {
+                                let mut controls = value.clone();
+                                if let Some(map) = controls["textures"].as_object_mut() { map.remove(parameter); }
+                                if controls["textures"].as_object().is_some_and(|map| map.is_empty()) {
+                                    if let Some(object) = controls.as_object_mut() { object.remove("textures"); }
+                                }
+                                actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
+                                    arguments: json!({"part_ids": ids, "shader_controls": controls}), label: "Restore shader texture" });
+                            }
+                        });
+                        if replaced.is_some()
+                            && let Some(watch) = self.cdmw_shader_texture_watch.iter()
+                                .find(|watch| watch.parameter == parameter && watch.part_ids == json!(ids))
+                        {
+                            let file = watch.path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+                            ui.small(crate::localization::tr(format!("Reloads when {file} is saved again.")))
+                                .on_hover_text(watch.path.to_string_lossy());
+                        }
+                        ui.small(match &replaced {
+                            Some(digest) => crate::localization::tr(format!("Replaced with your texture ({}).", &digest[..digest.len().min(8)])),
+                            None if source.is_empty() => crate::localization::tr("Not set by this material."),
+                            None => crate::localization::tr(format!("Original: {}", source.rsplit('/').next().unwrap_or(source))),
+                        }).on_hover_text(source);
+                    }
+                    let others = textures.iter()
+                        .filter(|(parameter, _)| !slots.iter().any(|slot| slot["name"] == parameter.as_str())).collect::<Vec<_>>();
+                    if !others.is_empty() {
+                        crate::localization::collapsing("Source textures").id_salt("shader_source_textures").show(ui, |ui| {
+                            for (parameter, path) in others {
+                                let path = path.as_str().unwrap_or("");
+                                ui.small(format!("{parameter}: {}", path.rsplit('/').next().unwrap_or(path))).on_hover_text(path);
+                            }
                         });
                     }
                 }
                 });
+                if ui.add_enabled(any_saved, egui::Button::new(crate::localization::tr("Restore shader controls")))
+                    .on_hover_text(crate::localization::tr("Remove every shader change from the selected parts.")).clicked() {
+                    actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
+                        arguments: json!({"part_ids": ids, "reset": true}), label: "Restore shader controls" });
+                }
+            });
+            // See-through cloth is judged against what is behind it.
+            ui.horizontal_wrapped(|ui| {
+                ui.small(crate::localization::tr("Background"));
+                for (label, colour) in VIEWPORT_BACKDROPS {
+                    let chosen = self.viewport_background_colour == colour;
+                    if ui.add(egui::Button::selectable(chosen, crate::localization::tr(label)).small()).clicked() {
+                        actions.push(UiAction::SetViewportBackground(colour));
+                    }
+                }
+            });
+            // The rest of this block changes only how the viewport shows the material.
+            let inspection = self.material_inspection;
+            let mut hide_selection = inspection.hide_selection;
+            // Always reachable, whatever the keyboard layout or focus (Shift+H does the same).
+            let (label, hidden) = if self.selection_highlight_hidden {
+                ("Show selection highlight", false)
+            } else {
+                ("Hide selection highlight", true)
+            };
+            if ui.small_button(crate::localization::tr(label)).clicked() {
+                actions.push(UiAction::SetSelectionHighlightHidden(hidden));
+            }
+            if ui.checkbox(&mut hide_selection, crate::localization::tr("Hide the selection highlight while this panel is open"))
+                .on_hover_text(crate::localization::tr(
+                    "The highlight tints the selected part and hides what a material change does. The part stays selected. \
+                     Shift+H (rebindable in Keyboard Shortcuts) hides or shows the highlight at any time."))
+                .changed() {
+                actions.push(UiAction::MaterialInspection(MaterialInspectionChange::HideSelection(hide_selection)));
+            }
+            ui.horizontal_wrapped(|ui| {
+                ui.small(crate::localization::tr("Light"));
+                for (placement, label) in LightPlacement::ALL {
+                    if ui.add(egui::Button::selectable(inspection.placement == placement, crate::localization::tr(label)).small())
+                        .on_hover_text(crate::localization::tr(
+                            "Places the preview light relative to the current view; it then stays put while you orbit. Backlight glow and sheen show with the light behind or beside the cloth. Preview only."))
+                        .clicked() {
+                        actions.push(UiAction::MaterialInspection(MaterialInspectionChange::Light(placement)));
+                    }
+                }
+            });
+            if inspection.light.is_some() {
+                let mut strength = f64::from(inspection.light_strength);
+                if ui.add(crate::cdmw_ui::numeric::slider(&mut strength, 0.0..=2.0).fixed_decimals(2)
+                    .text(crate::localization::tr("Light strength"))).changed() {
+                    actions.push(UiAction::MaterialInspection(MaterialInspectionChange::LightStrength(strength as f32)));
+                }
+            }
+            if value["shader"] == "SkinnedMeshTransparency" || source_shader == "SkinnedMeshTransparency" {
                 ui.horizontal_wrapped(|ui| {
-                    if ui.add_enabled(reason.is_none(), egui::Button::new(crate::localization::tr("Apply shader controls")))
-                        .on_hover_text(crate::localization::tr("These controls preserve the source maps. Game shader activation, shadows and timing still require an in-game test.")).clicked() {
+                    ui.small(crate::localization::tr("Game screen size"));
+                    for (screen, label) in VeilScreen::ALL {
+                        if ui.add(egui::Button::selectable(inspection.veil_screen == screen, label).small())
+                            .on_hover_text(crate::localization::tr(
+                                "The game spaces the veil's net by screen size: the net is finer at 3840 x 2160 and coarser at 1920 x 1080. Preview only."))
+                            .clicked() {
+                            actions.push(UiAction::MaterialInspection(MaterialInspectionChange::VeilScreen(screen)));
+                        }
+                    }
+                });
+            }
+            // The whole model as the game ships it, through the existing comparison.
+            let comparison = self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit");
+            if (any_saved || comparison == "original")
+                && ui.add_enabled(!self.cdmw_busy(), egui::Button::selectable(comparison == "original",
+                    crate::localization::tr("Show original material")))
+                    .on_hover_text(crate::localization::tr(
+                        "Shows the model without your changes. Click again to return to the edit; nothing is discarded."))
+                    .clicked() {
+                actions.push(UiAction::CdmwCommand { command: "replacement_compare",
+                    arguments: json!({"mode": if comparison == "original" { "edit" } else { "original" }}),
+                    label: "Compare replacement output" });
+            }
+            // Live preview: the renderer takes the new numbers without the host.
+            let now = ui.input(|input| input.time);
+            let changed_key = key.with("changed-at");
+            if value != before {
+                ui.ctx().data_mut(|data| data.insert_temp(changed_key, now));
+                let family = families.iter().find(|family| family["shader"] == value["shader"]);
+                let preview = rows.iter().filter_map(|row| {
+                    let part = u32::try_from(row["index"].as_u64()?).ok()?;
+                    Some((part, family.and_then(|family| shader_live_factors(row, family, &value))))
+                }).collect::<Vec<_>>();
+                if !preview.is_empty() { actions.push(UiAction::CdmwShaderPreview(preview)); }
+            }
+            // Commit once the control has rested, so one drag is one undo step.
+            let sent_key = key.with("sent");
+            let sent = ui.ctx().data_mut(|data| data.get_temp::<Value>(sent_key));
+            if value != baseline && sent.as_ref() != Some(&value) && enabled && reason.is_none() {
+                let changed_at = ui.ctx().data_mut(|data| data.get_temp::<f64>(changed_key)).unwrap_or(now);
+                if now - changed_at >= COMMIT_DELAY_SECONDS && !ui.input(|input| input.pointer.any_down()) {
+                    let unchanged_source = value["shader"].as_str().unwrap_or("").is_empty()
+                        || (value["shader"] == source_family && value["values"].as_object().is_some_and(|values| values.is_empty())
+                            && MASK_KEYS.iter().all(|mask| value[*mask].is_null())
+                            && value["textures"].is_null() && value["rebuild"].is_null() && value["force"].is_null());
+                    if !unchanged_source {
                         actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
                             arguments: json!({"part_ids": ids, "shader_controls": value}), label: "Edit shader controls" });
-                    }
-                    if ui.add_enabled(any_saved, egui::Button::new(crate::localization::tr("Restore shader controls"))).clicked() {
+                    } else if any_saved {
                         actions.push(UiAction::CdmwCommand { command: "replacement_shader_controls",
                             arguments: json!({"part_ids": ids, "reset": true}), label: "Restore shader controls" });
                     }
-                });
+                    ui.ctx().data_mut(|data| data.insert_temp(sent_key, value.clone()));
+                } else {
+                    ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(COMMIT_DELAY_SECONDS));
+                }
+            }
+            ui.ctx().data_mut(|data| {
+                data.insert_temp(key, value);
+                data.insert_temp(variant_key, variant);
             });
-            ui.ctx().data_mut(|data| data.insert_temp(key, value));
         });
+    }
+}
+
+/// A net veil part that draws Ver2 detail layers, unless it is being rewritten to the older layout.
+fn veil_reads_detail_layers(row: Option<&Value>, shader: &str, value: &Value) -> bool {
+    shader == "SkinnedMeshTransparency" && value["rebuild"].as_bool() != Some(true)
+        && row.is_some_and(|row| row["veil_layers"].is_object())
+}
+
+/// A layered veil does not read the map scale or the colour; any other veil
+/// does not read the two displacement scales.
+fn veil_field_unread(shader: &str, name: &str, layered: bool) -> bool {
+    shader == "SkinnedMeshTransparency" && if layered {
+        matches!(name, "_uvScale" | "_dyeingColor")
+    } else {
+        matches!(name, "_screenSpaceDisplacementScale" | "_detailScreenSpaceDisplacementScale")
     }
 }

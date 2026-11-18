@@ -7,6 +7,21 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- Mesh Editor's **Inspector > Shader experiments** is reworked. Each slider starts from the value the source pac_xml writes and shows it as the original, with a reset per field and a live viewport preview while you drag. Built-in presets, presets of your own (save and delete), a model variant (**Index**) selector, a read-only view of the source material rows with **Copy rows**, and **Show original material** sit in the same panel. **Replace...** swaps a shader texture for a DDS or a PNG, TGA, JPG or BMP image encoded as DDS and reloads it when the file is saved again. **Rewrite with this shader's own parameter set** writes the net veil or layered glass with that shader's usual rows. Contributed by blablahandsome1212 (issue #34).
+- **Drafts & Mods > Add Mod Folder** opens mods that ship only pac_xml material files, and large extracted folders through a model picker that filters by name and shader. Contributed by blablahandsome1212 (issue #34).
+- The November patch wedding veil (SkinnedMeshTransparency Ver2) previews as the game shader draws it: thread width from the wrinkle height map plus the lace detail layer, the lace repeated by its detail UV transform, and alpha x 0.99. **Thread width scale** and **Lace strength** sliders and lace repeat, offset and rotation editing are added; the lace edits are worked out from the shader and not yet checked in game. **Game screen size** sets the veil's net spacing in the preview. Contributed by blablahandsome1212 (issue #34).
+- Shader experiments converts SkinnedMeshStandard_Ver2 outfits to the net veil or layered glass, baking their layers first. The optional **Replace the material outright (force)** rewrites any equipment material, such as Cloth or Cloth_Ver2, as the net veil or layered glass and lets you choose which source textures to keep; dye and layer colours are lost, and the panel says so. Not yet checked in game. Contributed by blablahandsome1212 (issue #34).
+- The viewport has background presets, a light direction that can follow the camera, and **Hide selection highlight** (Shift+H, also in Viewport settings and the shader panel) for judging a material on a selected part. Contributed by blablahandsome1212 (issue #34).
+
+### Fixed
+
+- Closing a model and opening it again with **Open Selected Mesh** keeps the materials it first opened with. It could rebuild them from the native package with parts and materials paired wrongly, such as the veil's shader on the crown parts. Contributed by blablahandsome1212 (issue #34).
+- Preview Core publishes each batch's shader family from the texture binding that names the part's own material. It took the family of the batch's first binding, its base texture, which can belong to a sibling part's material. Reported by blablahandsome1212 (issue #34).
+- Material layers read per-part inputs where Preview Core writes them, under `dds_textures.material_inputs`, instead of only the batch's top level. Contributed by blablahandsome1212 (issue #34).
+- The material combiner bakes a detail layer's UV transform with the game shader's sign on a vertically flipped image, so a layer with a Y offset or a rotation lands where the game puts it. Reported by blablahandsome1212 (issue #34).
+
 ### Docs
 
 - Help and the Wiki have worked examples in every language. Mesh Editor gains **Blender round trip**, the Blender export settings that bring an edited game mesh back (Selected Objects, Attributes, Use Vertex Color > Active, Include All Bone Influences), plus examples for leaving a part out of an outfit and replacing a game mesh with your own model. Create New Item gains a first renamed-sword test, a weapon from Blender and armour or clothing from Blender. The FAQ answers why a returned mesh is refused, a mirror-like imported surface, wrong size or turn, FBX import and the vertex limit.

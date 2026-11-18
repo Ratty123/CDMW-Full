@@ -325,6 +325,7 @@ class MeshEditorTabShellMixin(
         self._cancel_dotnet_material_compile()
         self._discard_queued_archive_session_open()
         self.close_standalone_session()
+        self._release_reusable_archive_material_context()
         dispatcher = self.standalone_live_stroke_dispatcher
         if dispatcher is not None:
             dispatcher.request_stop()

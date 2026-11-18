@@ -46,8 +46,10 @@ def test_preview_factors_carry_the_authored_values_and_colour_alpha():
     veil = preview_factors(ShaderControls("SkinnedMeshTransparency"), VEIL)
     assert veil[:2] == (11., 1.)
     assert veil[4:9] == (.3, .727, .516, .901, .27)
-    assert veil[9:12] == pytest.approx((0xd9 / 255,) * 3)
-    assert veil[12] == 1.
+    # The two displacement scales a layered veil reads sit before the colour.
+    assert veil[9:11] == (1., 0.)
+    assert veil[11:14] == pytest.approx((0xd9 / 255,) * 3)
+    assert veil[14] == 1.
     # Unauthored conversions inherit the material definition defaults.
     assert preview_factors(ShaderControls("SkinnedMeshGlass"))[4:12] == (.1, .5, .05, 1.52, 1., 1., 1., 1.)
     # An explicit colour edit replaces RGB only; the source alpha byte survives.
@@ -55,14 +57,16 @@ def test_preview_factors_carry_the_authored_values_and_colour_alpha():
     assert edited[8:12] == pytest.approx((1., 0., 0., 0xd7 / 255))
 
 
-def test_conversion_accepts_plain_and_glass_sources_and_refuses_layered_ones():
+def test_conversion_accepts_plain_glass_and_bakeable_sources_and_refuses_other_layered_ones():
     options = equipment_shader_options(material())["blade"][1]
     assert {"SkinnedMeshGlass", "SkinnedMeshTransparency"} <= set(options)
     translucent = equipment_shader_options(material("SkinnedMeshTranslucent"))["blade"][1]
     assert "SkinnedMeshGlass" in translucent and "SkinnedMeshTransparency" not in translucent
     layered = material("SkinnedMeshStandard", field("_layerBaseColorTexture", "layer.dds", "Texture"))
     assert not {"SkinnedMeshGlass", "SkinnedMeshTransparency"} & set(equipment_shader_options(layered)["blade"][1])
-    assert not {"SkinnedMeshGlass", "SkinnedMeshTransparency"} & set(
+    # A decoded layered equipment family converts through the appearance baker,
+    # as Equipment glass does: its layers are flattened into plain maps first.
+    assert {"SkinnedMeshGlass", "SkinnedMeshTransparency"} <= set(
         equipment_shader_options(material("SkinnedMeshStandard_Ver2"))["blade"][1])
 
 
