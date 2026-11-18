@@ -78,6 +78,30 @@ static void prepare_package_batch_runtime(PackageWriteState& state, PackageBatch
     }
 }
 
+// Whether a batch has a surface map of its own: the global material or
+// specular map, or the packed response map of any of its layers.
+static bool batch_has_surface_map(
+    const TextureBinding* material,
+    const TextureBinding* specular,
+    const std::vector<MaterialLayer>& layers
+) {
+    if ((material != nullptr && !material->source_path.empty())
+        || (specular != nullptr && !specular->source_path.empty())) return true;
+    return std::any_of(layers.begin(), layers.end(), [](const MaterialLayer& layer) {
+        return !layer.material_source.empty();
+    });
+}
+
+// The metal class's scalar floor (metal and specular at least 0.56, roughness
+// at most 0.32) is a stand-in for a missing surface map. It never applies to
+// another class, and not to a metal part that has its map.
+static bool metal_class_scalar_floor_applies(
+    const std::string& material_category,
+    bool has_surface_map
+) {
+    return material_category == "metal" && !has_surface_map;
+}
+
 static void prepare_package_batch_material(PackageWriteState& state, PackageBatchState& batch) {
     const NativeSubmesh& mesh = *batch.mesh;
     batch.held_layer_albedo = shader_rule_holds_layer_albedo(batch.bindings);
@@ -189,15 +213,21 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
     const bool strong_metal_response = batch.material_response.find("metal_response") != std::string::npos
         || batch.material_response.find("metallic") != std::string::npos
         || batch.material_response.find("promoted") != std::string::npos;
-    batch.metalness_hint = batch.material_category == "metal"
+    // The class floor (metal, specular, smooth) stands in for a surface map.
+    // A part with its own map takes metal and roughness per texel from it, as
+    // the game does; the floor made its leather straps and cloth draw as metal.
+    const bool metal_class_floor = metal_class_scalar_floor_applies(
+        batch.material_category,
+        batch_has_surface_map(batch.material, batch.specular, batch.material_layers));
+    batch.metalness_hint = metal_class_floor
         && !batch.effective_material_hints.metalness_authored
         ? std::max(batch.effective_material_hints.metalness, strong_metal_response ? 0.68f : 0.56f)
         : batch.effective_material_hints.metalness;
-    batch.specular_hint = batch.material_category == "metal"
+    batch.specular_hint = metal_class_floor
         && !batch.effective_material_hints.specular_authored
         ? std::max(batch.effective_material_hints.specular, strong_metal_response ? 0.68f : 0.56f)
         : batch.effective_material_hints.specular;
-    batch.roughness_hint = batch.material_category == "metal"
+    batch.roughness_hint = metal_class_floor
         && !batch.effective_material_hints.roughness_authored
         ? std::min(batch.effective_material_hints.roughness, strong_metal_response ? 0.24f : 0.32f)
         : batch.effective_material_hints.roughness;

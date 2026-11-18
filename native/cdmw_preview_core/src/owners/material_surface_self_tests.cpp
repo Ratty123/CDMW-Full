@@ -937,9 +937,39 @@ static void run_sub_component_wrapper_order_self_test() {
         "a sidecar without an exact model lost its name-keyed mesh count");
 }
 
+// The metal class floor made every texel of a part classed metal draw as
+// metal, though its own surface map marks leather straps and cloth as not
+// metal. The floor is only for a metal part without a surface map.
+static void run_metal_class_floor_self_test() {
+    TextureBinding surface;
+    surface.source_path = "cache/plate_sp.dds";
+    TextureBinding unresolved;
+    MaterialLayer plain;
+    MaterialLayer layered;
+    layered.material_source = "cache/texturelayer_sp.dds";
+    require_material_contract(
+        !batch_has_surface_map(nullptr, nullptr, {})
+            && !batch_has_surface_map(&unresolved, nullptr, {plain})
+            && batch_has_surface_map(&surface, nullptr, {})
+            && batch_has_surface_map(nullptr, &surface, {})
+            && batch_has_surface_map(nullptr, nullptr, {plain, layered}),
+        "a batch's own surface map was not recognised");
+    require_material_contract(
+        metal_class_scalar_floor_applies("metal", false),
+        "a metal part without a surface map lost its scalar floor");
+    require_material_contract(
+        !metal_class_scalar_floor_applies("metal", true),
+        "the metal class floor overrode a part's own surface map");
+    require_material_contract(
+        !metal_class_scalar_floor_applies("cloth", false)
+            && !metal_class_scalar_floor_applies("leather", true),
+        "the metal class floor reached another class");
+}
+
 static void run_material_contract_self_test() {
     run_item_set_components_self_test();
     run_sub_component_wrapper_order_self_test();
+    run_metal_class_floor_self_test();
     run_weapon_sheath_component_self_test();
     ArchiveEntryRef wanted_texture;
     wanted_texture.path = "leveldata/proxylod/stone.dds";
