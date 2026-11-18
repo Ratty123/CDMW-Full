@@ -593,8 +593,10 @@ def mesh_tools() -> list[Tool]:
              handler=_highlight, runs_on=ON_UI),
         Tool(name="mesh.command", family="mesh", title="Mesh Editor command",
              description="Runs one of the Mesh Editor's own commands in the shown document, as its key or "
-                         "button does: tools (tool.grab ...), vertex, edge and face modes, select all, "
-                         "topology operations, transforms, view commands. commands_list with context "
+                         "button does: choosing a tool (tool.grab, tool.move ...; using it needs the "
+                         "pointer), vertex, edge and face modes, select all, invert, grow, shrink, linked, "
+                         "delete selection, camera presets and showing a page (page.uv ...; its controls are "
+                         "the helper's own and are not reachable here). commands_list with context "
                          "mesh_editor lists them with their ids, whether each can run now and why not. "
                          "A command that deletes or exports asks as that class.",
              input_schema=object_schema({"command": {"type": "string", "minLength": 2, "maxLength": 128},

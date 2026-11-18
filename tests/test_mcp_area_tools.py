@@ -704,6 +704,10 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
         layout.addWidget(widget)
     workflow.template_panel = panel
     workflow.controller = SimpleNamespace(ready=True, busy=False)
+    from cdmw.ui.new_item.workflow_header import WorkflowHeader
+
+    workflow.steps = WorkflowHeader(["Template", "Identity", "Model"])  # the step header, as the page has
+    workflow.steps.setCurrentRow(1)
     tab = QWidget()
     tab.workflow = workflow
     tab._bridge = object()  # the page is drawn by its helper from these controls
@@ -714,6 +718,8 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     mcp = connect(window)
     state = mcp.ok("new_item_state")
     assert state["ready"] and state["templates"] == list(names) and state["picked"] == ""
+    assert [row["name"] for row in state["steps"]] == ["Template", "Identity", "Model"]
+    assert state["step"] == ["Template", "Identity", "Model"][workflow.steps.currentRow()]
     found = mcp.ok("new_item_search", {"text": "iron"})
     assert found["templates"] == ["Iron Sword", "Iron Shield"] and found["search"] == "iron"
     assert mcp.ok("new_item_pick", {"match": "shield"})["picked"] == "Iron Shield" and picked == ["Iron Shield"]
@@ -734,5 +740,5 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     assert refused == {"code": "unavailable",
                        "message": "Complete the file or colour dialog before editing the item."}
     assert item_name.text() == "Kliff's Blade"
-    for widget in (workflow, tab):
+    for widget in (workflow, tab, workflow.steps):
         widget.deleteLater()

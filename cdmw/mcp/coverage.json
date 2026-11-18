@@ -1048,6 +1048,39 @@
       ]
     },
     {
+      "id": "textures.standalone",
+      "area": "Textures",
+      "what": "The Textures tool on the rail (Add Textures, Add Mod, Review & Export): the textures_* tools act only on the Texture Editor beside a Mesh Editor document",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act",
+        "app.run_command"
+      ]
+    },
+    {
+      "id": "mesh.build_options",
+      "area": "Mesh Editor",
+      "what": "Build Mod's mod manager, output choice, Include body and kept texture layers (mesh.build_mod sets name, folder, version, author, description and ZIP)",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "also": [
+        "app.ui",
+        "app.ui_act"
+      ]
+    },
+    {
+      "id": "placement.pointer",
+      "area": "Placement & Animations",
+      "what": "The viewport gizmo and the key timeline's drags",
+      "class": "edit",
+      "gap": "needs_pointer",
+      "by_points": "placement.edit"
+    },
+    {
       "id": "textures.layer",
       "area": "Texture Editor",
       "what": "Layers",

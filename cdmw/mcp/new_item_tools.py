@@ -78,10 +78,15 @@ def _state(call) -> dict[str, object]:
         "controls": widget_id(workflow),
         "dialogs": [{"widget": widget_id(dialog), "title": dialog.windowTitle()} for dialog in dialogs],
     }
-    tabs = getattr(workflow, "tabs", None) or getattr(workflow, "step_tabs", None)
-    if tabs is not None and hasattr(tabs, "tabText"):
-        state["steps"] = [tabs.tabText(index) for index in range(tabs.count())]
-        state["step"] = tabs.tabText(tabs.currentIndex()) if tabs.count() else ""
+    # The step header (WorkflowHeader): its items, the current row and each step's state.
+    header = getattr(workflow, "steps", None)
+    if header is not None and hasattr(header, "item") and hasattr(header, "currentRow"):
+        items = [header.item(index) for index in range(header.count())]
+        state["steps"] = [{"index": index, "name": item.text() if item is not None else "",
+                           "state": str(getattr(header.stepState(index), "name", "") or "").lower()}
+                          for index, item in enumerate(items)]
+        row = int(header.currentRow())
+        state["step"] = state["steps"][row]["name"] if 0 <= row < len(items) else ""
     return state
 
 
