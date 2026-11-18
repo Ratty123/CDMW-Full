@@ -1233,6 +1233,106 @@ fn offscreen_ver2_symbol_moves_roughness_and_metal() -> TestResult {
     Ok(())
 }
 
+/// The game reads green and blue of `_detailMaterialMask*` only (roughness and
+/// metal; `shader_inputs.json`, every family and permutation). CDMW summed the
+/// red channel as occlusion on the layer path, so a layer's `_sp` red darkened
+/// the lit picture. Now it changes nothing, on the Ver2 rule (mode 1) and the
+/// masked overlays (mode 2) alike.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_layer_sp_red_is_no_occlusion() -> TestResult {
+    use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    for mode in [1_u32, 2] {
+        let mut lit = Vec::new();
+        for red in [255_u8, 0] {
+            let mut layer = MaterialLayerSet {
+                lod_index: 0,
+                material_index: 0,
+                uniform: LayerUniform {
+                    base_color: [1.0; 4],
+                    control: [mode, 0, 0, 0],
+                    ..Default::default()
+                },
+                textures: std::array::from_fn(|_| None),
+            };
+            layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+            layer.textures[1] = Some(texture([128, 128, 128, 255], TextureRole::BaseColor)?);
+            layer.textures[3] = Some(texture([red, 128, 40, 255], TextureRole::Material)?);
+            layer.uniform.layers[0] = LayerEntryUniform {
+                dye: [1.0, 1.0, 1.0, 0.0],
+                affine: [1.0, 0.0, 0.0, 1.0],
+                offset: [0.0, 0.0, 15.0, 0.0],
+                properties: [1.0, 0.2158, 1.0, 0.0],
+                ..Default::default()
+            };
+            let name = format!("mode{mode}-red{red}");
+            let path = temporary.path().join(format!("{name}-lit.bmp"));
+            pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+                &snapshot,
+                &textures,
+                &[],
+                &[layer],
+                HeadlessMaterialCaptureOptions {
+                    width: 96,
+                    height: 96,
+                    ..Default::default()
+                },
+                HeadlessMaterialCaptureOutput {
+                    textured_bmp: &path,
+                    base_color_bmp: &temporary.path().join(format!("{name}-base.bmp")),
+                    part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                    normal_map: None,
+                    material_response: None,
+                    layer_mask: None,
+                },
+            ))?;
+            let bytes = std::fs::read(path)?;
+            lit.push(bytes[54 + (48 * 96 + 48) * 4..][..3].to_vec());
+        }
+        assert!(
+            lit[0].iter().zip(&lit[1]).all(|(a, b)| a.abs_diff(*b) <= 1),
+            "mode {mode}: `_sp` red 255 lit {:?}, red 0 lit {:?}",
+            lit[0],
+            lit[1]
+        );
+    }
+    Ok(())
+}
+
 /// The game's Ver2 scratch rule: where `_detailMaskTexture` red marks a scratch,
 /// the drawn layer's roughness moves through its remaining range and its metal by
 /// the plain step, and the scratch tint is overlaid on the colour.

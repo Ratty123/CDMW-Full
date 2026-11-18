@@ -414,7 +414,9 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
                     let detail = safe_normalize(mix(vec3<f32>(0.0,0.0,1.0), layer_normal(normals[k], layer), weight), vec3<f32>(0.0,0.0,1.0));
                     normal = layer_rnm(normal, detail);
                 }
-                if (flags & 4u) != 0u { orm = mix(orm, responses[k], weight); }
+                // The game reads green and blue of `_detailMaterialMask*` only
+                // (roughness, metal); red is no occlusion.
+                if (flags & 4u) != 0u { orm = vec3<f32>(orm.r, mix(orm.gb, responses[k].gb, weight)); }
             }
             continue;
         }
@@ -441,7 +443,6 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
         layer_colors[k] = c;
         layer_normals[k] = n;
         layer_responses[k] = sp;
-        orm += sp * mask[k];
     }
     if layer_uniform.control.x == 1u {
         // The game draws one colour layer per pixel: the largest mask channel.
@@ -456,7 +457,9 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
         var response = layer_responses[0].gb * response_opacity.r;
         response = mix(response, layer_responses[1].gb, clamp(raw_mask.g * response_opacity.g, 0.0, 1.0));
         response = mix(response, layer_responses[2].gb, clamp(raw_mask.b * response_opacity.b, 0.0, 1.0));
-        orm = vec3<f32>(orm.r, response);
+        // No occlusion: the Ver2 shaders read no red of `_detailMaterialMask*`
+        // and sample no `_materialTexture` (permutation d4ae32939fa23e46).
+        orm = vec3<f32>(1.0, response);
         let weight = grime_weight(layer, detail_texel.g) * step(0.00001, mask[slot]);
         color = mix(color, layer_tint(grime_colors[slot], layer.grime_tint), weight);
         orm = vec3<f32>(orm.r, mix(orm.gb, grime_responses[slot].gb, weight));
