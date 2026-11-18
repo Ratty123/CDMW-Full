@@ -427,6 +427,9 @@ static std::vector<MaterialParameterRecord> extract_material_parameters(const st
         {"MaterialParameterUInt", "uint"},
         {"MaterialParameterInt", "int"},
         {"MaterialParameterBool", "bool"},
+        // Two halves packed in one uint, as the XML stores them
+        // (`_dyeingBlendTextureTranslation`, the Ver2 symbol's UV translation).
+        {"MaterialParameterHalf2", "half2"},
     };
     for (const auto& [tag_name, kind] : parameter_tags) {
         for (const std::string& tag : collect_xml_tag_blocks(scope_text, tag_name)) {
@@ -460,7 +463,7 @@ static std::vector<MaterialParameterRecord> extract_material_parameters(const st
                 }
             }
             const bool integer_kind = kind == "byte4" || kind == "bitflag32"
-                || kind == "uint" || kind == "int" || kind == "bool";
+                || kind == "uint" || kind == "int" || kind == "bool" || kind == "half2";
             if (integer_kind) {
                 record.integer_value = integer_parameter_value(record.value, &record.has_integer);
             } else {
