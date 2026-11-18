@@ -370,6 +370,13 @@
       "tool": "commands.list"
     },
     {
+      "id": "archive.load",
+      "area": "Browse Archives",
+      "what": "Load the game archives (Scan, Refresh) and wait until they are ready",
+      "class": "read",
+      "tool": "app.load_archives"
+    },
+    {
       "id": "archive.search",
       "area": "Browse Archives",
       "what": "Search with every filter Browse has",
@@ -857,12 +864,7 @@
       "area": "Mesh Editor",
       "what": "Select vertices, edges, faces and islands by index",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command",
-        "mesh.geometry"
-      ]
+      "tool": "mesh.select"
     },
     {
       "id": "mesh.transform",
@@ -888,22 +890,35 @@
       "area": "Mesh Editor",
       "what": "Mesh findings and the fix each names",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.state"
-      ]
+      "tool": "mesh.findings"
     },
     {
       "id": "mesh.uv",
       "area": "Mesh Editor",
-      "what": "UV operations by numbers",
+      "what": "UV operations by numbers (uv_transform), as the UV page does",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.mesh_action"
+    },
+    {
+      "id": "mesh.topology",
+      "area": "Mesh Editor",
+      "what": "Topology: delete, duplicate, subdivide, refine, loop cut, edge split, split, dissolve, bridge, fill, merge, weld, extrude, inset, Create Part",
+      "class": "edit",
+      "tool": "mesh.topology"
+    },
+    {
+      "id": "mesh.mesh_actions",
+      "area": "Mesh Editor",
+      "what": "Mesh Data, Normals and Cleanup actions: mirror, remove doubles, loose vertices, winding, holes, normals, tangents",
+      "class": "edit",
+      "tool": "mesh.mesh_action"
+    },
+    {
+      "id": "mesh.output_policy",
+      "area": "Mesh Editor",
+      "what": "Output: Exact, Replacement or Free Edit with its folder",
+      "class": "edit",
+      "tool": "mesh.output_policy"
     },
     {
       "id": "mesh.weights",

@@ -315,11 +315,25 @@ def test_build_mod_presses_the_button_with_its_dialog_filled_and_reports_a_refus
     started = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Red cloak"})
     assert started["started"] and built == [("Red cloak", str(out), False, False)]
     assert mcp.ok("mesh_state")["building"]
+    # The dialog's other options: the mod manager and the layers kept underneath.
+    from cdmw.ui.mesh_editor.mod_export_dialog import CLOTHING_LAYERS
+
+    building[0] = False
+    options = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Archive cloak",
+                                        "manager": "dmm_archive", "keep_layers": [CLOTHING_LAYERS[0]]})
+    assert options["started"] and options["manager"] == "dmm_archive"
+    assert options["kept_layers"] == [CLOTHING_LAYERS[0]] and built[-1][0] == "Archive cloak"
+    building[0] = False
+    for wrong in ({"manager": "vortex"}, {"keep_layers": ["Wings"]}):
+        error = mcp.error("mesh_build_mod", {"output_folder": str(out), **wrong})
+        assert error["code"] == "invalid_arguments", wrong
+    assert built[-1][0] == "Archive cloak"  # nothing more was built
+    building[0] = True
     # The output folder must exist and never be in the game.
     game = _game(tmp_path, settings)
     assert "does not write into" in mcp.error("mesh_build_mod", {"output_folder": str(game)})["message"]
     assert mcp.error("mesh_build_mod", {"output_folder": str(tmp_path / "missing" / "x")})["code"] == "refused"
-    assert len(built) == 1 and tab_direct_output.MeshModExportDialog.__name__ == "MeshModExportDialog"
+    assert len(built) == 2 and tab_direct_output.MeshModExportDialog.__name__ == "MeshModExportDialog"
     # A hairstyle: the same folder answers its chooser.
     hair[0], building[0] = True, False
     assert mcp.ok("mesh_build_mod", {"output_folder": str(out)})["started"]
@@ -830,6 +844,12 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     assert [row["name"] for row in state["steps"]] == ["Template", "Identity", "Model"]
     assert state["step"] == ["Template", "Identity", "Model"][workflow.steps.currentRow()]
     found = mcp.ok("new_item_search", {"text": "iron"})
+    import time as _time
+
+    started = _time.monotonic()
+    again = mcp.ok("new_item_search", {"text": "iron"})  # the same text: answered at once
+    assert again["templates"] == found["templates"] and not again["searching"]
+    assert _time.monotonic() - started < 5
     assert found["templates"] == ["Iron Sword", "Iron Shield"] and found["search"] == "iron"
     assert mcp.ok("new_item_pick", {"match": "shield"})["picked"] == "Iron Shield" and picked == ["Iron Shield"]
     assert mcp.error("new_item_pick", {"match": "axe"})["code"] == "unavailable"
@@ -872,3 +892,67 @@ def test_mesh_state_history_counts_texture_edits_as_the_editor_does() -> None:
     assert merged["steps"] == ["Select", "Texture edit (belt_d.dds)"]
     history.observe_texture("key", "belt_d.dds", [opened, painted], 0)  # undone in the Texture Editor
     assert (_shared_history(session)["undo"], _shared_history(session)["redo"]) == (1, 1)
+
+
+# ===== editing the Mesh Editor by numbers ===============================================
+@pytest.mark.skipif(not __import__("cdmw.modding.mesh_native_core", fromlist=["x"]).native_mesh_core_available(),
+                    reason="the native mesh core is not built (CDMW_MESH_CORE_BIN names a built one)")
+def test_select_topology_output_and_findings_take_the_real_host_path(editor, connect, tmp_path) -> None:  # noqa: F811
+    """Through a real host session: each tool is one request the helper sends as its button
+    does, one History step, and the tool returns the history before and after."""
+
+    ui, host = editor.ui, editor.host
+    ui.standalone_rust_host_edit_commands_supported = True
+    forward = ui._send_rust_message
+
+    from_cdmw: list[dict] = []
+
+    def helper(message):  # the real helper puts its own selection into topology and mesh actions
+        if message.get("event") == "cdmw_command":
+            from_cdmw.append(dict(message))
+        if message.get("event") == "cdmw_command" and message["command"] in {"topology", "mesh_action"}:
+            view = host.shadow_service.session_view(host.shadow_session_id)
+            message = {**message, "arguments": {**message["arguments"], "selection": {
+                "faces_by_submesh": {str(p): list(i) for p, i in view.selection.faces_by_submesh},
+                "vertices_by_submesh": {str(p): list(i) for p, i in view.selection.vertices_by_submesh},
+                "edges_by_submesh": {str(p): [list(e) for e in i] for p, i in view.selection.edges_by_submesh},
+                "source_indices": list(view.selection.source_indices)}}}
+        return forward(message)
+
+    ui._send_rust_message = helper
+    # Each request the stand-in sends gets a newer id, as the helper's own do.
+    original_start = ui._start_next_rust_protocol_worker
+
+    def start() -> None:
+        queued = ui.standalone_rust_protocol_queue
+        if queued:
+            ui.standalone_rust_last_client_request_id = int(queued[-1].get("request_id", 0) or 0)
+        original_start()
+
+    ui._start_next_rust_protocol_worker = start
+    mcp = connect(editor.window)
+    before = mcp.ok("mesh_state")
+    triangles = before["parts"][0]["triangles"]
+    assert mcp.error("mesh_select", {"faces": {"0": [triangles]}})["code"] == "invalid_arguments"
+    assert mcp.error("mesh_select", {"faces": {"9": [0]}})["code"] == "not_found"
+    chosen = mcp.ok("mesh_select", {"faces": {"0": [0, 1]}})
+    assert chosen["done"] and chosen["selection"]["faces"] == 2
+    assert chosen["history"]["undo"] == chosen["history_before"]["undo"] + 1
+    commands = lambda: [m for m in editor.sent if m.get("event") == "cdmw_command"]  # noqa: E731
+    assert commands()[-1]["command"] == "select"
+    deleted = mcp.ok("mesh_topology", {"action": "delete"})
+    assert deleted["done"], deleted
+    after = mcp.ok("mesh_state")
+    assert after["parts"][0]["triangles"] == triangles - 2
+    assert deleted["history"]["undo"] == chosen["history"]["undo"] + 1
+    # CDMW sends no selection of its own: the helper acts on its selection, as its buttons do.
+    assert from_cdmw[-1]["command"] == "topology" and "selection" not in from_cdmw[-1]["arguments"]
+    findings = mcp.ok("mesh_findings")
+    assert isinstance(findings, dict) and findings
+    # Free Edit needs a folder outside the game; the policy then reads back.
+    assert mcp.error("mesh_output_policy", {"policy": "free_edit_rebuild"})["code"] == "invalid_arguments"
+    folder = tmp_path / "free-edit"
+    folder.mkdir()
+    chosen_output = mcp.ok("mesh_output_policy", {"policy": "free_edit_rebuild", "destination": str(folder)})
+    assert chosen_output["output"]["policy"] == "free_edit_rebuild", chosen_output["status"]
+    assert Path(chosen_output["output"]["destination"]).parent == folder

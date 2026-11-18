@@ -3888,6 +3888,9 @@ impl LabApplication {
                 | "rig_transfer_weights"
                 | "cloth_paint_set"
                 | "cloth_pin_set"
+                // The editor's own selection, also when CDMW sends these by name.
+                | "topology"
+                | "mesh_action"
         ) {
             return Ok(arguments);
         }

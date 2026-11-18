@@ -17,6 +17,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_RENDERER,
     RUST_HOST_CDMW_COMMAND_CAPABILITY,
+    RUST_HOST_EDIT_COMMANDS_CAPABILITY,
     RUST_HOST_HIGHLIGHT_PART_CAPABILITY,
     RUST_UI_TRANSLATION_PARTS_CAPABILITY,
 )
@@ -633,6 +634,8 @@ class MeshEditorRustProcessMixin:
             RUST_UI_TRANSLATION_PARTS_CAPABILITY in capability_set
         )
         self.standalone_rust_host_commands_supported = RUST_HOST_CDMW_COMMAND_CAPABILITY in capability_set
+        self.standalone_rust_host_edit_commands_supported = RUST_HOST_EDIT_COMMANDS_CAPABILITY in capability_set
+        self.standalone_rust_capabilities = tuple(sorted(capability_set))
         self.standalone_rust_highlight_part_supported = RUST_HOST_HIGHLIGHT_PART_CAPABILITY in capability_set
         session = self.standalone_rust_authoring_session
         if session is not None and (

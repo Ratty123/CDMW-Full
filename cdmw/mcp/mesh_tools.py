@@ -206,6 +206,9 @@ def _session_of(call):
             "building": bool(busy_output()) if callable(busy_output) else False,
             "session_folder": str(getattr(tab, "standalone_rust_session_root", "") or ""),
             "commands": len(registry.commands("mesh_editor")) if registry is not None else 0,
+            # Whether this helper takes editing by numbers (mesh_select, mesh_topology ...).
+            "edits_by_number": bool(getattr(tab, "standalone_rust_host_edit_commands_supported", False)),
+            "helper_capabilities": list(getattr(tab, "standalone_rust_capabilities", ()) or ()),
         })
         # The session's own reason: a set's Load Archive changes it after the open.
         reason = str(getattr(session, "texture_unavailable_reason", "") or "") or str(
@@ -550,14 +553,44 @@ def _build_mod(call) -> dict[str, object]:
                         getattr(self, name).setText(str(a[name]))
                 self.create_zip.setChecked(bool(a.get("create_zip", False)))
                 self.open_folder.setChecked(False)
-                shown.update(mod_name=self.mod_name.text(), output_folder=self.output_parent.text())
+                if a.get("manager"):
+                    wanted = str(a["manager"]).casefold()
+                    index = next((row for row in range(self.manager.count())
+                                  if wanted in {str(self.manager.itemData(row)[0]).casefold(),
+                                                self.manager.itemText(row).casefold()}), -1)
+                    if index < 0:
+                        shown["refused"] = "The mod managers are: " + ", ".join(
+                            str(self.manager.itemData(row)[0]) for row in range(self.manager.count())) + "."
+                        return int(self.DialogCode.Rejected)
+                    self.manager.setCurrentIndex(index)
+                if a.get("include_body") is not None and self.include_body.isVisible():
+                    self.include_body.setChecked(bool(a["include_body"]))
+                layers = [str(name) for name in a.get("keep_layers") or ()]
+                self.keep_layers.setChecked(bool(layers))
+                names = {str(self.layers.item(row).data(QT_USER_ROLE)): row for row in range(self.layers.count())}
+                unknown = sorted(set(layers) - set(names))
+                if unknown:
+                    shown["refused"] = (f"No layer {', '.join(unknown)}. The layers are: "
+                                        + ", ".join(names) + ".")
+                    return int(self.DialogCode.Rejected)
+                for name, row in names.items():
+                    self.layers.item(row).setCheckState(QT_CHECKED if name in layers else QT_UNCHECKED)
+                shown.update(mod_name=self.mod_name.text(), output_folder=self.output_parent.text(),
+                             manager=str(self.manager.currentData()[0]), kept_layers=list(self.kept_layers()),
+                             include_body=bool(self.include_body.isVisible() and self.include_body.isChecked()))
                 return int(self.DialogCode.Accepted)
 
+        from PySide6.QtCore import Qt
+
+        QT_USER_ROLE, QT_CHECKED, QT_UNCHECKED = (Qt.ItemDataRole.UserRole, Qt.CheckState.Checked,
+                                                  Qt.CheckState.Unchecked)
         tab_direct_output.MeshModExportDialog = _Answered
         try:
             tab._start_mesh_mod_build_requested()
         finally:
             tab_direct_output.MeshModExportDialog = original
+        if shown.get("refused"):
+            raise ToolError(INVALID_ARGUMENTS, str(shown["refused"]))
         busy = getattr(tab, "_mesh_direct_output_busy", None)
         return {"started": bool(busy()) if callable(busy) else bool(shown), **shown, "status": _status(tab)}
 
@@ -619,6 +652,14 @@ def _replacement(name: str):
     return handler
 
 
+def _settled(handler):
+    """A helper command, then what it did: the history before and after and the status line."""
+
+    from cdmw.mcp.mesh_edit_tools import settled
+
+    return settled(handler)
+
+
 def mesh_tools() -> list[Tool]:
     text = {"type": "string", "maxLength": 256}
     return [
@@ -664,7 +705,7 @@ def mesh_tools() -> list[Tool]:
                          "in the Parts list does; an empty list clears the selection.",
              input_schema=object_schema({"parts": {"type": "array", "maxItems": 4096, "items": _PART}},
                                         ["parts"]),
-             effect=EDIT, route="helper:select_parts", handler=_select_parts, runs_on=ON_CALL),
+             effect=EDIT, route="helper:select_parts", handler=_settled(_select_parts), runs_on=ON_CALL),
         Tool(name="mesh.highlight_part", family="mesh", title="Highlight a part",
              description="Lights one whole part up in the 3D view, as pointing at its row does, so a picture "
                          "(view_capture) shows which part it is; without 'part' the highlight ends. The "
@@ -681,16 +722,16 @@ def mesh_tools() -> list[Tool]:
                          "A command that deletes or exports asks as that class.",
              input_schema=object_schema({"command": {"type": "string", "minLength": 2, "maxLength": 128},
                                          "answers": _answers_schema()}, ["command"]),
-             effect=EDIT, route="registry:mesh_editor.<id>", handler=_command, runs_on=ON_CALL,
+             effect=EDIT, route="registry:mesh_editor.<id>", handler=_settled(_command), runs_on=ON_CALL,
              effect_of=_command_effect, approval_key=_helper_command_id),
         Tool(name="mesh.undo", family="mesh", title="Undo",
              description="Undo in the shown Mesh Editor document, as Ctrl+Z does there.",
              input_schema=object_schema(), effect=EDIT, route="registry:mesh_editor.session.undo",
-             handler=_fixed_command("session.undo"), runs_on=ON_CALL),
+             handler=_settled(_fixed_command("session.undo")), runs_on=ON_CALL),
         Tool(name="mesh.redo", family="mesh", title="Redo",
              description="Redo in the shown Mesh Editor document.",
              input_schema=object_schema(), effect=EDIT, route="registry:mesh_editor.session.redo",
-             handler=_fixed_command("session.redo"), runs_on=ON_CALL),
+             handler=_settled(_fixed_command("session.redo")), runs_on=ON_CALL),
         Tool(name="mesh.finish", family="mesh", title="Finish Edit Mesh",
              description="Finish Edit Mesh in the shown document, as its Finish button does: the edit is "
                          "validated and accepted, ready for Build Mod. mesh_state's status says how it went.",
@@ -710,7 +751,18 @@ def mesh_tools() -> list[Tool]:
              input_schema=object_schema({"output_folder": {"type": "string", "minLength": 3, "maxLength": 1024},
                                          "mod_name": text, "version": {"type": "string", "maxLength": 32},
                                          "author": text, "description": {"type": "string", "maxLength": 1024},
-                                         "create_zip": {"type": "boolean", "default": False}},
+                                         "create_zip": {"type": "boolean", "default": False},
+                                         "manager": {"type": "string", "maxLength": 64,
+                                                     "description": "dmm_loose (DMM Loose Mesh, the default) or "
+                                                                    "dmm_archive (DMM Archive Group)."},
+                                         "include_body": {"type": "boolean",
+                                                          "description": "Include the body (offered for worn "
+                                                                         "garments only)."},
+                                         "keep_layers": {"type": "array", "maxItems": 32,
+                                                         "items": {"type": "string", "maxLength": 64},
+                                                         "description": "Keep layers underneath "
+                                                                        "(experimental): the clothing layers "
+                                                                        "this garment stops cutting."}},
                                         ["output_folder"]),
              effect=OUTPUT, route="ui:_start_mesh_mod_build_requested", handler=_build_mod, runs_on=ON_CALL,
              output_folders=("output_folder",)),

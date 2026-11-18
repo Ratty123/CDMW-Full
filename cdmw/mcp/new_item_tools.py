@@ -118,8 +118,9 @@ def _search(call) -> dict[str, object]:
         from cdmw.mcp.ui_tree import act
 
         ready = getattr(getattr(workflow, "controller", None), "template_search_ready", None)
-        if ready is None:
-            found.set()
+        text = str(call.arguments.get("text") or "")
+        if ready is None or workflow.template_panel.filter_edit.text() == text:
+            found.set()  # nothing to wait for: the same text starts no new search
         else:
             def arrived(_options, signal=ready) -> None:
                 found.set()

@@ -87,11 +87,15 @@ class JobRegistry:
                   cancel_event=call.cancel_event, game_folder=game_folder or (lambda: ""))
         call.job = job
         call.on_progress = _chain(call.on_progress, job.progress)
-        # The runner checks every output path again before the work starts.
-        for name in getattr(call.tool, "output_paths", ()):
-            job.check_output(str(call.arguments.get(name) or ""))
-        for name in getattr(call.tool, "output_folders", ()):
-            job.check_output(str(call.arguments.get(name) or ""), allow_existing=True)
+        # The runner checks every output path again before the work starts (an optional
+        # one only when it is given, as the server does).
+        required = set((getattr(call.tool, "input_schema", None) or {}).get("required") or ())
+        for names, existing in ((getattr(call.tool, "output_paths", ()), False),
+                                (getattr(call.tool, "output_folders", ()), True)):
+            for name in names:
+                if name not in required and call.arguments.get(name) in (None, ""):
+                    continue
+                job.check_output(str(call.arguments.get(name) or ""), allow_existing=existing)
         with self._lock:
             self._jobs[job.id] = job
             self._trim()

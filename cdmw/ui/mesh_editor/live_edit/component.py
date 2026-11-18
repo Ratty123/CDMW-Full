@@ -73,6 +73,7 @@ STATE_NAMES = (
     "standalone_rust_target_controller", "standalone_rust_terminal_close_pending",
     "standalone_rust_texture_unavailable_reason", "standalone_rust_theme_digest",
     "standalone_rust_translation_parts_supported", "standalone_rust_host_commands_supported",
+    "standalone_rust_host_edit_commands_supported", "standalone_rust_capabilities",
     "standalone_rust_highlight_part_supported", "standalone_rust_highlighted_part",
 )
 

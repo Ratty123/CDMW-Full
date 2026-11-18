@@ -722,15 +722,34 @@ pub const HOST_HIGHLIGHT_PART_CAPABILITY: &str = "host_highlight_part_v1";
 /// Hello capability: the helper takes `cdmw_command` (`HostEvent::CdmwCommand`).
 pub const HOST_CDMW_COMMAND_CAPABILITY: &str = "host_cdmw_command_v1";
 
+/// Hello capability: `cdmw_command` also takes the editing commands of
+/// [`host_cdmw_edit_command`] (CDMW's AI connections edit by numbers through them).
+pub const HOST_EDIT_COMMANDS_CAPABILITY: &str = "host_edit_commands_v1";
+
 /// The commands `cdmw_command` may send, with the label their own button gives them:
 /// Import Replacement's two steps (choose a model, then apply its mapping), its Cancel
-/// Import, and Export Mesh File. Each still goes through `submit_cdmw_command`.
+/// Import, and Export Mesh File, then the editing commands. Each still goes through
+/// `submit_cdmw_command`, so it is one request, one History entry and one reply, as the
+/// button's own; CDMW's authoring session checks it as it checks the button's.
 pub fn host_cdmw_command(name: &str) -> Option<(&'static str, &'static str)> {
     match name {
         "replacement_choose" => Some(("replacement_choose", "Import replacement")),
         "replacement_apply" => Some(("replacement_apply", "Apply replacement")),
         "replacement_cancel" => Some(("replacement_cancel", "Cancel replacement import")),
         "export_mesh" => Some(("export_mesh", "Export mesh")),
+        _ => host_cdmw_edit_command(name),
+    }
+}
+
+/// The editing commands CDMW may send by name (`HOST_EDIT_COMMANDS_CAPABILITY`). A
+/// selection comes with `select` itself; `topology` and `mesh_action` always act on the
+/// editor's own selection, which the helper puts in as its buttons do.
+pub fn host_cdmw_edit_command(name: &str) -> Option<(&'static str, &'static str)> {
+    match name {
+        "select" => Some(("select", "Select")),
+        "topology" => Some(("topology", "Topology")),
+        "mesh_action" => Some(("mesh_action", "Mesh action")),
+        "configure_output_policy" => Some(("configure_output_policy", "Configure output")),
         _ => None,
     }
 }
@@ -1332,6 +1351,7 @@ impl CdmwBridge {
                 "empty_authoring_parts_v1",
                 "control_contract_v2",
                 HOST_CDMW_COMMAND_CAPABILITY,
+                HOST_EDIT_COMMANDS_CAPABILITY,
                 HOST_HIGHLIGHT_PART_CAPABILITY,
                 translation_transfer::CAPABILITY
             ]
@@ -6721,8 +6741,21 @@ pub(crate) mod tests {
             ));
             assert_eq!(bridge.shadow_revision(), 4);
         }
-        // Not a button's command, or arguments that are not an object: refused.
-        for name in ["topology", "replacement_export_rig", ""] {
+        // The editing commands CDMW's AI connections send by name, with their labels.
+        for (name, label) in [
+            ("select", "Select"),
+            ("topology", "Topology"),
+            ("mesh_action", "Mesh action"),
+            ("configure_output_policy", "Configure output"),
+        ] {
+            value["command"] = json!(name);
+            assert!(matches!(
+                bridge.decode_host_event(value.clone()),
+                HostEvent::CdmwCommand { command, label: l, .. } if command == name && l == label
+            ));
+        }
+        // Any other command, or arguments that are not an object: refused.
+        for name in ["replacement_export_rig", "morph_bake", "vertex_edit", "finish", ""] {
             value["command"] = json!(name);
             assert!(matches!(
                 bridge.decode_host_event(value.clone()),

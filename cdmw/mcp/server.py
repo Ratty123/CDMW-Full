@@ -385,8 +385,11 @@ class McpServer:
         from cdmw.mcp.errors import REFUSED
 
         game = getattr(self.context, "game_folder", lambda: "")()
+        required = set((call.tool.input_schema or {}).get("required") or ())
         for name, existing in (*((n, False) for n in call.tool.output_paths),
                                *((n, True) for n in call.tool.output_folders)):
+            if name not in required and call.arguments.get(name) in (None, ""):
+                continue  # an optional output not given (Exact output names no folder)
             try:
                 check_output_path(str(call.arguments.get(name) or ""), game_folder=game, allow_existing=existing)
             except OutputPathRefused as refused:
