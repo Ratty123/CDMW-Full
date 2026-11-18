@@ -1558,19 +1558,130 @@ impl Ver2Blend {
         }))
     }
 
-    /// The layer over a linear colour at a pixel of the composed map.
-    fn apply(&self, color: [f32; 3], pixel: usize, width: u32, height: u32) -> [f32; 3] {
+    /// Whether the layer is drawn at a pixel of the composed map: its own UV
+    /// lies in 0.005 to 0.995.
+    fn covers(affine: [f32; 6], pixel: usize, width: u32, height: u32) -> bool {
         let u = ((pixel % width as usize) as f32 + 0.5) / width as f32;
         let v = ((pixel / width as usize) as f32 + 0.5) / height as f32;
-        let a = self.affine;
+        let a = affine;
         let placed = [a[0] * u + a[2] * v + a[4], a[1] * u + a[3] * v + a[5]];
-        if placed.iter().any(|value| !(0.005..=0.995).contains(value)) {
+        placed.iter().all(|value| (0.005..=0.995).contains(value))
+    }
+
+    /// The layer over a linear colour at a pixel of the composed map.
+    fn apply(&self, color: [f32; 3], pixel: usize, width: u32, height: u32) -> [f32; 3] {
+        if !Self::covers(self.affine, pixel, width, height) {
             return color;
         }
         let offset = pixel * 4;
         let amount = (unit(self.pixels[offset + 3]) * self.opacity).clamp(0.0, 1.0);
         let dyed = ver2_tint(linear_pixel(&self.pixels, offset), self.tint);
         std::array::from_fn(|k| mix(color[k], dyed[k], amount))
+    }
+}
+
+/// The Ver2 blend layer's normal and material (fix 16a), the CPU form of the
+/// symbol block in material_layers.wgsl: weight wn = (flag bit 12 ? colour alpha
+/// : 1) times the opacity byte where the symbol is drawn; its normal is turned by
+/// its angle and laid over (or, with option bit 6, replaces) the composed normal;
+/// roughness and metal move by wn times their steps and, with flag bit 14, to
+/// `_detailMaterialBlend` .g and .b by wn.
+struct Ver2BlendSurface {
+    colour: ImagePixels,
+    map: Option<ImagePixels>,
+    affine: [f32; 6],
+    flags: u32,
+    surface: [f32; 3],
+    opacity: f32,
+}
+
+impl Ver2BlendSurface {
+    fn of(
+        material: &PreviewCoreMaterial,
+        cache: &mut ImageCache,
+        width: u32,
+        height: u32,
+        map: LayerMap,
+    ) -> Result<Option<Self>, SessionError> {
+        let Some(row) = material
+            .layers
+            .iter()
+            .skip(1)
+            .find(|layer| layer.is_ver2_blend())
+        else {
+            return Ok(None);
+        };
+        let flags = row.blend_flags.unwrap_or(0);
+        let normal = matches!(map, LayerMap::Normal);
+        let reference = if normal {
+            row.normal.as_ref().filter(|_| flags & 2 != 0)
+        } else {
+            row.material.as_ref().filter(|_| flags & 4 != 0)
+        };
+        if normal && reference.is_none() {
+            return Ok(None);
+        }
+        let colour = row.diffuse.as_ref().expect("blend layer colour");
+        Ok(Some(Self {
+            colour: cache.transformed(colour, width, height, row)?,
+            map: reference
+                .map(|reference| cache.transformed(reference, width, height, row))
+                .transpose()?,
+            affine: row.sampling_transform(),
+            flags,
+            surface: row.blend_surface.unwrap_or([0.0; 3]),
+            opacity: row.blend_opacity.unwrap_or(0.0),
+        }))
+    }
+
+    fn weight(&self, pixel: usize, width: u32, height: u32) -> f32 {
+        if !Ver2Blend::covers(self.affine, pixel, width, height) {
+            return 0.0;
+        }
+        let alpha = if self.flags & 1 != 0 {
+            unit(self.colour[pixel * 4 + 3])
+        } else {
+            1.0
+        };
+        alpha * self.opacity
+    }
+
+    /// The symbol over a composed tangent-space normal.
+    fn normal(&self, normal: [f32; 3], pixel: usize, width: u32, height: u32) -> [f32; 3] {
+        let weight = self.weight(pixel, width, height);
+        let Some(map) = self.map.as_ref().filter(|_| weight > 0.0) else {
+            return normal;
+        };
+        let offset = pixel * 4;
+        let x = unit(map[offset]) * 2.0 - 1.0;
+        let y = unit(map[offset + 1]) * 2.0 - 1.0;
+        let z = (1.0 - x * x - y * y).clamp(0.0, 1.0).sqrt();
+        let (sine, cosine) = self.surface[2].sin_cos();
+        let d = [x * cosine + y * sine, -x * sine + y * cosine, z];
+        if self.flags & 8 != 0 {
+            return normalize3(d);
+        }
+        let n = normal;
+        let layered = normalize3([
+            (d[1] + d[2]) * n[0] + d[0] * n[2],
+            (d[0] + d[2]) * n[1] + d[1] * n[2],
+            d[2] * n[2] - d[0] * n[0] - d[1] * n[1],
+        ]);
+        normalize3(std::array::from_fn(|k| mix(n[k], layered[k], weight)))
+    }
+
+    /// The symbol's roughness and metal over composed ones.
+    fn response(&self, response: [f32; 2], pixel: usize, width: u32, height: u32) -> [f32; 2] {
+        let weight = self.weight(pixel, width, height);
+        if weight <= 0.0 {
+            return response;
+        }
+        std::array::from_fn(|k| {
+            let moved = response[k] + weight * self.surface[k];
+            self.map.as_ref().map_or(moved, |map| {
+                moved + weight * (unit(map[pixel * 4 + 1 + k]) - response[k])
+            })
+        })
     }
 }
 
@@ -2214,6 +2325,10 @@ fn compose_material_response(
         let Some(reference) = layer.material.as_ref() else {
             continue;
         };
+        if layer.is_ver2_blend() {
+            // The symbol is placed once and weighed by its own rule, below.
+            continue;
+        }
         let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
@@ -2241,6 +2356,19 @@ fn compose_material_response(
         }
     }
     apply_ver2_scratch_response(material, cache, width, height, &mut target)?;
+    if let Some(symbol) = Ver2BlendSurface::of(material, cache, width, height, LayerMap::Material)? {
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let moved = symbol.response(
+                [unit(target[offset + 1]), unit(target[offset + 2])],
+                pixel,
+                width,
+                height,
+            );
+            target[offset + 1] = unit_byte(moved[0].clamp(0.0, 1.0));
+            target[offset + 2] = unit_byte(moved[1].clamp(0.0, 1.0));
+        }
+    }
     Ok(Some(DecodedRgba8 {
         width,
         height,
@@ -2405,6 +2533,10 @@ fn compose_normal(
         let Some(reference) = layer.normal.as_ref() else {
             continue;
         };
+        if layer.is_ver2_blend() {
+            // The symbol is placed once and laid over last, below.
+            continue;
+        }
         let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
@@ -2436,6 +2568,13 @@ fn compose_normal(
                 mix(base_normal[2], whiteout[2], coverage),
             ]);
             pack_normal(&mut target[offset..offset + 4], blended);
+        }
+    }
+    if let Some(symbol) = Ver2BlendSurface::of(material, cache, width, height, LayerMap::Normal)? {
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let normal = symbol.normal(unpack_normal(&target[offset..offset + 4]), pixel, width, height);
+            pack_normal(&mut target[offset..offset + 4], normal);
         }
     }
     Ok(Some(DecodedRgba8 {
@@ -2935,6 +3074,7 @@ mod tests {
             uv_transform: None,
             blend_flags: None,
             blend_opacity: None,
+            blend_surface: None,
             colour_authored: None,
             diffuse_declared: false,
             diffuse_archive_path: String::new(),

@@ -4,6 +4,7 @@ import ast
 import copy
 import hashlib
 import json
+import math
 import struct
 from pathlib import Path
 
@@ -645,6 +646,43 @@ def test_a_blend_layer_without_a_dye_keeps_its_own_colour(tmp_path: Path):
     assert row["tint"][3] == 0 and row["blend_opacity"] == 1.0
     # The engine's defaults: scale 1, no turn, no translation.
     assert row["uv_transform"] == pytest.approx([1.0, 0.0, 0.0, 1.0, 0.0, 0.0], abs=1e-6)
+
+
+def test_the_blend_layer_carries_the_symbols_normal_and_material(tmp_path: Path):
+    """The round shield cd_phm_03_shield_0100: the game draws the symbol's
+    `_detailNormalBlend` (replacing the surface's normal, option bit 6) and moves
+    roughness and metal to `_detailMaterialBlend` (flag bits 13 and 14). CDMW drew
+    the symbol's colour only."""
+    normal = tmp_path / "symbol_dec_n.dds"
+    normal.write_bytes(b"DDS " + b"N" * 512)
+    material = tmp_path / "symbol_dec_sp.dds"
+    material.write_bytes(b"DDS " + b"M" * 512)
+    extra = (
+        dict(parameter_name="_colorBlendingFlag", integer_value=32767),
+        dict(parameter_name="_colorBlendingOptionBitFlag", integer_value=64),
+        dict(parameter_name="_dyeingTransformProperty4", integer_value=0x838CA999),
+        dict(parameter_name="_dyeingPropertyBlend", integer_value=2709464447),
+        dict(parameter_name="_detailNormalBlend", value="", resolved_source_path=str(normal),
+             resolved_archive_path="character/texture/symbol_dec_n.dds"),
+        dict(parameter_name="_detailMaterialBlend", value="", resolved_source_path=str(material),
+             resolved_archive_path="character/texture/symbol_dec_sp.dds"),
+    )
+    package, _symbol, rows = _ver2_blend_fixture(tmp_path, opacity=0xAFFFFFFF, extra=extra)
+    (row,) = rows
+    assert row["blend_flags"] == 15
+    assert row["blend_surface"] == pytest.approx([140 * 2 / 255 - 1, 131 * 2 / 255 - 1, 161 / 255 * 2 * math.pi - math.pi], abs=1e-5)
+    assert row["normal_archive_path"] == "character/texture/symbol_dec_n.dds"
+    assert row["material_archive_path"] == "character/texture/symbol_dec_sp.dds"
+    root = package.manifest_path.parent
+    assert (root / row["normal"]["path"]).read_bytes() == normal.read_bytes()
+    assert (root / row["material"]["path"]).read_bytes() == material.read_bytes()
+
+
+def test_a_symbol_without_its_normal_and_material_files_keeps_its_colour(tmp_path: Path):
+    extra = (dict(parameter_name="_colorBlendingFlag", integer_value=32767),)
+    _package, _symbol, rows = _ver2_blend_fixture(tmp_path, extra=extra)
+    (row,) = rows
+    assert row["blend_flags"] == 7 and row["normal"] is None and row["material"] is None
 
 
 @pytest.mark.parametrize(

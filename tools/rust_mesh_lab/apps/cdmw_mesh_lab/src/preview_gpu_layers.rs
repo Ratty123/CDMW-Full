@@ -9,7 +9,7 @@ use crate::preview_core_material::{
 };
 use cdmw_formats::MeshDocument;
 use cdmw_render_wgpu::{
-    BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
+    BLEND_MATERIAL_SLOT, BLEND_NORMAL_SLOT, BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
     LAYER_CONTROL_OVERLAY, LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LayerEntryUniform,
     LayerTexture, LayerUniform, MaterialLayerSet, OVERLAY_SLOT,
 };
@@ -414,6 +414,28 @@ fn build(
                     TextureRole::BaseColor,
                     sources,
                 ));
+                // The symbol's normal and material (fix 16a): flag bits 12 to 14
+                // and option bit 6 in `blend_flags` bits 0 to 3.
+                let flags = layer.blend_flags.unwrap_or(0);
+                let [rough, metal, angle] = layer.blend_surface.unwrap_or([0.0, 0.0, 0.0]);
+                result.uniform.blend_surface = [angle.cos(), angle.sin(), rough, metal];
+                let mut switches = [f32::from(flags & 1 != 0), 0.0, 0.0, 0.0];
+                if flags & 2 != 0
+                    && let Some(reference) = &layer.normal
+                {
+                    let texture = layer_texture(reference, TextureRole::Normal, sources);
+                    switches[3] = normal_encoding(&texture)?;
+                    switches[1] = if flags & 8 != 0 { 2.0 } else { 1.0 };
+                    result.textures[BLEND_NORMAL_SLOT] = Some(texture);
+                }
+                if flags & 4 != 0
+                    && let Some(reference) = &layer.material
+                {
+                    switches[2] = 1.0;
+                    result.textures[BLEND_MATERIAL_SLOT] =
+                        Some(layer_texture(reference, TextureRole::Material, sources));
+                }
+                result.uniform.blend_switches = switches;
             }
             continue;
         }
@@ -2016,6 +2038,201 @@ mod tests {
                         (drawn - expected[k]).abs() <= 0.006,
                         "{name}, channel {k}: {drawn} != {}",
                         expected[k]
+                    );
+                }
+            }
+        }
+    }
+
+    /// The symbol's normal and material (fix 16a; permutation d4ae32939fa23e46,
+    /// %1782-%1908): weight wn = (flag bit 12 ? colour alpha : 1) times the
+    /// opacity byte; roughness and metal move by wn times the bytes 2 and 3 of
+    /// `_dyeingTransformProperty4` and, with flag bit 14, to
+    /// `_detailMaterialBlend` .g and .b by wn; the normal (bit 13) is turned by
+    /// the symbol's angle and laid over, or replaces with option bit 6. CDMW drew
+    /// the symbol's colour only.
+    #[test]
+    fn ver2_symbol_moves_normal_and_response_on_gpu_binding_and_cpu_fallback() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let emblem = [150_u8, 40, 30, 204];
+        let symbol_normal = [200_u8, 128, 255, 255];
+        let symbol_material = [0_u8, 30, 220, 255];
+        let surface = [100_u8, 0];
+        // (name, blend_flags, steps and angle, opacity)
+        for (name, flags, steps, opacity) in [
+            ("steps only", 0_u32, [0.25_f32, -0.5, 0.0], 1.0_f32),
+            ("alpha weighs, material map", 5, [0.0, 0.0, 0.0], 0.5),
+            ("normal laid over, turned", 3, [0.0, 0.0, 0.8255], 1.0),
+            ("normal replaces", 11, [0.0, 0.0, 0.8255], 1.0),
+        ] {
+            let bytes = [
+                make([200, 190, 170, 255]),
+                make([255, 0, 0, 255]),
+                make(emblem),
+                make(symbol_normal),
+                make(symbol_material),
+                make([0, surface[0], surface[1], 255]),
+            ];
+            let refs = [
+                reference(&bytes[0], "canvas.dds"),
+                reference(&bytes[1], "shield_ma.dds"),
+                reference(&bytes[2], "symbol_dec.dds"),
+                reference(&bytes[3], "symbol_dec_n.dds"),
+                reference(&bytes[4], "symbol_dec_sp.dds"),
+                reference(&bytes[5], "layer_sp.dds"),
+            ];
+            let mut base = layer("base", "r", &refs[0]);
+            base.diffuse = None;
+            base.mask = None;
+            let mut detail = layer("detail", "r", &refs[0]);
+            detail.mask = Some(refs[1].clone());
+            detail.material = Some(refs[5].clone());
+            detail.material_declared = true;
+            detail.material_archive_path = "layer_sp.dds".into();
+            let mut blend = layer("overlay", "", &refs[2]);
+            blend.source_parameter = "_detailDiffuseBlend".into();
+            blend.mask_parameter = String::new();
+            blend.mask = None;
+            blend.mask_declared = false;
+            blend.mask_archive_path = String::new();
+            blend.normal = Some(refs[3].clone());
+            blend.normal_declared = true;
+            blend.normal_archive_path = "symbol_dec_n.dds".into();
+            blend.material = Some(refs[4].clone());
+            blend.material_declared = true;
+            blend.material_archive_path = "symbol_dec_sp.dds".into();
+            blend.blend_opacity = Some(opacity);
+            blend.blend_flags = Some(flags);
+            blend.blend_surface = Some(steps);
+            assert!(blend.is_ver2_blend());
+            let value = material(vec![base, detail, blend]);
+            assert!(eligible(&value), "{name}: the symbol keeps the layer path");
+            let graph = PreviewCoreMaterialGraph {
+                schema_version: 1,
+                graph_version: 5,
+                semantics_version: 10,
+                quality: "full".into(),
+                resources_included: true,
+                source_edge_count: 6,
+                unique_resource_count: 6,
+                copied_resource_count: 6,
+                unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+                materials: vec![value],
+            };
+            let weight = if flags & 1 != 0 {
+                f32::from(emblem[3]) / 255.0 * opacity
+            } else {
+                opacity
+            };
+            for gpu in [true, false] {
+                let mut resources = Vec::new();
+                let (_, sets) = prepare(
+                    &graph,
+                    &[],
+                    &document,
+                    &mut resources,
+                    gpu,
+                    false,
+                    |r| {
+                        Ok(bytes[refs
+                            .iter()
+                            .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                            .unwrap()]
+                        .clone())
+                    },
+                    &|| false,
+                )
+                .unwrap();
+                if gpu {
+                    let uniform = &sets[0].uniform;
+                    let expected = [steps[2].cos(), steps[2].sin(), steps[0], steps[1]];
+                    for k in 0..4 {
+                        assert!(
+                            (uniform.blend_surface[k] - expected[k]).abs() < 1e-6,
+                            "{name}: blend_surface {:?}",
+                            uniform.blend_surface
+                        );
+                    }
+                    let mode = match flags & 10 {
+                        2 => 1.0,
+                        10 => 2.0,
+                        _ => 0.0,
+                    };
+                    assert_eq!(
+                        &uniform.blend_switches[..3],
+                        &[f32::from(flags & 1 != 0), mode, f32::from(flags & 4 != 0)],
+                        "{name}"
+                    );
+                    assert_eq!(
+                        sets[0].textures[BLEND_NORMAL_SLOT]
+                            .as_ref()
+                            .map(|t| t.source_sha256.clone()),
+                        (flags & 2 != 0).then(|| refs[3].sha256.clone()),
+                        "{name}: the normal is bound when bit 13 asks for it"
+                    );
+                    assert_eq!(
+                        sets[0].textures[BLEND_MATERIAL_SLOT]
+                            .as_ref()
+                            .map(|t| t.source_sha256.clone()),
+                        (flags & 4 != 0).then(|| refs[4].sha256.clone()),
+                        "{name}: the material map is bound when bit 14 asks for it"
+                    );
+                    continue;
+                }
+                let response = resources
+                    .iter()
+                    .find(|r| r.role == TextureRole::Material)
+                    .expect("composed response");
+                let decoded =
+                    cdmw_texture::decode_dds_rgba8(&response.bytes, response.role).unwrap();
+                let rough = f32::from(surface[0]) / 255.0;
+                let take = if flags & 4 != 0 { weight } else { 0.0 };
+                let expected_rough = rough
+                    + weight * steps[0]
+                    + take * (f32::from(symbol_material[1]) / 255.0 - rough);
+                let expected_metal =
+                    weight * steps[1] + take * f32::from(symbol_material[2]) / 255.0;
+                for (k, expected) in [(1, expected_rough), (2, expected_metal)] {
+                    let drawn = f32::from(decoded.pixels[k]) / 255.0;
+                    assert!(
+                        (drawn - expected.clamp(0.0, 1.0)).abs() <= 0.006,
+                        "{name}, response channel {k}: {drawn} != {expected}"
+                    );
+                }
+                let normal = resources
+                    .iter()
+                    .find(|r| r.role == TextureRole::Normal)
+                    .map(|r| cdmw_texture::decode_dds_rgba8(&r.bytes, r.role).unwrap());
+                if flags & 2 == 0 {
+                    continue;
+                }
+                let normal = normal.expect("composed normal");
+                let x = f32::from(symbol_normal[0]) / 255.0 * 2.0 - 1.0;
+                let y = f32::from(symbol_normal[1]) / 255.0 * 2.0 - 1.0;
+                let (sine, cosine) = steps[2].sin_cos();
+                let d = [
+                    x * cosine + y * sine,
+                    -x * sine + y * cosine,
+                    (1.0 - x * x - y * y).max(0.0).sqrt(),
+                ];
+                // Over a flat surface the game's layering returns d itself, so
+                // laid over it is normalize(lerp((0, 0, 1), d, wn)).
+                let w = if flags & 8 != 0 { 1.0 } else { weight };
+                let v = [w * d[0], w * d[1], 1.0 - w + w * d[2]];
+                let length = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+                for k in 0..2 {
+                    let drawn = f32::from(normal.pixels[k]) / 255.0 * 2.0 - 1.0;
+                    assert!(
+                        (drawn - v[k] / length).abs() <= 0.02,
+                        "{name}, normal {k}: {drawn} != {}",
+                        v[k] / length
                     );
                 }
             }

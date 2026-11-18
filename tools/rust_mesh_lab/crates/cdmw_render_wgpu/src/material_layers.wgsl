@@ -10,6 +10,10 @@ struct LayerUniform {
     layers: array<LayerEntry, 3>, seeds: array<vec4<f32>, 3>, base_color: vec4<f32>, control: vec4<u32>,
     // The Ver2 blend layer: sRGB dye and strength, placement, (UV offset, opacity, presence).
     blend_dye: vec4<f32>, blend_affine: vec4<f32>, blend_offset: vec4<f32>,
+    // Fix 16a, the symbol's surface: (cos, sin of its angle, roughness step, metal
+    // step); (alpha weighs, normal mode 0 none 1 laid over 2 replacing, material
+    // map, normal encoding).
+    blend_surface: vec4<f32>, blend_switches: vec4<f32>,
 };
 @group(2) @binding(0) var blend_mask: texture_2d<f32>;
 @group(2) @binding(1) var layer_r_color: texture_2d<f32>;
@@ -37,6 +41,9 @@ struct LayerUniform {
 @group(2) @binding(21) var overlay_color: texture_2d<f32>;
 // _detailDiffuseBlend (Ver2): the blend layer's colour, placed once.
 @group(2) @binding(22) var blend_color: texture_2d<f32>;
+// _detailNormalBlend and _detailMaterialBlend (Ver2): the symbol's normal and material.
+@group(2) @binding(23) var blend_normal: texture_2d<f32>;
+@group(2) @binding(24) var blend_material: texture_2d<f32>;
 
 fn layer_uv(layer: LayerEntry, uv: vec2<f32>) -> vec2<f32> {
     return vec2<f32>(layer.affine.x*uv.x + layer.affine.z*uv.y,
@@ -88,6 +95,25 @@ fn grime_weight(layer: LayerEntry, detail_green: f32) -> f32 {
     let high = min(max(layer.grime_offset.w, low + 0.005), 1.0);
     let x = clamp((detail_green - low) / (high - low), 0.0, 1.0);
     return clamp(x*x*(3.0-2.0*x) * layer.grime.x, 0.0, 1.0) * step(0.5, layer.grime.y);
+}
+
+// The Ver2 shader's own normal layering (permutation d4ae32939fa23e46,
+// %700-%716 for the colour layers, %1831-%1849 for the symbol), as written:
+// with N = (0, 0, 1) it returns d, with d = (0, 0, 1) it returns N.
+fn ver2_layer_normal(n: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
+    return safe_normalize(vec3<f32>((d.y + d.z) * n.x + d.x * n.z,
+                                    (d.x + d.z) * n.y + d.y * n.z,
+                                    d.z * n.z - d.x * n.x - d.y * n.y), n);
+}
+
+// The symbol's normal, turned by its angle as the game turns it (%1823-%1829).
+// The game reads red and green and rebuilds z (%1811-%1820).
+fn blend_layer_normal(sampled: vec3<f32>) -> vec3<f32> {
+    let xy = select(sampled.xy * 2.0 - vec2<f32>(1.0), sampled.xy, layer_uniform.blend_switches.w == 2.0);
+    let z = sqrt(clamp(1.0 - dot(xy, xy), 0.0, 1.0));
+    let c = layer_uniform.blend_surface.x;
+    let s = layer_uniform.blend_surface.y;
+    return vec3<f32>(xy.x * c + xy.y * s, -xy.x * s + xy.y * c, z);
 }
 
 fn layer_rnm(base: vec3<f32>, detail: vec3<f32>) -> vec3<f32> {
@@ -248,6 +274,11 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     let blend_uv = vec2<f32>(layer_uniform.blend_affine.x*uv.x + layer_uniform.blend_affine.z*uv.y,
                              layer_uniform.blend_affine.y*uv.x + layer_uniform.blend_affine.w*uv.y) + layer_uniform.blend_offset.xy;
     let blend_texel = textureSampleBias(blend_color, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), 0.0);
+    let blend_normal_texel = textureSampleBias(blend_normal, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), 0.0).rgb;
+    let blend_material_texel = textureSampleBias(blend_material, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), 0.0).rgb;
+    // The symbol's weight for its normal and material: (bit 12 ? alpha : 1) times
+    // its opacity byte, where it is drawn (%1782-%1790).
+    var symbol_weight = 0.0;
     var grime_colors: array<vec3<f32>,3>;
     var grime_normals: array<vec3<f32>,3>;
     var grime_responses: array<vec3<f32>,3>;
@@ -377,6 +408,15 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
             let inside = all(blend_uv >= vec2<f32>(0.005)) && all(blend_uv <= vec2<f32>(0.995));
             let amount = clamp(blend_texel.a * layer_uniform.blend_offset.z, 0.0, 1.0);
             color = mix(color, layer_tint(blend_texel.rgb, layer_uniform.blend_dye), select(0.0, amount, inside));
+            let weight = select(1.0, blend_texel.a, layer_uniform.blend_switches.x > 0.5) * layer_uniform.blend_offset.z;
+            symbol_weight = select(0.0, weight, inside);
+            // Roughness and metal: each moves by the weight times its step, and to
+            // _detailMaterialBlend .g and .b by the weight when bit 14 asks for it
+            // (%1884-%1908); both terms start from the value before the symbol.
+            let take = symbol_weight * layer_uniform.blend_switches.z;
+            orm = vec3<f32>(orm.r,
+                orm.g + symbol_weight * layer_uniform.blend_surface.z + take * (blend_material_texel.g - orm.g),
+                orm.b + symbol_weight * layer_uniform.blend_surface.w + take * (blend_material_texel.b - orm.b));
         }
     }
     out.color = color;
@@ -384,6 +424,16 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     if layer_uniform.control.x == 1u {
         out.color *= layer_uniform.base_color.rgb;
         out.normal = layer_rnm(base_normal, safe_normalize(vec3<f32>(normal.xy*0.7,normal.z), vec3<f32>(0.0,0.0,1.0)));
+        // The symbol's normal, last (%1794-%1867): it replaces the surface's when
+        // option bit 6 asks for it, else it is laid over it by the weight.
+        if symbol_weight > 0.0 && layer_uniform.blend_switches.y > 0.5 {
+            let d = blend_layer_normal(blend_normal_texel);
+            if layer_uniform.blend_switches.y > 1.5 {
+                out.normal = d;
+            } else {
+                out.normal = safe_normalize(mix(out.normal, ver2_layer_normal(out.normal, d), symbol_weight), out.normal);
+            }
+        }
     }
     out.orm = vec3<f32>(clamp(orm.r,0.0,1.0),clamp(orm.g,0.045,1.0),clamp(orm.b,0.0,1.0));
     if layer_uniform.control.y != 0u { out.orm.x = 1.0; out.orm.z = 0.0; }

@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.material_layer_uv import (
+    pac_blend_layer_surface,
     pac_blend_layer_uv_transform,
     pac_color_bytes,
     pac_grime_blend_bytes,
@@ -738,6 +739,7 @@ def _preview_core_layer_parameter_index(parameters):
             "dyeingblendtexturetranslation", "colorblendingoptionbitflag",
             "eyeproperty0", "eyeproperty1", "eyeproperty2", "irisbrightness",
             "irisnormaltexture", "irismaterialtexture",
+            "detailnormalblend", "detailmaterialblend",
         }:
             continue
         key = (
@@ -751,6 +753,7 @@ def _preview_core_layer_parameter_index(parameters):
         if name.casefold().lstrip("_") in {
             "detailmasktexture", "masktexture", "overlaycolortexture", "detaildiffuseblend",
             "irisnormaltexture", "irismaterialtexture",
+            "detailnormalblend", "detailmaterialblend",
         }:
             # A texture parameter: the layer rule needs the file, not a number.
             value = {
@@ -971,8 +974,10 @@ def _preview_core_ver2_blend_layer(raw_layers, parameter_index, source_package):
     The game draws `_detailDiffuseBlend` after the overlay step, only when byte 3
     of `_dyeingGlobalOpacity` is not zero: dyed by `_dyeingDetailLayerColorBlend`
     as a colour layer is, laid over by its own alpha times that byte, at one place
-    of the mesh UV (`pac_blend_layer_uv_transform`). Its normal and response maps
-    are not carried.
+    of the mesh UV (`pac_blend_layer_uv_transform`). Its normal and material maps
+    (`_detailNormalBlend`, `_detailMaterialBlend`) ride on the row when their files
+    are there, with the switches and steps of `pac_blend_layer_surface` in
+    `blend_flags` and `blend_surface`.
     """
     if any(
         isinstance(layer, Mapping)
@@ -989,7 +994,8 @@ def _preview_core_ver2_blend_layer(raw_layers, parameter_index, source_package):
     if not opacity or colour_map is None:
         return []
     tint = pac_color_bytes(values.get("dyeingdetaillayercolorblend"))
-    return [{
+    flags, surface = pac_blend_layer_surface(values.items())
+    row = {
         "component_scope_id": str(owner_layer.get("component_scope_id", "") or ""),
         "owner_wrapper_item_id": owner_layer.get("owner_wrapper_item_id", ""),
         "material_wrapper_index": owner_layer.get("material_wrapper_index"),
@@ -1007,7 +1013,14 @@ def _preview_core_ver2_blend_layer(raw_layers, parameter_index, source_package):
         "diffuse_archive_path": colour_map[1],
         "uv_transform": list(pac_blend_layer_uv_transform(values.items())),
         "blend_opacity": opacity / 255.0,
-    }]
+        "blend_flags": flags,
+        "blend_surface": list(surface),
+    }
+    for role, name in (("normal", "detailnormalblend"), ("material", "detailmaterialblend")):
+        found = _preview_core_detail_mask(values, source_package, name)
+        if found is not None:
+            row[f"{role}_source"], row[f"{role}_archive_path"] = found
+    return [row]
 
 
 # `_eyeProperty0/1/2` at the game's defaults (skinnedmeshparameters.xml, Byte4: byte i is
@@ -1187,6 +1200,12 @@ def _copy_preview_core_material_layers(
                     _preview_core_float(value, 0.0) for value in tuple(raw_layer["uv_transform"])[:6]
                 ]
                 layer["blend_opacity"] = _preview_core_layer_float(raw_layer.get("blend_opacity"))
+                if "blend_flags" in raw_layer:
+                    layer["blend_flags"] = _preview_core_int(raw_layer.get("blend_flags"), 0) & 15
+                if "blend_surface" in raw_layer:
+                    layer["blend_surface"] = [
+                        _preview_core_float(value, 0.0) for value in tuple(raw_layer["blend_surface"])[:3]
+                    ]
             layer_has_source = False
             for resource_role in ("diffuse", "normal", "material", "height", "mask", "detail_mask"):
                 _cancelled(cancelled)

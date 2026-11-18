@@ -1100,6 +1100,139 @@ fn offscreen_ver2_blend_layer_is_placed_once() -> TestResult {
     Ok(())
 }
 
+/// The Ver2 symbol's roughness and metal on the GPU (fix 16a; permutation
+/// d4ae32939fa23e46, %1884-%1908): where the symbol is drawn, each moves by
+/// wn times its step and, with flag bit 14, to `_detailMaterialBlend` .g and .b
+/// by wn, with wn = (bit 12 ? colour alpha : 1) times the opacity byte. Outside
+/// its one placement nothing moves.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_ver2_symbol_moves_roughness_and_metal() -> TestResult {
+    use cdmw_render_wgpu::{
+        BLEND_MATERIAL_SLOT, BLEND_SLOT, LayerEntryUniform, LayerTexture, LayerUniform,
+        MaterialLayerSet,
+    };
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.5, 0.5]; 4];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    let emblem_alpha = 204_u8;
+    let symbol_material = [0_u8, 30, 220, 255];
+    // (name, UV offset, steps, alpha weighs, material map, whether it draws)
+    for (name, offset, steps, alpha, map, draws) in [
+        ("steps", 0.0, [0.25_f32, 0.5], 0.0, 0.0, true),
+        ("alpha weighs, material map", 0.0, [0.0, 0.0], 1.0, 1.0, true),
+        ("both", 0.0, [-0.25, 0.25], 1.0, 1.0, true),
+        ("not tiled", 2.0, [0.25, 0.5], 0.0, 1.0, false),
+    ] {
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, 0],
+                blend_dye: [1.0, 1.0, 1.0, 0.0],
+                blend_affine: [1.0, 0.0, 0.0, 1.0],
+                blend_offset: [offset, 0.0, 1.0, 1.0],
+                blend_surface: [1.0, 0.0, steps[0], steps[1]],
+                blend_switches: [alpha, 0.0, map, 0.0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[1] = Some(texture([128, 128, 128, 255], TextureRole::BaseColor)?);
+        layer.textures[3] = Some(texture([255, 128, 100, 255], TextureRole::Material)?);
+        layer.textures[BLEND_SLOT] =
+            Some(texture([150, 40, 30, emblem_alpha], TextureRole::BaseColor)?);
+        layer.textures[BLEND_MATERIAL_SLOT] = Some(texture(symbol_material, TextureRole::Material)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [1.0, 1.0, 1.0, 0.0],
+            affine: [1.0, 0.0, 0.0, 1.0],
+            offset: [0.0, 0.0, 15.0, 0.0],
+            properties: [1.0, 0.2158, 1.0, 0.0],
+            ..Default::default()
+        };
+        let response = temporary.path().join(format!("{name}-response.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &temporary.path().join(format!("{name}-base.bmp")),
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: Some(&response),
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(response)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        let weight = if !draws {
+            0.0
+        } else if alpha > 0.5 {
+            f32::from(emblem_alpha) / 255.0
+        } else {
+            1.0
+        };
+        let take = weight * map;
+        let rough = 128.0 / 255.0;
+        let metal = 100.0 / 255.0;
+        let roughness = (rough + weight * steps[0] + take * (30.0 / 255.0 - rough)).clamp(0.045, 1.0);
+        let metalness = (metal + weight * steps[1] + take * (220.0 / 255.0 - metal)).clamp(0.0, 1.0);
+        assert!(
+            (f32::from(pixel[1]) - roughness * 255.0).abs() <= 3.0,
+            "{name}: roughness {} != {}",
+            pixel[1],
+            roughness * 255.0
+        );
+        assert!(
+            (f32::from(pixel[2]) - metalness * 255.0).abs() <= 3.0,
+            "{name}: metal {} != {}",
+            pixel[2],
+            metalness * 255.0
+        );
+    }
+    Ok(())
+}
+
 /// The game's Ver2 scratch rule: where `_detailMaskTexture` red marks a scratch,
 /// the drawn layer's roughness moves through its remaining range and its metal by
 /// the plain step, and the scratch tint is overlaid on the colour.

@@ -258,6 +258,11 @@ pub struct PreviewCoreMaterialLayer {
     pub blend_flags: Option<u32>,
     #[serde(default)]
     pub blend_opacity: Option<f32>,
+    /// The Ver2 blend layer's roughness and metal steps (each -1 to 1) and its
+    /// angle in radians; its `blend_flags` hold `_colorBlendingFlag` bits 12 to
+    /// 14 and option bit 6 (see `pac_blend_layer_surface`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blend_surface: Option<[f32; 3]>,
     /// False when the wrapper declares no colour map for this layer: its
     /// `diffuse` is then a file Preview Core found by name beside the layer's
     /// normal map (often its height map), and the game draws no colour from it.
@@ -2577,6 +2582,11 @@ fn validate_preview_core_material_graph(
                     .iter()
                     .any(|value| !value.is_finite() || value.abs() > 1_000_000.0)
                 || layer.blend_flags.is_some_and(|value| value > 15)
+                || layer.blend_surface.is_some_and(|values| {
+                    values
+                        .iter()
+                        .any(|value| !value.is_finite() || value.abs() > 4.0)
+                })
                 || layer
                     .grime_blend
                     .is_some_and(|bytes| bytes.iter().any(|value| *value > 255))
