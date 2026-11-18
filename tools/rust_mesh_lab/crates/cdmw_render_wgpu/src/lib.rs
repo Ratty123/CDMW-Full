@@ -891,6 +891,11 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         let packed = textureSampleBias(material_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
         roughness = clamp(packed.g, 0.04, 1.0);
         metalness = clamp(packed.b, 0.0, 1.0);
+        if is_hair && shader_kind == 0.0 && shader_value(25u) > 0.5 {
+            // The game's hair shader, inside its main dye branch (lane 25 set):
+            // roughness = _materialTexture.g - 1 + byte 0 of _hairDyeingProperty * 2/255.
+            roughness = clamp(packed.g + shader_value(24u), 0.04, 1.0);
+        }
         if skin_surface_map {
             // The skin map bound as the packed surface map: the same reading as below.
             skin_occlusion = clamp(packed.r, 0.0, 1.0);
@@ -12680,6 +12685,21 @@ mod tests {
         ));
         assert!(SHADER.contains("texture_tint / tint_luma"));
         assert!(SHADER.contains("mix(texel.rgb, tinted, tint_strength)"));
+    }
+
+    #[test]
+    fn hair_roughness_offset_follows_the_dye_branch() {
+        // Lanes 24 (offset) and 25 (main colour has alpha) of shader kind 0.
+        assert!(SHADER.contains(
+            "if is_hair && shader_kind == 0.0 && shader_value(25u) > 0.5 {"
+        ));
+        assert!(SHADER.contains("roughness = clamp(packed.g + shader_value(24u), 0.04, 1.0);"));
+        let mut factors = MaterialPreviewFactors::default();
+        let mut lanes = [0.0; 32];
+        lanes[24] = -0.1;
+        lanes[25] = 1.0;
+        factors.shader_controls = Some(lanes);
+        assert!(validate_material_factor_ownership(factors, &vec![vec![1]]).is_ok());
     }
 
     #[test]

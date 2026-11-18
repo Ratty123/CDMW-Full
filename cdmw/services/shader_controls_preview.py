@@ -102,6 +102,54 @@ def authored_eye_cover_factors(part):
     )
 
 
+HAIR_SHADERS = frozenset({"hair", "animalhair", "hairanimateduv", "hairaging", "whitehornhair"})
+# Renderer lanes of the archive hair roughness offset (shader kind 0): lane 24 the
+# offset, lane 25 set when it applies.
+HAIR_ROUGHNESS_OFFSET_LANE = 24
+
+
+def _colour_alpha(value):
+    """Alpha of a colour parameter: `#rrggbbaa` text or a packed uint (A in bits 24 to 31)."""
+    text = str(value or "").strip()
+    try:
+        if text.startswith("#") and len(text) == 9:
+            return int(text[7:9], 16) / 255
+        return ((int(text) >> 24) & 255) / 255
+    except ValueError:
+        return 0.0
+
+
+def authored_hair_factors(part):
+    """The game's hair roughness offset (PSMainHairStandard, 75b7a093c17d73a3).
+
+    With the main colour's alpha above 1e-5 the shader writes roughness
+    `_materialTexture.g - 1 + byte 0 of _hairDyeingProperty * 2/255`; an undyed
+    part keeps the plain map. The main colour is `_hairInnerColor` when bit 8 of
+    `_hairFlag` is set, else `_hairDyeingColor`. A property written as one byte
+    (below 256; WhiteHornHair) is read as unset, as its alpha scale is.
+    """
+    shader = _exact_source_shader(part).removeprefix("skinnedmesh")
+    if shader not in HAIR_SHADERS:
+        return None
+    values, _ = source_inputs(part)
+    try:
+        flags = int(str(values.get("_hairFlag", "") or "0"))
+    except ValueError:
+        flags = 0
+    main = values.get("_hairInnerColor") if flags & 0x100 else values.get("_hairDyeingColor")
+    if _colour_alpha(main) <= 1e-5:
+        return None
+    try:
+        word = int(str(values.get("_hairDyeingProperty", "") or ""))
+    except ValueError:
+        word = -1
+    byte = word & 255 if word >= 256 else 128  # Default Roughness 0.5.
+    lanes = [0.0] * 32
+    lanes[HAIR_ROUGHNESS_OFFSET_LANE] = byte * 2 / 255 - 1
+    lanes[HAIR_ROUGHNESS_OFFSET_LANE + 1] = 1.0
+    return lanes
+
+
 def shader_control_diagnostic(part, controls, authored):
     """Read actual mask gates during worker preparation, never during UI repaint."""
     if family_for(controls.shader) in (*GLASS_FAMILIES, *BLENDED_FAMILIES):

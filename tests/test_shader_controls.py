@@ -39,6 +39,35 @@ def test_archive_eye_cover_uses_transparent_shell_without_unproven_colour():
     assert authored_eye_cover_factors(part) is None
 
 
+def test_archive_hair_states_the_games_roughness_offset_only_when_dyed():
+    """PSMainHairStandard: roughness = _materialTexture.g - 1 + byte 0 of
+    _hairDyeingProperty * 2/255, inside the main dye branch only."""
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.services.mesh_rust_authoring import _mesh_material_presentations
+
+    part = SubMesh(name="hair", material="hair", vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)])
+    part.preview_sidecar_shader_family = "SkinnedMeshHair"
+    mesh = ParsedMesh(path="character/model/hair.pac", format="pac", submeshes=[part])
+
+    def lanes(**values):
+        part.preview_material_parameters = tuple(
+            SimpleNamespace(parameter_name=name, value=value) for name, value in values.items())
+        return _mesh_material_presentations(mesh)[0]["shader_controls"]
+
+    factors = lanes(_hairDyeingColor="#432921ff", _hairDyeingProperty=str(0x0000FF70))
+    assert factors[0] == 0 and factors[25] == 1.0
+    assert factors[24] == pytest.approx(0x70 * 2 / 255 - 1)
+    # Undyed: the plain map.
+    assert lanes(_hairDyeingColor="#43292100", _hairDyeingProperty=str(0x0000FF70)) is None
+    # Bit 8 of _hairFlag makes _hairInnerColor the main colour.
+    assert lanes(_hairDyeingColor="#43292100", _hairInnerColor="#7d5514ff", _hairFlag="256",
+                 _hairDyeingProperty=str(0x0000FFFF))[24] == pytest.approx(1.0)
+    # No property: its default byte, 0.5.
+    assert lanes(_hairDyeingColor="#432921ff")[24] == pytest.approx(128 * 2 / 255 - 1)
+    part.preview_sidecar_shader_family = "SkinnedMeshStandard"
+    assert lanes(_hairDyeingColor="#432921ff") is None
+
+
 @pytest.mark.parametrize("packed", [0, 64, 127, 128, 191, 255])
 @pytest.mark.parametrize("pixel", [0, 64, 128, 255])
 def test_raw_eye_cover_mask_keeps_unclamped_legacy_channel_math(packed, pixel):
