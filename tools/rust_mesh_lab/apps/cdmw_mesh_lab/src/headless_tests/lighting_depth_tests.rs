@@ -699,11 +699,12 @@ fn offscreen_fixed_studio_polished_steel_reflects_a_lit_room() -> TestResult {
         i32::from(image[centre + 1]),
         i32::from(image[centre + 2]),
     );
-    // Reflectance 0.216 of a room at about 0.66 radiance, at the preset's 0.7
-    // environment scale: about (85, 86, 88) on screen. It was (55, 58, 62).
+    // Reflectance 0.216 of a room whose lit walls show 1.8 times as bright
+    // (STUDIO_METAL_ROOM_GAIN), at the preset's 0.7 environment scale: about
+    // (100, 100, 102) on screen. It was (85, 86, 88), and (55, 58, 62) before that.
     for channel in [red, green, blue] {
         assert!(
-            (76..=100).contains(&channel),
+            (90..=115).contains(&channel),
             "steel centre is ({red}, {green}, {blue})"
         );
     }
