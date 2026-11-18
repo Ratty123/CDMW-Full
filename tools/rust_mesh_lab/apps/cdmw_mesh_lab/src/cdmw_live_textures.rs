@@ -15,7 +15,7 @@
 
 use crate::loader::LoadedTexture;
 use cdmw_render_wgpu::{
-    DETAIL_MASK_SLOT, GRIME_SLOT, MaterialLayerSet, OVERLAY_SLOT, WindowRenderer,
+    BLEND_NORMAL_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT, MaterialLayerSet, OVERLAY_SLOT, WindowRenderer,
 };
 use cdmw_texture::{TextureRole, dds_mean_luminance_of_any_size};
 use sha2::{Digest, Sha256};
@@ -134,6 +134,11 @@ fn put_edit(
         texture.bytes = Arc::clone(&edit.bytes);
         texture.source_sha256.clone_from(&edit.key);
         changed = true;
+        if slot == BLEND_NORMAL_SLOT && set.uniform.blend_switches[3] == 2.0 {
+            // As grime below: an edit is unsigned RGBA8, so the symbol's signed
+            // BC5 normal now reads as unsigned RG.
+            set.uniform.blend_switches[3] = 1.0;
+        }
         if slot == 0 || slot == DETAIL_MASK_SLOT || slot >= OVERLAY_SLOT {
             // Masks and the overlay map have no per-layer uniform to follow them.
             continue;

@@ -261,6 +261,28 @@ static void run_material_declaration_conservation_self_test() {
                         && parameter.texture_path == "shared_mask.dds";
                 }),
         "Byte4 PAC value travelled through lossy floating-point transport");
+    // cd_phm_03_shield_0100: the Ver2 symbol's translation is a Half2 whose two
+    // halves travel as one packed uint (here -0.177, 0.160). Without it the
+    // symbol sits at the middle of the UV square instead of on the shield's face.
+    const std::string half2_sidecar =
+        "<Root><ModelProperty Index=\"0\"><SkinnedMeshMaterialWrapper ItemID=\"913\" _subMeshName=\"shield\">"
+        "<MaterialParameterTexture _name=\"_detailDiffuseBlend\" Value=\"shield_symbol.dds\"/>"
+        "<MaterialParameterHalf2 _name=\"_dyeingBlendTextureTranslation\" _value=\"824160682\"/>"
+        "</SkinnedMeshMaterialWrapper></ModelProperty></Root>";
+    std::vector<MaterialWrapperDeclaration> half2_declarations;
+    extract_sidecar_texture_refs(half2_sidecar, 0, &half2_declarations);
+    require_material_contract(
+        half2_declarations.size() == 1
+            && std::any_of(
+                half2_declarations.front().material_parameters.begin(),
+                half2_declarations.front().material_parameters.end(),
+                [](const MaterialParameterRecord& parameter) {
+                    return parameter.name == "_dyeingBlendTextureTranslation"
+                        && parameter.kind == "half2"
+                        && parameter.has_integer
+                        && parameter.integer_value == "824160682";
+                }),
+        "a Half2 PAC parameter (the Ver2 symbol's translation) was dropped or lost its packed value");
 
     MaterialParameterRecord duplicate_texture;
     duplicate_texture.kind = "texture";

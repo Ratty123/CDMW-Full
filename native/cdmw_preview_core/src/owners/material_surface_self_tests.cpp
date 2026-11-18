@@ -949,6 +949,33 @@ static void run_sub_component_wrapper_order_self_test() {
         "a sidecar without an exact model lost its name-keyed mesh count");
 }
 
+// A wrapper without parameters (SkinnedMeshNoRender) leaves no parameter row
+// and no binding. The wrapper table still names it, once.
+static void run_parameterless_wrapper_row_self_test() {
+    NativePackage package;
+    MaterialWrapperDeclaration hidden;
+    hidden.material_name = "cd_t0000_socket_0001";
+    hidden.shader_family = "SkinnedMeshNoRender";
+    hidden.owner_wrapper_item_id = "model-property:0:wrapper:0";
+    hidden.material_wrapper_index = 0;
+    const std::string scope = "character/model/6_object/object/t0000_socket/cd_t0000_socket_0001.pac#model_property=0";
+    record_material_wrapper_row(package, scope, hidden, hidden.shader_family);
+    record_material_wrapper_row(package, scope, hidden, hidden.shader_family);
+    require_material_contract(
+        package.material_wrapper_rows.size() == 1
+            && package.material_wrapper_rows[0].shader_family == "SkinnedMeshNoRender"
+            && package.material_wrapper_rows[0].parameter_count == 0,
+        "a wrapper without parameters was not stated once in the wrapper table");
+    require_material_contract(
+        package.material_conservation_rows.empty(),
+        "a wrapper without parameters made a parameter row");
+    const std::string json = native_material_conservation_json(package);
+    require_material_contract(
+        json.find("\"wrappers\":[{\"component_scope_id\":\"" + scope + "\"") != std::string::npos
+            && json.find("\"shader_family\":\"SkinnedMeshNoRender\"") != std::string::npos,
+        "the manifest does not state the parameter-less wrapper");
+}
+
 // The metal class floor made every texel of a part classed metal draw as
 // metal, though its own surface map marks leather straps and cloth as not
 // metal. The floor is only for a metal part without a surface map.
@@ -1078,6 +1105,7 @@ static void run_material_contract_self_test() {
     run_tiled_exact_uv_self_test();
     run_item_set_components_self_test();
     run_sub_component_wrapper_order_self_test();
+    run_parameterless_wrapper_row_self_test();
     run_metal_class_floor_self_test();
     run_hair_shader_alpha_self_test();
     run_weapon_sheath_component_self_test();

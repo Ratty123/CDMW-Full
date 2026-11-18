@@ -4,6 +4,7 @@ import ast
 import copy
 import hashlib
 import json
+import math
 import struct
 from pathlib import Path
 
@@ -647,6 +648,43 @@ def test_a_blend_layer_without_a_dye_keeps_its_own_colour(tmp_path: Path):
     assert row["uv_transform"] == pytest.approx([1.0, 0.0, 0.0, 1.0, 0.0, 0.0], abs=1e-6)
 
 
+def test_the_blend_layer_carries_the_symbols_normal_and_material(tmp_path: Path):
+    """The round shield cd_phm_03_shield_0100: the game draws the symbol's
+    `_detailNormalBlend` (replacing the surface's normal, option bit 6) and moves
+    roughness and metal to `_detailMaterialBlend` (flag bits 13 and 14). CDMW drew
+    the symbol's colour only."""
+    normal = tmp_path / "symbol_dec_n.dds"
+    normal.write_bytes(b"DDS " + b"N" * 512)
+    material = tmp_path / "symbol_dec_sp.dds"
+    material.write_bytes(b"DDS " + b"M" * 512)
+    extra = (
+        dict(parameter_name="_colorBlendingFlag", integer_value=32767),
+        dict(parameter_name="_colorBlendingOptionBitFlag", integer_value=64),
+        dict(parameter_name="_dyeingTransformProperty4", integer_value=0x838CA999),
+        dict(parameter_name="_dyeingPropertyBlend", integer_value=2709464447),
+        dict(parameter_name="_detailNormalBlend", value="", resolved_source_path=str(normal),
+             resolved_archive_path="character/texture/symbol_dec_n.dds"),
+        dict(parameter_name="_detailMaterialBlend", value="", resolved_source_path=str(material),
+             resolved_archive_path="character/texture/symbol_dec_sp.dds"),
+    )
+    package, _symbol, rows = _ver2_blend_fixture(tmp_path, opacity=0xAFFFFFFF, extra=extra)
+    (row,) = rows
+    assert row["blend_flags"] == 15
+    assert row["blend_surface"] == pytest.approx([140 * 2 / 255 - 1, 131 * 2 / 255 - 1, 161 / 255 * 2 * math.pi - math.pi], abs=1e-5)
+    assert row["normal_archive_path"] == "character/texture/symbol_dec_n.dds"
+    assert row["material_archive_path"] == "character/texture/symbol_dec_sp.dds"
+    root = package.manifest_path.parent
+    assert (root / row["normal"]["path"]).read_bytes() == normal.read_bytes()
+    assert (root / row["material"]["path"]).read_bytes() == material.read_bytes()
+
+
+def test_a_symbol_without_its_normal_and_material_files_keeps_its_colour(tmp_path: Path):
+    extra = (dict(parameter_name="_colorBlendingFlag", integer_value=32767),)
+    _package, _symbol, rows = _ver2_blend_fixture(tmp_path, extra=extra)
+    (row,) = rows
+    assert row["blend_flags"] == 7 and row["normal"] is None and row["material"] is None
+
+
 @pytest.mark.parametrize(
     "arguments",
     (
@@ -658,6 +696,60 @@ def test_a_blend_layer_without_a_dye_keeps_its_own_colour(tmp_path: Path):
 def test_the_blend_layer_is_left_out_when_the_game_would_not_draw_it(tmp_path: Path, arguments):
     _package, _symbol, rows = _ver2_blend_fixture(tmp_path, **arguments)
     assert rows == []
+
+
+def _eye_fixture(tmp_path: Path, parameters):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    base = native["batches"][0]["material_layers"][0]
+    base["shader_family"] = "SkinnedMeshEye"
+    iris = tmp_path / "eye_iris.dds"
+    iris.write_bytes(b"DDS " + b"I" * 512)
+    native["batches"][0]["material_layers"].append(dict(
+        base, layer_role="overlay", mask_channel="a", source_parameter="_irisDiffuseTexture",
+        mask_parameter="_irisDiffuseTexture", diffuse_source=str(iris),
+        diffuse_archive_path="character/texture/eye_iris.dds", mask_source=str(iris),
+        mask_archive_path="character/texture/eye_iris.dds"))
+    wrapper = dict(owner_wrapper_item_id=base["owner_wrapper_item_id"],
+                   material_wrapper_index=base["material_wrapper_index"])
+    rows = []
+    for name, value in parameters.items():
+        if name.endswith("Texture"):
+            path = tmp_path / f"{name}.dds"
+            path.write_bytes(b"DDS " + name.encode() * 40)
+            rows.append(dict(wrapper, parameter_name=name, value="", resolved_source_path=str(path),
+                             resolved_archive_path=f"character/texture/{name}.dds"))
+        else:
+            rows.append(dict(wrapper, parameter_name=name, value=str(value),
+                             integer_value=value if isinstance(value, int) else None))
+    native["material_conservation"].update(parameters=rows, declared_parameter_count=len(rows),
+                                           transported_parameter_count=len(rows))
+    (source / "manifest.json").write_text(json.dumps(native))
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    return json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"]
+
+
+def test_an_eye_states_its_iris_surface_maps_and_eye_words(tmp_path: Path):
+    """SkinnedMeshEye lerps normal and roughness toward the iris maps; CDMW dropped them."""
+    base, iris = _eye_fixture(tmp_path, {
+        "_eyeProperty0": 0xB6FF2600, "_eyeProperty1": 0xFF01FF61, "_eyeProperty2": "",
+        "_irisBrightness": "0.400000",
+        "_irisNormalTexture": None, "_irisMaterialTexture": None,
+    })
+    assert base["eye_properties"] == [0xB6FF2600, 0xFF01FF61, 0x0000FF00]
+    assert base["iris_brightness"] == pytest.approx(0.4)
+    assert iris["normal_archive_path"] == "character/texture/_irisNormalTexture.dds"
+    assert iris["material_archive_path"] == "character/texture/_irisMaterialTexture.dds"
+    assert iris["normal"] is not None and iris["material"] is not None
+
+
+def test_an_eye_without_its_properties_takes_the_games_defaults(tmp_path: Path):
+    base, iris = _eye_fixture(tmp_path, {})
+    # IrisSize 0.5, UseMaterialTextureRoughness 0, EyeImageScale 1, DynamicEyeColor 1.
+    assert base["eye_properties"] == [0x80401A00, 0xFF00FFFF, 0x0000FF00]
+    assert base["iris_brightness"] == pytest.approx(0.5)
+    assert iris["normal"] is None and iris["material"] is None
 
 
 def _called_names(path: Path) -> set[str]:
@@ -894,7 +986,7 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
 ) -> None:
     from cdmw.services import mesh_rust_preview_cache as cache
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 18
+    assert RUST_PREVIEW_CACHE_SCHEMA == 19
     upgraded = cache.rust_preview_package_cache_key("same-archive-identity")
     monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 8)
     assert cache.rust_preview_package_cache_key("same-archive-identity") != upgraded

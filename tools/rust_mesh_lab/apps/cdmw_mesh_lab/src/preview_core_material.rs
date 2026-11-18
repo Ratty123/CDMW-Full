@@ -1085,19 +1085,93 @@ impl ImageCache {
     }
 }
 
+/// `evaluate_eye` in material_layers.wgsl, for the colour: the sclera at uvP,
+/// the iris at uvI by its alpha, the pupil at uvPu by its alpha, all times
+/// twice `_irisBrightness`, capped at 1. Mixed in linear light.
+fn compose_eye_base_color(
+    material: &PreviewCoreMaterial,
+    cache: &mut ImageCache,
+) -> Result<Option<DecodedRgba8>, SessionError> {
+    let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
+        return Ok(None);
+    };
+    let base = &material.layers[0];
+    let words = base.eye_properties.expect("eye words");
+    let (p0, p1) = (
+        crate::cdmw_session::byte4(words[0]),
+        crate::cdmw_session::byte4(words[1]),
+    );
+    let brightness = base.iris_brightness.unwrap_or(0.5) * 2.0;
+    let find = |parameter: &str| {
+        material
+            .layers
+            .iter()
+            .skip(1)
+            .find(|layer| layer.layer_role == "overlay" && layer.source_parameter == parameter)
+            .and_then(|layer| layer.diffuse.as_ref())
+    };
+    let mapped = |cache: &mut ImageCache,
+                  reference: Option<&FileReference>,
+                  pick: fn(([f32; 2], [f32; 2], [f32; 2], f32)) -> [f32; 2]|
+     -> Result<Option<Vec<u8>>, SessionError> {
+        reference
+            .map(|reference| {
+                sample_mapped_repeat(cache.image(reference)?, width, height, |uv| {
+                    pick(crate::cdmw_session::eye_uvs(uv, p0, p1))
+                })
+            })
+            .transpose()
+    };
+    let sclera = mapped(cache, base.diffuse.as_ref(), |uvs| uvs.0)?;
+    let iris = mapped(cache, find("_irisDiffuseTexture"), |uvs| uvs.1)?;
+    let pupil = mapped(cache, find("_pupilTexture"), |uvs| uvs.2)?;
+    let pixel_count = checked_pixel_count(width, height)?;
+    let mut target = sclera.unwrap_or_else(|| vec![255; pixel_count * 4]);
+    for pixel in 0..pixel_count {
+        let offset = pixel * 4;
+        let mut color: [f32; 3] = std::array::from_fn(|k| srgb_to_linear(unit(target[offset + k])));
+        for layer in [iris.as_deref(), pupil.as_deref()].into_iter().flatten() {
+            let alpha = unit(layer[offset + 3]);
+            color = std::array::from_fn(|k| mix(color[k], srgb_to_linear(unit(layer[offset + k])), alpha));
+        }
+        for k in 0..3 {
+            target[offset + k] = unit_byte(linear_to_srgb((color[k] * brightness).min(1.0)));
+        }
+        target[offset + 3] = 255;
+    }
+    Ok(Some(DecodedRgba8 {
+        width,
+        height,
+        pixels: target,
+    }))
+}
+
 fn sample_affine_repeat(
     image: &DecodedRgba8,
     width: u32,
     height: u32,
     a: [f32; 6],
 ) -> Result<Vec<u8>, SessionError> {
+    sample_mapped_repeat(image, width, height, |[u, v]| {
+        [a[0] * u + a[2] * v + a[4], a[1] * u + a[3] * v + a[5]]
+    })
+}
+
+/// Bilinear, wrapping samples of `image` at `map(uv)` for each target pixel centre.
+fn sample_mapped_repeat(
+    image: &DecodedRgba8,
+    width: u32,
+    height: u32,
+    map: impl Fn([f32; 2]) -> [f32; 2],
+) -> Result<Vec<u8>, SessionError> {
     let mut result = vec![0; checked_pixel_count(width, height)?.saturating_mul(4)];
     for y in 0..height {
         for x in 0..width {
             let u = (x as f32 + 0.5) / width as f32;
             let v = (y as f32 + 0.5) / height as f32;
-            let sx = (a[0] * u + a[2] * v + a[4]).rem_euclid(1.0) * image.width as f32 - 0.5;
-            let sy = (a[1] * u + a[3] * v + a[5]).rem_euclid(1.0) * image.height as f32 - 0.5;
+            let [mu, mv] = map([u, v]);
+            let sx = mu.rem_euclid(1.0) * image.width as f32 - 0.5;
+            let sy = mv.rem_euclid(1.0) * image.height as f32 - 0.5;
             let ix = sx.floor() as i64;
             let iy = sy.floor() as i64;
             let tx = sx - sx.floor();
@@ -1277,10 +1351,21 @@ fn compose_base_color(
         // Preserve authored compression, full resolution and mip filtering.
         return Ok(None);
     }
+    if material.is_blend_height() {
+        // Mode 5 of material_layers.wgsl, on or off the GPU path.
+        return compose_blend_height_base_color(material, cache);
+    }
     if is_gpu_layer_shaped(material) {
         // The same RGB-layer rule as material_layers.wgsl, so a material looks
         // the same whether the GPU path or this fallback composes it.
         return compose_rgb_layer_base_color(material, cache);
+    }
+    if material
+        .layers
+        .first()
+        .is_some_and(|base| base.eye_properties.is_some())
+    {
+        return compose_eye_base_color(material, cache);
     }
     let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
         return Ok(None);
@@ -1477,19 +1562,130 @@ impl Ver2Blend {
         }))
     }
 
-    /// The layer over a linear colour at a pixel of the composed map.
-    fn apply(&self, color: [f32; 3], pixel: usize, width: u32, height: u32) -> [f32; 3] {
+    /// Whether the layer is drawn at a pixel of the composed map: its own UV
+    /// lies in 0.005 to 0.995.
+    fn covers(affine: [f32; 6], pixel: usize, width: u32, height: u32) -> bool {
         let u = ((pixel % width as usize) as f32 + 0.5) / width as f32;
         let v = ((pixel / width as usize) as f32 + 0.5) / height as f32;
-        let a = self.affine;
+        let a = affine;
         let placed = [a[0] * u + a[2] * v + a[4], a[1] * u + a[3] * v + a[5]];
-        if placed.iter().any(|value| !(0.005..=0.995).contains(value)) {
+        placed.iter().all(|value| (0.005..=0.995).contains(value))
+    }
+
+    /// The layer over a linear colour at a pixel of the composed map.
+    fn apply(&self, color: [f32; 3], pixel: usize, width: u32, height: u32) -> [f32; 3] {
+        if !Self::covers(self.affine, pixel, width, height) {
             return color;
         }
         let offset = pixel * 4;
         let amount = (unit(self.pixels[offset + 3]) * self.opacity).clamp(0.0, 1.0);
         let dyed = ver2_tint(linear_pixel(&self.pixels, offset), self.tint);
         std::array::from_fn(|k| mix(color[k], dyed[k], amount))
+    }
+}
+
+/// The Ver2 blend layer's normal and material (fix 16a), the CPU form of the
+/// symbol block in material_layers.wgsl: weight wn = (flag bit 12 ? colour alpha
+/// : 1) times the opacity byte where the symbol is drawn; its normal is turned by
+/// its angle and laid over (or, with option bit 6, replaces) the composed normal;
+/// roughness and metal move by wn times their steps and, with flag bit 14, to
+/// `_detailMaterialBlend` .g and .b by wn.
+struct Ver2BlendSurface {
+    colour: ImagePixels,
+    map: Option<ImagePixels>,
+    affine: [f32; 6],
+    flags: u32,
+    surface: [f32; 3],
+    opacity: f32,
+}
+
+impl Ver2BlendSurface {
+    fn of(
+        material: &PreviewCoreMaterial,
+        cache: &mut ImageCache,
+        width: u32,
+        height: u32,
+        map: LayerMap,
+    ) -> Result<Option<Self>, SessionError> {
+        let Some(row) = material
+            .layers
+            .iter()
+            .skip(1)
+            .find(|layer| layer.is_ver2_blend())
+        else {
+            return Ok(None);
+        };
+        let flags = row.blend_flags.unwrap_or(0);
+        let normal = matches!(map, LayerMap::Normal);
+        let reference = if normal {
+            row.normal.as_ref().filter(|_| flags & 2 != 0)
+        } else {
+            row.material.as_ref().filter(|_| flags & 4 != 0)
+        };
+        if normal && reference.is_none() {
+            return Ok(None);
+        }
+        let colour = row.diffuse.as_ref().expect("blend layer colour");
+        Ok(Some(Self {
+            colour: cache.transformed(colour, width, height, row)?,
+            map: reference
+                .map(|reference| cache.transformed(reference, width, height, row))
+                .transpose()?,
+            affine: row.sampling_transform(),
+            flags,
+            surface: row.blend_surface.unwrap_or([0.0; 3]),
+            opacity: row.blend_opacity.unwrap_or(0.0),
+        }))
+    }
+
+    fn weight(&self, pixel: usize, width: u32, height: u32) -> f32 {
+        if !Ver2Blend::covers(self.affine, pixel, width, height) {
+            return 0.0;
+        }
+        let alpha = if self.flags & 1 != 0 {
+            unit(self.colour[pixel * 4 + 3])
+        } else {
+            1.0
+        };
+        alpha * self.opacity
+    }
+
+    /// The symbol over a composed tangent-space normal.
+    fn normal(&self, normal: [f32; 3], pixel: usize, width: u32, height: u32) -> [f32; 3] {
+        let weight = self.weight(pixel, width, height);
+        let Some(map) = self.map.as_ref().filter(|_| weight > 0.0) else {
+            return normal;
+        };
+        let offset = pixel * 4;
+        let x = unit(map[offset]) * 2.0 - 1.0;
+        let y = unit(map[offset + 1]) * 2.0 - 1.0;
+        let z = (1.0 - x * x - y * y).clamp(0.0, 1.0).sqrt();
+        let (sine, cosine) = self.surface[2].sin_cos();
+        let d = [x * cosine + y * sine, -x * sine + y * cosine, z];
+        if self.flags & 8 != 0 {
+            return normalize3(d);
+        }
+        let n = normal;
+        let layered = normalize3([
+            (d[1] + d[2]) * n[0] + d[0] * n[2],
+            (d[0] + d[2]) * n[1] + d[1] * n[2],
+            d[2] * n[2] - d[0] * n[0] - d[1] * n[1],
+        ]);
+        normalize3(std::array::from_fn(|k| mix(n[k], layered[k], weight)))
+    }
+
+    /// The symbol's roughness and metal over composed ones.
+    fn response(&self, response: [f32; 2], pixel: usize, width: u32, height: u32) -> [f32; 2] {
+        let weight = self.weight(pixel, width, height);
+        if weight <= 0.0 {
+            return response;
+        }
+        std::array::from_fn(|k| {
+            let moved = response[k] + weight * self.surface[k];
+            self.map.as_ref().map_or(moved, |map| {
+                moved + weight * (unit(map[pixel * 4 + 1 + k]) - response[k])
+            })
+        })
     }
 }
 
@@ -1917,6 +2113,217 @@ fn compose_rgb_layer_base_color(
     }))
 }
 
+/// One pixel of the game's BlendHeight rule (`blend_height_surface` in
+/// material_layers.wgsl): how much of the pixel is layer rather than base, the
+/// top layer, its partner and the partner's share of the layer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct BlendHeightWeights {
+    pub layer: f32,
+    pub top: usize,
+    pub second: usize,
+    pub partner: f32,
+}
+
+impl BlendHeightWeights {
+    /// `base` and the layers' values mixed by these weights.
+    fn apply(self, base: [f32; 3], layer: impl Fn(usize) -> [f32; 3]) -> [f32; 3] {
+        if self.layer <= 0.0 {
+            return base;
+        }
+        let (top, second) = (layer(self.top), layer(self.second));
+        std::array::from_fn(|c| mix(base[c], mix(top[c], second[c], self.partner), self.layer))
+    }
+}
+
+/// The weights from the three layer heights (mask channel times height map
+/// times opacity byte), the base height and the blend width. The higher of R and
+/// G (R on a tie) meets B; the partner is the other of the two, or R when B
+/// loses (R again when R is the top). Heights are cut to the width before they
+/// are compared, and two layers of equal height give the partner alone.
+pub(crate) fn blend_height_weights(h: [f32; 3], base: f32, width: f32) -> BlendHeightWeights {
+    let width = width.max(0.01);
+    let (first, h1) = if h[0] < h[1] { (1, h[1]) } else { (0, h[0]) };
+    let (top, ht, second, hs) = if h1 < h[2] {
+        (2, h[2], first, h1)
+    } else {
+        (first, h1, 0, h[0])
+    };
+    let mut partner = 0.0;
+    if hs > 0.0 {
+        let cut = (ht.max(hs) - width).max(0.0);
+        let (a_t, a_s) = ((ht - cut).max(0.0), (hs - cut).max(0.0));
+        partner = (2.0 * a_s / (a_t + a_s).max(1e-6)).clamp(0.0, 1.0);
+    }
+    let mut layer = 0.0;
+    if ht > 0.0 {
+        let cut = (base.max(ht) - width).max(0.0);
+        let (wb, wl) = ((base - cut).max(0.0), (ht - cut).max(0.0));
+        layer = wl / (wb + wl).max(1e-6);
+    }
+    BlendHeightWeights {
+        layer,
+        top,
+        second,
+        partner,
+    }
+}
+
+/// The inputs of the BlendHeight rule at one target size: the base and layer
+/// height maps, the mask, the opacity bytes, the blend width and base scale.
+struct BlendHeightInputs {
+    base_height: Option<ImagePixels>,
+    heights: [Option<ImagePixels>; 3],
+    mask: Option<ImagePixels>,
+    opacity: [f32; 3],
+    width: f32,
+    base_scale: f32,
+    /// The layer row of each channel, by index into the material's layers.
+    rows: [Option<usize>; 3],
+}
+
+impl BlendHeightInputs {
+    fn of(
+        material: &PreviewCoreMaterial,
+        cache: &mut ImageCache,
+        width: u32,
+        height: u32,
+    ) -> Result<Option<Self>, SessionError> {
+        if !material.is_blend_height() {
+            return Ok(None);
+        }
+        let mut inputs = Self {
+            base_height: material.layers[0]
+                .height
+                .as_ref()
+                .map(|reference| cache.resized(reference, width, height))
+                .transpose()?,
+            heights: [None, None, None],
+            mask: None,
+            opacity: [0.0; 3],
+            width: 0.01,
+            base_scale: 0.0,
+            rows: [None; 3],
+        };
+        for (index, layer) in material.layers.iter().enumerate().skip(1) {
+            if layer.layer_role != "detail"
+                || !matches!(layer.mask_channel.as_str(), "r" | "g" | "b")
+            {
+                continue;
+            }
+            let k = channel_index(&layer.mask_channel);
+            if inputs.rows[k].is_some() {
+                continue;
+            }
+            inputs.rows[k] = Some(index);
+            if inputs.mask.is_none()
+                && let Some(reference) = layer.mask.as_ref()
+            {
+                inputs.mask = Some(cache.resized(reference, width, height)?);
+            }
+            inputs.heights[k] = layer
+                .height
+                .as_ref()
+                .map(|reference| cache.transformed(reference, width, height, layer))
+                .transpose()?;
+            inputs.opacity[k] = layer.blend_opacity.unwrap_or(layer.weight).clamp(0.0, 1.0);
+            if let Some([blend_width, base_scale]) = layer.blend_height {
+                inputs.width = blend_width.max(0.01);
+                inputs.base_scale = base_scale.max(0.0);
+            }
+        }
+        Ok(Some(inputs))
+    }
+
+    /// The layer row of map `k` (0 the base, 1 to 3 the layers R, G, B).
+    fn row(&self, k: usize) -> Option<usize> {
+        if k == 0 { Some(0) } else { self.rows[k - 1] }
+    }
+
+    fn at(&self, offset: usize) -> BlendHeightWeights {
+        let h = std::array::from_fn(|k| {
+            let Some(height) = self.heights[k].as_deref() else {
+                return 0.0;
+            };
+            let mask = self
+                .mask
+                .as_deref()
+                .map_or(0.0, |pixels| unit(pixels[offset + k]));
+            unit(height[offset]) * mask * self.opacity[k]
+        });
+        let base = self
+            .base_height
+            .as_deref()
+            .map_or(0.0, |pixels| unit(pixels[offset]) * self.base_scale);
+        blend_height_weights(h, base, self.width)
+    }
+
+    /// One map of the base (index 0) and of the layers R, G, B (1 to 3), each at
+    /// its own UV, at the target size.
+    fn layer_maps(
+        &self,
+        material: &PreviewCoreMaterial,
+        cache: &mut ImageCache,
+        width: u32,
+        height: u32,
+        map: LayerMap,
+    ) -> Result<[Option<ImagePixels>; 4], SessionError> {
+        let mut maps = [None, None, None, None];
+        for (k, slot) in maps.iter_mut().enumerate() {
+            let Some(index) = self.row(k) else {
+                continue;
+            };
+            let layer = &material.layers[index];
+            if let Some(reference) = map.reference(layer) {
+                *slot = Some(if k == 0 {
+                    cache.resized(reference, width, height)?
+                } else {
+                    cache.transformed(reference, width, height, layer)?
+                });
+            }
+        }
+        Ok(maps)
+    }
+}
+
+/// The base colour of a BlendHeight material: no dye, no whole-part tint.
+fn compose_blend_height_base_color(
+    material: &PreviewCoreMaterial,
+    cache: &mut ImageCache,
+) -> Result<Option<DecodedRgba8>, SessionError> {
+    let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
+        return Ok(None);
+    };
+    let pixel_count = checked_pixel_count(width, height)?;
+    let Some(blend) = BlendHeightInputs::of(material, cache, width, height)? else {
+        return Ok(None);
+    };
+    let colours = blend.layer_maps(material, cache, width, height, LayerMap::Diffuse)?;
+    let mut target = Vec::with_capacity(pixel_count.saturating_mul(4));
+    for pixel in 0..pixel_count {
+        let offset = pixel * 4;
+        let (base, alpha) = match colours[0].as_deref() {
+            Some(pixels) => (linear_pixel(pixels, offset), pixels[offset + 3]),
+            None => ([1.0_f32; 3], 255),
+        };
+        let color = blend.at(offset).apply(base, |k| {
+            colours[k + 1]
+                .as_deref()
+                .map_or([0.0; 3], |pixels| linear_pixel(pixels, offset))
+        });
+        target.extend_from_slice(&[
+            unit_byte(linear_to_srgb(color[0])),
+            unit_byte(linear_to_srgb(color[1])),
+            unit_byte(linear_to_srgb(color[2])),
+            alpha,
+        ]);
+    }
+    Ok(Some(DecodedRgba8 {
+        width,
+        height,
+        pixels: target,
+    }))
+}
+
 /// `legacy_dye` in material_layers.wgsl at one pixel: the game's dye of the
 /// legacy families. `base` is linear, `seeds` are the authored sRGB colours and
 /// alphas, `mask` is `_maskTexture` (its alpha is the overlay's base: it shades
@@ -2129,10 +2536,45 @@ fn compose_material_response(
             unit_byte(specular),
         ]);
     }
+    if let Some(blend) = BlendHeightInputs::of(material, cache, width, height)? {
+        // The BlendHeight rule: the layers' and the base's responses take the
+        // colour's weights. The game reads no occlusion there (red is 1).
+        let sources = blend.layer_maps(material, cache, width, height, LayerMap::Material)?;
+        let decoders: [Option<MaterialResponseDecoder>; 4] = std::array::from_fn(|k| {
+            blend.row(k).map(|index| MaterialResponseDecoder::new(&material.layers[index]))
+        });
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let decode = |k: usize| -> Option<[f32; 3]> {
+                let pixels = sources[k].as_deref()?;
+                Some(decoders[k].as_ref()?.decode(&pixels[offset..offset + 4]))
+            };
+            let fallback = [
+                unit(target[offset + 1]),
+                unit(target[offset + 2]),
+                unit(target[offset + 3]),
+            ];
+            let base = decode(0).unwrap_or(fallback);
+            let mixed = blend.at(offset).apply(base, |k| decode(k + 1).unwrap_or(base));
+            target[offset] = 255;
+            target[offset + 1] = unit_byte(mixed[0]);
+            target[offset + 2] = unit_byte(mixed[1]);
+            target[offset + 3] = unit_byte(mixed[2]);
+        }
+        return Ok(Some(DecodedRgba8 {
+            width,
+            height,
+            pixels: target,
+        }));
+    }
     for layer in &material.layers {
         let Some(reference) = layer.material.as_ref() else {
             continue;
         };
+        if layer.is_ver2_blend() {
+            // The symbol is placed once and weighed by its own rule, below.
+            continue;
+        }
         let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
@@ -2160,6 +2602,19 @@ fn compose_material_response(
         }
     }
     apply_ver2_scratch_response(material, cache, width, height, &mut target)?;
+    if let Some(symbol) = Ver2BlendSurface::of(material, cache, width, height, LayerMap::Material)? {
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let moved = symbol.response(
+                [unit(target[offset + 1]), unit(target[offset + 2])],
+                pixel,
+                width,
+                height,
+            );
+            target[offset + 1] = unit_byte(moved[0].clamp(0.0, 1.0));
+            target[offset + 2] = unit_byte(moved[1].clamp(0.0, 1.0));
+        }
+    }
     Ok(Some(DecodedRgba8 {
         width,
         height,
@@ -2247,7 +2702,7 @@ fn decode_material_pixel(
 ) -> [f32; 3] {
     let green = unit(pixel[1]);
     let blue = unit(pixel[2]);
-    let mut roughness = green.clamp(0.04, 1.0);
+    let roughness = green.clamp(0.04, 1.0);
     let (mut metalness, mut specular) = match response_kind {
         MaterialResponseKind::Skin => (0.0, (0.06 + 0.24 * blue).clamp(0.04, 0.34)),
         MaterialResponseKind::Hair => (0.0, 0.19),
@@ -2256,9 +2711,8 @@ fn decode_material_pixel(
             (0.04 + 0.84 * blue).clamp(0.04, 0.88),
         ),
     };
-    if layer.roughness_hint > 0.02 {
-        roughness = (roughness * 0.72 + layer.roughness_hint * 0.28).clamp(0.04, 0.98);
-    }
+    // The map alone sets roughness, as in the game: the layer's roughness hint
+    // is a class guess and is not mixed over a map's texel.
     if layer.metalness_hint > 0.02 {
         metalness = metalness.max(layer.metalness_hint * 0.42).clamp(0.0, 1.0);
         specular = specular.max(0.14 + layer.metalness_hint * 0.32);
@@ -2320,10 +2774,33 @@ fn compose_normal(
         let normal = unpack_normal(pixel);
         pack_normal(pixel, normal);
     }
+    if let Some(blend) = BlendHeightInputs::of(material, cache, width, height)? {
+        // The BlendHeight rule: a weighted sum of tangent-space normals, normalised.
+        let sources = blend.layer_maps(material, cache, width, height, LayerMap::Normal)?;
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let base = unpack_normal(&target[offset..offset + 4]);
+            let mixed = blend.at(offset).apply(base, |k| {
+                sources[k + 1]
+                    .as_deref()
+                    .map_or(base, |pixels| unpack_normal(&pixels[offset..offset + 4]))
+            });
+            pack_normal(&mut target[offset..offset + 4], normalize3(mixed));
+        }
+        return Ok(Some(DecodedRgba8 {
+            width,
+            height,
+            pixels: target,
+        }));
+    }
     for layer in material.layers.iter().skip(1) {
         let Some(reference) = layer.normal.as_ref() else {
             continue;
         };
+        if layer.is_ver2_blend() {
+            // The symbol is placed once and laid over last, below.
+            continue;
+        }
         let source = cache.transformed(reference, width, height, layer)?;
         let mask = layer
             .mask
@@ -2355,6 +2832,13 @@ fn compose_normal(
                 mix(base_normal[2], whiteout[2], coverage),
             ]);
             pack_normal(&mut target[offset..offset + 4], blended);
+        }
+    }
+    if let Some(symbol) = Ver2BlendSurface::of(material, cache, width, height, LayerMap::Normal)? {
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let normal = symbol.normal(unpack_normal(&target[offset..offset + 4]), pixel, width, height);
+            pack_normal(&mut target[offset..offset + 4], normal);
         }
     }
     Ok(Some(DecodedRgba8 {
@@ -2854,6 +3338,7 @@ mod tests {
             uv_transform: None,
             blend_flags: None,
             blend_opacity: None,
+            blend_surface: None,
             colour_authored: None,
             diffuse_declared: false,
             diffuse_archive_path: String::new(),
@@ -2876,6 +3361,9 @@ mod tests {
             detail_mask_declared: false,
             detail_mask_archive_path: String::new(),
             detail_mask: None,
+            eye_properties: None,
+            iris_brightness: None,
+            blend_height: None,
         }
     }
 
@@ -3442,9 +3930,11 @@ mod tests {
     fn material_response_matches_original_channel_bytes() {
         // Recorded from the original per-pixel decoder for every green/blue
         // byte pair, including disabled, threshold and active material hints.
-        let standard = "BE2F49FD68C1EF76E3F9070235C0C3967CCF176F2952BC84E5B1FF1298486EB7";
-        let skin = "A9F7DD3A42AE7E405608F6D98FC9DD1A3A9862B8D1A32760FCDF98C4D582922E";
-        let hair = "30E6F6B1C320A1AA051D8F8C238555425E2868D07E76E107ACC7F1B0D02C4AC5";
+        // Fix 16d: a roughness hint no longer mixes over the map, so the active
+        // hint rows changed and the hashes with them.
+        let standard = "15393E92E84C0B02F60EA745CFB0A5AEAF7896FD31D9E1399C71DB54AEDB8493";
+        let skin = "234B5796A895A7642F6B3DA0F8BD6D2D532EC1909178658D61B276CFFCFB166C";
+        let hair = "178A7294C058302DD118F810B60ED17E431EAC4A3B88B412404BEA5C7140A912";
         for (rule, family, expected) in [
             ("standard_v2", "SkinnedMeshStandard_Ver2", standard),
             ("SkIn", "", skin),

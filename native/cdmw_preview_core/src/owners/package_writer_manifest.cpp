@@ -83,6 +83,19 @@ static std::string native_material_conservation_json(const NativePackage& packag
         if (index) out << ",";
         out << "\"" << json_escape(package.material_conservation_findings[index]) << "\"";
     }
+    out << "],\"wrappers\":[";
+    for (size_t index = 0; index < package.material_wrapper_rows.size(); ++index) {
+        if (index) out << ",";
+        const NativeMaterialWrapperRow& row = package.material_wrapper_rows[index];
+        out << "{"
+            << "\"component_scope_id\":\"" << json_escape(row.component_scope_id) << "\","
+            << "\"material_name\":\"" << json_escape(row.material_name) << "\","
+            << "\"shader_family\":\"" << json_escape(row.shader_family) << "\","
+            << "\"owner_wrapper_item_id\":\"" << json_escape(row.owner_wrapper_item_id) << "\","
+            << "\"material_wrapper_index\":" << row.material_wrapper_index << ","
+            << "\"parameter_count\":" << row.parameter_count
+            << "}";
+    }
     out << "],\"parameters\":[";
     for (size_t index = 0; index < package.material_conservation_rows.size(); ++index) {
         if (index) out << ",";

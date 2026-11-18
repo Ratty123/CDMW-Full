@@ -9,8 +9,10 @@ use crate::preview_core_material::{
 };
 use cdmw_formats::MeshDocument;
 use cdmw_render_wgpu::{
-    BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
-    LAYER_CONTROL_OVERLAY, LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LayerEntryUniform,
+    BLEND_MATERIAL_SLOT, BLEND_NORMAL_SLOT, BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT,
+    LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE, LAYER_CONTROL_OVERLAY,
+    LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LayerEntryUniform, BLEND_HEIGHT_BASE,
+    LAYER_MODE_BLEND_HEIGHT,
     LayerTexture, LayerUniform, MaterialLayerSet, OVERLAY_SLOT,
 };
 use cdmw_texture::{
@@ -313,13 +315,19 @@ fn build(
         // The package's neutral geometry placeholder is not an eye tint.
         // Authored eye colour comes from these source maps and their coverage.
         result.uniform.base_color = [1.0; 4];
+        // Layer slot B is free on an eye: it carries the wrapper's eye words.
+        // dye = `_eyeProperty0` bytes, affine = `_eyeProperty1` bytes,
+        // properties = (`_irisBrightness`, iris normal bound, iris material
+        // bound, iris normal encoding).
+        let base = &material.layers[0];
+        let words = base.eye_properties.unwrap_or([0x80401A00, 0xFF00FFFF, 0x0000FF00]);
+        result.uniform.layers[2].dye = crate::cdmw_session::byte4(words[0]);
+        result.uniform.layers[2].affine = crate::cdmw_session::byte4(words[1]);
+        result.uniform.layers[2].properties[0] = base.iris_brightness.unwrap_or(0.5);
         for layer in material.layers.iter().skip(1) {
             let k = eye_channel(layer).expect("eligible eye layer");
-            let affine = layer.sampling_transform();
             result.uniform.layers[k] = LayerEntryUniform {
-                affine: [affine[0], affine[1], affine[2], affine[3]],
-                offset: [affine[4], affine[5], 0.0, 0.0],
-                properties: [layer.weight, 0.0, 1.0, 0.0],
+                properties: [1.0, 0.0, 1.0, 0.0],
                 ..Default::default()
             };
             result.textures[1 + k * 3] = Some(layer_texture(
@@ -327,21 +335,59 @@ fn build(
                 TextureRole::BaseColor,
                 sources,
             ));
+            if k == 0 {
+                if let Some(reference) = &layer.normal {
+                    let texture = layer_texture(reference, TextureRole::Normal, sources);
+                    result.uniform.layers[2].properties[1] = 1.0;
+                    result.uniform.layers[2].properties[3] = normal_encoding(&texture)?;
+                    result.textures[2] = Some(texture);
+                }
+                if let Some(reference) = &layer.material {
+                    result.uniform.layers[2].properties[2] = 1.0;
+                    result.textures[3] =
+                        Some(layer_texture(reference, TextureRole::Material, sources));
+                }
+            }
         }
         return Ok(result);
     }
     let legacy = material.is_legacy_dye_family();
+    let blend_height = material.is_blend_height();
     if material.layers.iter().skip(1).any(|layer| {
         !layer.is_legacy_dye()
             && !layer.is_ver2_overlay()
             && !layer.is_ver2_blend()
             && layer.mask_parameter != "_colorBlendingMaskTexture"
     }) {
-        // The legacy families follow the game's traced rule; the other
-        // families that read `_maskTexture` keep the weighted mix.
-        result.uniform.control[0] = if legacy { LAYER_MODE_LEGACY } else { 2 };
+        // The legacy and BlendHeight families follow the game's traced rules;
+        // the other families that read `_maskTexture` keep the weighted mix.
+        result.uniform.control[0] = if blend_height {
+            LAYER_MODE_BLEND_HEIGHT
+        } else if legacy {
+            LAYER_MODE_LEGACY
+        } else {
+            2
+        };
     }
     let legacy = legacy && result.uniform.control[0] == LAYER_MODE_LEGACY;
+    let blend_height = blend_height && result.uniform.control[0] == LAYER_MODE_BLEND_HEIGHT;
+    let mut height_presence = 0_u32;
+    if blend_height {
+        // No dye and no whole-part tint: the base map, the layers and their heights.
+        result.uniform.base_color = [1.0; 4];
+        if let Some(reference) = &material.layers[0].height {
+            result.textures[DETAIL_MASK_SLOT] =
+                Some(layer_texture(reference, TextureRole::Height, sources));
+            height_presence |= BLEND_HEIGHT_BASE;
+        }
+        let [width, base_scale] = material
+            .layers
+            .iter()
+            .skip(1)
+            .find_map(|layer| layer.blend_height)
+            .unwrap_or([0.01, 0.0]);
+        result.uniform.blend_height = [width.max(0.01), base_scale.max(0.0), 0.0, 0.0];
+    }
     if legacy {
         // The game's legacy rule has no whole-part tint: `_dyeingColorMask*`
         // colours the base through the mask instead.
@@ -395,6 +441,28 @@ fn build(
                     TextureRole::BaseColor,
                     sources,
                 ));
+                // The symbol's normal and material (fix 16a): flag bits 12 to 14
+                // and option bit 6 in `blend_flags` bits 0 to 3.
+                let flags = layer.blend_flags.unwrap_or(0);
+                let [rough, metal, angle] = layer.blend_surface.unwrap_or([0.0, 0.0, 0.0]);
+                result.uniform.blend_surface = [angle.cos(), angle.sin(), rough, metal];
+                let mut switches = [f32::from(flags & 1 != 0), 0.0, 0.0, 0.0];
+                if flags & 2 != 0
+                    && let Some(reference) = &layer.normal
+                {
+                    let texture = layer_texture(reference, TextureRole::Normal, sources);
+                    switches[3] = normal_encoding(&texture)?;
+                    switches[1] = if flags & 8 != 0 { 2.0 } else { 1.0 };
+                    result.textures[BLEND_NORMAL_SLOT] = Some(texture);
+                }
+                if flags & 4 != 0
+                    && let Some(reference) = &layer.material
+                {
+                    switches[2] = 1.0;
+                    result.textures[BLEND_MATERIAL_SLOT] =
+                        Some(layer_texture(reference, TextureRole::Material, sources));
+                }
+                result.uniform.blend_switches = switches;
             }
             continue;
         }
@@ -406,8 +474,16 @@ fn build(
         ));
         if layer.layer_role == "color_seed" {
             // `_dyeingColorMask*` is read by no Ver2 shader of the game: a channel
-            // without a colour layer shows the surface beneath, undyed.
+            // without a colour layer shows the surface beneath, undyed. The
+            // BlendHeight shaders do not read it either.
             continue;
+        }
+        if blend_height && layer.layer_role == "detail" {
+            if let Some(reference) = &layer.height {
+                result.textures[GRIME_SLOT + k * 3] =
+                    Some(layer_texture(reference, TextureRole::Height, sources));
+                height_presence |= BLEND_HEIGHT_BASE << (k + 1);
+            }
         }
         if layer.is_ver2_grime() {
             let [low, high, intensity] = layer.grime_blend.expect("ver2 grime ramp");
@@ -504,6 +580,9 @@ fn build(
             result.textures[3 + k * 3] =
                 Some(layer_texture(reference, TextureRole::Material, sources));
         }
+    }
+    if blend_height {
+        result.uniform.blend_height[2] = height_presence as f32;
     }
     Ok(result)
 }
@@ -776,6 +855,116 @@ mod tests {
                 assert_eq!(decoded.pixels[3], 255, "eye coverage stays opaque");
             }
         }
+    }
+
+    #[test]
+    fn eye_layers_carry_the_iris_surface_maps_and_the_eye_words() {
+        // SkinnedMeshEye lerps the normal and (with UseMaterialTextureRoughness)
+        // the roughness toward `_irisNormalTexture` / `_irisMaterialTexture` by
+        // the iris alpha, at UVs set by `_eyeProperty0/1`.
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let bytes = [
+            make([200, 200, 200, 255]),
+            make([40, 80, 160, 255]),
+            make([128, 128, 255, 255]),
+            make([255, 90, 30, 255]),
+        ];
+        let refs: Vec<_> = bytes
+            .iter()
+            .enumerate()
+            .map(|(k, b)| reference(b, &format!("eye-{k}.dds")))
+            .collect();
+        let mut base = layer("base", "r", &refs[0]);
+        base.shader_family = "SkinnedMeshEye".into();
+        base.source_parameter = "_baseColorTexture".into();
+        base.mask = None;
+        base.eye_properties = Some([0xB6FF2600, 0xFF01FF61, 0x0000FF00]);
+        base.iris_brightness = Some(0.25);
+        let mut iris = layer("overlay", "a", &refs[1]);
+        iris.shader_family = "SkinnedMeshEye".into();
+        iris.source_parameter = "_irisDiffuseTexture".into();
+        iris.normal = Some(refs[2].clone());
+        iris.material = Some(refs[3].clone());
+        let eye = material(vec![base, iris]);
+        assert!(eligible(&eye));
+        let sources = refs
+            .iter()
+            .zip(&bytes)
+            .map(|(r, b)| (r.sha256.clone(), Arc::from(b.clone())))
+            .collect();
+        let built = build(&eye, &sources).unwrap();
+        assert_eq!(built.uniform.control[0], 3);
+        assert_eq!(built.textures[2].as_ref().unwrap().source_sha256, refs[2].sha256);
+        assert_eq!(built.textures[3].as_ref().unwrap().source_sha256, refs[3].sha256);
+        assert_eq!(built.uniform.layers[2].dye, [0.0, 38.0, 255.0, 182.0]);
+        assert_eq!(built.uniform.layers[2].affine, [97.0, 255.0, 1.0, 255.0]);
+        assert_eq!(built.uniform.layers[2].properties[..3], [0.25, 1.0, 1.0]);
+        // The CPU fallback: the iris (opaque) times twice `_irisBrightness`.
+        let graph = PreviewCoreMaterialGraph {
+            schema_version: 1,
+            graph_version: 5,
+            semantics_version: 10,
+            quality: "full".into(),
+            resources_included: true,
+            source_edge_count: 4,
+            unique_resource_count: 4,
+            copied_resource_count: 4,
+            unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+            materials: vec![eye],
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let mut resources = Vec::new();
+        prepare(
+            &graph,
+            &[],
+            &document,
+            &mut resources,
+            false,
+            false,
+            |r| Ok(bytes[refs.iter().position(|p| p.path == r.path).unwrap()].clone()),
+            &|| false,
+        )
+        .unwrap();
+        let base = resources
+            .iter()
+            .find(|r| r.role == TextureRole::BaseColor)
+            .unwrap();
+        let decoded = cdmw_texture::decode_dds_rgba8(&base.bytes, base.role).unwrap();
+        for (k, iris) in [40.0_f32, 80.0, 160.0].iter().enumerate() {
+            let expected = linear(iris / 255.0) * 0.5;
+            assert!((linear(f32::from(decoded.pixels[k]) / 255.0) - expected).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn eye_uvs_follow_the_games_iris_size_and_pupil_stretch() {
+        use crate::cdmw_session::{byte4, eye_uvs};
+        // Defaults: IrisSize 128 and EyeImageScale 255 leave the mesh UV (to 0.4%).
+        let (uvp, uvi, uvpu, r) = eye_uvs([0.8, 0.5], byte4(0x80401A00), byte4(0xFF00FFFF));
+        assert_eq!(uvp, [0.8, 0.5]);
+        assert!((r - 0.6).abs() < 1e-5);
+        assert!((uvi[0] - (0.6 * (1.0 - 128.0 / 255.0) + 0.5)).abs() < 1e-5);
+        assert!((uvpu[0] - uvi[0]).abs() < 1e-5, "outside r 0.5 the pupil is not warped");
+        // The commonest animal eye: IrisSize 182 magnifies the iris 1.75 times;
+        // UVScale (97, 255) squeezes the pupil's U and stretches its V.
+        let (_, uvi, uvpu, _) = eye_uvs([0.8, 0.8], byte4(0xB6FF2600), byte4(0xFF01FF61));
+        let iris = 1.0 - 182.0 / 255.0;
+        assert!((uvi[0] - (0.6 * iris + 0.5)).abs() < 1e-5);
+        let a: [f32; 2] = [97.0 * 2.0 / 255.0, 2.0];
+        let s = [a[0].min(a[0] + (1.0 - a[0]) * 97.0 / 255.0), a[1].min(a[1] + (1.0 - a[1]) * 97.0 / 255.0)];
+        assert!((uvpu[0] - (0.6 * iris * s[0] + 0.5)).abs() < 1e-5);
+        assert!((uvpu[1] - (0.6 * iris * s[1] + 0.5)).abs() < 1e-5);
+        // Inside r 0.5 the pupil is warped by pow(2r, 1 - 2 stretch).
+        let (_, uvi, uvpu, r) = eye_uvs([0.6, 0.5], byte4(0x80401A00), byte4(0xFF00FFFF));
+        let stretch = (2.0_f32 * (26.0 / 255.0 + 0.05 + 38.0 / 255.0 * 0.0)).clamp(0.0, 1.0);
+        let pw = (2.0 * r).powf(1.0 - 2.0 * stretch);
+        assert!((uvpu[0] - ((uvi[0] - 0.5) / pw + 0.5)).abs() < 1e-5);
     }
 
     #[test]
@@ -1582,6 +1771,169 @@ mod tests {
         }
     }
 
+    /// The game's BlendHeight rule at one pixel (permutation 31455db8225afaa7):
+    /// the higher of R and G meets B, the winner's partner is the other of the
+    /// two or R, and the layer meets the base by the same height cut.
+    #[test]
+    fn blend_height_weights_follow_the_games_quirks() {
+        use crate::preview_core_material::blend_height_weights;
+        // G on top partners R even when B is higher than R.
+        let w = blend_height_weights([0.05, 0.3, 0.1], 0.0, 0.392);
+        assert_eq!((w.top, w.second), (1, 0));
+        assert!((w.partner - 2.0 * 0.05 / 0.35).abs() < 1e-6);
+        // With no base height the layer shows at full strength.
+        assert_eq!(w.layer, 1.0);
+        // B on top partners the higher of R and G; equal heights give the partner alone.
+        let w = blend_height_weights([0.0, 0.2, 0.2001], 0.0, 0.392);
+        assert_eq!((w.top, w.second), (2, 1));
+        assert!(w.partner > 0.999);
+        // R wins a tie with G, and its partner is R itself.
+        let w = blend_height_weights([0.2, 0.2, 0.0], 0.0, 0.392);
+        assert_eq!((w.top, w.second), (0, 0));
+        // A partner of height 0 does not mix.
+        let w = blend_height_weights([0.0, 0.3, 0.1], 0.0, 0.392);
+        assert_eq!((w.top, w.second, w.partner), (1, 0, 0.0));
+        // No layer height: the base alone.
+        assert_eq!(blend_height_weights([0.0; 3], 0.4, 0.392).layer, 0.0);
+        // A narrow width is a hard cut: the higher surface wins outright.
+        assert_eq!(blend_height_weights([0.5, 0.0, 0.0], 0.2, 0.01).layer, 1.0);
+        assert_eq!(blend_height_weights([0.1, 0.0, 0.0], 0.3, 0.01).layer, 0.0);
+        // Within the width, a weighted mean of the two heights.
+        let w = blend_height_weights([0.3, 0.0, 0.0], 0.1, 0.392);
+        assert!((w.layer - 0.75).abs() < 1e-6);
+    }
+
+    /// The BlendHeight families choose their layer by height, not by the
+    /// largest mask channel, and draw no dye: the crystal of
+    /// `cd_phm_02_spear_0117` showed its pale base where the icon shows the
+    /// dark layers that its weak base height gives way to.
+    #[test]
+    fn blend_height_layers_meet_the_base_by_height_on_gpu_binding_and_cpu_fallback() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let base_rgb = [200_u8, 180, 160];
+        let colours = [[180_u8, 40, 40], [40_u8, 160, 60], [30_u8, 30, 200]];
+        let bytes = [
+            make([base_rgb[0], base_rgb[1], base_rgb[2], 255]),
+            make([128, 128, 128, 255]),
+            make([255, 255, 255, 255]),
+            make([colours[0][0], colours[0][1], colours[0][2], 255]),
+            make([colours[1][0], colours[1][1], colours[1][2], 255]),
+            make([colours[2][0], colours[2][1], colours[2][2], 255]),
+            make([51, 51, 51, 255]),
+            make([255, 254, 254, 255]),
+        ];
+        let refs: Vec<_> = bytes
+            .iter()
+            .enumerate()
+            .map(|(index, bytes)| reference(bytes, &format!("{index}.dds")))
+            .collect();
+        let mut base = layer("base", "r", &refs[0]);
+        base.mask = None;
+        base.shader_family = "SkinnedMeshBlendHeight".into();
+        base.height = Some(refs[1].clone());
+        let mut layers = vec![base];
+        // Heights R 0.2 x 0.25, G 1.0 x 0.3, B 1.0 x 0.1; the mask is white.
+        for (k, (channel, height, opacity)) in
+            [("r", 6, 0.25), ("g", 7, 0.3), ("b", 7, 0.1)].into_iter().enumerate()
+        {
+            let mut row = layer("detail", channel, &refs[3 + k]);
+            row.shader_family = "SkinnedMeshBlendHeight".into();
+            row.source_parameter = ["_detailDiffuseMaskR", "_detailDiffuseMaskG", "_detailDiffuseMaskB"][k].into();
+            row.mask = Some(refs[2].clone());
+            row.mask_parameter = "_maskTexture".into();
+            row.height = Some(refs[height].clone());
+            row.blend_flags = Some(15);
+            row.blend_opacity = Some(opacity);
+            // A layer dye the BlendHeight shader does not read.
+            row.tint = [1.0, 0.0, 0.0, 1.0];
+            row.blend_height = Some([0.392, 0.2]);
+            layers.push(row);
+        }
+        let mut value = material(layers);
+        value.base_color = [0.3, 0.3, 0.3];
+        assert!(value.is_blend_height());
+        assert!(eligible(&value));
+        let graph = PreviewCoreMaterialGraph {
+            schema_version: 1,
+            graph_version: 5,
+            semantics_version: 10,
+            quality: "full".into(),
+            resources_included: true,
+            source_edge_count: 8,
+            unique_resource_count: 8,
+            copied_resource_count: 8,
+            unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+            materials: vec![value],
+        };
+        // G (0.3) is on top and partners R (0.05) although B (0.1) is higher;
+        // the base height is 128/255 x 0.2.
+        let (hr, hg, hb) = (51.0 / 255.0 * 0.25, 0.3, 128.0 / 255.0 * 0.2);
+        let t = 2.0 * hr / (hg + hr);
+        let share = hg / (hg + hb);
+        let expected: [f32; 3] = std::array::from_fn(|c| {
+            let base = linear(f32::from(base_rgb[c]) / 255.0);
+            let layer = linear(f32::from(colours[1][c]) / 255.0)
+                + (linear(f32::from(colours[0][c]) / 255.0) - linear(f32::from(colours[1][c]) / 255.0)) * t;
+            base + (layer - base) * share
+        });
+        for gpu in [true, false] {
+            let mut resources = Vec::new();
+            let (_, sets) = prepare(
+                &graph,
+                &[],
+                &document,
+                &mut resources,
+                gpu,
+                false,
+                |r| {
+                    Ok(bytes[refs
+                        .iter()
+                        .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                        .unwrap()]
+                    .clone())
+                },
+                &|| false,
+            )
+            .unwrap();
+            if gpu {
+                let set = &sets[0];
+                let uniform = &set.uniform;
+                assert_eq!(uniform.control[0], LAYER_MODE_BLEND_HEIGHT);
+                assert_eq!(uniform.base_color[..3], [1.0; 3], "no whole-part tint");
+                assert_eq!(uniform.seeds, [[0.0; 4]; 3], "no dye");
+                assert_eq!(uniform.blend_height, [0.392, 0.2, 15.0, 0.0]);
+                assert!(!set.hides_base_colour());
+                let sha = |slot: usize| set.textures[slot].as_ref().map(|t| t.source_sha256.clone());
+                assert_eq!(sha(DETAIL_MASK_SLOT), Some(refs[1].sha256.clone()), "base height");
+                for (k, height) in [6, 7, 7].into_iter().enumerate() {
+                    assert_eq!(sha(GRIME_SLOT + 3 * k), Some(refs[height].sha256.clone()));
+                    assert_eq!(uniform.layers[k].properties[0], [0.25, 0.3, 0.1][k]);
+                }
+                continue;
+            }
+            let composed = resources
+                .iter()
+                .find(|r| r.role == TextureRole::BaseColor)
+                .expect("composed base colour");
+            let decoded = cdmw_texture::decode_dds_rgba8(&composed.bytes, composed.role).unwrap();
+            for channel in 0..3 {
+                let drawn = linear(f32::from(decoded.pixels[channel]) / 255.0);
+                assert!(
+                    (drawn - expected[channel]).abs() <= 0.004,
+                    "channel {channel}: {drawn} != {}",
+                    expected[channel]
+                );
+            }
+        }
+    }
+
     /// The game's Ver2 overlay step: after grime and scratch every pixel becomes
     /// overlay(base = `_overlayColorTexture`, blend = albedo) on display values
     /// (0.5 neutral), with the map's luma for a layer that asks. CDMW dropped
@@ -1887,6 +2239,201 @@ mod tests {
                         (drawn - expected[k]).abs() <= 0.006,
                         "{name}, channel {k}: {drawn} != {}",
                         expected[k]
+                    );
+                }
+            }
+        }
+    }
+
+    /// The symbol's normal and material (fix 16a; permutation d4ae32939fa23e46,
+    /// %1782-%1908): weight wn = (flag bit 12 ? colour alpha : 1) times the
+    /// opacity byte; roughness and metal move by wn times the bytes 2 and 3 of
+    /// `_dyeingTransformProperty4` and, with flag bit 14, to
+    /// `_detailMaterialBlend` .g and .b by wn; the normal (bit 13) is turned by
+    /// the symbol's angle and laid over, or replaces with option bit 6. CDMW drew
+    /// the symbol's colour only.
+    #[test]
+    fn ver2_symbol_moves_normal_and_response_on_gpu_binding_and_cpu_fallback() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let emblem = [150_u8, 40, 30, 204];
+        let symbol_normal = [200_u8, 128, 255, 255];
+        let symbol_material = [0_u8, 30, 220, 255];
+        let surface = [100_u8, 0];
+        // (name, blend_flags, steps and angle, opacity)
+        for (name, flags, steps, opacity) in [
+            ("steps only", 0_u32, [0.25_f32, -0.5, 0.0], 1.0_f32),
+            ("alpha weighs, material map", 5, [0.0, 0.0, 0.0], 0.5),
+            ("normal laid over, turned", 3, [0.0, 0.0, 0.8255], 1.0),
+            ("normal replaces", 11, [0.0, 0.0, 0.8255], 1.0),
+        ] {
+            let bytes = [
+                make([200, 190, 170, 255]),
+                make([255, 0, 0, 255]),
+                make(emblem),
+                make(symbol_normal),
+                make(symbol_material),
+                make([0, surface[0], surface[1], 255]),
+            ];
+            let refs = [
+                reference(&bytes[0], "canvas.dds"),
+                reference(&bytes[1], "shield_ma.dds"),
+                reference(&bytes[2], "symbol_dec.dds"),
+                reference(&bytes[3], "symbol_dec_n.dds"),
+                reference(&bytes[4], "symbol_dec_sp.dds"),
+                reference(&bytes[5], "layer_sp.dds"),
+            ];
+            let mut base = layer("base", "r", &refs[0]);
+            base.diffuse = None;
+            base.mask = None;
+            let mut detail = layer("detail", "r", &refs[0]);
+            detail.mask = Some(refs[1].clone());
+            detail.material = Some(refs[5].clone());
+            detail.material_declared = true;
+            detail.material_archive_path = "layer_sp.dds".into();
+            let mut blend = layer("overlay", "", &refs[2]);
+            blend.source_parameter = "_detailDiffuseBlend".into();
+            blend.mask_parameter = String::new();
+            blend.mask = None;
+            blend.mask_declared = false;
+            blend.mask_archive_path = String::new();
+            blend.normal = Some(refs[3].clone());
+            blend.normal_declared = true;
+            blend.normal_archive_path = "symbol_dec_n.dds".into();
+            blend.material = Some(refs[4].clone());
+            blend.material_declared = true;
+            blend.material_archive_path = "symbol_dec_sp.dds".into();
+            blend.blend_opacity = Some(opacity);
+            blend.blend_flags = Some(flags);
+            blend.blend_surface = Some(steps);
+            assert!(blend.is_ver2_blend());
+            let value = material(vec![base, detail, blend]);
+            assert!(eligible(&value), "{name}: the symbol keeps the layer path");
+            let graph = PreviewCoreMaterialGraph {
+                schema_version: 1,
+                graph_version: 5,
+                semantics_version: 10,
+                quality: "full".into(),
+                resources_included: true,
+                source_edge_count: 6,
+                unique_resource_count: 6,
+                copied_resource_count: 6,
+                unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+                materials: vec![value],
+            };
+            let weight = if flags & 1 != 0 {
+                f32::from(emblem[3]) / 255.0 * opacity
+            } else {
+                opacity
+            };
+            for gpu in [true, false] {
+                let mut resources = Vec::new();
+                let (_, sets) = prepare(
+                    &graph,
+                    &[],
+                    &document,
+                    &mut resources,
+                    gpu,
+                    false,
+                    |r| {
+                        Ok(bytes[refs
+                            .iter()
+                            .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                            .unwrap()]
+                        .clone())
+                    },
+                    &|| false,
+                )
+                .unwrap();
+                if gpu {
+                    let uniform = &sets[0].uniform;
+                    let expected = [steps[2].cos(), steps[2].sin(), steps[0], steps[1]];
+                    for k in 0..4 {
+                        assert!(
+                            (uniform.blend_surface[k] - expected[k]).abs() < 1e-6,
+                            "{name}: blend_surface {:?}",
+                            uniform.blend_surface
+                        );
+                    }
+                    let mode = match flags & 10 {
+                        2 => 1.0,
+                        10 => 2.0,
+                        _ => 0.0,
+                    };
+                    assert_eq!(
+                        &uniform.blend_switches[..3],
+                        &[f32::from(flags & 1 != 0), mode, f32::from(flags & 4 != 0)],
+                        "{name}"
+                    );
+                    assert_eq!(
+                        sets[0].textures[BLEND_NORMAL_SLOT]
+                            .as_ref()
+                            .map(|t| t.source_sha256.clone()),
+                        (flags & 2 != 0).then(|| refs[3].sha256.clone()),
+                        "{name}: the normal is bound when bit 13 asks for it"
+                    );
+                    assert_eq!(
+                        sets[0].textures[BLEND_MATERIAL_SLOT]
+                            .as_ref()
+                            .map(|t| t.source_sha256.clone()),
+                        (flags & 4 != 0).then(|| refs[4].sha256.clone()),
+                        "{name}: the material map is bound when bit 14 asks for it"
+                    );
+                    continue;
+                }
+                let response = resources
+                    .iter()
+                    .find(|r| r.role == TextureRole::Material)
+                    .expect("composed response");
+                let decoded =
+                    cdmw_texture::decode_dds_rgba8(&response.bytes, response.role).unwrap();
+                let rough = f32::from(surface[0]) / 255.0;
+                let take = if flags & 4 != 0 { weight } else { 0.0 };
+                let expected_rough = rough
+                    + weight * steps[0]
+                    + take * (f32::from(symbol_material[1]) / 255.0 - rough);
+                let expected_metal =
+                    weight * steps[1] + take * f32::from(symbol_material[2]) / 255.0;
+                for (k, expected) in [(1, expected_rough), (2, expected_metal)] {
+                    let drawn = f32::from(decoded.pixels[k]) / 255.0;
+                    assert!(
+                        (drawn - expected.clamp(0.0, 1.0)).abs() <= 0.006,
+                        "{name}, response channel {k}: {drawn} != {expected}"
+                    );
+                }
+                let normal = resources
+                    .iter()
+                    .find(|r| r.role == TextureRole::Normal)
+                    .map(|r| cdmw_texture::decode_dds_rgba8(&r.bytes, r.role).unwrap());
+                if flags & 2 == 0 {
+                    continue;
+                }
+                let normal = normal.expect("composed normal");
+                let x = f32::from(symbol_normal[0]) / 255.0 * 2.0 - 1.0;
+                let y = f32::from(symbol_normal[1]) / 255.0 * 2.0 - 1.0;
+                let (sine, cosine) = steps[2].sin_cos();
+                let d = [
+                    x * cosine + y * sine,
+                    -x * sine + y * cosine,
+                    (1.0 - x * x - y * y).max(0.0).sqrt(),
+                ];
+                // Over a flat surface the game's layering returns d itself, so
+                // laid over it is normalize(lerp((0, 0, 1), d, wn)).
+                let w = if flags & 8 != 0 { 1.0 } else { weight };
+                let v = [w * d[0], w * d[1], 1.0 - w + w * d[2]];
+                let length = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+                for k in 0..2 {
+                    let drawn = f32::from(normal.pixels[k]) / 255.0 * 2.0 - 1.0;
+                    assert!(
+                        (drawn - v[k] / length).abs() <= 0.02,
+                        "{name}, normal {k}: {drawn} != {}",
+                        v[k] / length
                     );
                 }
             }

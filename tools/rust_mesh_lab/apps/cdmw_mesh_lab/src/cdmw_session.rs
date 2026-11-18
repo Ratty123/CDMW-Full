@@ -258,6 +258,11 @@ pub struct PreviewCoreMaterialLayer {
     pub blend_flags: Option<u32>,
     #[serde(default)]
     pub blend_opacity: Option<f32>,
+    /// The Ver2 blend layer's roughness and metal steps (each -1 to 1) and its
+    /// angle in radians; its `blend_flags` hold `_colorBlendingFlag` bits 12 to
+    /// 14 and option bit 6 (see `pac_blend_layer_surface`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blend_surface: Option<[f32; 3]>,
     /// False when the wrapper declares no colour map for this layer: its
     /// `diffuse` is then a file Preview Core found by name beside the layer's
     /// normal map (often its height map), and the game draws no colour from it.
@@ -296,6 +301,55 @@ pub struct PreviewCoreMaterialLayer {
     pub detail_mask_archive_path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail_mask: Option<FileReference>,
+    /// A BlendHeight colour layer's blend width (`_detailScreenSpaceDisplacementScale`,
+    /// at least 0.01) and the base height scale (`_screenSpaceDisplacementScale`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blend_height: Option<[f32; 2]>,
+    /// An eye's base row: `_eyeProperty0/1/2` as the game's packed words
+    /// (defaults filled in), which place the iris and pupil and switch the
+    /// iris roughness on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eye_properties: Option<[u32; 3]>,
+    /// An eye's base row: `_irisBrightness` (0.5 is neutral; the colour is
+    /// scaled by twice it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iris_brightness: Option<f32>,
+}
+
+/// The bytes of a packed `Byte4` parameter, byte 0 first.
+pub fn byte4(word: u32) -> [f32; 4] {
+    std::array::from_fn(|k| ((word >> (8 * k)) & 255) as f32)
+}
+
+/// SkinnedMeshEye's UVs (permutation a4b73dd211913bc3, parallax left out):
+/// returns (uvP for `_baseColorTexture`, uvI for `_irisDiffuseTexture`,
+/// uvPu for the pupil, normal and material maps, r). `p0` and `p1` are the
+/// bytes of `_eyeProperty0` and `_eyeProperty1`.
+pub fn eye_uvs(uv: [f32; 2], p0: [f32; 4], p1: [f32; 4]) -> ([f32; 2], [f32; 2], [f32; 2], f32) {
+    // EyeImageScale: byte 255 leaves the mesh UV.
+    let image = 1.0 - p1[3] / 510.0;
+    let uvp = uv.map(|v| (2.0 * v - 1.0) * image + 0.5);
+    let r = ((2.0 * uvp[0].abs() - 1.0).powi(2) + (2.0 * uvp[1].abs() - 1.0).powi(2)).sqrt();
+    let pupil = p0[0] / 255.0;
+    let pw = if r < 0.5 {
+        let stretch = (2.0 * (p0[1] / 255.0 + 0.05 + (p0[2] - p0[1]).abs() / 255.0 * pupil)).clamp(0.0, 1.0);
+        (2.0 * r).powf(1.0 - 2.0 * stretch)
+    } else {
+        1.0
+    };
+    // IrisSize: byte 128 leaves the UV (to 0.4%).
+    let iris = 1.0 - p0[3] / 255.0;
+    let uvi = uvp.map(|v| (2.0 * v - 1.0) * iris + 0.5);
+    let mut uvpu = uvi;
+    if p1[0] > 0.0 && p1[1] > 0.0 {
+        let weight = p1[0] / 255.0;
+        for k in 0..2 {
+            let a = p1[k] * 2.0 / 255.0;
+            let s = a.min(a + (1.0 - a) * weight);
+            uvpu[k] = (uvi[k] - 0.5) * s / pw.max(1e-6) + 0.5;
+        }
+    }
+    (uvp, uvi, uvpu, r)
 }
 
 impl PreviewCoreMaterialLayer {
@@ -424,7 +478,21 @@ pub const LEGACY_DYE_FAMILIES: [&str; 7] = [
     "SkinnedMeshPoster",
 ];
 
+/// The game's height-blended layer families (fix 14).
+pub const BLEND_HEIGHT_FAMILIES: [&str; 2] =
+    ["SkinnedMeshBlendHeight", "SkinnedMeshStaticBlendHeight"];
+
 impl PreviewCoreMaterial {
+    /// Whether the material is drawn by the game's BlendHeight or
+    /// StaticBlendHeight shader: layers chosen by height, no dye.
+    pub fn is_blend_height(&self) -> bool {
+        self.layers.first().is_some_and(|base| {
+            BLEND_HEIGHT_FAMILIES
+                .iter()
+                .any(|family| base.shader_family.eq_ignore_ascii_case(family))
+        })
+    }
+
     pub fn is_legacy_dye_family(&self) -> bool {
         self.layers.first().is_some_and(|base| {
             LEGACY_DYE_FAMILIES
@@ -2532,6 +2600,11 @@ fn validate_preview_core_material_graph(
                     .iter()
                     .any(|value| !value.is_finite() || value.abs() > 1_000_000.0)
                 || layer.blend_flags.is_some_and(|value| value > 15)
+                || layer.blend_surface.is_some_and(|values| {
+                    values
+                        .iter()
+                        .any(|value| !value.is_finite() || value.abs() > 4.0)
+                })
                 || layer
                     .grime_blend
                     .is_some_and(|bytes| bytes.iter().any(|value| *value > 255))

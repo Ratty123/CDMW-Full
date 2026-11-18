@@ -33,6 +33,8 @@ if TYPE_CHECKING:
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.material_layer_uv import (
+    pac_blend_layer_surface,
+    pac_blend_height_uv_transform,
     pac_blend_layer_uv_transform,
     pac_color_bytes,
     pac_grime_blend_bytes,
@@ -736,6 +738,10 @@ def _preview_core_layer_parameter_index(parameters):
             "dyeingcustompropertymaskb",
             "detaildiffuseblend", "dyeingdetaillayercolorblend", "dyeingtransformproperty4",
             "dyeingblendtexturetranslation", "colorblendingoptionbitflag",
+            "eyeproperty0", "eyeproperty1", "eyeproperty2", "irisbrightness",
+            "irisnormaltexture", "irismaterialtexture",
+            "detailnormalblend", "detailmaterialblend",
+            "detailscreenspacedisplacementscale", "screenspacedisplacementscale",
         }:
             continue
         key = (
@@ -748,6 +754,8 @@ def _preview_core_layer_parameter_index(parameters):
             value = parameter.get("value", "")
         if name.casefold().lstrip("_") in {
             "detailmasktexture", "masktexture", "overlaycolortexture", "detaildiffuseblend",
+            "irisnormaltexture", "irismaterialtexture",
+            "detailnormalblend", "detailmaterialblend",
         }:
             # A texture parameter: the layer rule needs the file, not a number.
             value = {
@@ -884,6 +892,36 @@ def _preview_core_legacy_dye_layers(raw_layers, parameter_index, source_package)
     return layers
 
 
+# The game's BlendHeight families: layers chosen by height, no dye.
+_BLEND_HEIGHT_FAMILIES = frozenset({"skinnedmeshblendheight", "skinnedmeshstaticblendheight"})
+
+
+def _preview_core_blend_height_layer(layer, channel, parameters, values):
+    """State the BlendHeight rule's inputs on one of its colour layers.
+
+    The game samples a layer's four maps at the mesh UV divided by bytes 0 and 1
+    of its transform property (no rotation, no offset), and blends by height:
+    a layer's height is `_maskTexture` channel times `_detailHeightMask*` red
+    times its `_dyeingGlobalOpacity` byte; the base's is `_heightTexture` red
+    times `_screenSpaceDisplacementScale`; `_detailScreenSpaceDisplacementScale`
+    (at least 0.01) is the blend width. `blend_height` carries the width and the
+    base height scale; the opacity byte is `blend_opacity`.
+    """
+    layer["uv_transform"] = list(pac_blend_height_uv_transform(parameters, channel))
+
+    def number(name):
+        try:
+            value = float(values.get(name, 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+        return value if math.isfinite(value) else 0.0
+
+    layer["blend_height"] = [
+        max(0.01, number("_detailscreenspacedisplacementscale")),
+        max(0.0, number("_screenspacedisplacementscale")),
+    ]
+
+
 # The game's Ver2 shader families. Each runs the overlay step after grime and
 # scratch: albedo = overlay(base = `_overlayColorTexture`, blend = albedo).
 _VER2_LAYER_FAMILIES = frozenset({
@@ -968,8 +1006,10 @@ def _preview_core_ver2_blend_layer(raw_layers, parameter_index, source_package):
     The game draws `_detailDiffuseBlend` after the overlay step, only when byte 3
     of `_dyeingGlobalOpacity` is not zero: dyed by `_dyeingDetailLayerColorBlend`
     as a colour layer is, laid over by its own alpha times that byte, at one place
-    of the mesh UV (`pac_blend_layer_uv_transform`). Its normal and response maps
-    are not carried.
+    of the mesh UV (`pac_blend_layer_uv_transform`). Its normal and material maps
+    (`_detailNormalBlend`, `_detailMaterialBlend`) ride on the row when their files
+    are there, with the switches and steps of `pac_blend_layer_surface` in
+    `blend_flags` and `blend_surface`.
     """
     if any(
         isinstance(layer, Mapping)
@@ -986,7 +1026,8 @@ def _preview_core_ver2_blend_layer(raw_layers, parameter_index, source_package):
     if not opacity or colour_map is None:
         return []
     tint = pac_color_bytes(values.get("dyeingdetaillayercolorblend"))
-    return [{
+    flags, surface = pac_blend_layer_surface(values.items())
+    row = {
         "component_scope_id": str(owner_layer.get("component_scope_id", "") or ""),
         "owner_wrapper_item_id": owner_layer.get("owner_wrapper_item_id", ""),
         "material_wrapper_index": owner_layer.get("material_wrapper_index"),
@@ -1004,7 +1045,70 @@ def _preview_core_ver2_blend_layer(raw_layers, parameter_index, source_package):
         "diffuse_archive_path": colour_map[1],
         "uv_transform": list(pac_blend_layer_uv_transform(values.items())),
         "blend_opacity": opacity / 255.0,
-    }]
+        "blend_flags": flags,
+        "blend_surface": list(surface),
+    }
+    for role, name in (("normal", "detailnormalblend"), ("material", "detailmaterialblend")):
+        found = _preview_core_detail_mask(values, source_package, name)
+        if found is not None:
+            row[f"{role}_source"], row[f"{role}_archive_path"] = found
+    return [row]
+
+
+# `_eyeProperty0/1/2` at the game's defaults (skinnedmeshparameters.xml, Byte4: byte i is
+# DefaultValue{i} * 255, rounded). P0: PupilSize 0, PupilStretchMinSize 0.1, PupilStretchMaxSize
+# 0.25, IrisSize 0.5. P1: UVScaleX 1, UVScaleY 1, UseMaterialTextureRoughness 0, EyeImageScale 1.
+# P2: IrisEmissiveIntensity 0, DynamicEyeColor 1.
+_EYE_PROPERTY_DEFAULTS = (0x80401A00, 0xFF00FFFF, 0x0000FF00)
+
+
+def _preview_core_eye_layers(raw_layers, parameter_index, source_package):
+    """The eye's own surface inputs, stated on its rows.
+
+    SkinnedMeshEye mixes sclera, iris and pupil by the iris and pupil alphas, at
+    UVs set by `_eyeProperty0/1` (EyeImageScale, IrisSize, the pupil's size and
+    stretch), and lerps the normal (`_irisNormalTexture`) and, with
+    UseMaterialTextureRoughness, the roughness (`_irisMaterialTexture` green)
+    toward the iris by the same alpha. The base row gets the three property words
+    and `_irisBrightness`; the iris row gets the iris normal and material maps
+    when their files are there.
+    """
+    base = raw_layers[0] if raw_layers else None
+    if (
+        not isinstance(base, Mapping)
+        or str(base.get("layer_role", "") or "").strip().casefold() != "base"
+        or str(base.get("shader_family", "") or "").strip().casefold() != "skinnedmesheye"
+    ):
+        return raw_layers
+    parameters = parameter_index.get(
+        (
+            str(base.get("component_scope_id", "") or ""),
+            str(base.get("owner_wrapper_item_id", "") or "").strip(),
+            _preview_core_int(base.get("material_wrapper_index"), -1),
+        ),
+        (),
+    )
+    values = {str(name).casefold().lstrip("_"): value for name, value in parameters}
+    words = []
+    for index, default in enumerate(_EYE_PROPERTY_DEFAULTS):
+        # An empty value is the parameter left at its default.
+        word = _preview_core_int(values.get(f"eyeproperty{index}"), -1)
+        words.append(word & 0xFFFFFFFF if word >= 0 else default)
+    brightness = _preview_core_float(values.get("irisbrightness"), 0.5)
+    result = [dict(base, eye_properties=words, iris_brightness=max(0.0, min(1.0, brightness)))]
+    for layer in raw_layers[1:]:
+        if (
+            isinstance(layer, Mapping)
+            and str(layer.get("source_parameter", "") or "").strip() == "_irisDiffuseTexture"
+            and str(layer.get("layer_role", "") or "").strip().casefold() == "overlay"
+        ):
+            layer = dict(layer)
+            for role, name in (("normal", "irisnormaltexture"), ("material", "irismaterialtexture")):
+                found = _preview_core_detail_mask(values, source_package, name)
+                if found is not None and not str(layer.get(f"{role}_source", "") or "").strip():
+                    layer[f"{role}_source"], layer[f"{role}_archive_path"] = found
+        result.append(layer)
+    return result
 
 
 def _copy_preview_core_material_layers(
@@ -1029,6 +1133,7 @@ def _copy_preview_core_material_layers(
                 + _preview_core_ver2_blend_layer(raw_layers, parameter_index, source_package)
             )[: _PREVIEW_CORE_MATERIAL_LAYER_LIMIT - len(raw_layers)]
         )
+        raw_layers = _preview_core_eye_layers(raw_layers, parameter_index, source_package)
         layers: list[dict[str, object]] = []
         for raw_layer in raw_layers:
             if not isinstance(raw_layer, Mapping):
@@ -1110,6 +1215,8 @@ def _copy_preview_core_material_layers(
                         # `_detailDiffuseMask*` that file is not a colour map (it is
                         # often `_detailHeightMask*`), and the game draws no colour.
                         layer["colour_authored"] = False
+                    if layer["shader_family"].casefold() in _BLEND_HEIGHT_FAMILIES:
+                        _preview_core_blend_height_layer(layer, channel, parameters, values)
                 detail_mask = _preview_core_ver2_grime(
                     layer, role, channel, mask_parameter, parameters, source_package,
                 ) or _preview_core_ver2_scratch(
@@ -1117,6 +1224,9 @@ def _copy_preview_core_material_layers(
                 )
             else:
                 detail_mask = None
+            if role == "base" and "eye_properties" in raw_layer:
+                layer["eye_properties"] = [int(word) & 0xFFFFFFFF for word in raw_layer["eye_properties"]][:3]
+                layer["iris_brightness"] = _preview_core_layer_float(raw_layer.get("iris_brightness"), fallback=0.5)
             if role == "overlay" and source_parameter == "_overlayColorTexture" and "blend_flags" in raw_layer:
                 layer["blend_flags"] = _preview_core_int(raw_layer.get("blend_flags"), 0) & 7
             if role == "overlay" and source_parameter == "_detailDiffuseBlend" and "uv_transform" in raw_layer:
@@ -1124,6 +1234,12 @@ def _copy_preview_core_material_layers(
                     _preview_core_float(value, 0.0) for value in tuple(raw_layer["uv_transform"])[:6]
                 ]
                 layer["blend_opacity"] = _preview_core_layer_float(raw_layer.get("blend_opacity"))
+                if "blend_flags" in raw_layer:
+                    layer["blend_flags"] = _preview_core_int(raw_layer.get("blend_flags"), 0) & 15
+                if "blend_surface" in raw_layer:
+                    layer["blend_surface"] = [
+                        _preview_core_float(value, 0.0) for value in tuple(raw_layer["blend_surface"])[:3]
+                    ]
             layer_has_source = False
             for resource_role in ("diffuse", "normal", "material", "height", "mask", "detail_mask"):
                 _cancelled(cancelled)
@@ -1346,6 +1462,234 @@ def _apply_preview_core_ghost_shells(presentations, graph, raw_batches, paramete
         material["base_color"] = shell.pop("colour")
         row.update(shell)
         row["alpha_cutoff"] = 0.0
+
+
+# The game's leaf shaders (GrassLeaf, TreeLeaf, TreeFrond): roughness by face,
+# (front, back), from no texture and no parameter.
+_LEAF_ROUGHNESS = {
+    "skinnedmeshgrassleaf": (0.45, 0.45),
+    "skinnedmeshtreeleaf": (1.0, 0.30),
+    "skinnedmeshtreefrond": (1.0, 0.60),
+}
+# shader_controls[0] of a leaf part: the renderer's leaf rule.
+LEAF_SHADER_KIND = 20.0
+
+
+def leaf_surface_presentation(family, parameters):
+    """How the preview draws a part of the game's leaf shaders, or None.
+
+    GrassLeaf, TreeLeaf and TreeFrond share one pixel shader (permutations
+    c148717afa198273, 0bfb2ab3479b9972, c37dd47c3db87f5d and their AlphaTest
+    twins); they differ in roughness only:
+
+        gc = srgb_to_linear(_grassColor.rgb),  ga = _grassColor.a
+        t  = sqrt(base * gc);  tint = t * Y(base) / max(0.001, Y(t))
+        albedo = lerp(base, tint, ga * mb),  times 1.1 on back faces
+        roughness = GrassLeaf 0.45 + 0.005 d (both faces)
+                    TreeLeaf  front 1.0, back 0.30 + 0.005 d
+                    TreeFrond front 1.0, back 0.60 + 0.005 d
+        no metal (the metal byte holds a per-family constant)
+        AlphaTest: discard if base alpha < 0.5 (with the instance's alpha-test bit)
+
+    d is a view distance (inferred from the form); the preview takes the ramp's
+    start. `_materialTexture` gives neither roughness nor metal: the shader reads
+    only its blue, and only as mb when `_grassBitFlag` bit 0 is set, which no
+    shipped wrapper does, so mb is 1 here. The alpha-test bit is per instance; a
+    leaf part with the AlphaTest permutation is taken to have it set.
+
+    Returns presentation fields: shader_controls (kind 20; lanes 4 and 5 the
+    front and back roughness, lane 6 the tint strength, lanes 7 to 9 the tint
+    colour as sRGB), alpha_mode and alpha_cutoff.
+    """
+    roughness = _LEAF_ROUGHNESS.get(str(family or "").strip().casefold())
+    if roughness is None:
+        return None
+    values = {str(name).casefold().lstrip("_"): value for name, value in dict(parameters).items()}
+    colour = pac_color_bytes(values.get("grasscolor")) or (0.0, 0.0, 0.0, 0.0)
+    controls = [0.0] * 32
+    controls[0] = LEAF_SHADER_KIND
+    controls[4], controls[5] = roughness
+    controls[6] = float(colour[3])
+    controls[7:10] = [float(component) for component in colour[:3]]
+    alpha_test = _preview_core_int(values.get("alphatest"), 0) != 0
+    return {
+        "shader_controls": controls,
+        "alpha_mode": "cutout" if alpha_test else "opaque",
+        "alpha_cutoff": 0.5 if alpha_test else 0.0,
+    }
+
+
+# shader_controls[0] of a Wing part: the renderer's wing rule (its flow-map
+# discard). Lane 20 asks for the alpha-test step's rgb / a.
+WING_SHADER_KIND = 1.0
+# The preview's _wingFlowProgress where the wrapper sets none: the formula's
+# own "whole wing shown" point (inferred, see wing_surface_presentation).
+WING_DEFAULT_PROGRESS = 2.0
+
+
+def wing_flow_discard(flow_red, flow_blue, progress, inverse):
+    """The second discard of the game's Wing shader (permutation 20670511ba45c617).
+
+        g = (_wingFlowInverse >= 0.001) ? 1 - fb : fb
+        p = saturate(2 g - _wingFlowProgress) * 2
+        discard if saturate(p - fr) > 0.001
+
+    fr is `_wingFlowTex1` red at uv * 4, fb its blue at uv. The renderer's
+    shader kind 1 draws this rule; this is its statement for tests.
+    """
+    g = 1.0 - flow_blue if inverse >= 0.001 else flow_blue
+    p = min(1.0, max(0.0, 2.0 * g - progress)) * 2.0
+    return min(1.0, max(0.0, p - flow_red)) > 0.001
+
+
+def wing_surface_presentation(parameters):
+    """How the preview draws a part of the game's Wing shader.
+
+    Wing is the Standard albedo path (the first 673 instructions of its pixel
+    shader match Standard's alpha-test permutation) plus two discards, both
+    unconditional because ALPHA_TEST is a define of the material file:
+
+        discard if _baseColorTexture.a < 0.5 (with the instance's alpha-test bit),
+        then base = rgb / a
+        the flow-map discard of `wing_flow_discard`
+
+    `_fresnelAlpha` only shades the emissive colour by view angle and no
+    wrapper sets it (default 0: no shading). No shipped wrapper sets
+    `_wingFlowProgress`, `_wingFlowInverse` or `_wingFlowTex1` either; the
+    material's default progress, -0.1, keeps 0.5% of the default flow map
+    (cdfx_wing_flowmap.dds). The game drives the progress at run time from
+    the unfold effect, which is not in the material, so the preview takes 2.0,
+    where the formula shows the whole wing, unless the wrapper states one.
+
+    Returns shader_controls (kind 1: lane 4 the progress, lane 5 the inverse
+    switch, lane 20 the rgb / a step), alpha_mode and alpha_cutoff.
+    """
+    values = {str(name).casefold().lstrip("_"): value for name, value in dict(parameters).items()}
+
+    def number(name, default):
+        try:
+            value = float(values.get(name, default))
+        except (TypeError, ValueError):
+            return default
+        return value if math.isfinite(value) else default
+
+    controls = [0.0] * 32
+    controls[0] = WING_SHADER_KIND
+    controls[4] = number("wingflowprogress", WING_DEFAULT_PROGRESS)
+    controls[5] = number("wingflowinverse", 0.0)
+    controls[20] = 1.0
+    return {"shader_controls": controls, "alpha_mode": "cutout", "alpha_cutoff": 0.5}
+
+
+def _family_surface_presentation(family, parameters):
+    family = str(family or "").strip().casefold()
+    if family == "skinnedmeshwing":
+        return wing_surface_presentation(parameters)
+    return leaf_surface_presentation(family, parameters)
+
+
+def _apply_preview_core_family_surfaces(presentations, graph, raw_batches, parameters):
+    """Draw the parts of the game's leaf and Wing shaders by their own rules.
+
+    The wrapper is the base layer's: its model scope, wrapper item and index.
+    """
+    wrappers: dict[tuple[str, str, int], tuple[str, dict[str, object]]] = {}
+    for parameter in parameters:
+        if (
+            isinstance(parameter, Mapping)
+            and (
+                str(parameter.get("shader_family", "") or "").casefold() in _LEAF_ROUGHNESS
+                or str(parameter.get("shader_family", "") or "").casefold() == "skinnedmeshwing"
+            )
+        ):
+            key = (
+                str(parameter.get("component_scope_id", "") or ""),
+                str(parameter.get("owner_wrapper_item_id", "") or ""),
+                _preview_core_int(parameter.get("material_wrapper_index"), -1),
+            )
+            wrappers.setdefault(key, (str(parameter.get("shader_family", "")), {}))[1][
+                str(parameter.get("parameter_name", ""))
+            ] = parameter.get("value", "")
+    materials = graph.get("materials") if isinstance(graph, Mapping) else None
+    if not wrappers or not isinstance(materials, list):
+        return
+    rows = {
+        (row.get("lod_index"), row.get("material_index")): row
+        for row in presentations if isinstance(row, dict)
+    }
+    for raw_batch, material in zip(raw_batches, materials):
+        if not isinstance(raw_batch, Mapping) or not isinstance(material, dict):
+            continue
+        base = next(
+            (
+                layer for layer in raw_batch.get("material_layers", ()) or ()
+                if isinstance(layer, Mapping)
+                and str(layer.get("layer_role", "") or "").casefold() == "base"
+            ),
+            None,
+        )
+        row = rows.get((material.get("lod_index"), material.get("material_index")))
+        if base is None or row is None:
+            continue
+        wrapper = wrappers.get((
+            str(base.get("component_scope_id", "") or ""),
+            str(base.get("owner_wrapper_item_id", "") or ""),
+            _preview_core_int(base.get("material_wrapper_index"), -1),
+        ))
+        if wrapper is None:
+            continue
+        surface = _family_surface_presentation(*wrapper)
+        if surface is not None:
+            row.update(surface)
+
+
+def _apply_preview_core_no_render_parts(presentations, graph, raw_batches, wrappers):
+    """Leave out the parts the game does not draw.
+
+    SkinnedMeshNoRender ships no shader (technique SkinnedMeshNoRender): the
+    part exists for the engine, a socket or a cover, and is never drawn. Its
+    wrapper declares no parameter and names no texture, so no binding, layer
+    row or parameter row carries its family. Preview Core states every wrapper
+    of the model in the conservation table's wrapper list; the part is found
+    there by its model (component scope) and submesh name, and is stated as a
+    blended shell of no coverage. The part keeps its place in the part list.
+
+    A model whose every part is NoRender (a socket opened on its own) keeps
+    its parts drawn: hiding them would leave nothing to look at, and the
+    headless capture refuses a frame that holds only the clear colour.
+    """
+    hidden = {
+        (
+            str(wrapper.get("component_scope_id", "") or ""),
+            str(wrapper.get("material_name", "") or "").casefold(),
+        )
+        for wrapper in wrappers
+        if isinstance(wrapper, Mapping)
+        and str(wrapper.get("shader_family", "") or "").casefold() == "skinnedmeshnorender"
+    }
+    materials = graph.get("materials") if isinstance(graph, Mapping) else None
+    if not hidden or not isinstance(materials, list):
+        return
+    rows = {
+        (row.get("lod_index"), row.get("material_index")): row
+        for row in presentations if isinstance(row, dict)
+    }
+    targets = []
+    for raw_batch, material in zip(raw_batches, materials):
+        identity = raw_batch.get("editor_identity") if isinstance(raw_batch, Mapping) else None
+        if not isinstance(identity, Mapping) or not isinstance(material, dict):
+            continue
+        key = (
+            str(identity.get("component_scope_id", "") or ""),
+            str(identity.get("part_name", "") or "").casefold(),
+        )
+        row = rows.get((material.get("lod_index"), material.get("material_index")))
+        if key in hidden and row is not None:
+            targets.append(row)
+    if len({id(row) for row in targets}) >= len(rows):
+        return
+    for row in targets:
+        row.update({"alpha_mode": "blend", "opacity": 0.0, "alpha_cutoff": 0.0})
 
 
 def _build_preview_core_material_graph(
@@ -1918,6 +2262,14 @@ def build_rust_preview_package_from_preview_core(
     _apply_preview_core_ghost_shells(
         presentations, preview_core_material_graph, raw_batches,
         raw_material_conservation.get("parameters", ()), source_package, center, scale,
+    )
+    _apply_preview_core_family_surfaces(
+        presentations, preview_core_material_graph, raw_batches,
+        raw_material_conservation.get("parameters", ()),
+    )
+    _apply_preview_core_no_render_parts(
+        presentations, preview_core_material_graph, raw_batches,
+        raw_material_conservation.get("wrappers", ()),
     )
     frame, session_id, scene_payload = _preview_core_scene_frame(metadata_mesh, center, scale, part_identities, preview_overlays, cancelled)
 

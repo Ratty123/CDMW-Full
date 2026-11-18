@@ -29,9 +29,11 @@ pub mod texture_view;
 pub use lighting_depth::LightingDepthSettings;
 pub use lighting_depth::verify_lighting_depth_compatibility;
 pub use material_layers::{
-    BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
-    LAYER_CONTROL_OVERLAY, LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LAYER_TEXTURE_SLOTS,
-    LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet, OVERLAY_SLOT,
+    BLEND_MATERIAL_SLOT, BLEND_NORMAL_SLOT, BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT,
+    LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE, LAYER_CONTROL_OVERLAY,
+    LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LAYER_TEXTURE_SLOTS, LayerEntryUniform,
+    LayerTexture, LayerUniform, MaterialLayerSet, OVERLAY_SLOT, BLEND_HEIGHT_BASE,
+    LAYER_MODE_BLEND_HEIGHT,
     material_layers_supported,
 };
 pub use texture_upload::run_headless_texture_upload_comparison;
@@ -146,6 +148,8 @@ const MATERIAL_ALPHA_BLEND: u32 = 33554432u;
 const MATERIAL_GLTF_PBR: u32 = 67108864u;
 const MATERIAL_GPU_LAYERS: u32 = 134217728u;
 const MATERIAL_MIP_LOD_BIAS: f32 = -2.0;
+// SkinnedMeshSkin's subsurface offset, _skinBaseSubsurface * 2 - 1 at its default 1.0.
+const SKIN_BASE_SUBSURFACE_ADD: f32 = 1.0;
 
 struct LayerSurface { color: vec3<f32>, normal: vec3<f32>, orm: vec3<f32>, mask: vec3<f32>, };
 // MATERIAL_LAYER_FUNCTIONS
@@ -577,6 +581,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
 
     var texel = textureSampleBias(base_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
     if material.flags == 0u && fixed_studio { texel = vec4(0.56,0.58,0.62,1.0); }
+    if shader_kind == 1.0 && shader_value(20u) > 0.5 && (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u
+        && texel.a >= material.surface_factors.w && texel.a > 0.0 {
+        // The game's Wing shader (and Standard's alpha-test permutation): what
+        // survives the 0.5 cut is divided by its alpha before any other step.
+        texel = vec4<f32>(min(texel.rgb / texel.a, vec3<f32>(1.0)), texel.a);
+    }
     // A colour-only layer binding (the legacy dye of a part without colour
     // layers) replaces the base colour and nothing else.
     let layer_colour_only = material_layers_colour_only();
@@ -597,12 +607,13 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         } else if min(u32(material.relief_factors.z + 0.5), 14u) == 6u {
             // The game's hair dye (PSMainHairStandard, permutation 75b7a093c17d73a3):
             //   dye(t, c) = lerp(t, srgb_to_linear(overlay(linear_to_srgb(lerp(t, luma(t), 0.8)), c.rgb)), c.a)
-            //   albedo    = min(dye, 1) * min(0.8 / max(r, g, b), 1)
+            //   albedo    = min(dye, 1)
             // t is _baseColorTexture, c is _hairDyeingColor as an sRGB colour, and
             // the strength carries the colour's alpha. The texture is greyed 80%
             // and the colour overlaid on it in display space, so the strands keep
             // their light and dark and take the colour whole: black dyes black,
-            // a saturated red stays red. The brightest channel is capped at 0.8.
+            // a saturated red stays red. The game's 0.8 cap on the brightest
+            // channel belongs to its buff overlay only, not to this albedo.
             let hair_grey = mix(texel.rgb, vec3<f32>(dot(texel.rgb, vec3<f32>(0.299, 0.587, 0.114))), 0.8);
             let hair_base = linear_to_srgb(clamp(hair_grey, vec3<f32>(0.0), vec3<f32>(1.0)));
             let hair_blend = clamp(texture_tint, vec3<f32>(0.0), vec3<f32>(1.0));
@@ -610,8 +621,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
                 vec3<f32>(1.0) - 2.0 * (vec3<f32>(1.0) - hair_base) * (vec3<f32>(1.0) - hair_blend),
                 2.0 * hair_base * hair_blend,
                 hair_base < vec3<f32>(0.5));
-            var dyed = min(mix(texel.rgb, srgb_to_linear(hair_overlay), tint_strength), vec3<f32>(1.0));
-            dyed *= min(0.8 / max(max(dyed.r, max(dyed.g, dyed.b)), 0.0001), 1.0);
+            let dyed = min(mix(texel.rgb, srgb_to_linear(hair_overlay), tint_strength), vec3<f32>(1.0));
             texel = vec4<f32>(dyed, texel.a);
         } else {
             // Equipment archive colours use a luma-normalised hue shift. This
@@ -636,6 +646,19 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         // cyan under red emission. Match the export bake in linear space.
         let value = max(texel.r, max(texel.g, texel.b));
         texel = vec4<f32>(value * srgb_to_linear(material.glow_surface_color.rgb), texel.a);
+    }
+    if shader_kind == 20.0 {
+        // The game's leaf shaders (GrassLeaf, TreeLeaf, TreeFrond), in linear
+        // values: the texture tinted toward _grassColor by a geometric mean that
+        // keeps its luminance, by the colour's alpha; back faces 10% brighter.
+        //   t = sqrt(base * gc);  tint = t * Y(base) / max(0.001, Y(t))
+        let leaf_luma = vec3<f32>(0.2126, 0.7152, 0.0722);
+        let leaf_grass = srgb_to_linear(vec3<f32>(shader_value(7u), shader_value(8u), shader_value(9u)));
+        let leaf_mean = sqrt(max(texel.rgb * leaf_grass, vec3<f32>(0.0)));
+        let leaf_tint = leaf_mean * dot(texel.rgb, leaf_luma) / max(0.001, dot(leaf_mean, leaf_luma));
+        var leaf_albedo = mix(texel.rgb, leaf_tint, clamp(shader_value(6u), 0.0, 1.0));
+        if !front_facing { leaf_albedo *= 1.1; }
+        texel = vec4<f32>(clamp(leaf_albedo, vec3<f32>(0.0), vec3<f32>(1.0)), texel.a);
     }
     var material_alpha = texel.a;
     if (material.flags & MATERIAL_OPACITY) != 0u {
@@ -852,19 +875,34 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     let has_source_glossiness =
         (material.flags & MATERIAL_GLOSSINESS) != 0u
         && !has_authoritative_roughness;
+    // The layer path states roughness and metal per texel from the layers'
+    // own maps (`_detailMaterialMask*` green and blue): they are source maps.
     let has_source_roughness =
-        has_authoritative_roughness || has_source_glossiness;
+        has_authoritative_roughness || has_source_glossiness || gpu_layered;
     let has_source_metalness =
-        (material.flags & (MATERIAL_SURFACE | MATERIAL_METALNESS)) != 0u;
+        (material.flags & (MATERIAL_SURFACE | MATERIAL_METALNESS)) != 0u || gpu_layered;
     let has_source_base_color = (material.flags & MATERIAL_BASE_COLOR) != 0u || gpu_layered;
 
     var roughness = 0.66;
     var metalness = 0.0;
     var skin_subsurface_multiplier = 1.0;
+    var skin_occlusion = -1.0;
+    let skin_surface_map = is_skin && !gltf_pbr && !has_skin_specular_response
+        && (material.flags & MATERIAL_SURFACE) != 0u;
     if (material.flags & MATERIAL_SURFACE) != 0u {
         let packed = textureSampleBias(material_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
         roughness = clamp(packed.g, 0.04, 1.0);
         metalness = clamp(packed.b, 0.0, 1.0);
+        if is_hair && shader_kind == 0.0 && shader_value(25u) > 0.5 {
+            // The game's hair shader, inside its main dye branch (lane 25 set):
+            // roughness = _materialTexture.g - 1 + byte 0 of _hairDyeingProperty * 2/255.
+            roughness = clamp(packed.g + shader_value(24u), 0.04, 1.0);
+        }
+        if skin_surface_map {
+            // The skin map bound as the packed surface map: the same reading as below.
+            skin_occlusion = clamp(packed.r, 0.0, 1.0);
+            skin_subsurface_multiplier = mix(0.65, 1.10, clamp(packed.b + SKIN_BASE_SUBSURFACE_ADD, 0.0, 1.0));
+        }
     }
     if (material.flags & MATERIAL_ROUGHNESS) != 0u {
         roughness = clamp(textureSampleBias(roughness_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r, 0.04, 1.0);
@@ -878,13 +916,15 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             material_sampler,
             sample_uv,
             MATERIAL_MIP_LOD_BIAS).rgb;
-        // SkinnedMeshSkin packs subsurface response in R and direct roughness
-        // in G. B is deliberately ignored: unlike equipment `_sp`, it is not
-        // a metalness channel for this shader family.
+        // SkinnedMeshSkin (permutation 35a6e962b807d560) reads `_materialTexture`
+        // R as ambient occlusion, G as roughness and B as subsurface; B is never
+        // metal. The subsurface it writes is saturate(B + _skinBaseSubsurface * 2 - 1),
+        // and no wrapper sets _skinBaseSubsurface (default 1.0), so it is 1.
+        skin_occlusion = clamp(skin_specular_response.r, 0.0, 1.0);
         skin_subsurface_multiplier = mix(
             0.65,
             1.10,
-            clamp(skin_specular_response.r, 0.0, 1.0));
+            clamp(skin_specular_response.b + SKIN_BASE_SUBSURFACE_ADD, 0.0, 1.0));
         roughness = clamp(skin_specular_response.g, 0.04, 1.0);
     }
     if has_source_glossiness {
@@ -925,10 +965,10 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u && gltf_pbr {
         roughness = clamp(roughness * material.surface_factors.x, 0.04, 1.0);
     } else if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u {
-        // A part classed metal carries the class's scalar floor (smooth, metal).
-        // With its own surface map the map alone decides, as in the game: the
-        // class is a guess per part, the map says which texels are metal.
-        let factor_weight = select(select(0.55, 0.15, has_source_roughness), 0.0, is_metal && has_source_roughness);
+        // The stated roughness is a class guess per part (smooth for metal,
+        // rough for cloth). With its own surface map the map alone decides, as
+        // in the game, whatever the class; without one the guess counts 55%.
+        let factor_weight = select(0.55, 0.0, has_source_roughness);
         roughness = clamp(mix(roughness, material.surface_factors.x, factor_weight), 0.04, 1.0);
     }
     if (material.flags & MATERIAL_METALNESS_FACTOR) != 0u {
@@ -945,10 +985,16 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             material_sampler,
             skin_detail_uv,
             MATERIAL_MIP_LOD_BIAS);
+        // The skin shader scales its maps by the detail material where the
+        // detail mask is set: x = lerp(x, x * detail, weight) for occlusion (R)
+        // and roughness (G).
         roughness = clamp(
-            mix(roughness, skin_detail_surface.g, skin_detail_weight),
+            mix(roughness, roughness * skin_detail_surface.g, skin_detail_weight),
             0.04,
             1.0);
+        if skin_occlusion >= 0.0 {
+            skin_occlusion = mix(skin_occlusion, skin_occlusion * skin_detail_surface.r, skin_detail_weight);
+        }
     }
     if is_skin && !gltf_pbr {
         metalness = 0.0;
@@ -956,6 +1002,10 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     if (material.flags & MATERIAL_HEIGHT) != 0u {
         let height_relief = (height_value - 0.5) * clamp(material.relief_factors.x, 0.0, 1.0);
         roughness = clamp(roughness - height_relief * 0.10, 0.04, 1.0);
+    }
+    if has_skin_specular_response || skin_surface_map {
+        // The skin shader writes roughness capped at 0.7.
+        roughness = min(roughness, 0.7);
     }
     // Explicit surface edits replace packed G/B, matching the exported DDS.
     // Apply after source layers and factors; never alter absorption or emission.
@@ -971,13 +1021,16 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         if shader_value(8u) >= 0.0 { metalness = clamp(shader_value(8u), 0.0, 1.0); }
     }
     if shader_kind == 10.0 {
-        // SkinnedMeshGlass never reads the material map: roughness is a scalar.
-        roughness = clamp(shader_value(6u), 0.04, 1.0);
+        // SkinnedMeshGlass never reads the material map: roughness is a scalar,
+        // clamped to 0.05 at the bottom (permutation 847d3e4f4bfba86c).
+        roughness = clamp(shader_value(6u), 0.05, 1.0);
         metalness = 0.0;
     }
     var raw_occlusion = 1.0;
     if (material.flags & MATERIAL_OCCLUSION) != 0u {
         raw_occlusion = clamp(textureSampleBias(occlusion_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
+    } else if skin_occlusion >= 0.0 {
+        raw_occlusion = skin_occlusion;
     }
     var occlusion_category_weight = 0.78;
     if is_metal { occlusion_category_weight = 1.0; }
@@ -990,6 +1043,13 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         roughness = layer_surface.orm.g;
         metalness = layer_surface.orm.b;
         occlusion = layer_surface.orm.r;
+    }
+    if shader_kind == 20.0 {
+        // The leaf shaders read neither roughness nor metal from a map: roughness
+        // is a constant per family and face (lanes 4 front, 5 back), and the
+        // metal byte holds a family constant, not metal.
+        roughness = clamp(select(shader_value(5u), shader_value(4u), front_facing), 0.04, 1.0);
+        metalness = 0.0;
     }
 
     let game_outdoor = camera.view_mode == 9u;
@@ -1281,10 +1341,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     // A real metal channel removes diffuse energy even when a mixed-material
     // part was not classified as metal. Give that authored fraction a coloured
     // environment response, keyed to source F0 rather than a white scalar.
+    // With a source map the texel's own metal decides, whatever the part's
+    // class (as the game reads it per texel); the class stands in only without one.
     let metal_reflection_weight = select(
         select(0.0, clamp(metalness, 0.0, 1.0), has_source_metalness),
         1.0,
-        is_metal,
+        is_metal && !has_source_metalness,
     );
     if metal_reflection_weight > 0.001 {
         let metal_environment_scale = select(
@@ -5276,7 +5338,9 @@ fn validate_material_factor_ownership(
     }
     if factors.shader_controls.is_some_and(|v| {
         v.iter().any(|n| !n.is_finite() || n.abs() > 1e6)
-        || !(0.0..=11.0).contains(&v[0]) || v[0].fract() != 0.0
+        || !((0.0..=11.0).contains(&v[0]) || v[0] == 20.0) || v[0].fract() != 0.0
+        // Leaf (fix 13): front and back roughness, tint strength, sRGB tint colour.
+        || (v[0] == 20.0 && v[4..10].iter().any(|n| !(0.0..=1.0).contains(n)))
         // Layered glass: opacity, edge, roughness, IOR 1-2.5, RGB and colour alpha.
         || (v[0] == 10.0 && (v[4..7].iter().chain(&v[8..12]).any(|n| !(0.0..=1.0).contains(n))
             || !(1.0..=2.5).contains(&v[7])))
@@ -12451,6 +12515,13 @@ mod tests {
     }
 
     #[test]
+    fn glass_roughness_is_clamped_where_the_games_glass_shader_clamps_it() {
+        // SkinnedMeshGlass: r = clamp(_roughness, 0.05, 1); a = r * r.
+        assert!(SHADER.contains("roughness = clamp(shader_value(6u), 0.05, 1.0);"));
+        assert!(!SHADER.contains("roughness = clamp(shader_value(6u), 0.04, 1.0);"));
+    }
+
+    #[test]
     fn glass_shader_controls_keep_static_range_and_equipment_alpha_contracts() {
         let mut controls = [0.0; 32];
         controls[0] = 8.0;
@@ -12493,6 +12564,57 @@ mod tests {
             material_translucency_uniform(MaterialPreviewFactors::default()),
             [0.0; 4]
         );
+    }
+
+    #[test]
+    fn leaf_shader_controls_carry_roughness_by_face_and_the_grass_tint() {
+        // Kind 20: the game's GrassLeaf, TreeLeaf and TreeFrond rule.
+        let mut controls = [0.0; 32];
+        controls[0] = 20.0;
+        controls[4..10].copy_from_slice(&[1.0, 0.30, 0.89, 0.47, 0.56, 0.10]);
+        let mut factors = MaterialPreviewFactors {
+            shader_controls: Some(controls),
+            ..Default::default()
+        };
+        assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
+        for (index, value) in [(4, 1.01), (5, -0.01), (6, 1.5), (9, f32::NAN)] {
+            let mut invalid = controls;
+            invalid[index] = value;
+            factors.shader_controls = Some(invalid);
+            assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
+        }
+        for kind in [12.0, 19.0, 21.0] {
+            let mut other = controls;
+            other[0] = kind;
+            factors.shader_controls = Some(other);
+            assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
+        }
+        // The surface shader overrides the map's roughness and metal for it.
+        assert!(SHADER.contains("if shader_kind == 20.0 {"));
+        assert!(SHADER.contains("roughness = clamp(select(shader_value(5u), shader_value(4u), front_facing), 0.04, 1.0);"));
+    }
+
+    #[test]
+    fn wing_controls_draw_the_flow_map_discard_and_the_alpha_test_division() {
+        // Kind 1: the game's Wing rule. Progress 2, the preview's default, and
+        // the rgb / a step on lane 20.
+        let mut controls = [0.0; 32];
+        controls[0] = 1.0;
+        controls[4] = 2.0;
+        controls[20] = 1.0;
+        let factors = MaterialPreviewFactors {
+            shader_controls: Some(controls),
+            alpha_cutoff: Some(0.5),
+            ..Default::default()
+        };
+        assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
+        // The traced discard: p = saturate(2 g - progress) * 2, cut where p > fr.
+        assert!(SHADER.contains(
+            "let cut = clamp(2.0 * clamp(2.0 * mask - shader_value(4u), 0.0, 1.0) - red, 0.0, 1.0);"
+        ));
+        assert!(SHADER.contains("let mask = select(blue, 1.0 - blue, shader_value(5u) >= 0.001);"));
+        assert!(SHADER.contains("if shader_kind == 1.0 && shader_value(20u) > 0.5"));
+        assert!(SHADER.contains("texel = vec4<f32>(min(texel.rgb / texel.a, vec3<f32>(1.0)), texel.a);"));
     }
 
     #[test]
@@ -12568,13 +12690,28 @@ mod tests {
         // Hair takes the game's dye: the colour overlaid on the greyed texture.
         assert!(SHADER.contains("let hair_grey = mix(texel.rgb, vec3<f32>(dot(texel.rgb, vec3<f32>(0.299, 0.587, 0.114))), 0.8);"));
         assert!(SHADER.contains("mix(texel.rgb, srgb_to_linear(hair_overlay), tint_strength)"));
-        assert!(SHADER.contains("dyed *= min(0.8 / max(max(dyed.r, max(dyed.g, dyed.b)), 0.0001), 1.0);"));
+        assert!(!SHADER.contains("0.8 / max(max(dyed.r"), "no cap outside the buff overlay");
         assert!(!SHADER.contains("linear_tint / tint_luma"));
         assert!(SHADER.contains(
             "if is_hair && (material.flags & MATERIAL_TEXTURE_TINT) != 0u { material_lift = 0.0; }"
         ));
         assert!(SHADER.contains("texture_tint / tint_luma"));
         assert!(SHADER.contains("mix(texel.rgb, tinted, tint_strength)"));
+    }
+
+    #[test]
+    fn hair_roughness_offset_follows_the_dye_branch() {
+        // Lanes 24 (offset) and 25 (main colour has alpha) of shader kind 0.
+        assert!(SHADER.contains(
+            "if is_hair && shader_kind == 0.0 && shader_value(25u) > 0.5 {"
+        ));
+        assert!(SHADER.contains("roughness = clamp(packed.g + shader_value(24u), 0.04, 1.0);"));
+        let mut factors = MaterialPreviewFactors::default();
+        let mut lanes = [0.0; 32];
+        lanes[24] = -0.1;
+        lanes[25] = 1.0;
+        factors.shader_controls = Some(lanes);
+        assert!(validate_material_factor_ownership(factors, &vec![vec![1]]).is_ok());
     }
 
     #[test]
@@ -12880,40 +13017,45 @@ mod tests {
         assert!(SHADER.contains("skin_detail_mask_texture,"));
         assert!(SHADER.contains("MATERIAL_MIP_LOD_BIAS).r * material.skin_detail_opacity"));
         assert!(SHADER.contains("tangent_normal.xy + detail_normal.xy"));
-        assert!(SHADER.contains("mix(roughness, skin_detail_surface.g, skin_detail_weight)"));
+        assert!(SHADER.contains("mix(roughness, roughness * skin_detail_surface.g, skin_detail_weight)"));
         assert!(SHADER.contains("if is_skin && !gltf_pbr {\n        metalness = 0.0;"));
     }
 
     #[test]
-    fn skin_specular_response_uses_green_roughness_and_red_scatter_without_equipment_drift() {
+    fn skin_material_map_reads_red_occlusion_green_roughness_blue_subsurface() {
+        // SkinnedMeshSkin (35a6e962b807d560): R ambient occlusion, G roughness
+        // capped at 0.7, B subsurface (never metal), saturate(B + 1) at the
+        // default _skinBaseSubsurface.
         fn apply_skin_specular_reference(
             is_skin: bool,
             has_specular: bool,
             sample: Vec3,
             roughness: f32,
             metalness: f32,
-        ) -> (f32, f32, f32) {
+        ) -> (f32, f32, f32, f32) {
             if !is_skin || !has_specular {
-                return (roughness, metalness, 1.0);
+                return (roughness, metalness, 1.0, -1.0);
             }
             (
-                sample.y.clamp(0.04, 1.0),
+                sample.y.clamp(0.04, 1.0).min(0.7),
                 0.0,
-                0.65 + (1.10 - 0.65) * sample.x.clamp(0.0, 1.0),
+                0.65 + (1.10 - 0.65) * (sample.z + 1.0).clamp(0.0, 1.0),
+                sample.x,
             )
         }
 
         let authored_skin =
-            apply_skin_specular_reference(true, true, Vec3::new(0.77, 0.42, 0.997), 0.66, 0.81);
-        assert!((authored_skin.0 - 0.42).abs() < 1e-6);
+            apply_skin_specular_reference(true, true, Vec3::new(0.77, 0.78, 0.375), 0.66, 0.81);
+        assert!((authored_skin.0 - 0.7).abs() < 1e-6, "skin roughness caps at 0.7");
         assert_eq!(authored_skin.1, 0.0, "skin blue never becomes metalness");
-        assert!((0.65..=1.10).contains(&authored_skin.2));
+        assert!((authored_skin.2 - 1.10).abs() < 1e-6);
+        assert!((authored_skin.3 - 0.77).abs() < 1e-6, "skin red is occlusion");
 
         let standard =
             apply_skin_specular_reference(false, true, Vec3::new(0.12, 0.91, 0.84), 0.28, 0.73);
         assert_eq!(
             standard,
-            (0.28, 0.73, 1.0),
+            (0.28, 0.73, 1.0, -1.0),
             "equipment surface channels remain outside the skin-only response"
         );
 
@@ -12931,8 +13073,10 @@ mod tests {
         );
         assert!(skin_response.contains("|| has_skin_specular_response;"));
         assert!(skin_response.contains("roughness = clamp(skin_specular_response.g, 0.04, 1.0);"));
-        assert!(skin_response.contains("clamp(skin_specular_response.r, 0.0, 1.0)"));
-        assert!(!skin_response.contains("skin_specular_response.b"));
+        assert!(skin_response.contains("skin_occlusion = clamp(skin_specular_response.r, 0.0, 1.0);"));
+        assert!(skin_response.contains("clamp(skin_specular_response.b + SKIN_BASE_SUBSURFACE_ADD, 0.0, 1.0)"));
+        assert!(SHADER.contains("roughness = min(roughness, 0.7);"));
+        assert!(SHADER.contains("raw_occlusion = skin_occlusion;"));
         assert!(SHADER.contains("* skin_subsurface_multiplier,"));
         assert!(SHADER.contains("if (material.flags & MATERIAL_SPECULAR) != 0u && !is_skin {"));
         assert!(

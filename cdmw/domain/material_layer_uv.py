@@ -63,6 +63,23 @@ def pac_layer_uv_transform(
     )
 
 
+def pac_blend_height_uv_transform(
+    parameters: Iterable[tuple[str, object]], channel: str,
+) -> tuple[float, float, float, float, float, float]:
+    """Return the layer UV of the BlendHeight families: scale only.
+
+    The game divides the mesh UV by bytes 0 (U) and 1 (V) of the layer's
+    `_dyeingTransformProperty0/1/3` over 255 (at least 1e-4). It reads no
+    rotation (`_dyeingPropertyBlend`) and no offset (bytes 2 and 3). An
+    unauthored property is scale 1.
+    """
+    values = pac_layer_sampling_parameters(parameters, channel)
+    if values is None:
+        return IDENTITY_UV_TRANSFORM
+    sx, sy = max(values[0], 1e-4), max(values[1], 1e-4)
+    return (1.0 / sx, 0.0, 0.0, 1.0 / sy, 0.0, 0.0)
+
+
 def pac_blend_layer_uv_transform(
     parameters: Iterable[tuple[str, object]],
 ) -> tuple[float, float, float, float, float, float]:
@@ -108,6 +125,49 @@ def pac_blend_layer_uv_transform(
     if mirror & 4:
         transform[1], transform[3], transform[5] = -transform[1], -transform[3], 1.0 - transform[5]
     return tuple(transform)  # type: ignore[return-value]
+
+
+def pac_blend_layer_surface(
+    parameters: Iterable[tuple[str, object]],
+) -> tuple[int, tuple[float, float, float]]:
+    """Return the Ver2 symbol's surface switches and steps: (flags, (rough, metal, angle)).
+
+    The game (permutation d4ae32939fa23e46, %1782-%1908) weighs the symbol's
+    normal and material by wn = (flag bit 12 ? texture alpha : 1) * opacity
+    byte; bit 13 of `_colorBlendingFlag` draws `_detailNormalBlend` (rotated by
+    the symbol's angle), bit 14 moves roughness and metal to
+    `_detailMaterialBlend` .g and .b, and bit 6 of `_colorBlendingOptionBitFlag`
+    makes the symbol's normal replace the surface's instead of blending over it.
+    Roughness and metal also move by wn times bytes 2 and 3 of
+    `_dyeingTransformProperty4` read as `byte * 2 / 255 - 1`.
+
+    flags: bit 0 is flag bit 12, bit 1 flag bit 13, bit 2 flag bit 14, bit 3
+    option bit 6. An unauthored flag is the engine's default, clear; an
+    unauthored `_dyeingTransformProperty4` moves neither (its default is 0).
+    The angle is the placement's, in radians.
+    """
+    flag = option = 0
+    steps = (0.0, 0.0)
+    rotation = 0.5
+    for name, value in parameters:
+        key = "".join(character for character in str(name).casefold() if character.isalnum())
+        if key == "dyeingtransformproperty4":
+            parts = _byte4(value)
+            if len(parts) == 4:
+                steps = (parts[2] * 2.0 - 1.0, parts[3] * 2.0 - 1.0)
+        elif key == "dyeingpropertyblend":
+            parts = _byte4(value)
+            if len(parts) == 4:
+                rotation = parts[3]
+        elif key in {"colorblendingflag", "colorblendingoptionbitflag"}:
+            text = str(value).strip() if value is not None else ""
+            if re.fullmatch(r"\d+", text):
+                if key == "colorblendingflag":
+                    flag = min(0xFFFFFFFF, int(text))
+                else:
+                    option = min(0xFFFFFFFF, int(text))
+    flags = ((flag >> 12) & 7) | (8 if option & 64 else 0)
+    return flags, (steps[0], steps[1], rotation * (2.0 * math.pi) - math.pi)
 
 
 def pac_grime_uv_transform(
@@ -197,10 +257,11 @@ def pac_color_bytes(value: object) -> tuple[float, float, float, float] | None:
 
 def detail_mask_sources(manifest: object) -> tuple[str, ...]:
     """Resolved `_detailMaskTexture`, `_maskTexture`, `_overlayColorTexture` and
-    `_detailDiffuseBlend` files of a native preview package manifest.
+    `_detailDiffuseBlend`, `_detailNormalBlend`, `_detailMaterialBlend` files of a
+    native preview package manifest.
 
     The Ver2 grime and scratch rules read the first, the legacy families' dye the
-    second, the Ver2 overlay step the third, the Ver2 blend layer the fourth. No
+    second, the Ver2 overlay step the third, the Ver2 blend layer the last three. No
     material layer row is certain to name them, so readers that protect, check or
     copy layer sources ask here as well.
     """
@@ -214,6 +275,7 @@ def detail_mask_sources(manifest: object) -> tuple[str, ...]:
             continue
         if str(parameter.get("parameter_name", "")).casefold().lstrip("_") not in {
             "detailmasktexture", "masktexture", "overlaycolortexture", "detaildiffuseblend",
+            "detailnormalblend", "detailmaterialblend",
         }:
             continue
         source = str(parameter.get("resolved_source_path", "") or "").strip()

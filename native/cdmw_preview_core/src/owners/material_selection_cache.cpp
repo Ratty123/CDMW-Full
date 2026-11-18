@@ -123,23 +123,23 @@ static const NativePbdSidecarHint* best_native_pbd_hint_for_binding(
 //
 //   Standard/Cloth/Fur/Emissive/...  sample G and B only. G is roughness,
 //                                    B is metalness. R and A are never sampled.
-//   Skin/SkinWrinkle/EyeCover        sample R, G and B. R is the subsurface
-//                                    term, which the preview has no lobe for,
-//                                    so it is dropped rather than folded into
-//                                    occlusion. G is roughness, B is metalness.
+//   Skin/SkinWrinkle                 sample R, G and B. R is ambient
+//                                    occlusion, G roughness and B subsurface
+//                                    (SkinnedMeshSkin 35a6e962b807d560); B is
+//                                    never metal. The renderer reads them.
+//   EyeCover                         samples R for its coverage.
 //   Hair/AnimalHair/WhiteHornHair    sample G alone; hair carries no metal.
 //
-// R is *not* occlusion in any family. It is the most spatially detailed channel,
-// which is why it reads like a baked AO map, but only the skin shaders sample it
-// and they use it as subsurface. `_sp` files are BC1, so alpha is synthesised
-// opaque and never carries data; nothing may read it.
+// R is occlusion only in the skin shaders; the equipment shaders never sample it.
+// `_sp` files are BC1, so alpha is synthesised opaque and never carries data;
+// nothing may read it.
 static std::string material_response_channel_layout(const std::string& shader_rule) {
     if (shader_rule == "hair") return "g=roughness";
     // Skin packs its `_sp` differently and blue is not metal there. On equipment
     // the red channel is a constant 1.0 filler and blue is metalness, varying by
     // material -- cd_phm_03_handle_0004_sp measures B 0.005 and
     // cd_phm_03_shield_0090_sp measures 0.877. A skin map does neither:
-    // cd_phm_00_head_0001_sp measures R 0.770, the subsurface term the skin
+    // cd_phm_00_head_0001_sp measures R 0.770, the occlusion the skin
     // shaders sample, and B 0.997 flat across the whole face.
     //
     // Read as metalness that says a face is 100% metal, which is what it did:

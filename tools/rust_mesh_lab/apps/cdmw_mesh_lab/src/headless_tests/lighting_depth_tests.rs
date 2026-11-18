@@ -472,11 +472,19 @@ fn offscreen_metal_class_floor_yields_to_the_parts_surface_map() -> TestResult {
         "a metal part without a map keeps the floor; drawn metal {metal}"
     );
     assert!(roughness <= 120, "and stays smooth; drawn {roughness}");
-    // Another class never had the floor: its scalars still meet its map as before.
+    // Another class with its own map: the map alone sets roughness, as in the
+    // game (fix 16d). The 15% roughness hint over the map is gone. Its metal
+    // still meets the stated scalar by the larger of the two (fix 6, not here).
     let cloth = response_of("cloth-with-map", 4, true)?;
     assert!(
-        cloth[0] >= 150 && cloth[1] < 197,
-        "a class other than metal is untouched; drawn {cloth:?}"
+        cloth[0] >= 150 && cloth[1].abs_diff(200) <= 3,
+        "a class other than metal takes its map's roughness; drawn {cloth:?}"
+    );
+    // Without a map the class's hint still sets it, as before.
+    let cloth = response_of("cloth-without-map", 4, false)?;
+    assert!(
+        cloth[1] < 197,
+        "without a map the stated roughness still counts; drawn {cloth:?}"
     );
     Ok(())
 }
@@ -591,11 +599,12 @@ fn offscreen_hair_dye_overlays_the_colour_on_the_greyed_texture() -> TestResult 
         near(half, [175, 162, 114]),
         "half the alpha is half way between strand and dye; drawn {half:?}"
     );
-    // The brightest channel stops at 0.8 linear (231 in sRGB).
+    // No cap: the game's 0.8 cap on the brightest channel belongs to the
+    // buff overlay only, so white dye on a near-white strand draws white.
     let white = base_colour_of("white", [250, 250, 250], [1.0, 1.0, 1.0], 1.0)?;
     assert!(
-        white.iter().all(|value| value.abs_diff(231) <= 3),
-        "hair albedo is capped at 0.8; drawn {white:?}"
+        white.iter().all(|value| *value >= 252),
+        "hair albedo is not capped at 0.8; drawn {white:?}"
     );
     Ok(())
 }

@@ -219,10 +219,15 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             true,
             [1.0, 1.0, 1.0, 0.0],
             [0.0; 4],
+            // The eye mode samples iris and pupil at the eye's own UV (layer
+            // offsets do not apply): at the centre that is the mean of the two
+            // texels, rgb (0.5, 0, 0.5) and alpha a = 96/255, over the green base
+            // texture as sclera, times twice the neutral brightness (1): iris then
+            // pupil gives 0.5 a (2 - a) in red and blue and (1 - a)^2 in green.
             [
-                128.0 / 255.0 * (191.0 / 255.0),
-                127.0 / 255.0 * (191.0 / 255.0),
-                64.0 / 255.0,
+                0.5 * (96.0 / 255.0) * (2.0 - 96.0 / 255.0),
+                (1.0 - 96.0 / 255.0) * (1.0 - 96.0 / 255.0),
+                0.5 * (96.0 / 255.0) * (2.0 - 96.0 / 255.0),
             ],
         ),
         (
@@ -233,7 +238,7 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             false,
             [1.0, 1.0, 1.0, 0.0],
             [0.0; 4],
-            [128.0 / 255.0, 127.0 / 255.0, 0.0],
+            [0.5 * (96.0 / 255.0), 1.0 - 96.0 / 255.0, 0.5 * (96.0 / 255.0)],
         ),
     ] {
         let mut layer = MaterialLayerSet {
@@ -246,6 +251,11 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             },
             textures: std::array::from_fn(|_| None),
         };
+        if mode == 3 {
+            // The eye mode reads `_irisBrightness` from slot B's properties, which
+            // the package step always fills (0.5, the game's neutral value).
+            layer.uniform.layers[2].properties[0] = 0.5;
+        }
         layer.textures[0] = Some(texture(&mask, 1, TextureRole::LayerMask)?);
         let color = if mode == 3 {
             texture(&[255, 0, 0, 128, 0, 0, 255, 64], 2, TextureRole::BaseColor)?
@@ -1096,6 +1106,457 @@ fn offscreen_ver2_blend_layer_is_placed_once() -> TestResult {
                 "{name}: channel {channel}, {drawn} != {expected}"
             );
         }
+    }
+    Ok(())
+}
+
+/// The Ver2 symbol's roughness and metal on the GPU (fix 16a; permutation
+/// d4ae32939fa23e46, %1884-%1908): where the symbol is drawn, each moves by
+/// wn times its step and, with flag bit 14, to `_detailMaterialBlend` .g and .b
+/// by wn, with wn = (bit 12 ? colour alpha : 1) times the opacity byte. Outside
+/// its one placement nothing moves.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_ver2_symbol_moves_roughness_and_metal() -> TestResult {
+    use cdmw_render_wgpu::{
+        BLEND_MATERIAL_SLOT, BLEND_SLOT, LayerEntryUniform, LayerTexture, LayerUniform,
+        MaterialLayerSet,
+    };
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.5, 0.5]; 4];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    let emblem_alpha = 204_u8;
+    let symbol_material = [0_u8, 30, 220, 255];
+    // (name, UV offset, steps, alpha weighs, material map, whether it draws)
+    for (name, offset, steps, alpha, map, draws) in [
+        ("steps", 0.0, [0.25_f32, 0.5], 0.0, 0.0, true),
+        ("alpha weighs, material map", 0.0, [0.0, 0.0], 1.0, 1.0, true),
+        ("both", 0.0, [-0.25, 0.25], 1.0, 1.0, true),
+        ("not tiled", 2.0, [0.25, 0.5], 0.0, 1.0, false),
+    ] {
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, 0],
+                blend_dye: [1.0, 1.0, 1.0, 0.0],
+                blend_affine: [1.0, 0.0, 0.0, 1.0],
+                blend_offset: [offset, 0.0, 1.0, 1.0],
+                blend_surface: [1.0, 0.0, steps[0], steps[1]],
+                blend_switches: [alpha, 0.0, map, 0.0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[1] = Some(texture([128, 128, 128, 255], TextureRole::BaseColor)?);
+        layer.textures[3] = Some(texture([255, 128, 100, 255], TextureRole::Material)?);
+        layer.textures[BLEND_SLOT] =
+            Some(texture([150, 40, 30, emblem_alpha], TextureRole::BaseColor)?);
+        layer.textures[BLEND_MATERIAL_SLOT] = Some(texture(symbol_material, TextureRole::Material)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [1.0, 1.0, 1.0, 0.0],
+            affine: [1.0, 0.0, 0.0, 1.0],
+            offset: [0.0, 0.0, 15.0, 0.0],
+            properties: [1.0, 0.2158, 1.0, 0.0],
+            ..Default::default()
+        };
+        let response = temporary.path().join(format!("{name}-response.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &temporary.path().join(format!("{name}-base.bmp")),
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: Some(&response),
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(response)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        let weight = if !draws {
+            0.0
+        } else if alpha > 0.5 {
+            f32::from(emblem_alpha) / 255.0
+        } else {
+            1.0
+        };
+        let take = weight * map;
+        let rough = 128.0 / 255.0;
+        let metal = 100.0 / 255.0;
+        let roughness = (rough + weight * steps[0] + take * (30.0 / 255.0 - rough)).clamp(0.045, 1.0);
+        let metalness = (metal + weight * steps[1] + take * (220.0 / 255.0 - metal)).clamp(0.0, 1.0);
+        assert!(
+            (f32::from(pixel[1]) - roughness * 255.0).abs() <= 3.0,
+            "{name}: roughness {} != {}",
+            pixel[1],
+            roughness * 255.0
+        );
+        assert!(
+            (f32::from(pixel[2]) - metalness * 255.0).abs() <= 3.0,
+            "{name}: metal {} != {}",
+            pixel[2],
+            metalness * 255.0
+        );
+    }
+    Ok(())
+}
+
+/// The game reads green and blue of `_detailMaterialMask*` only (roughness and
+/// metal; `shader_inputs.json`, every family and permutation). CDMW summed the
+/// red channel as occlusion on the layer path, so a layer's `_sp` red darkened
+/// the lit picture. Now it changes nothing, on the Ver2 rule (mode 1) and the
+/// masked overlays (mode 2) alike.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_layer_sp_red_is_no_occlusion() -> TestResult {
+    use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    for mode in [1_u32, 2] {
+        let mut lit = Vec::new();
+        for red in [255_u8, 0] {
+            let mut layer = MaterialLayerSet {
+                lod_index: 0,
+                material_index: 0,
+                uniform: LayerUniform {
+                    base_color: [1.0; 4],
+                    control: [mode, 0, 0, 0],
+                    ..Default::default()
+                },
+                textures: std::array::from_fn(|_| None),
+            };
+            layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+            layer.textures[1] = Some(texture([128, 128, 128, 255], TextureRole::BaseColor)?);
+            layer.textures[3] = Some(texture([red, 128, 40, 255], TextureRole::Material)?);
+            layer.uniform.layers[0] = LayerEntryUniform {
+                dye: [1.0, 1.0, 1.0, 0.0],
+                affine: [1.0, 0.0, 0.0, 1.0],
+                offset: [0.0, 0.0, 15.0, 0.0],
+                properties: [1.0, 0.2158, 1.0, 0.0],
+                ..Default::default()
+            };
+            let name = format!("mode{mode}-red{red}");
+            let path = temporary.path().join(format!("{name}-lit.bmp"));
+            pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+                &snapshot,
+                &textures,
+                &[],
+                &[layer],
+                HeadlessMaterialCaptureOptions {
+                    width: 96,
+                    height: 96,
+                    ..Default::default()
+                },
+                HeadlessMaterialCaptureOutput {
+                    textured_bmp: &path,
+                    base_color_bmp: &temporary.path().join(format!("{name}-base.bmp")),
+                    part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                    normal_map: None,
+                    material_response: None,
+                    layer_mask: None,
+                },
+            ))?;
+            let bytes = std::fs::read(path)?;
+            lit.push(bytes[54 + (48 * 96 + 48) * 4..][..3].to_vec());
+        }
+        assert!(
+            lit[0].iter().zip(&lit[1]).all(|(a, b)| a.abs_diff(*b) <= 1),
+            "mode {mode}: `_sp` red 255 lit {:?}, red 0 lit {:?}",
+            lit[0],
+            lit[1]
+        );
+    }
+    Ok(())
+}
+
+/// The Ver2 layer normal (permutation d4ae32939fa23e46, %655-%732): the drawn
+/// layer's normal d is laid over the surface's, N = normalize(lerp(N,
+/// layering(N, d), w)) with w = opacity byte * (flag bit 4k ? alpha : 1) *
+/// ceil(mask[k]). No constant scales it. CDMW blended d towards flat by w and
+/// then took 70% of its slope.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_ver2_layer_normal_has_no_fixed_share() -> TestResult {
+    use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    // A steep layer normal: x = 250 / 255 * 2 - 1, y = 0, z rebuilt.
+    let x = 250.0_f32 / 255.0 * 2.0 - 1.0;
+    let z = (1.0 - x * x).max(0.0).sqrt();
+    for opacity in [1.0_f32, 0.5] {
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[1] = Some(texture([128, 128, 128, 255], TextureRole::BaseColor)?);
+        layer.textures[2] = Some(texture([250, 128, 0, 255], TextureRole::Normal)?);
+        layer.textures[3] = Some(texture([255, 128, 40, 255], TextureRole::Material)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [1.0, 1.0, 1.0, 0.0],
+            affine: [1.0, 0.0, 0.0, 1.0],
+            offset: [0.0, 0.0, 15.0, 0.0],
+            // Encoding 1: red and green, z rebuilt.
+            properties: [opacity, 0.2158, 1.0, 1.0],
+            ..Default::default()
+        };
+        let name = format!("opacity{opacity}");
+        let path = temporary.path().join(format!("{name}-normal.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &temporary.path().join(format!("{name}-base.bmp")),
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: Some(&path),
+                material_response: None,
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(path)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        // Over a flat surface the layering returns d, so N = normalize(lerp((0,0,1), d, w)).
+        let v = [opacity * x, 1.0 - opacity + opacity * z];
+        let expected = v[1] / (v[0] * v[0] + v[1] * v[1]).sqrt();
+        let drawn = (f32::from(pixel[0]) / 255.0 * 2.0 - 1.0).abs();
+        assert!(
+            (drawn - expected).abs() <= 0.02,
+            "opacity {opacity}: the normal's z {drawn} != {expected}"
+        );
+    }
+    Ok(())
+}
+
+/// The layer path states roughness and metal per texel from the layers' own
+/// `_sp` maps, as the game reads them. The surface shader did not count them as
+/// source maps: a metal texel of a part classed cloth (the brass buttons of the
+/// leather suit cd_phm_00_ub_00_0501) got no metal reflection and drew flat and
+/// pale, and every texel of a part classed metal reflected as metal whatever its
+/// map said. Now the texel's metal decides, whatever the class.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_layer_metal_decides_the_reflection_whatever_the_class() -> TestResult {
+    use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    let mut lit = std::collections::BTreeMap::new();
+    const METAL: u32 = 1;
+    const CLOTH: u32 = 4;
+    for (class, metal) in [(METAL, 255_u8), (CLOTH, 255), (METAL, 0), (CLOTH, 0)] {
+        let factors = [HeadlessMaterialFactors {
+            factors: MaterialPreviewFactors {
+                category_code: Some(class),
+                category_confidence: Some(1.0),
+                ..MaterialPreviewFactors::default()
+            },
+            material_indices_by_lod: &ownership,
+        }];
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[1] = Some(texture([200, 170, 110, 255], TextureRole::BaseColor)?);
+        layer.textures[3] = Some(texture([255, 70, metal, 255], TextureRole::Material)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [1.0, 1.0, 1.0, 0.0],
+            affine: [1.0, 0.0, 0.0, 1.0],
+            offset: [0.0, 0.0, 15.0, 0.0],
+            properties: [1.0, 0.2158, 1.0, 0.0],
+            ..Default::default()
+        };
+        let name = format!("class{class}-metal{metal}");
+        let path = temporary.path().join(format!("{name}-lit.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &factors,
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &path,
+                base_color_bmp: &temporary.path().join(format!("{name}-base.bmp")),
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: None,
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(path)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..3];
+        lit.insert((class, metal), pixel.iter().map(|v| f32::from(*v)).sum::<f32>());
+    }
+    // The texel's metal decides: a metal texel and a non-metal texel each draw
+    // alike on a part classed metal and on one classed cloth (neutral studio;
+    // before, the metal texel drew 363 against 302).
+    for metal in [255_u8, 0] {
+        let (metal_class, cloth_class) = (lit[&(METAL, metal)], lit[&(CLOTH, metal)]);
+        assert!(
+            (metal_class - cloth_class).abs() <= 0.05 * metal_class.max(cloth_class),
+            "layer metal {metal}: a metal part drew {metal_class}, a cloth part {cloth_class}"
+        );
     }
     Ok(())
 }

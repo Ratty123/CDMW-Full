@@ -7,6 +7,7 @@ import pytest
 
 from cdmw.domain.material_layer_uv import (
     IDENTITY_UV_TRANSFORM,
+    pac_blend_layer_surface,
     pac_blend_layer_uv_transform,
     pac_color_bytes,
     pac_grime_blend_bytes,
@@ -168,3 +169,27 @@ def test_blend_layer_placement_follows_the_games_symbol_transform(mirror):
 
 def test_blend_layer_placement_defaults_to_the_whole_uv_square():
     assert pac_blend_layer_uv_transform(()) == pytest.approx((1, 0, 0, 1, 0, 0), abs=1e-6)
+
+
+def test_the_symbols_surface_switches_and_steps_follow_the_shield():
+    """The round shield cd_phm_03_shield_0100: `_colorBlendingFlag` 32767 sets bits 12 to
+    14 (alpha weighs, normal, material), `_colorBlendingOptionBitFlag` 64 makes the
+    symbol's normal replace the surface's; `_dyeingTransformProperty4` 0x838CA999 moves
+    roughness by 140 * 2 / 255 - 1 and metal by 131 * 2 / 255 - 1; byte 3 of
+    `_dyeingPropertyBlend` (161) turns it by 47.3 degrees (permutation
+    d4ae32939fa23e46, %1782-%1908)."""
+    flags, (rough, metal, angle) = pac_blend_layer_surface((
+        ("_colorBlendingFlag", "32767"), ("_colorBlendingOptionBitFlag", "64"),
+        ("_dyeingTransformProperty4", str(0x838CA999)), ("_dyeingPropertyBlend", "2709464447"),
+    ))
+    assert flags == 15
+    assert rough == pytest.approx(140 * 2 / 255 - 1)
+    assert metal == pytest.approx(131 * 2 / 255 - 1)
+    assert math.degrees(angle) == pytest.approx(47.29, abs=0.01)
+
+
+def test_the_symbols_surface_defaults_draw_colour_only():
+    """Unauthored, the engine's defaults: flags clear, no step, no turn."""
+    assert pac_blend_layer_surface(()) == (0, (0.0, 0.0, pytest.approx(0.0, abs=0.02)))
+    flags, _surface = pac_blend_layer_surface((("_colorBlendingFlag", str(0x2000)),))
+    assert flags == 2  # bit 13 alone: the normal, laid over

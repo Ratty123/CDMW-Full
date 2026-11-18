@@ -18,10 +18,18 @@ pub const LAYER_CONTROL_OVERLAY: u32 = 4;
 pub const LAYER_CONTROL_OVERLAY_LUMA: u32 = 16;
 /// `LayerUniform::control[0]` of the legacy families' rule.
 pub const LAYER_MODE_LEGACY: u32 = 4;
+/// `LayerUniform::control[0]` of the BlendHeight families' rule (fix 14): layers
+/// chosen by height against the base, no dye. Their height maps ride on slots
+/// the rule has no other use for: the base `_heightTexture` on
+/// `DETAIL_MASK_SLOT`, layer k's `_detailHeightMask*` on `GRIME_SLOT + 3 * k`.
+pub const LAYER_MODE_BLEND_HEIGHT: u32 = 5;
+/// `LayerUniform::blend_height[2]` bits: the base height map is bound (1), and
+/// layer k's height map (2 << k). A missing height map reads zero in the game.
+pub const BLEND_HEIGHT_BASE: u32 = 1;
 /// Layer textures: the blend mask; colour, normal and response for R, G, B; the
 /// detail mask; grime colour, normal and response for R, G, B; the overlay
-/// colour map; then the blend layer's colour map.
-pub const LAYER_TEXTURE_SLOTS: usize = 22;
+/// colour map; then the blend layer's colour, normal and material maps.
+pub const LAYER_TEXTURE_SLOTS: usize = 24;
 /// Slot of `_detailMaskTexture` (red marks scratches, green grime).
 pub const DETAIL_MASK_SLOT: usize = 10;
 /// First grime slot; grime of channel k starts at `GRIME_SLOT + 3 * k`.
@@ -31,9 +39,13 @@ pub const OVERLAY_SLOT: usize = 20;
 /// Slot of `_detailDiffuseBlend` (Ver2): the blend layer the game calls the
 /// symbol, placed once on the mesh UV, not tiled.
 pub const BLEND_SLOT: usize = 21;
+/// Slot of `_detailNormalBlend` (Ver2): the symbol's normal, placed as its colour.
+pub const BLEND_NORMAL_SLOT: usize = 22;
+/// Slot of `_detailMaterialBlend` (Ver2): the symbol's roughness (G) and metal (B).
+pub const BLEND_MATERIAL_SLOT: usize = 23;
 /// Sampled textures of one fragment stage with layers bound: 16 material maps,
-/// the layer slots and the shadow map (39 of them; the limit leaves one spare).
-const REQUIRED_SAMPLED_TEXTURES: u32 = 40;
+/// the layer slots and the shadow map (41 of them; the limit leaves one spare).
+const REQUIRED_SAMPLED_TEXTURES: u32 = 42;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable, Default)]
@@ -72,7 +84,7 @@ pub struct LayerUniform {
     pub seeds: [[f32; 4]; 3],
     pub base_color: [f32; 4],
     /// Mode (1 normalized mask, 2 masked overlays, 3 eye alpha overlays, 4 the
-    /// legacy families' dye and one detail layer per pixel), skin flag, eye
+    /// legacy families' dye and one detail layer per pixel, 5 BlendHeight), skin flag, eye
     /// flag, bits (`LAYER_CONTROL_*`: no base colour map, colour only, the Ver2
     /// overlay step and its options).
     pub control: [u32; 4],
@@ -82,6 +94,18 @@ pub struct LayerUniform {
     pub blend_affine: [f32; 4],
     /// Its UV offset, its opacity (`_dyeingGlobalOpacity` byte 3), presence.
     pub blend_offset: [f32; 4],
+    /// Fix 16a (Ver2 symbol surface): cosine and sine of the symbol's angle
+    /// (its normal turns with it), then its roughness and metal steps (bytes 2
+    /// and 3 of `_dyeingTransformProperty4` as `byte * 2 / 255 - 1`).
+    pub blend_surface: [f32; 4],
+    /// Fix 16a (Ver2 symbol surface): 1 when the texture alpha weighs normal
+    /// and material (`_colorBlendingFlag` bit 12); normal mode (0 none, 1 laid
+    /// over, 2 replacing: bit 13 and option bit 6); 1 when roughness and metal
+    /// move to `_detailMaterialBlend` (bit 14); the normal map's encoding.
+    pub blend_switches: [f32; 4],
+    /// Fix 14, mode 5 (BlendHeight): blend width, base height scale, the
+    /// `BLEND_HEIGHT_*` presence bits (as a float), unused.
+    pub blend_height: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -109,7 +133,10 @@ impl MaterialLayerSet {
     /// normal map still do.
     #[must_use]
     pub fn hides_base_colour(&self) -> bool {
-        !matches!(self.uniform.control[0], 2 | 3 | LAYER_MODE_LEGACY)
+        !matches!(
+            self.uniform.control[0],
+            2 | 3 | LAYER_MODE_LEGACY | LAYER_MODE_BLEND_HEIGHT
+        )
             && self
                 .uniform
                 .layers
@@ -326,7 +353,7 @@ mod tests {
     #[test]
     fn layer_uniform_preserves_group_zero_abi() {
         assert_eq!(std::mem::size_of::<LayerEntryUniform>(), 160);
-        assert_eq!(std::mem::size_of::<LayerUniform>(), 608);
+        assert_eq!(std::mem::size_of::<LayerUniform>(), 656);
         assert_eq!(std::mem::size_of::<MaterialUniform>(), 288);
         let shader = include_str!("material_layers.wgsl");
         for binding in 0..=LAYER_TEXTURE_SLOTS {
