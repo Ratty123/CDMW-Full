@@ -15,6 +15,7 @@ from cdmw.domain.textures.editor_document import (
     rotate_texture_editor_document_90,
     trim_texture_editor_document_transparent_bounds,
 )
+from cdmw.domain.textures.editor_layers import place_texture_editor_pixels
 from cdmw.models import TextureEditorDocument
 
 
@@ -102,6 +103,15 @@ def _texture_editor_document_pixels_change_state(
         tracked_layer_ids=(),
         force_checkpoint=True,
     )
+
+
+def texture_editor_png_change(document, layer_pixels, rgba, x, y, *, new_layer_name=None):
+    """Prepare one pixel transaction for the editor's normal document-change handler."""
+    updated, pixels = place_texture_editor_pixels(document, layer_pixels, rgba, x, y, new_layer_name=new_layer_name)
+    importing = new_layer_name is not None
+    label = "Import Pixels" if importing else "Write Pixels"
+    return TextureEditorDocumentPixelsChangeState(updated, pixels, layer_pixels, label, label,
+                                                  "layer_add" if importing else "layer_update", (), True)
 
 
 def texture_editor_resized_image_state(

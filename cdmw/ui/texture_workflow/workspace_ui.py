@@ -439,9 +439,12 @@ class TextureJobUiMixin:
         if recolor is not None:
             recolor._handle_target_selection_changed()
 
-    def _choose_texture_mod(self) -> None:
+    def _choose_texture_mod(self, _checked=False, *, source=None) -> None:
         self.set_texture_mode("recolor")
-        self.recolor_container.when_created(lambda recolor: recolor._browse_source())
+        if source is None:
+            self.recolor_container.when_created(lambda recolor: recolor._browse_source())
+        else:
+            self.recolor_container.when_created(lambda recolor: recolor.source_path_edit.setText(str(source)))
 
     def set_recolor_analysis(self, analysis) -> None:
         self.job.recolor_analysis = analysis

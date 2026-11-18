@@ -13,6 +13,7 @@ from cdmw.core import image_ops
 from cdmw.domain.textures.editor_common import _new_layer_id, _safe_slug
 from cdmw.domain.textures.editor_composite import (
     _apply_mask_to_src_region,
+    _apply_channel_edit_locks,
     _flatten_texture_editor_raster_layers,
     _layer_canvas_intersection,
 )
@@ -208,6 +209,38 @@ def add_texture_editor_layer(
     else:
         new_pixels[new_id] = np.asarray(initial_pixels, dtype=np.uint8).copy()
     return dataclasses.replace(document, layers=tuple(layers), active_layer_id=new_id), new_pixels, new_id
+
+def place_texture_editor_pixels(
+    document: TextureEditorDocument, layer_pixels: Dict[str, np.ndarray], rgba: np.ndarray,
+    x: int, y: int, *, new_layer_name: Optional[str] = None,
+) -> Tuple[TextureEditorDocument, Dict[str, np.ndarray]]:
+    """Place decoded RGBA at a canvas origin, respecting layer, selection and channel locks."""
+    height, width = rgba.shape[:2]
+    if x < 0 or y < 0 or x + width > document.width or y + height > document.height:
+        raise ValueError("The PNG extends outside the texture.")
+    if new_layer_name is not None:
+        updated, pixels, _ = add_texture_editor_layer(document, layer_pixels, name=new_layer_name,
+                                                       initial_pixels=rgba, offset_x=x, offset_y=y)
+        return updated, pixels
+    layer = next((row for row in document.layers if row.layer_id == document.active_layer_id), None)
+    if layer is None or layer.locked or layer.layer_id not in layer_pixels:
+        raise ValueError("Select an unlocked raster layer first.")
+    current = layer_pixels[layer.layer_id]
+    left, top = x - layer.offset_x, y - layer.offset_y
+    if left < 0 or top < 0 or left + width > current.shape[1] or top + height > current.shape[0]:
+        raise ValueError("The region extends outside the active layer.")
+    changed = current.copy()
+    region = changed[top:top+height, left:left+width]
+    replacement = _apply_channel_edit_locks(document, region, rgba).copy()
+    if layer.alpha_locked:
+        replacement[..., 3] = region[..., 3]
+    selection = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    if selection is not None:
+        alpha = selection[y:y+height, x:x+width, None].astype(np.float32) / 255
+        replacement = np.rint(region * (1-alpha) + replacement * alpha).astype(np.uint8)
+    region[:] = replacement
+    return bump_texture_editor_layer_revision(document, layer.layer_id), {**layer_pixels, layer.layer_id: changed}
+
 
 def duplicate_texture_editor_layer(
     document: TextureEditorDocument,

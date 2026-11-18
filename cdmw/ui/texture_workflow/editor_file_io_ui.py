@@ -121,7 +121,7 @@ class TextureEditorFileIoUiMixin:
         self.atlas_export_selection_button.setEnabled(atlas_actions.export_selection_enabled)
         self.atlas_export_grid_button.setEnabled(atlas_actions.export_grid_enabled)
         self.history_list.setEnabled(atlas_actions.history_list_enabled)
-    def export_selection_region(self) -> None:
+    def export_selection_region(self, *, report_result=None) -> None:
         if self.document is None:
             return
         bounds = current_texture_editor_selection_bounds(self.document)
@@ -154,6 +154,7 @@ class TextureEditorFileIoUiMixin:
         def _on_success(result: object) -> None:
             self._set_status(texture_editor_selection_region_status_text(Path(str(result))), False)
         self._run_async_task(
+            report_result=report_result,
             label=texture_editor_selection_region_task_label(),
             task=_task,
             on_success=_on_success,
@@ -169,7 +170,10 @@ class TextureEditorFileIoUiMixin:
         )
         if not output_dir_text:
             return
-        output_dir = Path(output_dir_text).expanduser().resolve()
+        self.export_grid_slices_to(Path(output_dir_text))
+
+    def export_grid_slices_to(self, output_dir: Path, *, report_result=None, new_folder=False) -> None:
+        output_dir = output_dir.expanduser().resolve()
         self._last_save_dir = str(output_dir)
         document = dataclasses.replace(self.document)
         layer_pixels = copy_texture_editor_layer_pixels(self.layer_pixels)
@@ -178,22 +182,34 @@ class TextureEditorFileIoUiMixin:
         trim_transparent = bool(self.atlas_trim_checkbox.isChecked())
         skip_empty = bool(self.atlas_skip_empty_checkbox.isChecked())
 
-        def _task() -> object:
+        def export(folder):
             return export_texture_editor_grid_slices_task(
                 document,
                 layer_pixels,
-                output_dir,
+                folder,
                 cell_size=cell_size,
                 padding=padding,
                 trim_transparent=trim_transparent,
                 skip_empty=skip_empty,
             )
 
+        def _task():
+            if not new_folder:
+                return export(output_dir)
+            from tempfile import TemporaryDirectory
+            # Publish the complete new atlas folder in one rename on the same volume.
+            with TemporaryDirectory(dir=output_dir.parent) as staging:
+                folder = Path(staging) / "slices"
+                files = export(folder)
+                folder.rename(output_dir)
+                return [output_dir / file.name for file in files]
+
         def _on_success(result: object) -> None:
             exported = result if isinstance(result, list) else []
             self._set_status(texture_editor_grid_slices_status_text(output_dir, len(exported)), False)
 
         self._run_async_task(
+            report_result=report_result,
             label=texture_editor_grid_slices_task_label(),
             task=_task,
             on_success=_on_success,
@@ -233,7 +249,7 @@ class TextureEditorFileIoUiMixin:
         self._last_open_dir = str(Path(project_path).expanduser().resolve().parent)
         self.load_project(Path(project_path))
 
-    def open_source_path(self, source_path: Path, *, binding: Optional[TextureEditorSourceBinding] = None) -> None:
+    def open_source_path(self, source_path: Path, *, binding: Optional[TextureEditorSourceBinding] = None, report_result=None) -> None:
         resolved_source = source_path.expanduser().resolve()
         try:
             texture_binding = self._build_binding_for_source(
@@ -283,9 +299,9 @@ class TextureEditorFileIoUiMixin:
             self._push_history(texture_editor_open_source_history_label())
             self._set_status(texture_editor_open_source_status_text(resolved_source), False)
 
-        self._run_async_task(label=texture_editor_open_source_task_label(resolved_source), task=_task, on_success=_handle_open)
+        self._run_async_task(report_result=report_result, label=texture_editor_open_source_task_label(resolved_source), task=_task, on_success=_handle_open)
 
-    def load_project(self, project_path: Path) -> None:
+    def load_project(self, project_path: Path, *, report_result=None) -> None:
         resolved_project = project_path.expanduser().resolve()
         existing_index = texture_editor_existing_project_session_index(self._sessions, resolved_project)
         if existing_index >= 0:
@@ -306,7 +322,7 @@ class TextureEditorFileIoUiMixin:
             self._refresh_ui()
             self._set_status(texture_editor_open_project_status_text(resolved_project), False)
 
-        self._run_async_task(label=texture_editor_open_project_task_label(resolved_project), task=_task, on_success=_handle_open_project)
+        self._run_async_task(report_result=report_result, label=texture_editor_open_project_task_label(resolved_project), task=_task, on_success=_handle_open_project)
 
     def save_project_dialog(self) -> None:
         if self.document is None:
@@ -320,6 +336,9 @@ class TextureEditorFileIoUiMixin:
         )
         if not project_path:
             return
+        self.save_project_to(Path(project_path))
+
+    def save_project_to(self, project_path: Path, *, report_result=None) -> None:
         self._last_save_dir = str(Path(project_path).expanduser().resolve().parent)
         document = dataclasses.replace(self.document)
         layer_pixels = copy_texture_editor_layer_pixels(self.layer_pixels)
@@ -346,7 +365,7 @@ class TextureEditorFileIoUiMixin:
             self._set_status(texture_editor_save_project_status_text(Path(project_path)), False)
             self._refresh_ui()
 
-        self._run_async_task(label=texture_editor_save_project_task_label(Path(project_path)), task=_task, on_success=_handle_save)
+        self._run_async_task(report_result=report_result, label=texture_editor_save_project_task_label(Path(project_path)), task=_task, on_success=_handle_save)
 
     def _export_workspace_png(self, suffix: str, *, on_ready: Optional[Callable[[Path], None]] = None) -> None:
         if self.document is None:
@@ -379,6 +398,9 @@ class TextureEditorFileIoUiMixin:
         )
         if not file_path:
             return
+        self.export_png_to(Path(file_path))
+
+    def export_png_to(self, file_path: Path, *, report_result=None) -> None:
         self._last_save_dir = str(Path(file_path).expanduser().resolve().parent)
         document = dataclasses.replace(self.document)
         layer_pixels = copy_texture_editor_layer_pixels(self.layer_pixels)
@@ -394,7 +416,7 @@ class TextureEditorFileIoUiMixin:
             self._set_status(texture_editor_flattened_png_status_text(output_path), False)
             self._refresh_ui()
 
-        self._run_async_task(label=texture_editor_flattened_png_task_label(Path(file_path)), task=_task, on_success=_handle_save_png)
+        self._run_async_task(report_result=report_result, label=texture_editor_flattened_png_task_label(Path(file_path)), task=_task, on_success=_handle_save_png)
 
     def export_dds_dialog(self) -> None:
         if self.document is None:
@@ -408,6 +430,9 @@ class TextureEditorFileIoUiMixin:
         )
         if not file_path:
             return
+        self.export_dds_to(Path(file_path))
+
+    def export_dds_to(self, file_path: Path, *, report_result=None) -> None:
         output_path = Path(file_path).expanduser().resolve()
         self._last_save_dir = str(output_path.parent)
         document = dataclasses.replace(self.document)
@@ -427,6 +452,7 @@ class TextureEditorFileIoUiMixin:
             self._refresh_ui()
 
         self._run_async_task(
+            report_result=report_result,
             label=texture_editor_native_dds_task_label(output_path),
             task=_task,
             on_success=_handle_export,
