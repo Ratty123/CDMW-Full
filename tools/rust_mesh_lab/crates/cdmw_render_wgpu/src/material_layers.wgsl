@@ -14,6 +14,9 @@ struct LayerUniform {
     // step); (alpha weighs, normal mode 0 none 1 laid over 2 replacing, material
     // map, normal encoding).
     blend_surface: vec4<f32>, blend_switches: vec4<f32>,
+    // Fix 14, mode 5 (BlendHeight): blend width, base height scale, presence bits
+    // (1 the base height map, 2 << k layer k's), unused.
+    blend_height: vec4<f32>,
 };
 @group(2) @binding(0) var blend_mask: texture_2d<f32>;
 @group(2) @binding(1) var layer_r_color: texture_2d<f32>;
@@ -210,6 +213,78 @@ fn evaluate_eye(uv: vec2<f32>) -> LayerSurface {
     return LayerSurface(color, normal, vec3<f32>(1.0, clamp(rough, 0.0, 1.0), 0.0), vec3<f32>(iris.a, pupil.a, 0.0));
 }
 
+// The game's BlendHeight and StaticBlendHeight (permutations 31455db8225afaa7,
+// 0020a35384b0db70), mode 5. A layer's height is its mask channel times its
+// _detailHeightMask* red times its _dyeingGlobalOpacity byte; the base's is
+// _heightTexture red times _screenSpaceDisplacementScale. The higher of R and
+// G (R on a tie) meets B; the winner is the top layer and its partner is the
+// other of the two, or R when B loses (also when R is the top itself). Both
+// mix with t = saturate(2 a_s / (a_t + a_s)) after cutting the heights to the
+// blend width W, then the layer meets the base by the same height cut. Colour,
+// tangent-space normal and roughness and metal take the same weights; no dye.
+// The height maps sit on slots the rule has no other use for: the base's on the
+// detail mask, layer k's on its grime colour slot.
+fn blend_height_surface(uv: vec2<f32>, ur: vec2<f32>, ug: vec2<f32>, ub: vec2<f32>, base: vec3<f32>,
+        base_normal: vec3<f32>, base_sp: vec3<f32>, mask: vec3<f32>, layer_colors: array<vec3<f32>,3>,
+        sampled_normals: array<vec3<f32>,3>, layer_responses: array<vec3<f32>,3>) -> LayerSurface {
+    // Local copies: the layers are picked per pixel.
+    var colors = layer_colors;
+    var responses = layer_responses;
+    let present = u32(layer_uniform.blend_height.z + 0.5);
+    let width = max(layer_uniform.blend_height.x, 0.01);
+    let base_height = textureSampleBias(detail_mask, material_sampler, uv, 0.0).r;
+    let height_r = textureSampleBias(grime_r_color, material_sampler, ur, 0.0).r;
+    let height_g = textureSampleBias(grime_g_color, material_sampler, ug, 0.0).r;
+    let height_b = textureSampleBias(grime_b_color, material_sampler, ub, 0.0).r;
+    let hb = select(0.0, base_height * layer_uniform.blend_height.y, (present & 1u) != 0u);
+    var h = array<f32,3>(
+        select(0.0, height_r, (present & 2u) != 0u),
+        select(0.0, height_g, (present & 4u) != 0u),
+        select(0.0, height_b, (present & 8u) != 0u));
+    var normals: array<vec3<f32>,3>;
+    for (var k = 0u; k < 3u; k += 1u) {
+        let layer = layer_uniform.layers[k];
+        h[k] = h[k] * mask[k] * clamp(layer.properties.x, 0.0, 1.0) * step(0.5, layer.properties.z);
+        var n = layer_normal(sampled_normals[k], layer);
+        // The game decodes base and layer normals alike: the base's Y convention holds for both.
+        if (material.flags & MATERIAL_NORMAL_Y_INVERTED) != 0u { n.y = -n.y; }
+        normals[k] = n;
+    }
+    var first = 0u;
+    var h1 = h[0];
+    if h[0] < h[1] { first = 1u; h1 = h[1]; }
+    var top = first;
+    var ht = h1;
+    var second = 0u;
+    var hs = h[0];
+    if h1 < h[2] { top = 2u; ht = h[2]; second = first; hs = h1; }
+    var layer_color = colors[top];
+    var layer_normal_ts = normals[top];
+    var layer_gb = responses[top].gb;
+    if hs > 0.0 {
+        let cut = max(0.0, max(ht, hs) - width);
+        let a_t = max(ht - cut, 0.0);
+        let a_s = max(hs - cut, 0.0);
+        let t = clamp(2.0 * a_s / max(1e-6, a_t + a_s), 0.0, 1.0);
+        layer_color = mix(colors[top], colors[second], vec3<f32>(t));
+        layer_normal_ts = safe_normalize(mix(normals[top], normals[second], vec3<f32>(t)), vec3<f32>(0.0,0.0,1.0));
+        layer_gb = mix(responses[top].gb, responses[second].gb, vec2<f32>(t));
+    }
+    var out = LayerSurface(base, base_normal, vec3<f32>(1.0, base_sp.g, base_sp.b), mask);
+    if ht > 0.0 {
+        let cut = max(0.0, max(hb, ht) - width);
+        let wb = max(hb - cut, 0.0);
+        let wl = max(ht - cut, 0.0);
+        let den = max(1e-6, wb + wl);
+        out.color = (wb * base + wl * layer_color) / den;
+        out.normal = safe_normalize((wb * base_normal + wl * layer_normal_ts) / den, vec3<f32>(0.0,0.0,1.0));
+        let gb = (wb * base_sp.gb + wl * layer_gb) / den;
+        out.orm = vec3<f32>(1.0, gb.x, gb.y);
+    }
+    out.orm = vec3<f32>(1.0, clamp(out.orm.g, 0.045, 1.0), clamp(out.orm.b, 0.0, 1.0));
+    return out;
+}
+
 fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurface {
     // control.w bit 0: no base colour map, so the surface beneath the layers is
     // white rather than the grey placeholder bound for untextured geometry.
@@ -268,6 +343,9 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     responses[0] = textureSampleBias(layer_r_sp, material_sampler, ur, 0.0).rgb;
     responses[1] = textureSampleBias(layer_g_sp, material_sampler, ug, 0.0).rgb;
     responses[2] = textureSampleBias(layer_b_sp, material_sampler, ub, 0.0).rgb;
+    if layer_uniform.control.x == 5u {
+        return blend_height_surface(uv, ur, ug, ub, base.rgb, base_normal, base_sp, raw_mask, colors, normals, responses);
+    }
     let detail_texel = textureSampleBias(detail_mask, material_sampler, uv, 0.0).rgb;
     // The blend layer is placed once: it draws where its own UV lies in 0.005 to
     // 0.995. Sampled here, outside the per-pixel choice below.

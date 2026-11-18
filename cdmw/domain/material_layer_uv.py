@@ -63,6 +63,23 @@ def pac_layer_uv_transform(
     )
 
 
+def pac_blend_height_uv_transform(
+    parameters: Iterable[tuple[str, object]], channel: str,
+) -> tuple[float, float, float, float, float, float]:
+    """Return the layer UV of the BlendHeight families: scale only.
+
+    The game divides the mesh UV by bytes 0 (U) and 1 (V) of the layer's
+    `_dyeingTransformProperty0/1/3` over 255 (at least 1e-4). It reads no
+    rotation (`_dyeingPropertyBlend`) and no offset (bytes 2 and 3). An
+    unauthored property is scale 1.
+    """
+    values = pac_layer_sampling_parameters(parameters, channel)
+    if values is None:
+        return IDENTITY_UV_TRANSFORM
+    sx, sy = max(values[0], 1e-4), max(values[1], 1e-4)
+    return (1.0 / sx, 0.0, 0.0, 1.0 / sy, 0.0, 0.0)
+
+
 def pac_blend_layer_uv_transform(
     parameters: Iterable[tuple[str, object]],
 ) -> tuple[float, float, float, float, float, float]:

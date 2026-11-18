@@ -9,8 +9,10 @@ use crate::preview_core_material::{
 };
 use cdmw_formats::MeshDocument;
 use cdmw_render_wgpu::{
-    BLEND_MATERIAL_SLOT, BLEND_NORMAL_SLOT, BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
-    LAYER_CONTROL_OVERLAY, LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LayerEntryUniform,
+    BLEND_MATERIAL_SLOT, BLEND_NORMAL_SLOT, BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT,
+    LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE, LAYER_CONTROL_OVERLAY,
+    LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LayerEntryUniform, BLEND_HEIGHT_BASE,
+    LAYER_MODE_BLEND_HEIGHT,
     LayerTexture, LayerUniform, MaterialLayerSet, OVERLAY_SLOT,
 };
 use cdmw_texture::{
@@ -350,17 +352,42 @@ fn build(
         return Ok(result);
     }
     let legacy = material.is_legacy_dye_family();
+    let blend_height = material.is_blend_height();
     if material.layers.iter().skip(1).any(|layer| {
         !layer.is_legacy_dye()
             && !layer.is_ver2_overlay()
             && !layer.is_ver2_blend()
             && layer.mask_parameter != "_colorBlendingMaskTexture"
     }) {
-        // The legacy families follow the game's traced rule; the other
-        // families that read `_maskTexture` keep the weighted mix.
-        result.uniform.control[0] = if legacy { LAYER_MODE_LEGACY } else { 2 };
+        // The legacy and BlendHeight families follow the game's traced rules;
+        // the other families that read `_maskTexture` keep the weighted mix.
+        result.uniform.control[0] = if blend_height {
+            LAYER_MODE_BLEND_HEIGHT
+        } else if legacy {
+            LAYER_MODE_LEGACY
+        } else {
+            2
+        };
     }
     let legacy = legacy && result.uniform.control[0] == LAYER_MODE_LEGACY;
+    let blend_height = blend_height && result.uniform.control[0] == LAYER_MODE_BLEND_HEIGHT;
+    let mut height_presence = 0_u32;
+    if blend_height {
+        // No dye and no whole-part tint: the base map, the layers and their heights.
+        result.uniform.base_color = [1.0; 4];
+        if let Some(reference) = &material.layers[0].height {
+            result.textures[DETAIL_MASK_SLOT] =
+                Some(layer_texture(reference, TextureRole::Height, sources));
+            height_presence |= BLEND_HEIGHT_BASE;
+        }
+        let [width, base_scale] = material
+            .layers
+            .iter()
+            .skip(1)
+            .find_map(|layer| layer.blend_height)
+            .unwrap_or([0.01, 0.0]);
+        result.uniform.blend_height = [width.max(0.01), base_scale.max(0.0), 0.0, 0.0];
+    }
     if legacy {
         // The game's legacy rule has no whole-part tint: `_dyeingColorMask*`
         // colours the base through the mask instead.
@@ -447,8 +474,16 @@ fn build(
         ));
         if layer.layer_role == "color_seed" {
             // `_dyeingColorMask*` is read by no Ver2 shader of the game: a channel
-            // without a colour layer shows the surface beneath, undyed.
+            // without a colour layer shows the surface beneath, undyed. The
+            // BlendHeight shaders do not read it either.
             continue;
+        }
+        if blend_height && layer.layer_role == "detail" {
+            if let Some(reference) = &layer.height {
+                result.textures[GRIME_SLOT + k * 3] =
+                    Some(layer_texture(reference, TextureRole::Height, sources));
+                height_presence |= BLEND_HEIGHT_BASE << (k + 1);
+            }
         }
         if layer.is_ver2_grime() {
             let [low, high, intensity] = layer.grime_blend.expect("ver2 grime ramp");
@@ -545,6 +580,9 @@ fn build(
             result.textures[3 + k * 3] =
                 Some(layer_texture(reference, TextureRole::Material, sources));
         }
+    }
+    if blend_height {
+        result.uniform.blend_height[2] = height_presence as f32;
     }
     Ok(result)
 }
@@ -1729,6 +1767,169 @@ mod tests {
                         expected[channel]
                     );
                 }
+            }
+        }
+    }
+
+    /// The game's BlendHeight rule at one pixel (permutation 31455db8225afaa7):
+    /// the higher of R and G meets B, the winner's partner is the other of the
+    /// two or R, and the layer meets the base by the same height cut.
+    #[test]
+    fn blend_height_weights_follow_the_games_quirks() {
+        use crate::preview_core_material::blend_height_weights;
+        // G on top partners R even when B is higher than R.
+        let w = blend_height_weights([0.05, 0.3, 0.1], 0.0, 0.392);
+        assert_eq!((w.top, w.second), (1, 0));
+        assert!((w.partner - 2.0 * 0.05 / 0.35).abs() < 1e-6);
+        // With no base height the layer shows at full strength.
+        assert_eq!(w.layer, 1.0);
+        // B on top partners the higher of R and G; equal heights give the partner alone.
+        let w = blend_height_weights([0.0, 0.2, 0.2001], 0.0, 0.392);
+        assert_eq!((w.top, w.second), (2, 1));
+        assert!(w.partner > 0.999);
+        // R wins a tie with G, and its partner is R itself.
+        let w = blend_height_weights([0.2, 0.2, 0.0], 0.0, 0.392);
+        assert_eq!((w.top, w.second), (0, 0));
+        // A partner of height 0 does not mix.
+        let w = blend_height_weights([0.0, 0.3, 0.1], 0.0, 0.392);
+        assert_eq!((w.top, w.second, w.partner), (1, 0, 0.0));
+        // No layer height: the base alone.
+        assert_eq!(blend_height_weights([0.0; 3], 0.4, 0.392).layer, 0.0);
+        // A narrow width is a hard cut: the higher surface wins outright.
+        assert_eq!(blend_height_weights([0.5, 0.0, 0.0], 0.2, 0.01).layer, 1.0);
+        assert_eq!(blend_height_weights([0.1, 0.0, 0.0], 0.3, 0.01).layer, 0.0);
+        // Within the width, a weighted mean of the two heights.
+        let w = blend_height_weights([0.3, 0.0, 0.0], 0.1, 0.392);
+        assert!((w.layer - 0.75).abs() < 1e-6);
+    }
+
+    /// The BlendHeight families choose their layer by height, not by the
+    /// largest mask channel, and draw no dye: the crystal of
+    /// `cd_phm_02_spear_0117` showed its pale base where the icon shows the
+    /// dark layers that its weak base height gives way to.
+    #[test]
+    fn blend_height_layers_meet_the_base_by_height_on_gpu_binding_and_cpu_fallback() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let base_rgb = [200_u8, 180, 160];
+        let colours = [[180_u8, 40, 40], [40_u8, 160, 60], [30_u8, 30, 200]];
+        let bytes = [
+            make([base_rgb[0], base_rgb[1], base_rgb[2], 255]),
+            make([128, 128, 128, 255]),
+            make([255, 255, 255, 255]),
+            make([colours[0][0], colours[0][1], colours[0][2], 255]),
+            make([colours[1][0], colours[1][1], colours[1][2], 255]),
+            make([colours[2][0], colours[2][1], colours[2][2], 255]),
+            make([51, 51, 51, 255]),
+            make([255, 254, 254, 255]),
+        ];
+        let refs: Vec<_> = bytes
+            .iter()
+            .enumerate()
+            .map(|(index, bytes)| reference(bytes, &format!("{index}.dds")))
+            .collect();
+        let mut base = layer("base", "r", &refs[0]);
+        base.mask = None;
+        base.shader_family = "SkinnedMeshBlendHeight".into();
+        base.height = Some(refs[1].clone());
+        let mut layers = vec![base];
+        // Heights R 0.2 x 0.25, G 1.0 x 0.3, B 1.0 x 0.1; the mask is white.
+        for (k, (channel, height, opacity)) in
+            [("r", 6, 0.25), ("g", 7, 0.3), ("b", 7, 0.1)].into_iter().enumerate()
+        {
+            let mut row = layer("detail", channel, &refs[3 + k]);
+            row.shader_family = "SkinnedMeshBlendHeight".into();
+            row.source_parameter = ["_detailDiffuseMaskR", "_detailDiffuseMaskG", "_detailDiffuseMaskB"][k].into();
+            row.mask = Some(refs[2].clone());
+            row.mask_parameter = "_maskTexture".into();
+            row.height = Some(refs[height].clone());
+            row.blend_flags = Some(15);
+            row.blend_opacity = Some(opacity);
+            // A layer dye the BlendHeight shader does not read.
+            row.tint = [1.0, 0.0, 0.0, 1.0];
+            row.blend_height = Some([0.392, 0.2]);
+            layers.push(row);
+        }
+        let mut value = material(layers);
+        value.base_color = [0.3, 0.3, 0.3];
+        assert!(value.is_blend_height());
+        assert!(eligible(&value));
+        let graph = PreviewCoreMaterialGraph {
+            schema_version: 1,
+            graph_version: 5,
+            semantics_version: 10,
+            quality: "full".into(),
+            resources_included: true,
+            source_edge_count: 8,
+            unique_resource_count: 8,
+            copied_resource_count: 8,
+            unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+            materials: vec![value],
+        };
+        // G (0.3) is on top and partners R (0.05) although B (0.1) is higher;
+        // the base height is 128/255 x 0.2.
+        let (hr, hg, hb) = (51.0 / 255.0 * 0.25, 0.3, 128.0 / 255.0 * 0.2);
+        let t = 2.0 * hr / (hg + hr);
+        let share = hg / (hg + hb);
+        let expected: [f32; 3] = std::array::from_fn(|c| {
+            let base = linear(f32::from(base_rgb[c]) / 255.0);
+            let layer = linear(f32::from(colours[1][c]) / 255.0)
+                + (linear(f32::from(colours[0][c]) / 255.0) - linear(f32::from(colours[1][c]) / 255.0)) * t;
+            base + (layer - base) * share
+        });
+        for gpu in [true, false] {
+            let mut resources = Vec::new();
+            let (_, sets) = prepare(
+                &graph,
+                &[],
+                &document,
+                &mut resources,
+                gpu,
+                false,
+                |r| {
+                    Ok(bytes[refs
+                        .iter()
+                        .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                        .unwrap()]
+                    .clone())
+                },
+                &|| false,
+            )
+            .unwrap();
+            if gpu {
+                let set = &sets[0];
+                let uniform = &set.uniform;
+                assert_eq!(uniform.control[0], LAYER_MODE_BLEND_HEIGHT);
+                assert_eq!(uniform.base_color[..3], [1.0; 3], "no whole-part tint");
+                assert_eq!(uniform.seeds, [[0.0; 4]; 3], "no dye");
+                assert_eq!(uniform.blend_height, [0.392, 0.2, 15.0, 0.0]);
+                assert!(!set.hides_base_colour());
+                let sha = |slot: usize| set.textures[slot].as_ref().map(|t| t.source_sha256.clone());
+                assert_eq!(sha(DETAIL_MASK_SLOT), Some(refs[1].sha256.clone()), "base height");
+                for (k, height) in [6, 7, 7].into_iter().enumerate() {
+                    assert_eq!(sha(GRIME_SLOT + 3 * k), Some(refs[height].sha256.clone()));
+                    assert_eq!(uniform.layers[k].properties[0], [0.25, 0.3, 0.1][k]);
+                }
+                continue;
+            }
+            let composed = resources
+                .iter()
+                .find(|r| r.role == TextureRole::BaseColor)
+                .expect("composed base colour");
+            let decoded = cdmw_texture::decode_dds_rgba8(&composed.bytes, composed.role).unwrap();
+            for channel in 0..3 {
+                let drawn = linear(f32::from(decoded.pixels[channel]) / 255.0);
+                assert!(
+                    (drawn - expected[channel]).abs() <= 0.004,
+                    "channel {channel}: {drawn} != {}",
+                    expected[channel]
+                );
             }
         }
     }

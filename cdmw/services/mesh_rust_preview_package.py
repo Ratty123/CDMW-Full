@@ -34,6 +34,7 @@ from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.material_layer_uv import (
     pac_blend_layer_surface,
+    pac_blend_height_uv_transform,
     pac_blend_layer_uv_transform,
     pac_color_bytes,
     pac_grime_blend_bytes,
@@ -740,6 +741,7 @@ def _preview_core_layer_parameter_index(parameters):
             "eyeproperty0", "eyeproperty1", "eyeproperty2", "irisbrightness",
             "irisnormaltexture", "irismaterialtexture",
             "detailnormalblend", "detailmaterialblend",
+            "detailscreenspacedisplacementscale", "screenspacedisplacementscale",
         }:
             continue
         key = (
@@ -888,6 +890,36 @@ def _preview_core_legacy_dye_layers(raw_layers, parameter_index, source_package)
             "mask_archive_path": mask[1],
         })
     return layers
+
+
+# The game's BlendHeight families: layers chosen by height, no dye.
+_BLEND_HEIGHT_FAMILIES = frozenset({"skinnedmeshblendheight", "skinnedmeshstaticblendheight"})
+
+
+def _preview_core_blend_height_layer(layer, channel, parameters, values):
+    """State the BlendHeight rule's inputs on one of its colour layers.
+
+    The game samples a layer's four maps at the mesh UV divided by bytes 0 and 1
+    of its transform property (no rotation, no offset), and blends by height:
+    a layer's height is `_maskTexture` channel times `_detailHeightMask*` red
+    times its `_dyeingGlobalOpacity` byte; the base's is `_heightTexture` red
+    times `_screenSpaceDisplacementScale`; `_detailScreenSpaceDisplacementScale`
+    (at least 0.01) is the blend width. `blend_height` carries the width and the
+    base height scale; the opacity byte is `blend_opacity`.
+    """
+    layer["uv_transform"] = list(pac_blend_height_uv_transform(parameters, channel))
+
+    def number(name):
+        try:
+            value = float(values.get(name, 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+        return value if math.isfinite(value) else 0.0
+
+    layer["blend_height"] = [
+        max(0.01, number("_detailscreenspacedisplacementscale")),
+        max(0.0, number("_screenspacedisplacementscale")),
+    ]
 
 
 # The game's Ver2 shader families. Each runs the overlay step after grime and
@@ -1183,6 +1215,8 @@ def _copy_preview_core_material_layers(
                         # `_detailDiffuseMask*` that file is not a colour map (it is
                         # often `_detailHeightMask*`), and the game draws no colour.
                         layer["colour_authored"] = False
+                    if layer["shader_family"].casefold() in _BLEND_HEIGHT_FAMILIES:
+                        _preview_core_blend_height_layer(layer, channel, parameters, values)
                 detail_mask = _preview_core_ver2_grime(
                     layer, role, channel, mask_parameter, parameters, source_package,
                 ) or _preview_core_ver2_scratch(

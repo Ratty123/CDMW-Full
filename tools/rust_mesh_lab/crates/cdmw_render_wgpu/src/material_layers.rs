@@ -18,6 +18,14 @@ pub const LAYER_CONTROL_OVERLAY: u32 = 4;
 pub const LAYER_CONTROL_OVERLAY_LUMA: u32 = 16;
 /// `LayerUniform::control[0]` of the legacy families' rule.
 pub const LAYER_MODE_LEGACY: u32 = 4;
+/// `LayerUniform::control[0]` of the BlendHeight families' rule (fix 14): layers
+/// chosen by height against the base, no dye. Their height maps ride on slots
+/// the rule has no other use for: the base `_heightTexture` on
+/// `DETAIL_MASK_SLOT`, layer k's `_detailHeightMask*` on `GRIME_SLOT + 3 * k`.
+pub const LAYER_MODE_BLEND_HEIGHT: u32 = 5;
+/// `LayerUniform::blend_height[2]` bits: the base height map is bound (1), and
+/// layer k's height map (2 << k). A missing height map reads zero in the game.
+pub const BLEND_HEIGHT_BASE: u32 = 1;
 /// Layer textures: the blend mask; colour, normal and response for R, G, B; the
 /// detail mask; grime colour, normal and response for R, G, B; the overlay
 /// colour map; then the blend layer's colour, normal and material maps.
@@ -76,7 +84,7 @@ pub struct LayerUniform {
     pub seeds: [[f32; 4]; 3],
     pub base_color: [f32; 4],
     /// Mode (1 normalized mask, 2 masked overlays, 3 eye alpha overlays, 4 the
-    /// legacy families' dye and one detail layer per pixel), skin flag, eye
+    /// legacy families' dye and one detail layer per pixel, 5 BlendHeight), skin flag, eye
     /// flag, bits (`LAYER_CONTROL_*`: no base colour map, colour only, the Ver2
     /// overlay step and its options).
     pub control: [u32; 4],
@@ -95,6 +103,9 @@ pub struct LayerUniform {
     /// over, 2 replacing: bit 13 and option bit 6); 1 when roughness and metal
     /// move to `_detailMaterialBlend` (bit 14); the normal map's encoding.
     pub blend_switches: [f32; 4],
+    /// Fix 14, mode 5 (BlendHeight): blend width, base height scale, the
+    /// `BLEND_HEIGHT_*` presence bits (as a float), unused.
+    pub blend_height: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -122,7 +133,10 @@ impl MaterialLayerSet {
     /// normal map still do.
     #[must_use]
     pub fn hides_base_colour(&self) -> bool {
-        !matches!(self.uniform.control[0], 2 | 3 | LAYER_MODE_LEGACY)
+        !matches!(
+            self.uniform.control[0],
+            2 | 3 | LAYER_MODE_LEGACY | LAYER_MODE_BLEND_HEIGHT
+        )
             && self
                 .uniform
                 .layers
@@ -339,7 +353,7 @@ mod tests {
     #[test]
     fn layer_uniform_preserves_group_zero_abi() {
         assert_eq!(std::mem::size_of::<LayerEntryUniform>(), 160);
-        assert_eq!(std::mem::size_of::<LayerUniform>(), 640);
+        assert_eq!(std::mem::size_of::<LayerUniform>(), 656);
         assert_eq!(std::mem::size_of::<MaterialUniform>(), 288);
         let shader = include_str!("material_layers.wgsl");
         for binding in 0..=LAYER_TEXTURE_SLOTS {

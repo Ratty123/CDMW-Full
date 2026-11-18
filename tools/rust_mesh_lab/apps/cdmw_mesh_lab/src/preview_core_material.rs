@@ -1351,6 +1351,10 @@ fn compose_base_color(
         // Preserve authored compression, full resolution and mip filtering.
         return Ok(None);
     }
+    if material.is_blend_height() {
+        // Mode 5 of material_layers.wgsl, on or off the GPU path.
+        return compose_blend_height_base_color(material, cache);
+    }
     if is_gpu_layer_shaped(material) {
         // The same RGB-layer rule as material_layers.wgsl, so a material looks
         // the same whether the GPU path or this fallback composes it.
@@ -2109,6 +2113,217 @@ fn compose_rgb_layer_base_color(
     }))
 }
 
+/// One pixel of the game's BlendHeight rule (`blend_height_surface` in
+/// material_layers.wgsl): how much of the pixel is layer rather than base, the
+/// top layer, its partner and the partner's share of the layer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct BlendHeightWeights {
+    pub layer: f32,
+    pub top: usize,
+    pub second: usize,
+    pub partner: f32,
+}
+
+impl BlendHeightWeights {
+    /// `base` and the layers' values mixed by these weights.
+    fn apply(self, base: [f32; 3], layer: impl Fn(usize) -> [f32; 3]) -> [f32; 3] {
+        if self.layer <= 0.0 {
+            return base;
+        }
+        let (top, second) = (layer(self.top), layer(self.second));
+        std::array::from_fn(|c| mix(base[c], mix(top[c], second[c], self.partner), self.layer))
+    }
+}
+
+/// The weights from the three layer heights (mask channel times height map
+/// times opacity byte), the base height and the blend width. The higher of R and
+/// G (R on a tie) meets B; the partner is the other of the two, or R when B
+/// loses (R again when R is the top). Heights are cut to the width before they
+/// are compared, and two layers of equal height give the partner alone.
+pub(crate) fn blend_height_weights(h: [f32; 3], base: f32, width: f32) -> BlendHeightWeights {
+    let width = width.max(0.01);
+    let (first, h1) = if h[0] < h[1] { (1, h[1]) } else { (0, h[0]) };
+    let (top, ht, second, hs) = if h1 < h[2] {
+        (2, h[2], first, h1)
+    } else {
+        (first, h1, 0, h[0])
+    };
+    let mut partner = 0.0;
+    if hs > 0.0 {
+        let cut = (ht.max(hs) - width).max(0.0);
+        let (a_t, a_s) = ((ht - cut).max(0.0), (hs - cut).max(0.0));
+        partner = (2.0 * a_s / (a_t + a_s).max(1e-6)).clamp(0.0, 1.0);
+    }
+    let mut layer = 0.0;
+    if ht > 0.0 {
+        let cut = (base.max(ht) - width).max(0.0);
+        let (wb, wl) = ((base - cut).max(0.0), (ht - cut).max(0.0));
+        layer = wl / (wb + wl).max(1e-6);
+    }
+    BlendHeightWeights {
+        layer,
+        top,
+        second,
+        partner,
+    }
+}
+
+/// The inputs of the BlendHeight rule at one target size: the base and layer
+/// height maps, the mask, the opacity bytes, the blend width and base scale.
+struct BlendHeightInputs {
+    base_height: Option<ImagePixels>,
+    heights: [Option<ImagePixels>; 3],
+    mask: Option<ImagePixels>,
+    opacity: [f32; 3],
+    width: f32,
+    base_scale: f32,
+    /// The layer row of each channel, by index into the material's layers.
+    rows: [Option<usize>; 3],
+}
+
+impl BlendHeightInputs {
+    fn of(
+        material: &PreviewCoreMaterial,
+        cache: &mut ImageCache,
+        width: u32,
+        height: u32,
+    ) -> Result<Option<Self>, SessionError> {
+        if !material.is_blend_height() {
+            return Ok(None);
+        }
+        let mut inputs = Self {
+            base_height: material.layers[0]
+                .height
+                .as_ref()
+                .map(|reference| cache.resized(reference, width, height))
+                .transpose()?,
+            heights: [None, None, None],
+            mask: None,
+            opacity: [0.0; 3],
+            width: 0.01,
+            base_scale: 0.0,
+            rows: [None; 3],
+        };
+        for (index, layer) in material.layers.iter().enumerate().skip(1) {
+            if layer.layer_role != "detail"
+                || !matches!(layer.mask_channel.as_str(), "r" | "g" | "b")
+            {
+                continue;
+            }
+            let k = channel_index(&layer.mask_channel);
+            if inputs.rows[k].is_some() {
+                continue;
+            }
+            inputs.rows[k] = Some(index);
+            if inputs.mask.is_none()
+                && let Some(reference) = layer.mask.as_ref()
+            {
+                inputs.mask = Some(cache.resized(reference, width, height)?);
+            }
+            inputs.heights[k] = layer
+                .height
+                .as_ref()
+                .map(|reference| cache.transformed(reference, width, height, layer))
+                .transpose()?;
+            inputs.opacity[k] = layer.blend_opacity.unwrap_or(layer.weight).clamp(0.0, 1.0);
+            if let Some([blend_width, base_scale]) = layer.blend_height {
+                inputs.width = blend_width.max(0.01);
+                inputs.base_scale = base_scale.max(0.0);
+            }
+        }
+        Ok(Some(inputs))
+    }
+
+    /// The layer row of map `k` (0 the base, 1 to 3 the layers R, G, B).
+    fn row(&self, k: usize) -> Option<usize> {
+        if k == 0 { Some(0) } else { self.rows[k - 1] }
+    }
+
+    fn at(&self, offset: usize) -> BlendHeightWeights {
+        let h = std::array::from_fn(|k| {
+            let Some(height) = self.heights[k].as_deref() else {
+                return 0.0;
+            };
+            let mask = self
+                .mask
+                .as_deref()
+                .map_or(0.0, |pixels| unit(pixels[offset + k]));
+            unit(height[offset]) * mask * self.opacity[k]
+        });
+        let base = self
+            .base_height
+            .as_deref()
+            .map_or(0.0, |pixels| unit(pixels[offset]) * self.base_scale);
+        blend_height_weights(h, base, self.width)
+    }
+
+    /// One map of the base (index 0) and of the layers R, G, B (1 to 3), each at
+    /// its own UV, at the target size.
+    fn layer_maps(
+        &self,
+        material: &PreviewCoreMaterial,
+        cache: &mut ImageCache,
+        width: u32,
+        height: u32,
+        map: LayerMap,
+    ) -> Result<[Option<ImagePixels>; 4], SessionError> {
+        let mut maps = [None, None, None, None];
+        for (k, slot) in maps.iter_mut().enumerate() {
+            let Some(index) = self.row(k) else {
+                continue;
+            };
+            let layer = &material.layers[index];
+            if let Some(reference) = map.reference(layer) {
+                *slot = Some(if k == 0 {
+                    cache.resized(reference, width, height)?
+                } else {
+                    cache.transformed(reference, width, height, layer)?
+                });
+            }
+        }
+        Ok(maps)
+    }
+}
+
+/// The base colour of a BlendHeight material: no dye, no whole-part tint.
+fn compose_blend_height_base_color(
+    material: &PreviewCoreMaterial,
+    cache: &mut ImageCache,
+) -> Result<Option<DecodedRgba8>, SessionError> {
+    let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
+        return Ok(None);
+    };
+    let pixel_count = checked_pixel_count(width, height)?;
+    let Some(blend) = BlendHeightInputs::of(material, cache, width, height)? else {
+        return Ok(None);
+    };
+    let colours = blend.layer_maps(material, cache, width, height, LayerMap::Diffuse)?;
+    let mut target = Vec::with_capacity(pixel_count.saturating_mul(4));
+    for pixel in 0..pixel_count {
+        let offset = pixel * 4;
+        let (base, alpha) = match colours[0].as_deref() {
+            Some(pixels) => (linear_pixel(pixels, offset), pixels[offset + 3]),
+            None => ([1.0_f32; 3], 255),
+        };
+        let color = blend.at(offset).apply(base, |k| {
+            colours[k + 1]
+                .as_deref()
+                .map_or([0.0; 3], |pixels| linear_pixel(pixels, offset))
+        });
+        target.extend_from_slice(&[
+            unit_byte(linear_to_srgb(color[0])),
+            unit_byte(linear_to_srgb(color[1])),
+            unit_byte(linear_to_srgb(color[2])),
+            alpha,
+        ]);
+    }
+    Ok(Some(DecodedRgba8 {
+        width,
+        height,
+        pixels: target,
+    }))
+}
+
 /// `legacy_dye` in material_layers.wgsl at one pixel: the game's dye of the
 /// legacy families. `base` is linear, `seeds` are the authored sRGB colours and
 /// alphas, `mask` is `_maskTexture` (its alpha is the overlay's base: it shades
@@ -2321,6 +2536,37 @@ fn compose_material_response(
             unit_byte(specular),
         ]);
     }
+    if let Some(blend) = BlendHeightInputs::of(material, cache, width, height)? {
+        // The BlendHeight rule: the layers' and the base's responses take the
+        // colour's weights. The game reads no occlusion there (red is 1).
+        let sources = blend.layer_maps(material, cache, width, height, LayerMap::Material)?;
+        let decoders: [Option<MaterialResponseDecoder>; 4] = std::array::from_fn(|k| {
+            blend.row(k).map(|index| MaterialResponseDecoder::new(&material.layers[index]))
+        });
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let decode = |k: usize| -> Option<[f32; 3]> {
+                let pixels = sources[k].as_deref()?;
+                Some(decoders[k].as_ref()?.decode(&pixels[offset..offset + 4]))
+            };
+            let fallback = [
+                unit(target[offset + 1]),
+                unit(target[offset + 2]),
+                unit(target[offset + 3]),
+            ];
+            let base = decode(0).unwrap_or(fallback);
+            let mixed = blend.at(offset).apply(base, |k| decode(k + 1).unwrap_or(base));
+            target[offset] = 255;
+            target[offset + 1] = unit_byte(mixed[0]);
+            target[offset + 2] = unit_byte(mixed[1]);
+            target[offset + 3] = unit_byte(mixed[2]);
+        }
+        return Ok(Some(DecodedRgba8 {
+            width,
+            height,
+            pixels: target,
+        }));
+    }
     for layer in &material.layers {
         let Some(reference) = layer.material.as_ref() else {
             continue;
@@ -2528,6 +2774,25 @@ fn compose_normal(
     for pixel in target.chunks_exact_mut(4) {
         let normal = unpack_normal(pixel);
         pack_normal(pixel, normal);
+    }
+    if let Some(blend) = BlendHeightInputs::of(material, cache, width, height)? {
+        // The BlendHeight rule: a weighted sum of tangent-space normals, normalised.
+        let sources = blend.layer_maps(material, cache, width, height, LayerMap::Normal)?;
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let base = unpack_normal(&target[offset..offset + 4]);
+            let mixed = blend.at(offset).apply(base, |k| {
+                sources[k + 1]
+                    .as_deref()
+                    .map_or(base, |pixels| unpack_normal(&pixels[offset..offset + 4]))
+            });
+            pack_normal(&mut target[offset..offset + 4], normalize3(mixed));
+        }
+        return Ok(Some(DecodedRgba8 {
+            width,
+            height,
+            pixels: target,
+        }));
     }
     for layer in material.layers.iter().skip(1) {
         let Some(reference) = layer.normal.as_ref() else {
@@ -3099,6 +3364,7 @@ mod tests {
             detail_mask: None,
             eye_properties: None,
             iris_brightness: None,
+            blend_height: None,
         }
     }
 

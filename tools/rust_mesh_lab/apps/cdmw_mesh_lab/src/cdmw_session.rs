@@ -301,6 +301,10 @@ pub struct PreviewCoreMaterialLayer {
     pub detail_mask_archive_path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail_mask: Option<FileReference>,
+    /// A BlendHeight colour layer's blend width (`_detailScreenSpaceDisplacementScale`,
+    /// at least 0.01) and the base height scale (`_screenSpaceDisplacementScale`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blend_height: Option<[f32; 2]>,
     /// An eye's base row: `_eyeProperty0/1/2` as the game's packed words
     /// (defaults filled in), which place the iris and pupil and switch the
     /// iris roughness on.
@@ -474,7 +478,21 @@ pub const LEGACY_DYE_FAMILIES: [&str; 7] = [
     "SkinnedMeshPoster",
 ];
 
+/// The game's height-blended layer families (fix 14).
+pub const BLEND_HEIGHT_FAMILIES: [&str; 2] =
+    ["SkinnedMeshBlendHeight", "SkinnedMeshStaticBlendHeight"];
+
 impl PreviewCoreMaterial {
+    /// Whether the material is drawn by the game's BlendHeight or
+    /// StaticBlendHeight shader: layers chosen by height, no dye.
+    pub fn is_blend_height(&self) -> bool {
+        self.layers.first().is_some_and(|base| {
+            BLEND_HEIGHT_FAMILIES
+                .iter()
+                .any(|family| base.shader_family.eq_ignore_ascii_case(family))
+        })
+    }
+
     pub fn is_legacy_dye_family(&self) -> bool {
         self.layers.first().is_some_and(|base| {
             LEGACY_DYE_FAMILIES
