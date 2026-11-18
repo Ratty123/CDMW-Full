@@ -1437,6 +1437,120 @@ fn offscreen_ver2_layer_normal_has_no_fixed_share() -> TestResult {
     Ok(())
 }
 
+/// The layer path states roughness and metal per texel from the layers' own
+/// `_sp` maps, as the game reads them. The surface shader did not count them as
+/// source maps: a metal texel of a part classed cloth (the brass buttons of the
+/// leather suit cd_phm_00_ub_00_0501) got no metal reflection and drew flat and
+/// pale, and every texel of a part classed metal reflected as metal whatever its
+/// map said. Now the texel's metal decides, whatever the class.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_layer_metal_decides_the_reflection_whatever_the_class() -> TestResult {
+    use cdmw_render_wgpu::{LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet};
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    let mut lit = std::collections::BTreeMap::new();
+    const METAL: u32 = 1;
+    const CLOTH: u32 = 4;
+    for (class, metal) in [(METAL, 255_u8), (CLOTH, 255), (METAL, 0), (CLOTH, 0)] {
+        let factors = [HeadlessMaterialFactors {
+            factors: MaterialPreviewFactors {
+                category_code: Some(class),
+                category_confidence: Some(1.0),
+                ..MaterialPreviewFactors::default()
+            },
+            material_indices_by_lod: &ownership,
+        }];
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, 0],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[1] = Some(texture([200, 170, 110, 255], TextureRole::BaseColor)?);
+        layer.textures[3] = Some(texture([255, 70, metal, 255], TextureRole::Material)?);
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [1.0, 1.0, 1.0, 0.0],
+            affine: [1.0, 0.0, 0.0, 1.0],
+            offset: [0.0, 0.0, 15.0, 0.0],
+            properties: [1.0, 0.2158, 1.0, 0.0],
+            ..Default::default()
+        };
+        let name = format!("class{class}-metal{metal}");
+        let path = temporary.path().join(format!("{name}-lit.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &factors,
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &path,
+                base_color_bmp: &temporary.path().join(format!("{name}-base.bmp")),
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: None,
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(path)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..3];
+        lit.insert((class, metal), pixel.iter().map(|v| f32::from(*v)).sum::<f32>());
+    }
+    // The texel's metal decides: a metal texel and a non-metal texel each draw
+    // alike on a part classed metal and on one classed cloth (neutral studio;
+    // before, the metal texel drew 363 against 302).
+    for metal in [255_u8, 0] {
+        let (metal_class, cloth_class) = (lit[&(METAL, metal)], lit[&(CLOTH, metal)]);
+        assert!(
+            (metal_class - cloth_class).abs() <= 0.05 * metal_class.max(cloth_class),
+            "layer metal {metal}: a metal part drew {metal_class}, a cloth part {cloth_class}"
+        );
+    }
+    Ok(())
+}
+
 /// The game's Ver2 scratch rule: where `_detailMaskTexture` red marks a scratch,
 /// the drawn layer's roughness moves through its remaining range and its metal by
 /// the plain step, and the scratch tint is overlaid on the colour.

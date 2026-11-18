@@ -875,10 +875,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     let has_source_glossiness =
         (material.flags & MATERIAL_GLOSSINESS) != 0u
         && !has_authoritative_roughness;
+    // The layer path states roughness and metal per texel from the layers'
+    // own maps (`_detailMaterialMask*` green and blue): they are source maps.
     let has_source_roughness =
-        has_authoritative_roughness || has_source_glossiness;
+        has_authoritative_roughness || has_source_glossiness || gpu_layered;
     let has_source_metalness =
-        (material.flags & (MATERIAL_SURFACE | MATERIAL_METALNESS)) != 0u;
+        (material.flags & (MATERIAL_SURFACE | MATERIAL_METALNESS)) != 0u || gpu_layered;
     let has_source_base_color = (material.flags & MATERIAL_BASE_COLOR) != 0u || gpu_layered;
 
     var roughness = 0.66;
@@ -1339,10 +1341,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     // A real metal channel removes diffuse energy even when a mixed-material
     // part was not classified as metal. Give that authored fraction a coloured
     // environment response, keyed to source F0 rather than a white scalar.
+    // With a source map the texel's own metal decides, whatever the part's
+    // class (as the game reads it per texel); the class stands in only without one.
     let metal_reflection_weight = select(
         select(0.0, clamp(metalness, 0.0, 1.0), has_source_metalness),
         1.0,
-        is_metal,
+        is_metal && !has_source_metalness,
     );
     if metal_reflection_weight > 0.001 {
         let metal_environment_scale = select(
