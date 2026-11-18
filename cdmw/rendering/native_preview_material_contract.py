@@ -4,6 +4,7 @@ import dataclasses
 from pathlib import Path
 from typing import Dict, Mapping, Optional, Sequence, Tuple
 
+from cdmw.domain.material_layer_uv import pac_color_bytes
 from cdmw.models import (
     ModelPreviewRenderSettings,
     PreparedModelPreviewBatch,
@@ -1184,13 +1185,22 @@ def _batch_has_authoritative_pac_material_graph(batch: PreparedModelPreviewBatch
     return False
 
 
-def sidecar_preview_texture_tint_for_batch(batch: PreparedModelPreviewBatch, *, source_path: object = "") -> Tuple[float, float, float]:
-    descriptor = _material_input_descriptor(batch)
-    # Hair dye is an unsuffixed whole-surface PAC parameter, unlike the
-    # channel-qualified equipment dye masks handled by the layer compositor.
+def sidecar_hair_dye_for_batch(batch: PreparedModelPreviewBatch) -> Tuple[float, float, float, float] | None:
+    """`_hairDyeingColor` of an authoritative hair material: sRGB colour and alpha.
+
+    The game's hair shaders dye `_baseColorTexture` with this one colour over
+    the whole surface, mixed in by the colour's alpha (the parameter's default
+    is `0x00000000`: no dye). None when the batch is not such a material or its
+    wrapper does not state the colour.
+    """
+
+    if not (
+        _batch_has_authoritative_pac_material_graph(batch)
+        and _material_contract_shader_family(batch) == "hair"
+    ):
+        return None
     # Rust snapshots keep a shared parameter table on the source batch, so
-    # inspect both that table and any input-local override before applying the
-    # usual equipment/flag tint gate.
+    # inspect both that table and any input-local override.
     parameter_groups = [
         tuple(getattr(batch, "preview_material_parameters", ()) or ())
     ]
@@ -1201,29 +1211,34 @@ def sidecar_preview_texture_tint_for_batch(batch: PreparedModelPreviewBatch, *, 
         )
         if isinstance(texture_input, PreviewMaterialTextureInput)
     )
-    if (
-        _batch_has_authoritative_pac_material_graph(batch)
-        and _material_contract_shader_family(batch) == "hair"
-    ):
-        for parameters in parameter_groups:
-            for parameter in parameters:
-                if (
-                    _normalized_material_key(
-                        getattr(parameter, "parameter_name", "")
-                    )
-                    != "hairdyeingcolor"
-                ):
-                    continue
-                color = tuple(
-                    _safe_float(value, 1.0)
-                    for value in tuple(
-                        getattr(parameter, "color_value", ()) or ()
-                    )[:3]
-                )
-                if len(color) >= 3:
-                    return tuple(
-                        max(0.0, min(1.35, float(value))) for value in color
-                    )
+    for parameters in parameter_groups:
+        for parameter in parameters:
+            if (
+                _normalized_material_key(getattr(parameter, "parameter_name", ""))
+                != "hairdyeingcolor"
+            ):
+                continue
+            color = tuple(
+                max(0.0, min(1.0, _safe_float(value, 1.0)))
+                for value in tuple(getattr(parameter, "color_value", ()) or ())[:3]
+            )
+            if len(color) < 3:
+                continue
+            # The parsed colour keeps three components; the alpha is the last
+            # byte of the authored `#rrggbbaa` text.
+            authored = pac_color_bytes(getattr(parameter, "value", ""))
+            return (*color, 1.0 if authored is None else float(authored[3]))
+    return None
+
+
+def sidecar_preview_texture_tint_for_batch(batch: PreparedModelPreviewBatch, *, source_path: object = "") -> Tuple[float, float, float]:
+    descriptor = _material_input_descriptor(batch)
+    # Hair dye is an unsuffixed whole-surface PAC parameter, unlike the
+    # channel-qualified equipment dye masks handled by the layer compositor.
+    hair_dye = sidecar_hair_dye_for_batch(batch)
+    if hair_dye is not None:
+        # A colour with alpha zero is the game's "no dye".
+        return hair_dye[:3] if hair_dye[3] > 0.0 else ()
     if not _descriptor_prefers_sidecar_tint(source_path, descriptor):
         return ()
     if _batch_weapon_masked_base_tint_should_stay_masked(batch, source_path=source_path):
@@ -2118,6 +2133,7 @@ __all__ = [
     "_resolved_batch_material_finish",
     "resolve_material_identity_category",
     "_sanitize_nonfile_manifest_source_paths",
+    "sidecar_hair_dye_for_batch",
     "sidecar_preview_texture_tint_for_batch",
     "_slot_has_resolved_texture",
     "_source_or_descriptor_has_armor_equipment",

@@ -5962,13 +5962,20 @@ def _rust_surface_profile(
             "Preview Core returned an invalid material surface profile"
         ) from exc
     if (
-        family != material_category
-        or not is_known_material_category(family)
+        not is_known_material_category(family)
         or family_code != material_category_code(family)
     ):
         raise RustMeshProtocolError(
             "Preview Core surface-profile family does not match its material category"
         )
+    if family != material_category:
+        # Preview Core writes the profile for the class it found. This side then
+        # raises a weak generic class by name (a part named like hair or fur whose
+        # wrapper is missing or unresolved) or by the exact skin graph, and the
+        # profile row is not rewritten. Its fallbacks describe the other class,
+        # so the part draws without a profile; one such part must not fail the
+        # whole package.
+        return None
     if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
         raise RustMeshProtocolError(
             "Preview Core surface-profile confidence is outside 0..=1"

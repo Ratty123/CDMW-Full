@@ -593,6 +593,68 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 category_confidence=0.95,
             )
 
+    def test_a_class_raised_by_name_draws_without_the_other_class_profile(self) -> None:
+        # A hair-named part without its wrapper: Preview Core says generic and
+        # writes a generic profile; the Python side raises the class to hair.
+        profile = {
+            "family": "generic",
+            "family_code": rust_authoring_module.material_category_code("generic"),
+            "finish": "satin",
+            "structure": "smooth",
+            "coating": "none",
+            "confidence": 0.35,
+            "evidence": "generic:no_strong_material_token;surface_profile=family_fallback",
+            "fallbacks": {
+                "roughness": 0.66,
+                "metalness": 0.0,
+                "specular": 0.2,
+                "height_scale": 0.0,
+                "anisotropy": 0.0,
+            },
+            "authored": {name: False for name in ("roughness", "metalness", "specular", "height_scale", "anisotropy")},
+            "fallback_applied": {
+                "roughness": True,
+                "metalness": True,
+                "specular": True,
+                "height_scale": False,
+                "anisotropy": False,
+            },
+        }
+
+        self.assertIsNone(
+            rust_authoring_module._rust_surface_profile(
+                profile,
+                material_category="hair",
+                category_confidence=0.72,
+            )
+        )
+        self.assertIsNone(
+            rust_authoring_module._rust_surface_profile(
+                profile,
+                material_category="skin",
+                category_confidence=0.95,
+            )
+        )
+        # The same profile under its own class is still read, and a profile
+        # that contradicts itself is still an error.
+        self.assertEqual(
+            "generic",
+            rust_authoring_module._rust_surface_profile(
+                profile,
+                material_category="generic",
+                category_confidence=0.35,
+            )["family"],
+        )
+        with self.assertRaisesRegex(
+            rust_authoring_module.RustMeshProtocolError,
+            "family does not match its material category",
+        ):
+            rust_authoring_module._rust_surface_profile(
+                {**profile, "family_code": rust_authoring_module.material_category_code("metal")},
+                material_category="generic",
+                category_confidence=0.35,
+            )
+
     def test_surface_profile_rejects_height_and_authored_anisotropy_fallbacks(
         self,
     ) -> None:

@@ -630,6 +630,18 @@ static void run_head_eye_cover_identity_contract_self_test() {
         && shader_rule_for_family("SkinnedMeshTornCloth_Ver2") == "cloth_v2"
         && shader_rule_for_family("SkinnedMeshStaticBlendHeight") == "standard",
         "Ver2 and height-blend creature shaders lost their own surface path");
+    // Sail_Ver2 is a Ver2 layer family with the cloth pair; WhiteHornHair is a
+    // hair material. Neither name matches the substring rules of their groups.
+    require_material_contract(shader_rule_for_family("SkinnedMeshSail_Ver2") == "cloth_v2",
+        "Sail_Ver2 fell to the generic rule and lost its colour layers");
+    require_material_contract(shader_rule_for_family("SkinnedMeshWhiteHornHair") == "hair",
+        "WhiteHornHair fell to the generic rule");
+    require_material_contract(
+        packed_channels_for_role("material", "horn_sp.dds", "_materialTexture",
+            shader_rule_for_family("SkinnedMeshWhiteHornHair"))
+            == packed_channels_for_role("material", "hair_sp.dds", "_materialTexture",
+                shader_rule_for_family("SkinnedMeshHair")),
+        "WhiteHornHair reads its surface map differently from Hair");
     MaterialParameterRecord declared_eye_base;
     declared_eye_base.name = "_baseColorTexture";
     declared_eye_base.texture_path = "eye_ball.dds";
@@ -966,10 +978,108 @@ static void run_metal_class_floor_self_test() {
         "the metal class floor reached another class");
 }
 
+// Hair was cut at 0.18 whatever its wrapper said. The game's hair shaders cut
+// only with the AlphaTest permutation, and scale the texture alpha by byte 1 of
+// _hairDyeingProperty first.
+static void run_hair_shader_alpha_self_test() {
+    const HairAlphaRule opaque = hair_shader_alpha_rule(false, nullptr);
+    require_material_contract(!opaque.cutout && opaque.threshold == 0.0f,
+        "hair without the AlphaTest permutation was cut out");
+    const HairAlphaRule plain = hair_shader_alpha_rule(true, nullptr);
+    require_material_contract(plain.cutout && std::abs(plain.threshold - 0.18f) < 1.0e-6f,
+        "hair with AlphaTest lost its 0.18 cut");
+    MaterialParameterRecord property;
+    property.name = "_hairDyeingProperty";
+    property.value = "65408";  // roughness byte 0x80, alpha scale 0xFF
+    require_material_contract(
+        std::abs(hair_shader_alpha_rule(true, &property).threshold - 0.18f) < 1.0e-6f,
+        "a full alpha scale moved the hair cutout");
+    property.value = "32896";  // alpha scale 0x80: half the alpha, so twice the threshold
+    require_material_contract(
+        std::abs(hair_shader_alpha_rule(true, &property).threshold - 0.18f * 255.0f / 128.0f) < 1.0e-5f,
+        "the alpha scale of _hairDyeingProperty did not reach the hair cutout");
+    property.value = "38";  // one byte written: the scale is unset, not zero
+    require_material_contract(
+        std::abs(hair_shader_alpha_rule(true, &property).threshold - 0.18f) < 1.0e-6f,
+        "an unwritten alpha scale discarded the whole hair part");
+
+    // A batch drawn by a hair shader follows its wrapper; a part only named
+    // like hair keeps the name guess.
+    NativeSubmesh mesh;
+    mesh.name = "CD_PHM_00_Hair_Base_0001";
+    mesh.material = "CD_PHM_00_Hair_Base_0001";
+    TextureBinding base;
+    base.role = "base";
+    base.texture_name = "phm_00_hair_base_0001.dds";
+    base.shader_family = "SkinnedMeshHair";
+    base.shader_rule = "hair";
+    PackageBatchState batch;
+    batch.base = &base;
+    batch.bindings = {&base};
+    resolve_package_batch_alpha(batch, mesh);
+    require_material_contract(!batch.uses_alpha_cutout && batch.alpha_threshold == 0.0f,
+        "a hair wrapper without AlphaTest was cut out by its name");
+    base.alpha_test_enabled = true;
+    resolve_package_batch_alpha(batch, mesh);
+    require_material_contract(batch.uses_alpha_cutout && std::abs(batch.alpha_threshold - 0.18f) < 1.0e-6f,
+        "a hair wrapper with AlphaTest lost its cutout");
+    // Without AlphaTest and without the wrapper's own base texture (missing from
+    // the archive, another file standing in) the name guess stays.
+    base.alpha_test_enabled = false;
+    base.declared_source_missing = true;
+    resolve_package_batch_alpha(batch, mesh);
+    require_material_contract(batch.uses_alpha_cutout && std::abs(batch.alpha_threshold - 0.18f) < 1.0e-6f,
+        "a stand-in for a missing hair texture was drawn whole");
+    base.declared_source_missing = false;
+    base.shader_family = "SkinnedMeshStandard";
+    base.shader_rule = "standard";
+    resolve_package_batch_alpha(batch, mesh);
+    require_material_contract(batch.uses_alpha_cutout && std::abs(batch.alpha_threshold - 0.18f) < 1.0e-6f,
+        "a part only named like hair lost the name-guess cutout");
+}
+
+// A strip of quads whose UVs run far past 96, as rope and rigging tile their
+// texture. Under the exact canonical PAC layout that is tiling, not a misread
+// field; under a guessed layout the range limits still reject it.
+static void run_tiled_exact_uv_self_test() {
+    NativeSubmesh strip;
+    strip.vertex_layout_name = "pac40_uv8_n16";
+    const int segments = 200;
+    for (int index = 0; index <= segments; ++index) {
+        const float along = static_cast<float>(index);
+        strip.positions.push_back(Vec3{along * 0.1f, 0.0f, 0.0f});
+        strip.positions.push_back(Vec3{along * 0.1f, 0.1f, 0.0f});
+        strip.uvs.push_back(Vec2{0.0f, along * 0.9f});
+        strip.uvs.push_back(Vec2{1.0f, along * 0.9f});
+        strip.normals.push_back(Vec3{0.0f, 0.0f, 1.0f});
+        strip.normals.push_back(Vec3{0.0f, 0.0f, 1.0f});
+    }
+    for (std::uint32_t index = 0; index < static_cast<std::uint32_t>(segments); ++index) {
+        const std::uint32_t a = index * 2u;
+        for (std::uint32_t corner : {a, a + 1u, a + 2u, a + 1u, a + 3u, a + 2u}) strip.indices.push_back(corner);
+    }
+    NativeSubmesh guessed = strip;
+    evaluate_native_submesh_quality(guessed, false);
+    require_material_contract(!guessed.geometry_safe,
+        "a guessed layout with a UV range of 180 passed the range limits");
+    NativeSubmesh exact = strip;
+    evaluate_native_submesh_quality(exact, true);
+    require_material_contract(exact.geometry_safe && exact.geometry_quality_score > guessed.geometry_quality_score + 500.0f,
+        "the exact canonical layout lost a tiled part to the UV range limits");
+    // The same strip read from a zero field: constant UVs must not outscore it.
+    NativeSubmesh zero = strip;
+    std::fill(zero.uvs.begin(), zero.uvs.end(), Vec2{});
+    evaluate_native_submesh_quality(zero, false);
+    require_material_contract(exact.geometry_quality_score > zero.geometry_quality_score,
+        "a layout that reads every UV as zero outscored the exact layout's tiled UVs");
+}
+
 static void run_material_contract_self_test() {
+    run_tiled_exact_uv_self_test();
     run_item_set_components_self_test();
     run_sub_component_wrapper_order_self_test();
     run_metal_class_floor_self_test();
+    run_hair_shader_alpha_self_test();
     run_weapon_sheath_component_self_test();
     ArchiveEntryRef wanted_texture;
     wanted_texture.path = "leveldata/proxylod/stone.dds";

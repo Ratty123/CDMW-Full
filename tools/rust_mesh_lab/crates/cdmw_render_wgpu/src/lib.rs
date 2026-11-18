@@ -595,22 +595,24 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
                 clamp(select(vec3<f32>(1.0), texel.rgb, (material.flags & MATERIAL_BASE_COLOR) != 0u) * texture_tint, vec3<f32>(0.0), vec3<f32>(1.0)),
                 texel.a);
         } else if min(u32(material.relief_factors.z + 0.5), 14u) == 6u {
-            // PAC hair dye is authored in display-space colour. Decode it before
-            // deriving the hue bias so a neutral hair tile keeps its value and
-            // gains the authored warmth instead of collapsing toward grey.
-            let linear_tint = srgb_to_linear(texture_tint);
-            let tint_luma = max(
-                dot(linear_tint, vec3<f32>(0.299, 0.587, 0.114)),
-                0.08);
-            let tint_bias = clamp(
-                linear_tint / tint_luma,
-                vec3<f32>(0.38),
-                vec3<f32>(1.72));
-            let dyed = clamp(
-                texel.rgb * tint_bias,
-                vec3<f32>(0.0),
-                vec3<f32>(1.0));
-            texel = vec4<f32>(mix(texel.rgb, dyed, tint_strength), texel.a);
+            // The game's hair dye (PSMainHairStandard, permutation 75b7a093c17d73a3):
+            //   dye(t, c) = lerp(t, srgb_to_linear(overlay(linear_to_srgb(lerp(t, luma(t), 0.8)), c.rgb)), c.a)
+            //   albedo    = min(dye, 1) * min(0.8 / max(r, g, b), 1)
+            // t is _baseColorTexture, c is _hairDyeingColor as an sRGB colour, and
+            // the strength carries the colour's alpha. The texture is greyed 80%
+            // and the colour overlaid on it in display space, so the strands keep
+            // their light and dark and take the colour whole: black dyes black,
+            // a saturated red stays red. The brightest channel is capped at 0.8.
+            let hair_grey = mix(texel.rgb, vec3<f32>(dot(texel.rgb, vec3<f32>(0.299, 0.587, 0.114))), 0.8);
+            let hair_base = linear_to_srgb(clamp(hair_grey, vec3<f32>(0.0), vec3<f32>(1.0)));
+            let hair_blend = clamp(texture_tint, vec3<f32>(0.0), vec3<f32>(1.0));
+            let hair_overlay = select(
+                vec3<f32>(1.0) - 2.0 * (vec3<f32>(1.0) - hair_base) * (vec3<f32>(1.0) - hair_blend),
+                2.0 * hair_base * hair_blend,
+                hair_base < vec3<f32>(0.5));
+            var dyed = min(mix(texel.rgb, srgb_to_linear(hair_overlay), tint_strength), vec3<f32>(1.0));
+            dyed *= min(0.8 / max(max(dyed.r, max(dyed.g, dyed.b)), 0.0001), 1.0);
+            texel = vec4<f32>(dyed, texel.a);
         } else {
             // Equipment archive colours use a luma-normalised hue shift. This
             // keeps their source detail and brightness in the sampled GPU path
@@ -12563,9 +12565,11 @@ mod tests {
         assert!(SHADER.contains("if (material.flags & MATERIAL_TEXTURE_TINT) != 0u"));
         assert!(SHADER.contains("select(vec3<f32>(1.0), texel.rgb, (material.flags & MATERIAL_BASE_COLOR) != 0u) * texture_tint"));
         assert!(SHADER.contains("else if min(u32(material.relief_factors.z + 0.5), 14u) == 6u"));
-        assert!(SHADER.contains("let linear_tint = srgb_to_linear(texture_tint);"));
-        assert!(SHADER.contains("linear_tint / tint_luma"));
-        assert!(SHADER.contains("mix(texel.rgb, dyed, tint_strength)"));
+        // Hair takes the game's dye: the colour overlaid on the greyed texture.
+        assert!(SHADER.contains("let hair_grey = mix(texel.rgb, vec3<f32>(dot(texel.rgb, vec3<f32>(0.299, 0.587, 0.114))), 0.8);"));
+        assert!(SHADER.contains("mix(texel.rgb, srgb_to_linear(hair_overlay), tint_strength)"));
+        assert!(SHADER.contains("dyed *= min(0.8 / max(max(dyed.r, max(dyed.g, dyed.b)), 0.0001), 1.0);"));
+        assert!(!SHADER.contains("linear_tint / tint_luma"));
         assert!(SHADER.contains(
             "if is_hair && (material.flags & MATERIAL_TEXTURE_TINT) != 0u { material_lift = 0.0; }"
         ));

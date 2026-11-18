@@ -601,6 +601,10 @@ def _dotnet_initial_material_parameters(
         material_category = str(overrides.get("material_category", "") or "").strip().casefold()
         if material_category:
             result["base_tint_metallic"] = material_category == "metal"
+    if tint_contract.hair_dye:
+        # A hair dye's strength is its colour's alpha whether or not the part
+        # has a representative colour; nothing rescues or replaces it.
+        result["base_tint_strength"] = tint_contract.base_tint_strength
     texture_tint = tint_contract.texture_tint
     if (
         len(texture_tint) < 3
