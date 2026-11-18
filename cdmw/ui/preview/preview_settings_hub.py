@@ -14,11 +14,11 @@ from typing import Mapping, Optional
 from PySide6.QtCore import QObject, QSettings, Signal
 from PySide6.QtWidgets import QApplication
 
-LIGHTING_PRESETS = ("neutral_studio", "showcase", "dark", "studio_fixed", "icon_studio")
+LIGHTING_PRESETS = ("neutral_studio", "showcase", "dark", "studio_fixed")
 
 #: name -> (settings key, default)
 GLOBAL_PREVIEW_SETTINGS: dict[str, tuple[str, object]] = {
-    "lighting_preset": ("preview/preview_lighting_preset", "neutral_studio"),
+    "lighting_preset": ("preview/preview_lighting_preset", "studio_fixed"),
     "shadows": ("preview/preview_shadows", True),
     "ambient_occlusion": ("preview/preview_ambient_occlusion", True),
     "ground": ("preview/preview_ground_visible", True),
@@ -58,7 +58,7 @@ def normalize_preview_settings(values: Mapping[str, object]) -> dict[str, object
         value = values[name]
         if name == "lighting_preset":
             text = str(value or "").strip().lower()
-            result[name] = text if text in LIGHTING_PRESETS else default
+            result[name] = "studio_fixed" if text == "icon_studio" else (text if text in LIGHTING_PRESETS else default)
         elif name == "view_mode":
             from cdmw.domain.preview_view_modes import shared_view_mode
 

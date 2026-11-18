@@ -618,9 +618,9 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
     def set_lighting_preset(self, preset: object) -> bool:
         """Choose lighting for this viewport only; shown as a local setting."""
 
-        normalized = str(preset or "neutral_studio").strip().lower()
-        if normalized not in {"neutral_studio", "showcase", "dark", "studio_fixed", "icon_studio"}:
-            normalized = "neutral_studio"
+        from cdmw.models import normalize_lighting_preset
+
+        normalized = normalize_lighting_preset(preset)
         return self.set_local_preview_setting(lighting_preset=normalized)
 
     def remember_side_by_side_split_ratio(self, ratio: Optional[float] = None) -> float:

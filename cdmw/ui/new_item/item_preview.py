@@ -739,10 +739,9 @@ class ItemPreviewFrame(QWidget):
         if preset is None:
             self._lighting_preset = None
         else:
-            normalized = str(preset or "neutral_studio").strip().lower()
-            self._lighting_preset = (
-                normalized if normalized in {"neutral_studio", "showcase", "dark", "studio_fixed", "icon_studio"} else "neutral_studio"
-            )
+            from cdmw.models import normalize_lighting_preset
+
+            self._lighting_preset = normalize_lighting_preset(preset)
         if self.host is not None:
             self._apply_lighting(self.host)
 

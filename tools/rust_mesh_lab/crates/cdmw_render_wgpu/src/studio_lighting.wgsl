@@ -1,5 +1,13 @@
 struct StudioTerms { diffuse: vec3<f32>, specular: vec3<f32>, };
 
+// The three lights' strength on every surface, and the room's fill on the
+// diffuse of non-metals: set against the game's item icons so dark cloth, fur
+// and leather read at the icons' lightness without a pale veil over colour.
+const STUDIO_LIGHT_GAIN: f32 = 1.3;
+const STUDIO_FILL_GAIN: f32 = 1.8;
+// How brightly the lit walls show in a metal reflection.
+const STUDIO_METAL_ROOM_GAIN: f32 = 1.8;
+
 fn fixed_studio_brdf(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, rough: f32, metal: f32, spec: f32, skin: bool) -> StudioTerms {
     let H = safe_normalize(V+L,N);
     let NV = max(dot(N,V),0.001);
@@ -27,8 +35,10 @@ fn fixed_studio_lighting(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, T: vec3<f32>,
     var result = StudioTerms(vec3(0.0),vec3(0.0));
     for (var i = 0u; i < 3u; i++) {
         let light = fixed_studio_brdf(C,N,V,directions[i],rough,metal,spec,skin);
-        result.diffuse += light.diffuse*colours[i];
-        result.specular += light.specular*colours[i];
+        result.diffuse += light.diffuse*colours[i]*STUDIO_LIGHT_GAIN;
+        // Hair, fur and feather cards take their highlight from the strand band
+        // below; a light's own white highlight on a card greys a saturated dye.
+        result.specular += light.specular*colours[i]*STUDIO_LIGHT_GAIN*select(1.0,0.3,hair);
     }
     let sky = clamp(N.y*0.5+0.5,0.0,1.0);
     let ambient = mix(vec3(0.20,0.18,0.16),vec3(0.55,0.62,0.73),sky);
@@ -42,7 +52,7 @@ fn fixed_studio_lighting(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, T: vec3<f32>,
     let up = clamp(R.y*0.5+0.5,0.0,1.0);
     var refl = mix(
         mix(vec3(0.13,0.12,0.11),vec3(0.40,0.46,0.56),up),
-        mix(vec3(0.20,0.18,0.16),vec3(0.55,0.62,0.73),up)+vec3(0.285,0.275,0.268),
+        mix(vec3(0.20,0.18,0.16),vec3(0.55,0.62,0.73),up)+vec3(0.285,0.275,0.268)*STUDIO_METAL_ROOM_GAIN,
         clamp(metal,0.0,1.0));
     let blur = max(rough*rough,0.03);
     let lobe = pow(clamp(dot(R,normalize(vec3(-0.4,0.8,-0.6))),0.0,1.0),2.0/max(blur,0.02));
@@ -55,7 +65,7 @@ fn fixed_studio_lighting(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, T: vec3<f32>,
     let grazing = mix(F0,max(vec3(1.0-rough),F0),pow(1.0-NV,5.0))*(1.0-rough*0.35);
     let environment_specular = refl*mix(environment_brdf_approx(vec3(0.04*spec),rough,NV),grazing,clamp(metal,0.0,1.0));
     let env_scale = 0.7*mix(0.4,1.0,occlusion);
-    result.diffuse += C*(1.0-metal)*ambient*env_scale;
+    result.diffuse += C*(1.0-metal)*ambient*env_scale*STUDIO_FILL_GAIN;
     // Hair, fur and feather cards take their highlight from the strand band below;
     // the white reflection of the room would grey a saturated dye.
     result.specular += environment_specular*select(1.0,0.3,skin || hair)*env_scale;

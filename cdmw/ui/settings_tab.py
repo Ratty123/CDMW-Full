@@ -1929,9 +1929,13 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.language_combo.blockSignals(False)
 
     def _read_model_preview_render_settings(self) -> ModelPreviewRenderSettings:
-        from cdmw.ui.archive_browser.preview_settings_migration import migrate_textures_on_by_default
+        from cdmw.ui.archive_browser.preview_settings_migration import (
+            migrate_lighting_to_studio,
+            migrate_textures_on_by_default,
+        )
 
         migrate_textures_on_by_default(self.settings)
+        migrate_lighting_to_studio(self.settings)
         defaults = clamp_model_preview_render_settings()
         return clamp_model_preview_render_settings(
             ModelPreviewRenderSettings(

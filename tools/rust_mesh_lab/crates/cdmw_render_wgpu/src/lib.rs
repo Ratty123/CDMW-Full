@@ -1665,6 +1665,11 @@ impl LightingPreset {
         Self::IconStudio,
     ];
 
+    /// The presets a viewport offers. Game icon studio stays readable by id for
+    /// the icon audits, but is retired from the menus: Studio (fixed lights)
+    /// is the default and is tuned against the game's icons.
+    pub const MENU: [Self; 4] = [Self::StudioFixed, Self::NeutralStudio, Self::Showcase, Self::Dark];
+
     /// The id CDMW stores in its shared Preview settings.
     #[must_use]
     pub const fn id(self) -> &'static str {

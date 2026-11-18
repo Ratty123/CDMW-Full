@@ -2702,7 +2702,7 @@ impl LabApplication {
             ground_visible: true,
             ground_grid: true,
             shared_preview_settings: None,
-            lighting_preset: cdmw_render_wgpu::LightingPreset::NeutralStudio,
+            lighting_preset: cdmw_render_wgpu::LightingPreset::StudioFixed,
             show_bones: false,
             deformation_heatmap_enabled: true,
             deformation_heatmap_applied: true,
@@ -5358,7 +5358,7 @@ impl LabApplication {
                     .width(ui.available_width())
                     .selected_text(crate::localization::tr(self.lighting_preset.label()))
                     .show_ui(ui, |ui| {
-                        for preset in cdmw_render_wgpu::LightingPreset::ALL {
+                        for preset in cdmw_render_wgpu::LightingPreset::MENU {
                             ui.selectable_value(&mut self.lighting_preset, preset, crate::localization::tr(preset.label()));
                         }
                     });

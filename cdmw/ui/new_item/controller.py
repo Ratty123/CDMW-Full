@@ -252,9 +252,9 @@ class NewItemStudioController(
     def set_preview_lighting_preset(self, preset: object) -> None:
         """Share a renderer-only lighting choice across this Studio session."""
 
-        normalized = str(preset or "neutral_studio").strip().lower()
-        if normalized not in {"neutral_studio", "showcase", "dark", "studio_fixed", "icon_studio"}:
-            normalized = "neutral_studio"
+        from cdmw.models import normalize_lighting_preset
+
+        normalized = normalize_lighting_preset(preset)
         if normalized == self.preview_lighting_preset:
             return
         self.preview_lighting_preset = normalized

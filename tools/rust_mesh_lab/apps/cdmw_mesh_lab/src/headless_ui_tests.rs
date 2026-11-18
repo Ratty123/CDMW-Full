@@ -612,11 +612,12 @@ fn lighting_depth_controls_toggle_without_editing_mesh() -> TestResult {
         ui.application.lighting_depth.shadows && ui.application.lighting_depth.ambient_occlusion
     );
     ui.click_tool_button("Viewport")?;
-    ui.click("Neutral studio")?;
+    // Studio (fixed lights) is the default; the menu offers the others.
     ui.click("Studio (fixed lights)")?;
+    ui.click("Showcase")?;
     assert_eq!(
         ui.application.lighting_preset,
-        cdmw_render_wgpu::LightingPreset::StudioFixed
+        cdmw_render_wgpu::LightingPreset::Showcase
     );
     ui.click("Shadows")?;
     assert!(!ui.application.lighting_depth.shadows);
