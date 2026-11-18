@@ -91,7 +91,12 @@ fn reference_pieces_inspector_switch_and_view_do_not_edit_geometry() -> TestResu
     // The UI harness records actions; the application's handler sends the owned index.
     ui.application
         .handle_actions(vec![UiAction::SwitchItemPiece(1)]);
-    let message = messages.recv_timeout(std::time::Duration::from_secs(1))?;
+    // The command list may be published again first (its availability follows the
+    // selection); the switch is the first other message.
+    let mut message = messages.recv_timeout(std::time::Duration::from_secs(1))?;
+    while message["event"] == "commands_state" {
+        message = messages.recv_timeout(std::time::Duration::from_secs(1))?;
+    }
     assert_eq!(message["event"], "switch_item_piece");
     assert_eq!(message["index"], 1);
     assert_eq!(message["session_id"], "set");

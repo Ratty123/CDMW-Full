@@ -67,6 +67,12 @@ struct CameraUniform {
     camera_up: vec4<f32>,
     scene_model: mat4x4<f32>,
     scene_normal: mat4x4<f32>,
+    // Material inspection only. xyz: direction to a key light fixed in the
+    // scene, used when w > 0.5; otherwise the key light follows the camera.
+    preview_light: vec4<f32>,
+    // x: key light strength for that light. y: veil net spacing factor for the
+    // game's screen size (0 keeps the 2560x1440 factor).
+    preview_settings: vec4<f32>,
 };
 
 struct VertexOut {
@@ -430,6 +436,17 @@ fn neutral_surface(normal: vec3<f32>, front_facing: bool) -> vec3<f32> {
     return vec3<f32>(0.56, 0.58, 0.62) * shade * select(1.0, 0.025, camera.lighting_preset == 2u);
 }
 
+// The Ver2 veil's detail UV from the shipped pixel shader: about the UV centre,
+// the offset is removed (Y is added), the result divided by the scale and
+// rotated. Lanes 17-21 hold scale X, scale Y, offset X, offset Y and the angle.
+fn veil_detail_uv(uv: vec2<f32>) -> vec2<f32> {
+    let q = vec2<f32>((uv.x - 0.5 - shader_value(19u)) / max(shader_value(17u), 0.00001),
+                      (uv.y - 0.5 + shader_value(20u)) / max(shader_value(18u), 0.00001));
+    let c = cos(shader_value(21u));
+    let s = sin(shader_value(21u));
+    return vec2<f32>(q.x * c - q.y * s + 0.5, q.x * s + q.y * c + 0.5);
+}
+
 // veilNetCoverage from the shipped SkinnedMeshTransparency pixel shader: a
 // hexagonal thread net in UV space, box-filtered over the pixel footprint and
 // faded to its mean coverage once a cell approaches pixel size.
@@ -680,28 +697,53 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             let path = 1.0 + shader_value(5u) * (1.0 / max(abs(layer_ndotv), 0.01) - 1.0);
             material_alpha = clamp(1.0 - exp(path * log(max(1.0 - straight, 1e-6))), 0.0, 1.0);
         } else {
-            // The veil samples its colour map without sRGB decoding.
-            let dye = srgb_to_linear(vec3<f32>(shader_value(9u), shader_value(10u), shader_value(11u)));
-            texel = vec4<f32>(linear_to_srgb(texel.rgb) * dye, texel.a);
+            // Lane 15 marks the veil with Ver2 detail layers (November 2026 patch).
+            let veil_layers = shader_value(15u) > 0.5;
+            if !veil_layers {
+                // The veil before the patch samples its colour map without sRGB decoding.
+                let dye = srgb_to_linear(vec3<f32>(shader_value(11u), shader_value(12u), shader_value(13u)));
+                texel = vec4<f32>(linear_to_srgb(texel.rgb) * dye, texel.a);
+            }
             let uv_dx = dpdx(sample_uv);
             let uv_dy = dpdy(sample_uv);
             var thread_scale = 1.0;
-            if (material.flags & MATERIAL_HEIGHT) != 0u {
+            if veil_layers {
+                // thread = _netThread x 0.0003 x (Hbase + Hdetail) x _screenSpaceDisplacementScale.
+                // Hdetail = opacity x mask x detail height (its own UV) x _detailScreenSpaceDisplacementScale.
+                if (material.flags & MATERIAL_HEIGHT) != 0u {
+                    thread_scale = textureSample(height_texture, material_sampler, sample_uv).r;
+                }
+                if shader_has_mask {
+                    thread_scale += shader_value(16u) * shader_value(10u)
+                        * textureSample(skin_detail_mask_texture, material_sampler, veil_detail_uv(sample_uv)).r;
+                }
+                thread_scale *= shader_value(9u);
+            } else if (material.flags & MATERIAL_HEIGHT) != 0u {
                 thread_scale = textureSample(height_texture, material_sampler, sample_uv / max(shader_value(8u), 0.0001)).r;
             }
             let back = layer_ndotv < 0.0;
             // Game spacing is pitch x 0.0015 x 2 sqrt(3840 x 2160 / pixels); the
             // preview fixes 2560x1440 (factor 3). Thread width does not scale.
-            let pitch = max(shader_value(4u) * 0.0015, 0.0001) * 3.0;
-            let thread = shader_value(5u) * 0.0003 * thread_scale * select(1.0, 4.0, back);
+            let pitch = max(shader_value(4u) * 0.0015, 0.0001)
+                * select(3.0, camera.preview_settings.y, camera.preview_settings.y > 0.0);
+            var thread = shader_value(5u) * 0.0003 * thread_scale * select(1.0, 4.0, back);
+            if veil_layers {
+                thread = min(thread, pitch);
+            }
             let coverage = min(veil_net_coverage(sample_uv, uv_dx, uv_dy, pitch, thread), 0.999);
             let facing = max(abs(layer_ndotv), 0.08);
             let slant = clamp(1.0 - facing * facing, 0.0, 1.0);
             let path = (1.0 - (0.16302 * slant + 0.2) * slant) / facing;
-            layered_colour_coverage = clamp(shader_value(12u) * base_alpha * (1.0 - exp(path * log(1.0 - coverage))), 0.0, 1.0);
-            // Colour is premultiplied by coverage, blend alpha by 30% (front) or
-            // 70% (back) of it, so a veil lightens more than it hides.
-            material_alpha = layered_colour_coverage * select(0.2998046875, 0.7001953125, back);
+            if veil_layers {
+                // C = coverage x overlay alpha; colour is premultiplied by C, blend alpha is C x 0.99.
+                layered_colour_coverage = clamp(shader_value(22u) * (1.0 - exp(path * log(1.0 - coverage))), 0.0, 1.0);
+                material_alpha = layered_colour_coverage * 0.99;
+            } else {
+                layered_colour_coverage = clamp(shader_value(14u) * base_alpha * (1.0 - exp(path * log(1.0 - coverage))), 0.0, 1.0);
+                // Colour is premultiplied by coverage, blend alpha by 30% (front) or
+                // 70% (back) of it, so a veil lightens more than it hides.
+                material_alpha = layered_colour_coverage * select(0.2998046875, 0.7001953125, back);
+            }
         }
     }
     var eye_surface_alpha = 1.0;
@@ -1058,10 +1100,16 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     let view_direction = safe_normalize(camera.view_direction.xyz, vec3<f32>(0.0, 0.0, -1.0));
     let camera_right = safe_normalize(camera.camera_right.xyz, vec3<f32>(1.0, 0.0, 0.0));
     let camera_up = safe_normalize(camera.camera_up.xyz, vec3<f32>(0.0, 1.0, 0.0));
-    let key_direction = safe_normalize(
+    var key_direction = safe_normalize(
         view_direction - camera_right * select(0.18, 0.72, neutral_studio)
             + camera_up * select(0.35, 0.72, neutral_studio),
         view_direction);
+    let placed_light = camera.preview_light.w > 0.5;
+    var key_strength = 1.0;
+    if placed_light {
+        key_direction = safe_normalize(camera.preview_light.xyz, key_direction);
+        key_strength = max(camera.preview_settings.x, 0.0);
+    }
     let fill_direction = safe_normalize(
         view_direction + camera_right * select(0.35, 0.55, neutral_studio)
             + camera_up * select(0.45, 0.20, neutral_studio),
@@ -1069,7 +1117,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     let key_half_vector = safe_normalize(key_direction + view_direction, view_direction);
     let key_shadow = shadow_visibility(input.world_position, surface_normal);
     let fill_half_vector = safe_normalize(fill_direction + view_direction, view_direction);
-    let key_light = wrapped_ndotl(surface_normal, key_direction, select(0.58, 0.15, neutral_studio));
+    let key_light = wrapped_ndotl(surface_normal, key_direction, select(0.58, 0.15, neutral_studio)) * key_strength;
     let fill_light = wrapped_ndotl(surface_normal, fill_direction, select(0.82, 0.40, neutral_studio));
     let ndotv = clamp(dot(surface_normal, view_direction), 0.0, 1.0);
     let rim_light = pow(1.0 - ndotv, 2.0);
@@ -1545,7 +1593,13 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             return present(max(lit - shine, vec3<f32>(0.0)) * material_alpha + shine, material_alpha);
         }
         // Approximate veil lighting: sheen and backlight glow both rise at grazing angles.
-        let veil_light = material_reference_albedo * rim_light * (shader_value(7u) * 0.5 + shader_value(6u) * 0.35);
+        var veil_light = material_reference_albedo * rim_light * (shader_value(7u) * 0.5 + shader_value(6u) * 0.35);
+        if placed_light {
+            // Backlight glow gathers transmitted light toward the eye: it shows
+            // only with the light behind the cloth. An approximation.
+            let behind = clamp(-dot(key_direction, view_direction), 0.0, 1.0);
+            veil_light += material_reference_albedo * shader_value(6u) * behind * behind * key_strength * 0.9;
+        }
         let lit = workbench_tone((diffuse + environment_diffuse + veil_light) * light_scale + reflection, exposure);
         return present(lit * layered_colour_coverage, material_alpha);
     }
@@ -1785,6 +1839,8 @@ struct CameraUniform {
     camera_up: [f32; 4],
     scene_model: [[f32; 4]; 4],
     scene_normal: [[f32; 4]; 4],
+    preview_light: [f32; 4],
+    preview_settings: [f32; 4],
 }
 
 #[repr(C)]
@@ -1850,6 +1906,8 @@ impl CameraUniform {
             camera_up: [0.0, 1.0, 0.0, 0.0],
             scene_model: Mat4::IDENTITY.to_cols_array_2d(),
             scene_normal: Mat4::IDENTITY.to_cols_array_2d(),
+            preview_light: [0.0; 4],
+            preview_settings: [1.0, 0.0, 0.0, 0.0],
         }
     }
 }
@@ -4187,6 +4245,32 @@ impl WindowRenderer {
         );
     }
 
+    /// Direction to the camera, camera right and camera up, as last set.
+    pub fn camera_basis(&self) -> [[f32; 3]; 3] {
+        let axis = |value: [f32; 4]| [value[0], value[1], value[2]];
+        [axis(self.camera_uniform.view_direction), axis(self.camera_uniform.camera_right), axis(self.camera_uniform.camera_up)]
+    }
+
+    /// Material inspection: a key light fixed in the scene instead of one that
+    /// follows the camera, and the screen size the veil's net spacing assumes.
+    /// `light` is the direction to the light and its strength; `None` restores
+    /// the camera light. `veil_spacing_factor` 0 keeps the 2560x1440 spacing.
+    pub fn set_material_inspection(&mut self, light: Option<([f32; 3], f32)>, veil_spacing_factor: f32) {
+        let (preview_light, strength) = match light {
+            Some((direction, strength)) if direction.iter().any(|axis| axis.abs() > 1.0e-6) => {
+                ([direction[0], direction[1], direction[2], 1.0], strength.clamp(0.0, 4.0))
+            }
+            _ => ([0.0; 4], 1.0),
+        };
+        let preview_settings = [strength, veil_spacing_factor.clamp(0.0, 16.0), 0.0, 0.0];
+        if self.camera_uniform.preview_light == preview_light && self.camera_uniform.preview_settings == preview_settings {
+            return;
+        }
+        self.camera_uniform.preview_light = preview_light;
+        self.camera_uniform.preview_settings = preview_settings;
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&self.camera_uniform));
+    }
+
     pub fn set_overlays(&mut self, show_normals: bool, show_bounds: bool) {
         self.show_normals = show_normals;
         self.show_bounds = show_bounds;
@@ -5349,8 +5433,15 @@ fn validate_material_factor_ownership(
         // Layered glass: opacity, edge, roughness, IOR 1-2.5, RGB and colour alpha.
         || (v[0] == 10.0 && (v[4..7].iter().chain(&v[8..12]).any(|n| !(0.0..=1.0).contains(n))
             || !(1.0..=2.5).contains(&v[7])))
-        // Veil: pitch, thread, glow, sheen, map scale, RGB and colour alpha.
-        || (v[0] == 11.0 && v[4..13].iter().any(|n| !(0.0..=1.0).contains(n)))
+        // Veil: pitch, thread, glow, sheen, map scale, two displacement scales,
+        // RGB and colour alpha. With Ver2 detail layers: on, opacity x mask, UV
+        // scale and offset, rotation, overlay alpha.
+        || (v[0] == 11.0 && (v[4..9].iter().chain(&v[11..15]).any(|n| !(0.0..=1.0).contains(n))
+            || v[9..11].iter().any(|n| !(0.0..=4.0).contains(n))
+            || !matches!(v[15], 0.0 | 1.0)
+            || (v[15] == 1.0 && ([v[16], v[19], v[20], v[22]].iter().any(|n| !(0.0..=1.0).contains(n))
+                || v[17..19].iter().any(|n| *n <= 0.0 || *n > 1.0)
+                || v[21].abs() > std::f32::consts::PI + 1e-5))))
         || (v[0] == 7.0 && (!(0.0..=1.0).contains(&v[4])
             || v[5..9].iter().any(|n| *n != -1.0 && !(0.0..=1.0).contains(n))))
         || (matches!(v[0] as u32, 8 | 9) && (!(0.0..=1.0).contains(&v[4])
@@ -10932,24 +11023,12 @@ fn create_material_bind_group(
         .is_some_and(|v| matches!(v[0] as u32, 10 | 11));
     let translucency = material_translucency_uniform(factors);
     let translucent = translucency[2] > 0.5 && !eye_cover;
-    let skin_detail_mask_view = material_texture_view(
-        textures,
-        if effect {
-            indices.shader_mask
-        } else {
-            indices.skin_detail_mask
-        },
-        &defaults.layer_mask,
-    );
-    let skin_detail_normal_view = material_texture_view(
-        textures,
-        if effect {
-            indices.shader_normal
-        } else {
-            indices.skin_detail_normal
-        },
-        &defaults.normal,
-    );
+    // The veil with Ver2 detail layers (lane 15) reads its detail height from the mask slot.
+    let veil_layers = factors.shader_controls.is_some_and(|v| v[0] == 11.0 && v[15] > 0.5);
+    let skin_detail_mask_view = material_texture_view(textures,
+        if effect || veil_layers { indices.shader_mask } else { indices.skin_detail_mask }, &defaults.layer_mask);
+    let skin_detail_normal_view =
+        material_texture_view(textures, if effect { indices.shader_normal } else { indices.skin_detail_normal }, &defaults.normal);
     let skin_detail_material_view =
         material_texture_view(textures, indices.skin_detail_material, &defaults.surface);
     let mut flags = 0;
@@ -11046,21 +11125,10 @@ fn create_material_bind_group(
         emission_reveal: factors.emission_reveal.unwrap_or([0.0, 1.0, 0.0, -1.0]),
         shader_controls: {
             let mut values = factors.shader_controls.unwrap_or([0.0; 32]);
-            values[3] = if effect && indices.shader_mask.is_some() {
-                1.0
-            } else {
-                0.0
-            };
-            values[31] = if effect && indices.shader_normal.is_some() {
-                1.0
-            } else {
-                0.0
-            };
-            if layered
-                && factors.gltf_metallic_roughness == Some(true)
-                && factors.alpha_blend != Some(true)
-                && factors.alpha_cutoff.is_none()
-            {
+            values[3] = if (effect || veil_layers) && indices.shader_mask.is_some() { 1.0 } else { 0.0 };
+            values[31] = if effect && indices.shader_normal.is_some() { 1.0 } else { 0.0 };
+            if layered && factors.gltf_metallic_roughness == Some(true)
+                && factors.alpha_blend != Some(true) && factors.alpha_cutoff.is_none() {
                 // Plain PBR export writes glTF OPAQUE base colour with solid alpha.
                 values[1] = 0.0;
             }
@@ -12405,9 +12473,27 @@ mod tests {
     }
 
     #[test]
+    fn the_surface_shader_parses_and_validates() {
+        // Runs without a GPU, so a WGSL mistake fails here instead of at first launch.
+        // The template is checked as the renderer assembles it, with and without the
+        // GPU layer functions and the depth passes.
+        for (layers, depth) in [(true, true), (false, false)] {
+            let source = material_layers::assembled_shader(layers, depth);
+            let module = wgpu::naga::front::wgsl::parse_str(&source).expect("WGSL parses");
+            wgpu::naga::valid::Validator::new(wgpu::naga::valid::ValidationFlags::all(), wgpu::naga::valid::Capabilities::all())
+                .validate(&module).expect("WGSL validates");
+        }
+    }
+
+    #[test]
     fn camera_uniform_matches_the_wgsl_scalar_padding_contract() {
-        assert_eq!(std::mem::size_of::<CameraUniform>(), 288);
+        assert_eq!(std::mem::size_of::<CameraUniform>(), 320);
         let uniform = CameraUniform::new(true);
+        // The default leaves the camera-following light and the 1440p veil spacing.
+        assert_eq!(uniform.preview_light, [0.0; 4]);
+        assert_eq!(uniform.preview_settings, [1.0, 0.0, 0.0, 0.0]);
+        assert!(SHADER.contains("select(3.0, camera.preview_settings.y, camera.preview_settings.y > 0.0)"));
+        assert!(SHADER.contains("if placed_light {"));
         assert_eq!(uniform.output_is_srgb, 1);
         assert_eq!(uniform.lighting_preset, 0);
         assert_eq!(uniform.view_direction, [0.0, 0.0, -1.0, 0.0]);
@@ -12630,9 +12716,7 @@ mod tests {
             10.0, 1.0, 0.0, 0.0, 0.267, 0.191, 0.087, 1.68, 0.933, 0.949, 0.937, 0.843,
         ]);
         let mut veil = [0.0; 32];
-        veil[..13].copy_from_slice(&[
-            11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 0.851, 0.851, 0.851, 1.0,
-        ]);
+        veil[..15].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.3, 0.727, 0.516, 0.901, 0.27, 1.0, 0.0, 0.851, 0.851, 0.851, 1.0]);
         for controls in [glass, veil] {
             let factors = MaterialPreviewFactors {
                 shader_controls: Some(controls),
@@ -12658,6 +12742,26 @@ mod tests {
             };
             assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
         }
+        // The veil with Ver2 detail layers, as Python lays out the patched wedding veil.
+        let mut layered = [0.0; 32];
+        layered[..23].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.142, 0.275, 0.516, 0.901, 1.0, 1.0, 1.732051,
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 45.0 / 255.0, 45.0 / 255.0, 0.0, 0.0, -std::f32::consts::PI, 1.0]);
+        let factors = MaterialPreviewFactors { shader_controls: Some(layered), ..Default::default() };
+        assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
+        for (index, value) in [(15, 0.5), (9, 4.5), (10, -0.1), (16, 1.1), (17, 0.0), (18, 1.5), (20, -0.2),
+                               (21, 3.3), (22, 1.2)] {
+            let mut invalid = layered;
+            invalid[index] = value;
+            let factors = MaterialPreviewFactors { shader_controls: Some(invalid), ..Default::default() };
+            assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err(), "lane {index}");
+        }
+        // Without the marker the remaining lanes are not read, as before the patch.
+        assert!(SHADER.contains("let veil_layers = shader_value(15u) > 0.5;"));
+        assert!(SHADER.contains("fn veil_detail_uv("));
+        assert!(SHADER.contains("(uv.y - 0.5 + shader_value(20u))"));
+        assert!(SHADER.contains("q.x * c - q.y * s + 0.5, q.x * s + q.y * c + 0.5"));
+        assert!(SHADER.contains("material_alpha = layered_colour_coverage * 0.99;"));
+        assert!(SHADER.contains("thread_scale *= shader_value(9u);"));
         assert!(SHADER.contains("fn veil_net_coverage("));
     }
 

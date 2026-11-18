@@ -424,6 +424,7 @@ pub(crate) enum ShortcutAction {
     SubtractModifier,
     FrameSelected,
     FrameAll,
+    ToggleSelectionHighlight,
     ViewFront,
     ViewBack,
     ViewRight,
@@ -673,6 +674,8 @@ pub(crate) const SHORTCUTS: &[ShortcutSpec] = &[
         &["F", "NumDecimal"],
     ),
     spec(A::FrameAll, "camera.fit", G::View, S::Global, &["Home"]),
+    // Free next to the tool keys: G/R/S move, rotate and scale, Shift+G/W/S sculpt.
+    spec(A::ToggleSelectionHighlight, "view.selection_highlight", G::View, S::Global, &["Shift+H"]),
     spec(A::ViewFront, "camera.front", G::View, S::Global, &["Num1"]),
     spec(
         A::ViewBack,

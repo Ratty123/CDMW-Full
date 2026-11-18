@@ -1642,6 +1642,92 @@ fn material_audit_file_evidence(path: &Path, output_root: &Path) -> Result<Value
     }))
 }
 
+/// Where the inspection light sits, chosen relative to the view when picked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum LightPlacement {
+    /// The renderer's own light, which follows the camera.
+    #[default]
+    Camera,
+    Front,
+    Side,
+    Behind,
+    Above,
+}
+
+impl LightPlacement {
+    pub(crate) const ALL: [(Self, &'static str); 5] = [
+        (Self::Camera, "Follow camera"), (Self::Front, "Front"), (Self::Side, "Side"),
+        (Self::Behind, "Behind"), (Self::Above, "Above"),
+    ];
+
+    /// Direction to the light from the camera basis (`toward` points at the camera).
+    fn direction(self, toward: [f32; 3], right: [f32; 3], up: [f32; 3]) -> Option<[f32; 3]> {
+        let mix = |a: f32, b: f32, c: f32| {
+            let v = [0, 1, 2].map(|i| toward[i] * a + right[i] * b + up[i] * c);
+            let length = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+            (length > 1.0e-6).then(|| v.map(|axis| axis / length))
+        };
+        match self {
+            Self::Camera => None,
+            Self::Front => mix(1.0, 0.0, 0.25),
+            Self::Side => mix(0.15, 1.0, 0.2),
+            // Slightly raised so the cloth edge catches it, as a low sun would.
+            Self::Behind => mix(-1.0, 0.0, 0.3),
+            Self::Above => mix(0.15, 0.0, 1.0),
+        }
+    }
+}
+
+/// The screen size the game's veil net spacing is computed for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum VeilScreen {
+    Hd1080,
+    #[default]
+    Qhd1440,
+    Uhd2160,
+}
+
+impl VeilScreen {
+    pub(crate) const ALL: [(Self, &'static str); 3] = [
+        (Self::Hd1080, "1920 x 1080"), (Self::Qhd1440, "2560 x 1440"), (Self::Uhd2160, "3840 x 2160"),
+    ];
+
+    /// 2 * sqrt(3840 * 2160 / pixels), the game's factor on `_netPitch`; 0 keeps the renderer default.
+    fn spacing_factor(self) -> f32 {
+        match self {
+            Self::Hd1080 => 4.0,
+            Self::Qhd1440 => 0.0,
+            Self::Uhd2160 => 2.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct MaterialInspection {
+    /// Hide the selection fill while the shader inspector is open.
+    pub(crate) hide_selection: bool,
+    pub(crate) placement: LightPlacement,
+    /// Scene-space direction to the placed light; `None` follows the camera.
+    pub(crate) light: Option<[f32; 3]>,
+    pub(crate) light_strength: f32,
+    pub(crate) veil_screen: VeilScreen,
+}
+
+impl Default for MaterialInspection {
+    fn default() -> Self {
+        Self { hide_selection: true, placement: LightPlacement::Camera, light: None, light_strength: 1.0,
+               veil_screen: VeilScreen::Qhd1440 }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum MaterialInspectionChange {
+    HideSelection(bool),
+    Light(LightPlacement),
+    LightStrength(f32),
+    VeilScreen(VeilScreen),
+}
+
 #[derive(Debug, Clone)]
 enum UiAction {
     OpenArchive,
@@ -1723,6 +1809,20 @@ enum UiAction {
         params: Value,
     },
     SetPartSelection(Vec<u32>),
+    /// Draw these parts with uncommitted shader factors; `None` returns a part to its saved state.
+    CdmwShaderPreview(Vec<(u32, Option<[f32; 32]>)>),
+    /// Viewport backdrop only; see-through materials read very differently against light and dark.
+    SetViewportBackground(Color32),
+    /// Show or hide the selection tint; the selection is unchanged.
+    SetSelectionHighlightHidden(bool),
+    /// Viewport-only aids for judging a material; never part of the model or its export.
+    MaterialInspection(MaterialInspectionChange),
+    /// Ask for a texture file, then hand it to the host with the panel's current controls.
+    ChooseCdmwShaderTexture {
+        part_ids: Value,
+        controls: Value,
+        parameter: String,
+    },
     SelectIslands(Vec<(u32, Vec<u32>)>),
     SelectIsland {
         part: u32,
@@ -1743,6 +1843,36 @@ enum UiAction {
         indices: Vec<u32>,
         visible: bool,
     },
+}
+
+/// A replacement texture's source file, reloaded when an image editor saves it again.
+#[derive(Debug, Clone)]
+struct WatchedShaderTexture {
+    part_ids: Value,
+    parameter: String,
+    path: PathBuf,
+    /// Modification time and size when last seen.
+    stamp: Option<(std::time::SystemTime, u64)>,
+    /// When a change was first seen; the reload waits until the file rests.
+    changed_at: Option<std::time::Instant>,
+}
+
+/// Editors write large images in pieces; reload once the file has stopped changing.
+const TEXTURE_RELOAD_SETTLE: std::time::Duration = std::time::Duration::from_millis(600);
+
+fn file_stamp(path: &Path) -> Option<(std::time::SystemTime, u64)> {
+    let metadata = std::fs::metadata(path).ok()?;
+    Some((metadata.modified().ok()?, metadata.len()))
+}
+
+/// The host stores the file and names it in these parts' shader controls.
+fn cdmw_shader_texture_action(part_ids: Value, controls: Value, parameter: &str, path: &Path) -> UiAction {
+    UiAction::CdmwCommand {
+        command: "replacement_shader_controls",
+        arguments: json!({"part_ids": part_ids, "shader_controls": controls,
+            "texture_files": {parameter: path.to_string_lossy()}}),
+        label: "Replace shader texture",
+    }
 }
 
 fn cdmw_import_editable_package_action(path: &Path) -> UiAction {
@@ -1768,6 +1898,10 @@ impl UiAction {
                 | Self::StandardView(_)
                 | Self::OrbitMode
                 | Self::OrbitYaw(_)
+                | Self::CdmwShaderPreview(_)
+                | Self::SetViewportBackground(_)
+                | Self::SetSelectionHighlightHidden(_)
+                | Self::MaterialInspection(_)
         )
     }
 
@@ -2217,6 +2351,41 @@ fn deformation_reference_for_snapshot<'a>(
     reference?.positions_for_snapshot(visible_submeshes, snapshot)
 }
 
+/// The host's material presentations with the inspector's uncommitted shader
+/// factors laid over the parts being edited on the active LOD.
+fn cdmw_live_material_factors(
+    presentations: &[SessionMaterialPresentation],
+    live: &BTreeMap<u32, [f32; 32]>,
+    lod_count: usize,
+    lod: usize,
+) -> Result<Vec<cdmw_render_wgpu::OwnedMaterialFactors>, cdmw_render_wgpu::RenderError> {
+    let authored = presentations
+        .iter()
+        .map(|presentation| {
+            (
+                cdmw_material_preview_factors(presentation),
+                cdmw_material_ownership(presentation, lod_count),
+            )
+        })
+        .collect::<Vec<_>>();
+    let overrides = live
+        .iter()
+        .filter(|_| lod < lod_count)
+        .map(|(part, factors)| {
+            let mut ownership = vec![Vec::new(); lod_count];
+            ownership[lod].push(*part);
+            (
+                MaterialPreviewFactors {
+                    shader_controls: Some(*factors),
+                    ..MaterialPreviewFactors::default()
+                },
+                ownership,
+            )
+        })
+        .collect::<Vec<_>>();
+    cdmw_render_wgpu::preview_material_factors(&authored, &overrides, lod)
+}
+
 fn cdmw_material_ownership(
     presentation: &SessionMaterialPresentation,
     lod_count: usize,
@@ -2398,6 +2567,19 @@ struct LabApplication {
     cdmw_hidden_parts: HashSet<u32>,
     cdmw_hidden_islands: Vec<cdmw_islands::HiddenIsland>,
     cdmw_material_presentations: Vec<SessionMaterialPresentation>,
+    /// Inspector slider values shown before the host has committed them, keyed by
+    /// active-LOD part index. Never exported: the host's presentations stay authoritative.
+    cdmw_shader_live_preview: BTreeMap<u32, [f32; 32]>,
+    /// A path to use instead of opening the file dialog; taken by the next texture pick.
+    cdmw_shader_texture_pick: Option<PathBuf>,
+    /// Replacement texture files to send again when they are saved; this session only.
+    cdmw_shader_texture_watch: Vec<WatchedShaderTexture>,
+    /// Viewport-only aids of the shader inspector.
+    material_inspection: MaterialInspection,
+    /// Set while the shader inspector is drawn; read and cleared by the viewport.
+    cdmw_shader_panel_shown: std::cell::Cell<bool>,
+    /// Bumped when a shader edit is rejected so the inspector reloads the saved values.
+    cdmw_shader_panel_epoch: u64,
     cdmw_material_key: String,
     cdmw_uploaded_texture_count: usize,
     /// The source hash of each material texture the renderer holds, in its order (step 8).
@@ -2427,6 +2609,8 @@ struct LabApplication {
     selection_domain: SelectionDomain,
     selection_operation: SelectionOperation,
     selection_visible_only: bool,
+    /// The selection tint is not drawn (a shortcut toggles it); the selection stays.
+    selection_highlight_hidden: bool,
     viewport_rect: Option<egui::Rect>,
     viewport_revision: u64,
     camera: OrbitCamera,
@@ -2665,6 +2849,12 @@ impl LabApplication {
             cdmw_hidden_parts: HashSet::new(),
             cdmw_hidden_islands: Vec::new(),
             cdmw_material_presentations: Vec::new(),
+            cdmw_shader_live_preview: BTreeMap::new(),
+            cdmw_shader_texture_pick: None,
+            cdmw_shader_texture_watch: Vec::new(),
+            material_inspection: MaterialInspection::default(),
+            cdmw_shader_panel_shown: std::cell::Cell::new(false),
+            cdmw_shader_panel_epoch: 0,
             cdmw_material_key: String::new(),
             cdmw_uploaded_texture_count: 0,
             cdmw_texture_sources: Vec::new(),
@@ -2692,6 +2882,7 @@ impl LabApplication {
             selection_domain: SelectionDomain::Vertex,
             selection_operation: SelectionOperation::Replace,
             selection_visible_only: true,
+            selection_highlight_hidden: false,
             viewport_rect: None,
             viewport_revision: 1,
             camera: OrbitCamera::default(),
@@ -3586,6 +3777,65 @@ impl LabApplication {
         }
     }
 
+    fn apply_material_inspection(&mut self, change: MaterialInspectionChange) {
+        match change {
+            MaterialInspectionChange::HideSelection(hide) => self.material_inspection.hide_selection = hide,
+            MaterialInspectionChange::LightStrength(strength) => self.material_inspection.light_strength = strength.clamp(0.0, 2.0),
+            MaterialInspectionChange::VeilScreen(screen) => self.material_inspection.veil_screen = screen,
+            MaterialInspectionChange::Light(placement) => {
+                // Placed relative to the view at this moment, then fixed in the
+                // scene: orbiting the camera afterwards moves around the light.
+                let [toward, right, up] = self.renderer.as_ref().map(|renderer| renderer.camera_basis())
+                    .unwrap_or([[0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]);
+                self.material_inspection.placement = placement;
+                self.material_inspection.light = placement.direction(toward, right, up);
+            }
+        }
+    }
+
+    fn set_cdmw_shader_live_preview(&mut self, changes: Vec<(u32, Option<[f32; 32]>)>) {
+        for (part, factors) in changes {
+            match factors {
+                Some(factors) => {
+                    self.cdmw_shader_live_preview.insert(part, factors);
+                }
+                None => {
+                    self.cdmw_shader_live_preview.remove(&part);
+                }
+            }
+        }
+        self.refresh_cdmw_material_factors();
+    }
+
+    fn clear_cdmw_shader_live_preview(&mut self) {
+        if !self.cdmw_shader_live_preview.is_empty() {
+            self.cdmw_shader_live_preview.clear();
+            self.refresh_cdmw_material_factors();
+        }
+    }
+
+    /// Replace only the renderer's material numbers. Geometry and textures stay
+    /// resident, so this is cheap enough to run on every slider movement.
+    fn refresh_cdmw_material_factors(&mut self) {
+        let lod_count = self.document.as_ref().map_or(0, |document| document.lods.len());
+        let lod = self.active_lod_index;
+        match cdmw_live_material_factors(
+            &self.cdmw_material_presentations,
+            &self.cdmw_shader_live_preview,
+            lod_count,
+            lod,
+        ) {
+            Ok(factors) => {
+                if let Some(renderer) = &mut self.renderer
+                    && let Err(error) = renderer.replace_material_factors(&factors, lod)
+                {
+                    self.status = format!("Shader preview failed: {error}");
+                }
+            }
+            Err(error) => self.status = format!("Shader preview failed: {error}"),
+        }
+    }
+
     fn submit_cdmw_command(&mut self, command: &str, arguments: Value, label: &str) {
         if self.cdmw_busy() {
             self.status = "Finish the pending CDMW operation before starting another".to_owned();
@@ -4056,6 +4306,13 @@ impl LabApplication {
             return;
         }
         self.cdmw_pending_request.take();
+        if matches!(label.as_str(), "Edit shader controls" | "Restore shader controls") {
+            // The host's answer replaces the live preview, whether it accepted the edit or not.
+            self.clear_cdmw_shader_live_preview();
+            if !ok {
+                self.cdmw_shader_panel_epoch = self.cdmw_shader_panel_epoch.wrapping_add(1);
+            }
+        }
         self.record_cdmw_refit_feedback(&label, ok, error, retain_refit_feedback);
         if label == "Place weapon preview" && !ok {
             self.reject_weapon_placement();
@@ -4418,6 +4675,9 @@ impl LabApplication {
         self.cdmw_material_layers = layers;
         self.cdmw_material_presentations = material_presentations;
         let materials_read_again = material_revision.is_some();
+        // Reinstalled materials are the saved state; any live preview is stale.
+        let stale_live_preview = !self.cdmw_shader_live_preview.is_empty();
+        self.cdmw_shader_live_preview.clear();
         if let Some((key, reason)) = material_revision {
             self.cdmw_material_key = key;
             self.cdmw_texture_package_reason = reason;
@@ -4447,6 +4707,10 @@ impl LabApplication {
         if materials_read_again {
             // A part reorder keeps CDMW's part numbers; new materials can change what shows.
             self.publish_cdmw_live_textures();
+        }
+        if stale_live_preview && reuse_materials {
+            // Retained renderer materials still hold the previewed numbers.
+            self.refresh_cdmw_material_factors();
         }
         self.camera = camera;
         if let Some(mesh) = &self.mesh {
@@ -5754,17 +6018,11 @@ impl LabApplication {
     fn handle_actions(&mut self, actions: Vec<UiAction>) {
         let _language = crate::localization::enter(&self.egui_context);
         if actions.iter().any(|action| match action {
-            UiAction::FrameAll
-            | UiAction::StandardView(_)
-            | UiAction::OrbitYaw(_)
-            | UiAction::OrbitMode => false,
-            UiAction::CdmwCommand {
-                command, arguments, ..
-            } if cdmw_request_origin(command, arguments)
-                == Some(CdmwRequestOrigin::WeaponPlacement) =>
-            {
-                false
-            }
+            UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode
+            | UiAction::CdmwShaderPreview(_) | UiAction::SetViewportBackground(_)
+            | UiAction::SetSelectionHighlightHidden(_) | UiAction::MaterialInspection(_) => false,
+            UiAction::CdmwCommand { command, arguments, .. }
+                if cdmw_request_origin(command, arguments) == Some(CdmwRequestOrigin::WeaponPlacement) => false,
             _ => true,
         }) && self.cdmw_jiggle.preview.scene.is_some()
         {
@@ -6201,6 +6459,16 @@ impl LabApplication {
                     arguments,
                     label,
                 } => self.submit_cdmw_command(command, arguments, label),
+                UiAction::CdmwShaderPreview(changes) => self.set_cdmw_shader_live_preview(changes),
+                UiAction::SetViewportBackground(colour) => self.viewport_background_colour = colour,
+                UiAction::SetSelectionHighlightHidden(hidden) => {
+                    self.selection_highlight_hidden = hidden;
+                    self.face_selection_overlay = None;
+                }
+                UiAction::MaterialInspection(change) => self.apply_material_inspection(change),
+                UiAction::ChooseCdmwShaderTexture { part_ids, controls, parameter } => {
+                    self.choose_cdmw_shader_texture(part_ids, controls, parameter)
+                }
                 UiAction::CdmwMeshAction {
                     action,
                     label,
@@ -6340,6 +6608,8 @@ impl LabApplication {
             return;
         }
         self.cancel_pending_lod();
+        // Live shader factors are keyed by the active LOD's part indices.
+        self.clear_cdmw_shader_live_preview();
         if target_index >= self.lod_sessions.len() {
             self.status = format!("LOD {target_index} is not available for editing");
             return;
@@ -6708,6 +6978,54 @@ impl LabApplication {
                 "Load refit armor"
             },
         }]);
+    }
+
+    fn choose_cdmw_shader_texture(&mut self, part_ids: Value, controls: Value, parameter: String) {
+        let picked = self.cdmw_shader_texture_pick.take().or_else(|| {
+            self.cdmw_file_dialog()
+                .set_title(crate::localization::tr("Choose a replacement texture"))
+                .add_filter(crate::localization::tr("Texture"), &["dds", "png", "tga", "jpg", "jpeg", "bmp"])
+                .pick_file()
+        });
+        if let Some(path) = picked {
+            self.cdmw_shader_texture_watch.retain(|watch| !(watch.part_ids == part_ids && watch.parameter == parameter));
+            self.cdmw_shader_texture_watch.push(WatchedShaderTexture {
+                part_ids: part_ids.clone(), parameter: parameter.clone(), path: path.clone(),
+                stamp: file_stamp(&path), changed_at: None });
+            self.handle_actions(vec![cdmw_shader_texture_action(part_ids, controls, &parameter, &path)]);
+        }
+    }
+
+    /// Replacement textures whose file was saved again and has since rested.
+    ///
+    /// A watch ends when its parts no longer use that replacement (restored,
+    /// undone or rejected). One reload at a time: the host is busy after each.
+    fn due_cdmw_shader_texture_reloads(&mut self, now: std::time::Instant) -> Vec<UiAction> {
+        if self.cdmw_shader_texture_watch.is_empty() || self.cdmw_busy() {
+            return Vec::new();
+        }
+        let parts = self.cdmw_state["shader_controls"]["parts"].as_array().cloned().unwrap_or_default();
+        let mut actions = Vec::new();
+        self.cdmw_shader_texture_watch.retain_mut(|watch| {
+            let controls = parts.iter()
+                .find(|row| watch.part_ids.as_array().is_some_and(|ids| ids.contains(&row["id"])))
+                .map(|row| row["shader_controls"].clone())
+                .filter(|controls| controls["textures"][watch.parameter.as_str()].is_string());
+            let Some(controls) = controls else { return false; };
+            // An editor may remove the file for a moment while it saves.
+            let Some(stamp) = file_stamp(&watch.path) else { return true; };
+            if watch.stamp != Some(stamp) {
+                watch.stamp = Some(stamp);
+                watch.changed_at = Some(now);
+            } else if actions.is_empty()
+                && watch.changed_at.is_some_and(|at| now.duration_since(at) >= TEXTURE_RELOAD_SETTLE)
+            {
+                watch.changed_at = None;
+                actions.push(cdmw_shader_texture_action(watch.part_ids.clone(), controls, &watch.parameter, &watch.path));
+            }
+            true
+        });
+        actions
     }
 
     fn cdmw_file_dialog(&self) -> rfd::FileDialog {
@@ -7724,7 +8042,9 @@ impl LabApplication {
     }
 
     fn refresh_face_selection_overlay(&mut self) {
-        if self.cdmw_jiggle.region_colours.is_some() {
+        // The fill tints the very surface a material edit is judged on.
+        let inspecting = self.cdmw_shader_panel_shown.replace(false) && self.material_inspection.hide_selection;
+        if self.cdmw_jiggle.region_colours.is_some() || inspecting || self.selection_highlight_hidden {
             self.face_selection_overlay = None;
             if let Some(renderer) = &mut self.renderer {
                 let _ = renderer.set_face_selection(&[], [0.0; 4]);
@@ -7764,6 +8084,21 @@ impl LabApplication {
     }
 
     fn paint_viewport_overlay(&mut self, ui: &egui::Ui, rectangle: egui::Rect) {
+        if !self.cdmw_shader_texture_watch.is_empty() {
+            let reloads = self.due_cdmw_shader_texture_reloads(std::time::Instant::now());
+            if !reloads.is_empty() {
+                self.handle_actions(reloads);
+            }
+            // Keep checking while the window is otherwise idle.
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+        }
+        if let Some(renderer) = &mut self.renderer {
+            let inspection = &self.material_inspection;
+            renderer.set_material_inspection(
+                inspection.light.map(|direction| (direction, inspection.light_strength)),
+                inspection.veil_screen.spacing_factor(),
+            );
+        }
         self.refresh_cdmw_refit_overlay();
         self.refresh_cdmw_part_hover_overlay();
         self.refresh_face_selection_overlay();

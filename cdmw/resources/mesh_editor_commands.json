@@ -346,6 +346,15 @@
   },
   {
     "defaults": [
+      "Shift+H"
+    ],
+    "group": "View",
+    "id": "view.selection_highlight",
+    "label": "Show / hide selection highlight",
+    "scope": "Global"
+  },
+  {
+    "defaults": [
       "Num1"
     ],
     "group": "View",

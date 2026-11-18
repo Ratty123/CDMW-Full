@@ -295,19 +295,25 @@ pub(super) fn binding(
 }
 
 pub(super) fn shader(device: &wgpu::Device, include_depth: bool) -> String {
-    let source = if supported(device) {
+    assembled_shader(supported(device), include_depth && lighting_depth::shadow_supported(device))
+}
+
+/// The surface shader as the renderer builds it: the template with the layer
+/// functions (or their stand-ins) and the lighting files spliced in.
+pub(super) fn assembled_shader(layers_supported: bool, depth: bool) -> String {
+    let source = if layers_supported {
         include_str!("material_layers.wgsl")
     } else {
         "fn material_layers_colour_only() -> bool { return false; }
 fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface { return LayerSurface(base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0)); }"
     };
     let main = SHADER.replace("// MATERIAL_LAYER_FUNCTIONS", source);
-    let shadows = if include_depth && lighting_depth::shadow_supported(device) {
+    let shadows = if depth {
         include_str!("shadows.wgsl")
     } else {
         "fn shadow_visibility(world:vec3<f32>, normal:vec3<f32>) -> f32 { return 1.0; }"
     };
-    let ambient = if include_depth && lighting_depth::shadow_supported(device) {
+    let ambient = if depth {
         include_str!("ambient_occlusion.wgsl")
             .replace(
                 "// AMBIENT_BINDINGS",

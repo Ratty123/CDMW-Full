@@ -341,6 +341,7 @@ def _generate_synthesized_normal_map(
             prepared = _apply_pac_layer_sampling_transform(
                 prepared,
                 item,
+                flip_vertical=flip_vertical,
                 cancelled=cancelled,
             )
         if not prepared.isNull():

@@ -4,9 +4,11 @@ from pathlib import PurePosixPath
 import xml.etree.ElementTree as ET
 
 from cdmw.core.common import raise_if_cancelled
-from cdmw.core.material_shader_controls import control_material_variants, rewrite_shader_controls, validate_source
+from cdmw.core.material_shader_controls import (control_material_variants, material_source_details,
+                                                 rewrite_shader_controls, rewrite_texture_paths, validate_source)
 from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
-from cdmw.domain.mesh.shader_controls import MESH_FAMILIES, ShaderControls, catalogue_payload, family_for
+from cdmw.domain.mesh.shader_controls import (veil_layer_inputs, MESH_FAMILIES, SHADER_LAYOUTS, ShaderControls, authored_values_payload, catalogue_payload,
+                                             family_for, preview_factors)
 from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 
 
@@ -62,6 +64,16 @@ def build_shader_control_files(state, original, companion_files, *, stop_event=N
                 read_texture, stop_event=stop_event)
             for texture, data in baked.items():
                 files[texture.casefold()] = ReplacementFile(texture, data)
+        owned = owned_texture_files(choices, state.target_path)
+        if owned and static:
+            raise ValueError("Replacement textures are supported on equipment models only.")
+        if owned:
+            # Before the shader rewrite, so a rebuilt layout numbers a newly added texture row too.
+            source_text, textured = rewrite_texture_paths(
+                source_text, {name: {parameter: file.path for parameter, file in slots.items()}
+                              for name, slots in owned.items()})
+            for name in textured:
+                files.update({file.path.casefold(): file for file in owned[name].values()})
         text, matches = rewrite_shader_controls(source_text, choices, static=static, allow_missing=True)
         if matches:
             found.update(matches)
@@ -70,6 +82,22 @@ def build_shader_control_files(state, original, companion_files, *, stop_event=N
     if missing:
         raise ValueError("The matching material sidecar is missing or incomplete for: " + ", ".join(sorted(missing)))
     return tuple(files.values())
+
+
+def owned_texture_path(target_path, parameter, digest):
+    """A private archive path for a user's texture, beside where baked ones go."""
+    stem = str(PurePosixPath(target_path.replace("\\", "/").replace("character/model/", "character/texture/", 1)).with_suffix(""))
+    role = parameter.strip("_").removesuffix("Texture").lower() or "texture"
+    return f"{stem}_cdmw_tex_{digest[:10]}_{role}.dds"
+
+
+def owned_texture_files(choices, target_path):
+    """{casefolded material: {parameter: ReplacementFile}} for the chosen replacement textures."""
+    from cdmw.core.shader_texture_store import read_texture
+    from cdmw.domain.mesh.replacement import ReplacementFile
+    return {name.casefold(): {parameter: ReplacementFile(owned_texture_path(target_path, parameter, digest), read_texture(digest))
+                              for parameter, digest in controls.textures}
+            for name, controls in choices if controls.textures}
 
 
 def _shader_compatibility(shader, values, textures, *, static):
@@ -95,7 +123,7 @@ def _shader_source_options(session):
     from cdmw.services.shader_controls_preview import source_inputs
     state = session.replacement_state
     static = session.mesh_format != "pac"
-    sources, error = {}, ""
+    sources, details, sidecar_path, error = {}, {}, "", ""
     if state is not None:
         target = state.target_path.replace("\\", "/").casefold().replace("/model/", "/modelproperty/", 1) + "_xml"
         files = {file.path.replace("\\", "/").casefold(): file
@@ -104,21 +132,41 @@ def _shader_source_options(session):
             if path != target and not (static and path.endswith(".pami")):
                 continue
             try:
-                for variant in control_material_variants(_sidecar_text(file.data), static=static):
+                text = _sidecar_text(file.data)
+                for variant in control_material_variants(text, static=static):
                     for name, source in variant.items():
                         sources.setdefault(name, []).append(source)
+                if not static:
+                    sidecar_path = file.path.replace("\\", "/")
+                    for wrapper in material_source_details(text):
+                        details.setdefault(wrapper["name"].casefold(), []).append(wrapper)
             except (ValueError, ET.ParseError) as exc:
                 error = str(exc)
     result = {}
     bindings = {part.part_id: part for part in state.parts} if state is not None else {}
     for index, part in enumerate(session.working_mesh.submeshes):
+        drawn = part
         binding = bindings.get(getattr(part, PART_ID_ATTRIBUTE, ""))
         # Target names survive replacement geometry and identify its companion wrapper.
         if binding is not None:
             part = session.base_mesh.submeshes[binding.target_index]
-        candidates = sources.get(material_binding_name(part, sources), ())
+        name = material_binding_name(part, sources)
+        candidates = sources.get(name, ())
+        wrappers = details.get(name, ())
+        owner = _owner_slot(drawn)
+        if owner < 0:
+            owner = _owner_slot(part)
+        if len(wrappers) == len(candidates) and len(wrappers) > 1:
+            # The variant the viewport draws leads, so the numbers shown first
+            # are the ones on screen; the others stay selectable.
+            lead = next((position for position, wrapper in enumerate(wrappers) if wrapper["slot"] == owner), 0)
+            order = [lead, *(position for position in range(len(wrappers)) if position != lead)]
+            candidates = [candidates[position] for position in order]
+            wrappers = [wrappers[position] for position in order]
+        elif len(wrappers) != len(candidates):
+            wrappers = ()
         if state is None:
-            values, textures = source_inputs(part)
+            values, textures = source_inputs(part, owner)
             inputs = getattr(part, "preview_material_texture_inputs", ()) or ()
             shaders = {str(item.get("shader_family", "") if isinstance(item, dict) else getattr(item, "shader_family", "")) for item in inputs}
             shaders.discard("")
@@ -126,16 +174,128 @@ def _shader_source_options(session):
             if not shader and len(shaders) == 1:
                 shader = next(iter(shaders))
             candidates = ((shader, values, textures),)
+            # Before the first edit only the preview's resolved wrapper is known.
+            # A texture parameter also appears among the values with no value;
+            # its row shows the resolved path instead of a blank.
+            wrappers = ({"slot": owner, "variant_label": "", "rows": [
+                *({"kind": "Texture" if textures.get(key) else "", "name": key, "item_id": "", "index": None,
+                   "value": textures.get(key) or str(value)} for key, value in values.items()),
+                *({"kind": "Texture", "name": key, "item_id": "", "index": None, "value": path}
+                  for key, path in textures.items() if path and key not in values)]},)
+            if not static and not sidecar_path:
+                sidecar_path = str(getattr(session.working_mesh, "path", "") or "").replace("\\", "/").replace(
+                    "/model/", "/modelproperty/", 1) + "_xml"
         options = _shader_compatibility("", {}, {}, static=static)
         if candidates and not error:
             variants = [_shader_compatibility(*source, static=static) for source in candidates]
             options = {family.shader: next((row[family.shader] for row in variants if row[family.shader]), "") for family in MESH_FAMILIES}
         if error:
             options = dict.fromkeys(options, error)
-        if binding is not None and (binding.translucency is not None or binding.emission is not None):
+        glow = binding is not None and (binding.translucency is not None or binding.emission is not None)
+        if glow:
             options = dict.fromkeys(options, "Restore Glow and Translucency before choosing another shader experiment.")
-        result[index] = {"source_shader": ", ".join(dict.fromkeys(source[0] for source in candidates)), "shader_options": options}
+        # Force replace may override a source-check refusal, never a missing source or Glow.
+        known = bool(candidates) and all(source[0] for source in candidates)
+        forceable = {family.shader: bool(not static and known and not error and not glow
+                                         and family.shader in SHADER_LAYOUTS) for family in MESH_FAMILIES}
+        result[index] = {"source_shader": ", ".join(dict.fromkeys(source[0] for source in candidates)), "shader_options": options,
+                         "forceable": forceable,
+                         "source": {"path": sidecar_path, "part": name, "viewport_slot": owner},
+                         "preview_warning": _preview_warning(candidates),
+                         "veil_layers": _veil_layers_state(candidates),
+                         **_authored_panel_state(candidates, options, wrappers, forceable)}
     return result
+
+
+# The inspector shows its own localized sentence for each code.
+_LAYERED_VEIL_WARNING = "layered_veil"
+
+
+def _preview_warning(candidates):
+    """A line for the inspector when the preview cannot show what this material draws."""
+    for shader, values, textures in candidates:
+        if shader != "SkinnedMeshTransparency":
+            continue
+        detail = any(name.startswith("_detail") and name.endswith(("MaskR", "MaskG", "MaskB")) and (textures.get(name) or values.get(name))
+                     for name in (*values, *textures))
+        try:
+            flags = int(str(values.get("_colorBlendingFlag", "0") or "0"), 0)
+        except ValueError:
+            flags = 0
+        if detail or flags & 0xFFF:
+            return _LAYERED_VEIL_WARNING
+    return ""
+
+
+def _veil_layers_state(candidates):
+    """What the renderer reads for a net veil with Ver2 detail layers, for the inspector; else None."""
+    import math
+    from cdmw.domain.mesh.shader_controls import veil_layer_factors, veil_layer_texture
+    for shader, values, textures in candidates:
+        layers = veil_layer_inputs(shader, values, textures)
+        if not layers:
+            continue
+        _, gain, scale_x, scale_y, offset_x, offset_y, angle, overlay = veil_layer_factors({**values, **layers})
+        return {"channel": layers["_cdmwVeilLayers"].upper(), "gain": gain,
+                "repeat": [1.0 / scale_x, 1.0 / scale_y], "offset": [offset_x, offset_y],
+                "rotation_degrees": math.degrees(angle), "overlay_alpha": overlay,
+                "detail_texture": veil_layer_texture(layers, textures)}
+    return None
+
+
+def _owner_slot(part):
+    """Position of the PAC wrapper the preview drew this part from, or -1."""
+    owner = getattr(part, "preview_pac_material_owner_slot_index", -1)
+    if isinstance(owner, int) and not isinstance(owner, bool) and owner >= 0:
+        return owner
+    owners = set()
+    for item in getattr(part, "preview_material_texture_inputs", ()) or ():
+        value = item.get("owner_slot_index", -1) if isinstance(item, dict) else getattr(item, "owner_slot_index", -1)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            owners.add(value)
+    return owners.pop() if len(owners) == 1 else -1
+
+
+def _authored_panel_state(candidates, options, wrappers=(), forceable=None):
+    """What the source material declares, for the inspector and its live preview.
+
+    ``authored`` lists each distinct model variant's shader, parsed numbers and
+    texture paths. ``preview_base`` holds, per compatible family, the factor
+    vector the viewport draws when nothing is overridden; the inspector replaces
+    single lanes of it while a slider moves. Pure parsing: no archive reads.
+
+    ``wrappers`` (parallel to ``candidates``) adds where each came from: the
+    model variants that share those numbers, the wrapper's position in the
+    file and its rows as written, so a user can check them against the file.
+    ``forceable`` names the families force replace can still apply over a
+    refusal; they get a live-preview base too.
+    """
+    variants, origins = [], []
+    for position, (shader, values, textures) in enumerate(candidates):
+        row = {"shader": shader, "fields": authored_values_payload(values),
+               "textures": {name: path for name, path in textures.items() if path}}
+        wrapper = wrappers[position] if position < len(wrappers) else None
+        if row in variants:
+            if wrapper is not None and wrapper.get("variant_label", "") != "":
+                origins[variants.index(row)]["variants"].append(wrapper["variant_label"])
+            continue
+        variants.append(row)
+        origins.append({"variants": [wrapper["variant_label"]] if wrapper is not None and wrapper.get("variant_label", "") != "" else [],
+                        "slot": wrapper["slot"] if wrapper is not None else -1,
+                        "rows": list(wrapper["rows"]) if wrapper is not None else []})
+    variants = [{**row, **origin} for row, origin in zip(variants, origins)]
+    base = {}
+    if candidates:
+        _, values, textures = candidates[0]
+        for family in MESH_FAMILIES:
+            if options.get(family.shader) and not (forceable or {}).get(family.shader):
+                continue
+            try:
+                layers = veil_layer_inputs(family.shader, values, textures)
+                base[family.shader] = list(preview_factors(ShaderControls(family.shader), {**values, **layers}))
+            except ValueError:
+                continue
+    return {"authored": variants, "preview_base": base}
 
 
 def shader_controls_ui_state(authoring, replacement):
@@ -150,12 +310,31 @@ def shader_controls_ui_state(authoring, replacement):
         key = replacement_material_key(session.working_mesh, session.replacement_state)
         diagnostics = authoring.archive_refit_material_cache.get(key, {}).get("shader_diagnostics", {})
     options = _shader_source_options(session)
-    return {"available": not reason, "reason": reason, "catalogue": catalogue_payload(),
+    return {"available": not reason, "reason": reason, "catalogue": catalogue_with_user_presets(),
             "static": session.mesh_format != "pac", "parts": [
                 {**part, **options.get(part["index"], {}), "diagnostic": diagnostics.get(part["id"], ""),
                  "shader_controls": bindings[part["id"]].shader_controls.to_dict()
                  if part["id"] in bindings and bindings[part["id"]].shader_controls is not None else None}
                 for part in replacement["parts"]]}
+
+
+def catalogue_with_user_presets():
+    """The shader catalogue with this computer's saved presets after the built-in ones."""
+    from cdmw.core.shader_preset_store import user_presets
+    saved = user_presets()
+    return [{**family, "presets": [*family["presets"], *({"label": row["name"], "values": row["values"], "user": True}
+                                                         for row in saved.get(family["shader"], ()))]}
+            for family in catalogue_payload()]
+
+
+def _change_user_preset(request):
+    from cdmw.core.shader_preset_store import delete_user_preset, save_user_preset
+    if not isinstance(request, dict) or request.get("action") not in {"save", "delete"}:
+        raise ValueError("Invalid shader preset request.")
+    if request["action"] == "save":
+        save_user_preset(request.get("shader"), request.get("name"), request.get("values"))
+    else:
+        delete_user_preset(request.get("shader"), request.get("name"))
 
 
 def set_shader_controls(authoring, snapshot, args, *, entry, dependencies, stop_event):
@@ -167,6 +346,10 @@ def set_shader_controls(authoring, snapshot, args, *, entry, dependencies, stop_
     ui = shader_controls_ui_state(authoring, replacement_ui_state(authoring))
     if not ui["available"]:
         raise ValueError(ui["reason"])
+    if "preset" in args:
+        # A saved preset is a preference of this computer, not an edit of the model.
+        _change_user_preset(args["preset"])
+        return authoring.shadow_service.session_view(authoring.shadow_session_id)
     keys, reset = args.get("part_ids"), args.get("reset", False)
     if (not isinstance(keys, (list, tuple)) or not keys or any(not isinstance(key, str) for key in keys)
             or len(set(keys)) != len(keys) or not set(keys) <= {part["id"] for part in ui["parts"]}):
@@ -174,6 +357,8 @@ def set_shader_controls(authoring, snapshot, args, *, entry, dependencies, stop_
     if type(reset) is not bool:
         raise ValueError("Invalid shader-control reset request.")
     value = None if reset else ShaderControls.from_dict(args.get("shader_controls"))
+    if value is not None:
+        value = _with_chosen_textures(value, args.get("texture_files"), stop_event)
     state = snapshot.replacement_state or initial_replacement_state(snapshot, entry, dependencies)
     parts = tuple(replace(part, shader_controls=value) if part.part_id in keys else part for part in state.parts)
     if parts == state.parts:
@@ -189,6 +374,63 @@ def set_shader_controls(authoring, snapshot, args, *, entry, dependencies, stop_
                               label="Restore shader controls" if reset else "Edit shader controls", stop_event=stop_event)
 
 
+def import_shader_texture(path, *, stop_event=None):
+    """Read a user's texture file as DDS bytes. A DDS is kept as it is; an image is encoded as BC7."""
+    import tempfile
+    from pathlib import Path
+    from cdmw.core.shader_texture_store import DDS_MAGIC, MAX_TEXTURE_BYTES
+
+    source = Path(str(path or "")).expanduser()
+    if not source.is_file():
+        raise ValueError("The chosen texture file does not exist.")
+    if source.stat().st_size > MAX_TEXTURE_BYTES:
+        raise ValueError("The chosen texture file exceeds the 256 MiB limit.")
+    data = source.read_bytes()
+    if data.startswith(DDS_MAGIC):
+        return data
+    from PIL import Image, UnidentifiedImageError
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    try:
+        with Image.open(source) as image:
+            pixels = image.convert("RGBA")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("The chosen texture is not a DDS or a readable image file.") from exc
+    width, height = pixels.size
+    if not all(4 <= side <= 8192 and side & (side - 1) == 0 for side in (width, height)):
+        raise ValueError(f"Texture sides must be powers of two between 4 and 8192; this image is {width}x{height}.")
+    with tempfile.TemporaryDirectory(prefix="cdmw_shader_texture_") as directory:
+        png, dds = Path(directory) / "texture.png", Path(directory) / "texture.dds"
+        pixels.save(png)
+        raise_if_cancelled(stop_event)
+        try:
+            report = encode_dds_with_directxtex(png, dds, dds_format="BC7_UNORM", width=width, height=height,
+                                                mip_count=max(width, height).bit_length(), stop_event=stop_event)
+        except Exception as exc:
+            raise ValueError("The image could not be encoded as DDS. Choose a DDS file instead.") from exc
+        if not report or not dds.is_file():
+            raise ValueError("The image could not be encoded as DDS. Choose a DDS file instead.")
+        return dds.read_bytes()
+
+
+def _with_chosen_textures(controls, texture_files, stop_event):
+    """Store newly chosen files and name them in the controls; an empty path restores the source texture."""
+    from cdmw.core.shader_texture_store import store_texture
+    if texture_files is None:
+        return controls
+    if not isinstance(texture_files, dict) or any(
+            not isinstance(name, str) or not isinstance(path, str) for name, path in texture_files.items()):
+        raise ValueError("Invalid replacement texture request.")
+    textures = dict(controls.textures)
+    for name, path in texture_files.items():
+        if path:
+            textures[name] = store_texture(import_shader_texture(path, stop_event=stop_event))
+        else:
+            textures.pop(name, None)
+    result = replace(controls, textures=tuple(textures.items()))
+    result.validate()
+    return result
+
+
 def _capture_control_textures(state, original, prepared, context, stop_event):
     from cdmw.core.archive_extraction import read_archive_entry_data
     from cdmw.domain.mesh.replacement import ReplacementFile
@@ -196,7 +438,7 @@ def _capture_control_textures(state, original, prepared, context, stop_event):
     from cdmw.core.material_shader_controls import control_material_variants
     from cdmw.services.shader_controls_preview import EFFECT_NORMAL_PARAMETER
     settings = dict(shader_settings(state, original))
-    required = set()
+    required, optional = set(), set()
     for file in prepared:
         if not file.path.casefold().endswith((".pac_xml", ".pami")):
             continue
@@ -207,14 +449,19 @@ def _capture_control_textures(state, original, prepared, context, stop_event):
                     required.add(textures.get(family_for(controls.shader).mask, ""))
                     if controls.shader == "SkinnedMeshAnisotropy":
                         required.add(textures.get(EFFECT_NORMAL_PARAMETER, ""))
+                    if controls.textures:
+                        # The preview is rebuilt from this material's own texture set.
+                        optional.update(textures.values())
     captured = list(state.dependencies)
-    existing = {file.path.casefold() for file in (*captured, *state.companion_files)}
+    existing = {file.path.casefold() for file in (*captured, *state.companion_files, *prepared)}
     total = sum(len(file.data) for file in captured)
-    for path in sorted(required - {""}):
+    for path in sorted((required | optional) - {""}):
         if path.casefold() in existing:
             continue
         raise_if_cancelled(stop_event)
         matches = tuple(context.entries_by_normalized_path.get(path.casefold(), ())) if context is not None else ()
+        if not matches and path not in required:
+            continue
         if not matches:
             raise ValueError(f"The shader mask is unavailable: {path}. Reopen this mesh from Browse Archives.")
         data, _, _ = read_archive_entry_data(matches[0], stop_event=stop_event)

@@ -2901,7 +2901,6 @@ fn compose_height(
         pixels: target,
     }))
 }
-
 fn largest_target(
     material: &PreviewCoreMaterial,
     cache: &ImageCache,

@@ -517,6 +517,7 @@ def test_repeated_hidden_texture_handoffs_open_and_close_different_pacs(tmp_path
 
     monkeypatch.setattr(editor, "_start_archive_session_load_when_indexes_ready", load_owned_geometry)
     previous_request = 0
+    previous_lease = None
     try:
         for index in range(6):
             entry = _entry(tmp_path, f"mesh-{index % 3}.pac", offset=(index % 3) * 8)
@@ -559,10 +560,16 @@ def test_repeated_hidden_texture_handoffs_open_and_close_different_pacs(tmp_path
             assert archive._archive_pending_texture_result is None
             assert launch._mesh_editor_pending_rust_texture_launch is None
             assert editor.close_standalone_session()
-            assert editor.standalone_controller is None and not lease.active
+            assert editor.standalone_controller is None
+            stash = getattr(editor, "reusable_archive_material_context", None) or {}
+            # The closed model's lease is kept to reopen it (PR 35) until the next close
+            # replaces it, which releases the one before.
+            assert not lease.active or stash.get("lease") is lease
+            assert previous_lease is None or not previous_lease.active
             assert texture.read_bytes() == b"owned texture fixture"
             previous_request = request_id
             previous_package = textured
+            previous_lease = lease
         assert len(set(sessions)) == 6
         assert len(archive.render_requests) == 6
         assert controller.clear_count == 6
@@ -1154,3 +1161,154 @@ def test_an_interim_texture_result_is_never_handed_to_the_editor(tmp_path) -> No
     harness._archive_pending_texture_result = SimpleNamespace(
         dotnet_preview_package_path=str(quick), quality_tier="full")
     assert harness._mesh_editor_active_textured_package_for_entry(entry) is not None
+
+
+@pytest.mark.parametrize("renderer_package", ["paused", "untextured"])
+def test_a_second_open_reuses_the_retained_preview_model_and_package(tmp_path: Path, renderer_package: str) -> None:
+    """Close, then Open Selected Mesh: the Archive Browser renderer was paused by the
+    first open, but its preview result still holds the resolved model and package.
+    Reusing them opens the model as the first open did; rebuilding the materials
+    from the package's batches paired a part with another part's material."""
+    entry = _entry(tmp_path)
+    geometry = _package(tmp_path / "geometry", entry, textured=False)
+    textured = _package(tmp_path / "textured", entry, textured=True)
+    harness = _LaunchHarness(entry, geometry)
+    harness.archive_isolated_renderer_active_package = None if renderer_package == "paused" else geometry
+    harness.current_archive_preview_result = SimpleNamespace(
+        preview_model="resolved-archive-model", dotnet_preview_package_path=str(textured))
+    lease = _Lease()
+    with patch("cdmw.ui.mesh_editor.shell_bridge.acquire_dotnet_preview_package_cache_lease_for_path",
+               return_value=lease):
+        harness._launch_archive_mesh_editor_for_entry(entry)
+
+    assert harness.texture_requests == []
+    assert len(harness.opened) == 1
+    _, kwargs = harness.opened[0]
+    assert kwargs["material_preview_model"] == "resolved-archive-model"
+    assert kwargs["material_package_path"] == str(textured)
+    assert kwargs["material_package_lease"] is lease
+    assert kwargs["material_context_verified_for_rust"] is True
+
+
+@pytest.mark.parametrize("case", ["other_model", "untextured", "missing", "no_model"])
+def test_a_second_open_does_not_reuse_a_preview_that_is_not_this_models(tmp_path: Path, case: str) -> None:
+    entry = _entry(tmp_path)
+    other = _entry(tmp_path, "other.pac", offset=64)
+    geometry = _package(tmp_path / "geometry", entry, textured=False)
+    textured = _package(tmp_path / "textured", other if case == "other_model" else entry, textured=case != "untextured")
+    harness = _LaunchHarness(entry, geometry)
+    harness.archive_isolated_renderer_active_package = None
+    harness.current_archive_preview_result = SimpleNamespace(
+        preview_model=None if case == "no_model" else "resolved-archive-model",
+        dotnet_preview_package_path=str(tmp_path / "gone") if case == "missing" else str(textured))
+    assert harness._mesh_editor_active_textured_package_for_entry(entry) is None
+
+
+def _reopen_harness(tmp_path, monkeypatch):
+    from cdmw.services.mesh_service import MeshService
+    from cdmw.workers.mesh_editor_aux_workers import MeshArchiveSessionLoadResult
+    from tests.test_mesh_editor_direct_mode import _mesh
+    from tests.test_mesh_rust_editor_selection import _tab
+
+    editor = _tab(tmp_path)
+    monkeypatch.setattr(editor, "_ensure_standalone_live_stroke_dispatcher", lambda: None)
+    resolutions = []
+    monkeypatch.setattr(editor, "_start_archive_material_context_resolution",
+                        lambda *args: resolutions.append(args) or False)
+    monkeypatch.setattr("cdmw.ui.mesh_editor.tab.native_mesh_core_available", lambda: False)
+    monkeypatch.setattr(editor, "_archive_material_preview_model_ready", lambda model: model is not None)
+
+    def load_owned_geometry(request_id, entry, **_kwargs):
+        mesh = _mesh(two_parts=False)
+        mesh.path = entry.path
+        service = MeshService()
+        view = service.open_edit_session(mesh, mode="edit")
+        editor._handle_archive_session_loaded(
+            request_id, MeshArchiveSessionLoadResult(service=service, view=view, mesh=mesh, source_sha256="a" * 64))
+
+    monkeypatch.setattr(editor, "_start_archive_session_load_when_indexes_ready", load_owned_geometry)
+    return editor, resolutions
+
+
+def test_reopening_a_closed_model_reuses_its_verified_material_context(tmp_path, monkeypatch):
+    """Close, then Open Selected Mesh: the first open's resolved model and package
+    are reused instead of a rebuild from the package's flattened batches."""
+    from PySide6.QtCore import QEvent
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+    entry = _entry(tmp_path, "veil.pac")
+    other = _entry(tmp_path, "other.pac", offset=64)
+    textured = _package(tmp_path / "textured", entry, textured=True)
+    editor, resolutions = _reopen_harness(tmp_path, monkeypatch)
+    try:
+        first_lease = _Lease()
+        editor.open_archive_session(entry, material_preview_model="resolved-model", material_package_path=str(textured),
+                                    material_package_lease=first_lease, material_context_verified_for_rust=True,
+                                    material_source_identity=entry.identity)
+        app.processEvents()
+        assert editor.archive_material_context_verified_for_rust is True
+        assert editor.close_standalone_session()
+        assert first_lease.active, "the closed session's package stays leased for a reopen"
+
+        # The reopen finds no active package: an unverified context and its own lease.
+        unverified_lease = _Lease()
+        editor.open_archive_session(entry, material_package_path=str(tmp_path / "flattened"),
+                                    material_package_lease=unverified_lease)
+        app.processEvents()
+        assert editor.archive_material_context_verified_for_rust is True
+        assert editor.standalone_archive_material_preview_model == "resolved-model"
+        assert editor.archive_material_context_package_path == str(textured)
+        assert editor.archive_material_context_package_lease is first_lease and first_lease.active
+        assert not unverified_lease.active
+        assert resolutions == []
+
+        # Another model does not take it; closing that one keeps the stash.
+        assert editor.close_standalone_session()
+        editor.open_archive_session(other)
+        app.processEvents()
+        assert editor.archive_material_context_verified_for_rust is False
+        assert editor.reusable_archive_material_context["lease"] is first_lease
+        assert editor.close_standalone_session()
+        editor.request_shutdown()
+        assert not first_lease.active
+    finally:
+        editor.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_a_verified_reopen_or_a_removed_package_does_not_take_the_stash(tmp_path, monkeypatch):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+    entry = _entry(tmp_path, "veil.pac")
+    first = _package(tmp_path / "first", entry, textured=True)
+    second = _package(tmp_path / "second", entry, textured=True)
+    editor, _ = _reopen_harness(tmp_path, monkeypatch)
+    try:
+        first_lease, second_lease = _Lease(), _Lease()
+        verified = dict(material_context_verified_for_rust=True, material_source_identity=entry.identity)
+        editor.open_archive_session(entry, material_preview_model="first-model", material_package_path=str(first),
+                                    material_package_lease=first_lease, **verified)
+        app.processEvents()
+        assert editor.close_standalone_session()
+        # A newer verified context wins and the stash is kept for later.
+        editor.open_archive_session(entry, material_preview_model="second-model", material_package_path=str(second),
+                                    material_package_lease=second_lease, **verified)
+        app.processEvents()
+        assert editor.standalone_archive_material_preview_model == "second-model"
+        assert editor.archive_material_context_package_lease is second_lease
+        # Closing replaces the stash with the newer context and releases the old one.
+        assert editor.close_standalone_session()
+        assert not first_lease.active and second_lease.active
+        import shutil
+        shutil.rmtree(second)
+        editor.open_archive_session(entry)
+        app.processEvents()
+        assert editor.archive_material_context_verified_for_rust is False
+        assert not second_lease.active
+    finally:
+        editor.request_shutdown()
+        editor.deleteLater()
+        app.sendPostedEvents(None, QEvent.DeferredDelete)

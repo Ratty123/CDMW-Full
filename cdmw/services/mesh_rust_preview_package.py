@@ -1109,6 +1109,22 @@ def _preview_core_eye_layers(raw_layers, parameter_index, source_package):
                     layer[f"{role}_source"], layer[f"{role}_archive_path"] = found
         result.append(layer)
     return result
+def _preview_core_batch_material_inputs(raw_batch: Mapping[str, object]) -> tuple[object, ...]:
+    """The batch's material inputs: Preview Core packages keep them under
+    ``dds_textures``; a batch can also carry them at its top level."""
+    found: list[object] = []
+    dds_textures = raw_batch.get("dds_textures")
+    for raw_inputs in (raw_batch.get("material_inputs"),
+                       dds_textures.get("material_inputs") if isinstance(dds_textures, Mapping) else None):
+        if isinstance(raw_inputs, Sequence) and not isinstance(raw_inputs, (str, bytes, bytearray)):
+            found.extend(raw_inputs)
+    return tuple(found)
+
+
+def _is_net_veil_wrapper(parameters: Sequence[object]) -> bool:
+    return any(isinstance(parameter, Mapping)
+               and str(parameter.get("parameter_name", "") or "").strip().casefold() == "_netpitch"
+               for parameter in parameters)
 
 
 def _copy_preview_core_material_layers(
@@ -1135,6 +1151,15 @@ def _copy_preview_core_material_layers(
         )
         raw_layers = _preview_core_eye_layers(raw_layers, parameter_index, source_package)
         layers: list[dict[str, object]] = []
+        # Each wrapper's authored parameters, as the batch's material inputs carry them.
+        wrapper_parameters: dict[str, Sequence[object]] = {}
+        for raw_input in _preview_core_batch_material_inputs(raw_batch):
+            if isinstance(raw_input, Mapping):
+                input_owner = str(raw_input.get("owner_wrapper_item_id", "") or "").strip()
+                input_parameters = raw_input.get("material_parameters")
+                if (input_owner and input_owner not in wrapper_parameters and isinstance(input_parameters, Sequence)
+                        and not isinstance(input_parameters, (str, bytes))):
+                    wrapper_parameters[input_owner] = input_parameters
         for raw_layer in raw_layers:
             if not isinstance(raw_layer, Mapping):
                 raise ValueError("Preview Core material graph contains an invalid layer.")
@@ -1241,11 +1266,16 @@ def _copy_preview_core_material_layers(
                         _preview_core_float(value, 0.0) for value in tuple(raw_layer["blend_surface"])[:3]
                     ]
             layer_has_source = False
+            # A net veil's detail height is not blended over its base height: the
+            # game adds it to the thread width, and the renderer samples it itself.
+            veil_detail = role != "base" and _is_net_veil_wrapper(wrapper_parameters.get(owner, ()))
             for resource_role in ("diffuse", "normal", "material", "height", "mask", "detail_mask"):
                 _cancelled(cancelled)
                 source_key = f"{resource_role}_source"
                 archive_key = f"{resource_role}_archive_path"
                 source_text = str(raw_layer.get(source_key, "") or "").strip()
+                if veil_detail and resource_role == "height":
+                    source_text = ""
                 archive_path = str(raw_layer.get(archive_key, "") or "").strip().replace("\\", "/")
                 if resource_role == "detail_mask":
                     if detail_mask is None:

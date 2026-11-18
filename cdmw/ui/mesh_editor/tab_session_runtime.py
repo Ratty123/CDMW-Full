@@ -225,6 +225,26 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
                 False,
             )
             return None
+        reused = self._take_reusable_archive_material_context(
+            entry,
+            verified=bool(material_context_verified_for_rust)
+            and material_source_identity == entry.identity
+            and self._archive_material_preview_model_ready(material_preview_model),
+        )
+        if reused is not None:
+            # Reopening the model this session just closed: its verified
+            # material context is reused, so the reopen looks like the first open.
+            if material_package_lease is not None and material_package_lease is not reused["lease"]:
+                release = getattr(material_package_lease, "release", None)
+                if callable(release):
+                    release()
+            material_preview_model = reused["model"]
+            material_package_path = reused["package_path"]
+            material_package_lease = reused["lease"]
+            material_context_verified_for_rust = True
+            material_source_identity = entry.identity
+            if material_companion_entry is None:
+                material_companion_entry = reused["companion"]
         self.archive_session_load_request_id += 1
         request_id = self.archive_session_load_request_id
         entry_snapshot = copy.deepcopy(entry)
@@ -826,6 +846,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         self.mesh_editor_draft_manifest_path = None
         self.mesh_editor_draft_lineage = {}
         refresh_draft_name_controls(self)
+        self._stash_reusable_archive_material_context()
         self.standalone_archive_material_preview_model = None
         self.archive_physics_profile_context = None
         self.archive_material_context_companion_entry = None
@@ -930,6 +951,69 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         if isinstance(pending_open, Mapping):
             QTimer.singleShot(0, self._resume_queued_archive_session_open)
         return True
+    def _stash_reusable_archive_material_context(self) -> None:
+        """Keep a closing session's verified material context for a reopen.
+
+        Opening Mesh Editor pauses the Archive Browser renderer, so reopening
+        the same model after Close finds no active textured package. The
+        session then rebuilt its materials from the preview package's flattened
+        batches, which can pair a part with another part's material (the
+        November wedding veil's crown took the veil shader, and the veil the
+        _01 part's height map). The first open's resolved model and the lease on
+        its package are kept instead, until another session replaces them.
+        """
+        entry = getattr(self, "current_archive_selection", None)
+        model = getattr(self, "standalone_archive_material_preview_model", None)
+        lease = getattr(self, "archive_material_context_package_lease", None)
+        package_path = str(getattr(self, "archive_material_context_package_path", "") or "")
+        if not (
+            isinstance(entry, _tab.ArchiveEntry)
+            and bool(getattr(self, "archive_material_context_verified_for_rust", False))
+            and getattr(self, "archive_material_context_source_identity", None) == entry.identity
+            and self._archive_material_preview_model_ready(model)
+            and lease is not None
+            and package_path
+        ):
+            return
+        self._release_reusable_archive_material_context()
+        self.archive_material_context_package_lease = None  # Owned by the stash now.
+        self.reusable_archive_material_context = {
+            "identity": entry.identity,
+            "prepared_sha256": entry.prepared_sha256,
+            "model": model,
+            "package_path": package_path,
+            "lease": lease,
+            "companion": getattr(self, "archive_material_context_companion_entry", None),
+        }
+
+    def _take_reusable_archive_material_context(
+        self,
+        entry: _tab.ArchiveEntry,
+        *,
+        verified: bool,
+    ) -> dict[str, object] | None:
+        stash = getattr(self, "reusable_archive_material_context", None)
+        if verified or not isinstance(stash, dict):
+            return None
+        if stash["identity"] != entry.identity or stash["prepared_sha256"] != entry.prepared_sha256:
+            return None
+        try:
+            present = Path(str(stash["package_path"])).is_dir()
+        except (OSError, TypeError, ValueError):
+            present = False
+        if not present:
+            self._release_reusable_archive_material_context()
+            return None
+        self.reusable_archive_material_context = None
+        return stash
+
+    def _release_reusable_archive_material_context(self) -> None:
+        stash = getattr(self, "reusable_archive_material_context", None)
+        self.reusable_archive_material_context = None
+        release = getattr(stash.get("lease") if isinstance(stash, dict) else None, "release", None)
+        if callable(release):
+            release()
+
     def _replace_archive_material_context_package_lease(
         self,
         lease: object | None,

@@ -177,9 +177,7 @@ pub(super) fn verify(
     cases.push(("layered glass zero alpha", layered, [1.0; 3], 0.0));
     // Veil: zero pitch with full thread covers every cell; zero thread leaves it open.
     let mut veil = [0.0; 32];
-    veil[..13].copy_from_slice(&[
-        11.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0,
-    ]);
+    veil[..15].copy_from_slice(&[11.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 0.5, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0]);
     cases.push(("veil covered", veil, [1.0; 3], 0.0));
     veil[5] = 0.0;
     cases.push(("veil empty", veil, [1.0; 3], 0.0));
