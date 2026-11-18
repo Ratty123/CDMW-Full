@@ -257,6 +257,9 @@ class TextureWorkflowEditorBridgeMixin:
         except Exception as exc:
             self.shell.set_status_message(f"Could not open archive file in Texture Editor: {exc}", error=True)
             return
+        self.open_prepared_archive_texture(entry, source_path)
+
+    def open_prepared_archive_texture(self, entry: ArchiveEntry, source_path: Path) -> None:
         package_root = entry.pamt_path.parent.name.strip() or "package"
         archive_relative_path = PurePosixPath(entry.path.replace("\\", "/")).as_posix()
         binding = TextureEditorSourceBinding(

@@ -203,7 +203,8 @@ def texture_editor_layer_refresh_selection_id(
 ) -> str:
     if document is None:
         return ""
-    return str(current_layer_id or document.active_layer_id or "")
+    # A document operation (including Undo) may replace or remove the old list selection.
+    return str(document.active_layer_id or current_layer_id or "")
 
 
 def texture_editor_layer_pixel_target_state(

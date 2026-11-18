@@ -26,6 +26,28 @@ Profiles, Rules & Matches > Edit**.
 
 Lazy panels restore their saved settings when first opened.
 
+## AI connections
+
+Texture MCP tools take `editor` with values `docked` (the shown Mesh Editor document)
+and `tool` (the rail workspace). `textures_state` reports both editors.
+Edit results include `history_before` and `history_after`. Choosing a tool, active
+layer, mask target or export setting can leave those indices equal. Texture Undo
+steps the selected editor. Mesh Undo follows the shared document history.
+
+`textures_layer`, `textures_select`, `textures_fill`, `textures_generate` and
+`textures_derive` group their controls by action. PNG region reads use local
+coordinates in the composite or named layer and return up to 1,048,576 pixels.
+Region writes use canvas coordinates on the active raster layer. PNG imports
+add a layer at the supplied origin. Each write accepts either a PNG path or
+base64 data and commits once. `view_texture_image` returns a scaled PNG preview.
+
+In the rail editor, `textures_open` accepts a file, project or indexed archive
+path. `textures_workflow` handles Add Textures, Add Mod and Review & Export.
+`textures_export` writes a fresh PNG, DDS, project, selection PNG or grid folder
+outside the game. A project also requires a fresh sibling assets folder.
+`textures_output_plan` reads the docked Build Mod plan or the rail job's selected
+assets and game targets. [MCP capability map](../../mcp/coverage.json)
+
 ## Brush strokes
 
 Brush stamps keep their spacing across mouse events, and brush strokes include

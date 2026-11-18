@@ -1009,11 +1009,7 @@
       "area": "Texture preview",
       "what": "A picture of any texture or layer",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.screenshot"
-      ]
+      "tool": "view.texture_image"
     },
     {
       "id": "local_file.describe",
@@ -1057,15 +1053,9 @@
     {
       "id": "textures.standalone",
       "area": "Textures",
-      "what": "The Textures tool on the rail (Add Textures, Add Mod, Review & Export): the textures_* tools act only on the Texture Editor beside a Mesh Editor document",
+      "what": "Add Textures, Add Mod and Review & Export on the rail",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.workflow"
     },
     {
       "id": "mesh.build_options",
@@ -1092,130 +1082,70 @@
       "area": "Texture Editor",
       "what": "Layers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.layer"
     },
     {
       "id": "textures.fill",
       "area": "Texture Editor",
       "what": "Fills",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.fill"
     },
     {
       "id": "textures.select",
       "area": "Texture Editor",
       "what": "Selections",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.select"
     },
     {
       "id": "textures.stencil",
       "area": "Texture Editor",
-      "what": "Stencils",
+      "what": "Image stamp loading, painting and clearing",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.fill"
     },
     {
       "id": "textures.compare",
       "area": "Texture Editor",
       "what": "Compare",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.compare"
     },
     {
       "id": "textures.import_pixels",
       "area": "Texture Editor",
       "what": "Pixels from a file or sent in the call",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.import_pixels"
     },
     {
       "id": "textures.write_region",
       "area": "Texture Editor",
       "what": "Write pixels by region",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.write_region"
     },
     {
       "id": "textures.read_region",
       "area": "Texture Editor",
       "what": "Read pixels by region",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.read_region"
     },
     {
       "id": "textures.generate",
       "area": "Texture Editor",
-      "what": "Fills, gradients, noise, patterns, tiles",
+      "what": "Solid and gradient fills, grain and patterned brush strokes",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.generate"
     },
     {
       "id": "textures.derive",
       "area": "Texture Editor",
-      "what": "Normal from height, pack, unpack, resize, mips, conversion",
+      "what": "Luma channel packing and extraction, document transforms, DDS format and mip settings",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.derive"
     },
     {
       "id": "textures.new_for_slot",
@@ -1223,38 +1153,21 @@
       "what": "A new texture for a material slot (Make unique)",
       "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "milestone": "P13: wire the Mesh Editor's Make unique action to its session before exposing it through MCP."
     },
     {
       "id": "textures.export",
       "area": "Texture Editor",
       "what": "Export a texture",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.export"
     },
     {
       "id": "textures.output_plan",
       "area": "Texture Editor",
       "what": "The output plan for a mod",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.output_plan"
     },
     {
       "id": "saved.continue",
@@ -1523,6 +1436,86 @@
       "what": "Restore game files from a backup",
       "class": "output",
       "gap": "writes_into_game"
+    },
+    {
+      "id": "textures.layer_masks",
+      "area": "Texture Editor",
+      "what": "Create, invert, delete, enable or target masks and transfer selections",
+      "class": "edit",
+      "tool": "textures.layer"
+    },
+    {
+      "id": "textures.document_transform",
+      "area": "Texture Editor",
+      "what": "Canvas and image size, crop, trim, flip and rotate",
+      "class": "edit",
+      "tool": "textures.derive"
+    },
+    {
+      "id": "textures.tile_fill",
+      "area": "Texture Editor",
+      "what": "Generate a tiled fill",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13: requires a corresponding Texture Editor operation."
+    },
+    {
+      "id": "textures.normal_from_height",
+      "area": "Texture Editor",
+      "what": "Derive normals from height inside the Texture Editor",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13: requires a corresponding Texture Editor operation."
+    },
+    {
+      "id": "textures.floating",
+      "area": "Texture Editor",
+      "what": "Floating selection, clipboards, transforms, commit and cancel",
+      "class": "edit",
+      "tool": "textures.layer"
+    },
+    {
+      "id": "textures.channels",
+      "area": "Texture Editor",
+      "what": "Channel editing, swapping, copying, packing and extracting",
+      "class": "edit",
+      "tool": "textures.derive"
+    },
+    {
+      "id": "textures.brush_settings",
+      "area": "Texture Editor",
+      "what": "Brush presets, tips, patterns, symmetry, clone source and recolor settings",
+      "class": "edit",
+      "tool": "textures.tool"
+    },
+    {
+      "id": "textures.adjustment_stack",
+      "area": "Texture Editor",
+      "what": "Manage existing adjustments, parameters, masks and stack order",
+      "class": "edit",
+      "tool": "textures.adjust"
+    },
+    {
+      "id": "textures.history",
+      "area": "Texture Editor",
+      "what": "Restore a texture history entry or clear its history",
+      "class": "destructive",
+      "tool": "textures.history"
+    },
+    {
+      "id": "textures.atlas",
+      "area": "Texture Editor",
+      "what": "Export a selection or a grid of PNG slices",
+      "class": "output",
+      "tool": "textures.export"
+    },
+    {
+      "id": "textures.procedural_fill",
+      "area": "Texture Editor",
+      "what": "Generate whole-layer noise and patterned fills",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13: the current editor offers grain and pattern brush strokes."
     }
   ]
 }

@@ -706,7 +706,9 @@ def test_the_texture_editor_is_read_and_driven_through_its_own_controls(textures
     state = mcp.ok("textures_state")
     assert state["open"] and (state["title"], state["width"], state["height"]) == ("belt_d.dds", 64, 32)
     assert state["tools"] == ["erase", "fill", "paint"] and state["tool"] == "paint"
-    assert state["layers"] == [{"id": "l1", "name": "Background", "visible": True, "active": True}]
+    assert state["layers"] == [{"id": "l1", "name": "Background", "visible": True, "active": True,
+                                "opacity": 100, "blend": "normal", "locked": False, "alpha_locked": False,
+                                "mask": None, "mask_enabled": False}]
     assert state["sharing"] == "Only this model uses this texture." and state["not_kept_yet"] == 1
     # Open: by the panel's id or by game path, as a double-click on the row.
     assert mcp.ok("textures_open", {"texture": "character/texture/belt_n.dds"})["texture"] == "tex-1"
@@ -714,7 +716,8 @@ def test_the_texture_editor_is_read_and_driven_through_its_own_controls(textures
     assert mcp.error("textures_open", {"texture": "nothing.dds"})["code"] == "not_found"
     # Tool and settings, then one stroke: one history step.
     chosen = mcp.ok("textures_tool", {"tool": "erase", "colour": "#00FF00", "size": 24})
-    assert chosen == {"tool": "erase", "colour": "#00FF00", "size": 24}
+    assert chosen == {"tool": "erase", "colour": "#00FF00", "size": 24, "editor": "docked",
+                      "history_before": 0, "history_after": 0, "history_index": 0}
     assert mcp.error("textures_tool", {"tool": "airbrush"})["code"] == "not_found"
     stroke = mcp.ok("textures_stroke", {"tool": "paint", "points": [[0, 0], [10, 5], [63, 31]]})
     assert stroke["changed"] and stroke["history_index"] == 1
@@ -872,3 +875,301 @@ def test_mesh_state_history_counts_texture_edits_as_the_editor_does() -> None:
     assert merged["steps"] == ["Select", "Texture edit (belt_d.dds)"]
     history.observe_texture("key", "belt_d.dds", [opened, painted], 0)  # undone in the Texture Editor
     assert (_shared_history(session)["undo"], _shared_history(session)["redo"]) == (1, 1)
+
+
+@pytest.fixture
+def texture_pair(connect, tmp_path):
+    import numpy as np
+    from cdmw.models import TextureEditorDocument, TextureEditorLayer
+    from cdmw.ui.texture_editor_tab import TextureEditorTab
+
+    editors = []
+    panel, holder = QWidget(), QWidget()
+    try:
+        for location, colour in (("docked", [90, 110, 130, 255]), ("tool", [10, 60, 80, 255])):
+            widget = TextureEditorTab(settings=create_settings(settings_file_path=tmp_path / f"{location}.cfg"),
+                                      base_dir=tmp_path, get_png_root=lambda: str(tmp_path))
+            editors.append(widget)
+            widget.document = TextureEditorDocument(location, 32, 24, active_layer_id="top",
+                layers=(TextureEditorLayer("base", "Base", "base.png"), TextureEditorLayer("top", "Top", "top.png")))
+            widget.layer_pixels = {"base": np.full((24, 32, 4), 20, dtype=np.uint8),
+                                   "top": np.tile(np.uint8(colour), (24, 32, 1))}
+            widget._push_history("Open Document")
+            widget._refresh_ui()
+        panel.editor = editors[0]
+        panel.isFloating = lambda: False
+        holder.active = SimpleNamespace(_texture_tools_panel=lambda: panel)
+        window = SimpleNamespace(shell=SimpleNamespace(mesh_editor_tab=holder, texture_editor_tab=editors[1]))
+        yield connect(window), editors[0], editors[1]
+    finally:
+        for widget in editors:
+            widget.request_shutdown()
+        for widget in [*editors, panel, holder]:
+            widget.deleteLater()
+
+
+def _raster_state(editor):
+    doc = editor.document
+    return (doc.width, doc.height, doc.layers, doc.adjustment_layers, doc.selection, doc.quick_mask_enabled, doc.floating_selection,
+            {key: (pixels.shape, pixels.tobytes()) for key, pixels in editor.layer_pixels.items()})
+
+
+def _undoable_texture_call(mcp, editor, tool, args):
+    before = _raster_state(editor)
+    start = editor.history_index
+    result = mcp.ok(tool, {"editor": "tool", **args})
+    assert (result["history_before"], result["history_after"]) == (start, start + 1), (tool, args, result)
+    assert _raster_state(editor) != before
+    undo = mcp.ok("textures_undo", {"editor": "tool"})
+    assert (undo["history_before"], undo["history_after"]) == (start+1, start)
+    assert _raster_state(editor) == before, (tool, args)
+
+
+def test_texture_layers_masks_and_editor_ownership(texture_pair):
+    mcp, dock, rail = texture_pair
+    states = mcp.ok("textures_state", {"editor": "tool"})
+    assert states["title"] == "tool" and states["editors"]["docked"]["title"] == "docked"
+    dock_start = _raster_state(dock)
+    for action, parameters in [
+        ("add", {}), ("duplicate", {}), ("remove", {}), ("merge_down", {}), ("move_down", {}),
+        ("rename", {"name": "Leather"}), ("opacity", {"opacity": 28}), ("blend", {"mode": "multiply"}),
+        ("visibility", {"enabled": False}), ("lock", {"enabled": True}), ("alpha_lock", {"enabled": True}),
+        ("mask_add", {}),
+    ]:
+        _undoable_texture_call(mcp, rail, "textures_layer", {"action": action, **parameters})
+    mcp.ok("textures_layer", {"editor": "tool", "action": "mask_add"})
+    for action, parameters in [("mask_invert", {}), ("mask_enable", {"enabled": False}),
+                               ("mask_delete", {}), ("mask_to_selection", {})]:
+        _undoable_texture_call(mcp, rail, "textures_layer", {"action": action, **parameters})
+    before = rail.history_index
+    result = mcp.ok("textures_layer", {"editor": "tool", "action": "mask_target", "enabled": True})
+    assert rail._editing_mask_target and result["history_before"] == result["history_after"] == before
+    mcp.ok("textures_layer", {"editor": "tool", "action": "mask_target", "enabled": False})
+    mcp.ok("textures_select", {"editor": "tool", "action": "rect", "points": [[2, 2], [15, 14]]})
+    _undoable_texture_call(mcp, rail, "textures_layer", {"action": "selection_to_mask"})
+    active = mcp.ok("textures_layer", {"editor": "tool", "action": "active", "layer": "base"})
+    assert rail.document.active_layer_id == "base" and active["history_before"] == active["history_after"]
+    _undoable_texture_call(mcp, rail, "textures_layer", {"action": "move_up"})
+    assert _raster_state(dock) == dock_start
+
+
+def test_texture_selection_fill_generate_and_derive_undo(texture_pair):
+    mcp, dock, rail = texture_pair
+    for args in ({"action": "all"}, {"action": "rect", "points": [[4, 5], [19, 18]]},
+                 {"action": "lasso", "points": [[2, 2], [20, 2], [8, 19]]}, {"action": "quick_mask"}):
+        _undoable_texture_call(mcp, rail, "textures_select", args)
+    mcp.ok("textures_select", {"editor": "tool", "action": "rect", "points": [[4, 5], [19, 18]]})
+    for action in ("invert", "grow", "shrink", "copy_to_layer", "clear"):
+        _undoable_texture_call(mcp, rail, "textures_select", {"action": action})
+    for tool, actions in (("textures_fill", ["fill", "gradient"]), ("textures_generate", ["solid", "gradient", "pattern", "noise"])):
+        for action in actions:
+            args = {"action": action, "colour": "#ff0000", "points": [[8, 8]]}
+            if action in ("solid", "gradient"):
+                args.update(secondary="#0000ff", points=[[8, 8], [19, 18]])
+            _undoable_texture_call(mcp, rail, tool, args)
+    for args in ({"action": "pack", "channel": "green"}, {"action": "unpack", "channel": "alpha"},
+                 {"action": "resize", "width": 20, "height": 17}, {"action": "canvas_size", "width": 17, "height": 20}):
+        _undoable_texture_call(mcp, rail, "textures_derive", args)
+    for action, value, control in (("mips", "single", rail.native_dds_mip_combo),
+                                   ("format", rail.native_dds_format_combo.itemData(0), rail.native_dds_format_combo)):
+        result = mcp.ok("textures_derive", {"editor": "tool", "action": action, "value": value})
+        assert result["history_before"] == result["history_after"] and control.currentData() == value
+
+
+def test_texture_png_transfer_and_compare(texture_pair, tmp_path):
+    from io import BytesIO
+    import numpy as np
+    from PIL import Image
+    mcp, dock, rail = texture_pair
+    patch = np.tile(np.uint8([250, 35, 15, 77]), (3, 4, 1))
+    png = tmp_path / "patch.png"
+    Image.fromarray(patch).save(png)
+    data = base64.b64encode(png.read_bytes()).decode("ascii")
+    target = {"editor": "tool"}
+    for tool, source in (("textures_import_pixels", {"path": str(png), "name": "Decal"}),
+                         ("textures_write_region", {"data": data})):
+        before = _raster_state(rail)
+        result = mcp.ok(tool, {**target, **source, "x": 5, "y": 6})
+        assert result["history_after"] == result["history_before"] + 1
+        added = tool == "textures_import_pixels"
+        x, y = (0, 0) if added else (5, 6)
+        read = mcp.ok("textures_read_region", {**target, "layer": result["layer"], "x": x, "y": y, "width": 4, "height": 3})
+        np.testing.assert_array_equal(Image.open(BytesIO(base64.b64decode(read["data"]))), patch)
+        if added:
+            assert rail.document.layers[-1].name == "Decal"
+        picture = mcp.call("view_texture_image", {**target, "max_side": 16})
+        assert not picture["isError"] and picture["content"][0]["type"] == "image"
+        assert picture["structuredContent"]["width"] == 16
+        mcp.ok("textures_undo", target)
+        assert _raster_state(rail) == before
+    assert mcp.error("textures_write_region", {**target, "x": 31, "y": 23, "data": data})["code"] == "invalid_arguments"
+    assert mcp.error("textures_import_pixels", {**target, "data": "abcd", "path": str(png)})["code"] == "invalid_arguments"
+    assert mcp.error("textures_read_region", {**target, "width": 33, "height": 24})["code"] == "invalid_arguments"
+    compare = mcp.ok("textures_compare", {**target, "mode": "split", "split": 35})
+    assert compare == {"mode": "split", "split": 35} and rail.view_mode_combo.currentData() == "split"
+    assert dock.view_mode_combo.currentData() == "edited"
+
+
+def test_texture_export_and_reopen_project(texture_pair, tmp_path, settings):
+    import numpy as np
+    from PIL import Image
+    mcp, dock, rail = texture_pair
+    target = {"editor": "tool"}
+    game = _game(tmp_path, settings)
+    export = {**target, "format": "png", "path": str(game / "image.png")}
+    assert mcp.error("textures_export", export)["code"] == "refused"
+    png = tmp_path / "output.png"
+    mcp.ok("textures_export", {**export, "path": str(png)})
+    mcp.wait_until(lambda: png.exists() and not rail._busy())
+    np.testing.assert_array_equal(np.array(Image.open(png)), rail._current_composite_rgba())
+    assert mcp.error("textures_export", {**export, "path": str(png)})["code"] == "refused"
+    from cdmw.core.texture_native import find_directxtex_texture_binary
+    dds = tmp_path / "output.dds"
+    dds_args = {**target, "format": "dds", "path": str(dds)}
+    if find_directxtex_texture_binary():
+        mcp.ok("textures_derive", {**target, "action": "mips", "value": "single"})
+        failure = mcp.error("textures_export", dds_args)
+        assert failure["code"] == "failed" and "mips" in failure["message"] and not dds.exists()
+        mcp.ok("textures_derive", {**target, "action": "mips", "value": "full"})
+        mcp.ok("textures_export", dds_args)
+        mcp.wait_until(lambda: dds.exists() and not rail._busy())
+        data = dds.read_bytes()
+        assert data[:4] == b"DDS " and int.from_bytes(data[12:16], "little") == 24
+        assert int.from_bytes(data[16:20], "little") == 32 and int.from_bytes(data[28:32], "little") == 6
+    else:
+        assert mcp.error("textures_export", dds_args)["code"] == "unavailable"
+    project = tmp_path / "layers.ctfedit.json"
+    mcp.ok("textures_export", {**target, "format": "project", "path": str(project)})
+    mcp.wait_until(lambda: project.exists() and not rail._busy())
+    before = _raster_state(rail)
+    mcp.ok("textures_open", {**target, "texture": str(png), "source": "file"})
+    mcp.wait_until(lambda: not rail._busy() and rail.document.title != "tool")
+    mcp.ok("textures_open", {**target, "texture": str(project), "source": "project"})
+    mcp.wait_until(lambda: not rail._busy() and rail.document.title == "tool")
+    assert rail.document.layers[1].name == "Top"
+    assert _raster_state(rail)[-1] == before[-1]
+    project.unlink()
+    assert mcp.error("textures_export", {**target, "format": "project", "path": str(project)})["code"] == "refused"
+
+
+
+def test_texture_registry_commands_follow_the_shown_owner(texture_pair):
+    mcp, dock, rail = texture_pair
+    dock.show()
+    dock_size, rail_size = len(dock.document.layers), len(rail.document.layers)
+    mcp.ok("app_run_command", {"command": "texture_editor.new_layer"})
+    assert len(dock.document.layers) == dock_size + 1 and len(rail.document.layers) == rail_size
+    dock.hide()
+    rail.show()
+    mcp.ok("app_run_command", {"command": "texture_editor.new_layer"})
+    assert len(rail.document.layers) == rail_size + 1
+    mcp.ok("textures_undo", {"editor": "tool"})
+    assert len(rail.document.layers) == rail_size and len(dock.document.layers) == dock_size + 1
+
+
+def test_texture_adjustments_floating_channels_and_stamp(texture_pair, tmp_path):
+    from PIL import Image
+    mcp, dock, rail = texture_pair
+    target = {"editor": "tool"}
+    adj = mcp.ok("textures_adjust", {**target, "type": "levels"})["id"]
+    for args in ({"action": "update", "opacity": 30}, {"action": "enable", "enabled": False},
+                 {"action": "mask_active"}, {"action": "duplicate"}, {"action": "remove"}):
+        _undoable_texture_call(mcp, rail, "textures_adjust", {**args, "id": adj})
+    for args in ({"action": "swap_channels", "channel": "red", "other_channel": "blue"},
+                 {"action": "channel_to_selection", "channel": "red"}):
+        _undoable_texture_call(mcp, rail, "textures_derive", args)
+    _undoable_texture_call(mcp, rail, "textures_layer", {"action": "float_copy"})
+    mcp.ok("textures_layer", {**target, "action": "float_copy"})
+    for action, args in [("float_transform", {"scale": 75, "rotation": 25}), ("float_flip_h", {}),
+                         ("float_commit", {}), ("float_cancel", {})]:
+        _undoable_texture_call(mcp, rail, "textures_layer", {"action": action, **args})
+    mcp.ok("textures_undo", target)
+    stamp = tmp_path / "stamp.png"
+    Image.new("RGBA", (5, 5), "white").save(stamp)
+    result = mcp.ok("textures_fill", {**target, "action": "load_stamp", "path": str(stamp)})
+    assert rail.current_tool_settings.custom_brush_tip_path == str(stamp)
+    assert result["history_before"] == result["history_after"]
+    _undoable_texture_call(mcp, rail, "textures_fill", {"action": "stamp", "colour": "#ff8822", "points": [[9, 7]]})
+    result = mcp.ok("textures_fill", {**target, "action": "clear_stamp"})
+    assert not rail.current_tool_settings.custom_brush_tip_path and result["history_before"] == result["history_after"]
+    mcp.ok("textures_tool", {**target, "tool": "clone", "clone_source": [4, 3],
+           "settings": {"roundness": 45, "symmetry_mode": "horizontal", "clone_aligned": False}})
+    settings = rail.current_tool_settings
+    assert (settings.roundness, settings.symmetry_mode, settings.clone_aligned) == (45, "horizontal", False)
+    assert settings.clone_source_point == (4, 3)
+    mcp.ok("textures_select", {**target, "action": "rect", "points": [[2, 3], [12, 11]]})
+    _undoable_texture_call(mcp, rail, "textures_select", {"action": "feather", "radius": 2})
+
+
+
+def test_texture_history_and_atlas(texture_pair, tmp_path):
+    from PIL import Image
+    mcp, dock, rail = texture_pair
+    target = {"editor": "tool"}
+    before = _raster_state(rail)
+    selection = mcp.ok("textures_select", {**target, "action": "rect", "points": [[3, 2], [9, 10]]})
+    step = selection["history_after"]
+    selected = _raster_state(rail)
+    region = tmp_path / "region.png"
+    mcp.ok("textures_export", {**target, "format": "selection", "path": str(region), "padding": 1})
+    with Image.open(region) as image:
+        assert image.size == (8, 10)
+    atlas = tmp_path / "atlas"
+    mcp.ok("textures_export", {**target, "format": "grid", "path": str(atlas), "cell_size": 16, "padding": 0})
+    assert len(list(atlas.glob("*.png"))) == 4
+    assert mcp.error("textures_export", {**target, "format": "grid", "path": str(atlas)})["code"] == "refused"
+    restored = mcp.ok("textures_history", {**target, "action": "restore", "index": step-1})
+    assert restored["history_after"] == step-1 and _raster_state(rail) == before
+    mcp.ok("textures_redo", target)
+    assert _raster_state(rail) == selected
+    cleared = mcp.ok("textures_history", {**target, "action": "clear"})
+    assert cleared["history_after"] == 0 and cleared["steps"] == 1 and _raster_state(rail) == selected
+
+
+def test_texture_worker_rejects_a_changed_document(texture_pair, tmp_path, monkeypatch):
+    from threading import Event
+    from PIL import Image
+    from cdmw.ui.texture_workflow import editor_document_state
+    mcp, dock, rail = texture_pair
+    png = tmp_path / "import.png"
+    Image.new("RGBA", (3, 4), "red").save(png)
+    ready, resume = Event(), Event()
+    prepare = editor_document_state.texture_editor_png_change
+
+    def delayed(*args, **kwargs):
+        ready.set()
+        assert resume.wait(5)
+        return prepare(*args, **kwargs)
+
+    monkeypatch.setattr(editor_document_state, "texture_editor_png_change", delayed)
+    mcp.send("textures_import_pixels", {"editor": "tool", "path": str(png)})
+    try:
+        mcp.wait_until(ready.is_set)
+        rail.add_layer_button.click()
+        expected = _raster_state(rail)
+    finally:
+        resume.set()
+    result = mcp.read()
+    assert result["structuredContent"]["error"]["code"] == "unavailable"
+    assert _raster_state(rail) == expected and rail.history_index == 1
+
+
+def test_docked_texture_output_plan_matches_build_mod(texture_pair):
+    from types import MethodType
+    from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
+    mcp, dock, rail = texture_pair
+    tab = mcp.window.shell.mesh_editor_tab.active
+    tab._live_texture_plan = MethodType(MeshEditorRustProcessMixin._live_texture_plan, tab)
+    rgba = dock._current_composite_rgba()
+    image = QImage(rgba.data, 32, 24, 128, QImage.Format_RGBA8888).copy()
+    path = "textures/owned.dds"
+    source = SimpleNamespace(game_path=path, original=None, users=("Coat",))
+    tab._live_texture_updates = SimpleNamespace(edited_textures=lambda: {"key": image}, sources={"key": source})
+    tab._archive_texture_indexes = lambda: ({}, {})
+    tab._parts_in_build = lambda *, include_body: ("Coat",) if include_body else ()
+    expected = tab._live_texture_plan()
+    plan = mcp.ok("textures_output_plan")
+    assert plan["lines"] == list(expected.plan_lines) and path in plan["refusals"][0]
+    without_body = mcp.ok("textures_output_plan", {"include_body": False})
+    assert path in without_body["left_out"][0] and without_body["refusals"] == []
+    assert dock.history_index == 0

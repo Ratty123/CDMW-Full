@@ -10,8 +10,15 @@ its commands, like its keys, work only in the workspace's Edit mode.
 
 from __future__ import annotations
 
+from dataclasses import replace
+from weakref import ref
+
+import shiboken6
+from PySide6.QtCore import QObject, SIGNAL, Slot
+from PySide6.QtWidgets import QApplication, QWidget
+
 from cdmw.ui.commands.adapters import bind_action
-from cdmw.ui.commands.registry import Command, CommandRegistry, command_registry
+from cdmw.ui.commands.registry import Command, CommandRegistry, UNAVAILABLE_REASON, command_registry
 from cdmw.ui.texture_workflow.editor_shortcuts import texture_editor_shortcut_labels
 from cdmw.ui.texture_workflow.editor_action_state import texture_editor_main_action_state
 
@@ -118,13 +125,104 @@ def texture_editor_commands(editor, bindings: dict, keys: dict) -> list[Command]
     return commands
 
 
+class _CommandOwners(QObject):
+    """Resolve at invocation so creating a hidden editor cannot steal commands."""
+
+    def __init__(self, registry):
+        super().__init__(registry)
+        self.editors = []
+        self.preferred = None
+        self.registry = ref(registry)
+        self._focus_connection = None
+
+    def add(self, editor):
+        if any(owner() is editor for owner in self.editors):
+            return
+        owner = ref(editor)
+        self.editors.append(owner)
+        if self._focus_connection is None:
+            self._focus_connection = QApplication.instance().focusChanged.connect(self.focus_changed)
+        # The context ends both callbacks when the registry is destroyed. Neither
+        # callback retains an editor after Qt deletes its widget.
+        QObject.connect(editor, SIGNAL("destroyed(QObject*)"), self, lambda _object: self.remove(owner))
+        QObject.connect(editor.actions_menu, SIGNAL("aboutToShow()"), self, lambda: self.select(owner()))
+
+    def remove(self, owner):
+        self.editors = [registered for registered in self.editors if registered is not owner]
+        if self.preferred is owner:
+            self.preferred = None
+        if not self.editors and self._focus_connection is not None:
+            QObject.disconnect(self._focus_connection)
+            self._focus_connection = None
+
+    @Slot(QWidget, QWidget)
+    def focus_changed(self, _old, widget):
+        if not shiboken6.isValid(self):
+            return
+        while widget is not None and shiboken6.isValid(widget):
+            if any(owner() is widget for owner in self.editors):
+                self.select(widget)
+                return
+            widget = widget.parentWidget()
+
+    def select(self, editor):
+        if not shiboken6.isValid(self) or editor is None or not shiboken6.isValid(editor):
+            return
+        owner = next((owner for owner in self.editors if owner() is editor), None)
+        registry = self.registry()
+        if owner is not None and registry is not None and shiboken6.isValid(registry):
+            self.preferred = owner
+            registry.refresh(CONTEXT)
+
+    def current(self):
+        if not shiboken6.isValid(self):
+            return None
+        live = []
+        for owner in tuple(self.editors):
+            editor = owner()
+            if editor is None or not shiboken6.isValid(editor):
+                self.remove(owner)
+            else:
+                live.append(editor)
+        preferred = self.preferred() if self.preferred else None
+        visible = [e for e in live if e.isVisible()]
+        choices = visible or live
+        if any(editor is preferred for editor in choices):
+            return preferred
+        return choices[0] if choices else None
+
+    def command(self, key):
+        owner = self.current()
+        return owner._texture_commands[key] if owner is not None else None
+
+    def route(self, command):
+        key = command.id
+
+        def reason():
+            target = self.command(key)
+            return target.reason() if target else UNAVAILABLE_REASON
+
+        def run():
+            target = self.command(key)
+            if target:
+                return target.run()
+
+        return replace(command, run=run, reason=reason)
+
+
 def install_texture_editor_commands(editor, bindings: dict, keys: dict) -> CommandRegistry | None:
     """Register the editor's commands and make its Actions menu views of them."""
 
     registry = command_registry()
     if registry is None:
         return None
-    registry.register_all(texture_editor_commands(editor, bindings, keys), replace=True)
+    owners = getattr(registry, "_texture_editor_owners", None)
+    if owners is None:
+        owners = registry._texture_editor_owners = _CommandOwners(registry)
+    commands = texture_editor_commands(editor, bindings, keys)
+    editor._texture_commands = {command.id: command for command in commands}
+    owners.add(editor)
+    registry.register_all([owners.route(command) for command in commands], replace=True)
     if not getattr(editor, "_cdmw_follows_keymap", False):
         # A key changed in Settings > Shortcuts rebinds this editor's shortcuts at once.
         editor._cdmw_follows_keymap = True
