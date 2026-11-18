@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+import struct
 from collections.abc import Iterable, Mapping
 
 IDENTITY_UV_TRANSFORM = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
@@ -60,6 +61,53 @@ def pac_layer_uv_transform(
         cosine / sx, sine / sx, -sine / sy, cosine / sy,
         x * cosine - y * sine + 0.5, x * sine + y * cosine + 0.5,
     )
+
+
+def pac_blend_layer_uv_transform(
+    parameters: Iterable[tuple[str, object]],
+) -> tuple[float, float, float, float, float, float]:
+    """Return where the Ver2 blend layer (the game's "symbol") sits on the mesh UV.
+
+    The layer is placed once, not tiled: it draws where the transformed
+    coordinate lies in 0.005 to 0.995. Scale is bytes 0 and 1 of
+    `_dyeingTransformProperty4`, the angle byte 3 of `_dyeingPropertyBlend`, the
+    translation the two half floats of `_dyeingBlendTextureTranslation`. Bits 2
+    and 4 of `_colorBlendingOptionBitFlag` mirror it in U and V. An unauthored
+    parameter takes the engine's default: scale 1, no turn, no translation.
+    """
+    scale, rotation, translation, mirror = (1.0, 1.0), 0.5, (0.0, 0.0), 0
+    for name, value in parameters:
+        key = "".join(character for character in str(name).casefold() if character.isalnum())
+        if key == "dyeingtransformproperty4":
+            parts = _byte4(value)
+            if len(parts) == 4:
+                scale = parts[0], parts[1]
+        elif key == "dyeingpropertyblend":
+            parts = _byte4(value)
+            if len(parts) == 4:
+                rotation = parts[3]
+        elif key in {"dyeingblendtexturetranslation", "colorblendingoptionbitflag"}:
+            text = str(value).strip() if value is not None else ""
+            if not re.fullmatch(r"\d+", text):
+                continue
+            integer = min(0xFFFFFFFF, int(text))
+            if key == "colorblendingoptionbitflag":
+                mirror = integer
+            else:
+                translation = struct.unpack("<2e", struct.pack("<I", integer))
+    sx, sy = max(scale[0], 1e-5), max(scale[1], 1e-5)
+    angle = rotation * (2.0 * math.pi) - math.pi
+    cosine, sine = math.cos(angle), math.sin(angle)
+    x, y = (-0.5 - translation[0]) / sx, (-0.5 + translation[1]) / sy
+    transform = [
+        cosine / sx, sine / sx, -sine / sy, cosine / sy,
+        x * cosine - y * sine + 0.5, x * sine + y * cosine + 0.5,
+    ]
+    if mirror & 2:
+        transform[0], transform[2], transform[4] = -transform[0], -transform[2], 1.0 - transform[4]
+    if mirror & 4:
+        transform[1], transform[3], transform[5] = -transform[1], -transform[3], 1.0 - transform[5]
+    return tuple(transform)  # type: ignore[return-value]
 
 
 def pac_grime_uv_transform(
@@ -148,12 +196,13 @@ def pac_color_bytes(value: object) -> tuple[float, float, float, float] | None:
 
 
 def detail_mask_sources(manifest: object) -> tuple[str, ...]:
-    """Resolved `_detailMaskTexture`, `_maskTexture` and `_overlayColorTexture` files of a native
-    preview package manifest.
+    """Resolved `_detailMaskTexture`, `_maskTexture`, `_overlayColorTexture` and
+    `_detailDiffuseBlend` files of a native preview package manifest.
 
     The Ver2 grime and scratch rules read the first, the legacy families' dye the
-    second, the Ver2 overlay step the third. No material layer row is certain to
-    name them, so readers that protect, check or copy layer sources ask here as well.
+    second, the Ver2 overlay step the third, the Ver2 blend layer the fourth. No
+    material layer row is certain to name them, so readers that protect, check or
+    copy layer sources ask here as well.
     """
     conservation = manifest.get("material_conservation") if isinstance(manifest, Mapping) else None
     parameters = conservation.get("parameters") if isinstance(conservation, Mapping) else None
@@ -164,7 +213,7 @@ def detail_mask_sources(manifest: object) -> tuple[str, ...]:
         if not isinstance(parameter, Mapping):
             continue
         if str(parameter.get("parameter_name", "")).casefold().lstrip("_") not in {
-            "detailmasktexture", "masktexture", "overlaycolortexture",
+            "detailmasktexture", "masktexture", "overlaycolortexture", "detaildiffuseblend",
         }:
             continue
         source = str(parameter.get("resolved_source_path", "") or "").strip()

@@ -1321,12 +1321,9 @@ fn compose_base_color(
     apply_legacy_dye(&mut target, width, height, material, cache)?;
     let color_seed_applied =
         apply_color_seed_layers(&mut target, width, height, &material.layers, cache)?;
-    for layer in material
-        .layers
-        .iter()
-        .skip(1)
-        .filter(|layer| layer.layer_role != "color_seed" && !layer.is_ver2_overlay())
-    {
+    for layer in material.layers.iter().skip(1).filter(|layer| {
+        layer.layer_role != "color_seed" && !layer.is_ver2_overlay() && !layer.is_ver2_blend()
+    }) {
         let Some(reference) = layer.diffuse.as_ref() else {
             continue;
         };
@@ -1430,11 +1427,70 @@ fn compose_base_color(
             }
         }
     }
+    if let Some(blend) = Ver2Blend::of(material, cache, width, height)? {
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let color = blend.apply(linear_pixel(&target, offset), pixel, width, height);
+            for k in 0..3 {
+                target[offset + k] = unit_byte(linear_to_srgb(color[k]));
+            }
+        }
+    }
     Ok(Some(DecodedRgba8 {
         width,
         height,
         pixels: target,
     }))
+}
+
+/// The Ver2 blend layer of a material (`_detailDiffuseBlend`, the game's
+/// "symbol"), the CPU form of the block in material_layers.wgsl: placed once on
+/// the mesh UV, dyed as a colour layer, laid over by its alpha times its opacity.
+struct Ver2Blend {
+    pixels: ImagePixels,
+    affine: [f32; 6],
+    tint: [f32; 4],
+    opacity: f32,
+}
+
+impl Ver2Blend {
+    fn of(
+        material: &PreviewCoreMaterial,
+        cache: &mut ImageCache,
+        width: u32,
+        height: u32,
+    ) -> Result<Option<Self>, SessionError> {
+        let Some(row) = material
+            .layers
+            .iter()
+            .skip(1)
+            .find(|layer| layer.is_ver2_blend())
+        else {
+            return Ok(None);
+        };
+        let reference = row.diffuse.as_ref().expect("blend layer colour");
+        Ok(Some(Self {
+            pixels: cache.transformed(reference, width, height, row)?,
+            affine: row.sampling_transform(),
+            tint: row.tint,
+            opacity: row.blend_opacity.unwrap_or(0.0),
+        }))
+    }
+
+    /// The layer over a linear colour at a pixel of the composed map.
+    fn apply(&self, color: [f32; 3], pixel: usize, width: u32, height: u32) -> [f32; 3] {
+        let u = ((pixel % width as usize) as f32 + 0.5) / width as f32;
+        let v = ((pixel / width as usize) as f32 + 0.5) / height as f32;
+        let a = self.affine;
+        let placed = [a[0] * u + a[2] * v + a[4], a[1] * u + a[3] * v + a[5]];
+        if placed.iter().any(|value| !(0.005..=0.995).contains(value)) {
+            return color;
+        }
+        let offset = pixel * 4;
+        let amount = (unit(self.pixels[offset + 3]) * self.opacity).clamp(0.0, 1.0);
+        let dyed = ver2_tint(linear_pixel(&self.pixels, offset), self.tint);
+        std::array::from_fn(|k| mix(color[k], dyed[k], amount))
+    }
 }
 
 /// The Ver2 overlay step of a material (`_overlayColorTexture`), the CPU form of
@@ -1661,6 +1717,7 @@ fn compose_rgb_layer_base_color(
     let overlay = material.layers.iter().skip(1).any(|layer| {
         !layer.is_legacy_dye()
             && !layer.is_ver2_overlay()
+            && !layer.is_ver2_blend()
             && layer.mask_parameter != "_colorBlendingMaskTexture"
     });
     // Mode 4 of the layer shader: the legacy families' own rule.
@@ -1697,8 +1754,13 @@ fn compose_rgb_layer_base_color(
     } else {
         Ver2Overlay::of(material, cache, width, height)?
     };
+    let ver2_blend = if overlay {
+        None
+    } else {
+        Ver2Blend::of(material, cache, width, height)?
+    };
     for layer in material.layers.iter().skip(1) {
-        if layer.is_legacy_dye() || layer.is_ver2_overlay() {
+        if layer.is_legacy_dye() || layer.is_ver2_overlay() || layer.is_ver2_blend() {
             continue;
         }
         let k = channel_index(&layer.mask_channel).min(2);
@@ -1834,6 +1896,10 @@ fn compose_rgb_layer_base_color(
             // The overlay step, after grime and scratch.
             if let Some(step) = ver2_overlay.as_ref() {
                 color = step.apply(color, offset, ver2_slot(weights));
+            }
+            // The blend layer, after the overlay step.
+            if let Some(blend) = ver2_blend.as_ref() {
+                color = blend.apply(color, pixel, width, height);
             }
             std::array::from_fn(|k| color[k] * tint[k])
         };

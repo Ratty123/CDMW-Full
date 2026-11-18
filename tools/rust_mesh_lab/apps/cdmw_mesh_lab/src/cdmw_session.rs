@@ -339,6 +339,16 @@ impl PreviewCoreMaterialLayer {
             && self.diffuse.is_some()
     }
 
+    /// Whether this row is the Ver2 blend layer (the game's "symbol"):
+    /// `_detailDiffuseBlend` in `diffuse`, its dye in `tint`, its placement on the
+    /// mesh UV in `uv_transform` and its opacity byte in `blend_opacity`. It is
+    /// placed once: it draws where its own UV lies in 0.005 to 0.995.
+    pub fn is_ver2_blend(&self) -> bool {
+        self.layer_role == "overlay"
+            && self.source_parameter == "_detailDiffuseBlend"
+            && self.diffuse.is_some()
+    }
+
     /// The signed roughness and metal steps of a scratch, each in -1 to 1.
     pub fn scratch_steps(&self) -> [f32; 2] {
         self.scratch.map_or([0.0; 2], |bytes| {

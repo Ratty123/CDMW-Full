@@ -584,6 +584,82 @@ def test_only_ver2_families_run_the_overlay_step(tmp_path: Path, family: str):
     assert rows == []
 
 
+def _ver2_blend_fixture(tmp_path: Path, *, family="SkinnedMeshCloth_Ver2", opacity=0xFFFFFFFF, exists=True,
+                        extra=()):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    symbol = tmp_path / "symbol_dec.dds"
+    if exists:
+        symbol.write_bytes(b"DDS " + b"S" * 512)
+    base = native["batches"][0]["material_layers"][0]
+    native["batches"][0]["material_layers"].append(dict(
+        base, layer_role="detail", mask_channel="r", component_scope_id="piece-a", shader_family=family,
+        source_parameter="_detailDiffuseMaskR", mask_parameter="_colorBlendingMaskTexture",
+        mask_source=base["diffuse_source"], mask_archive_path="character/texture/sail_ma.dds"))
+    wrapper = dict(component_scope_id="piece-a", owner_wrapper_item_id=base["owner_wrapper_item_id"],
+                   material_wrapper_index=base["material_wrapper_index"])
+    parameters = [
+        dict(wrapper, parameter_name="_dyeingGlobalOpacity", integer_value=opacity),
+        dict(wrapper, parameter_name="_detailDiffuseBlend", value="",
+             resolved_source_path=str(symbol), resolved_archive_path="character/texture/symbol_dec.dds"),
+        *(dict(wrapper, **row) for row in extra),
+    ]
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=len(parameters),
+                                           transported_parameter_count=len(parameters))
+    (source / "manifest.json").write_text(json.dumps(native))
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    layers = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"]
+    return package, symbol, [layer for layer in layers if layer["source_parameter"] == "_detailDiffuseBlend"]
+
+
+def test_a_ver2_wrapper_states_its_blend_layer_as_one_placed_row(tmp_path: Path):
+    """The griffin on the great helm `cd_phm_00_hel_set_0101`: `_detailDiffuseBlend` was dropped.
+
+    The parameter values here are those of a sail wrapper of `cd_r0048_00_bigship_sail_0001`.
+    """
+    from cdmw.domain.material_layer_uv import pac_blend_layer_uv_transform
+
+    extra = (
+        dict(parameter_name="_dyeingDetailLayerColorBlend", value="#4d1a1aff"),
+        dict(parameter_name="_dyeingTransformProperty4", integer_value=0x7FA9FFFF),
+        dict(parameter_name="_dyeingPropertyBlend", integer_value=0x80B97F00),
+        dict(parameter_name="_dyeingBlendTextureTranslation", integer_value=3075252249),
+    )
+    package, symbol, rows = _ver2_blend_fixture(tmp_path, opacity=0x80FFFFFF, extra=extra)
+    (row,) = rows
+    assert row["layer_role"] == "overlay" and row["mask_parameter"] == ""
+    assert row["diffuse_archive_path"] == "character/texture/symbol_dec.dds"
+    assert (package.manifest_path.parent / row["diffuse"]["path"]).read_bytes() == symbol.read_bytes()
+    assert row["tint"] == pytest.approx([0x4D / 255, 0x1A / 255, 0x1A / 255, 1.0])
+    assert row["blend_opacity"] == pytest.approx(0x80 / 255)
+    assert row["uv_transform"] == pytest.approx(pac_blend_layer_uv_transform((
+        ("_dyeingTransformProperty4", 0x7FA9FFFF), ("_dyeingPropertyBlend", 0x80B97F00),
+        ("_dyeingBlendTextureTranslation", 3075252249),
+    )))
+
+
+def test_a_blend_layer_without_a_dye_keeps_its_own_colour(tmp_path: Path):
+    _package, _symbol, rows = _ver2_blend_fixture(tmp_path)
+    (row,) = rows
+    assert row["tint"][3] == 0 and row["blend_opacity"] == 1.0
+    # The engine's defaults: scale 1, no turn, no translation.
+    assert row["uv_transform"] == pytest.approx([1.0, 0.0, 0.0, 1.0, 0.0, 0.0], abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    (
+        dict(opacity=0x00FFFFFF),  # Byte 3 zero: the game skips the layer.
+        dict(exists=False),  # No file: nothing to draw.
+        dict(family="SkinnedMeshStandard"),  # The legacy rule has no blend layer.
+    ),
+)
+def test_the_blend_layer_is_left_out_when_the_game_would_not_draw_it(tmp_path: Path, arguments):
+    _package, _symbol, rows = _ver2_blend_fixture(tmp_path, **arguments)
+    assert rows == []
+
+
 def _called_names(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     result: set[str] = set()
@@ -818,7 +894,7 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
 ) -> None:
     from cdmw.services import mesh_rust_preview_cache as cache
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 13
+    assert RUST_PREVIEW_CACHE_SCHEMA == 14
     upgraded = cache.rust_preview_package_cache_key("same-archive-identity")
     monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 8)
     assert cache.rust_preview_package_cache_key("same-archive-identity") != upgraded

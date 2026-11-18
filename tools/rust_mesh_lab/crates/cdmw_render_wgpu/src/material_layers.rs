@@ -19,17 +19,20 @@ pub const LAYER_CONTROL_OVERLAY_LUMA: u32 = 16;
 /// `LayerUniform::control[0]` of the legacy families' rule.
 pub const LAYER_MODE_LEGACY: u32 = 4;
 /// Layer textures: the blend mask; colour, normal and response for R, G, B; the
-/// detail mask; grime colour, normal and response for R, G, B; then the overlay
-/// colour map.
-pub const LAYER_TEXTURE_SLOTS: usize = 21;
+/// detail mask; grime colour, normal and response for R, G, B; the overlay
+/// colour map; then the blend layer's colour map.
+pub const LAYER_TEXTURE_SLOTS: usize = 22;
 /// Slot of `_detailMaskTexture` (red marks scratches, green grime).
 pub const DETAIL_MASK_SLOT: usize = 10;
 /// First grime slot; grime of channel k starts at `GRIME_SLOT + 3 * k`.
 pub const GRIME_SLOT: usize = 11;
 /// Slot of `_overlayColorTexture` (Ver2), sampled at the mesh UV as linear data.
 pub const OVERLAY_SLOT: usize = 20;
+/// Slot of `_detailDiffuseBlend` (Ver2): the blend layer the game calls the
+/// symbol, placed once on the mesh UV, not tiled.
+pub const BLEND_SLOT: usize = 21;
 /// Sampled textures of one fragment stage with layers bound: 16 material maps,
-/// the layer slots and the shadow map (38 of them; the limit leaves two spare).
+/// the layer slots and the shadow map (39 of them; the limit leaves one spare).
 const REQUIRED_SAMPLED_TEXTURES: u32 = 40;
 
 #[repr(C)]
@@ -73,6 +76,12 @@ pub struct LayerUniform {
     /// flag, bits (`LAYER_CONTROL_*`: no base colour map, colour only, the Ver2
     /// overlay step and its options).
     pub control: [u32; 4],
+    /// `_dyeingDetailLayerColorBlend`: the blend layer's sRGB dye and strength.
+    pub blend_dye: [f32; 4],
+    /// The blend layer's placement on the mesh UV, as a layer's `affine`.
+    pub blend_affine: [f32; 4],
+    /// Its UV offset, its opacity (`_dyeingGlobalOpacity` byte 3), presence.
+    pub blend_offset: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -208,7 +217,7 @@ pub(super) fn binding(
                     ..Default::default()
                 })
             } else {
-                let texture = if index == 0 || index == DETAIL_MASK_SLOT || index == OVERLAY_SLOT {
+                let texture = if index == 0 || index == DETAIL_MASK_SLOT || index >= OVERLAY_SLOT {
                     &defaults.layer_mask
                 } else {
                     let set = if index < DETAIL_MASK_SLOT {
@@ -317,7 +326,7 @@ mod tests {
     #[test]
     fn layer_uniform_preserves_group_zero_abi() {
         assert_eq!(std::mem::size_of::<LayerEntryUniform>(), 160);
-        assert_eq!(std::mem::size_of::<LayerUniform>(), 560);
+        assert_eq!(std::mem::size_of::<LayerUniform>(), 608);
         assert_eq!(std::mem::size_of::<MaterialUniform>(), 288);
         let shader = include_str!("material_layers.wgsl");
         for binding in 0..=LAYER_TEXTURE_SLOTS {

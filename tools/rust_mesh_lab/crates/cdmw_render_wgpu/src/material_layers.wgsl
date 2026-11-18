@@ -8,6 +8,8 @@ struct LayerEntry {
 };
 struct LayerUniform {
     layers: array<LayerEntry, 3>, seeds: array<vec4<f32>, 3>, base_color: vec4<f32>, control: vec4<u32>,
+    // The Ver2 blend layer: sRGB dye and strength, placement, (UV offset, opacity, presence).
+    blend_dye: vec4<f32>, blend_affine: vec4<f32>, blend_offset: vec4<f32>,
 };
 @group(2) @binding(0) var blend_mask: texture_2d<f32>;
 @group(2) @binding(1) var layer_r_color: texture_2d<f32>;
@@ -33,6 +35,8 @@ struct LayerUniform {
 @group(2) @binding(20) var grime_b_sp: texture_2d<f32>;
 // _overlayColorTexture (Ver2): linear data at the mesh UV.
 @group(2) @binding(21) var overlay_color: texture_2d<f32>;
+// _detailDiffuseBlend (Ver2): the blend layer's colour, placed once.
+@group(2) @binding(22) var blend_color: texture_2d<f32>;
 
 fn layer_uv(layer: LayerEntry, uv: vec2<f32>) -> vec2<f32> {
     return vec2<f32>(layer.affine.x*uv.x + layer.affine.z*uv.y,
@@ -185,6 +189,11 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     responses[1] = textureSampleBias(layer_g_sp, material_sampler, ug, 0.0).rgb;
     responses[2] = textureSampleBias(layer_b_sp, material_sampler, ub, 0.0).rgb;
     let detail_texel = textureSampleBias(detail_mask, material_sampler, uv, 0.0).rgb;
+    // The blend layer is placed once: it draws where its own UV lies in 0.005 to
+    // 0.995. Sampled here, outside the per-pixel choice below.
+    let blend_uv = vec2<f32>(layer_uniform.blend_affine.x*uv.x + layer_uniform.blend_affine.z*uv.y,
+                             layer_uniform.blend_affine.y*uv.x + layer_uniform.blend_affine.w*uv.y) + layer_uniform.blend_offset.xy;
+    let blend_texel = textureSampleBias(blend_color, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), 0.0);
     var grime_colors: array<vec3<f32>,3>;
     var grime_normals: array<vec3<f32>,3>;
     var grime_responses: array<vec3<f32>,3>;
@@ -306,6 +315,14 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
                 over = vec3<f32>(dot(over, vec3<f32>(0.299, 0.587, 0.114)));
             }
             color = srgb_to_linear(layer_overlay(over, linear_to_srgb(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)))));
+        }
+        // The game's blend layer, after the overlay step and only with a non-zero
+        // opacity byte: _detailDiffuseBlend dyed as a colour layer, laid over by
+        // its own alpha times that byte.
+        if layer_uniform.blend_offset.w > 0.5 {
+            let inside = all(blend_uv >= vec2<f32>(0.005)) && all(blend_uv <= vec2<f32>(0.995));
+            let amount = clamp(blend_texel.a * layer_uniform.blend_offset.z, 0.0, 1.0);
+            color = mix(color, layer_tint(blend_texel.rgb, layer_uniform.blend_dye), select(0.0, amount, inside));
         }
     }
     out.color = color;

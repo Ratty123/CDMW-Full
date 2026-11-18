@@ -29,7 +29,7 @@ pub mod texture_view;
 pub use lighting_depth::LightingDepthSettings;
 pub use lighting_depth::verify_lighting_depth_compatibility;
 pub use material_layers::{
-    DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
+    BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
     LAYER_CONTROL_OVERLAY, LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LAYER_TEXTURE_SLOTS,
     LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet, OVERLAY_SLOT,
     material_layers_supported,

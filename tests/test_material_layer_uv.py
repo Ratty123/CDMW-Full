@@ -7,6 +7,7 @@ import pytest
 
 from cdmw.domain.material_layer_uv import (
     IDENTITY_UV_TRANSFORM,
+    pac_blend_layer_uv_transform,
     pac_color_bytes,
     pac_grime_blend_bytes,
     pac_grime_uv_transform,
@@ -131,3 +132,39 @@ def test_scratch_needs_an_authored_parameter_and_fills_the_other_with_no_change(
     assert pac_scratch_bytes((("_scratchRoughness", 0x9B),), "r") == (0x9B, 127)
     assert pac_scratch_bytes((("_scratchMetallic", 0xFF),), "r") == (127, 0xFF)
     assert pac_scratch_bytes((("_scratchRoughness", 0x9B),), "a") is None
+
+
+@pytest.mark.parametrize("mirror", (0, 2, 4, 6, 32))
+def test_blend_layer_placement_follows_the_games_symbol_transform(mirror):
+    """The Ver2 blend layer (`_detailDiffuseBlend`, the game's symbol), placed once.
+
+    The game (permutation d4ae32939fa23e46, %1540 to %1623): scale from bytes 0 and 1
+    of `_dyeingTransformProperty4`, the angle from byte 3 of `_dyeingPropertyBlend`,
+    the translation from the half floats of `_dyeingBlendTextureTranslation`; bits 2
+    and 4 of `_colorBlendingOptionBitFlag` negate U and V, which a repeating sampler
+    reads as a mirror.
+    """
+    import struct
+
+    translation = struct.unpack("<2e", struct.pack("<I", 3075252249))
+    assert translation == pytest.approx((-0.008003, -0.456055), abs=1e-5)
+    affine = pac_blend_layer_uv_transform((
+        ("_dyeingTransformProperty4", 0x7FA9B0C8), ("_dyeingPropertyBlend", 0x60B97F00),
+        ("_dyeingBlendTextureTranslation", 3075252249), ("_colorBlendingOptionBitFlag", mirror),
+    ))
+    sx, sy = 0xC8 / 255, 0xB0 / 255
+    angle = 0x60 / 255 * 2 * math.pi - math.pi
+    for u, v in ((0, 0), (0.5, 0.5), (0.13, 0.89), (1, 1)):
+        x, y = (u - 0.5 - translation[0]) / sx, (v - 0.5 + translation[1]) / sy
+        expected = [x * math.cos(angle) - y * math.sin(angle) + 0.5,
+                    x * math.sin(angle) + y * math.cos(angle) + 0.5]
+        if mirror & 2:
+            expected[0] = 1 - expected[0]
+        if mirror & 4:
+            expected[1] = 1 - expected[1]
+        assert (affine[0] * u + affine[2] * v + affine[4],
+                affine[1] * u + affine[3] * v + affine[5]) == pytest.approx(expected)
+
+
+def test_blend_layer_placement_defaults_to_the_whole_uv_square():
+    assert pac_blend_layer_uv_transform(()) == pytest.approx((1, 0, 0, 1, 0, 0), abs=1e-6)
