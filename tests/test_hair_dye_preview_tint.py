@@ -78,3 +78,30 @@ def test_only_hair_families_read_the_hair_dye() -> None:
     assert sidecar_hair_dye_for_batch(_hair_batch("#d2bb60ff", shader_family="SkinnedMeshAnimalHair")) is not None
     assert sidecar_hair_dye_for_batch(_hair_batch("#d2bb60ff", shader_family="SkinnedMeshWhiteHornHair")) is not None
     assert sidecar_hair_dye_for_batch(_hair_batch("#d2bb60ff", shader_family="SkinnedMeshStandard")) is None
+
+
+def test_a_dye_stated_as_the_parts_tint_already_keeps_the_dyes_alpha() -> None:
+    # The archive sidecar rules copy a binding's tint colour onto the part.
+    batch = _hair_batch("#d2bb6080")
+    batch.preview_texture_tint = (210 / 255.0, 187 / 255.0, 96 / 255.0)
+
+    contract = resolve_preview_tint_contract(batch, base_tint_strength=0.0)
+    assert contract.hair_dye
+    assert contract.base_tint_strength == 128 / 255.0
+
+    switched_off = _hair_batch("#d2bb6000")
+    switched_off.preview_texture_tint = (210 / 255.0, 187 / 255.0, 96 / 255.0)
+    contract = resolve_preview_tint_contract(switched_off)
+    assert not contract.texture_tint_active
+    assert contract.texture_tint == ()
+    assert contract.base_tint_strength == 0.0
+
+
+def test_another_tint_on_a_hair_part_is_not_the_dye() -> None:
+    batch = _hair_batch("#d2bb6080")
+    batch.preview_texture_tint = (0.2, 0.4, 0.9)
+
+    contract = resolve_preview_tint_contract(batch)
+    assert not contract.hair_dye
+    assert contract.texture_tint == (0.2, 0.4, 0.9)
+    assert contract.base_tint_strength == 0.85

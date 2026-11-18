@@ -80,13 +80,25 @@ def resolve_preview_tint_contract(
         resolved_strength = 0.0
     if base_tint_strength is not None:
         resolved_strength = max(0.0, min(1.0, _safe_float(base_tint_strength, resolved_strength)))
-    hair_dye = sidecar_hair_dye_for_batch(batch) if sidecar_promoted else None
+    hair_dye = sidecar_hair_dye_for_batch(batch)
+    if hair_dye is not None and not sidecar_promoted and not (
+        # A caller may have stated the dye as the part's tint already (the
+        # archive sidecar rules copy a binding's tint colour). Any other tint
+        # is somebody's own colour and keeps its own strength.
+        tint_active
+        and all(abs(float(tint) - float(dye)) <= 1.0 / 255.0 for tint, dye in zip(texture_tint, hair_dye[:3]))
+    ):
+        hair_dye = None
     if hair_dye is not None:
         # The game mixes the dyed colour in by the dye's alpha. The tint is the
         # wrapper's own colour, so its strength is too: the package's base-tint
         # strength (zero for a part without a tinted base) says nothing about it,
         # and a zero strength would make the renderer multiply instead of dye.
         resolved_strength = max(0.0, min(1.0, float(hair_dye[3])))
+        if resolved_strength <= 0.0:
+            # Alpha zero is the game's "no dye".
+            texture_tint = ()
+            tint_active = False
     return PreviewTintContract(
         base_color=resolved_base_color,
         texture_tint=texture_tint,
