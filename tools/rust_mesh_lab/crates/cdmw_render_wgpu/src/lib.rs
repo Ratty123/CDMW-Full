@@ -637,6 +637,19 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         let value = max(texel.r, max(texel.g, texel.b));
         texel = vec4<f32>(value * srgb_to_linear(material.glow_surface_color.rgb), texel.a);
     }
+    if shader_kind == 20.0 {
+        // The game's leaf shaders (GrassLeaf, TreeLeaf, TreeFrond), in linear
+        // values: the texture tinted toward _grassColor by a geometric mean that
+        // keeps its luminance, by the colour's alpha; back faces 10% brighter.
+        //   t = sqrt(base * gc);  tint = t * Y(base) / max(0.001, Y(t))
+        let leaf_luma = vec3<f32>(0.2126, 0.7152, 0.0722);
+        let leaf_grass = srgb_to_linear(vec3<f32>(shader_value(7u), shader_value(8u), shader_value(9u)));
+        let leaf_mean = sqrt(max(texel.rgb * leaf_grass, vec3<f32>(0.0)));
+        let leaf_tint = leaf_mean * dot(texel.rgb, leaf_luma) / max(0.001, dot(leaf_mean, leaf_luma));
+        var leaf_albedo = mix(texel.rgb, leaf_tint, clamp(shader_value(6u), 0.0, 1.0));
+        if !front_facing { leaf_albedo *= 1.1; }
+        texel = vec4<f32>(clamp(leaf_albedo, vec3<f32>(0.0), vec3<f32>(1.0)), texel.a);
+    }
     var material_alpha = texel.a;
     if (material.flags & MATERIAL_OPACITY) != 0u {
         material_alpha = textureSampleBias(opacity_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
@@ -990,6 +1003,13 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         roughness = layer_surface.orm.g;
         metalness = layer_surface.orm.b;
         occlusion = layer_surface.orm.r;
+    }
+    if shader_kind == 20.0 {
+        // The leaf shaders read neither roughness nor metal from a map: roughness
+        // is a constant per family and face (lanes 4 front, 5 back), and the
+        // metal byte holds a family constant, not metal.
+        roughness = clamp(select(shader_value(5u), shader_value(4u), front_facing), 0.04, 1.0);
+        metalness = 0.0;
     }
 
     let game_outdoor = camera.view_mode == 9u;
@@ -5276,7 +5296,9 @@ fn validate_material_factor_ownership(
     }
     if factors.shader_controls.is_some_and(|v| {
         v.iter().any(|n| !n.is_finite() || n.abs() > 1e6)
-        || !(0.0..=11.0).contains(&v[0]) || v[0].fract() != 0.0
+        || !((0.0..=11.0).contains(&v[0]) || v[0] == 20.0) || v[0].fract() != 0.0
+        // Leaf (fix 13): front and back roughness, tint strength, sRGB tint colour.
+        || (v[0] == 20.0 && v[4..10].iter().any(|n| !(0.0..=1.0).contains(n)))
         // Layered glass: opacity, edge, roughness, IOR 1-2.5, RGB and colour alpha.
         || (v[0] == 10.0 && (v[4..7].iter().chain(&v[8..12]).any(|n| !(0.0..=1.0).contains(n))
             || !(1.0..=2.5).contains(&v[7])))
@@ -12493,6 +12515,34 @@ mod tests {
             material_translucency_uniform(MaterialPreviewFactors::default()),
             [0.0; 4]
         );
+    }
+
+    #[test]
+    fn leaf_shader_controls_carry_roughness_by_face_and_the_grass_tint() {
+        // Kind 20: the game's GrassLeaf, TreeLeaf and TreeFrond rule.
+        let mut controls = [0.0; 32];
+        controls[0] = 20.0;
+        controls[4..10].copy_from_slice(&[1.0, 0.30, 0.89, 0.47, 0.56, 0.10]);
+        let mut factors = MaterialPreviewFactors {
+            shader_controls: Some(controls),
+            ..Default::default()
+        };
+        assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
+        for (index, value) in [(4, 1.01), (5, -0.01), (6, 1.5), (9, f32::NAN)] {
+            let mut invalid = controls;
+            invalid[index] = value;
+            factors.shader_controls = Some(invalid);
+            assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
+        }
+        for kind in [12.0, 19.0, 21.0] {
+            let mut other = controls;
+            other[0] = kind;
+            factors.shader_controls = Some(other);
+            assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_err());
+        }
+        // The surface shader overrides the map's roughness and metal for it.
+        assert!(SHADER.contains("if shader_kind == 20.0 {"));
+        assert!(SHADER.contains("roughness = clamp(select(shader_value(5u), shader_value(4u), front_facing), 0.04, 1.0);"));
     }
 
     #[test]

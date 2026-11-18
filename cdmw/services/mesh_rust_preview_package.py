@@ -1411,6 +1411,113 @@ def _apply_preview_core_ghost_shells(presentations, graph, raw_batches, paramete
         row["alpha_cutoff"] = 0.0
 
 
+# The game's leaf shaders (GrassLeaf, TreeLeaf, TreeFrond): roughness by face,
+# (front, back), from no texture and no parameter.
+_LEAF_ROUGHNESS = {
+    "skinnedmeshgrassleaf": (0.45, 0.45),
+    "skinnedmeshtreeleaf": (1.0, 0.30),
+    "skinnedmeshtreefrond": (1.0, 0.60),
+}
+# shader_controls[0] of a leaf part: the renderer's leaf rule.
+LEAF_SHADER_KIND = 20.0
+
+
+def leaf_surface_presentation(family, parameters):
+    """How the preview draws a part of the game's leaf shaders, or None.
+
+    GrassLeaf, TreeLeaf and TreeFrond share one pixel shader (permutations
+    c148717afa198273, 0bfb2ab3479b9972, c37dd47c3db87f5d and their AlphaTest
+    twins); they differ in roughness only:
+
+        gc = srgb_to_linear(_grassColor.rgb),  ga = _grassColor.a
+        t  = sqrt(base * gc);  tint = t * Y(base) / max(0.001, Y(t))
+        albedo = lerp(base, tint, ga * mb),  times 1.1 on back faces
+        roughness = GrassLeaf 0.45 + 0.005 d (both faces)
+                    TreeLeaf  front 1.0, back 0.30 + 0.005 d
+                    TreeFrond front 1.0, back 0.60 + 0.005 d
+        no metal (the metal byte holds a per-family constant)
+        AlphaTest: discard if base alpha < 0.5 (with the instance's alpha-test bit)
+
+    d is a view distance (inferred from the form); the preview takes the ramp's
+    start. `_materialTexture` gives neither roughness nor metal: the shader reads
+    only its blue, and only as mb when `_grassBitFlag` bit 0 is set, which no
+    shipped wrapper does, so mb is 1 here. The alpha-test bit is per instance; a
+    leaf part with the AlphaTest permutation is taken to have it set.
+
+    Returns presentation fields: shader_controls (kind 20; lanes 4 and 5 the
+    front and back roughness, lane 6 the tint strength, lanes 7 to 9 the tint
+    colour as sRGB), alpha_mode and alpha_cutoff.
+    """
+    roughness = _LEAF_ROUGHNESS.get(str(family or "").strip().casefold())
+    if roughness is None:
+        return None
+    values = {str(name).casefold().lstrip("_"): value for name, value in dict(parameters).items()}
+    colour = pac_color_bytes(values.get("grasscolor")) or (0.0, 0.0, 0.0, 0.0)
+    controls = [0.0] * 32
+    controls[0] = LEAF_SHADER_KIND
+    controls[4], controls[5] = roughness
+    controls[6] = float(colour[3])
+    controls[7:10] = [float(component) for component in colour[:3]]
+    alpha_test = _preview_core_int(values.get("alphatest"), 0) != 0
+    return {
+        "shader_controls": controls,
+        "alpha_mode": "cutout" if alpha_test else "opaque",
+        "alpha_cutoff": 0.5 if alpha_test else 0.0,
+    }
+
+
+def _apply_preview_core_leaf_surfaces(presentations, graph, raw_batches, parameters):
+    """Draw the parts of the game's leaf shaders by their own rule.
+
+    The wrapper is the base layer's: its model scope, wrapper item and index.
+    """
+    wrappers: dict[tuple[str, str, int], tuple[str, dict[str, object]]] = {}
+    for parameter in parameters:
+        if (
+            isinstance(parameter, Mapping)
+            and str(parameter.get("shader_family", "") or "").casefold() in _LEAF_ROUGHNESS
+        ):
+            key = (
+                str(parameter.get("component_scope_id", "") or ""),
+                str(parameter.get("owner_wrapper_item_id", "") or ""),
+                _preview_core_int(parameter.get("material_wrapper_index"), -1),
+            )
+            wrappers.setdefault(key, (str(parameter.get("shader_family", "")), {}))[1][
+                str(parameter.get("parameter_name", ""))
+            ] = parameter.get("value", "")
+    materials = graph.get("materials") if isinstance(graph, Mapping) else None
+    if not wrappers or not isinstance(materials, list):
+        return
+    rows = {
+        (row.get("lod_index"), row.get("material_index")): row
+        for row in presentations if isinstance(row, dict)
+    }
+    for raw_batch, material in zip(raw_batches, materials):
+        if not isinstance(raw_batch, Mapping) or not isinstance(material, dict):
+            continue
+        base = next(
+            (
+                layer for layer in raw_batch.get("material_layers", ()) or ()
+                if isinstance(layer, Mapping)
+                and str(layer.get("layer_role", "") or "").casefold() == "base"
+            ),
+            None,
+        )
+        row = rows.get((material.get("lod_index"), material.get("material_index")))
+        if base is None or row is None:
+            continue
+        wrapper = wrappers.get((
+            str(base.get("component_scope_id", "") or ""),
+            str(base.get("owner_wrapper_item_id", "") or ""),
+            _preview_core_int(base.get("material_wrapper_index"), -1),
+        ))
+        if wrapper is None:
+            continue
+        surface = leaf_surface_presentation(*wrapper)
+        if surface is not None:
+            row.update(surface)
+
+
 def _apply_preview_core_no_render_parts(presentations, graph, raw_batches, wrappers):
     """Leave out the parts the game does not draw.
 
@@ -2030,6 +2137,10 @@ def build_rust_preview_package_from_preview_core(
     _apply_preview_core_ghost_shells(
         presentations, preview_core_material_graph, raw_batches,
         raw_material_conservation.get("parameters", ()), source_package, center, scale,
+    )
+    _apply_preview_core_leaf_surfaces(
+        presentations, preview_core_material_graph, raw_batches,
+        raw_material_conservation.get("parameters", ()),
     )
     _apply_preview_core_no_render_parts(
         presentations, preview_core_material_graph, raw_batches,
