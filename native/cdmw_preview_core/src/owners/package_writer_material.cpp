@@ -69,6 +69,13 @@ static void resolve_package_batch_alpha(PackageBatchState& batch, const NativeSu
     // The name guess above stays for parts without such a wrapper.
     for (const TextureBinding* binding : batch.bindings) {
         if (binding == nullptr || binding->shader_rule != "hair" || binding->shader_family.empty()) continue;
+        // "No AlphaTest" says the wrapper's own base texture is drawn whole. Where
+        // that texture is not in the archive (6 of the 21 such textures) and
+        // another one stands in for it, the stand-in may be a strand card: the
+        // name guess stays.
+        const bool own_base = batch.base != nullptr && !batch.base->declared_source_missing
+            && batch.base->source_resolution == "declared_exact";
+        if (!binding->alpha_test_enabled && !own_base) break;
         const HairAlphaRule rule = hair_shader_alpha_rule(
             binding->alpha_test_enabled,
             find_material_parameter(binding->material_parameters, {"_hairDyeingProperty"}));

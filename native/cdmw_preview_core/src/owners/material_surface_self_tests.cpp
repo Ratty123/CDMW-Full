@@ -1023,9 +1023,16 @@ static void run_hair_shader_alpha_self_test() {
     resolve_package_batch_alpha(batch, mesh);
     require_material_contract(batch.uses_alpha_cutout && std::abs(batch.alpha_threshold - 0.18f) < 1.0e-6f,
         "a hair wrapper with AlphaTest lost its cutout");
+    // Without AlphaTest and without the wrapper's own base texture (missing from
+    // the archive, another file standing in) the name guess stays.
+    base.alpha_test_enabled = false;
+    base.declared_source_missing = true;
+    resolve_package_batch_alpha(batch, mesh);
+    require_material_contract(batch.uses_alpha_cutout && std::abs(batch.alpha_threshold - 0.18f) < 1.0e-6f,
+        "a stand-in for a missing hair texture was drawn whole");
+    base.declared_source_missing = false;
     base.shader_family = "SkinnedMeshStandard";
     base.shader_rule = "standard";
-    base.alpha_test_enabled = false;
     resolve_package_batch_alpha(batch, mesh);
     require_material_contract(batch.uses_alpha_cutout && std::abs(batch.alpha_threshold - 0.18f) < 1.0e-6f,
         "a part only named like hair lost the name-guess cutout");
