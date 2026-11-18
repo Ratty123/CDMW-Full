@@ -48,6 +48,20 @@ internal static class ItemCatalogueDefinitionTests
             || socketGear.CategoryFacets.Single(facet => facet.Group == "Skill").Count != 2
             || socketGear.Items.Single(item => item.ItemId == 1006117).EquipType != "Hand")
             throw new InvalidOperationException("Socket gear must leave armor filters and keep its source slot as metadata");
+        // Items without a definition fall back to English names and model slot codes:
+        // translated names and plain words in model file names must not pick armor.
+        using var naming = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "ItemCatalogueNamingCases.json")));
+        foreach (var row in naming.RootElement.EnumerateArray())
+        {
+            var models = row.GetProperty("models").EnumerateArray().Select(static value => value.GetString()!).ToArray();
+            var named = ArchiveItemCatalog.FromRecords([
+                new ArchiveItemCatalogRecord(id++, row.GetProperty("name").GetString()!, row.GetProperty("display").GetString()!,
+                    row.GetProperty("localized").EnumerateArray().Select(static value => value.GetString()!).ToArray(), [],
+                    models, models.Select(static stem => stem + ".pac").ToArray(), [])
+            ]).Items.Single();
+            if (named.Category != row.GetProperty("category").GetString() || named.Group != row.GetProperty("group").GetString())
+                throw new InvalidOperationException($"{named.InternalName}: {named.Category}/{named.Group} was classified from the wrong evidence");
+        }
         return Task.CompletedTask;
     }
 }

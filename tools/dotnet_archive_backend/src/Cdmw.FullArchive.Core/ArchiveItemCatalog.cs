@@ -361,13 +361,24 @@ public sealed class ArchiveItemCatalog
     {
         if (ClassifyDefinition(internalName, equipType) is { } definition)
             return (definition.Category, definition.Group, "Recovered item definition / equip type");
-        var primaryNames = new[] { internalName, displayName }.Concat(localizedNames).ToArray();
+        // The keyword rules are English, so only plain-ASCII translated names take part:
+        // French "Flèche plate" is a flat arrow, not plate armor.
+        var primaryNames = new[] { internalName, displayName }
+            .Concat(localizedNames.Where(static name => name.All(char.IsAscii)))
+            .ToArray();
         var primaryText = string.Join(' ', primaryNames).ToLowerInvariant();
         var relationText = string.Join(' ', pacFiles.Concat(modelStems).Concat(iconPaths)).ToLowerInvariant();
         var text = $"{primaryText} {relationText}";
         var compactInternalName = CompactText(internalName);
         const string evidence = "Recovered item/model naming";
 
+        // Ammunition has no equip slot; it is recognised by name or by the game's arrow
+        // model code ("cd_phm_04_arw_0007"). Keep in sync with item_index.py.
+        if (CatalogTextMatchesAny(primaryText, "arrow", "arrows", "ammo", "ammunition", "quiver")
+            || CatalogTextMatchesAny(relationText, "_arw_"))
+        {
+            return ("Weapon", "Arrows / Ammo", evidence);
+        }
         if (CatalogTextMatchesAny(primaryText, "oblivion of the past", "artisan's hand", "artisans hand"))
             return ("Weapon", "Axe / Mace / Hammer", evidence);
         if (CatalogTextMatchesAny(primaryText, "broken visione")) return ("Armor", "Head", evidence);
@@ -506,7 +517,20 @@ public sealed class ArchiveItemCatalog
             ("Progression / Reward", "Currency", ["money", "gold", "golden", "golden999k", "coin"]),
         })
         {
-            if (CatalogTextMatchesAny(text, rule.Tokens)) return (rule.Category, rule.Group, evidence);
+            if (rule.Category == "Armor")
+            {
+                // Model files name sub-parts with plain words (an arrow's "arw_head"), so
+                // only the game's slot codes such as "_hel" or "_ub" count from file names.
+                if (CatalogTextMatchesAny(primaryText, rule.Tokens)
+                    || CatalogTextMatchesAny(relationText, rule.Tokens.Where(static token => token.Contains('_')).ToArray()))
+                {
+                    return (rule.Category, rule.Group, evidence);
+                }
+            }
+            else if (CatalogTextMatchesAny(text, rule.Tokens))
+            {
+                return (rule.Category, rule.Group, evidence);
+            }
         }
         return ("Item", "Unclassified", "No stronger category evidence was recovered");
     }

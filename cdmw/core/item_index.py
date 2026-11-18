@@ -1379,14 +1379,22 @@ def _classify_item_definition(internal_name: str, equip_type: str) -> Optional[T
     return None
 
 
+# Ammunition has no equip slot, so it is recognised by name or by the game's
+# arrow model code ("cd_phm_04_arw_0007"). Keep in sync with ArchiveItemCatalog.cs.
+_AMMUNITION_NAME_TOKENS = ("arrow", "arrows", "ammo", "ammunition", "quiver")
+_AMMUNITION_MODEL_TOKENS = ("_arw_",)
+
+
 def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> Tuple[str, str]:
     definition = _classify_item_definition(item.internal_name, item.equip_type)
     if definition is not None:
         return definition
+    # The keyword rules below are English, so only plain-ASCII translated names
+    # take part: French "Flèche plate" is a flat arrow, not plate armor.
     primary_names = (
         item.internal_name,
         item.display_name,
-        *item.localized_names,
+        *(name for name in item.localized_names if str(name or "").isascii()),
     )
     primary_text = " ".join(
         token.lower()
@@ -1404,6 +1412,10 @@ def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> T
     )
     text = " ".join(part for part in (primary_text, relation_text) if part)
     compact_internal_name = re.sub(r"[^a-z0-9]+", "", str(item.internal_name or "").lower())
+    if _catalog_text_matches_any(primary_text, _AMMUNITION_NAME_TOKENS) or _catalog_text_matches_any(
+        relation_text, _AMMUNITION_MODEL_TOKENS
+    ):
+        return "Weapon", "Arrows / Ammo"
     if _catalog_text_matches_any(primary_text, ("oblivion of the past", "artisan's hand", "artisans hand")):
         return "Weapon", "Axe / Mace / Hammer"
     if _catalog_text_matches_any(primary_text, ("broken visione",)):
@@ -1670,7 +1682,15 @@ def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> T
     )
     for category, group_tests in category_tests:
         for group, tokens in group_tests:
-            if _catalog_text_matches_any(text, tokens):
+            if category == "Armor":
+                # Model files name sub-parts with plain words (an arrow's
+                # "arw_head", a prop's "back" board), so only the game's slot
+                # codes such as "_hel" or "_ub" count from file names.
+                if _catalog_text_matches_any(primary_text, tokens) or _catalog_text_matches_any(
+                    relation_text, tuple(token for token in tokens if "_" in token)
+                ):
+                    return category, group
+            elif _catalog_text_matches_any(text, tokens):
                 return category, group
     return "Item", "Unclassified"
 
