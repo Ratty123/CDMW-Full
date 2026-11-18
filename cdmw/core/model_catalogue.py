@@ -37,6 +37,7 @@ from cdmw.domain.library.models import (
     ZIP_EXTRACT_MAX_MEMBER_BYTES,
     ZIP_EXTRACT_MAX_MEMBERS,
     ZIP_EXTRACT_MAX_TOTAL_BYTES,
+    ZIP_EXTRACT_RATIO_CHECK_MIN_BYTES,
     LocalModelFile,
     MirrorDownloadCandidate,
     MirrorDownloadResult,
@@ -507,6 +508,7 @@ def safe_extract_zip(
     stop_event: Optional[threading.Event] = None,
     max_members: int = ZIP_EXTRACT_MAX_MEMBERS,
     max_total_bytes: int = ZIP_EXTRACT_MAX_TOTAL_BYTES,
+    ratio_check_min_bytes: int = ZIP_EXTRACT_RATIO_CHECK_MIN_BYTES,
 ) -> None:
     archive = Path(archive_path)
     target_root = Path(destination)
@@ -541,7 +543,7 @@ def safe_extract_zip(
             if total_bytes > max(1, int(max_total_bytes)):
                 raise ValueError("Model archive expanded size exceeds the extraction limit.")
             ratio = member_bytes / max(1, int(member.compress_size))
-            if member_bytes > 1024 * 1024 and ratio > ZIP_EXTRACT_MAX_COMPRESSION_RATIO:
+            if member_bytes > max(0, int(ratio_check_min_bytes)) and ratio > ZIP_EXTRACT_MAX_COMPRESSION_RATIO:
                 raise ValueError(f"Model archive member compression ratio is unsafe: {member.filename}")
             validated.append((member, member_name))
 

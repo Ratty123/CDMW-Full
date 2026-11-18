@@ -1004,6 +1004,25 @@ class _TabAuthoringMixin:
             self.assertTrue(panel.rect().contains(bounds), f"{width}x{height} {point_size}pt: {bounds}")
             panel.quick_turn_section.toggle.setChecked(False)
 
+    def test_short_window_keeps_the_preview_controls_on_the_page(self) -> None:
+        # A laptop at 150% scaling leaves the page little height. The viewport gives
+        # way; the Preview box and its status line stay inside the page.
+        tab = self._tab()
+        tab.show()
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(2)
+        panel = tab.model_panel
+        panel._preview_status("Full textures loaded.")
+        for width, height in ((1600, 440), (1280, 720)):
+            tab.resize(width, height)
+            self.app.processEvents()
+            self.app.processEvents()
+            page = panel.parentWidget()
+            self.assertLessEqual(panel.minimumSizeHint().height(), page.height())
+            bottom = panel.preview_options.mapTo(page, panel.preview_options.rect().bottomLeft()).y()
+            self.assertLess(bottom, page.height(), f"{width}x{height}")
+            self.assertGreaterEqual(panel.preview.height(), 180)
+
     def test_expanding_dye_assignments_keeps_inspector_sections_adjacent(self) -> None:
         from cdmw.services.new_item_planning import ModelFiles
 
