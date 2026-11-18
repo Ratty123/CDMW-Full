@@ -108,3 +108,49 @@ def test_browse_says_whether_an_item_is_in_view():
     assert context(displays_v2=True, item_scope_preferred_prefab_stems=("cd_phm_00_hand_0003_index01",)) is True
     assert context(displays_v2=True, item_scope_preferred_prefab_stems=()) is False
     assert context() is None
+
+
+@pytest.mark.parametrize("prefabs, expected", [
+    # Opened alone with one item's prefab in view: that item's variant.
+    ((census.HAND_0003_INDEX02,), {census.HAND_0003: 2}),
+    # Several items in view that disagree: variant 0, not the first one listed.
+    ((census.HAND_0003_INDEX02, census.HAND_0003_INDEX01), {}),
+])
+def test_the_reference_preview_draws_the_variant_browse_would(tmp_path, monkeypatch, prefabs, expected):
+    from cdmw.ui.archive_browser import reference_preview
+    from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
+    from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
+
+    census.install(monkeypatch)
+    pac = census.entry(census.HAND_0003)
+    dependencies = SimpleNamespace(entries=(pac, *(census.entry(path) for path in prefabs)),
+                                   entries_by_normalized_path={})
+    tasks, jobs = [], []
+
+    def native(entry, **kwargs):
+        jobs.append(kwargs)
+        return NativePreviewCoreAttempt(status="error", fallback_reason="stubbed")
+
+    monkeypatch.setattr(reference_preview, "run_native_preview_core_preview_job", native)
+
+    class Browser:
+        archive_remote_bridge = SimpleNamespace(displays_v2=True, item_scope_preferred_prefab_stems=(),
+                                                prepared_dependencies_for=lambda _entry: dependencies)
+        archive_package_root_edit = SimpleNamespace(text=lambda: "")
+        archive_sidecar_generation = 0
+        shell = SimpleNamespace(_run_utility_task=lambda **kwargs: tasks.append(kwargs["task"]),
+                                set_status_message=lambda *_args, **_kwargs: None)
+        _archive_preview_item_context = ArchivePreviewCacheMixin._archive_preview_item_context
+        _current_archive_preview_result_for_reference_entry = lambda self, _entry: None
+        _find_archive_preview_companion_entry = lambda self, _entry, **_kwargs: None
+        _current_model_preview_render_settings = lambda self: SimpleNamespace(use_textures_by_default=False)
+        _native_preview_core_cache_root = lambda self: tmp_path / "native"
+        _native_preview_package_cache_root = lambda self: tmp_path / "packages"
+        _native_preview_package_cache_mode = lambda self: "off"
+        _native_preview_package_cache_budget = lambda self: (0, 0)
+        _archive_model_renderer_backend = lambda self: ARCHIVE_MODEL_RENDERER_D3D11
+
+    reference_preview.ArchiveReferencePreviewMixin._open_archive_reference_preview_entry(Browser(), pac)
+    result = tasks[0](lambda _message: None)
+    assert result.status == "error"
+    assert jobs[0]["model_property_indices"] == expected

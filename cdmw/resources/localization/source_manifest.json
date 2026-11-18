@@ -16266,12 +16266,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 287,
+          "line": 288,
           "sink": "addTab"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 499,
+          "line": 500,
           "sink": "_add_section"
         },
         {
@@ -33366,7 +33366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 518,
+          "line": 519,
           "sink": "_add_action"
         }
       ]
@@ -35346,7 +35346,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 118,
+          "line": 119,
           "sink": "QPushButton"
         },
         {
@@ -46081,7 +46081,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 288,
+          "line": 289,
           "sink": "addTab"
         },
         {
@@ -50376,12 +50376,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 106,
+          "line": 107,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 477,
+          "line": 478,
           "sink": "_add_action"
         },
         {
@@ -51191,7 +51191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 477,
+          "line": 478,
           "sink": "_add_action"
         }
       ]
@@ -54291,7 +54291,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 254,
+          "line": 255,
           "sink": "setHeaderLabels"
         },
         {
@@ -55521,7 +55521,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 524,
+          "line": 525,
           "sink": "_add_section"
         },
         {
@@ -55601,7 +55601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 735,
+          "line": 743,
           "sink": "_export_archive_reference_entries_to_folder"
         }
       ]
@@ -55851,7 +55851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 102,
+          "line": 103,
           "sink": "QPushButton"
         },
         {
@@ -56046,7 +56046,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 518,
+          "line": 519,
           "sink": "_add_action"
         }
       ]
@@ -56501,7 +56501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 525,
+          "line": 526,
           "sink": "_add_action"
         }
       ]
@@ -56571,7 +56571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 725,
+          "line": 733,
           "sink": "_export_archive_reference_entries_to_folder"
         }
       ]
@@ -56581,7 +56581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 491,
+          "line": 492,
           "sink": "_add_action"
         }
       ]
@@ -56901,7 +56901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 525,
+          "line": 526,
           "sink": "_add_action"
         }
       ]
@@ -57376,7 +57376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 491,
+          "line": 492,
           "sink": "_add_action"
         }
       ]
@@ -57481,7 +57481,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 102,
+          "line": 103,
           "sink": "QPushButton"
         }
       ]
@@ -59896,7 +59896,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 254,
+          "line": 255,
           "sink": "setHeaderLabels"
         },
         {
@@ -60421,7 +60421,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 500,
+          "line": 501,
           "sink": "_add_action"
         }
       ]
@@ -60431,7 +60431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 485,
+          "line": 486,
           "sink": "_add_action"
         }
       ]
@@ -60851,7 +60851,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 500,
+          "line": 501,
           "sink": "_add_action"
         }
       ]
@@ -70921,7 +70921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 424,
+          "line": 425,
           "sink": "_set_action_button_state"
         }
       ]
@@ -84996,7 +84996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 424,
+          "line": 425,
           "sink": "_set_action_button_state"
         }
       ]
@@ -99126,12 +99126,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 648,
+          "line": 656,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 660,
+          "line": 668,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -102236,22 +102236,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 346,
+          "line": 347,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 352,
+          "line": 353,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 371,
+          "line": 372,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 376,
+          "line": 377,
           "sink": "clear_preview"
         },
         {
@@ -102781,27 +102781,27 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 173,
+          "line": 174,
           "sink": "MediaPreviewWidget"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 342,
+          "line": 343,
           "sink": "clear_media"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 348,
+          "line": 349,
           "sink": "clear_media"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 373,
+          "line": 374,
           "sink": "clear_media"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 378,
+          "line": 379,
           "sink": "clear_media"
         },
         {
@@ -102926,27 +102926,27 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 343,
+          "line": 344,
           "sink": "clear_model"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 347,
+          "line": 348,
           "sink": "clear_model"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 353,
+          "line": 354,
           "sink": "clear_model"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 372,
+          "line": 373,
           "sink": "clear_model"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 377,
+          "line": 378,
           "sink": "clear_model"
         }
       ]
@@ -103446,7 +103446,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 375,
+          "line": 376,
           "sink": "setPlainText"
         },
         {
@@ -103856,7 +103856,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 733,
+          "line": 741,
           "sink": "set_status_message"
         }
       ]
@@ -104571,12 +104571,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 366,
+          "line": 367,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 369,
+          "line": 370,
           "sink": "setPlainText"
         }
       ]
@@ -108436,7 +108436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 469,
+          "line": 470,
           "sink": "_add_action"
         }
       ]
@@ -109666,7 +109666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 111,
+          "line": 112,
           "sink": "setToolTip"
         }
       ]
@@ -109811,7 +109811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 469,
+          "line": 470,
           "sink": "_add_action"
         }
       ]
@@ -110251,12 +110251,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 556,
+          "line": 557,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 711,
+          "line": 719,
           "sink": "set_status_message"
         }
       ]
@@ -116601,7 +116601,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 476,
+          "line": 477,
           "sink": "_add_section"
         }
       ]
@@ -120771,7 +120771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 713,
+          "line": 721,
           "sink": "_run_utility_task"
         },
         {
@@ -120856,7 +120856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 601,
+          "line": 604,
           "sink": "log"
         }
       ]
@@ -121646,7 +121646,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 239,
+          "line": 240,
           "sink": "addTab"
         },
         {
@@ -121901,12 +121901,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 648,
+          "line": 656,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 660,
+          "line": 668,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -121916,12 +121916,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 648,
+          "line": 656,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 660,
+          "line": 668,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -122321,7 +122321,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 110,
+          "line": 111,
           "sink": "QPushButton"
         },
         {
@@ -123751,12 +123751,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 648,
+          "line": 656,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 660,
+          "line": 668,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -131521,7 +131521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 83,
+          "line": 84,
           "sink": "setWindowTitle"
         }
       ]
@@ -131581,7 +131581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 563,
+          "line": 564,
           "sink": "set_status_message"
         }
       ]
@@ -131601,7 +131601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 708,
+          "line": 716,
           "sink": "set_status_message"
         }
       ]
@@ -141281,7 +141281,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 254,
+          "line": 255,
           "sink": "setHeaderLabels"
         },
         {
@@ -148146,7 +148146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 539,
+          "line": 540,
           "sink": "set_status_message"
         }
       ]
@@ -149976,7 +149976,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 723,
+          "line": 731,
           "sink": "set_status_message"
         }
       ]
@@ -151566,7 +151566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 484,
+          "line": 485,
           "sink": "_add_section"
         },
         {
@@ -154376,7 +154376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 507,
+          "line": 508,
           "sink": "_add_action"
         }
       ]
@@ -154386,7 +154386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 513,
+          "line": 514,
           "sink": "_add_action"
         }
       ]
@@ -154581,7 +154581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 485,
+          "line": 486,
           "sink": "_add_action"
         }
       ]
@@ -161696,7 +161696,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 254,
+          "line": 255,
           "sink": "setHeaderLabels"
         },
         {
@@ -170451,12 +170451,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 648,
+          "line": 656,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 660,
+          "line": 668,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -186321,7 +186321,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 468,
+          "line": 469,
           "sink": "_add_section"
         }
       ]
@@ -189606,7 +189606,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 254,
+          "line": 255,
           "sink": "setHeaderLabels"
         }
       ]
@@ -197961,7 +197961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 660,
+          "line": 668,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -199036,7 +199036,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 660,
+          "line": 668,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -200011,27 +200011,27 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 499,
+          "line": 500,
           "sink": "_add_section"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 500,
+          "line": 501,
           "sink": "_add_action"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 507,
+          "line": 508,
           "sink": "_add_action"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 513,
+          "line": 514,
           "sink": "_add_action"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 518,
+          "line": 519,
           "sink": "_add_action"
         },
         {
@@ -200216,27 +200216,27 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 484,
-          "sink": "_add_section"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 485,
-          "sink": "_add_action"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 491,
-          "sink": "_add_action"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 524,
           "sink": "_add_section"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/reference_preview.py",
+          "line": 486,
+          "sink": "_add_action"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/reference_preview.py",
+          "line": 492,
+          "sink": "_add_action"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 525,
+          "sink": "_add_section"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/reference_preview.py",
+          "line": 526,
           "sink": "_add_action"
         },
         {
@@ -204731,7 +204731,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 648,
+          "line": 656,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -206681,7 +206681,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 648,
+          "line": 656,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -206801,7 +206801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 424,
+          "line": 425,
           "sink": "_set_action_button_state"
         }
       ]
@@ -207526,12 +207526,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 476,
+          "line": 477,
           "sink": "_add_section"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 477,
+          "line": 478,
           "sink": "_add_action"
         },
         {
@@ -215296,12 +215296,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 468,
+          "line": 469,
           "sink": "_add_section"
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 469,
+          "line": 470,
           "sink": "_add_action"
         }
       ]
@@ -215541,7 +215541,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 424,
+          "line": 425,
           "sink": "_set_action_button_state"
         }
       ]
@@ -217271,7 +217271,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 284,
+          "line": 285,
           "sink": "setText"
         },
         {
@@ -221841,7 +221841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
-          "line": 648,
+          "line": 656,
           "sink": "ArchivePreviewResult"
         }
       ]

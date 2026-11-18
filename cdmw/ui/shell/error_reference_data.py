@@ -13976,7 +13976,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview reference preview rejected the canonical package.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/reference_preview.py": 326
+      "cdmw/ui/archive_browser/reference_preview.py": 327
     }
   },
   {
