@@ -30,6 +30,9 @@ class HairReferencePickerDialog(QDialog):
         self._base_remaining = []
         self._verified, self._audit_queue = {}, []
         self._audit_active = None
+        #: Key the viewport already shows. Reselecting it must not reload the
+        #: package: every finished compatibility check reselects the row.
+        self._previewed = None
         self._preferred_path, self._selection_touched = preferred_path.casefold(), False
         self._service = owner.archive.archive_catalogue_service
         session = self._service.current_session
@@ -137,7 +140,7 @@ class HairReferencePickerDialog(QDialog):
         self._audit_stop = threading.Event()
         self._preparation_generation += 1
         for request in self._requests: self._service.cancel(request)
-        self._requests.clear(); self._rows.clear(); self._preview.clear_page()
+        self._requests.clear(); self._rows.clear(); self._preview.clear_page(); self._previewed = None
         self._prepare.cancel(); self.grid.clear(); self.choose.setEnabled(False)
         self._selection_touched = False
         self._audit_prepare.cancel(); self._audit_queue.clear(); self._audit_active = None
@@ -227,7 +230,7 @@ class HairReferencePickerDialog(QDialog):
                     self._audit_next()
             elif result.row.key == self._key():
                 self._details[result.row.key] = result
-                self._preview.select(result, self._generation)
+                self._show_preview(result)
                 self.choose.setEnabled(len(result.models) == 1)
         self._refresh_thumbnails()
         if self.grid.currentRow() < 0 and self.grid.count(): self._select_row(0)
@@ -279,11 +282,12 @@ class HairReferencePickerDialog(QDialog):
         if key is None or self._closed: return
         detail = self._details.get(key)
         if detail:
-            if not self.auto_choose_first and not self._base_only:
+            if not self.auto_choose_first and not self._base_only and key != self._previewed:
                 self._refresh_thumbnails()
-                self._preview.select(detail, self._generation)
+                self._show_preview(detail)
             self.choose.setEnabled(len(detail.models) == 1 and (not self._audit_hair or key in self._verified))
             if self._audit_hair:
+                self._audit_first(key)
                 self.status.setText(self._audit_errors.get(key) or
                     ("Compatible base: " + detail.row.path if key in self._verified else
                      "Checking original PAC layout, skin records and materials…"))
@@ -307,6 +311,18 @@ class HairReferencePickerDialog(QDialog):
             self._prepared(self._preparation_generation, inputs)
             return
         self._prepare.start(detail, self._preparation_generation)
+
+    def _show_preview(self, detail):
+        self._previewed = detail.row.key
+        self._preview.select(detail, self._generation)
+
+    def _audit_first(self, key):
+        """Check the hairstyle the user is looking at before the rest of the page."""
+        for index, queued in enumerate(self._audit_queue):
+            if queued.row.key == key:
+                if index:
+                    self._audit_queue.insert(0, self._audit_queue.pop(index))
+                return
 
     def _audit_next(self):
         if self._closed or self._audit_active is not None or not self._audit_queue:

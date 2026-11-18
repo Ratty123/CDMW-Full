@@ -161,7 +161,7 @@ impl LabApplication {
             for lock in state
                 .locks
                 .iter()
-                .filter(|l| l.part == *part && l.kind == LockKind::Rigid)
+                .filter(|l| l.part == *part && l.follows_head())
             {
                 for &v in &lock.vertices {
                     let index = first + v as usize;
