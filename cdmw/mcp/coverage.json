@@ -1091,10 +1091,12 @@
     {
       "id": "placement.pointer",
       "area": "Placement & Animations",
-      "what": "The viewport gizmo and the key timeline's drags",
+      "what": "Viewport translation and rotation by numbers, and timeline keys by track and time",
       "class": "edit",
-      "gap": "needs_pointer",
-      "by_points": "placement.edit"
+      "tool": "placement.socket",
+      "also": [
+        "placement.animation"
+      ]
     },
     {
       "id": "textures.layer",
@@ -1308,15 +1310,95 @@
     {
       "id": "placement.edit",
       "area": "Placement & Animations",
-      "what": "Every action",
+      "what": "Animation editing, clip replacement and draw or put-away timing",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "tool": "placement.animation",
       "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
+        "placement.socket",
+        "placement.constraints",
+        "placement.rig"
       ]
+    },
+    {
+      "id": "placement.state",
+      "area": "Placement & Animations",
+      "what": "Selected assets, editing state, events and pending changes",
+      "class": "read",
+      "tool": "placement.state"
+    },
+    {
+      "id": "placement.open",
+      "area": "Placement & Animations",
+      "what": "Prepare and select character, equipment and pages",
+      "class": "edit",
+      "tool": "placement.open"
+    },
+    {
+      "id": "placement.constraints",
+      "area": "Placement & Animations",
+      "what": "Driven bone chain strength",
+      "class": "edit",
+      "tool": "placement.constraints"
+    },
+    {
+      "id": "placement.rig",
+      "area": "Placement & Animations",
+      "what": "Rig behaviour settings",
+      "class": "edit",
+      "tool": "placement.rig"
+    },
+    {
+      "id": "placement.undo",
+      "area": "Placement & Animations",
+      "what": "Undo changes",
+      "class": "edit",
+      "tool": "placement.undo"
+    },
+    {
+      "id": "placement.redo",
+      "area": "Placement & Animations",
+      "what": "Redo changes",
+      "class": "edit",
+      "tool": "placement.redo"
+    },
+    {
+      "id": "placement.discard",
+      "area": "Placement & Animations",
+      "what": "Remove a pending change or start over",
+      "class": "destructive",
+      "tool": "placement.discard"
+    },
+    {
+      "id": "placement.save_mod",
+      "area": "Placement & Animations",
+      "what": "Save checked changes to a new mod folder",
+      "class": "output",
+      "tool": "placement.save_mod"
+    },
+    {
+      "id": "placement.standalone_export",
+      "area": "Placement & Animations",
+      "what": "Export loose edited files, an animation PAA, or a Blender GLB",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 standalone file outputs. Stage 5 covers Save Mod.",
+      "also": [
+        "app.ui_act"
+      ]
+    },
+    {
+      "id": "placement.playback",
+      "area": "Placement & Animations",
+      "what": "Load, play, pause and scrub",
+      "class": "edit",
+      "tool": "placement.playback"
+    },
+    {
+      "id": "placement.capture",
+      "area": "Placement & Animations",
+      "what": "Capture the placement viewport",
+      "class": "read",
+      "tool": "placement.capture"
     },
     {
       "id": "translation.edit",

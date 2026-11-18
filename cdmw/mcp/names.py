@@ -21,7 +21,7 @@ DEFAULT_EFFECT = EDIT
 #: command and a typed tool can never take the same name (section 7, answer 2).
 RESERVED_PREFIXES = (
     "search.", "files.", "view.", "mesh.", "textures.", "materials.", "saved.", "app.",
-    "commands.", "new_item.", "mods.", "tables.", "strings.",
+    "commands.", "new_item.", "mods.", "tables.", "strings.", "placement.",
 )
 
 #: Tool names as clients see them. Claude's and OpenAI's tool names allow

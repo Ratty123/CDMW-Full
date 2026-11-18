@@ -517,6 +517,11 @@ class EditPanelMixin:
         )
 
     def _create_socket(self, picked=None) -> None:
+        dialog = self._new_socket_dialog(picked)
+        if dialog is not None and dialog.exec() == QDialog.Accepted:
+            self._add_new_socket(dialog.game_path, dialog.socket())
+
+    def _new_socket_dialog(self, picked=None):
         session = self._session
         if session is None or self._edits is None:
             return
@@ -554,7 +559,7 @@ class EditPanelMixin:
 
         preferred = self._socket_file_of(self._selected_socket) if self._selected_socket else ""
         length, reason = self._retarget_length_target()
-        dialog = NewSocketDialog(
+        return NewSocketDialog(
             self,
             files=files,
             sockets_by_file=sockets_by_file,
@@ -567,12 +572,10 @@ class EditPanelMixin:
             preferred_parent=parent_hint,
             picked_hint=picked_hint,
         )
-        if dialog.exec() != QDialog.Accepted:
-            return
 
-        socket = dialog.socket()
+    def _add_new_socket(self, game_path, socket) -> None:
         try:
-            self._edits.add_socket(dialog.game_path, socket)
+            self._edits.add_socket(game_path, socket)
         except EditError as exc:
             QMessageBox.warning(self, "Could not create the socket", str(exc))
             return
@@ -1024,13 +1027,50 @@ class EditPanelMixin:
             return
         self._after_edit()
 
+    def _visible_history(self):
+        from .layout_util import is_current_page
+
+        for area, page in (("constraints", "_constraints_page"), ("rig", "_behaviour_page"),
+                           ("animation", "_animation_editor_page")):
+            if is_current_page(self._built_attr(page)) and any(self._history_position(area)):
+                return area
+        return "placement"
+
+    def _history_position(self, area):
+        if area == "animation":
+            return len(self._clip_edit_undo), bool(self._clip_edit_redo)
+        if area in ("constraints", "rig"):
+            history = self._constraint_history if area == "constraints" else self._behaviour_history
+            return len(history.undo), bool(history.redo)
+        return (self._edits.command_count, self._edits.can_redo) if self._edits else (0, False)
+
+    def _refresh_history_buttons(self):
+        position, can_redo = self._history_position(self._visible_history())
+        self._undo_button.setEnabled(bool(position))
+        self._redo_button.setEnabled(can_redo)
+
+    def _step_history(self, area, *, redo):
+        position, can_redo = self._history_position(area)
+        if not (can_redo if redo else position):
+            return
+        if area == "constraints":
+            self._step_constraint_history(redo=redo)
+        elif area == "rig":
+            self._step_behaviour_history(redo=redo)
+        elif area == "animation":
+            self._redo_clip_edit() if redo else self._undo_clip_edit()
+        else:
+            step = self._edits.redo if redo else self._edits.undo
+            if step():
+                self._after_edit()
+                self._populate_parts()
+        self._refresh_history_buttons()
+
     def _undo(self) -> None:
-        if self._edits is not None and self._edits.undo():
-            self._after_edit()
+        self._step_history(self._visible_history(), redo=False)
 
     def _redo(self) -> None:
-        if self._edits is not None and self._edits.redo():
-            self._after_edit()
+        self._step_history(self._visible_history(), redo=True)
 
     def _after_drag_edit(self) -> None:
         """One step of a drag in the view: only what the view and Fine-tune show.
@@ -1132,8 +1172,7 @@ class EditPanelMixin:
         for widget in (*self._euler, *self._position, *self._turn_buttons):
             widget.setEnabled(editable)
         self._revert_button.setEnabled(editable)
-        self._undo_button.setEnabled(self._edits is not None and self._edits.can_undo)
-        self._redo_button.setEnabled(self._edits is not None and self._edits.can_redo)
+        self._refresh_history_buttons()
         has_changes = bool(self._edits and self._edits.modified_paths())
         self._export_button.setEnabled(has_changes)
         self._new_socket_button.setEnabled(self._session is not None and self._edits is not None)

@@ -27,6 +27,30 @@ from typing import Optional, Tuple
 _READING = "Reading the archives once to find the rig files…"
 
 
+class PanelHistory:
+    """Undo positions for one loaded rig document. Its edited values are immutable."""
+
+    def __init__(self):
+        self.undo = []
+        self.redo = []
+
+    def clear(self):
+        self.undo.clear()
+        self.redo.clear()
+
+    def record(self, previous):
+        self.undo.append(previous)
+        del self.undo[:-200]
+        self.redo.clear()
+
+    def step(self, current, *, redo):
+        source, destination = (self.redo, self.undo) if redo else (self.undo, self.redo)
+        if not source:
+            return current
+        destination.append(current)
+        return source.pop()
+
+
 class RigTabsMixin:
     """Wiring for the two archive-backed rig panels. Mixed into `PlacementStudioWindow`."""
 
@@ -60,6 +84,7 @@ class RigTabsMixin:
     def _on_lower_tab_changed(self, _index: int) -> None:
         from .layout_util import is_current_page
 
+        self._refresh_history_buttons()
         for name, page in self._rig_tab_pages.items():
             if is_current_page(page):
                 self._sync_rig_tab(name)
