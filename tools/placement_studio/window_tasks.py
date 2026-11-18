@@ -59,6 +59,18 @@ def _hint(text: str) -> QLabel:
     return kit.hint(text)
 
 
+_HANG_LIKE_TIP = (
+    "Copy this point from another item's file, so the item hangs the way that one "
+    "does: a round shield like a tower shield, for example. Saved as a change of this "
+    "item's own file."
+)
+_HANG_LIKE_SHARED_TIP = (
+    "Other items share this item's file for this point, so copying another item's "
+    "point here would move them too. Hang like is only offered for a point this item "
+    "has to itself."
+)
+
+
 def _hang_like_text(label: str) -> str:
     """A Hang like menu entry: the shield types by name, other items by their own label."""
 
@@ -224,11 +236,7 @@ class TaskPanelMixin:
         )
         self._other_shoulder_button.clicked.connect(self._mirror_over_other_shoulder)
         self._hang_like_button = QPushButton("Hang like…")
-        self._hang_like_button.setToolTip(
-            "Copy this point from another item's file, so the item hangs the way that one "
-            "does: a round shield like a tower shield, for example. Saved as a change of this "
-            "item's own file."
-        )
+        self._hang_like_button.setToolTip(_HANG_LIKE_TIP)
         self._hang_like_menu = QMenu(self._hang_like_button)
         self._hang_like_menu.setToolTipsVisible(True)
         self._hang_like_button.setMenu(self._hang_like_menu)
@@ -253,6 +261,10 @@ class TaskPanelMixin:
             action.setToolTip(source.socket_file)
             action.triggered.connect(lambda _checked=False, s=source: self._hang_like(s))
         self._hang_like_button.setVisible(bool(sources))
+        # Like Turn over: a point other rows share is refused on save, so it is not offered.
+        shared = len(self._point_users(self._selected_socket)) > 1
+        self._hang_like_button.setEnabled(not shared)
+        self._hang_like_button.setToolTip(_HANG_LIKE_SHARED_TIP if shared else _HANG_LIKE_TIP)
 
     def _set_mode(self, value: str) -> None:
         position = self._mode_box.findData(value)

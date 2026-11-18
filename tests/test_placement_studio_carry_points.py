@@ -418,6 +418,29 @@ def test_hang_like_copies_the_tower_shields_point_and_saves_the_file(window_fact
     assert b"0.254602" in saved and b"<SocketBoneData>" in saved
 
 
+def test_hang_like_is_disabled_when_several_rows_read_the_file(window_factory) -> None:
+    # Two rows read the round shields' file, so the copy would be refused on save.
+    files = _shield_files("MainWeapon_Shield_L", "MainWeapon_Shield_R",
+                          "MainWeapon_TowerShield_L")
+    window = window_factory(files)
+    _pick(window, weapon_path=ROUND, part="MainWeapon_Shield_L")
+    window._select_socket(SHIELD_POINT)
+    button = window._hang_like_button
+    assert button.isVisibleTo(window)
+    assert not button.isEnabled()
+    assert "share this item's file" in button.toolTip()
+    before = window._edits.socket(ROUND, SHIELD_POINT)
+    source = next(s for s in window._hang_like_sources() if "tower" in s.label.lower())
+    window._hang_like(source)
+    assert not window._edits.modified_paths()
+    assert window._edits.socket(ROUND, SHIELD_POINT) == before
+
+    # The tower shield's file has one reader, so Hang like stays live there.
+    _pick(window, weapon_path=TOWER, part="MainWeapon_TowerShield_L")
+    window._select_socket(SHIELD_POINT)
+    assert window._hang_like_button.isEnabled()
+
+
 def test_where_it_hangs_explains_a_point_another_mod_adds(window_factory) -> None:
     window = window_factory(_phw_files())
     _pick(window, weapon_path=PHW_MUSKET, part="MainWeapon_Musket")

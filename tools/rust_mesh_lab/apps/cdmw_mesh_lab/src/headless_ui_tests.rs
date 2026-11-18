@@ -5554,6 +5554,38 @@ fn integrated_replacement_mapping_warns_about_helper_material_targets() -> TestR
     Ok(())
 }
 
+#[test]
+fn integrated_replacement_mapping_skips_helper_warning_when_material_also_reaches_main_part() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    // Apply only refuses a helper-mapped part whose material has no main
+    // target; Visor shares Shell's material, so Apply accepts it.
+    let warning = "Helm_inside is a helper material for the inside of the model and cannot take imported textures. Map Visor to a main part, join it with one before exporting, or choose Keep Original Materials.";
+    let mut state = replacement_pending_with_materials(json!({
+        "error": "", "textures": 1, "helper_targets": ["stable:1"],
+    }));
+    state["parts"] = json!([
+        {"index": 0, "id": "stable:0", "name": "Helm", "included": true},
+        {"index": 1, "id": "stable:1", "name": "Helm_inside", "included": true},
+    ]);
+    state["pending"]["targets"] = json!([{"id": "stable:0", "name": "Helm"}, {"id": "stable:1", "name": "Helm_inside"}]);
+    state["pending"]["sources"] = json!([
+        {"name": "Shell", "material": "HelmMat", "target": "stable:0"},
+        {"name": "Visor", "material": "helmmat", "target": "stable:1"},
+    ]);
+    ui.application.cdmw_state["replacement"] = state;
+    ui.settle_layout();
+    ui.click("Imported Materials & Textures")?;
+    ui.settle_layout();
+    assert!(ui.reveal(warning).is_err());
+    // A material of its own has nowhere to go, so the warning comes back.
+    ui.application.cdmw_state["replacement"]["pending"]["sources"][1]["material"] = json!("VisorMat");
+    ui.settle_layout();
+    ui.reveal(warning)?;
+    Ok(())
+}
 const REPLACEMENT_SURFACE_HINT: &str = "Roughness and Metallic set the whole imported surface. At 0% roughness it shines like a mirror.";
 
 #[test]

@@ -9557,6 +9557,7 @@
     "Other Charts Playing This Clip...": "이 클립을 재생하는 다른 차트...",
     "Other application error messages": "기타 애플리케이션 오류 메시지",
     "Other influences redistribute proportionally. Cloth guide weights are preserved.": "다른 영향은 비례적으로 재분배됩니다. 천 가이드 가중치는 유지됩니다.",
+    "Other items share this item's file for this point, so copying another item's point here would move them too. Hang like is only offered for a point this item has to itself.": "이 포인트는 다른 아이템도 이 아이템의 파일을 함께 사용하므로, 다른 아이템의 포인트를 여기에 복사하면 그 아이템들도 함께 움직입니다. Hang like는 이 아이템만 사용하는 포인트에서만 제공됩니다.",
     "Other models": "기타 모델",
     "Other mounted archive folders: {value_0}. Managed externally; compatibility has not been verified.": "다른 장착된 아카이브 폴더: {value_0}. 외부에서 관리됨; 호환성은 확인되지 않았습니다.",
     "Other parts": "기타 부위",

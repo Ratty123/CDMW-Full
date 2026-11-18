@@ -9557,6 +9557,7 @@
     "Other Charts Playing This Clip...": "Другие диаграммы с этим клипом...",
     "Other application error messages": "Другие сообщения об ошибках приложения",
     "Other influences redistribute proportionally. Cloth guide weights are preserved.": "Другие влияния перераспределяются пропорционально. Тканевые направляющие грузики сохранены.",
+    "Other items share this item's file for this point, so copying another item's point here would move them too. Hang like is only offered for a point this item has to itself.": "Для этой точки файл этого предмета используют и другие предметы, поэтому копирование сюда точки другого предмета сдвинет и их. Hang like доступно только для точки, которая есть только у этого предмета.",
     "Other models": "Другие модели",
     "Other mounted archive folders: {value_0}. Managed externally; compatibility has not been verified.": "Другие смонтированные папки архива: {value_0}. Управляется извне; совместимость не проверена.",
     "Other parts": "Другие части",

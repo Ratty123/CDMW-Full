@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 from dataclasses import replace
 from pathlib import Path
@@ -57,7 +58,9 @@ def replacement_ui_state(authoring):
             "source": pending.label,
             "revision": pending.snapshot.mesh_revision,
             "targets": [part for part in parts if part["id"] in pending.target_part_ids],
-            "sources": [{"name": part.name or f"Source {index}", "target": pending.suggested_targets[index]}
+            # ``material`` lets the mapping step apply the same helper rule as Apply.
+            "sources": [{"name": part.name or f"Source {index}", "material": str(part.material or part.name),
+                         "target": pending.suggested_targets[index]}
                         for index, part in enumerate(pending.source.mesh.submeshes)],
             "materials": imported_material_status(pending),
             "weights": pending.skin.payload() if pending.skin is not None else {"rigged": False},
@@ -99,10 +102,27 @@ def export_rig(authoring, args):
 _IMAGE_SUFFIXES = {".dds", ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp"}
 
 
+# The status re-parses the original PAC, so it is kept per pending import and
+# mesh revision instead of being rebuilt on every UI refresh.
+_MATERIAL_STATUS_CACHE: dict[tuple[str, object], dict] = {}
+_MATERIAL_STATUS_CACHE_SIZE = 4
+
+
 def imported_material_status(pending):
     """What Imported Materials & Textures could use, so the mapping step can
     say when Keep Original Materials will draw the game's textures on the
     imported model's own UVs."""
+    key = (pending.token, getattr(pending.snapshot, "mesh_revision", None))
+    cached = _MATERIAL_STATUS_CACHE.get(key)
+    if cached is None:
+        cached = _build_imported_material_status(pending)
+        while len(_MATERIAL_STATUS_CACHE) >= _MATERIAL_STATUS_CACHE_SIZE:
+            _MATERIAL_STATUS_CACHE.pop(next(iter(_MATERIAL_STATUS_CACHE)))
+        _MATERIAL_STATUS_CACHE[key] = cached
+    return copy.deepcopy(cached)
+
+
+def _build_imported_material_status(pending):
     files = {str(path).casefold() for path, _digest in pending.material_source_files
              if Path(path).suffix.lower() in _IMAGE_SUFFIXES}
     # Embedded glTF/GLB images have no file of their own; their bindings do.

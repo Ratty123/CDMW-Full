@@ -1364,6 +1364,8 @@ class EditPanelMixin:
         weapon = session.weapon if session is not None else None
         if edits is None or weapon is None or not name or name not in weapon.sockets:
             return
+        if len(self._point_users(name)) > 1:
+            return
         try:
             edits.set_translation(weapon.game_path, name, source.socket.translation)
             edits.set_rotation_quaternion(weapon.game_path, name, source.socket.rotation)
