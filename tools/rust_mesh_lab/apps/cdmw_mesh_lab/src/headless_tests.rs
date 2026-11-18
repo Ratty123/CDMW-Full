@@ -219,10 +219,15 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             true,
             [1.0, 1.0, 1.0, 0.0],
             [0.0; 4],
+            // The eye mode samples iris and pupil at the eye's own UV (layer
+            // offsets do not apply): at the centre that is the mean of the two
+            // texels, rgb (0.5, 0, 0.5) and alpha a = 96/255, over the green base
+            // texture as sclera, times twice the neutral brightness (1): iris then
+            // pupil gives 0.5 a (2 - a) in red and blue and (1 - a)^2 in green.
             [
-                128.0 / 255.0 * (191.0 / 255.0),
-                127.0 / 255.0 * (191.0 / 255.0),
-                64.0 / 255.0,
+                0.5 * (96.0 / 255.0) * (2.0 - 96.0 / 255.0),
+                (1.0 - 96.0 / 255.0) * (1.0 - 96.0 / 255.0),
+                0.5 * (96.0 / 255.0) * (2.0 - 96.0 / 255.0),
             ],
         ),
         (
@@ -233,7 +238,7 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             false,
             [1.0, 1.0, 1.0, 0.0],
             [0.0; 4],
-            [128.0 / 255.0, 127.0 / 255.0, 0.0],
+            [0.5 * (96.0 / 255.0), 1.0 - 96.0 / 255.0, 0.5 * (96.0 / 255.0)],
         ),
     ] {
         let mut layer = MaterialLayerSet {
@@ -246,6 +251,11 @@ fn offscreen_layered_quad_matches_linear_reference() -> TestResult {
             },
             textures: std::array::from_fn(|_| None),
         };
+        if mode == 3 {
+            // The eye mode reads `_irisBrightness` from slot B's properties, which
+            // the package step always fills (0.5, the game's neutral value).
+            layer.uniform.layers[2].properties[0] = 0.5;
+        }
         layer.textures[0] = Some(texture(&mask, 1, TextureRole::LayerMask)?);
         let color = if mode == 3 {
             texture(&[255, 0, 0, 128, 0, 0, 255, 64], 2, TextureRole::BaseColor)?
