@@ -661,6 +661,9 @@ _HOST_MESH_ACTION_PARAMS: dict[str, frozenset[str]] = {
     "soften_normals": frozenset(),
     "weighted_normals": frozenset(),
     "copy_normals": frozenset(),
+    # Move, rotate and scale the selection by numbers (AI connections' mesh_transform): the
+    # same MeshService transform the Grab, Move, Rotate and Scale tools' results become.
+    "transform": frozenset({"translate", "rotate_degrees", "scale", "pivot", "recompute_normals"}),
     "uv_transform": frozenset(
         {
             "offset",

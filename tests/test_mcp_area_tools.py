@@ -940,6 +940,17 @@ def test_select_topology_output_and_findings_take_the_real_host_path(editor, con
     assert chosen["history"]["undo"] == chosen["history_before"]["undo"] + 1
     commands = lambda: [m for m in editor.sent if m.get("event") == "cdmw_command"]  # noqa: E731
     assert commands()[-1]["command"] == "select"
+    # Move two vertices by numbers: their positions change by exactly that, one History step.
+    part = 0
+    before_rows = mcp.ok("mesh_geometry", {"part": part, "what": "vertices", "limit": 500})["rows"]
+    assert mcp.ok("mesh_select", {"vertices": {str(part): [0, 1]}})["done"]
+    moved = mcp.ok("mesh_transform", {"translate": [0.0, 0.0, 0.25]})
+    assert moved["done"] and moved["history"]["undo"] == moved["history_before"]["undo"] + 1, moved
+    after_rows = mcp.ok("mesh_geometry", {"part": part, "what": "vertices", "limit": 500})["rows"]
+    for index in (0, 1):
+        assert after_rows[index][2] == pytest.approx(before_rows[index][2] + 0.25, abs=1e-4)
+    assert after_rows[2] == pytest.approx(before_rows[2])
+    chosen = mcp.ok("mesh_select", {"faces": {"0": [0, 1]}})
     deleted = mcp.ok("mesh_topology", {"action": "delete"})
     assert deleted["done"], deleted
     after = mcp.ok("mesh_state")
@@ -947,6 +958,7 @@ def test_select_topology_output_and_findings_take_the_real_host_path(editor, con
     assert deleted["history"]["undo"] == chosen["history"]["undo"] + 1
     # CDMW sends no selection of its own: the helper acts on its selection, as its buttons do.
     assert from_cdmw[-1]["command"] == "topology" and "selection" not in from_cdmw[-1]["arguments"]
+    assert mcp.error("mesh_transform", {})["code"] == "invalid_arguments"
     findings = mcp.ok("mesh_findings")
     assert isinstance(findings, dict) and findings
     # Free Edit needs a folder outside the game; the policy then reads back.

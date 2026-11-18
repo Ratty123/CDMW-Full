@@ -28,6 +28,7 @@ SELECT_OPERATIONS = ("replace", "add", "subtract", "toggle")
 FREE_EDIT_FOLDER = "cdmw-rust-free-edit"
 _PART = {"type": "integer", "minimum": 0, "description": "A part's number, as mesh_state lists it."}
 _INDICES = {"type": "array", "maxItems": 200000, "items": {"type": "integer", "minimum": 0}}
+_VEC3 = {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}}
 
 
 def _topology_actions() -> tuple[str, ...]:
@@ -205,6 +206,20 @@ def _labelled(command: str):
     return handler
 
 
+def _transform(call) -> dict[str, object]:
+    a = call.arguments
+    params: dict[str, object] = {}
+    for name in ("translate", "rotate_degrees", "scale", "pivot"):
+        if a.get(name) is not None:
+            params[name] = [float(value) for value in a[name]]
+    if not any(name in params for name in ("translate", "rotate_degrees", "scale")):
+        raise ToolError(INVALID_ARGUMENTS, "Give translate, rotate_degrees or scale.")
+    if a.get("recompute_normals") is not None:
+        params["recompute_normals"] = bool(a["recompute_normals"])
+    label = str(a.get("label") or "Transform")
+    return _send_edit(call, "mesh_action", {"action": "transform", "params": params, "label": label})
+
+
 def _output_policy(call) -> dict[str, object]:
     from cdmw.mcp.mesh_tools import _state
 
@@ -280,6 +295,17 @@ def mesh_edit_tools() -> list[Tool]:
              input_schema=object_schema({"action": {"type": "string", "enum": list(_mesh_actions())},
                                          "params": {"type": "object"}, "label": label}, ["action"]),
              effect=EDIT, route="helper:cdmw_command mesh_action", handler=_labelled("mesh_action"),
+             runs_on=ON_WORKER),
+        Tool(name="mesh.transform", family="mesh", title="Move, rotate, scale",
+             description="Moves, rotates and scales the shown document's selected vertices (or faces, edges, "
+                         "parts) by numbers, as the Move, Rotate and Scale tools do with the pointer: "
+                         "'translate' [x, y, z] in model units, 'rotate_degrees' [x, y, z], 'scale' [x, y, z] "
+                         "(1 keeps a size), about 'pivot' [x, y, z] or the selection's centre. Normals are "
+                         "recomputed unless 'recompute_normals' is false. One History step.",
+             input_schema=object_schema({"translate": _VEC3, "rotate_degrees": _VEC3, "scale": _VEC3,
+                                         "pivot": _VEC3, "recompute_normals": {"type": "boolean"},
+                                         "label": label}),
+             effect=EDIT, route="helper:cdmw_command mesh_action transform", handler=_transform,
              runs_on=ON_WORKER),
         Tool(name="mesh.output_policy", family="mesh", title="Output",
              description="Chooses what the shown document's edit writes, as the Output page does: "

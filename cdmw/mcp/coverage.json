@@ -871,11 +871,7 @@
       "area": "Mesh Editor",
       "what": "Move, rotate, scale by numbers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.transform"
     },
     {
       "id": "mesh.stroke",
