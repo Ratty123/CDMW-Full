@@ -48,10 +48,17 @@ fn fixed_studio_lighting(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, T: vec3<f32>,
     let lobe = pow(clamp(dot(R,normalize(vec3(-0.4,0.8,-0.6))),0.0,1.0),2.0/max(blur,0.02));
     refl += lobe*vec3(2.4,2.25,2.05)*(1.0-rough*0.6);
     let NV = clamp(dot(N,V),0.0,1.0);
-    let environment_specular = refl*mix(F0,max(vec3(1.0-rough),F0),pow(1.0-NV,5.0))*(1.0-rough*0.35);
+    // A rough dielectric does not mirror the room at a grazing angle: its share of
+    // a reflection is the split-sum reflectance, which stays near F0 when rough.
+    // The old grazing term rose to 1 - roughness there, and drew a grey-white
+    // sheen on feather and hair cards. The metal fraction keeps that term.
+    let grazing = mix(F0,max(vec3(1.0-rough),F0),pow(1.0-NV,5.0))*(1.0-rough*0.35);
+    let environment_specular = refl*mix(environment_brdf_approx(vec3(0.04*spec),rough,NV),grazing,clamp(metal,0.0,1.0));
     let env_scale = 0.7*mix(0.4,1.0,occlusion);
     result.diffuse += C*(1.0-metal)*ambient*env_scale;
-    result.specular += environment_specular*select(1.0,0.3,skin)*env_scale;
+    // Hair, fur and feather cards take their highlight from the strand band below;
+    // the white reflection of the room would grey a saturated dye.
+    result.specular += environment_specular*select(1.0,0.3,skin || hair)*env_scale;
     if skin {
         result.diffuse += C*vec3(0.35,0.12,0.075)*clamp((dot(N,key)+0.35)/1.35,0.0,1.0)*0.35*shadow;
     }

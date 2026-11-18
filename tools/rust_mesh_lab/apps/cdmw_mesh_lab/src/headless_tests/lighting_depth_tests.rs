@@ -477,3 +477,121 @@ fn offscreen_fixed_studio_polished_steel_reflects_a_lit_room() -> TestResult {
     );
     Ok(())
 }
+
+/// Draws a square plate, one face towards each side, with one flat material, and
+/// returns the (red, green, blue) level at the centre of a 64 px capture.
+fn plate_centre(
+    colour: [u8; 3],
+    roughness: f32,
+    metalness: f32,
+    preset: LightingPreset,
+    yaw_degrees: f32,
+) -> Result<(i32, i32, i32), Box<dyn std::error::Error>> {
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions.clear();
+    snapshot.normals.clear();
+    snapshot.uvs.clear();
+    snapshot.shader_masks.clear();
+    snapshot.indices.clear();
+    snapshot.triangle_materials.clear();
+    for (z, facing) in [(0.01_f32, 1.0_f32), (-0.01, -1.0)] {
+        let start = snapshot.positions.len() as u32;
+        snapshot.positions.extend([
+            [-facing, -1.0, z],
+            [facing, -1.0, z],
+            [facing, 1.0, z],
+            [-facing, 1.0, z],
+        ]);
+        snapshot.normals.extend([[0.0, 0.0, facing]; 4]);
+        snapshot.uvs.extend([[0.5, 0.5]; 4]);
+        snapshot.shader_masks.extend([[1.0, 1.0, 0.0]; 4]);
+        snapshot
+            .indices
+            .extend([0, 1, 2, 0, 2, 3].map(|i| i + start));
+        snapshot.triangle_materials.extend([0; 2]);
+    }
+    let [red, green, blue] = colour;
+    let texture =
+        cdmw_texture::encode_rgba8_dds(1, 1, &[red, green, blue, 255], TextureRole::BaseColor)?;
+    let owner = [vec![0]];
+    let textures = [HeadlessMaterialTexture {
+        bytes: &texture,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &owner,
+    }];
+    let factors = [HeadlessMaterialFactors {
+        factors: MaterialPreviewFactors {
+            translucency_surface: Some([Some(roughness), Some(metalness)]),
+            ..MaterialPreviewFactors::default()
+        },
+        material_indices_by_lod: &owner,
+    }];
+    let folder = tempdir()?;
+    let lit = folder.path().join("plate-lit.bmp");
+    let base = folder.path().join("plate-base.bmp");
+    let parts = folder.path().join("plate-parts.bmp");
+    pollster::block_on(
+        cdmw_render_wgpu::run_headless_layered_material_capture_with_lighting(
+            &snapshot,
+            &textures,
+            &factors,
+            &[],
+            preset,
+            LightingDepthSettings {
+                shadows: false,
+                ambient_occlusion: false,
+            },
+            HeadlessMaterialCaptureOptions {
+                width: 64,
+                height: 64,
+                camera: Some(HeadlessMaterialCaptureCamera {
+                    yaw_degrees,
+                    pitch_degrees: 0.0,
+                }),
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &lit,
+                base_color_bmp: &base,
+                part_id_bmp: &parts,
+                normal_map: None,
+                material_response: None,
+                layer_mask: None,
+            },
+        ),
+    )?;
+    let image = std::fs::read(lit)?;
+    let centre = 54 + (32 * 64 + 32) * 4;
+    Ok((
+        i32::from(image[centre + 2]),
+        i32::from(image[centre + 1]),
+        i32::from(image[centre]),
+    ))
+}
+
+/// A rough, non-metal card seen almost edge-on keeps its own colour. The fixed
+/// studio's grazing term used to reflect the room at 1 - roughness there, which
+/// washed red feather and hair cards towards grey-white as the view turned: on
+/// this dark red card the green level rose from 40 at 80 degrees to 54 at 88.5.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_fixed_studio_rough_card_keeps_its_colour_at_a_grazing_angle() -> TestResult {
+    let preset = LightingPreset::StudioFixed;
+    let turned = plate_centre([150, 3, 3], 0.8, 0.0, preset, 80.0)?;
+    let edge_on = plate_centre([150, 3, 3], 0.8, 0.0, preset, 88.5)?;
+    for (red, green, blue) in [turned, edge_on] {
+        assert!(
+            red >= 100 && green <= 40 && blue <= 42,
+            "red card is ({red}, {green}, {blue})"
+        );
+    }
+    assert!(
+        edge_on.1 - turned.1 <= 6,
+        "the card greys as it turns edge-on: {turned:?} then {edge_on:?}"
+    );
+    Ok(())
+}
