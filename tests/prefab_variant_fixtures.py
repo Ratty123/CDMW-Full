@@ -26,7 +26,7 @@ HEL_SET_PREFAB = "character/bin__/prefab/1_pc/01_phm/armor/13_hel/cd_phm_00_hel_
 HEL_0060 = "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0060.pac"
 HEL_0014 = "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0014.pac"
 
-# One gauntlet PAC, eleven items: its own-name prefab and the _indexNN ones.
+# One gauntlet PAC of 12 variants that items use at 0 to 10: its own-name prefab and the _indexNN ones.
 HAND_0003 = "character/model/1_pc/1_phm/armor/11_hand/cd_phm_00_hand_0003.pac"
 HAND_0003_PREFAB = "character/bin__/prefab/1_pc/01_phm/armor/11_hand/cd_phm_00_hand_0003.prefab"
 HAND_0003_INDEX01 = "character/bin__/prefab/1_pc/01_phm/armor/11_hand/cd_phm_00_hand_0003_index01.prefab"
@@ -36,7 +36,7 @@ PREFABS = {
     HONOR_GUARD_PREFAB: ((HONOR_GUARD_UB, None), (HONOR_GUARD_LB, 32), (HONOR_GUARD_BELT, 1)),
     FOOT_SET_PREFAB: ((FOOT_0165, 5), (FOOT_BELT_0125, 1)),
     HEL_SET_PREFAB: ((HEL_0060, 1), (HEL_0014, None)),
-    HAND_0003_PREFAB: ((HAND_0003, None),),
+    HAND_0003_PREFAB: ((HAND_0003, 0),),
     HAND_0003_INDEX01: ((HAND_0003, 1),),
     HAND_0003_INDEX02: ((HAND_0003, 2),),
 }

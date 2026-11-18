@@ -1,8 +1,8 @@
 """Which material variant a Browse preview draws, with and without the item in view.
 
-The gauntlet ``cd_phm_00_hand_0003.pac`` has eleven variants (0 to 10) and is
-eleven items: its own-name prefab draws variant 0, ``..._index01`` variant 1,
-``..._index02`` variant 2, and so on (material coverage census, 18 Nov 2026).
+The gauntlet ``cd_phm_00_hand_0003.pac`` has twelve variants (0 to 11), and items use it
+at variants 0 to 10: its own-name prefab draws variant 0, ``..._index01`` variant 1,
+``..._index02`` variant 2, and so on (checked read-only on the shipped archive, 18 Nov 2026).
 """
 import threading
 from types import SimpleNamespace
@@ -16,7 +16,7 @@ from tests import prefab_variant_fixtures as census
 HAND_XML = "character/modelproperty/1_pc/1_phm/armor/11_hand/cd_phm_00_hand_0003.pac_xml"
 HAND_XML_TEXT = "<ModelPropertyList>" + "".join(
     f'<ModelProperty Index="{index}"><SkinnedMeshMaterialWrapper _subMeshName="cd_phm_00_hand_0003"/>'
-    "</ModelProperty>" for index in range(11)) + "</ModelPropertyList>"
+    "</ModelProperty>" for index in range(12)) + "</ModelPropertyList>"
 
 
 def _worker(monkeypatch, prefabs, *, item_context):
@@ -52,7 +52,7 @@ def test_a_pac_opened_alone_draws_the_variant_of_the_one_item_in_view(monkeypatc
     assert indices == {census.HAND_0003: 1}
     assert variant["index"] == 1 and variant["from_prefab"]
     assert variant["selecting_prefabs"] == ["cd_phm_00_hand_0003_index01.prefab"]
-    assert variant["available"] == list(range(11))
+    assert variant["available"] == list(range(12))
 
 
 def test_a_pac_opened_alone_does_not_take_whichever_prefab_came_first(monkeypatch):
