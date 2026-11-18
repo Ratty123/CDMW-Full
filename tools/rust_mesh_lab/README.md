@@ -569,6 +569,18 @@ layer of the shadow depth array stores camera depth, capped at 2048 pixels per s
 The 16-texture compatibility path retains approximate post-curve AO. Other presets
 retain their existing rendering, and Neutral studio remains the default.
 
+The fifth preset, **Game icon studio**, is tuned against the game's own item icons.
+The game bakes those icons ahead of time and does not ship the rig that lit them, so
+this is a studio of CDMW's own: five soft boxes placed around the camera and a lit
+room with a light floor (`icon_studio.rs`). One description lights everything. A
+reflection reads it blurred for the surface's roughness, the diffuse term reads its
+irradiance, and the first box casts the shadow. The boxes are spherical Gaussians and
+the room is linear in height, so the blur and the irradiance are closed forms that the
+shader evaluates directly: there is no cube map to build, filter or cache. Radiance
+then passes through one exposure and Hable's filmic curve. The lights turn with the
+camera. It shares the fixed studio's depth-based ambient occlusion and material
+inputs, and it is a look matched to icons, not the game's lighting.
+
 The authoring Parts panel also exposes **Translucency (experimental)** for original
 PAC parts and imported replacements. Apply/Restore send selected stable part IDs
 to the host, which validates the material sidecar, preserves undo and drafts,

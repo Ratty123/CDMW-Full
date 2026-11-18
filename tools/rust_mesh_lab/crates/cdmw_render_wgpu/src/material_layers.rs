@@ -256,8 +256,9 @@ pub(super) fn shader(device: &wgpu::Device, include_depth: bool) -> String {
         "fn studio_ambient_visibility(pixel:vec2<f32>) -> f32 { return 1.0; }\nfn studio_view_direction(world:vec3<f32>) -> vec3<f32> { return safe_normalize(camera.view_direction.xyz,vec3(0.0,0.0,-1.0)); }".to_owned()
     };
     format!(
-        "{main}\n{shadows}\n{ambient}\n{}\n{}",
+        "{main}\n{shadows}\n{ambient}\n{}\n{}\n{}",
         include_str!("studio_lighting.wgsl"),
+        icon_studio::wgsl(),
         lighting_depth::SHADOW_FRAGMENT
     )
 }

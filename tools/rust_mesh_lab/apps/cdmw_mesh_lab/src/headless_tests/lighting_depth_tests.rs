@@ -595,3 +595,46 @@ fn offscreen_fixed_studio_rough_card_keeps_its_colour_at_a_grazing_angle() -> Te
     );
     Ok(())
 }
+
+/// Game icon studio: one room lights the metal and the cloth beside it. Steel
+/// facing the camera mirrors the room and the edge of the key box, brighter
+/// than under the fixed studio and neutral. White cloth is brighter than the
+/// steel's body, the lights follow the camera, and a rough red card keeps its
+/// colour at a grazing angle.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_icon_studio_lights_steel_and_cloth_from_one_room() -> TestResult {
+    let preset = LightingPreset::IconStudio;
+    let (red, green, blue) = plate_centre([128, 128, 128], 0.18, 1.0, preset, 0.0)?;
+    let fixed = plate_centre([128, 128, 128], 0.18, 1.0, LightingPreset::StudioFixed, 0.0)?;
+    assert!(
+        (160..=205).contains(&green) && green >= fixed.1 + 18,
+        "steel is ({red}, {green}, {blue}); fixed studio draws {fixed:?}"
+    );
+    assert!(
+        (red - blue).abs() <= 6 && (red - green).abs() <= 6,
+        "steel is tinted: ({red}, {green}, {blue})"
+    );
+    let cloth = plate_centre([200, 200, 200], 0.9, 0.0, preset, 0.0)?;
+    assert!(
+        cloth.1 >= green + 8 && cloth.1 <= 252,
+        "white cloth is {cloth:?} beside steel at {green}"
+    );
+    // The boxes turn with the camera: the plate's two faces, seen from opposite
+    // sides at the same angle, are lit alike. (Offscreen captures fill in only the
+    // view direction of the camera's basis, so the studio derives the rest.)
+    let one_side = plate_centre([128, 128, 128], 0.18, 1.0, preset, 30.0)?;
+    let other_side = plate_centre([128, 128, 128], 0.18, 1.0, preset, 210.0)?;
+    assert!(
+        (one_side.1 - other_side.1).abs() <= 3,
+        "the studio does not follow the camera: {one_side:?} against {other_side:?}"
+    );
+    for yaw in [60.0, 75.0, 82.0] {
+        let (red, green, blue) = plate_centre([200, 16, 16], 0.8, 0.0, preset, yaw)?;
+        assert!(
+            red >= 40 && green * 3 <= red && blue * 3 <= red,
+            "red card at yaw {yaw} is ({red}, {green}, {blue})"
+        );
+    }
+    Ok(())
+}

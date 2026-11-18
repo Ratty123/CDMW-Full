@@ -2077,20 +2077,18 @@ impl PreviewApplication {
                     .and_then(Value::as_bool)
                     .unwrap_or(true),
             });
+            // By id, so a preset the renderer gains is one the app can ask for.
             renderer.set_lighting_preset(
-                match display
+                display
                     .get("lighting_preset")
                     .and_then(Value::as_str)
                     .or_else(|| {
                         quality
                             .get("preview_lighting_preset")
                             .and_then(Value::as_str)
-                    }) {
-                    Some("showcase") => LightingPreset::Showcase,
-                    Some("dark") => LightingPreset::Dark,
-                    Some("studio_fixed") => LightingPreset::StudioFixed,
-                    _ => LightingPreset::NeutralStudio,
-                },
+                    })
+                    .and_then(LightingPreset::from_id)
+                    .unwrap_or(LightingPreset::NeutralStudio),
             );
         }
         if apply_camera && let Some(camera) = self.state.presentation.get("camera") {
