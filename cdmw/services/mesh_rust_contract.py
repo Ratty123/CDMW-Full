@@ -40,6 +40,9 @@ RUST_HOST_CDMW_COMMAND_CAPABILITY = "host_cdmw_command_v1"
 # Optional hello capability: "cdmw_command" also takes the editing commands select,
 # topology, mesh_action and configure_output_policy (AI connections edit by numbers).
 RUST_HOST_EDIT_COMMANDS_CAPABILITY = "host_edit_commands_v1"
+# Optional hello capability: "cdmw_command" also takes the Rig, Morph & Refit, Cloth,
+# Layers, Hair and Import Replacement panels' commands by name.
+RUST_HOST_PANEL_COMMANDS_CAPABILITY = "host_panel_commands_v1"
 # Optional hello capability: the helper takes "highlight_part", which lights one part
 # up in the 3D view without selecting it (the Textures panel's hover).
 RUST_HOST_HIGHLIGHT_PART_CAPABILITY = "host_highlight_part_v1"

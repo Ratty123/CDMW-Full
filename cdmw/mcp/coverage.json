@@ -921,33 +921,49 @@
       "area": "Mesh Editor",
       "what": "Rig and weights by numbers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.weights"
     },
     {
       "id": "mesh.morph",
       "area": "Mesh Editor",
       "what": "Morphs by numbers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.morph"
     },
     {
       "id": "mesh.cloth",
       "area": "Mesh Editor",
       "what": "Cloth by numbers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.cloth"
+    },
+    {
+      "id": "mesh.refit",
+      "area": "Mesh Editor",
+      "what": "Refit: drivers, bind, configure, fit to body, restore shape",
+      "class": "edit",
+      "tool": "mesh.refit"
+    },
+    {
+      "id": "mesh.layers",
+      "area": "Mesh Editor",
+      "what": "Layers: activate, rename, move, visibility, copy, paste, delete",
+      "class": "edit",
+      "tool": "mesh.layers"
+    },
+    {
+      "id": "mesh.replacement_options",
+      "area": "Mesh Editor",
+      "what": "Import Replacement options: fit, include, islands, guides, cloth, jiggle, physics, collisions, emission, translucency, shader controls, compare, reset",
+      "class": "edit",
+      "tool": "mesh.replacement_options"
+    },
+    {
+      "id": "mesh.panels",
+      "area": "Mesh Editor",
+      "what": "The panels' state: skeleton, morphs, refit, layers, cloth, jiggle, replacement, materials",
+      "class": "read",
+      "tool": "mesh.panels"
     },
     {
       "id": "mesh.camera",
@@ -974,14 +990,17 @@
     {
       "id": "hair.tools",
       "area": "Hair Tools",
-      "what": "Guides and brushes by numbers",
+      "what": "Guides and brushes by numbers (draw, comb, cut, curl, clump ... are pointer brushes)",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command",
-        "app.ui_act"
-      ]
+      "gap": "needs_pointer",
+      "by_points": "mesh.hair_stroke"
+    },
+    {
+      "id": "hair.colour",
+      "area": "Hair Tools",
+      "what": "Hair colour and texture",
+      "class": "edit",
+      "tool": "mesh.hair"
     },
     {
       "id": "materials.get",

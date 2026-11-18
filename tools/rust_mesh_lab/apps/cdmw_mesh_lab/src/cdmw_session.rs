@@ -750,6 +750,94 @@ pub fn host_cdmw_edit_command(name: &str) -> Option<(&'static str, &'static str)
         "topology" => Some(("topology", "Topology")),
         "mesh_action" => Some(("mesh_action", "Mesh action")),
         "configure_output_policy" => Some(("configure_output_policy", "Configure output")),
+        _ => host_cdmw_panel_command(name),
+    }
+}
+
+/// Hello capability: `cdmw_command` also takes the panel commands of
+/// [`host_cdmw_panel_command`]: weights, morphs, refit, cloth, layers, hair and Import
+/// Replacement's mapping options, by the names their panels send.
+pub const HOST_PANEL_COMMANDS_CAPABILITY: &str = "host_panel_commands_v1";
+
+/// The Rig, Morph & Refit, Cloth, Layers, Hair and Import Replacement panels' commands
+/// CDMW may send by name. Commands that write files (exports) are not among them.
+pub fn host_cdmw_panel_command(name: &str) -> Option<(&'static str, &'static str)> {
+    match name {
+        "cloth_collision_input" => Some(("cloth_collision_input", "Cloth")),
+        "cloth_paint_set" => Some(("cloth_paint_set", "Cloth")),
+        "cloth_pin_set" => Some(("cloth_pin_set", "Cloth")),
+        "hair_color" => Some(("hair_color", "Hair")),
+        "hair_texture" => Some(("hair_texture", "Hair")),
+        "layer_activate" => Some(("layer_activate", "Layer")),
+        "layer_copy" => Some(("layer_copy", "Layer")),
+        "layer_delete" => Some(("layer_delete", "Layer")),
+        "layer_move" => Some(("layer_move", "Layer")),
+        "layer_paste" => Some(("layer_paste", "Layer")),
+        "layer_rename" => Some(("layer_rename", "Layer")),
+        "layer_visibility" => Some(("layer_visibility", "Layer")),
+        "morph_activate" => Some(("morph_activate", "Morph")),
+        "morph_apply_preset" => Some(("morph_apply_preset", "Morph")),
+        "morph_apply_setup" => Some(("morph_apply_setup", "Morph")),
+        "morph_bake" => Some(("morph_bake", "Morph")),
+        "morph_begin_correction" => Some(("morph_begin_correction", "Morph")),
+        "morph_cancel_baseline" => Some(("morph_cancel_baseline", "Morph")),
+        "morph_cancel_correction" => Some(("morph_cancel_correction", "Morph")),
+        "morph_capture_authored" => Some(("morph_capture_authored", "Morph")),
+        "morph_capture_baseline" => Some(("morph_capture_baseline", "Morph")),
+        "morph_clear_driver_region" => Some(("morph_clear_driver_region", "Morph")),
+        "morph_clear_influence" => Some(("morph_clear_influence", "Morph")),
+        "morph_create" => Some(("morph_create", "Morph")),
+        "morph_delete_definition" => Some(("morph_delete_definition", "Morph")),
+        "morph_delete_preset" => Some(("morph_delete_preset", "Morph")),
+        "morph_delete_profile" => Some(("morph_delete_profile", "Morph")),
+        "morph_generate_body_controls" => Some(("morph_generate_body_controls", "Morph")),
+        "morph_import_preset" => Some(("morph_import_preset", "Morph")),
+        "morph_import_recipe" => Some(("morph_import_recipe", "Morph")),
+        "morph_reset" => Some(("morph_reset", "Morph")),
+        "morph_reset_correction" => Some(("morph_reset_correction", "Morph")),
+        "morph_reset_macros" => Some(("morph_reset_macros", "Morph")),
+        "morph_save_correction" => Some(("morph_save_correction", "Morph")),
+        "morph_save_preset" => Some(("morph_save_preset", "Morph")),
+        "morph_save_profile" => Some(("morph_save_profile", "Morph")),
+        "morph_save_setup" => Some(("morph_save_setup", "Morph")),
+        "morph_set_corrections_enabled" => Some(("morph_set_corrections_enabled", "Morph")),
+        "morph_set_driver_region" => Some(("morph_set_driver_region", "Morph")),
+        "morph_set_influence" => Some(("morph_set_influence", "Morph")),
+        "morph_set_macro" => Some(("morph_set_macro", "Morph")),
+        "morph_set_side_value" => Some(("morph_set_side_value", "Morph")),
+        "morph_set_symmetry" => Some(("morph_set_symmetry", "Morph")),
+        "morph_set_value" => Some(("morph_set_value", "Morph")),
+        "refit_bind" => Some(("refit_bind", "Refit")),
+        "refit_choose_archive" => Some(("refit_choose_archive", "Refit")),
+        "refit_clear" => Some(("refit_clear", "Refit")),
+        "refit_configure" => Some(("refit_configure", "Refit")),
+        "refit_diagnostics" => Some(("refit_diagnostics", "Refit")),
+        "refit_fit_to_body" => Some(("refit_fit_to_body", "Refit")),
+        "refit_island_configure" => Some(("refit_island_configure", "Refit")),
+        "refit_load_mesh" => Some(("refit_load_mesh", "Refit")),
+        "refit_restore_shape_apply" => Some(("refit_restore_shape_apply", "Refit")),
+        "refit_restore_shape_cancel" => Some(("refit_restore_shape_cancel", "Refit")),
+        "refit_restore_shape_preview" => Some(("refit_restore_shape_preview", "Refit")),
+        "refit_set_driver" => Some(("refit_set_driver", "Refit")),
+        "refit_use_loaded_body" => Some(("refit_use_loaded_body", "Refit")),
+        "replacement_cloth" => Some(("replacement_cloth", "Replacement")),
+        "replacement_collision_volumes" => Some(("replacement_collision_volumes", "Replacement")),
+        "replacement_compare" => Some(("replacement_compare", "Replacement")),
+        "replacement_emission" => Some(("replacement_emission", "Replacement")),
+        "replacement_fit" => Some(("replacement_fit", "Replacement")),
+        "replacement_guides" => Some(("replacement_guides", "Replacement")),
+        "replacement_include" => Some(("replacement_include", "Replacement")),
+        "replacement_islands" => Some(("replacement_islands", "Replacement")),
+        "replacement_jiggle" => Some(("replacement_jiggle", "Replacement")),
+        "replacement_physics_profile" => Some(("replacement_physics_profile", "Replacement")),
+        "replacement_reset" => Some(("replacement_reset", "Replacement")),
+        "replacement_shader_controls" => Some(("replacement_shader_controls", "Replacement")),
+        "replacement_translucency" => Some(("replacement_translucency", "Replacement")),
+        "replacement_weapon_collisions" => Some(("replacement_weapon_collisions", "Replacement")),
+        "rig_adjust_weight" => Some(("rig_adjust_weight", "Weights")),
+        "rig_normalize_weights" => Some(("rig_normalize_weights", "Weights")),
+        "rig_select_bone" => Some(("rig_select_bone", "Weights")),
+        "rig_transfer_weights" => Some(("rig_transfer_weights", "Weights")),
         _ => None,
     }
 }
@@ -1352,6 +1440,7 @@ impl CdmwBridge {
                 "control_contract_v2",
                 HOST_CDMW_COMMAND_CAPABILITY,
                 HOST_EDIT_COMMANDS_CAPABILITY,
+                HOST_PANEL_COMMANDS_CAPABILITY,
                 HOST_HIGHLIGHT_PART_CAPABILITY,
                 translation_transfer::CAPABILITY
             ]
@@ -6754,8 +6843,32 @@ pub(crate) mod tests {
                 HostEvent::CdmwCommand { command, label: l, .. } if command == name && l == label
             ));
         }
-        // Any other command, or arguments that are not an object: refused.
-        for name in ["replacement_export_rig", "morph_bake", "vertex_edit", "finish", ""] {
+        // The panels' commands, each with its family's label.
+        for (name, label) in [
+            ("morph_bake", "Morph"),
+            ("refit_fit_to_body", "Refit"),
+            ("rig_adjust_weight", "Weights"),
+            ("cloth_pin_set", "Cloth"),
+            ("layer_rename", "Layer"),
+            ("replacement_jiggle", "Replacement"),
+        ] {
+            value["command"] = json!(name);
+            assert!(matches!(
+                bridge.decode_host_event(value.clone()),
+                HostEvent::CdmwCommand { command, label: l, .. } if command == name && l == label
+            ));
+        }
+        // Any other command (files written, session setup), or arguments that are not an
+        // object: refused.
+        for name in [
+            "replacement_export_rig",
+            "morph_export_preset",
+            "hair_texture_export",
+            "hair_begin",
+            "vertex_edit",
+            "finish",
+            "",
+        ] {
             value["command"] = json!(name);
             assert!(matches!(
                 bridge.decode_host_event(value.clone()),

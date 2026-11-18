@@ -1283,3 +1283,46 @@ def test_docked_texture_output_plan_matches_build_mod(texture_pair):
     without_body = mcp.ok("textures_output_plan", {"include_body": False})
     assert path in without_body["left_out"][0] and without_body["refusals"] == []
     assert dock.history_index == 0
+
+
+@pytest.mark.skipif(not __import__("cdmw.modding.mesh_native_core", fromlist=["x"]).native_mesh_core_available(),
+                    reason="the native mesh core is not built (CDMW_MESH_CORE_BIN names a built one)")
+def test_panel_tools_reach_the_host_as_the_panels_do(editor, connect) -> None:  # noqa: F811
+    """Weights, layers and the panels' state through a real host session: each command is
+    one request the helper sends by its panel's name, checked by the host as the panel's."""
+
+    ui, host = editor.ui, editor.host
+    ui.standalone_rust_host_edit_commands_supported = True
+    ui.standalone_rust_host_panel_commands_supported = True
+    forward = ui._send_rust_message
+
+    def helper(message):  # the real helper adds its selection to rig and cloth commands
+        if message.get("event") == "cdmw_command" and message["command"].startswith(("rig_", "cloth_")):
+            view = host.shadow_service.session_view(host.shadow_session_id)
+            message = {**message, "arguments": {**message["arguments"], "selection": {
+                "vertices_by_submesh": {str(p): list(i) for p, i in view.selection.vertices_by_submesh},
+                "faces_by_submesh": {}, "edges_by_submesh": {}, "source_indices": []}}}
+        return forward(message)
+
+    ui._send_rust_message = helper
+    original_start = ui._start_next_rust_protocol_worker
+
+    def start() -> None:
+        queued = ui.standalone_rust_protocol_queue
+        if queued:
+            ui.standalone_rust_last_client_request_id = int(queued[-1].get("request_id", 0) or 0)
+        original_start()
+
+    ui._start_next_rust_protocol_worker = start
+    mcp = connect(editor.window)
+    panels = mcp.ok("mesh_panels")
+    assert panels["available"] and isinstance(panels["sections"], dict)
+    assert "skeleton" in mcp.ok("mesh_panels", {"sections": ["skeleton"]})["sections"]
+    assert mcp.error("mesh_weights", {"action": "paint"})["code"] == "invalid_arguments"
+    assert mcp.ok("mesh_select", {"vertices": {"0": [0, 1]}})["done"]
+    normalized = mcp.ok("mesh_weights", {"action": "normalize_weights"})
+    assert normalized["done"], normalized
+    # A command the host refuses says why in the status line, and changes nothing.
+    refused = mcp.ok("mesh_layers", {"action": "activate", "arguments": {"layer_id": "no-such-layer"}})
+    assert refused["history"]["undo"] == refused["history_before"]["undo"], refused
+    assert refused["status"], refused

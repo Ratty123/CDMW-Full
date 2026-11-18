@@ -134,6 +134,62 @@ def _send_edit(call, command: str, arguments: dict[str, object]) -> dict[str, ob
     return outcome
 
 
+# ----- the panels: weights, morphs, refit, cloth, layers, hair, replacement options --------
+NO_PANEL_COMMANDS = ("This Mesh Editor helper does not take its panels' commands from CDMW; it is older than "
+                     "this app (host_panel_commands_v1).")
+#: The commands each panel sends, by family, as the helper takes them by name
+#: (``host_cdmw_panel_command`` in cdmw_session.rs). Exports that write files are not here.
+PANEL_COMMANDS: dict[str, tuple[str, ...]] = {
+    "cloth": (
+        "collision_input", "paint_set", "pin_set",
+    ),
+    "hair": (
+        "color", "texture",
+    ),
+    "layer": (
+        "activate", "copy", "delete", "move", "paste", "rename", "visibility",
+    ),
+    "morph": (
+        "activate", "apply_preset", "apply_setup", "bake", "begin_correction", "cancel_baseline",
+        "cancel_correction", "capture_authored", "capture_baseline", "clear_driver_region", "clear_influence",
+        "create", "delete_definition", "delete_preset", "delete_profile", "generate_body_controls",
+        "import_preset", "import_recipe", "reset", "reset_correction", "reset_macros", "save_correction",
+        "save_preset", "save_profile", "save_setup", "set_corrections_enabled", "set_driver_region",
+        "set_influence", "set_macro", "set_side_value", "set_symmetry", "set_value",
+    ),
+    "refit": (
+        "bind", "choose_archive", "clear", "configure", "diagnostics", "fit_to_body", "island_configure",
+        "load_mesh", "restore_shape_apply", "restore_shape_cancel", "restore_shape_preview", "set_driver",
+        "use_loaded_body",
+    ),
+    "replacement": (
+        "cloth", "collision_volumes", "compare", "emission", "fit", "guides", "include", "islands", "jiggle",
+        "physics_profile", "reset", "shader_controls", "translucency", "weapon_collisions",
+    ),
+    "rig": (
+        "adjust_weight", "normalize_weights", "select_bone", "transfer_weights",
+    ),
+}
+
+
+def _panel(family: str):
+    def handler(call) -> dict[str, object]:
+        from cdmw.mcp.mesh_tools import shown_document
+
+        action = str(call.arguments["action"])
+        if action not in PANEL_COMMANDS[family]:
+            raise ToolError(INVALID_ARGUMENTS, f"The {family} commands are: {', '.join(PANEL_COMMANDS[family])}.")
+
+        def supported() -> bool:
+            return bool(getattr(shown_document(call.context), "standalone_rust_host_panel_commands_supported", False))
+
+        if not call.context.ui_call(supported):
+            raise ToolError(UNAVAILABLE, NO_PANEL_COMMANDS)
+        return _send_edit(call, f"{family}_{action}", dict(call.arguments.get("arguments") or {}))
+
+    return handler
+
+
 # ----- the tools -------------------------------------------------------------------------
 def _working_parts(call) -> list:
     from cdmw.mcp.mesh_tools import NO_EDITOR, NOT_READY, _session_of
@@ -253,6 +309,58 @@ def _findings(call) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {"report": payload}
 
 
+def _panels(call) -> dict[str, object]:
+    """The panels' state as the editor is given it (the host's state, without the mesh)."""
+
+    from cdmw.mcp.mesh_tools import NO_EDITOR, NOT_READY, _session_of
+    from cdmw.services.mesh_rust_authoring import _json_safe
+
+    _facts, session = _session_of(call)
+    if session is None:
+        raise ToolError(UNAVAILABLE, NO_EDITOR)
+    try:
+        payload = session.state_payload(include_document=False)
+    except (KeyError, RuntimeError) as exc:
+        raise ToolError(UNAVAILABLE, str(exc) or NOT_READY) from None
+    wanted = [str(name) for name in call.arguments.get("sections") or ()]
+    sections = {key: value for key, value in dict(payload).items()
+                if (key in wanted if wanted else key in PANEL_SECTIONS)}
+    return {"sections": _json_safe(sections), "available": sorted(str(key) for key in dict(payload))}
+
+
+#: The host state's sections the panels draw from, returned by default.
+PANEL_SECTIONS = ("skeleton", "morph", "morphs", "refit", "layers", "cloth", "jiggle", "replacement", "hair",
+                  "rig", "materials", "material_presentations")
+
+_PANEL_TOOLS = (
+    ("rig", "mesh.weights", "Weights",
+     "The Rig page's weight commands on the shown document's selected vertices, as its buttons send them: "
+     "select_bone {bone_index}, adjust_weight {delta}, normalize_weights {}, transfer_weights {}."),
+    ("morph", "mesh.morph", "Morphs",
+     "The Morph & Refit page's morph commands, by the names its controls send (activate, create, set_value, "
+     "set_macro, set_side_value, set_symmetry, set_influence, set_driver_region, bake, reset, save_profile, "
+     "apply_preset, save_preset, import_preset, corrections ...), with the arguments the page sends; "
+     "mesh_panels shows the morph state they work on."),
+    ("refit", "mesh.refit", "Refit",
+     "The Morph & Refit page's refit commands: set_driver {submesh_indices}, use_loaded_body, load_mesh, "
+     "choose_archive, bind {submesh_indices}, configure {submesh_indices, clearance_percent, intensity_percent, "
+     "tightness_percent, skin_pull_percent, mode, enabled}, island_configure, fit_to_body, restore_shape_preview, "
+     "restore_shape_apply, restore_shape_cancel, clear, diagnostics."),
+    ("cloth", "mesh.cloth", "Cloth",
+     "The Cloth page's commands on the selected vertices: pin_set {value}, paint_set {value}, "
+     "collision_input {role, source}."),
+    ("layer", "mesh.layers", "Layers",
+     "The Layers list's commands: activate {layer_id}, rename {layer_id, name}, move {layer_id, direction}, "
+     "visibility {layer_id, visible}, copy, paste, delete {layer_id}."),
+    ("hair", "mesh.hair", "Hair",
+     "Hair Tools' commands for a hairstyle being made: color {color: [r, g, b]}, texture {...}."),
+    ("replacement", "mesh.replacement_options", "Import Replacement options",
+     "Import Replacement's options for the model in the mapping step, as its panel sends them: fit, include "
+     "{part_ids, included}, islands, guides, cloth, jiggle, physics_profile, collision_volumes, "
+     "weapon_collisions, emission, translucency, shader_controls, compare, reset."),
+)
+
+
 def mesh_edit_tools() -> list[Tool]:
     label = {"type": "string", "maxLength": 128}
     return [
@@ -319,6 +427,21 @@ def mesh_edit_tools() -> list[Tool]:
                                         ["policy"]),
              effect=EDIT, route="helper:cdmw_command configure_output_policy", handler=_output_policy,
              runs_on=ON_WORKER, output_folders=("destination",)),
+        *[Tool(name=name, family="mesh", title=title,
+               description=text + " CDMW checks each as it checks the panel's own; the result is the history "
+                                  "before and after and the status line, which says why a command was refused.",
+               input_schema=object_schema({"action": {"type": "string", "enum": list(PANEL_COMMANDS[family])},
+                                           "arguments": {"type": "object"}}, ["action"]),
+               effect=EDIT, route=f"helper:cdmw_command {family}_*", handler=_panel(family), runs_on=ON_WORKER)
+          for family, name, title, text in _PANEL_TOOLS],
+        Tool(name="mesh.panels", family="mesh", title="Mesh Editor panels",
+             description="What the shown document's panels show: the skeleton and bones, morphs and their "
+                         "profiles, refit, layers, cloth, jiggle, Import Replacement and materials, as the "
+                         "editor is given them. 'sections' picks some; 'available' lists them all.",
+             input_schema=object_schema({"sections": {"type": "array", "maxItems": 32,
+                                                      "items": {"type": "string", "maxLength": 64}}}),
+             effect=READ, route="service:RustMeshAuthoringSession.state_payload", handler=_panels,
+             runs_on=ON_WORKER),
         Tool(name="mesh.findings", family="mesh", title="Mesh findings",
              description="The shown document's validation, as Finish runs it: whether the mesh can be written "
                          "for its output, and each finding with its part and what to do about it.",
