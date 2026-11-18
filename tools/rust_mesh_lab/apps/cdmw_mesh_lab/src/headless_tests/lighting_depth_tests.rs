@@ -591,11 +591,12 @@ fn offscreen_hair_dye_overlays_the_colour_on_the_greyed_texture() -> TestResult 
         near(half, [175, 162, 114]),
         "half the alpha is half way between strand and dye; drawn {half:?}"
     );
-    // The brightest channel stops at 0.8 linear (231 in sRGB).
+    // No cap: the game's 0.8 cap on the brightest channel belongs to the
+    // buff overlay only, so white dye on a near-white strand draws white.
     let white = base_colour_of("white", [250, 250, 250], [1.0, 1.0, 1.0], 1.0)?;
     assert!(
-        white.iter().all(|value| value.abs_diff(231) <= 3),
-        "hair albedo is capped at 0.8; drawn {white:?}"
+        white.iter().all(|value| *value >= 252),
+        "hair albedo is not capped at 0.8; drawn {white:?}"
     );
     Ok(())
 }
