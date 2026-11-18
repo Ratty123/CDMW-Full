@@ -481,6 +481,125 @@ fn offscreen_metal_class_floor_yields_to_the_parts_surface_map() -> TestResult {
     Ok(())
 }
 
+/// The game's hair dye (PSMainHairStandard, permutation 75b7a093c17d73a3):
+/// `_hairDyeingColor` is overlaid in display space on the base texture greyed
+/// 80%, and mixed in by the colour's alpha; the brightest channel is capped at
+/// 0.8. A mid-grey strand dyed `#d2bb60ff` (the buffalo mask's mane) is that
+/// gold. The hue bias this replaces kept the strand near grey, and the package
+/// stated the dye's strength as 0, which multiplied the texture by the colour.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_hair_dye_overlays_the_colour_on_the_greyed_texture() -> TestResult {
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.5, 0.5]; 4];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let owner = [vec![0]];
+    let folder = tempdir()?;
+    const HAIR: u32 = 6;
+    let base_colour_of = |name: &str,
+                          strand: [u8; 3],
+                          dye: [f32; 3],
+                          alpha: f32|
+     -> Result<[u8; 3], Box<dyn std::error::Error>> {
+        let texture = cdmw_texture::encode_rgba8_dds(
+            1,
+            1,
+            &[strand[0], strand[1], strand[2], 255],
+            TextureRole::BaseColor,
+        )?;
+        let textures = [HeadlessMaterialTexture {
+            bytes: &texture,
+            role: TextureRole::BaseColor,
+            material_indices_by_lod: &owner,
+        }];
+        let factors = [HeadlessMaterialFactors {
+            factors: MaterialPreviewFactors {
+                texture_tint: Some(dye),
+                base_tint_strength: Some(alpha),
+                category_code: Some(HAIR),
+                category_confidence: Some(1.0),
+                ..MaterialPreviewFactors::default()
+            },
+            material_indices_by_lod: &owner,
+        }];
+        let base = folder.path().join(format!("{name}-base.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &factors,
+            &[],
+            HeadlessMaterialCaptureOptions {
+                width: 64,
+                height: 64,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &folder.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &base,
+                part_id_bmp: &folder.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: None,
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(base)?;
+        let pixel = &bytes[54 + (32 * 64 + 32) * 4..][..4];
+        Ok([pixel[2], pixel[1], pixel[0]])
+    };
+    let near = |drawn: [u8; 3], expected: [u8; 3]| {
+        drawn
+            .iter()
+            .zip(expected)
+            .all(|(value, wanted)| value.abs_diff(wanted) <= 3)
+    };
+    let gold = [210.0 / 255.0, 187.0 / 255.0, 96.0 / 255.0];
+    // Grey 128 is above the overlay's midpoint: 1 - 2 (1 - 0.502) (1 - c).
+    let dyed = base_colour_of("gold", [128, 128, 128], gold, 1.0)?;
+    assert!(
+        near(dyed, [210, 187, 97]),
+        "a mid-grey strand takes the dye's colour whole; drawn {dyed:?}"
+    );
+    // Below the midpoint the overlay multiplies: 2 * 0.251 * c.
+    let dark = base_colour_of("dark", [64, 64, 64], gold, 1.0)?;
+    assert!(
+        near(dark, [105, 94, 48]),
+        "a dark strand stays dark in the dye's hue; drawn {dark:?}"
+    );
+    // The texture's own colour is greyed 80% first, so a red strand dyed black
+    // is black, not dark red.
+    let black = base_colour_of("black", [160, 40, 40], [0.0, 0.0, 0.0], 1.0)?;
+    assert!(
+        black.iter().all(|value| *value <= 3),
+        "black dye draws black; drawn {black:?}"
+    );
+    // The dye's alpha mixes texture and dyed colour in linear light.
+    let half = base_colour_of("half", [128, 128, 128], gold, 0.5)?;
+    assert!(
+        near(half, [175, 162, 114]),
+        "half the alpha is half way between strand and dye; drawn {half:?}"
+    );
+    // The brightest channel stops at 0.8 linear (231 in sRGB).
+    let white = base_colour_of("white", [250, 250, 250], [1.0, 1.0, 1.0], 1.0)?;
+    assert!(
+        white.iter().all(|value| value.abs_diff(231) <= 3),
+        "hair albedo is capped at 0.8; drawn {white:?}"
+    );
+    Ok(())
+}
+
 /// A polished conductor has no diffuse term: away from the highlights its colour
 /// is its reflectance times the room. Mid-grey steel (the Ver2 plate layer:
 /// roughness 0.18, metal 1) facing the camera used to draw near-black navy.

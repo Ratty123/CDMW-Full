@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Sequence, Tuple
 
 from cdmw.rendering.native_preview_material_contract import (
+    sidecar_hair_dye_for_batch,
     sidecar_preview_texture_tint_for_batch,
 )
 from cdmw.rendering.native_preview_payloads import _safe_float
@@ -19,6 +20,9 @@ class PreviewTintContract:
     base_tint_strength: float
     texture_tint_active: bool
     sidecar_texture_tint_promoted: bool
+    # The tint is a hair material's `_hairDyeingColor`: the renderer overlays it
+    # by the game's hair formula and the strength is the colour's own alpha.
+    hair_dye: bool = False
 
 
 def _uses_multiplicative_gltf_base_color_factor(batch: object) -> bool:
@@ -76,10 +80,18 @@ def resolve_preview_tint_contract(
         resolved_strength = 0.0
     if base_tint_strength is not None:
         resolved_strength = max(0.0, min(1.0, _safe_float(base_tint_strength, resolved_strength)))
+    hair_dye = sidecar_hair_dye_for_batch(batch) if sidecar_promoted else None
+    if hair_dye is not None:
+        # The game mixes the dyed colour in by the dye's alpha. The tint is the
+        # wrapper's own colour, so its strength is too: the package's base-tint
+        # strength (zero for a part without a tinted base) says nothing about it,
+        # and a zero strength would make the renderer multiply instead of dye.
+        resolved_strength = max(0.0, min(1.0, float(hair_dye[3])))
     return PreviewTintContract(
         base_color=resolved_base_color,
         texture_tint=texture_tint,
         base_tint_strength=resolved_strength,
         texture_tint_active=tint_active,
         sidecar_texture_tint_promoted=sidecar_promoted,
+        hair_dye=hair_dye is not None,
     )
