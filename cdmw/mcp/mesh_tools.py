@@ -83,6 +83,31 @@ def _status(tab) -> str:
         return ""
 
 
+def _unavailable_reason(tab) -> str:
+    """The reason the page gives when the editor cannot start, as its status line shows it."""
+
+    reason = str(getattr(tab, "standalone_rust_incompatible_reason", "") or "") if tab is not None else ""
+    if reason:
+        return f"Mesh Editor unavailable: {reason}"
+    status = _status(tab) if tab is not None else ""
+    return status if "unavailable" in status.casefold() else ""
+
+
+DRAFT_ANSWERS = {"resume": "draft_resume_button", "fresh": "draft_start_fresh_button",
+                 "cancel": "draft_choice_cancel_button"}
+
+
+def _draft_question(tab) -> dict[str, object] | None:
+    """"Continue where you left off?" when the page shows it: the open waits for an answer."""
+
+    showing = getattr(tab, "_draft_choice_showing", None) if tab is not None else None
+    if not (callable(showing) and showing()):
+        return None
+    label = getattr(tab, "draft_choice_label", None)
+    return {"question": "Continue where you left off?", "text": str(label.text()) if label is not None else "",
+            "answers": sorted(DRAFT_ANSWERS), "tool": "mesh_draft_choice"}
+
+
 def _documents(context) -> tuple[list[dict[str, object]], object, object]:
     from cdmw.ui.mesh_editor.documents import document_label
 
@@ -163,6 +188,13 @@ def _session_of(call):
         facts: dict[str, object] = {"documents": rows, "open": False}
         session = getattr(tab, "standalone_rust_authoring_session", None) if tab is not None else None
         if tab is None or session is None or getattr(session, "closed", False):
+            # Why there is no edit yet: the page's own lines, such as "Mesh Editor unavailable: ...".
+            reason = _unavailable_reason(tab)
+            if reason:
+                facts["unavailable"] = reason
+            asking = _draft_question(tab)
+            if asking:
+                facts["asks"] = asking
             return facts, None
         registry = context.command_registry()
         busy_output = getattr(tab, "_mesh_direct_output_busy", None)
@@ -226,6 +258,11 @@ def _state(call) -> dict[str, object]:
         "output": {"policy": view.output_policy, "destination": view.output_destination,
                    "reason": view.output_policy_reason},
     })
+    shared = _shared_history(session)
+    if shared is not None:
+        # Texture edits share the document's one history (Undo takes whichever came last),
+        # as the editor's own History list and Undo show it.
+        facts["history"].update(shared, mesh_undo=int(view.undo_count), mesh_redo=int(view.redo_count))
     textures = _textures(session, mesh, view, owners)
     if textures is not None:
         facts["textures"] = textures
@@ -236,6 +273,24 @@ def _state(call) -> dict[str, object]:
     if hair is not None:
         facts["hair"] = hair
     return facts
+
+
+def _shared_history(session) -> dict[str, object] | None:
+    """The document's merged mesh and texture history, or None when it has no texture edits."""
+
+    history = getattr(session, "shared_history", None)
+    current = getattr(history, "current_history_payload", None)
+    if not callable(current):
+        return None
+    payload = current()
+    entries = list(payload.get("history_entries") or ())
+    if not any("texture" in entry for entry in entries):
+        return None
+    cursor, undo, redo = (int(payload.get(key) or 0) for key in ("history_cursor", "undo_count", "redo_count"))
+    steps = [str(entry.get("label") or entry.get("action") or "") + (
+        f" ({entry['texture']})" if entry.get("texture") else "") for entry in entries]
+    return {"undo": undo, "redo": redo, "can_undo": undo > 0, "can_redo": redo > 0, "steps": steps[-50:],
+            "cursor": cursor}
 
 
 def _textures(session, mesh, view, owners) -> dict[str, object] | None:
@@ -353,6 +408,21 @@ def _open(call) -> dict[str, object]:
             "message": "The Mesh Editor is opening this mesh; mesh_state says when it is ready."}
 
 
+def _draft_choice(call) -> dict[str, object]:
+    context = call.context
+    answer = str(call.arguments["answer"])
+
+    def press() -> dict[str, object]:
+        tab = shown_document(context)
+        if _draft_question(tab) is None:
+            raise ToolError(UNAVAILABLE, "The Mesh Editor is not asking whether to continue a draft.")
+        getattr(tab, DRAFT_ANSWERS[answer]).click()
+        return {"answered": answer,
+                "message": "mesh_state says when the editor is ready." if answer != "cancel" else ""}
+
+    return _act(call, press)
+
+
 def _show_document(call) -> dict[str, object]:
     rows, view, _tab = _documents(call.context)
     index = int(call.arguments["index"])
@@ -460,7 +530,10 @@ def _build_mod(call) -> dict[str, object]:
         from cdmw.ui.mesh_editor import tab_direct_output
 
         tab = shown_document(context)
-        if tab is None or getattr(tab, "standalone_rust_authoring_session", None) is None:
+        # After Finish the helper has closed and its session with it; the document keeps the
+        # finished edit and Build Mod builds from it, as the page's button does then.
+        if tab is None or (getattr(tab, "standalone_rust_authoring_session", None) is None
+                           and getattr(tab, "standalone_controller", None) is None):
             raise ToolError(UNAVAILABLE, NO_EDITOR)
         original = tab_direct_output.MeshModExportDialog
         shown: dict[str, object] = {}
@@ -572,9 +645,16 @@ def mesh_tools() -> list[Tool]:
              description="Opens an archive mesh (.pac, .pam, .pamlod) in the Mesh Editor, as Browse Archives' "
                          "Open in Mesh Editor does: with 'path' it is selected in Browse Archives first, "
                          "without it the selected mesh is opened. Returns at once; mesh_state says when the "
-                         "editor is ready.",
+                         "editor is ready, or 'asks' when it waits for an answer such as whether to continue "
+                         "a saved draft (mesh_draft_choice).",
              input_schema=object_schema({"path": {"type": "string", "maxLength": 512}}), effect=EDIT,
              route="ui:shell._open_current_archive_mesh_editor", handler=_open, runs_on=ON_WORKER),
+        Tool(name="mesh.draft_choice", family="mesh", title="Continue where you left off?",
+             description="Answers the question the Mesh Editor asks when the mesh being opened has saved "
+                         "drafts (mesh_state shows it as 'asks'): 'resume' the newest draft, start 'fresh' from "
+                         "the file (the drafts are kept either way), or 'cancel' the open.",
+             input_schema=object_schema({"answer": {"type": "string", "enum": sorted(DRAFT_ANSWERS)}}, ["answer"]),
+             effect=EDIT, route="ui:draft_choice buttons", handler=_draft_choice, runs_on=ON_CALL),
         Tool(name="mesh.show_document", family="mesh", title="Show a document",
              description="Shows one of the Mesh Editor's open documents, as a click on its tab does.",
              input_schema=object_schema({"index": {"type": "integer", "minimum": 0}}, ["index"]), effect=READ,

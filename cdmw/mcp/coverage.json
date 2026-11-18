@@ -622,6 +622,13 @@
       "tool": "mesh.open"
     },
     {
+      "id": "mesh.draft_choice",
+      "area": "Mesh Editor",
+      "what": "Continue where you left off? (Resume, Start Fresh, Cancel)",
+      "class": "edit",
+      "tool": "mesh.draft_choice"
+    },
+    {
       "id": "mesh.show_document",
       "area": "Mesh Editor",
       "what": "Show one of the open documents",

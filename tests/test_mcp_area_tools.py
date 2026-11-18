@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QSettings, QTimer, Signal
+from PySide6.QtCore import QObject, QSettings, QTimer, Signal
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit, QMessageBox, QPushButton, QSlider, QWidget
 
@@ -96,6 +96,34 @@ def test_mesh_state_is_empty_until_a_mesh_is_open(connect) -> None:
                             ("mesh_discard", {}), ("textures_stroke", {"points": [[0, 0]]})):
         error = mcp.error(tool, arguments)
         assert error["code"] == "unavailable" and "Mesh Editor" in error["message"], tool
+
+
+def test_mesh_state_says_why_the_editor_cannot_start(connect, app) -> None:
+    """A page whose helper failed its checks says so, as its status line does."""
+
+    holder = QWidget()
+    holder.active = SimpleNamespace(standalone_rust_incompatible_reason="provenance manifest is missing",
+                                    standalone_rust_authoring_session=None)
+    holder.documents = [holder.active]
+    try:
+        mcp = connect(SimpleNamespace(shell=SimpleNamespace(mesh_editor_tab=holder)))
+        state = mcp.ok("mesh_state")
+        assert state["open"] is False
+        assert state["unavailable"] == "Mesh Editor unavailable: provenance manifest is missing"
+        assert "asks" not in state
+        assert mcp.error("mesh_draft_choice", {"answer": "fresh"})["code"] == "unavailable"
+        # "Continue where you left off?": shown as 'asks', answered by its own buttons.
+        pressed = []
+        page = SimpleNamespace(**{name: SimpleNamespace(click=lambda n=name: pressed.append(n)) for name in (
+            "draft_resume_button", "draft_start_fresh_button", "draft_choice_cancel_button")})
+        holder.active.__dict__.update(page.__dict__, _draft_choice_showing=lambda: not pressed,
+                                      draft_choice_label=SimpleNamespace(text=lambda: "1 saved draft"))
+        asks = mcp.ok("mesh_state")["asks"]
+        assert asks["text"] == "1 saved draft" and asks["answers"] == ["cancel", "fresh", "resume"]
+        assert mcp.ok("mesh_draft_choice", {"answer": "fresh"})["answered"] == "fresh"
+        assert pressed == ["draft_start_fresh_button"] and "asks" not in mcp.ok("mesh_state")
+    finally:
+        holder.deleteLater()
 
 
 def test_mesh_state_and_geometry_are_the_sessions_parts_counts_and_selection(mesh) -> None:
@@ -296,6 +324,17 @@ def test_build_mod_presses_the_button_with_its_dialog_filled_and_reports_a_refus
     hair[0], building[0] = True, False
     assert mcp.ok("mesh_build_mod", {"output_folder": str(out)})["started"]
     assert built[-1] == ("hair", str(out), None, None)
+    # After Finish the helper and its session are gone; the finished document still builds.
+    hair[0], building[0] = False, False
+    session, ui.standalone_rust_authoring_session = ui.standalone_rust_authoring_session, None
+    ui.standalone_controller = SimpleNamespace(active_session_id="finished")
+    try:
+        assert mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "After finish"})["started"]
+        assert built[-1][0] == "After finish"
+        ui.standalone_controller = None  # nothing open at all
+        assert mcp.error("mesh_build_mod", {"output_folder": str(out)})["code"] == "unavailable"
+    finally:
+        ui.standalone_rust_authoring_session = session
     holder.deleteLater()
 
 
@@ -730,6 +769,14 @@ def test_new_painting_is_opened_filled_and_built_with_the_dialogs_own_controls(s
     assert mcp.ok("new_item_painting_close")["closed"] and not mcp.ok("new_item_painting_state")["open"]
 
 
+class _TemplateSearch(QObject):
+    """Create New Item's controller as its search sees it: results arrive later, on a signal."""
+
+    template_search_ready = Signal(object)
+    ready = True
+    busy = False
+
+
 def test_create_new_items_templates_are_searched_and_picked_and_its_controls_listed(app, connect) -> None:
     from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QVBoxLayout
 
@@ -747,7 +794,12 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
             if text.casefold() in name.casefold():
                 panel.matches.addTopLevelItem(QTreeWidgetItem([name]))
 
-    panel.filter_edit.textChanged.connect(refill)
+    controller = _TemplateSearch()
+
+    def search_later(text: str) -> None:  # as the page: the old rows stay until the result is in
+        QTimer.singleShot(150, lambda: (refill(text), controller.template_search_ready.emit([])))
+
+    panel.filter_edit.textChanged.connect(search_later)
     panel.matches.itemClicked.connect(lambda item, _column: picked.append(item.text(0)))
     refill("")
     item_name = QLineEdit()
@@ -755,7 +807,7 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     for widget in (panel.filter_edit, panel.matches, item_name, QPushButton("Next")):
         layout.addWidget(widget)
     workflow.template_panel = panel
-    workflow.controller = SimpleNamespace(ready=True, busy=False)
+    workflow.controller = controller
     from cdmw.ui.new_item.workflow_header import WorkflowHeader
 
     workflow.steps = WorkflowHeader(["Template", "Identity", "Model"])  # the step header, as the page has
@@ -768,6 +820,11 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     window = SimpleNamespace(shell=SimpleNamespace(
         new_item_studio_tab=tab, compact_workspace=SimpleNamespace(_active_tool_key="new_item_studio")))
     mcp = connect(window)
+    # Still building its pages: the page has no template list yet, and the tools say so.
+    workflow.template_panel = None
+    for tool, arguments in (("new_item_search", {"text": "x"}), ("new_item_pick", {"row": 0})):
+        assert mcp.error(tool, arguments)["code"] == "unavailable", tool
+    workflow.template_panel = panel
     state = mcp.ok("new_item_state")
     assert state["ready"] and state["templates"] == list(names) and state["picked"] == ""
     assert [row["name"] for row in state["steps"]] == ["Template", "Identity", "Model"]
@@ -794,3 +851,24 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     assert item_name.text() == "Kliff's Blade"
     for widget in (workflow, tab, workflow.steps):
         widget.deleteLater()
+
+
+def test_mesh_state_history_counts_texture_edits_as_the_editor_does() -> None:
+    """A texture edit is a step of the document's one history: mesh_state counts it as the
+    editor's History list and Undo do, and still says how many are mesh steps."""
+
+    from cdmw.mcp.mesh_tools import _shared_history
+    from cdmw.ui.mesh_editor.shared_edit_history import SharedEditHistory
+
+    history = SharedEditHistory()
+    session = SimpleNamespace(shared_history=history)
+    history.merged([{"action": "select", "label": "Select", "state": "applied"}])
+    assert _shared_history(session) is None  # mesh steps only: the session's own counts hold
+    opened, painted = object(), object()
+    history.observe_texture("key", "belt_d.dds", [opened], 0)
+    history.observe_texture("key", "belt_d.dds", [opened, painted], 1)
+    merged = _shared_history(session)
+    assert merged["undo"] == 2 and merged["redo"] == 0 and merged["can_undo"] and merged["cursor"] == 2
+    assert merged["steps"] == ["Select", "Texture edit (belt_d.dds)"]
+    history.observe_texture("key", "belt_d.dds", [opened, painted], 0)  # undone in the Texture Editor
+    assert (_shared_history(session)["undo"], _shared_history(session)["redo"]) == (1, 1)

@@ -90,8 +90,26 @@ def _state(call) -> dict[str, object]:
     return state
 
 
+SEARCH_WAIT_S = 20.0
+
+
+def _templates(workflow) -> dict[str, object]:
+    matches = workflow.template_panel.matches
+    return {"search": workflow.template_panel.filter_edit.text(),
+            "template_count": int(matches.topLevelItemCount()),
+            "templates": [str(matches.topLevelItem(row).text(0))
+                          for row in range(min(matches.topLevelItemCount(), 200))]}
+
+
 def _search(call) -> dict[str, object]:
+    """Types the search and waits for its result: the page searches on a worker, after a
+    short pause, so the list right after typing is still the old one."""
+
+    import threading
+    import time
+
     context = call.context
+    found = threading.Event()
 
     def search() -> dict[str, object]:
         _tab, workflow = _workflow(context)
@@ -99,15 +117,35 @@ def _search(call) -> dict[str, object]:
             raise ToolError(UNAVAILABLE, NOT_OPEN)
         from cdmw.mcp.ui_tree import act
 
+        ready = getattr(getattr(workflow, "controller", None), "template_search_ready", None)
+        if ready is None:
+            found.set()
+        else:
+            def arrived(_options, signal=ready) -> None:
+                found.set()
+                try:
+                    signal.disconnect(arrived)
+                except (RuntimeError, TypeError):
+                    pass
+
+            # Connected after the page's own slot, so the page has shown the rows when this runs.
+            ready.connect(arrived)
         act(workflow.template_panel.filter_edit, "set_text", value=str(call.arguments.get("text") or ""),
             window=getattr(context, "window", None), game_folder=context.game_folder())
-        matches = workflow.template_panel.matches
-        return {"search": workflow.template_panel.filter_edit.text(),
-                "template_count": int(matches.topLevelItemCount()),
-                "templates": [str(matches.topLevelItem(row).text(0))
-                              for row in range(min(matches.topLevelItemCount(), 200))]}
+        return {}
 
-    return _act(call, search)
+    _act(call, search)
+    deadline = time.monotonic() + SEARCH_WAIT_S
+    while not found.wait(0.05):
+        call.check_cancelled()
+        if time.monotonic() > deadline:
+            break
+
+    def read() -> dict[str, object]:
+        _tab, workflow = _workflow(context)
+        return {**_templates(workflow), "searching": not found.is_set()}
+
+    return context.ui_call(read)
 
 
 def _pick(call) -> dict[str, object]:
@@ -119,6 +157,9 @@ def _pick(call) -> dict[str, object]:
         raise ToolError(INVALID_ARGUMENTS, "Name the template: match (text in its row) or row (its number).")
 
     def pick() -> dict[str, object]:
+        _tab, workflow = _workflow(context)
+        if workflow is None or getattr(workflow, "template_panel", None) is None:
+            raise ToolError(UNAVAILABLE, NOT_OPEN)
         result = _automation(new_item_pick, getattr(context, "window", None),
                              {"match": a.get("match") or "", "row": a.get("row") or 0})
         if not result.get("picked"):
