@@ -51,7 +51,7 @@ class _Preparation:
         self.failed = _Signal()
         self.edit_set = False
 
-    def start(self, _selected, _members) -> bool:
+    def start(self, _selected, _members, **_item_scope) -> bool:
         return True
 
     def cancel(self, *_args) -> None:

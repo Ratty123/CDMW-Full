@@ -211,3 +211,30 @@ def test_set_source_uses_its_native_graph_and_releases_failed_leases(tmp_path, m
             finally:
                 retained.lease.release()
     assert calls == [entry]
+
+
+def test_set_source_draws_the_variant_its_items_prefab_selects(tmp_path, monkeypatch):
+    """The honor guard's prefab draws cd_phm_00_lb_0002 at variant 32, not variant 0."""
+    import threading
+    from cdmw.rendering import native_preview_core
+    from cdmw.services import mesh_preview_material_source as owner
+    from tests import prefab_variant_fixtures as census
+
+    census.install(monkeypatch)
+    lower = census.entry(census.HONOR_GUARD_LB)
+    entries = (lower, census.entry(census.HONOR_GUARD_PREFAB), census.entry(census.FOOT_SET_PREFAB))
+    context = SimpleNamespace(selected_entry=lower, entries=entries, remote=True,
+                              entry_matching=lambda selected: lower if selected is lower else None)
+    parts = [SimpleNamespace(material="lower", preview_material_texture_inputs=(SimpleNamespace(confidence="sidecar"),),
+                             preview_native_material_overrides={})]
+    mesh = SimpleNamespace(path=lower.path, lod_levels=[], submeshes=parts)
+    jobs = []
+
+    def native(selected, **kwargs):
+        jobs.append(kwargs)
+        return SimpleNamespace(succeeded=False, package_path="")
+
+    monkeypatch.setattr(native_preview_core, "run_native_preview_core_preview_job", native)
+    assert owner.prepare_item_set_material_source(mesh, context, tmp_path / "cache", threading.Event()) is None
+    # Only the drawn file is named: the job takes at most 32 selections.
+    assert jobs[0]["model_property_indices"] == {census.HONOR_GUARD_LB: 32}

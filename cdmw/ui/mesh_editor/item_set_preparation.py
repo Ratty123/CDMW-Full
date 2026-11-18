@@ -26,7 +26,9 @@ class ItemSetEditorPreparation(QObject):
         self._members: tuple[ArchiveEntryDto, ...] = ()
         self._contexts: list[ArchiveWorkflowDependencyContext] = []
         self.edit_set = False
-        self._provider = ArchiveRemotePreviewDependencyProvider(service, self, include_content_analysis=False)
+        self._preferred_prefab_stems: tuple[str, ...] = ()
+        self._scope_entry_ids: tuple[int, ...] = ()
+        self._provider =ArchiveRemotePreviewDependencyProvider(service, self, include_content_analysis=False)
         self._provider.ready.connect(self._prepared)
         self._provider.failed.connect(self._failed)
         service.session_published.connect(self._session_changed)
@@ -37,8 +39,13 @@ class ItemSetEditorPreparation(QObject):
     def pending(self) -> bool:
         return bool(self._members)
 
-    def start(self, selected: ArchiveEntry, members: tuple[ArchiveEntryDto, ...]) -> bool:
+    def start(self, selected: ArchiveEntry, members: tuple[ArchiveEntryDto, ...], *,
+              preferred_prefab_stems: tuple[str, ...] = (), scope_entry_ids: tuple[int, ...] = ()) -> bool:
+        """``preferred_prefab_stems``/``scope_entry_ids``: the scoped item's prefabs, as Browse
+        asks for them, so each file's context leads with the prefab that picks its variant."""
         self.cancel()
+        self._preferred_prefab_stems = tuple(preferred_prefab_stems)
+        self._scope_entry_ids = tuple(scope_entry_ids)
         session = self._service.current_session
         matching = [member for member in members
                     if ArchiveCatalogueService.compatibility_entry(member).identity == selected.identity]
@@ -58,7 +65,9 @@ class ItemSetEditorPreparation(QObject):
         self._provider.cancel(clear_snapshot=True)
 
     def _request_next(self) -> bool:
-        return self._provider.request(self._members[len(self._contexts)], ui_request_id=self._generation)
+        return self._provider.request(self._members[len(self._contexts)], ui_request_id=self._generation,
+                                      preferred_prefab_stems=self._preferred_prefab_stems,
+                                      scope_entry_ids=self._scope_entry_ids)
 
     def _prepared(self, generation: int, snapshot: object) -> None:
         if generation != self._generation or not self._members:
@@ -92,6 +101,12 @@ class ItemSetEditorPreparation(QObject):
             self.failed.emit("The archive catalogue changed while preparing the item set.")
 
 
+def _item_scope(bridge: object) -> dict:
+    """The scoped item's prefabs, which Browse's preview of the set asks for too."""
+    return {"preferred_prefab_stems": tuple(getattr(bridge, "item_scope_preferred_prefab_stems", ()) or ()),
+            "scope_entry_ids": tuple(getattr(bridge, "item_scope_entry_ids", ()) or ())}
+
+
 def prepare_item_set_for_editor(shell: object, entry: ArchiveEntry, *, edit_set: bool = False) -> bool:
     """Capture browser membership before any selection or catalogue can change."""
     bridge = getattr(shell.archive, "archive_remote_bridge", None)
@@ -107,7 +122,7 @@ def prepare_item_set_for_editor(shell: object, entry: ArchiveEntry, *, edit_set:
     # like a set open's (review of fb9194c7c).
     preparation.hidden_parts = getattr(shell, "_mesh_editor_hidden_parts_for_open", None)
     shell._mesh_editor_hidden_parts_for_open = None
-    preparation.start(entry, tuple(bridge.item_set_members))
+    preparation.start(entry, tuple(bridge.item_set_members), **_item_scope(bridge))
     return True
 
 
@@ -243,4 +258,5 @@ def _open_members(shell: object, members: tuple, files: tuple) -> bool:
     # and another open started meanwhile takes the shell's parts for itself (review
     # of 0359504f6). They are handed over when this set's open starts.
     preparation.hidden_parts = dict(files)
-    return bool(preparation.start(ArchiveCatalogueService.compatibility_entry(members[0]), members))
+    return bool(preparation.start(ArchiveCatalogueService.compatibility_entry(members[0]), members,
+                                  **_item_scope(getattr(shell.archive, "archive_remote_bridge", None))))

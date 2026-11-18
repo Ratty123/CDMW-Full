@@ -199,7 +199,9 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event):
     from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
     from cdmw.services.mesh_rust_authoring import _rebase_rust_preview_texture_paths, _submesh_has_material_synthesis_inputs
     from cdmw.services.mesh_rust_preview_package import _validated_preview_core_source
-    from cdmw.workers.archive_preview_native import native_preview_core_timeout_seconds
+    from cdmw.workers.archive_preview_native import (
+        native_preview_core_timeout_seconds, native_preview_model_property_indices,
+    )
 
     raise_if_cancelled(stop_event, "Item set loading cancelled")
     if not any(_submesh_has_material_synthesis_inputs(part) for part in mesh.submeshes):
@@ -209,9 +211,14 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event):
     if normalize(mesh.path) != normalize(entry.path) or context.entry_matching(entry) is None:
         raise ValueError("Item set dependencies do not match the selected mesh")
     settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+    # The item's prefab picks the file's material variant, as Browse's preview
+    # of the same context does; without it the core falls back to variant 0.
+    dependencies = tuple(context.entries)
     result = run_native_preview_core_preview_job(
         entry, cache_root=Path(cache_root), render_settings=settings,
-        dependency_entries=tuple(context.entries), dependency_entries_complete=bool(context.remote),
+        dependency_entries=dependencies, dependency_entries_complete=bool(context.remote),
+        model_property_indices=native_preview_model_property_indices(
+            dependencies, stop_event, model_paths=(entry.path,)),
         timeout_seconds=native_preview_core_timeout_seconds(settings), stop_event=stop_event,
     )
     raise_if_cancelled(stop_event, "Item set loading cancelled")

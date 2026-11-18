@@ -239,3 +239,28 @@ def test_set_button_opens_captured_members_and_shutdown_discards_preparation():
     widget.deleteLater()
     tab.deleteLater()
     app.processEvents()
+
+
+def test_set_editor_asks_for_each_file_with_the_items_prefabs_first():
+    """Each file's context leads with the item's prefab, which picks its material variant
+    (the honor guard's prefab draws cd_phm_00_lb_0002 at variant 32), as Browse's preview does."""
+    from cdmw.domain.archives.catalogue import ArchiveLookupKind
+    from cdmw.ui.mesh_editor.item_set_preparation import prepare_item_set_for_editor
+    from tests import prefab_variant_fixtures as census
+
+    _app()
+    service = _Service()
+    upper, lower = _dto(1, census.HONOR_GUARD_UB), _dto(2, census.HONOR_GUARD_LB)
+    tab = QObject()
+    tab.item_set_preparation = None
+    bridge = SimpleNamespace(item_set_contains=lambda _entry: True, item_set_members=(upper, lower),
+                             item_scope_preferred_prefab_stems=("cd_phm_00_ub_00_0376",),
+                             item_scope_entry_ids=(1, 2, 7))
+    shell = SimpleNamespace(archive=SimpleNamespace(archive_remote_bridge=bridge, archive_catalogue_service=service),
+                            mesh_editor_tab=tab, _mesh_editor_hidden_parts_for_open=None,
+                            set_status_message=lambda *_args, **_kwargs: None)
+    assert prepare_item_set_for_editor(shell, ArchiveCatalogueService.compatibility_entry(lower))
+    request, _generation = service.requests[0]
+    assert getattr(request, "kind", None) == ArchiveLookupKind.ENTRY_IDS
+    assert tuple(request.entry_ids) == (1, 2, 7)
+    tab.item_set_preparation.cancel()

@@ -73,28 +73,37 @@ def native_preview_core_timeout_seconds(render_settings: object) -> float:
     )
 
 
-def native_preview_model_property_indices(
+def _model_key(path: object) -> str:
+    return str(path or "").replace("\\", "/").strip().casefold()
+
+
+def _default_entry_reader(stop_event: object) -> Callable[[ArchiveEntry], bytes]:
+    from cdmw.core.archive_extraction import read_archive_entry_data
+
+    def read_entry_data(candidate: ArchiveEntry) -> bytes:
+        return read_archive_entry_data(candidate, stop_event=stop_event)[0]
+
+    return read_entry_data
+
+
+def native_preview_prefab_model_selections(
     prefab_entries: Sequence[ArchiveEntry],
     stop_event: object,
     *,
     read_entry_data: Optional[Callable[[ArchiveEntry], bytes]] = None,
-) -> Dict[str, int]:
-    """Recover the material-set index each selected item prefab assigns to a model.
+) -> Tuple[Tuple[str, str, int], ...]:
+    """Every ``(prefab path, model key, variant)`` the prefabs declare, in their order.
 
-    A physical PAC can serve several logical items. Their prefabs select the
-    intended ``ModelProperty`` block, so first-prefab authority is deliberate:
-    callers order the logical item's prefab before shared physical companions.
+    The variant is the object's ``_modelPropertyIndex`` beside its
+    ``_skinnedMeshFile``; an object without one selects variant 0. An index
+    above 255 is not a variant the preview core can be asked for and is left out.
     """
 
     from cdmw.core.prefab_binary import PrefabBinaryError, decode_prefab_binary
 
     if read_entry_data is None:
-        from cdmw.core.archive_extraction import read_archive_entry_data
-
-        def read_entry_data(candidate: ArchiveEntry) -> bytes:
-            return read_archive_entry_data(candidate, stop_event=stop_event)[0]
-
-    selections: Dict[str, int] = {}
+        read_entry_data = _default_entry_reader(stop_event)
+    selections: List[Tuple[str, str, int]] = []
     for entry in prefab_entries:
         if bool(getattr(stop_event, "is_set", lambda: False)()):
             raise RunCancelled("Native preview-core job cancelled.")
@@ -118,7 +127,34 @@ def native_preview_model_property_indices(
                 property_index = int.from_bytes(number.raw, "little", signed=False)
                 break
             if 0 <= property_index <= 255:
-                selections.setdefault(model_path.casefold(), property_index)
+                selections.append((str(entry.path or ""), model_path.casefold(), property_index))
+    return tuple(selections)
+
+
+def native_preview_model_property_indices(
+    prefab_entries: Sequence[ArchiveEntry],
+    stop_event: object,
+    *,
+    read_entry_data: Optional[Callable[[ArchiveEntry], bytes]] = None,
+    model_paths: Optional[Sequence[str]] = None,
+) -> Dict[str, int]:
+    """Recover the material-set index each selected item prefab assigns to a model.
+
+    A physical PAC can serve several logical items. Their prefabs select the
+    intended ``ModelProperty`` block, so first-prefab authority is deliberate:
+    callers order the logical item's prefab before shared physical companions.
+
+    ``model_paths`` keeps only those models: a job may name at most 32, and a
+    merged dependency list can hold prefabs for many more than it draws.
+    """
+
+    wanted = None if model_paths is None else {_model_key(path) for path in model_paths}
+    selections: Dict[str, int] = {}
+    for _prefab, model, index in native_preview_prefab_model_selections(
+        prefab_entries, stop_event, read_entry_data=read_entry_data,
+    ):
+        if wanted is None or model in wanted:
+            selections.setdefault(model, index)
     return selections
 
 
