@@ -1948,7 +1948,7 @@ def clamp_model_preview_render_settings(
         )
 
     value.preview_lighting_preset = str(value.preview_lighting_preset or "").strip().lower()
-    if value.preview_lighting_preset not in {"neutral_studio", "showcase", "dark", "studio_fixed"}:
+    if value.preview_lighting_preset not in {"neutral_studio", "showcase", "dark", "studio_fixed", "icon_studio"}:
         value.preview_lighting_preset = defaults.preview_lighting_preset
 
     int_fields = {

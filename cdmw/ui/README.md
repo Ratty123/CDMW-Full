@@ -22,7 +22,8 @@ changes therefore preserve the user's live camera and do not request a geometry
 refresh. Shared Mesh Editor hosts continue to use their tab's presentation owner.
 
 Preview Settings > Quality / Lighting exposes a **Lighting preset** selector,
-**Shadows** and **Ambient occlusion**. **Studio (fixed lights)** is the fourth preset;
+**Shadows** and **Ambient occlusion**. **Studio (fixed lights)** is the fourth preset
+and **Game icon studio**, tuned against the game's item icons, the fifth;
 Neutral studio remains the default. Explicit session lighting (such as the New Item
 dark preview) overrides the saved preference.
 Both default on, persist with preview preferences, and send live display-quality updates

@@ -126,6 +126,9 @@ fn key_direction(camera: &CameraUniform) -> Vec3 {
     let view = Vec3::from_slice(&camera.view_direction).normalize_or(-Vec3::Z);
     let right = Vec3::from_slice(&camera.camera_right).normalize_or(Vec3::X);
     let up = Vec3::from_slice(&camera.camera_up).normalize_or(Vec3::Y);
+    if camera.lighting_preset == 4 {
+        return crate::icon_studio::key_direction(view);
+    }
     let neutral =
         camera.lighting_preset != 1 && camera.view_mode != ViewMode::GameOutdoor.shader_mode();
     let (horizontal, vertical) = if neutral { (0.72, 0.72) } else { (0.18, 0.35) };
@@ -368,7 +371,7 @@ impl ShadowResources {
     ) -> ShadowFrame {
         let (light, center, radius) = mesh.lighting_bounds.fit(camera, &mesh.material_ranges);
         let enabled = settings.shadows && textured(mode) && shadow_supported(device);
-        let studio_ao = camera.lighting_preset == 3
+        let studio_ao = camera.lighting_preset >= 3
             && settings.ambient_occlusion
             && textured(mode)
             && shadow_supported(device);
@@ -646,7 +649,7 @@ impl AmbientOcclusion {
     ) {
         if !settings.ambient_occlusion
             || !textured(mode)
-            || (camera.lighting_preset == 3 && shadow_supported(device))
+            || (camera.lighting_preset >= 3 && shadow_supported(device))
         {
             return;
         }

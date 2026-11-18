@@ -20,6 +20,7 @@ pub use effect_mesh_proof::run_headless_effect_mesh_deformation;
 mod selection_overlay;
 pub use selection_overlay::verify_face_selection_depth;
 mod ground;
+mod icon_studio;
 mod lighting_depth;
 mod material_layers;
 pub mod texture_cache;
@@ -562,7 +563,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     }
     let has_emission = material.emissive_color_and_intensity.a > 0.0
         && any(material.emissive_color_and_intensity.rgb > vec3<f32>(0.0));
-    let fixed_studio = camera.lighting_preset == 3u && (camera.view_mode == 0u || camera.view_mode == 9u);
+    let fixed_studio = camera.lighting_preset >= 3u && (camera.view_mode == 0u || camera.view_mode == 9u);
     if material.flags == 0u && !has_emission && material.glow_surface_color.a < 0.5 && shader_kind == 0.0 && !fixed_studio {
         if emission_only { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
         if camera.view_mode == 8u {
@@ -1400,7 +1401,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     // Archive materials lack the game's exposure context. Use a conservative
     // preview exposure instead of the old 2.2x boost, retaining texture detail
     // at ordinary strengths. Imported glTF keeps its authored radiance scale.
-    let emissive = emission_colour * emission_strength * select(0.5, 1.0, gltf_pbr || camera.lighting_preset == 3u) + shader_glow;
+    let emissive = emission_colour * emission_strength * select(0.5, 1.0, gltf_pbr || camera.lighting_preset >= 3u) + shader_glow;
     if emission_only {
         // The game's translucent shaders never read their declared glow inputs.
         if eye_cover || layered || material.translucency_factors.z > 0.5 { return vec4<f32>(0.0); }
@@ -1409,7 +1410,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         return vec4<f32>(min(max(emissive, vec3<f32>(0.0)), vec3<f32>(64.0)),
             select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
     }
-    if camera.lighting_preset == 3u {
+    if camera.lighting_preset >= 3u {
         let dx = dpdx(surface_normal);
         let dy = dpdy(surface_normal);
         let variance = max(dot(dx,dx),dot(dy,dy));
@@ -1417,14 +1418,21 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         let studio_spec = select(1.0,material.surface_factors.z,(material.flags & MATERIAL_SPECULAR_FACTOR) != 0u);
         let studio_view = studio_view_direction(input.world_position);
         let studio_tangent = safe_normalize(tangent-surface_normal*dot(tangent,surface_normal),tangent);
-        let terms = fixed_studio_lighting(texel.rgb,surface_normal,studio_view,studio_tangent,
-            studio_roughness,metalness,studio_spec,select(raw_occlusion,layer_surface.orm.r,gpu_layered),
-            is_skin,is_hair,key_shadow);
+        let studio_occlusion = select(raw_occlusion,layer_surface.orm.r,gpu_layered);
+        var terms: StudioTerms;
+        if camera.lighting_preset == 4u {
+            terms = icon_studio_lighting(texel.rgb,surface_normal,studio_view,studio_tangent,
+                studio_roughness,metalness,studio_spec,studio_occlusion,is_skin,is_hair,
+                is_eye || eye_cover || is_glass || shader_kind == 10.0,key_shadow);
+        } else {
+            terms = fixed_studio_lighting(texel.rgb,surface_normal,studio_view,studio_tangent,
+                studio_roughness,metalness,studio_spec,studio_occlusion,is_skin,is_hair,key_shadow);
+        }
         let ao = studio_ambient_visibility(input.position.xy);
         // AO acts on linear radiance before the shoulder curve. Keep the existing
         // translucent coverage contracts, including reflections independent of alpha.
-        let reflection = fixed_studio_tone(terms.specular*ao);
-        let lit = fixed_studio_tone((terms.diffuse+terms.specular)*ao);
+        let reflection = studio_tone(terms.specular*ao);
+        let lit = studio_tone((terms.diffuse+terms.specular)*ao);
         if eye_cover {
             return present(max(lit-reflection,vec3(0.0))*material_alpha+reflection*eye_surface_alpha,material_alpha);
         }
@@ -1435,9 +1443,9 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             return present(lit*layered_colour_coverage,material_alpha);
         }
         if material.translucency_factors.z > 0.5 {
-            return present(fixed_studio_tone((terms.diffuse*(vec3(1.0)-transmission)+terms.specular)*ao),material_alpha);
+            return present(studio_tone((terms.diffuse*(vec3(1.0)-transmission)+terms.specular)*ao),material_alpha);
         }
-        return present(fixed_studio_tone((terms.diffuse+terms.specular+emissive)*ao),
+        return present(studio_tone((terms.diffuse+terms.specular+emissive)*ao),
             select(1.0,material_alpha,(material.flags & MATERIAL_ALPHA_BLEND) != 0u));
     }
     // Keep enough fill to read the base texture under glow in the dark preview.
@@ -1572,14 +1580,16 @@ pub enum LightingPreset {
     Showcase,
     Dark,
     StudioFixed,
+    IconStudio,
 }
 
 impl LightingPreset {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::NeutralStudio,
         Self::Showcase,
         Self::Dark,
         Self::StudioFixed,
+        Self::IconStudio,
     ];
 
     /// The id CDMW stores in its shared Preview settings.
@@ -1590,6 +1600,7 @@ impl LightingPreset {
             Self::Showcase => "showcase",
             Self::Dark => "dark",
             Self::StudioFixed => "studio_fixed",
+            Self::IconStudio => "icon_studio",
         }
     }
 
@@ -1604,6 +1615,7 @@ impl LightingPreset {
             Self::Showcase => "Showcase",
             Self::Dark => "Dark",
             Self::StudioFixed => "Studio (fixed lights)",
+            Self::IconStudio => "Game icon studio",
         }
     }
 
@@ -1613,6 +1625,7 @@ impl LightingPreset {
             Self::Showcase => 1,
             Self::Dark => 2,
             Self::StudioFixed => 3,
+            Self::IconStudio => 4,
         }
     }
 }

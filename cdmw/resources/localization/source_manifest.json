@@ -1431,7 +1431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 1125,
+          "line": 1126,
           "sink": "setText"
         }
       ]
@@ -2536,7 +2536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 549,
+          "line": 550,
           "sink": "setToolTip"
         }
       ]
@@ -5571,7 +5571,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 366,
+          "line": 368,
           "sink": "_handle_failure"
         }
       ]
@@ -5926,7 +5926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 428,
+          "line": 429,
           "sink": "_add_slider_row"
         }
       ]
@@ -9331,7 +9331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 723,
+          "line": 724,
           "sink": "addItem"
         }
       ]
@@ -10306,7 +10306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 512,
+          "line": 513,
           "sink": "addRow"
         }
       ]
@@ -10536,7 +10536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 356,
+          "line": 357,
           "sink": "_add_slider_row"
         }
       ]
@@ -10546,7 +10546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 334,
+          "line": 335,
           "sink": "QCheckBox"
         },
         {
@@ -11336,7 +11336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 528,
+          "line": 529,
           "sink": "QCheckBox"
         }
       ]
@@ -12561,7 +12561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1087,
+          "line": 1090,
           "sink": "getOpenFileName"
         }
       ]
@@ -13186,7 +13186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1180,
+          "line": 1183,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -14551,12 +14551,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 911,
+          "line": 913,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 912,
+          "line": 914,
           "sink": "append_archive_log"
         }
       ]
@@ -14691,22 +14691,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 749,
+          "line": 751,
           "sink": "_set_archive_list_status"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 751,
+          "line": 753,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 752,
+          "line": 754,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 753,
+          "line": 755,
           "sink": "append_archive_log"
         }
       ]
@@ -17796,7 +17796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 681,
+          "line": 682,
           "sink": "addItem"
         }
       ]
@@ -19031,7 +19031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 722,
+          "line": 723,
           "sink": "addItem"
         }
       ]
@@ -23636,7 +23636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 677,
+          "line": 678,
           "sink": "setToolTip"
         }
       ]
@@ -24866,7 +24866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 744,
+          "line": 746,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -24906,7 +24906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 744,
+          "line": 746,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -24951,7 +24951,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 900,
+          "line": 902,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -25021,7 +25021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 906,
+          "line": 908,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -25716,7 +25716,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 674,
+          "line": 676,
           "sink": "setText"
         },
         {
@@ -25996,7 +25996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 675,
+          "line": 677,
           "sink": "setToolTip"
         }
       ]
@@ -26146,12 +26146,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1953,
+          "line": 1956,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1973,
+          "line": 1976,
           "sink": "_set_rust_status"
         }
       ]
@@ -26161,7 +26161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1178,
+          "line": 1181,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -29506,7 +29506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8140,
+          "line": 8144,
           "sink": "report"
         }
       ]
@@ -34066,7 +34066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 731,
+          "line": 732,
           "sink": "QPushButton"
         }
       ]
@@ -34671,7 +34671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 732,
+          "line": 733,
           "sink": "setToolTip"
         }
       ]
@@ -35376,7 +35376,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 749,
+          "line": 750,
           "sink": "QPushButton"
         },
         {
@@ -39026,7 +39026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 618,
+          "line": 619,
           "sink": "addRow"
         },
         {
@@ -39106,7 +39106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 1251,
+          "line": 1252,
           "sink": "setToolTip"
         }
       ]
@@ -43726,7 +43726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1087,
+          "line": 1090,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -43741,7 +43741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1087,
+          "line": 1090,
           "sink": "getOpenFileName"
         },
         {
@@ -46506,7 +46506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 363,
+          "line": 364,
           "sink": "_add_slider_row"
         }
       ]
@@ -46526,7 +46526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 515,
+          "line": 516,
           "sink": "addRow"
         }
       ]
@@ -46536,7 +46536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 370,
+          "line": 371,
           "sink": "_add_slider_row"
         }
       ]
@@ -46766,7 +46766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 518,
+          "line": 519,
           "sink": "QCheckBox"
         },
         {
@@ -46791,7 +46791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 516,
+          "line": 517,
           "sink": "QCheckBox"
         },
         {
@@ -46811,7 +46811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 517,
+          "line": 518,
           "sink": "QCheckBox"
         },
         {
@@ -46851,7 +46851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 521,
+          "line": 522,
           "sink": "QCheckBox"
         },
         {
@@ -46886,7 +46886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 520,
+          "line": 521,
           "sink": "QCheckBox"
         },
         {
@@ -47106,12 +47106,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 104,
+          "line": 134,
           "sink": "addButton"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1816,
+          "line": 1819,
           "sink": "addButton"
         },
         {
@@ -48881,7 +48881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 524,
+          "line": 525,
           "sink": "setToolTip"
         }
       ]
@@ -49441,7 +49441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 724,
+          "line": 725,
           "sink": "setToolTip"
         }
       ]
@@ -50436,7 +50436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 11120,
+          "line": 11150,
           "sink": "RuntimeError"
         }
       ]
@@ -52641,7 +52641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 456,
+          "line": 457,
           "sink": "_add_slider_row"
         }
       ]
@@ -52851,7 +52851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 1251,
+          "line": 1252,
           "sink": "setToolTip"
         }
       ]
@@ -53561,7 +53561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 449,
+          "line": 450,
           "sink": "_add_slider_row"
         }
       ]
@@ -61001,7 +61001,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 629,
+          "line": 631,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -61766,12 +61766,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 102,
+          "line": 132,
           "sink": "addButton"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1815,
+          "line": 1818,
           "sink": "addButton"
         }
       ]
@@ -61856,7 +61856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 195,
+          "line": 225,
           "sink": "information"
         }
       ]
@@ -61926,7 +61926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 137,
+          "line": 167,
           "sink": "_tell"
         }
       ]
@@ -61946,7 +61946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 97,
+          "line": 127,
           "sink": "setInformativeText"
         }
       ]
@@ -64156,7 +64156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 519,
+          "line": 520,
           "sink": "QCheckBox"
         },
         {
@@ -65883,6 +65883,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 64,
           "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Game icon studio",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_preview_settings_dialog.py",
+          "line": 332,
+          "sink": "addItem"
         }
       ]
     },
@@ -67721,7 +67731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 337,
+          "line": 338,
           "sink": "QCheckBox"
         },
         {
@@ -67736,7 +67746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 338,
+          "line": 339,
           "sink": "QCheckBox"
         },
         {
@@ -70441,7 +70451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 400,
+          "line": 401,
           "sink": "_add_slider_row"
         }
       ]
@@ -71196,7 +71206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 421,
+          "line": 422,
           "sink": "_add_slider_row"
         }
       ]
@@ -71686,7 +71696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 624,
+          "line": 625,
           "sink": "setToolTip"
         }
       ]
@@ -71696,7 +71706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 627,
+          "line": 628,
           "sink": "setToolTip"
         }
       ]
@@ -71706,7 +71716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 1125,
+          "line": 1126,
           "sink": "setText"
         }
       ]
@@ -72066,7 +72076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 717,
+          "line": 718,
           "sink": "setToolTip"
         }
       ]
@@ -73031,7 +73041,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 675,
+          "line": 677,
           "sink": "setToolTip"
         }
       ]
@@ -76376,7 +76386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 676,
+          "line": 677,
           "sink": "QCheckBox"
         }
       ]
@@ -79036,7 +79046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 588,
+          "line": 589,
           "sink": "QCheckBox"
         },
         {
@@ -79056,7 +79066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 646,
+          "line": 647,
           "sink": "QLabel"
         },
         {
@@ -79071,7 +79081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 589,
+          "line": 590,
           "sink": "QCheckBox"
         },
         {
@@ -79091,7 +79101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 590,
+          "line": 591,
           "sink": "QCheckBox"
         },
         {
@@ -79106,7 +79116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 591,
+          "line": 592,
           "sink": "QCheckBox"
         },
         {
@@ -80591,7 +80601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_preview.py",
-          "line": 91,
+          "line": 210,
           "sink": "emit"
         }
       ]
@@ -81421,7 +81431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 105,
+          "line": 135,
           "sink": "addButton"
         },
         {
@@ -83916,7 +83926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 377,
+          "line": 378,
           "sink": "_add_slider_row"
         }
       ]
@@ -83926,7 +83936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 385,
+          "line": 386,
           "sink": "_add_slider_row"
         }
       ]
@@ -83956,7 +83966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 332,
+          "line": 333,
           "sink": "addRow"
         }
       ]
@@ -87621,7 +87631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 682,
+          "line": 683,
           "sink": "addItem"
         },
         {
@@ -87736,7 +87746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 686,
+          "line": 687,
           "sink": "setToolTip"
         }
       ]
@@ -90386,7 +90396,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/documents.py",
-          "line": 344,
+          "line": 348,
           "sink": "python-return:document_label"
         },
         {
@@ -90506,12 +90516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1953,
+          "line": 1956,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1973,
+          "line": 1976,
           "sink": "_set_rust_status"
         }
       ]
@@ -90521,7 +90531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1261,
+          "line": 1264,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -90581,7 +90591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1810,
+          "line": 1813,
           "sink": "setWindowTitle"
         }
       ]
@@ -90911,7 +90921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 989,
+          "line": 992,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -90921,7 +90931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1215,
+          "line": 1218,
           "sink": "_publish_rust_protocol_status"
         },
         {
@@ -91036,7 +91046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1670,
+          "line": 1673,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91046,7 +91056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1676,
+          "line": 1679,
           "sink": "show_error"
         }
       ]
@@ -91056,7 +91066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1654,
+          "line": 1657,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91066,7 +91076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1235,
+          "line": 1238,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91136,7 +91146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1773,
+          "line": 1776,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91156,7 +91166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1560,
+          "line": 1563,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91166,7 +91176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1556,
+          "line": 1559,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91236,17 +91246,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1471,
+          "line": 1474,
           "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1567,
+          "line": 1570,
           "sink": "_stop_rust_editor_process"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1648,
+          "line": 1651,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -91456,7 +91466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1044,
+          "line": 1047,
           "sink": "_set_rust_status"
         }
       ]
@@ -91466,7 +91476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1032,
+          "line": 1035,
           "sink": "_set_rust_status"
         }
       ]
@@ -91476,7 +91486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1038,
+          "line": 1041,
           "sink": "_set_rust_status"
         }
       ]
@@ -91706,7 +91716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1586,
+          "line": 1589,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -91756,7 +91766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1265,
+          "line": 1268,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -92116,7 +92126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1023,
+          "line": 1026,
           "sink": "_set_rust_status"
         }
       ]
@@ -92196,7 +92206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8866,
+          "line": 8870,
           "sink": "done"
         }
       ]
@@ -93696,7 +93706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 442,
+          "line": 443,
           "sink": "_add_slider_row"
         }
       ]
@@ -93761,7 +93771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 643,
+          "line": 644,
           "sink": "addRow"
         }
       ]
@@ -93931,7 +93941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 349,
+          "line": 350,
           "sink": "_add_slider_row"
         }
       ]
@@ -96851,7 +96861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10262,
+          "line": 10266,
           "sink": "RuntimeError"
         }
       ]
@@ -96861,7 +96871,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10258,
+          "line": 10262,
           "sink": "RuntimeError"
         }
       ]
@@ -96871,7 +96881,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10233,
+          "line": 10237,
           "sink": "RuntimeError"
         }
       ]
@@ -105336,7 +105346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 393,
+          "line": 394,
           "sink": "_add_slider_row"
         }
       ]
@@ -106801,7 +106811,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 721,
+          "line": 722,
           "sink": "addItem"
         },
         {
@@ -110536,12 +110546,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1900,
+          "line": 1903,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1904,
+          "line": 1907,
           "sink": "_set_rust_status"
         }
       ]
@@ -111186,7 +111196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 630,
+          "line": 631,
           "sink": "addRow"
         }
       ]
@@ -111196,7 +111206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 570,
+          "line": 571,
           "sink": "_add_slider_row"
         },
         {
@@ -114336,7 +114346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 631,
+          "line": 632,
           "sink": "addRow"
         }
       ]
@@ -114346,7 +114356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 577,
+          "line": 578,
           "sink": "_add_slider_row"
         },
         {
@@ -119991,7 +120001,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 629,
+          "line": 631,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -120031,7 +120041,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 635,
+          "line": 637,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -120101,7 +120111,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8134,
+          "line": 8138,
           "sink": "report"
         }
       ]
@@ -120546,7 +120556,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8945,
+          "line": 8949,
           "sink": "progress"
         }
       ]
@@ -120556,7 +120566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7928,
+          "line": 7931,
           "sink": "report"
         }
       ]
@@ -120566,7 +120576,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7953,
+          "line": 7956,
           "sink": "report"
         }
       ]
@@ -121751,7 +121761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 709,
+          "line": 710,
           "sink": "QGroupBox"
         }
       ]
@@ -122461,7 +122471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 485,
+          "line": 486,
           "sink": "QLabel"
         },
         {
@@ -122661,7 +122671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 564,
+          "line": 565,
           "sink": "QLabel"
         },
         {
@@ -123641,7 +123651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 734,
+          "line": 735,
           "sink": "addRow"
         }
       ]
@@ -125116,7 +125126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 695,
+          "line": 696,
           "sink": "setToolTip"
         }
       ]
@@ -125201,7 +125211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 694,
+          "line": 695,
           "sink": "QCheckBox"
         }
       ]
@@ -125231,7 +125241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 513,
+          "line": 514,
           "sink": "addRow"
         }
       ]
@@ -128901,7 +128911,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 751,
+          "line": 753,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -129146,7 +129156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1228,
+          "line": 1231,
           "sink": "setText"
         }
       ]
@@ -130566,7 +130576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1176,
+          "line": 1179,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -131881,7 +131891,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 674,
+          "line": 676,
           "sink": "setText"
         },
         {
@@ -132576,7 +132586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 671,
+          "line": 672,
           "sink": "QGroupBox"
         },
         {
@@ -132941,7 +132951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 733,
+          "line": 734,
           "sink": "addRow"
         },
         {
@@ -136731,7 +136741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 663,
+          "line": 664,
           "sink": "QLabel"
         },
         {
@@ -136936,7 +136946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 748,
+          "line": 749,
           "sink": "QPushButton"
         },
         {
@@ -140126,7 +140136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 592,
+          "line": 593,
           "sink": "setToolTip"
         },
         {
@@ -140141,7 +140151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 598,
+          "line": 599,
           "sink": "setToolTip"
         }
       ]
@@ -140161,7 +140171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 595,
+          "line": 596,
           "sink": "setToolTip"
         },
         {
@@ -140176,7 +140186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 601,
+          "line": 602,
           "sink": "setToolTip"
         }
       ]
@@ -141116,7 +141126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 644,
+          "line": 645,
           "sink": "addRow"
         }
       ]
@@ -141841,7 +141851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 435,
+          "line": 436,
           "sink": "_add_slider_row"
         }
       ]
@@ -142416,7 +142426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 529,
+          "line": 530,
           "sink": "setToolTip"
         }
       ]
@@ -142816,7 +142826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 514,
+          "line": 515,
           "sink": "addRow"
         }
       ]
@@ -151536,7 +151546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 1166,
+          "line": 1167,
           "sink": "setToolTip"
         }
       ]
@@ -151831,7 +151841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 503,
+          "line": 504,
           "sink": "setToolTip"
         }
       ]
@@ -151841,7 +151851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 1162,
+          "line": 1163,
           "sink": "setToolTip"
         }
       ]
@@ -153581,7 +153591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 333,
+          "line": 334,
           "sink": "QCheckBox"
         },
         {
@@ -154386,7 +154396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 523,
+          "line": 524,
           "sink": "QCheckBox"
         }
       ]
@@ -155026,7 +155036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 727,
+          "line": 728,
           "sink": "QCheckBox"
         }
       ]
@@ -155351,7 +155361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 522,
+          "line": 523,
           "sink": "QCheckBox"
         },
         {
@@ -155911,7 +155921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 728,
+          "line": 729,
           "sink": "setToolTip"
         }
       ]
@@ -156371,7 +156381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 699,
+          "line": 700,
           "sink": "addRow"
         }
       ]
@@ -158631,7 +158641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 550,
+          "line": 551,
           "sink": "addRow"
         },
         {
@@ -159991,7 +160001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 414,
+          "line": 415,
           "sink": "_add_slider_row"
         }
       ]
@@ -160001,7 +160011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 407,
+          "line": 408,
           "sink": "_add_slider_row"
         }
       ]
@@ -165511,7 +165521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 846,
+          "line": 849,
           "sink": "warning"
         }
       ]
@@ -165921,7 +165931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 341,
+          "line": 342,
           "sink": "_add_slider_row"
         }
       ]
@@ -167086,7 +167096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1811,
+          "line": 1814,
           "sink": "setText"
         }
       ]
@@ -167096,22 +167106,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1734,
+          "line": 1737,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1735,
+          "line": 1738,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1742,
+          "line": 1745,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1743,
+          "line": 1746,
           "sink": "_set_rust_status"
         }
       ]
@@ -167121,22 +167131,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1734,
+          "line": 1737,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1735,
+          "line": 1738,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1742,
+          "line": 1745,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1743,
+          "line": 1746,
           "sink": "_set_rust_status"
         }
       ]
@@ -167146,7 +167156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1811,
+          "line": 1814,
           "sink": "setText"
         }
       ]
@@ -169141,7 +169151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/component.py",
-          "line": 189,
+          "line": 191,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -169236,7 +169246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/component.py",
-          "line": 198,
+          "line": 200,
           "sink": "emit"
         }
       ]
@@ -173231,7 +173241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 635,
+          "line": 637,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -174896,12 +174906,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/item_set_preview.py",
-          "line": 66,
+          "line": 137,
           "sink": "_fail"
         },
         {
           "path": "cdmw/ui/archive_browser/item_set_preview.py",
-          "line": 72,
+          "line": 146,
           "sink": "_fail"
         },
         {
@@ -175031,7 +175041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1640,
+          "line": 1643,
           "sink": "_set_rust_status"
         }
       ]
@@ -175431,7 +175441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 701,
+          "line": 702,
           "sink": "QLabel"
         }
       ]
@@ -177636,7 +177646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 470,
+          "line": 471,
           "sink": "_add_slider_row"
         }
       ]
@@ -177646,7 +177656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 463,
+          "line": 464,
           "sink": "_add_slider_row"
         }
       ]
@@ -177656,7 +177666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 477,
+          "line": 478,
           "sink": "_add_slider_row"
         }
       ]
@@ -180651,7 +180661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 94,
+          "line": 124,
           "sink": "setWindowTitle"
         }
       ]
@@ -183486,7 +183496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 552,
+          "line": 553,
           "sink": "QLabel"
         }
       ]
@@ -183756,7 +183766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 737,
+          "line": 738,
           "sink": "QLabel"
         }
       ]
@@ -185211,7 +185221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1174,
+          "line": 1177,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -187576,7 +187586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 883,
+          "line": 885,
           "sink": "append_archive_log"
         }
       ]
@@ -187626,7 +187636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 772,
+          "line": 774,
           "sink": "append_archive_log"
         }
       ]
@@ -187646,7 +187656,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 725,
+          "line": 727,
           "sink": "append_archive_log"
         },
         {
@@ -188626,7 +188636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 640,
+          "line": 641,
           "sink": "setToolTip"
         }
       ]
@@ -188636,7 +188646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 637,
+          "line": 638,
           "sink": "setToolTip"
         }
       ]
@@ -192581,7 +192591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
-          "line": 95,
+          "line": 125,
           "sink": "setText"
         }
       ]
@@ -192616,7 +192626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1813,
+          "line": 1816,
           "sink": "setInformativeText"
         }
       ]
@@ -192646,12 +192656,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1468,
+          "line": 1471,
           "sink": "show_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1645,
+          "line": 1648,
           "sink": "show_result"
         }
       ]
@@ -193656,7 +193666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 723,
+          "line": 724,
           "sink": "addItem"
         },
         {
@@ -194791,7 +194801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 722,
+          "line": 723,
           "sink": "addItem"
         },
         {
@@ -198376,7 +198386,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8372,
+          "line": 8376,
           "sink": "open_edit_session"
         },
         {
@@ -201336,12 +201346,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 744,
+          "line": 746,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 900,
+          "line": 902,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -206551,7 +206561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 721,
+          "line": 722,
           "sink": "addItem"
         },
         {
@@ -214501,7 +214511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 906,
+          "line": 908,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -217041,7 +217051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/documents.py",
-          "line": 349,
+          "line": 354,
           "sink": "python-return:document_label"
         }
       ]
@@ -217486,7 +217496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/documents.py",
-          "line": 349,
+          "line": 354,
           "sink": "python-return:document_label"
         },
         {
@@ -217911,7 +217921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_dialog.py",
-          "line": 1233,
+          "line": 1234,
           "sink": "setToolTip"
         }
       ]
@@ -223641,7 +223651,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1762,
+          "line": 1765,
           "sink": "emit"
         },
         {
