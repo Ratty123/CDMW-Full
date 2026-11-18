@@ -30015,7 +30015,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the layers: {message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/panels_model.py": 1552
+      "cdmw/ui/new_item/panels_model.py": 1593
     }
   },
   {
@@ -33298,7 +33298,7 @@ MESSAGE_REFERENCE = [
     "message": "The icon could not be made from that selection: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 451
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 453
     }
   },
   {
@@ -36088,7 +36088,7 @@ MESSAGE_REFERENCE = [
     "message": "the icon could not be written to {target}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_model_preview_mixin.py": 449
+      "cdmw/ui/new_item/panels_model_preview_mixin.py": 451
     }
   },
   {
@@ -44968,7 +44968,7 @@ MESSAGE_REFERENCE = [
     "message": "Downloaded archive does not contain an importable OBJ, FBX, DAE, glTF, GLB, or local mesh source.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 432
+      "cdmw/core/model_catalogue.py": 433
     }
   },
   {
@@ -45040,7 +45040,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate path in model archive: {member.filename}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/model_catalogue.py": 530
+      "cdmw/core/model_catalogue.py": 532
     }
   },
   {
@@ -45344,7 +45344,7 @@ MESSAGE_REFERENCE = [
     "message": "Encrypted model archive member is not supported: {member.filename}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/model_catalogue.py": 536
+      "cdmw/core/model_catalogue.py": 538
     }
   },
   {
@@ -45352,7 +45352,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a model mirror URL first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/library/models.py": 118
+      "cdmw/domain/library/models.py": 122
     }
   },
   {
@@ -49538,7 +49538,7 @@ MESSAGE_REFERENCE = [
     "message": "Load the archive catalogue first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 37
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 40
     }
   },
   {
@@ -52062,7 +52062,7 @@ MESSAGE_REFERENCE = [
     "message": "Mirror URL must be an HTTP or HTTPS URL.",
     "recovery": "network",
     "sources": {
-      "cdmw/domain/library/models.py": 123
+      "cdmw/domain/library/models.py": 127
     }
   },
   {
@@ -52086,7 +52086,7 @@ MESSAGE_REFERENCE = [
     "message": "Mirror download file name {filename} is not a plain file name.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/model_catalogue.py": 449
+      "cdmw/core/model_catalogue.py": 450
     }
   },
   {
@@ -52094,7 +52094,7 @@ MESSAGE_REFERENCE = [
     "message": "Mirror model id {uid} is not a plain file name.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/model_catalogue.py": 446
+      "cdmw/core/model_catalogue.py": 447
     }
   },
   {
@@ -52214,7 +52214,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive expanded size exceeds the extraction limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 542
+      "cdmw/core/model_catalogue.py": 544
     }
   },
   {
@@ -52222,7 +52222,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive has too many members ({len(members)}).",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 518
+      "cdmw/core/model_catalogue.py": 520
     }
   },
   {
@@ -52230,7 +52230,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive member compression ratio is unsafe: {member.filename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 545
+      "cdmw/core/model_catalogue.py": 547
     }
   },
   {
@@ -52238,7 +52238,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive member is too large: {member.filename}",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 539
+      "cdmw/core/model_catalogue.py": 541
     }
   },
   {
@@ -52246,7 +52246,7 @@ MESSAGE_REFERENCE = [
     "message": "Model archive needs more free disk space than is available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 558
+      "cdmw/core/model_catalogue.py": 560
     }
   },
   {
@@ -52254,7 +52254,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download did not create a temporary output file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1219
+      "cdmw/core/model_catalogue.py": 1221
     }
   },
   {
@@ -52262,7 +52262,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download exceeded the total time limit.",
     "recovery": "timeout",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1204
+      "cdmw/core/model_catalogue.py": 1206
     }
   },
   {
@@ -52270,7 +52270,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download exceeds the size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1188
+      "cdmw/core/model_catalogue.py": 1190
     }
   },
   {
@@ -52278,7 +52278,7 @@ MESSAGE_REFERENCE = [
     "message": "Model download needs more free disk space than is available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 1191
+      "cdmw/core/model_catalogue.py": 1193
     }
   },
   {
@@ -53406,7 +53406,7 @@ MESSAGE_REFERENCE = [
     "message": "No compatible hairstyle base is available for this character.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 322
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 338
     }
   },
   {
@@ -59331,7 +59331,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected mirror model does not expose a downloadable archive URL.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/model_catalogue.py": 417
+      "cdmw/core/model_catalogue.py": 418
     }
   },
   {
@@ -59339,7 +59339,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected mirror model does not expose an importable model archive.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/model_catalogue.py": 421
+      "cdmw/core/model_catalogue.py": 422
     }
   },
   {
@@ -60365,7 +60365,7 @@ MESSAGE_REFERENCE = [
     "message": "Symlink is not allowed in model archive: {member.filename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 534
+      "cdmw/core/model_catalogue.py": 536
     }
   },
   {
@@ -60704,7 +60704,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive catalogue changed. Open Hair again after loading completes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 475
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 491
     }
   },
   {
@@ -61129,7 +61129,7 @@ MESSAGE_REFERENCE = [
     "message": "The hairstyle exceeds the supported 64 MiB PAC size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 348
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 364
     }
   },
   {
@@ -61401,7 +61401,7 @@ MESSAGE_REFERENCE = [
     "message": "The registered hairstyle needs one unambiguous mounted prefab.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 351
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 367
     }
   },
   {
@@ -61898,7 +61898,7 @@ MESSAGE_REFERENCE = [
     "message": "This choice has incomplete or ambiguous dependencies.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 403,
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 419,
       "cdmw/ui/mesh_editor/item_set_preparation.py": 56
     }
   },
@@ -62006,7 +62006,7 @@ MESSAGE_REFERENCE = [
     "message": "This hairstyle has incomplete or ambiguous dependencies.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_reference_picker.py": 345
+      "cdmw/ui/mesh_editor/hair_reference_picker.py": 361
     }
   },
   {
@@ -62690,7 +62690,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsafe path in model archive: {member.filename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/model_catalogue.py": 527
+      "cdmw/core/model_catalogue.py": 529
     }
   },
   {
@@ -64819,7 +64819,7 @@ MESSAGE_REFERENCE = [
     "message": "duplicate or invalid lock identity",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair_locks.rs": 50
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair_locks.rs": 57
     }
   },
   {
@@ -66950,7 +66950,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid lock width",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair_locks.rs": 55
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair_locks.rs": 62
     }
   },
   {
@@ -67318,7 +67318,7 @@ MESSAGE_REFERENCE = [
     "message": "lock guide is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair_locks.rs": 65
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair_locks.rs": 72
     }
   },
   {
@@ -71822,7 +71822,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/final_package_preview_model.py": 258,
       "cdmw/core/mesh_native.py": 62,
-      "cdmw/core/model_catalogue.py": 1165,
+      "cdmw/core/model_catalogue.py": 1167,
       "cdmw/modding/mesh_native_client.py": 338,
       "cdmw/modding/static_mesh_scene_frame.py": 486,
       "cdmw/rendering/model_preview_prepare.py": 83,
@@ -75673,7 +75673,7 @@ MESSAGE_REFERENCE = [
     "message": "Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 1161
+      "cdmw/ui/character_finder/dialog.py": 1178
     }
   },
   {
@@ -76181,7 +76181,7 @@ MESSAGE_REFERENCE = [
     "message": "Character Creator {error.version or '?'} is not supported yet. CDMW reads the files of version {supported}; a newer version may number its menus differently.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 718
+      "cdmw/ui/character_finder/dialog.py": 735
     }
   },
   {
@@ -78764,7 +78764,7 @@ MESSAGE_REFERENCE = [
     "message": "Export failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 826
+      "cdmw/ui/character_finder/dialog.py": 843
     }
   },
   {
@@ -78780,7 +78780,7 @@ MESSAGE_REFERENCE = [
     "message": "Export needs the selection's complete file set; its details are bounded.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 760
+      "cdmw/ui/character_finder/dialog.py": 777
     }
   },
   {
@@ -80414,7 +80414,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name search: native catalog schema {catalog_schema} is not supported; falling back to Python.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/item_index.py": 2179
+      "cdmw/core/item_index.py": 2200
     }
   },
   {
@@ -80422,7 +80422,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name search: native item index unavailable; falling back to Python: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/item_index.py": 2172
+      "cdmw/core/item_index.py": 2193
     }
   },
   {
@@ -81616,7 +81616,7 @@ MESSAGE_REFERENCE = [
     "message": "No matching bodies or faces",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 553
+      "cdmw/ui/character_finder/dialog.py": 558
     }
   },
   {
@@ -84700,7 +84700,7 @@ MESSAGE_REFERENCE = [
     "message": "The hairstyle's material dependencies are incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 874
+      "cdmw/ui/character_finder/dialog.py": 891
     }
   },
   {
@@ -84740,7 +84740,7 @@ MESSAGE_REFERENCE = [
     "message": "The interactive preview could not load this package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 918
+      "cdmw/ui/character_finder/dialog.py": 935
     }
   },
   {
