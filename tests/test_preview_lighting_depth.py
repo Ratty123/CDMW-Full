@@ -23,15 +23,15 @@ def test_depth_controls_default_on_and_emit_live_updates_without_rebuilding_asse
         assert not dialog.preview_ambient_occlusion_checkbox.isHidden()
         assert dialog.preview_shadows_checkbox.isChecked()
         assert dialog.preview_ambient_occlusion_checkbox.isChecked()
-        assert dialog.preview_lighting_preset_combo.currentData() == "neutral_studio"
+        assert dialog.preview_lighting_preset_combo.currentData() == "studio_fixed"
         events = []
         dialog.settings_changed.connect(events.append)
         dialog.preview_shadows_checkbox.click()
         dialog.preview_ambient_occlusion_checkbox.click()
-        dialog.preview_lighting_preset_combo.setCurrentIndex(dialog.preview_lighting_preset_combo.findData("studio_fixed"))
+        dialog.preview_lighting_preset_combo.setCurrentIndex(dialog.preview_lighting_preset_combo.findData("showcase"))
         assert len(events) == 3
         settings = events[-1]
-        assert settings.preview_lighting_preset == "studio_fixed"
+        assert settings.preview_lighting_preset == "showcase"
         assert not settings.preview_shadows and not settings.preview_ambient_occlusion
         flags = model_preview_settings_change_flags(defaults, settings)
         assert flags.d3d11_render_tuning_changed
@@ -39,7 +39,7 @@ def test_depth_controls_default_on_and_emit_live_updates_without_rebuilding_asse
         quality, _ = render_tuning_payloads(settings, {})
         assert quality['preview_shadows'] is False
         assert quality['preview_ambient_occlusion'] is False
-        assert quality['preview_lighting_preset'] == 'studio_fixed'
+        assert quality['preview_lighting_preset'] == "showcase"
         store = QSettings(str(tmp_path / 'preview.ini'), QSettings.Format.IniFormat)
         shell = SimpleNamespace(settings=store, archive=SimpleNamespace(_current_model_preview_render_settings=lambda: settings))
         assert SettingsPersistenceMixin._save_model_preview_settings_if_loaded(shell)
@@ -51,10 +51,10 @@ def test_depth_controls_default_on_and_emit_live_updates_without_rebuilding_asse
             preview_ambient_occlusion=restored.value('preview/preview_ambient_occlusion', True, type=bool)))
         assert not dialog.current_settings().preview_shadows
         assert not dialog.current_settings().preview_ambient_occlusion
-        assert dialog.current_settings().preview_lighting_preset == 'studio_fixed'
+        assert dialog.current_settings().preview_lighting_preset == 'showcase'
         dialog.set_settings(defaults)
         assert dialog.current_settings().preview_shadows and dialog.current_settings().preview_ambient_occlusion
-        assert dialog.current_settings().preview_lighting_preset == 'neutral_studio'
+        assert dialog.current_settings().preview_lighting_preset == 'studio_fixed'
     finally:
         shiboken6.delete(dialog)
         app.processEvents()
@@ -95,28 +95,25 @@ def test_changing_a_setting_keeps_the_page_you_are_on():
         app.processEvents()
 
 
-def test_game_icon_studio_is_offered_and_survives_every_preset_gate():
-    """The fifth preset reaches the renderer by its id from each place that validates one."""
+def test_game_icon_studio_is_retired_and_every_gate_reads_it_as_studio():
+    """Studio (fixed lights) is the one default; a stored Game icon studio reads as it."""
     from cdmw.models import clamp_model_preview_render_settings
     from cdmw.ui.preview.preview_settings_hub import LIGHTING_PRESETS, normalize_preview_settings
 
     app = QApplication.instance() or QApplication([])
-    dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings())
+    dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings(preview_lighting_preset="icon_studio"))
     try:
         combo = dialog.preview_lighting_preset_combo
-        index = combo.findData("icon_studio")
-        assert index == combo.count() - 1 and combo.itemText(index) == "Game icon studio"
+        assert combo.findData("icon_studio") == -1
         assert [combo.itemData(row) for row in range(combo.count())] == list(LIGHTING_PRESETS)
-        combo.setCurrentIndex(index)
         settings = dialog.current_settings()
     finally:
         shiboken6.delete(dialog)
         app.processEvents()
-    assert settings.preview_lighting_preset == "icon_studio"
-    assert clamp_model_preview_render_settings(settings).preview_lighting_preset == "icon_studio"
+    assert settings.preview_lighting_preset == "studio_fixed"
     quality, _ = render_tuning_payloads(settings, {})
-    assert quality["preview_lighting_preset"] == "icon_studio"
-    assert normalize_preview_settings({"lighting_preset": "Icon_Studio"})["lighting_preset"] == "icon_studio"
-    # Neutral studio stays the default, and an unknown id still falls back to it.
-    assert ModelPreviewRenderSettings().preview_lighting_preset == "neutral_studio"
-    assert normalize_preview_settings({"lighting_preset": "icon"})["lighting_preset"] == "neutral_studio"
+    assert quality["preview_lighting_preset"] == "studio_fixed"
+    assert normalize_preview_settings({"lighting_preset": "Icon_Studio"})["lighting_preset"] == "studio_fixed"
+    assert ModelPreviewRenderSettings().preview_lighting_preset == "studio_fixed"
+    assert clamp_model_preview_render_settings().preview_lighting_preset == "studio_fixed"
+    assert normalize_preview_settings({"lighting_preset": "icon"})["lighting_preset"] == "studio_fixed"

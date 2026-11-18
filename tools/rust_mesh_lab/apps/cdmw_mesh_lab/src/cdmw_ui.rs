@@ -3385,7 +3385,7 @@ impl LabApplication {
             .width(ui.available_width())
             .selected_text(crate::localization::tr(self.lighting_preset.label()))
             .show_ui(ui, |ui| {
-                for preset in cdmw_render_wgpu::LightingPreset::ALL {
+                for preset in cdmw_render_wgpu::LightingPreset::MENU {
                     ui.selectable_value(
                         &mut self.lighting_preset,
                         preset,

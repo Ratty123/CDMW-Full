@@ -2088,7 +2088,7 @@ impl PreviewApplication {
                             .and_then(Value::as_str)
                     })
                     .and_then(LightingPreset::from_id)
-                    .unwrap_or(LightingPreset::NeutralStudio),
+                    .unwrap_or(LightingPreset::StudioFixed),
             );
         }
         if apply_camera && let Some(camera) = self.state.presentation.get("camera") {

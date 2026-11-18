@@ -1774,7 +1774,7 @@ class ModelPreviewRenderSettings:
     high_quality_by_default: bool = True
     preview_shadows: bool = True
     preview_ambient_occlusion: bool = True
-    preview_lighting_preset: str = "neutral_studio"
+    preview_lighting_preset: str = "studio_fixed"
     # Studio floor under the model (P2): on by default in every viewport.
     preview_ground_visible: bool = True
     preview_ground_grid_visible: bool = True
@@ -1933,6 +1933,19 @@ def clamp_archive_performance_settings(
     )
 
 
+#: The lighting presets the previews offer. "icon_studio" (Game icon studio) is
+#: retired: a stored choice of it reads as Studio (fixed lights), the default.
+LIGHTING_PRESET_IDS = ("neutral_studio", "showcase", "dark", "studio_fixed")
+DEFAULT_LIGHTING_PRESET = "studio_fixed"
+
+
+def normalize_lighting_preset(value: object) -> str:
+    text = str(value or "").strip().lower()
+    if text == "icon_studio":
+        return DEFAULT_LIGHTING_PRESET
+    return text if text in LIGHTING_PRESET_IDS else DEFAULT_LIGHTING_PRESET
+
+
 def clamp_model_preview_render_settings(
     settings: Optional[ModelPreviewRenderSettings] = None,
 ) -> ModelPreviewRenderSettings:
@@ -1947,9 +1960,7 @@ def clamp_model_preview_render_settings(
             }
         )
 
-    value.preview_lighting_preset = str(value.preview_lighting_preset or "").strip().lower()
-    if value.preview_lighting_preset not in {"neutral_studio", "showcase", "dark", "studio_fixed", "icon_studio"}:
-        value.preview_lighting_preset = defaults.preview_lighting_preset
+    value.preview_lighting_preset = normalize_lighting_preset(value.preview_lighting_preset)
 
     int_fields = {
         "preview_texture_max_dimension",

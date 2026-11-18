@@ -329,7 +329,6 @@ class ModelPreviewSettingsDialog(QDialog):
         self.preview_lighting_preset_combo.addItem("Showcase", userData="showcase")
         self.preview_lighting_preset_combo.addItem("Dark", userData="dark")
         self.preview_lighting_preset_combo.addItem("Studio (fixed lights)", userData="studio_fixed")
-        self.preview_lighting_preset_combo.addItem("Game icon studio", userData="icon_studio")
         quality_form.addRow("Lighting preset", self.preview_lighting_preset_combo)
         self.preview_shadows_checkbox = QCheckBox("Shadows")
         self.preview_ambient_occlusion_checkbox = QCheckBox("Ambient occlusion")
