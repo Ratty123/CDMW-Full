@@ -16,6 +16,29 @@ def retained_mod_folder_tools(monkeypatch):
     monkeypatch.setattr("cdmw.constants.MOD_FOLDER_TOOLS_ENABLED", True)
 
 
+@pytest.fixture
+def preserve_app_appearance(app):
+    """A test that opens the whole shell must not theme later standalone widgets."""
+    from cdmw.ui.shell.theme_controller import _DATA_FONT_CLASS_NAMES, _INSTALLED_CLASS_FONTS_ATTRIBUTE, _UI_FONT_CLASS_NAMES
+
+    font, palette, stylesheet = app.font(), app.palette(), app.styleSheet()
+    names = (*_UI_FONT_CLASS_NAMES, *_DATA_FONT_CLASS_NAMES)
+    class_fonts = {name: app.font(name) for name in names}
+    properties = {name: app.property(name) for name in ("_cdmw_theme_key", "_cdmw_ui_density", "_cdmw_layout_scale")}
+    registered = getattr(app, _INSTALLED_CLASS_FONTS_ATTRIBUTE, None)
+    registered = dict(registered) if registered is not None else None
+    yield
+    app.setStyleSheet(stylesheet)
+    app.setPalette(palette)
+    app.setFont(font)
+    for name, class_font in class_fonts.items():
+        if class_font != font:
+            app.setFont(class_font, name)
+    for name, value in properties.items():
+        app.setProperty(name, value)
+    setattr(app, _INSTALLED_CLASS_FONTS_ATTRIBUTE, registered)
+
+
 @pytest.fixture(autouse=True)
 def _no_protected_game_folder():
     """A test that configures a game folder protects it only for itself (decision 46).
