@@ -37,6 +37,7 @@ from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
 import cdmw.workers.character_context_workers as character_context_workers
 from cdmw.workers.character_context_workers import (
     CharacterContextPackageRequest,
+    CharacterContextPackageWorker,
     _package_cache_key,
     run_character_context_discovery,
 )
@@ -713,3 +714,40 @@ def test_shared_service_rejects_stale_packages_and_cancels_every_owned_worker(tm
     service._package_operations = {}
     service.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_context_package_draws_each_model_at_the_variant_its_prefab_selects(tmp_path: Path, monkeypatch) -> None:
+    """Census rows: cd_phm_00_foot_set_0069 draws foot_0165 at 5 and foot_belt_0125 at 1,
+    cd_phm_00_hel_set_0018 draws hel_0060 at 1. Before, every context model drew variant 0."""
+    from tests import prefab_variant_fixtures as census
+
+    census.install(monkeypatch)
+    monkeypatch.setattr(character_context_workers, "find_native_preview_core_binary", lambda: None)
+    jobs = []
+
+    def native(entry, **kwargs):
+        jobs.append(kwargs)
+        return type("Attempt", (), {"succeeded": False, "fallback_reason": "stubbed"})()
+
+    monkeypatch.setattr(character_context_workers, "run_native_preview_core_preview_job", native)
+    foot_set, hel_set = census.entry(census.FOOT_SET_PREFAB), census.entry(census.HEL_SET_PREFAB)
+
+    def component(path: str, prefab: ArchiveEntry) -> NativePreviewContextComponent:
+        return NativePreviewContextComponent(census.entry(path), "gear", "Authored Gear", "authored",
+                                             dependency_entries=(prefab,), dependencies_complete=True)
+
+    request = CharacterContextPackageRequest(
+        1, census.entry(census.FOOT_0165),
+        (component(census.FOOT_BELT_0125, foot_set), component(census.HEL_0060, hel_set),
+         component(census.HEL_0014, hel_set)),
+        (foot_set,), True, "archive", tmp_path / "cache", None, ModelPreviewRenderSettings(),
+    )
+    errors = []
+    worker = CharacterContextPackageWorker(request)
+    worker.error.connect(lambda _request_id, message: errors.append(message))
+    worker.run()
+    assert errors == ["stubbed"]
+    # hel_0014 is named without an index: variant 0, which the job does not need told.
+    assert jobs[0]["model_property_indices"] == {census.FOOT_0165: 5, census.FOOT_BELT_0125: 1, census.HEL_0060: 1}
+    # A package drawn before this, at variant 0, is not served for it.
+    assert _package_cache_key(request, jobs[0]["model_property_indices"]) != _package_cache_key(request)
