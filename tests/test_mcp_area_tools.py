@@ -610,6 +610,58 @@ def textures(app, connect):
         widget.deleteLater()
 
 
+def test_the_texture_tools_paint_adjust_and_undo_a_real_texture_editor(connect, tmp_path) -> None:
+    """The real Texture Editor, not a stand-in: a stroke and an adjustment are one Undo step
+    each, and Undo brings the pixels back."""
+
+    import numpy as np
+
+    from cdmw.models import TextureEditorDocument, TextureEditorLayer
+    from cdmw.ui.texture_editor_tab import TextureEditorTab
+
+    editor = TextureEditorTab(settings=create_settings(settings_file_path=tmp_path / "texture.cfg"),
+                              base_dir=tmp_path, get_png_root=lambda: str(tmp_path))
+    panel, holder = QWidget(), QWidget()
+    try:
+        editor.document = TextureEditorDocument("Probe", 128, 64, active_layer_id="paint",
+                                                layers=(TextureEditorLayer("paint", "Paint", "unused.png"),))
+        editor.layer_pixels = {"paint": np.full((64, 128, 4), 90, dtype=np.uint8)}
+        editor._push_history("Open Document")
+        editor._refresh_ui()
+        panel.editor = editor
+        panel.isFloating = lambda: False
+        panel.notice_text = panel.sharing_text = panel.kept_text = ""
+        holder.active = SimpleNamespace(_texture_tools_panel=lambda: panel)
+        mcp = connect(SimpleNamespace(shell=SimpleNamespace(mesh_editor_tab=holder)))
+        opened = mcp.ok("textures_state")
+        assert opened["open"] and (opened["width"], opened["height"]) == (128, 64)
+        start, before = opened["history_index"], editor.layer_pixels["paint"].copy()
+        chosen = mcp.ok("textures_tool", {"tool": "paint", "colour": "#FF0000", "size": 12, "opacity": 100})
+        assert chosen["tool"] == "paint" and chosen["colour"].upper() == "#FF0000"
+        stroke = mcp.ok("textures_stroke", {"points": [[10, 32], [100, 32]]})
+        assert stroke["changed"] and stroke["history_index"] == start + 1
+        painted = editor.layer_pixels["paint"].copy()
+        assert not np.array_equal(painted, before) and painted[32, 50, 0] > painted[32, 50, 1]
+        kinds = [str(editor.adjustment_add_combo.itemData(row)) for row in range(editor.adjustment_add_combo.count())]
+        added = mcp.ok("textures_adjust", {"type": kinds[0]})
+        assert added["history_index"] == start + 2  # adding alone is one Undo step
+        adjustment = editor.document.adjustment_layers[-1]
+        set_too = mcp.ok("textures_adjust", {"type": kinds[0], "opacity": 40})
+        assert set_too["history_index"] == start + 4  # adding, then its sliders: two
+        assert editor.document.adjustment_layers[-1].opacity == 40 and adjustment.opacity != 40
+        for step in (start + 3, start + 2, start + 1):
+            assert mcp.ok("textures_undo")["history_index"] == step
+        np.testing.assert_array_equal(editor.layer_pixels["paint"], painted)
+        assert mcp.ok("textures_undo")["history_index"] == start
+        np.testing.assert_array_equal(editor.layer_pixels["paint"], before)
+        assert mcp.ok("textures_redo")["history_index"] == start + 1
+        np.testing.assert_array_equal(editor.layer_pixels["paint"], painted)
+    finally:
+        editor.request_shutdown()
+        for widget in (editor, panel, holder):
+            widget.deleteLater()
+
+
 def test_the_texture_editor_is_read_and_driven_through_its_own_controls(textures) -> None:
     mcp, editor_widget = textures.mcp, textures.editor
     state = mcp.ok("textures_state")

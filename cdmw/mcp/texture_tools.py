@@ -149,12 +149,22 @@ def _adjust(call) -> dict[str, object]:
         editor.add_adjustment_layer()
         if len(editor.document.adjustment_layers) == before:
             raise ToolError(UNAVAILABLE, "The Texture Editor did not add the adjustment.")
-        for name, slider in (("a", "adjustment_param_a_slider"), ("b", "adjustment_param_b_slider"),
-                             ("c", "adjustment_param_c_slider"), ("opacity", "adjustment_opacity_slider")):
-            if a.get(name) is not None:
-                getattr(editor, slider).setValue(int(a[name]))
-        editor.preview_selected_adjustment_properties()
-        editor.commit_selected_adjustment_properties()
+        sliders = [(getattr(editor, slider), int(a[name])) for name, slider in (
+            ("a", "adjustment_param_a_slider"), ("b", "adjustment_param_b_slider"),
+            ("c", "adjustment_param_c_slider"), ("opacity", "adjustment_opacity_slider")) if a.get(name) is not None]
+        if sliders:
+            # Set together, then committed once: the sliders' change is one more Undo step,
+            # as releasing a dragged slider makes it. With none given the add stands alone.
+            for control, _value in sliders:
+                control.blockSignals(True)
+            try:
+                for control, value in sliders:
+                    control.setValue(value)
+            finally:
+                for control, _value in sliders:
+                    control.blockSignals(False)
+            editor.preview_selected_adjustment_properties()
+            editor.commit_selected_adjustment_properties()
         layer = editor.document.adjustment_layers[-1]
         return {"added": layer.adjustment_type, "id": layer.layer_id,
                 "history_index": int(getattr(editor, "history_index", -1))}
@@ -229,7 +239,8 @@ def texture_tools() -> list[Tool]:
         Tool(name="textures.adjust", family="textures", title="Add an adjustment",
              description="Adds an adjustment to the open texture with the editor's Add list (levels, "
                          "hue_saturation ...) and sets its sliders 'a', 'b', 'c' and 'opacity' as dragging "
-                         "them does. One Undo step; the model shows it live.",
+                         "them does. Adding is one Undo step and setting the sliders one more, as in the "
+                         "editor; the model shows it live.",
              input_schema=object_schema({"type": {"type": "string", "minLength": 1, "maxLength": 64},
                                          "a": {"type": "integer"}, "b": {"type": "integer"},
                                          "c": {"type": "integer"}, "opacity": _PERCENT}, ["type"]),
