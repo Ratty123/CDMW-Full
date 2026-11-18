@@ -894,7 +894,7 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
 ) -> None:
     from cdmw.services import mesh_rust_preview_cache as cache
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 14
+    assert RUST_PREVIEW_CACHE_SCHEMA == 15
     upgraded = cache.rust_preview_package_cache_key("same-archive-identity")
     monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 8)
     assert cache.rust_preview_package_cache_key("same-archive-identity") != upgraded

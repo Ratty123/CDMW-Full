@@ -490,6 +490,14 @@ static std::string shader_rule_for_family(const std::string& family) {
     // TornCloth_Ver2 on the shared Ver2 layer-R surface path.
     if (lower == "skinnedmeshfur_ver2" || lower == "skinnedmeshamplifiedglare_ver2") return "standard_v2";
     if (lower == "skinnedmeshtorncloth_ver2") return "cloth_v2";
+    // Sail_Ver2 reads the Standard_Ver2 layer inputs plus the cloth pair
+    // (`_sheen`, `_clothCategory`), as Cloth_Ver2 does. Left generic it got its
+    // colour layers only where the file carried a soft-physics hint.
+    if (lower == "skinnedmeshsail_ver2") return "cloth_v2";
+    // WhiteHornHair is a Hair material type: the hair inputs without the
+    // anisotropy detail pair. Its name holds neither "skinnedmeshhair" nor
+    // "animalhair", so the line below missed it.
+    if (lower == "skinnedmeshwhitehornhair") return "hair";
     if (lower.find("skinnedmeshhair") != std::string::npos || lower.find("skinnedmeshfur") != std::string::npos || lower.find("animalhair") != std::string::npos) return "hair";
     // SkinnedMeshTear is a decal shell laid over a head. It declares a normal, a
     // surface map and an `_m` atlas whose R, G and B are three selectable tear

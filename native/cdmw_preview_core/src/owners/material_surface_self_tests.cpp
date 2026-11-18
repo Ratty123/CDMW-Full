@@ -630,6 +630,18 @@ static void run_head_eye_cover_identity_contract_self_test() {
         && shader_rule_for_family("SkinnedMeshTornCloth_Ver2") == "cloth_v2"
         && shader_rule_for_family("SkinnedMeshStaticBlendHeight") == "standard",
         "Ver2 and height-blend creature shaders lost their own surface path");
+    // Sail_Ver2 is a Ver2 layer family with the cloth pair; WhiteHornHair is a
+    // hair material. Neither name matches the substring rules of their groups.
+    require_material_contract(shader_rule_for_family("SkinnedMeshSail_Ver2") == "cloth_v2",
+        "Sail_Ver2 fell to the generic rule and lost its colour layers");
+    require_material_contract(shader_rule_for_family("SkinnedMeshWhiteHornHair") == "hair",
+        "WhiteHornHair fell to the generic rule");
+    require_material_contract(
+        packed_channels_for_role("material", "horn_sp.dds", "_materialTexture",
+            shader_rule_for_family("SkinnedMeshWhiteHornHair"))
+            == packed_channels_for_role("material", "hair_sp.dds", "_materialTexture",
+                shader_rule_for_family("SkinnedMeshHair")),
+        "WhiteHornHair reads its surface map differently from Hair");
     MaterialParameterRecord declared_eye_base;
     declared_eye_base.name = "_baseColorTexture";
     declared_eye_base.texture_path = "eye_ball.dds";
