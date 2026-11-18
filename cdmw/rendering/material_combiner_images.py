@@ -176,9 +176,17 @@ def _apply_pac_layer_sampling_transform(
     image: QImage,
     input_item: Optional[PreviewMaterialTextureInput],
     *,
+    flip_vertical: bool = False,
     cancelled: Callable[[], bool] | None = None,
 ) -> QImage:
-    """Bake the shader's repeat-sampled PAC layer UV transform into an image."""
+    """Bake the shader's repeat-sampled PAC layer UV transform into an image.
+
+    The formula is the game shader's in D3D UV order (v = 0 is the first DDS
+    row). ``flip_vertical`` says the image is a vertically flipped copy; there
+    image y = 1 - v, so the same sampling needs the Y offset and the rotation
+    with the opposite sign. Centred, unrotated and half-turn transforms agree
+    either way.
+    """
 
     transform = _pac_layer_sampling_transform(input_item)
     if image.isNull() or transform is None:
@@ -188,6 +196,9 @@ def _apply_pac_layer_sampling_transform(
         return image
 
     scale_x, scale_y, offset_x, offset_y, angle = transform
+    if flip_vertical:
+        offset_y = -offset_y
+        angle = -angle
     scale_x = max(scale_x, 1e-5)
     scale_y = max(scale_y, 1e-5)
     cosine = math.cos(angle)
@@ -649,6 +660,7 @@ def _generate_synthesized_albedo_map(
         prepared = _apply_pac_layer_sampling_transform(
             prepared,
             item,
+            flip_vertical=flip_vertical,
             cancelled=cancelled,
         )
         source_layers.append((item, prepared.convertToFormat(QImage.Format.Format_RGBA8888)))
@@ -1918,6 +1930,7 @@ def _generate_material_maps(
     source = _apply_pac_layer_sampling_transform(
         source,
         input_item,
+        flip_vertical=flip_vertical,
         cancelled=cancelled,
     )
     mask_source = QImage()
