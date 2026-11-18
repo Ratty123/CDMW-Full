@@ -297,6 +297,28 @@ def _adjustment_layer_from_dict(data: Dict[str, object]) -> TextureEditorAdjustm
     )
 
 
+_SESSION_ONLY_BINDING_FIELDS = (
+    "launch_origin", "mesh_session_id", "mesh_resource_id", "mesh_submesh_indices",
+    "mesh_channel", "mesh_commit_mode",
+)
+
+
+def _durable_source_binding(binding: Dict[str, object]) -> Dict[str, object]:
+    """Drop the live Mesh Editor link from a binding that is written to or read from disk.
+
+    A texture opened from the Mesh Editor's Textures panel shares that session's
+    Undo history and patches it live. The session does not survive a restart, so
+    a saved project reopens as an ordinary document instead of one that still
+    claims to belong to a session that no longer exists.
+    """
+    result = dict(binding)
+    if result.get("launch_origin") == "mesh_editor" and result.get("mesh_commit_mode") == "live":
+        defaults = TextureEditorSourceBinding()
+        for name in _SESSION_ONLY_BINDING_FIELDS:
+            result[name] = getattr(defaults, name)
+    return result
+
+
 def _texture_editor_assets_dir(project_path: Path) -> Path:
     assets_root = project_path.with_suffix("")
     return assets_root.parent / f"{assets_root.name}_assets"
@@ -353,7 +375,7 @@ def _write_texture_editor_project(
         "active_layer_id": document.active_layer_id,
         "technical_warning": document.technical_warning,
         "last_flattened_png_path": document.last_flattened_png_path,
-        "source_binding": dataclasses.asdict(document.source_binding),
+        "source_binding": _durable_source_binding(dataclasses.asdict(document.source_binding)),
         "selection": _selection_to_dict(document.selection),
         "floating_selection": _floating_selection_to_dict(document.floating_selection),
         "adjustment_layers": [_adjustment_layer_to_dict(layer) for layer in document.adjustment_layers],
@@ -578,7 +600,12 @@ def load_texture_editor_project(
         if len(missing_assets) > 3:
             sample += ", ..."
         raise FileNotFoundError(f"Texture Editor project is missing required asset files: {sample}")
-    source_binding_data = dict(data.get("source_binding") or {})
+    known_binding_fields = {item.name for item in dataclasses.fields(TextureEditorSourceBinding)}
+    # A field written by a newer CDMW is dropped rather than failing the whole load.
+    source_binding_data = _durable_source_binding({
+        key: value for key, value in dict(data.get("source_binding") or {}).items()
+        if key in known_binding_fields
+    })
     source_binding_data["mesh_submesh_indices"] = tuple(
         int(index) for index in tuple(source_binding_data.get("mesh_submesh_indices") or ())
     )

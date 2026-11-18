@@ -280,6 +280,7 @@ def _preserve_empty_island_part(result, part, lod_index):
     if len(axes) != 2:
         raise ValueError(f"Island exclusion cannot preserve an invisible part at LOD {lod_index}.")
     face = part.faces[0]
+    face_offset = part.source_index_offset + _pac_face_slots(part)[0] * 6
     offset = part.source_vertex_offsets[face[0]]
     donor = bytes(result[offset:offset + 40])
     origin = struct.unpack_from('<3H', donor)
@@ -293,7 +294,15 @@ def _preserve_empty_island_part(result, part, lod_index):
             axis = axes[index - 1]
             position[axis] += 1 if origin[axis] < 32767 else -1
         struct.pack_into('<3H', result, offset, *position)
-    struct.pack_into('<3H', result, part.source_index_offset, *face)
+    struct.pack_into('<3H', result, face_offset, *face)
+
+
+def _pac_face_slots(part):
+    """Stored triple number of each parsed face; collapsed triples are skipped by the parser."""
+    slots = list(getattr(part, "source_face_slots", ()) or ())
+    if len(slots) != len(part.faces) or part.source_index_offset < 0:
+        raise ValueError("Island exclusion cannot locate the stored triangles of this part.")
+    return slots
 
 
 def apply_pac_island_exclusions(data, original_data, exclusions, *, stop_event=None):
@@ -313,9 +322,12 @@ def apply_pac_island_exclusions(data, original_data, exclusions, *, stop_event=N
         part = output[lod_index].submeshes[part_index]
         if len(part.vertices) != len(old.vertices) or part.faces != old.faces:
             raise ValueError("Island exclusion requires unchanged source topology. Restore islands before replacing or rebuilding this part.")
+        slots = _pac_face_slots(part) if hidden else ()
         for face_index in hidden:
             vertex = part.faces[face_index][0]
-            struct.pack_into('<3H', result, part.source_index_offset + face_index * 6,
+            # Address the stored triple, not the parsed face position: a baseline
+            # that already holds collapsed triples numbers its faces differently.
+            struct.pack_into('<3H', result, part.source_index_offset + slots[face_index] * 6,
                              vertex, vertex, vertex)
         if hidden and len(hidden) == len(part.faces):
             _preserve_empty_island_part(result, part, lod_index)

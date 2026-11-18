@@ -26,6 +26,7 @@ from .mesh_parser import (
     _find_pac_descriptors,
     _find_pac_section_layout,
     _np_module,
+    _pac_descriptor_record_length as _parser_descriptor_record_length,
     _pac_lod0_section_index,
     _parse_pac_geometry_section,
     _parse_par_sections,
@@ -603,6 +604,8 @@ def _preserve_pac_lower_lod_positions(original_data, mesh, bounds, vertex_update
     if sec0 is None:
         raise ValueError("PAC bounds expansion cannot locate the shared LOD descriptors.")
     lod_count = original_data[sec0["offset"] + 4]
+    if lod_count > 4:
+        raise ValueError(f"This PAC declares {lod_count} LODs; CDMW can only adjust PAC bounds with at most 4.")
     lod0_section_index = _pac_lod0_section_index(sections, lod_count)
     descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], lod_count),
@@ -645,6 +648,25 @@ def _preserve_pac_lower_lod_positions(original_data, mesh, bounds, vertex_update
             if offset in vertex_updates and vertex_updates[offset] != payload:
                 raise ValueError("PAC bounds expansion overlaps another edited LOD.")
             vertex_updates[offset] = payload
+
+
+def _pac_stored_face_slots(orig_sm: SubMesh, sm_idx: int) -> list[int]:
+    """Return the stored triple number of each parsed face of ``orig_sm``.
+
+    The parser drops collapsed and out-of-range triples, so parsed face ``j`` is
+    triple ``j`` only when nothing was dropped. Refuse rather than guess when the
+    parse did not record where each face is stored.
+    """
+    faces = list(orig_sm.faces or ())
+    slots = list(getattr(orig_sm, "source_face_slots", ()) or ())
+    if len(slots) == len(faces):
+        return slots
+    if not slots and int(orig_sm.source_index_count or 0) == len(faces) * 3:
+        return list(range(len(faces)))
+    raise ValueError(
+        f"PAC submesh {sm_idx} has stored triangles the parser skipped and no record of "
+        "where each face is stored, so its faces cannot be rewritten in place."
+    )
 
 
 def _build_pac_in_place(
@@ -750,10 +772,11 @@ def _build_pac_in_place(
         # position-only edit must preserve those slots instead of compacting
         # visible faces over them and duplicating the remaining source draws.
         if orig_sm.source_index_offset >= 0 and orig_sm.faces != new_sm.faces:
+            face_slots = _pac_stored_face_slots(orig_sm, sm_idx)
             for fi, (a, b, c) in enumerate(new_sm.faces):
                 if a >= len(new_sm.vertices) or b >= len(new_sm.vertices) or c >= len(new_sm.vertices):
                     raise ValueError(f"PAC face {fi} in submesh {sm_idx} references an out-of-range vertex.")
-                face_off = orig_sm.source_index_offset + fi * 6
+                face_off = orig_sm.source_index_offset + face_slots[fi] * 6
                 if face_off + 6 > len(result):
                     raise ValueError(
                         f"PAC face record {fi} for submesh {sm_idx} points outside the file."
@@ -783,19 +806,28 @@ def _build_pac_in_place(
 
 
 def _pac_descriptor_record_length(desc: object) -> int:
-    stored_lod_count = max(1, int(getattr(desc, "stored_lod_count", 0) or 0))
-    if stored_lod_count >= 4:
-        return 48 + stored_lod_count * 4
-    if stored_lod_count == 3:
-        return 46 + stored_lod_count * 4
-    return 44 + stored_lod_count * 4
+    return _parser_descriptor_record_length(int(getattr(desc, "stored_lod_count", 0) or 0))
+
+
+PAC_NAME_MAX_LENGTH = 120
 
 
 def _length_prefixed_ascii(value: object, fallback: str) -> bytes:
+    """Encode a PAC part or material name, refusing what would not read back as written."""
     text = str(value or "").strip() or fallback
-    encoded = text.encode("ascii", "replace")[:120]
-    if not encoded:
-        encoded = fallback.encode("ascii", "replace")[:120] or b"clone"
+    try:
+        encoded = text.encode("ascii")
+    except UnicodeEncodeError:
+        raise ValueError(
+            f"PAC part name {text!r} contains characters other than plain ASCII; rename it before export."
+        ) from None
+    if any(not 32 <= value < 127 for value in encoded):
+        raise ValueError(f"PAC part name {text!r} contains control characters; rename it before export.")
+    if len(encoded) > PAC_NAME_MAX_LENGTH:
+        raise ValueError(
+            f"PAC part name {text[:40]!r}... is {len(encoded)} characters long; "
+            f"the limit is {PAC_NAME_MAX_LENGTH}. Rename it before export."
+        )
     return bytes([len(encoded)]) + encoded
 
 
@@ -894,83 +926,33 @@ def _build_pac_output_descriptors(
     return planned
 
 
-def _pac_lod_submesh_variant(submesh: SubMesh, target_face_count: int) -> SubMesh:
-    faces = list(getattr(submesh, "faces", ()) or [])
-    if target_face_count <= 0 or not faces or target_face_count >= len(faces):
-        variant = copy.copy(submesh)
-        variant.vertices = list(getattr(submesh, "vertices", ()) or [])
-        variant.uvs = list(getattr(submesh, "uvs", ()) or [])
-        variant.normals = list(getattr(submesh, "normals", ()) or [])
-        variant.faces = list(faces)
-        variant.source_vertex_map = list(range(len(variant.vertices)))
-        variant.vertex_count = len(variant.vertices)
-        variant.face_count = len(variant.faces)
-        return variant
+def _pac_lod_submesh_variant(submesh: SubMesh, target_face_count: int = 0) -> SubMesh:
+    """Return ``submesh``'s full geometry for writing at a lower LOD slot.
 
-    step = max(1, math.ceil(len(faces) / float(max(1, target_face_count))))
-    sampled_faces = faces[::step][:target_face_count]
-    source_to_lod: dict[int, int] = {}
-    lod_vertices: list[tuple[float, float, float]] = []
-    lod_faces: list[tuple[int, int, int]] = []
-    source_order: list[int] = []
-    for face in sampled_faces:
-        remapped: list[int] = []
-        for raw_index in face[:3]:
-            source_index = int(raw_index)
-            if source_index < 0 or source_index >= len(submesh.vertices):
-                remapped = []
-                break
-            lod_index = source_to_lod.get(source_index)
-            if lod_index is None:
-                lod_index = len(lod_vertices)
-                source_to_lod[source_index] = lod_index
-                source_order.append(source_index)
-                lod_vertices.append(submesh.vertices[source_index])
-            remapped.append(lod_index)
-        if len(remapped) == 3 and len(set(remapped)) == 3:
-            lod_faces.append((remapped[0], remapped[1], remapped[2]))
-    if not lod_vertices or not lod_faces:
-        return _pac_lod_submesh_variant(submesh, len(faces))
-
+    CDMW has no decimator. Keeping every Nth triangle of LOD0 is not a lower
+    LOD: it leaves holes in the surface. A rebuilt part whose geometry changed
+    therefore carries its complete LOD0 geometry at every stored LOD;
+    ``target_face_count`` is kept only for compatible callers and is ignored.
+    """
+    del target_face_count
     variant = copy.copy(submesh)
-    variant.vertices = lod_vertices
-    variant.faces = lod_faces
-    variant.uvs = (
-        [submesh.uvs[source_index] for source_index in source_order]
-        if len(getattr(submesh, "uvs", ()) or ()) == len(submesh.vertices)
-        else []
-    )
-    variant.normals = (
-        [submesh.normals[source_index] for source_index in source_order]
-        if len(getattr(submesh, "normals", ()) or ()) == len(submesh.vertices)
-        else []
-    )
-    if not variant.normals or len(variant.normals) != len(variant.vertices):
-        variant.normals = _compute_smooth_normals(variant.vertices, variant.faces)
-    variant.source_vertex_map = source_order
+    variant.vertices = list(getattr(submesh, "vertices", ()) or [])
+    variant.uvs = list(getattr(submesh, "uvs", ()) or [])
+    variant.normals = list(getattr(submesh, "normals", ()) or [])
+    variant.faces = list(getattr(submesh, "faces", ()) or [])
+    variant.source_vertex_map = list(range(len(variant.vertices)))
     variant.vertex_count = len(variant.vertices)
     variant.face_count = len(variant.faces)
     return variant
 
 
 def _pac_lod_variants_for_submesh(new_sm: SubMesh, desc: object, stored_lod_count: int) -> list[SubMesh]:
-    faces = list(getattr(new_sm, "faces", ()) or [])
-    if not faces:
+    """LOD0 geometry for every stored LOD of a rebuilt part (see ``_pac_lod_submesh_variant``)."""
+    del desc
+    if not list(getattr(new_sm, "faces", ()) or []):
         return []
-    base_index_count = max(1, int((getattr(desc, "index_counts", ()) or [len(faces) * 3])[0] or len(faces) * 3))
-    variants: list[SubMesh] = []
-    for lod_idx in range(stored_lod_count):
-        if lod_idx == 0:
-            target_faces = len(faces)
-        else:
-            try:
-                original_index_count = int(desc.index_counts[lod_idx] or 0)
-            except Exception:
-                original_index_count = 0
-            ratio = max(0.0, min(1.0, float(original_index_count) / float(base_index_count))) if original_index_count else 1.0
-            target_faces = max(1, min(len(faces), int(round(len(faces) * ratio))))
-        variants.append(_pac_lod_submesh_variant(new_sm, target_faces))
-    return variants
+    variant = _pac_lod_submesh_variant(new_sm)
+    return [variant for _ in range(max(1, int(stored_lod_count)))]
 
 
 def _pac_submesh_channels_unchanged(original: SubMesh, edited: SubMesh) -> bool:
@@ -985,17 +967,40 @@ def _pac_submesh_channels_unchanged(original: SubMesh, edited: SubMesh) -> bool:
     )
 
 
-def _preserved_pac_lod_records(original_data, original_mesh, working_mesh, descriptors,
-                               sec_by_idx, n_lods, preserved_indices):
-    """Retain complete original records, refusing shared or unproven ownership."""
-    records = {index: [] for index in preserved_indices}
-    for index in preserved_indices:
-        if type(index) is not int or not 0 <= index < len(original_mesh.submeshes):
-            raise ValueError("Invalid PAC part requested for original LOD preservation.")
-        original = original_mesh.submeshes[index]
-        if (original.source_descriptor_offset != descriptors[index].descriptor_offset
-                or not _pac_submesh_channels_unchanged(original, working_mesh.submeshes[index])):
-            raise ValueError(f"PAC part {index} no longer matches its original descriptor and geometry.")
+def _pac_part_descriptor_indices(original_mesh: ParsedMesh, descriptors: list[object]) -> list[int]:
+    """Map each parsed part to the descriptor it was read from.
+
+    The parser leaves out descriptors without live geometry at the parsed LOD,
+    so parsed part ``i`` is descriptor ``i`` only when nothing was left out.
+    Match by the descriptor offset each part records; refuse when that fails.
+    """
+    by_offset = {int(getattr(desc, "descriptor_offset", -1)): index for index, desc in enumerate(descriptors)}
+    mapping: list[int] = []
+    for part in original_mesh.submeshes:
+        index = by_offset.get(int(getattr(part, "source_descriptor_offset", -1)))
+        if index is None:
+            mapping = []
+            break
+        mapping.append(index)
+    if mapping and len(set(mapping)) == len(mapping) and mapping == sorted(mapping):
+        return mapping
+    if not mapping and len(descriptors) == len(original_mesh.submeshes):
+        # Parts without recorded descriptor offsets: position is the only identity left.
+        return list(range(len(descriptors)))
+    raise ValueError(
+        "PAC descriptor set does not match the parsed original parts, so this file cannot be rebuilt safely."
+    )
+
+
+def _original_pac_lod_records(original_data, descriptors, sec_by_idx, n_lods, descriptor_indices):
+    """Return each listed descriptor's own (vertex bytes, index bytes) for every LOD.
+
+    Refuses when a descriptor's records cannot be proven to belong to it alone.
+    """
+    wanted = set(descriptor_indices)
+    records = {index: [] for index in wanted}
+    if not wanted:
+        return records
     lod0_section_index = _pac_lod0_section_index(list(sec_by_idx.values()), n_lods)
     for lod in range(n_lods):
         section = sec_by_idx.get(lod0_section_index - lod)
@@ -1010,7 +1015,7 @@ def _preserved_pac_lod_records(original_data, original_mesh, working_mesh, descr
         index_region = index_cursor
         section_end = section["offset"] + section["size"]
         for index, (vertex_count, index_count) in enumerate(zip(vertex_counts, index_counts)):
-            if index in records:
+            if index in wanted:
                 vertex_start = section["offset"] + vertex_cursor
                 vertex_end = vertex_start + vertex_count * 40
                 index_start = section["offset"] + index_cursor
@@ -1027,6 +1032,61 @@ def _preserved_pac_lod_records(original_data, original_mesh, working_mesh, descr
     return records
 
 
+def _preserved_pac_lod_records(original_data, original_mesh, working_mesh, descriptors,
+                               sec_by_idx, n_lods, preserved_indices, part_descriptors=None):
+    """Retain complete original records, refusing shared or unproven ownership.
+
+    ``preserved_indices`` are part indices, and the result is keyed the same way.
+    """
+    if part_descriptors is None:
+        part_descriptors = list(range(len(original_mesh.submeshes)))
+    for index in preserved_indices:
+        if type(index) is not int or not 0 <= index < len(original_mesh.submeshes):
+            raise ValueError("Invalid PAC part requested for original LOD preservation.")
+        original = original_mesh.submeshes[index]
+        if (original.source_descriptor_offset != descriptors[part_descriptors[index]].descriptor_offset
+                or not _pac_submesh_channels_unchanged(original, working_mesh.submeshes[index])):
+            raise ValueError(f"PAC part {index} no longer matches its original descriptor and geometry.")
+    by_descriptor = _original_pac_lod_records(
+        original_data, descriptors, sec_by_idx, n_lods,
+        [part_descriptors[index] for index in preserved_indices])
+    return {index: by_descriptor[part_descriptors[index]] for index in preserved_indices}
+
+
+def _pac_lower_lod_skin_sources(lower_vertices: bytes, lod0_records, bbox_min, bbox_extent) -> list[int]:
+    """Map each lower-LOD record to the LOD0 vertex whose new skin row it takes.
+
+    An identical stored position wins; otherwise the nearest LOD0 position.
+    """
+    def _decode(record) -> tuple[float, float, float]:
+        packed = struct.unpack_from("<3H", record, 0)
+        return tuple(
+            bbox_min[axis] + (packed[axis] / 32767.0) * bbox_extent[axis]
+            if abs(bbox_extent[axis]) >= 1e-8 else bbox_min[axis]
+            for axis in range(3)
+        )
+
+    exact: dict[bytes, int] = {}
+    for index, record in enumerate(lod0_records):
+        exact.setdefault(bytes(record[0:6]), index)
+    lod0_positions = [_decode(record) for record in lod0_records]
+    np = _np_module()
+    lod0 = np.asarray(lod0_positions, dtype=np.float64) if np is not None and lod0_positions else None
+    sources = []
+    for offset in range(0, len(lower_vertices) - 39, 40):
+        found = exact.get(bytes(lower_vertices[offset:offset + 6]))
+        if found is None:
+            position = _decode(lower_vertices[offset:offset + 40])
+            if lod0 is not None:
+                delta = lod0 - np.asarray(position, dtype=np.float64)
+                found = int(np.argmin((delta * delta).sum(axis=1)))
+            else:
+                found = min(range(len(lod0_positions)), key=lambda i: sum(
+                    (lod0_positions[i][axis] - position[axis]) ** 2 for axis in range(3)))
+        sources.append(found)
+    return sources
+
+
 def _build_pac_full_rebuild(
     original_mesh: ParsedMesh,
     working_mesh: ParsedMesh,
@@ -1040,7 +1100,14 @@ def _build_pac_full_rebuild(
     preserve_original_submesh_indices: Sequence[int] = (),
     preserve_source_skin_record_indices: Sequence[int] = (),
 ) -> bytes:
-    """Rebuild PAC geometry sections from scratch for topology-changing imports."""
+    """Rebuild PAC geometry sections from scratch for topology-changing imports.
+
+    Lower LODs: a part whose positions and faces are unchanged keeps the
+    source's own lower-LOD records (with re-mapped skin lanes when its weights
+    changed); any other rebuilt part writes its full LOD0 geometry at every
+    stored LOD. Descriptors the parser could not read are carried over as they
+    were, or the rebuild is refused.
+    """
     sections = _parse_par_sections(original_data)
     sec_by_idx = {sec["index"]: sec for sec in sections}
     sec0 = sec_by_idx.get(0)
@@ -1050,27 +1117,39 @@ def _build_pac_full_rebuild(
     n_lods = original_data[sec0["offset"] + 4] if sec0["size"] >= 5 else 0
     if n_lods <= 0 or n_lods > 10:
         raise ValueError(f"Invalid PAC LOD count: {n_lods}")
+    if n_lods > 4:
+        # The parser reads at most four geometry LODs and treats higher slots as
+        # auxiliary data; rebuilding by the raw count would overwrite that data.
+        raise ValueError(f"This PAC declares {n_lods} LODs; CDMW can rebuild PAC files with at most 4.")
 
     lod0_section_index = _pac_lod0_section_index(sections, n_lods)
-    descriptors = _validated_pac_descriptor_prefix(
+    all_descriptors = _validated_pac_descriptor_prefix(
         _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], n_lods),
         sections,
         lod_count=n_lods,
     )
     sec0_data = bytearray(original_data[sec0["offset"]:sec0["offset"] + sec0["size"]])
-    if len(descriptors) < len(original_mesh.submeshes):
+    if len(all_descriptors) < len(original_mesh.submeshes):
         raise ValueError("PAC descriptor count does not match the parsed original submesh set.")
+    part_descriptors = _pac_part_descriptor_indices(original_mesh, all_descriptors)
+    descriptor_part = {descriptor: part for part, descriptor in enumerate(part_descriptors)}
+    part_descriptor_list = [all_descriptors[index] for index in part_descriptors]
     preserved_lods = {}
     if preserve_original_submesh_indices:
         if (clone_descriptor_sources or clone_descriptor_names or output_descriptor_sources or output_descriptor_names
                 or len(working_mesh.submeshes) != len(original_mesh.submeshes)):
             raise ValueError("Original PAC LOD preservation requires the original draw-section layout.")
         preserved_lods = _preserved_pac_lod_records(
-            original_data, original_mesh, working_mesh, descriptors, sec_by_idx, n_lods,
-            preserve_original_submesh_indices)
+            original_data, original_mesh, working_mesh, all_descriptors, sec_by_idx, n_lods,
+            preserve_original_submesh_indices, part_descriptors)
     if preserve_runtime_abi and (clone_descriptor_sources or clone_descriptor_names or output_descriptor_sources or output_descriptor_names):
         raise ValueError("PAC runtime ABI preservation cannot clone or rename draw descriptors.")
     output_descriptor_sources = tuple(int(index) for index in tuple(output_descriptor_sources or ()))
+    # Each output entry is (descriptor, working part index or None, source part index).
+    # ``None`` marks a source descriptor the parser could not read, carried over as
+    # is; its third field is then the descriptor index.
+    output_entries: list[tuple[object, int | None, int]] = []
+    retained_descriptors: list[int] = []
     if output_descriptor_sources:
         if len(output_descriptor_sources) != len(working_mesh.submeshes):
             raise ValueError(
@@ -1080,10 +1159,14 @@ def _build_pac_full_rebuild(
         descriptors = _build_pac_output_descriptors(
             sec0_data,
             sec0_offset=sec0["offset"],
-            descriptors=descriptors[:len(original_mesh.submeshes)],
+            descriptors=part_descriptor_list,
             descriptor_source_indices=output_descriptor_sources,
             descriptor_names=output_descriptor_names,
         )
+        output_entries = [
+            (descriptors[sm_idx], sm_idx, output_descriptor_sources[sm_idx])
+            for sm_idx in range(len(working_mesh.submeshes))
+        ]
         clone_descriptor_sources = ()
     else:
         clone_descriptor_sources = tuple(int(index) for index in tuple(clone_descriptor_sources or ()))
@@ -1093,15 +1176,35 @@ def _build_pac_full_rebuild(
                 "PAC dense replacement output plan does not match the working mesh: "
                 f"{len(working_mesh.submeshes)} submesh(es), expected {expected_submesh_count}."
             )
+        for clone_ordinal, source_index in enumerate(clone_descriptor_sources, start=1):
+            if source_index < 0 or source_index >= len(original_mesh.submeshes):
+                raise ValueError(f"PAC cloned draw section {clone_ordinal} references missing descriptor {source_index}.")
         descriptors = _append_pac_cloned_descriptors(
             sec0_data,
             sec0_offset=sec0["offset"],
-            descriptors=descriptors[:len(original_mesh.submeshes)],
-            clone_descriptor_sources=clone_descriptor_sources,
+            descriptors=list(all_descriptors),
+            clone_descriptor_sources=[part_descriptors[index] for index in clone_descriptor_sources],
             clone_descriptor_names=clone_descriptor_names,
         )
-    if len(descriptors) < len(working_mesh.submeshes):
-        raise ValueError("PAC descriptor count does not match the planned submesh set.")
+        for descriptor_index in range(len(all_descriptors)):
+            part = descriptor_part.get(descriptor_index)
+            if part is None:
+                retained_descriptors.append(descriptor_index)
+            output_entries.append((descriptors[descriptor_index], part, part if part is not None else descriptor_index))
+        for clone_ordinal, source_index in enumerate(clone_descriptor_sources):
+            output_entries.append((
+                descriptors[len(all_descriptors) + clone_ordinal],
+                len(original_mesh.submeshes) + clone_ordinal,
+                source_index,
+            ))
+    try:
+        retained_lods = _original_pac_lod_records(
+            original_data, all_descriptors, sec_by_idx, n_lods, retained_descriptors)
+    except ValueError as exc:
+        raise ValueError(
+            "This PAC has a draw section CDMW cannot read, and rebuilding the file would lose it. "
+            f"({exc})"
+        ) from exc
     preserved_sections = {
         sec["index"]: original_data[sec["offset"]:sec["offset"] + sec["size"]]
         for sec in sections
@@ -1109,13 +1212,12 @@ def _build_pac_full_rebuild(
         or 0 < sec["index"] <= lod0_section_index - n_lods
     }
     prepared_submeshes = []
-    for sm_idx, (new_sm, desc) in enumerate(zip(working_mesh.submeshes, descriptors)):
-        if output_descriptor_sources:
-            source_target_index = output_descriptor_sources[sm_idx]
-        elif sm_idx < len(original_mesh.submeshes):
-            source_target_index = sm_idx
-        else:
-            source_target_index = clone_descriptor_sources[sm_idx - len(original_mesh.submeshes)]
+    for desc, sm_idx, source_target_index in output_entries:
+        if sm_idx is None:
+            # A descriptor without parsed geometry: its records and counts stay as they were.
+            prepared_submeshes.append({"preserved_lods": retained_lods[source_target_index]})
+            continue
+        new_sm = working_mesh.submeshes[sm_idx]
         if source_target_index < 0 or source_target_index >= len(original_mesh.submeshes):
             raise ValueError(f"PAC cloned submesh {sm_idx} references invalid source target {source_target_index}.")
         orig_sm = original_mesh.submeshes[source_target_index]
@@ -1163,19 +1265,33 @@ def _build_pac_full_rebuild(
                                for i, source in enumerate(donor_indices))))):
                 raise ValueError(f"PAC part {sm_idx} cannot preserve unverified original skin records.")
         skin_export = not preserve_skin and pac_skin_export_enabled(orig_sm, new_sm, sm_idx)
-        normals = (
-            new_sm.normals
-            if len(new_sm.normals) == len(new_sm.vertices)
-            else _compute_smooth_normals(new_sm.vertices, new_sm.faces)
-        )
-        new_uvs = new_sm.uvs if len(new_sm.uvs) == len(new_sm.vertices) else []
         clean_shading_records = not preserve_skin and bool(
             getattr(new_sm, "clean_donor_shading_records", False)
             or getattr(working_mesh, "clean_donor_shading_records", False)
         )
-        bmin, bmax = _compute_bbox(new_sm.vertices)
-        extent = tuple(bmax[i] - bmin[i] for i in range(3))
         stored_lod_count = max(1, min(n_lods, orig_sm.source_lod_count or desc.stored_lod_count or n_lods))
+        # The source's own lower LODs still describe a part whose positions,
+        # faces, UVs and normals are unchanged (a weight-only rebuild such as
+        # armour weight transfer). Keep them, with skin lanes taken from the
+        # matching LOD0 vertex, instead of inventing new ones.
+        source_lower_lods = None
+        if (stored_lod_count > 1 and sm_idx == source_target_index and not output_descriptor_sources
+                and not clean_shading_records
+                and all(list(getattr(orig_sm, channel) or ()) == list(getattr(new_sm, channel) or ())
+                        for channel in ("vertices", "faces", "uvs", "normals"))):
+            try:
+                source_lower_lods = _original_pac_lod_records(
+                    original_data, all_descriptors, sec_by_idx, n_lods,
+                    [part_descriptors[sm_idx]])[part_descriptors[sm_idx]]
+            except ValueError:
+                source_lower_lods = None
+        if source_lower_lods is not None:
+            # Lower-LOD records were quantised against the source bounds; keep them.
+            bmin = tuple(orig_sm.source_bbox_min)
+            extent = tuple(orig_sm.source_bbox_extent)
+        else:
+            bmin, bmax = _compute_bbox(new_sm.vertices)
+            extent = tuple(bmax[i] - bmin[i] for i in range(3))
         lod_variants = _pac_lod_variants_for_submesh(new_sm, desc, stored_lod_count)
         if not lod_variants:
             lod_variants = [new_sm]
@@ -1183,15 +1299,19 @@ def _build_pac_full_rebuild(
         if rel_desc_off < 0 or rel_desc_off + 40 > len(sec0_data):
             raise ValueError(f"PAC descriptor {sm_idx} points outside section 0.")
 
-        _patch_pac_descriptor_bounds(sec0_data, rel_desc_off, bmin, extent)
+        if source_lower_lods is None:
+            _patch_pac_descriptor_bounds(sec0_data, rel_desc_off, bmin, extent)
         vc_off = rel_desc_off + 40
         ic_off = vc_off + desc.stored_lod_count * 2
         for lod_idx in range(desc.stored_lod_count):
+            if lod_idx and source_lower_lods is not None:
+                continue  # the source counts already describe the kept records
             variant = lod_variants[min(lod_idx, len(lod_variants) - 1)] if lod_variants else new_sm
             struct.pack_into("<H", sec0_data, vc_off + lod_idx * 2, len(variant.vertices))
             struct.pack_into("<I", sec0_data, ic_off + lod_idx * 4, len(variant.faces) * 3)
 
         prepared_submeshes.append({
+            "sm_idx": sm_idx,
             "submesh": new_sm,
             "donor_records": donor_records,
             "donor_indices": donor_indices,
@@ -1201,7 +1321,46 @@ def _build_pac_full_rebuild(
             "clean_shading_records": clean_shading_records,
             "lod_variants": lod_variants,
             "skin_export": skin_export,
+            "source_lower_lods": source_lower_lods,
         })
+
+    def _finish_record(prepared, donor_rec: bytearray, skin_vi: int, sm_idx: int) -> bool:
+        """Apply the shading, skin and cloth lane rules shared by every written record."""
+        retain_cloth = (len(donor_rec) > PAC_SKIN_GATE_OFFSET
+                        and donor_rec[PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK != PAC_SKIN_GATE_DISABLED
+                        and any(donor_rec[32:36])
+                        and (not prepared["skin_export"] or len(prepared["submesh"].bone_indices[skin_vi]) <= 4))
+        if prepared["clean_shading_records"]:
+            if len(donor_rec) >= 8:
+                struct.pack_into("<H", donor_rec, 6, 0)
+            if len(donor_rec) >= 28 and not retain_cloth:
+                # The six packed skin slots, not shading state; see the note on the
+                # same lanes in _build_pac_in_place. When skin_export is on below,
+                # patch_pac_vertex_skin rewrites them from the authored rows.
+                donor_rec[20:28] = b"\x00" * 8
+        return retain_cloth
+
+    def _write_skin(prepared, donor_rec: bytearray, skin_vi: int, sm_idx: int, retain_cloth: bool) -> None:
+        if prepared["skin_export"]:
+            if not retain_cloth and (preserve_runtime_abi
+                    or len(prepared["submesh"].bone_indices[skin_vi]) > 4):
+                # Generated hair and partial imports also need the ordinary
+                # shader branch when their skeletal weights occupy guide slots.
+                # Rows with up to four bones retain their valid guide binding.
+                donor_rec[PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_PALETTE_SLOTS:
+                          PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES] = bytes(
+                    PAC_SKIN_INFLUENCES - PAC_SKIN_PALETTE_SLOTS
+                )
+                donor_rec[PAC_SKIN_EXTRA_INDEX_OFFSET:PAC_SKIN_EXTRA_INDEX_OFFSET + 4] = PAC_SKIN_EXTRA_INDEX_SENTINEL
+                if len(donor_rec) > PAC_SKIN_GATE_OFFSET:
+                    donor_rec[PAC_SKIN_GATE_OFFSET] = (
+                        donor_rec[PAC_SKIN_GATE_OFFSET] & ~PAC_SKIN_GATE_MASK
+                    ) | PAC_SKIN_GATE_DISABLED
+            patch_pac_vertex_skin(donor_rec, prepared["submesh"], skin_vi, sm_idx)
+        if retain_cloth:
+            # Preserving a donor must not publish invalid guide fetches.
+            pac_cloth_binding(donor_rec, 0)
+
     lod_payloads: dict[int, bytes] = {}
     lod_split_bytes: dict[int, int] = {}
     for sec_idx in range(lod0_section_index - n_lods + 1, lod0_section_index + 1):
@@ -1209,13 +1368,28 @@ def _build_pac_full_rebuild(
         verts_buf = bytearray()
         idx_buf = bytearray()
 
-        for sm_idx, prepared in enumerate(prepared_submeshes):
+        for prepared in prepared_submeshes:
             if "preserved_lods" in prepared:
                 vertices, indices = prepared["preserved_lods"][lod_idx]
                 verts_buf.extend(vertices)
                 idx_buf.extend(indices)
                 continue
             if lod_idx >= prepared["stored_lod_count"]:
+                continue
+            sm_idx = prepared["sm_idx"]
+            if lod_idx and prepared["source_lower_lods"] is not None:
+                vertices, indices = prepared["source_lower_lods"][lod_idx]
+                if prepared["skin_export"]:
+                    sources = _pac_lower_lod_skin_sources(
+                        vertices, prepared["donor_records"], prepared["bbox_min"], prepared["bbox_extent"])
+                    for record_index, skin_vi in enumerate(sources):
+                        donor_rec = bytearray(vertices[record_index * 40:record_index * 40 + 40])
+                        retain_cloth = _finish_record(prepared, donor_rec, skin_vi, sm_idx)
+                        _write_skin(prepared, donor_rec, skin_vi, sm_idx, retain_cloth)
+                        verts_buf.extend(donor_rec)
+                else:
+                    verts_buf.extend(vertices)
+                idx_buf.extend(indices)
                 continue
             lod_variants = prepared["lod_variants"]
             sm = lod_variants[min(lod_idx, len(lod_variants) - 1)] if lod_variants else prepared["submesh"]
@@ -1240,18 +1414,7 @@ def _build_pac_full_rebuild(
                 skin_vi = int(base_vi)
                 base_vi = max(0, min(base_vi, len(donor_indices) - 1))
                 donor_rec = bytearray(donor_records[donor_indices[base_vi]])
-                retain_cloth = (len(donor_rec) > PAC_SKIN_GATE_OFFSET
-                                and donor_rec[PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK != PAC_SKIN_GATE_DISABLED
-                                and any(donor_rec[32:36])
-                                and (not prepared["skin_export"] or len(prepared["submesh"].bone_indices[skin_vi]) <= 4))
-                if clean_shading_records:
-                    if len(donor_rec) >= 8:
-                        struct.pack_into("<H", donor_rec, 6, 0)
-                    if len(donor_rec) >= 28 and not retain_cloth:
-                        # The six packed skin slots, not shading state; see the note on the
-                        # same lanes in _build_pac_in_place. When skin_export is on below,
-                        # patch_pac_vertex_skin rewrites them from the authored rows.
-                        donor_rec[20:28] = b"\x00" * 8
+                retain_cloth = _finish_record(prepared, donor_rec, skin_vi, sm_idx)
                 struct.pack_into(
                     "<HHH",
                     donor_rec,
@@ -1277,26 +1440,7 @@ def _build_pac_full_rebuild(
                         ),
                     )
 
-                if prepared["skin_export"]:
-                    if not retain_cloth and (preserve_runtime_abi
-                            or len(prepared["submesh"].bone_indices[skin_vi]) > 4):
-                        # Generated hair and partial imports also need the ordinary
-                        # shader branch when their skeletal weights occupy guide slots.
-                        # Rows with up to four bones retain their valid guide binding.
-                        donor_rec[PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_PALETTE_SLOTS:
-                                  PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES] = bytes(
-                            PAC_SKIN_INFLUENCES - PAC_SKIN_PALETTE_SLOTS
-                        )
-                        donor_rec[PAC_SKIN_EXTRA_INDEX_OFFSET:PAC_SKIN_EXTRA_INDEX_OFFSET + 4] = PAC_SKIN_EXTRA_INDEX_SENTINEL
-                        if len(donor_rec) > PAC_SKIN_GATE_OFFSET:
-                            donor_rec[PAC_SKIN_GATE_OFFSET] = (
-                                donor_rec[PAC_SKIN_GATE_OFFSET] & ~PAC_SKIN_GATE_MASK
-                            ) | PAC_SKIN_GATE_DISABLED
-                    patch_pac_vertex_skin(donor_rec, prepared["submesh"], skin_vi, sm_idx)
-
-                if retain_cloth:
-                    # Preserving a donor must not publish invalid guide fetches.
-                    pac_cloth_binding(donor_rec, 0)
+                _write_skin(prepared, donor_rec, skin_vi, sm_idx, retain_cloth)
                 verts_buf.extend(donor_rec)
 
             for face in sm.faces:

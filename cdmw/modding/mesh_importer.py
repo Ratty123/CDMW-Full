@@ -510,6 +510,14 @@ def _build_prepared_mesh_bytes(
                     parsed_native = None
                 if parsed_native is None or len(parsed_native.submeshes) != len(mesh.submeshes):
                     native_data = None
+                elif fmt == "pac" and any(
+                    len(written.vertices) != len(wanted.vertices)
+                    or list(written.faces) != [tuple(face) for face in wanted.faces]
+                    for written, wanted in zip(parsed_native.submeshes, mesh.submeshes)
+                ):
+                    # A part count match is not enough: the native patcher must
+                    # also read back with exactly the faces that were asked for.
+                    native_data = None
         except Exception:
             native_data = None
     if native_data is not None:
