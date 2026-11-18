@@ -31,6 +31,13 @@ pub struct HairLock {
     pub cards: u32,
 }
 
+impl HairLock {
+    /// Rigid and unguided original sections move with the head in motion preview.
+    pub fn follows_head(&self) -> bool {
+        matches!(self.kind, LockKind::Rigid | LockKind::Unresolved)
+    }
+}
+
 pub fn validate(state: &HairState) -> Result<()> {
     require(
         ["", "cropped", "bob", "long", "ponytail", "empty"]
@@ -336,13 +343,15 @@ pub fn remove_guides(state: &mut HairState, removed: &BTreeSet<usize>) {
 
 pub fn readiness(state: &HairState, parts: &[(u32, usize)]) -> Result<()> {
     state.validate()?;
-    require(
-        !state.locks.iter().any(|l| l.kind == LockKind::Unresolved),
-        "Motion preview needs grooming guides or rigid attachments for every section. Unchanged original hair can still be exported.",
-    )?;
+    // Original sections without a grooming guide follow the head rigidly in
+    // the preview, as rigid scalp sections do. Their export keeps the
+    // original game skinning either way.
     require(
         !state.guides.is_empty(),
-        if state.groups.iter().any(|g| g.mode == GroupMode::Existing) {
+        if state.locks.iter().any(|l| l.kind == LockKind::Unresolved) {
+            // Nothing would swing: every section is unguided original hair.
+            "Motion preview needs grooming guides or rigid attachments for every section. Unchanged original hair can still be exported."
+        } else if state.groups.iter().any(|g| g.mode == GroupMode::Existing) {
             "Prepare existing hair sections to preview motion. Unchanged original hair can still be exported."
         } else {
             "Draw a lock before playing motion"
@@ -360,7 +369,7 @@ pub fn readiness(state: &HairState, parts: &[(u32, usize)]) -> Result<()> {
     let rigid: BTreeSet<_> = state
         .locks
         .iter()
-        .filter(|l| l.kind == LockKind::Rigid)
+        .filter(|l| l.follows_head())
         .flat_map(|l| l.vertices.iter().map(|v| (l.part, *v)))
         .collect();
     for &(part, count) in parts {

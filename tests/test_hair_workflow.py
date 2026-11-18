@@ -399,6 +399,33 @@ def test_unsupported_registered_style_is_inspectable_and_next_verified_base_sele
     dialog.reject()
 
 
+def test_finished_checks_do_not_reload_preview_and_selected_style_is_checked_next(owner):
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair",
+        styles=((0, "first"), (1, "second"), (2, "third")), audit_hair=True)
+    QApplication.processEvents()
+    first, second, third = row(1), row(2), row(3)
+    dialog._details = {item.key: replace(detail(item), models=(SimpleNamespace(entry_id=i),))
+                       for i, item in enumerate((first, second, third))}
+    for item in (first, second, third):
+        dialog._add(item)
+    dialog._audit_queue = [dialog._details[k.key] for k in (second, third)]
+    dialog._audit_active = first.key
+    dialog._select_row(0)
+    shown = len(dialog._preview.selected)
+    # Each finished check reselects the row; the viewport must not reload.
+    dialog._audit_done(dialog._generation, SimpleNamespace(detail=dialog._details[first.key]), "")
+    assert len(dialog._preview.selected) == shown and dialog.choose.isEnabled()
+    dialog._audit_prepare.started.clear()
+    dialog._audit_active = second.key
+    dialog._selection_touched = True
+    dialog._select_row(2)
+    assert dialog._audit_queue[0].row.key == third.key
+    dialog._audit_done(dialog._generation, SimpleNamespace(detail=dialog._details[second.key]), "")
+    assert dialog._key() == third.key
+    assert dialog._audit_prepare.started[-1][0].row.key == third.key
+    dialog.reject()
+
+
 @pytest.mark.parametrize("interaction", ["mouse", "keyboard"])
 def test_unavailable_hairstyle_can_show_its_reason_without_starting_or_losing_selection(owner, interaction):
     from PySide6.QtCore import Qt

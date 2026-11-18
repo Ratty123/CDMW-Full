@@ -2239,6 +2239,47 @@ mod tests {
         }
     }
     #[test]
+    fn hair_motion_lets_unguided_original_sections_follow_the_head() {
+        let mut s = planted();
+        s.groups[0].mode = GroupMode::Existing;
+        let positions = vec![[0.02, 1.0, 0.0], [0.03, 0.9, 0.0], [0.04, 0.8, 0.0]];
+        bind_existing(&mut s, 0, &positions, &AtomicBool::new(false)).unwrap();
+        let bound: Vec<u32> = s.bindings.iter().map(|b| b.vertex).collect();
+        let guide = s.bindings[0].guide;
+        s.locks = vec![
+            locks::HairLock {
+                id: 1,
+                part: 0,
+                guide: Some(guide),
+                vertices: bound,
+                kind: locks::LockKind::Bound,
+                mirrored: None,
+                width_scale: 1.0,
+                cards: 0,
+            },
+            locks::HairLock {
+                id: 2,
+                part: 0,
+                guide: None,
+                vertices: vec![3, 4],
+                kind: locks::LockKind::Unresolved,
+                mirrored: None,
+                width_scale: 1.0,
+                cards: 0,
+            },
+        ];
+        s.next_lock_id = 3;
+        locks::readiness(&s, &[(0, 5)]).unwrap();
+        // Vertices outside every section still block motion.
+        assert!(locks::readiness(&s, &[(0, 6)]).is_err());
+        // With no guide at all nothing would swing; say so.
+        s.locks.retain(|l| l.kind == locks::LockKind::Unresolved);
+        s.bindings.clear();
+        s.guides.clear();
+        let error = locks::readiness(&s, &[(0, 5)]).unwrap_err().to_string();
+        assert!(error.contains("Motion preview needs grooming guides"), "{error}");
+    }
+    #[test]
     fn hair_reference_change_requires_explicit_rebind() {
         let mut s = planted();
         let mut scalp = s.scalp.clone();
