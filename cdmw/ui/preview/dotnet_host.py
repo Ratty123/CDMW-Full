@@ -619,7 +619,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         """Choose lighting for this viewport only; shown as a local setting."""
 
         normalized = str(preset or "neutral_studio").strip().lower()
-        if normalized not in {"neutral_studio", "showcase", "dark", "studio_fixed"}:
+        if normalized not in {"neutral_studio", "showcase", "dark", "studio_fixed", "icon_studio"}:
             normalized = "neutral_studio"
         return self.set_local_preview_setting(lighting_preset=normalized)
 

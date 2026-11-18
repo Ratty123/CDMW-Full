@@ -93,3 +93,30 @@ def test_changing_a_setting_keeps_the_page_you_are_on():
     finally:
         shiboken6.delete(dialog)
         app.processEvents()
+
+
+def test_game_icon_studio_is_offered_and_survives_every_preset_gate():
+    """The fifth preset reaches the renderer by its id from each place that validates one."""
+    from cdmw.models import clamp_model_preview_render_settings
+    from cdmw.ui.preview.preview_settings_hub import LIGHTING_PRESETS, normalize_preview_settings
+
+    app = QApplication.instance() or QApplication([])
+    dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings())
+    try:
+        combo = dialog.preview_lighting_preset_combo
+        index = combo.findData("icon_studio")
+        assert index == combo.count() - 1 and combo.itemText(index) == "Game icon studio"
+        assert [combo.itemData(row) for row in range(combo.count())] == list(LIGHTING_PRESETS)
+        combo.setCurrentIndex(index)
+        settings = dialog.current_settings()
+    finally:
+        shiboken6.delete(dialog)
+        app.processEvents()
+    assert settings.preview_lighting_preset == "icon_studio"
+    assert clamp_model_preview_render_settings(settings).preview_lighting_preset == "icon_studio"
+    quality, _ = render_tuning_payloads(settings, {})
+    assert quality["preview_lighting_preset"] == "icon_studio"
+    assert normalize_preview_settings({"lighting_preset": "Icon_Studio"})["lighting_preset"] == "icon_studio"
+    # Neutral studio stays the default, and an unknown id still falls back to it.
+    assert ModelPreviewRenderSettings().preview_lighting_preset == "neutral_studio"
+    assert normalize_preview_settings({"lighting_preset": "icon"})["lighting_preset"] == "neutral_studio"

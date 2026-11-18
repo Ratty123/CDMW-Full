@@ -14,7 +14,7 @@ from typing import Mapping, Optional
 from PySide6.QtCore import QObject, QSettings, Signal
 from PySide6.QtWidgets import QApplication
 
-LIGHTING_PRESETS = ("neutral_studio", "showcase", "dark", "studio_fixed")
+LIGHTING_PRESETS = ("neutral_studio", "showcase", "dark", "studio_fixed", "icon_studio")
 
 #: name -> (settings key, default)
 GLOBAL_PREVIEW_SETTINGS: dict[str, tuple[str, object]] = {
