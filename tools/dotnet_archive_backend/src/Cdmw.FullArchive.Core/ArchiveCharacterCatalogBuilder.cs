@@ -7,7 +7,7 @@ namespace Cdmw.FullArchive.Core;
 
 public static class ArchiveCharacterCatalogBuilder
 {
-    public const int Version = 8;
+    public const int Version = 9;
     private static readonly HashSet<string> CharacterExtensions = new(StringComparer.OrdinalIgnoreCase) {
         ".pac", ".pam", ".pamlod", ".app_xml", ".prefab", ".prefabdata_xml", ".pappt",
         ".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".pab", ".pabc", ".pamt", ".pabv", ".paccd", ".xml", ".dds", ".hkt", ".papr" };
@@ -194,9 +194,20 @@ public static class ArchiveCharacterCatalogBuilder
                 var row = Row(key, "assets", role, entry.Name, Path.GetFileNameWithoutExtension(entry.Name), entry.Path,
                     resolved.Resolution, 1, role == "unclassified" ? "Installed model awaits role classification; available through Unclassified." : "Installed model asset.", isEmbedded)
                     with { UsageCount = relatedKeys.Length };
+                // A head file holds no eyes, brows or teeth; the appearance that wears it
+                // names them. Borrow that appearance's facial details for the preview only:
+                // the row, exact files and Hair Tools head picking still see one model.
+                var facialParts = role == "head"
+                    ? relatedKeys.Select(related => records[related])
+                        .Where(record => record.Row.View == "appearances"
+                            && record.Components.Any(component => component.Role == "head" && component.ModelEntryIds.Contains(entry.EntryId)))
+                        .Select(static record => record.Components
+                            .Where(static component => component.Role == "facial_detail" && component.ModelEntryIds.Count > 0).ToArray())
+                        .FirstOrDefault(static parts => parts.Length > 0) ?? []
+                    : [];
                 records[key] = new(row, searchNames, [entry.EntryId], resolved.Context.Append(entry.EntryId)
                     .Concat(relatedKeys.SelectMany(related => records[related].DirectIds).Where(id => byId[id].Extension == ".app_xml")).Distinct().ToArray(), relatedKeys,
-                    [new(role, entry.Name, [entry.EntryId], resolved.Context, 1, new Dictionary<string, string>(), resolved.Resolution)],
+                    [new(role, entry.Name, [entry.EntryId], resolved.Context, 1, new Dictionary<string, string>(), resolved.Resolution), .. facialParts],
                     owners, resolved.Evidence, ContextKey: key);
                 Account(entry, row.Resolution, row.Evidence);
             }

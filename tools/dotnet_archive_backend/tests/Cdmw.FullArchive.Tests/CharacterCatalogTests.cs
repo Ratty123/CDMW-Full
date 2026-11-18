@@ -46,7 +46,7 @@ internal static class CharacterCatalogTests
         Add("character/model/3_npc/b/head/duplicate_head_0001.pac", [7]);
         Add("character/model/2_mon/mystery.pac", [8]);
         Xml(appearance, "<Appearance><Nude CharacterScale=\"1.1\"><Prefab Name=\"hero_body_0001\"Preview=\"true\"/></Nude><Head Name=\"hero_head_0001\"/><Customization File=\"hero_custom\"/></Appearance>");
-        Xml("character/appearance/3_npc/shared.app_xml", "<Appearance><Nude Name=\"hero_body_0001\"/><Head Name=\"hero_head_0001\"/></Appearance>");
+        Xml("character/appearance/3_npc/shared.app_xml", "<Appearance><Nude Name=\"hero_body_0001\"/><Head Name=\"hero_head_0001\"/><Face Name=\"hero_head_0001_eye\"/></Appearance>");
         Xml("character/appearance/3_npc/unresolved.app_xml", "<Appearance><Nude Name=\"missing_body\"/></Appearance>");
         const string unclosedAppearance = "character/appearance/3_npc/unclosed.app_xml";
         const string malformedAppearance = "character/appearance/3_npc/malformed.app_xml";
@@ -174,6 +174,10 @@ internal static class CharacterCatalogTests
         Check(physical.Row.EmbeddedFace && details.Row.EmbeddedFace, "declared embedded head submesh was lost");
         Check(!catalogue.GetRequired(hero.Rows.Single(row => row.Role == "head").Key).Row.EmbeddedFace, "separate head was mislabeled as embedded");
         Check(catalogue.GetRequired("asset:" + head.Path).Row.Role == "head", "a neck submesh relabeled an explicit head as a body");
+        var headAsset = catalogue.GetRequired("asset:" + head.Path);
+        Check(headAsset.Components.SelectMany(c => c.ModelEntryIds).Contains(eyes.EntryId)
+            && !headAsset.DirectIds.Contains(eyes.EntryId) && headAsset.Row.ModelCount == 1,
+            "a head asset preview lost the eyes its appearance wears, or they leaked into its exact files");
         Check(physical.RelatedIds.Any(id => inventory[(int)id].Path == appearance), "asset related-file scope lost appearance");
         Check(catalogue.Search(new("fixture", Query: "duplicate", View: "appearances", Tab: "faces")).Rows.Single().Resolution == "ambiguous", "duplicate basenames were arbitrarily resolved");
         Check(catalogue.Search(new("fixture", Query: "missing", View: "appearances")).Rows.Single().PreviewStatus == "unresolved_model", "unresolved reference disappeared");
