@@ -1325,7 +1325,7 @@ fn compose_base_color(
         .layers
         .iter()
         .skip(1)
-        .filter(|layer| layer.layer_role != "color_seed")
+        .filter(|layer| layer.layer_role != "color_seed" && !layer.is_ver2_overlay())
     {
         let Some(reference) = layer.diffuse.as_ref() else {
             continue;
@@ -1408,11 +1408,86 @@ fn compose_base_color(
             target[offset + 2] = unit_byte(output[2]);
         }
     }
+    if let Some(step) = Ver2Overlay::of(material, cache, width, height)? {
+        // This composition has no single drawn layer: the layer of the largest
+        // mask channel decides the luma option, as on the layer path.
+        let mask = material
+            .layers
+            .iter()
+            .skip(1)
+            .filter(|layer| layer.mask_parameter == "_colorBlendingMaskTexture")
+            .find_map(|layer| layer.mask.as_ref())
+            .map(|reference| cache.resized(reference, width, height))
+            .transpose()?;
+        for pixel in 0..pixel_count {
+            let offset = pixel * 4;
+            let slot = mask.as_deref().map_or(0, |pixels| {
+                ver2_slot(std::array::from_fn(|k| unit(pixels[offset + k])))
+            });
+            let over = step.at(offset, slot);
+            for k in 0..3 {
+                target[offset + k] = unit_byte(overlay_blend(over[k], unit(target[offset + k])));
+            }
+        }
+    }
     Ok(Some(DecodedRgba8 {
         width,
         height,
         pixels: target,
     }))
+}
+
+/// The Ver2 overlay step of a material (`_overlayColorTexture`), the CPU form of
+/// the block in material_layers.wgsl: albedo = overlay(base = O, blend = albedo)
+/// on display values, O linear data at the mesh UV, 0.5 neutral.
+struct Ver2Overlay {
+    pixels: ImagePixels,
+    luma: u32,
+}
+
+impl Ver2Overlay {
+    fn of(
+        material: &PreviewCoreMaterial,
+        cache: &mut ImageCache,
+        width: u32,
+        height: u32,
+    ) -> Result<Option<Self>, SessionError> {
+        let Some(row) = material
+            .layers
+            .iter()
+            .skip(1)
+            .find(|layer| layer.is_ver2_overlay())
+        else {
+            return Ok(None);
+        };
+        let reference = row.diffuse.as_ref().expect("overlay colour map");
+        Ok(Some(Self {
+            pixels: cache.resized(reference, width, height)?,
+            luma: row.blend_flags.unwrap_or(0),
+        }))
+    }
+
+    /// O at a pixel for the drawn layer `slot`: the map, or its luma when the
+    /// layer asks.
+    fn at(&self, offset: usize, slot: usize) -> [f32; 3] {
+        let over: [f32; 3] = std::array::from_fn(|k| unit(self.pixels[offset + k]));
+        if self.luma & (1 << slot) != 0 {
+            [0.299 * over[0] + 0.587 * over[1] + 0.114 * over[2]; 3]
+        } else {
+            over
+        }
+    }
+
+    /// The step on a linear colour.
+    fn apply(&self, color: [f32; 3], offset: usize, slot: usize) -> [f32; 3] {
+        let over = self.at(offset, slot);
+        std::array::from_fn(|k| {
+            srgb_to_linear(overlay_blend(
+                over[k],
+                linear_to_srgb(color[k].clamp(0.0, 1.0)),
+            ))
+        })
+    }
 }
 
 /// True when the material has the RGB-layer shape the GPU layer path draws
@@ -1583,11 +1658,11 @@ fn compose_rgb_layer_base_color(
         return Ok(None);
     };
     let pixel_count = checked_pixel_count(width, height)?;
-    let overlay = material
-        .layers
-        .iter()
-        .skip(1)
-        .any(|layer| layer.mask_parameter != "_colorBlendingMaskTexture");
+    let overlay = material.layers.iter().skip(1).any(|layer| {
+        !layer.is_legacy_dye()
+            && !layer.is_ver2_overlay()
+            && layer.mask_parameter != "_colorBlendingMaskTexture"
+    });
     // Mode 4 of the layer shader: the legacy families' own rule.
     let legacy = overlay && material.is_legacy_dye_family();
     let legacy_seeds = if legacy {
@@ -1617,8 +1692,13 @@ fn compose_rgb_layer_base_color(
         mean: 1.0,
         flags: 15,
     });
+    let ver2_overlay = if overlay {
+        None
+    } else {
+        Ver2Overlay::of(material, cache, width, height)?
+    };
     for layer in material.layers.iter().skip(1) {
-        if layer.is_legacy_dye() {
+        if layer.is_legacy_dye() || layer.is_ver2_overlay() {
             continue;
         }
         let k = channel_index(&layer.mask_channel).min(2);
@@ -1750,6 +1830,10 @@ fn compose_rgb_layer_base_color(
                         amount,
                     )
                 });
+            }
+            // The overlay step, after grime and scratch.
+            if let Some(step) = ver2_overlay.as_ref() {
+                color = step.apply(color, offset, ver2_slot(weights));
             }
             std::array::from_fn(|k| color[k] * tint[k])
         };

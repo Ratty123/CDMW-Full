@@ -10,7 +10,8 @@ use crate::preview_core_material::{
 use cdmw_formats::MeshDocument;
 use cdmw_render_wgpu::{
     DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
-    LAYER_MODE_LEGACY, LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet,
+    LAYER_CONTROL_OVERLAY, LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LayerEntryUniform,
+    LayerTexture, LayerUniform, MaterialLayerSet, OVERLAY_SLOT,
 };
 use cdmw_texture::{
     DdsFormat, TextureRole, dds_mean_luminance_with_verified_sha256,
@@ -63,9 +64,10 @@ pub(super) fn eligible(material: &PreviewCoreMaterial) -> bool {
     let mut mask = None;
     let mut mask_parameter = None;
     for layer in material.layers.iter().skip(1) {
-        if layer.is_legacy_dye() {
-            // The legacy dye recolours the base beneath the layers; it is not
-            // a layer and does not decide whether the layer path draws them.
+        if layer.is_legacy_dye() || layer.is_ver2_overlay() {
+            // The legacy dye recolours the base beneath the layers and the Ver2
+            // overlay the colour above them; neither is a layer, and neither
+            // decides whether the layer path draws the layers.
             continue;
         }
         if layer.is_ver2_grime() {
@@ -329,12 +331,11 @@ fn build(
         return Ok(result);
     }
     let legacy = material.is_legacy_dye_family();
-    if material
-        .layers
-        .iter()
-        .skip(1)
-        .any(|layer| !layer.is_legacy_dye() && layer.mask_parameter != "_colorBlendingMaskTexture")
-    {
+    if material.layers.iter().skip(1).any(|layer| {
+        !layer.is_legacy_dye()
+            && !layer.is_ver2_overlay()
+            && layer.mask_parameter != "_colorBlendingMaskTexture"
+    }) {
         // The legacy families follow the game's traced rule; the other
         // families that read `_maskTexture` keep the weighted mix.
         result.uniform.control[0] = if legacy { LAYER_MODE_LEGACY } else { 2 };
@@ -361,6 +362,19 @@ fn build(
     }
     for layer in material.layers.iter().skip(1) {
         if layer.is_legacy_dye() {
+            continue;
+        }
+        if layer.is_ver2_overlay() {
+            // The game runs the overlay step in its Ver2 shaders only.
+            if result.uniform.control[0] == 1 {
+                result.uniform.control[3] |= LAYER_CONTROL_OVERLAY
+                    | (layer.blend_flags.unwrap_or(0) & 7) * LAYER_CONTROL_OVERLAY_LUMA;
+                result.textures[OVERLAY_SLOT] = Some(layer_texture(
+                    layer.diffuse.as_ref().expect("overlay colour map"),
+                    TextureRole::LayerMask,
+                    sources,
+                ));
+            }
             continue;
         }
         let k = channel(layer).expect("eligible channel");
@@ -1539,6 +1553,153 @@ mod tests {
                         (drawn - expected[channel]).abs() <= 0.004,
                         "authored {authored}, channel {channel}: {drawn} != {}",
                         expected[channel]
+                    );
+                }
+            }
+        }
+    }
+
+    /// The game's Ver2 overlay step: after grime and scratch every pixel becomes
+    /// overlay(base = `_overlayColorTexture`, blend = albedo) on display values
+    /// (0.5 neutral), with the map's luma for a layer that asks. CDMW dropped
+    /// the map, so the pattern it carries was missing (the weave of the robe
+    /// `cd_phm_00_ub_00_0376`). A wrapper without the map reads the engine's
+    /// neutral grey in the game, which changes nothing: no step.
+    #[test]
+    fn ver2_overlay_colour_map_is_applied_on_gpu_binding_and_cpu_fallback() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let cloth = [40_u8, 110, 60];
+        let lace = [230_u8, 190, 90];
+        // (name, the wrapper's map, luma bits, the layer drawn)
+        for (name, map, luma, channel) in [
+            ("the map's colour", Some(lace), 0_u32, "r"),
+            (
+                "neutral grey leaves the layer",
+                Some([128, 128, 128]),
+                0,
+                "r",
+            ),
+            ("no map, no step", None, 0, "r"),
+            ("luma for the layer that asks", Some(lace), 0b010, "g"),
+            ("not for another layer", Some(lace), 0b010, "r"),
+        ] {
+            let slot = usize::from(channel == "g");
+            let mut mask = [0_u8, 0, 0, 255];
+            mask[slot] = 255;
+            let bytes = [
+                make([cloth[0], cloth[1], cloth[2], 255]),
+                make(mask),
+                make(map.map_or([1, 2, 3, 255], |m| [m[0], m[1], m[2], 255])),
+            ];
+            let refs = [
+                reference(&bytes[0], "cloth.dds"),
+                reference(&bytes[1], "cloth_ma.dds"),
+                reference(&bytes[2], "cloth_o.dds"),
+            ];
+            let mut base = layer("base", "r", &refs[0]);
+            base.diffuse = None;
+            base.mask = None;
+            let mut detail = layer("detail", channel, &refs[0]);
+            detail.source_parameter = ["_detailDiffuseMaskR", "_detailDiffuseMaskG"][slot].into();
+            detail.mask = Some(refs[1].clone());
+            detail.tint = [1.0, 1.0, 1.0, 0.0];
+            let mut layers = vec![base, detail];
+            if map.is_some() {
+                let mut overlay = layer("overlay", "", &refs[2]);
+                overlay.source_parameter = "_overlayColorTexture".into();
+                overlay.mask_parameter = String::new();
+                overlay.mask = None;
+                overlay.blend_flags = Some(luma);
+                assert!(overlay.is_ver2_overlay());
+                layers.push(overlay);
+            }
+            let value = material(layers);
+            assert!(eligible(&value), "{name}: the overlay keeps the layer path");
+            let used = 2 + usize::from(map.is_some());
+            let graph = PreviewCoreMaterialGraph {
+                schema_version: 1,
+                graph_version: 5,
+                semantics_version: 10,
+                quality: "full".into(),
+                resources_included: true,
+                source_edge_count: used as u64,
+                unique_resource_count: used as u64,
+                copied_resource_count: used as u64,
+                unique_resource_bytes: bytes[..used].iter().map(|b| b.len() as u64).sum(),
+                materials: vec![value],
+            };
+            let over: Option<[f32; 3]> = map.map(|m| {
+                let over: [f32; 3] = std::array::from_fn(|k| f32::from(m[k]) / 255.0);
+                if luma & (1 << slot) != 0 {
+                    [0.299 * over[0] + 0.587 * over[1] + 0.114 * over[2]; 3]
+                } else {
+                    over
+                }
+            });
+            let expected: [f32; 3] = std::array::from_fn(|k| {
+                let albedo = f32::from(cloth[k]) / 255.0;
+                linear(match over {
+                    None => albedo,
+                    Some(over) if over[k] < 0.5 => 2.0 * over[k] * albedo,
+                    Some(over) => 1.0 - 2.0 * (1.0 - over[k]) * (1.0 - albedo),
+                })
+            });
+            for gpu in [true, false] {
+                let mut resources = Vec::new();
+                let (_, sets) = prepare(
+                    &graph,
+                    &[],
+                    &document,
+                    &mut resources,
+                    gpu,
+                    false,
+                    |r| {
+                        Ok(bytes[refs
+                            .iter()
+                            .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                            .unwrap()]
+                        .clone())
+                    },
+                    &|| false,
+                )
+                .unwrap();
+                if gpu {
+                    let control = sets[0].uniform.control;
+                    assert_eq!(control[0], 1, "{name}");
+                    assert_eq!(
+                        control[3] & LAYER_CONTROL_OVERLAY != 0,
+                        map.is_some(),
+                        "{name}"
+                    );
+                    assert_eq!(control[3] / LAYER_CONTROL_OVERLAY_LUMA & 7, luma, "{name}");
+                    assert_eq!(
+                        sets[0].textures[OVERLAY_SLOT]
+                            .as_ref()
+                            .map(|texture| texture.source_sha256.clone()),
+                        map.map(|_| refs[2].sha256.clone()),
+                        "{name}"
+                    );
+                    continue;
+                }
+                let composed = resources
+                    .iter()
+                    .find(|r| r.role == TextureRole::BaseColor)
+                    .expect("composed base colour");
+                let decoded =
+                    cdmw_texture::decode_dds_rgba8(&composed.bytes, composed.role).unwrap();
+                for k in 0..3 {
+                    let drawn = linear(f32::from(decoded.pixels[k]) / 255.0);
+                    assert!(
+                        (drawn - expected[k]).abs() <= 0.006,
+                        "{name}, channel {k}: {drawn} != {}",
+                        expected[k]
                     );
                 }
             }

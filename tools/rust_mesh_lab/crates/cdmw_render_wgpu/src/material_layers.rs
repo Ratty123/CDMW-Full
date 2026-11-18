@@ -8,17 +8,28 @@ pub const LAYER_CONTROL_NO_BASE: u32 = 1;
 /// legacy dye of a part without colour layers); normal and response stay with
 /// the surface shader's own maps.
 pub const LAYER_CONTROL_COLOUR_ONLY: u32 = 2;
+/// `LayerUniform::control[3]` bit: the Ver2 overlay step runs with the wrapper's
+/// map in `OVERLAY_SLOT`. The game runs the step on every Ver2 pixel; without a
+/// map of the wrapper's own it reads the engine's neutral grey, which changes
+/// nothing, so the step is then left out.
+pub const LAYER_CONTROL_OVERLAY: u32 = 4;
+/// `LayerUniform::control[3]`, shifted left by the layer's channel (0 R, 1 G, 2
+/// B): that layer overlays the map's luma (`_dyeingCustomPropertyMask* & 0x10000`).
+pub const LAYER_CONTROL_OVERLAY_LUMA: u32 = 16;
 /// `LayerUniform::control[0]` of the legacy families' rule.
 pub const LAYER_MODE_LEGACY: u32 = 4;
 /// Layer textures: the blend mask; colour, normal and response for R, G, B; the
-/// detail mask; then grime colour, normal and response for R, G, B.
-pub const LAYER_TEXTURE_SLOTS: usize = 20;
+/// detail mask; grime colour, normal and response for R, G, B; then the overlay
+/// colour map.
+pub const LAYER_TEXTURE_SLOTS: usize = 21;
 /// Slot of `_detailMaskTexture` (red marks scratches, green grime).
 pub const DETAIL_MASK_SLOT: usize = 10;
 /// First grime slot; grime of channel k starts at `GRIME_SLOT + 3 * k`.
 pub const GRIME_SLOT: usize = 11;
+/// Slot of `_overlayColorTexture` (Ver2), sampled at the mesh UV as linear data.
+pub const OVERLAY_SLOT: usize = 20;
 /// Sampled textures of one fragment stage with layers bound: 16 material maps,
-/// the layer slots and the shadow map.
+/// the layer slots and the shadow map (38 of them; the limit leaves two spare).
 const REQUIRED_SAMPLED_TEXTURES: u32 = 40;
 
 #[repr(C)]
@@ -59,7 +70,8 @@ pub struct LayerUniform {
     pub base_color: [f32; 4],
     /// Mode (1 normalized mask, 2 masked overlays, 3 eye alpha overlays, 4 the
     /// legacy families' dye and one detail layer per pixel), skin flag, eye
-    /// flag, bits (1 no base colour map, 2 colour only: `COLOUR_ONLY`).
+    /// flag, bits (`LAYER_CONTROL_*`: no base colour map, colour only, the Ver2
+    /// overlay step and its options).
     pub control: [u32; 4],
 }
 
@@ -196,7 +208,7 @@ pub(super) fn binding(
                     ..Default::default()
                 })
             } else {
-                let texture = if index == 0 || index == DETAIL_MASK_SLOT {
+                let texture = if index == 0 || index == DETAIL_MASK_SLOT || index == OVERLAY_SLOT {
                     &defaults.layer_mask
                 } else {
                     let set = if index < DETAIL_MASK_SLOT {

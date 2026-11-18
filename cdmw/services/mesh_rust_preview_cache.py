@@ -76,9 +76,10 @@ _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
 _MAX_CLOTH_PARTICLES = 2_000_000
 _MAX_CLOTH_CONSTRAINTS = 4_000_000
 _LOGGER = logging.getLogger(__name__)
-# Rebuild previews whose layer graph lacks the legacy families' dye rows.
+# Rebuild previews whose layer graph lacks the legacy families' dye rows or the
+# Ver2 overlay row.
 # Source DDS caches stay reusable; only derived renderer packages change.
-RUST_PREVIEW_CACHE_SCHEMA = 12
+RUST_PREVIEW_CACHE_SCHEMA = 13
 
 
 def _cancelled(callback: Callable[[], bool] | None) -> bool:

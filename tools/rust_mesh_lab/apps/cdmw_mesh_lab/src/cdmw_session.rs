@@ -330,6 +330,15 @@ impl PreviewCoreMaterialLayer {
             && matches!(self.mask_channel.as_str(), "r" | "g" | "b")
     }
 
+    /// Whether this row is the Ver2 overlay step: `_overlayColorTexture` in
+    /// `diffuse`, and in `blend_flags` one bit per colour layer (1 R, 2 G, 4 B)
+    /// that overlays the map's luma.
+    pub fn is_ver2_overlay(&self) -> bool {
+        self.layer_role == "overlay"
+            && self.source_parameter == "_overlayColorTexture"
+            && self.diffuse.is_some()
+    }
+
     /// The signed roughness and metal steps of a scratch, each in -1 to 1.
     pub fn scratch_steps(&self) -> [f32; 2] {
         self.scratch.map_or([0.0; 2], |bytes| {

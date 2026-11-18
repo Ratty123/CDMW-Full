@@ -731,6 +731,8 @@ def _preview_core_layer_parameter_index(parameters):
             "scratchtintcolorr", "scratchtintcolorg", "scratchtintcolorb",
             "masktexture", "dyeingcolormaskr", "dyeingcolormaskg", "dyeingcolormaskb",
             "detaildiffusemaskr", "detaildiffusemaskg", "detaildiffusemaskb",
+            "overlaycolortexture", "dyeingcustompropertymaskr", "dyeingcustompropertymaskg",
+            "dyeingcustompropertymaskb",
         }:
             continue
         key = (
@@ -741,7 +743,7 @@ def _preview_core_layer_parameter_index(parameters):
         value = parameter.get("integer_value")
         if value is None:
             value = parameter.get("value", "")
-        if name.casefold().lstrip("_") in {"detailmasktexture", "masktexture"}:
+        if name.casefold().lstrip("_") in {"detailmasktexture", "masktexture", "overlaycolortexture"}:
             # A texture parameter: the layer rule needs the file, not a number.
             value = {
                 "source": str(parameter.get("resolved_source_path", "") or "").strip(),
@@ -877,6 +879,84 @@ def _preview_core_legacy_dye_layers(raw_layers, parameter_index, source_package)
     return layers
 
 
+# The game's Ver2 shader families. Each runs the overlay step after grime and
+# scratch: albedo = overlay(base = `_overlayColorTexture`, blend = albedo).
+_VER2_LAYER_FAMILIES = frozenset({
+    "skinnedmeshstandard_ver2", "skinnedmeshcloth_ver2", "skinnedmeshfur_ver2",
+    "skinnedmeshemissive_ver2", "skinnedmeshamplifiedglare_ver2", "skinnedmeshstaticstandard",
+    "skinnedmeshsail_ver2", "skinnedmeshtorncloth_ver2",
+})
+
+
+def _preview_core_ver2_wrapper(raw_layers, parameter_index):
+    """The Ver2 wrapper a batch's colour layers belong to: (a layer row of it, its parameters)."""
+    for layer in raw_layers:
+        if (
+            isinstance(layer, Mapping)
+            and str(layer.get("layer_role", "") or "").strip().casefold() == "detail"
+            and str(layer.get("mask_parameter", "") or "").strip() == "_colorBlendingMaskTexture"
+            and str(layer.get("shader_family", "") or "").strip().casefold() in _VER2_LAYER_FAMILIES
+        ):
+            owner = str(layer.get("owner_wrapper_item_id", "") or "").strip()
+            wrapper_index = _preview_core_int(layer.get("material_wrapper_index"), -1)
+            if not owner or wrapper_index < 0:
+                return None
+            parameters = parameter_index.get(
+                (str(layer.get("component_scope_id", "") or ""), owner, wrapper_index), (),
+            )
+            return layer, {str(name).casefold().lstrip("_"): value for name, value in parameters}
+    return None
+
+
+def _preview_core_ver2_overlay_layer(raw_layers, parameter_index, source_package):
+    """The Ver2 overlay step of a batch as one `overlay` row.
+
+    The game applies `_overlayColorTexture` to every pixel of a Ver2 material,
+    after grime and scratch, as an overlay blend whose base is the map (0.5 is
+    neutral). A layer whose `_dyeingCustomPropertyMask*` has bit 0x10000
+    overlays the map's luma: one bit per layer in `blend_flags` (1 R, 2 G, 4 B).
+
+    A wrapper without the parameter reads the engine's default there,
+    `texture/nonetexture0xff888888.dds`, whose pixels are 0x80 whatever its name
+    says: neutral, so such a wrapper gets no row. A declared map whose file is
+    not there gets none either: its content is not known.
+    """
+    if any(
+        isinstance(layer, Mapping)
+        and str(layer.get("source_parameter", "") or "").strip() == "_overlayColorTexture"
+        for layer in raw_layers
+    ):
+        return []
+    wrapper = _preview_core_ver2_wrapper(raw_layers, parameter_index)
+    if wrapper is None:
+        return []
+    owner_layer, values = wrapper
+    row = {
+        "component_scope_id": str(owner_layer.get("component_scope_id", "") or ""),
+        "owner_wrapper_item_id": owner_layer.get("owner_wrapper_item_id", ""),
+        "material_wrapper_index": owner_layer.get("material_wrapper_index"),
+        "layer_role": "overlay",
+        "mask_channel": "",
+        "shader_family": owner_layer.get("shader_family", ""),
+        "shader_rule": owner_layer.get("shader_rule", ""),
+        "evidence_grade": owner_layer.get("evidence_grade", ""),
+        "source_parameter": "_overlayColorTexture",
+        "mask_parameter": "",
+        "weight": 1.0,
+        "tint": [1.0, 1.0, 1.0, 0.0],
+    }
+    overlay = _preview_core_detail_mask(values, source_package, "overlaycolortexture")
+    if overlay is None:
+        return []
+    row["diffuse_source"], row["diffuse_archive_path"] = overlay
+    row["blend_flags"] = sum(
+        1 << bit
+        for bit, channel in enumerate("rgb")
+        if _preview_core_int(values.get(f"dyeingcustompropertymask{channel}"), 0) & 0x10000
+    )
+    return [row]
+
+
 def _copy_preview_core_material_layers(
     raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes, copied_sources,
     materials, source_edge_count, cancelled, expected_root_identity, parameter_index, durable=True,
@@ -893,9 +973,10 @@ def _copy_preview_core_material_layers(
             raise ValueError("Preview Core material-layer graph exceeds the bounded layer limit.")
         raw_layers = list(raw_layers)
         raw_layers.extend(
-            _preview_core_legacy_dye_layers(raw_layers, parameter_index, source_package)[
-                : _PREVIEW_CORE_MATERIAL_LAYER_LIMIT - len(raw_layers)
-            ]
+            (
+                _preview_core_legacy_dye_layers(raw_layers, parameter_index, source_package)
+                + _preview_core_ver2_overlay_layer(raw_layers, parameter_index, source_package)
+            )[: _PREVIEW_CORE_MATERIAL_LAYER_LIMIT - len(raw_layers)]
         )
         layers: list[dict[str, object]] = []
         for raw_layer in raw_layers:
@@ -985,6 +1066,8 @@ def _copy_preview_core_material_layers(
                 )
             else:
                 detail_mask = None
+            if role == "overlay" and source_parameter == "_overlayColorTexture" and "blend_flags" in raw_layer:
+                layer["blend_flags"] = _preview_core_int(raw_layer.get("blend_flags"), 0) & 7
             layer_has_source = False
             for resource_role in ("diffuse", "normal", "material", "height", "mask", "detail_mask"):
                 _cancelled(cancelled)

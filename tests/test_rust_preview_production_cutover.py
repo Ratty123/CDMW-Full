@@ -525,6 +525,65 @@ def test_a_missing_mask_texture_costs_the_dye_not_the_preview(tmp_path: Path):
     assert [layer["layer_role"] for layer in layers] == ["base"]
 
 
+def _ver2_overlay_fixture(tmp_path: Path, family: str, *, declared: bool = True, exists: bool = True,
+                          luma=()):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    overlay = tmp_path / "plate_o.dds"
+    if exists:
+        overlay.write_bytes(b"DDS " + b"O" * 512)
+    base = native["batches"][0]["material_layers"][0]
+    native["batches"][0]["material_layers"].append(dict(
+        base, layer_role="detail", mask_channel="r", component_scope_id="piece-a", shader_family=family,
+        source_parameter="_detailDiffuseMaskR", mask_parameter="_colorBlendingMaskTexture",
+        mask_source=base["diffuse_source"], mask_archive_path="character/texture/plate_ma.dds"))
+    wrapper = dict(component_scope_id="piece-a", owner_wrapper_item_id=base["owner_wrapper_item_id"],
+                   material_wrapper_index=base["material_wrapper_index"])
+    parameters = [dict(wrapper, parameter_name="_dyeingGlobalOpacity", integer_value=0x00FFFFFF)]
+    if declared:
+        parameters.append(dict(wrapper, parameter_name="_overlayColorTexture", value="",
+                               resolved_source_path=str(overlay),
+                               resolved_archive_path="character/texture/plate_o.dds"))
+    for channel in luma:
+        parameters.append(dict(wrapper, parameter_name=f"_dyeingCustomPropertyMask{channel}",
+                               integer_value=0x10000 | 0x21))
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=len(parameters),
+                                           transported_parameter_count=len(parameters))
+    (source / "manifest.json").write_text(json.dumps(native))
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    layers = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"]
+    return package, overlay, [layer for layer in layers if layer["layer_role"] == "overlay"]
+
+
+def test_a_ver2_wrapper_states_its_overlay_colour_map_as_one_row(tmp_path: Path):
+    """The game applies `_overlayColorTexture` to every Ver2 pixel; CDMW dropped it."""
+    package, overlay, rows = _ver2_overlay_fixture(tmp_path, "SkinnedMeshCloth_Ver2", luma="GB")
+    (row,) = rows
+    assert row["source_parameter"] == "_overlayColorTexture" and row["mask_parameter"] == ""
+    assert row["diffuse_declared"] is True and row["mask_declared"] is False
+    assert row["diffuse_archive_path"] == "character/texture/plate_o.dds"
+    assert (package.manifest_path.parent / row["diffuse"]["path"]).read_bytes() == overlay.read_bytes()
+    assert row["blend_flags"] == 0b110  # Layers G and B overlay the map's luma.
+
+
+def test_a_ver2_wrapper_without_an_overlay_map_gets_no_overlay_step(tmp_path: Path):
+    """The engine's default there is neutral grey (0x80 pixels): the game's step changes nothing."""
+    _package, _overlay, rows = _ver2_overlay_fixture(tmp_path, "SkinnedMeshStandard_Ver2", declared=False)
+    assert rows == []
+
+
+def test_a_missing_overlay_map_leaves_the_overlay_step_out(tmp_path: Path):
+    _package, overlay, rows = _ver2_overlay_fixture(tmp_path, "SkinnedMeshStandard_Ver2", exists=False)
+    assert not overlay.exists() and rows == []
+
+
+@pytest.mark.parametrize("family", ("SkinnedMeshStandard", "SkinnedMeshCloth", "SkinnedMeshHair"))
+def test_only_ver2_families_run_the_overlay_step(tmp_path: Path, family: str):
+    _package, _overlay, rows = _ver2_overlay_fixture(tmp_path, family)
+    assert rows == []
+
+
 def _called_names(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     result: set[str] = set()
@@ -759,7 +818,7 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
 ) -> None:
     from cdmw.services import mesh_rust_preview_cache as cache
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 12
+    assert RUST_PREVIEW_CACHE_SCHEMA == 13
     upgraded = cache.rust_preview_package_cache_key("same-archive-identity")
     monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 8)
     assert cache.rust_preview_package_cache_key("same-archive-identity") != upgraded

@@ -31,6 +31,8 @@ struct LayerUniform {
 @group(2) @binding(18) var grime_b_color: texture_2d<f32>;
 @group(2) @binding(19) var grime_b_normal: texture_2d<f32>;
 @group(2) @binding(20) var grime_b_sp: texture_2d<f32>;
+// _overlayColorTexture (Ver2): linear data at the mesh UV.
+@group(2) @binding(21) var overlay_color: texture_2d<f32>;
 
 fn layer_uv(layer: LayerEntry, uv: vec2<f32>) -> vec2<f32> {
     return vec2<f32>(layer.affine.x*uv.x + layer.affine.z*uv.y,
@@ -293,6 +295,18 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
         let wear = detail_texel.r * step(0.5, layer.scratch.z);
         orm = vec3<f32>(orm.r, orm.g + (1.0 - orm.g) * layer.scratch.x * wear, orm.b + layer.scratch.y * wear);
         color = mix(color, srgb_to_linear(layer_overlay(vec3<f32>(detail_texel.r), layer.scratch_tint.rgb)), clamp(layer.scratch_tint.a * wear, 0.0, 1.0));
+        // The game's overlay step, after grime and scratch on every pixel:
+        // albedo = srgb_to_linear(overlay(base = O, blend = linear_to_srgb(albedo))),
+        // O = _overlayColorTexture at the mesh UV (0.5 is neutral), its luma when the
+        // drawn layer asks for it. A wrapper without the map reads the engine's
+        // neutral grey there, which changes nothing: the bit is then not set.
+        if (layer_uniform.control.w & 4u) != 0u {
+            var over = textureSampleBias(overlay_color, material_sampler, uv, 0.0).rgb;
+            if (layer_uniform.control.w & (16u << slot)) != 0u {
+                over = vec3<f32>(dot(over, vec3<f32>(0.299, 0.587, 0.114)));
+            }
+            color = srgb_to_linear(layer_overlay(over, linear_to_srgb(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)))));
+        }
     }
     out.color = color;
     out.normal = normal;

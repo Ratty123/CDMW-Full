@@ -801,6 +801,154 @@ fn offscreen_legacy_dye_follows_the_mask_and_its_alpha() -> TestResult {
     Ok(())
 }
 
+/// The game's Ver2 overlay step on the GPU: after grime and scratch every pixel
+/// becomes overlay(base = `_overlayColorTexture`, blend = albedo) on display
+/// values, with the map's luma for a layer that asks. Without the step bit (a
+/// wrapper without the map) the layer draws as before.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_ver2_overlay_colour_map_follows_the_game() -> TestResult {
+    use cdmw_render_wgpu::{
+        LAYER_CONTROL_OVERLAY, LAYER_CONTROL_OVERLAY_LUMA, LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet, OVERLAY_SLOT,
+    };
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.5, 0.5]; 4];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let linear = |value: f32| {
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let cloth = [40_u8, 110, 60];
+    let lace = [230_u8, 190, 90];
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(1, 1, &[0, 255, 0, 255], TextureRole::BaseColor)?;
+    let textures = [HeadlessMaterialTexture {
+        bytes: &base,
+        role: TextureRole::BaseColor,
+        material_indices_by_lod: &ownership,
+    }];
+    let temporary = tempdir()?;
+    // (name, control bits, the wrapper's map, expected O; None: no overlay step)
+    for (name, bits, map, over) in [
+        ("no step", 0, None, None),
+        (
+            "the map's colour",
+            LAYER_CONTROL_OVERLAY,
+            Some(lace),
+            Some([230.0 / 255.0, 190.0 / 255.0, 90.0 / 255.0]),
+        ),
+        (
+            "a neutral map",
+            LAYER_CONTROL_OVERLAY,
+            Some([128, 128, 128]),
+            Some([128.0 / 255.0; 3]),
+        ),
+        (
+            "the map's luma for layer R",
+            LAYER_CONTROL_OVERLAY | LAYER_CONTROL_OVERLAY_LUMA,
+            Some(lace),
+            Some([(0.299 * 230.0 + 0.587 * 190.0 + 0.114 * 90.0) / 255.0; 3]),
+        ),
+        (
+            "luma asked by layer G only",
+            LAYER_CONTROL_OVERLAY | LAYER_CONTROL_OVERLAY_LUMA * 2,
+            Some(lace),
+            Some([230.0 / 255.0, 190.0 / 255.0, 90.0 / 255.0]),
+        ),
+    ] {
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                base_color: [1.0; 4],
+                control: [1, 0, 0, bits],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture([255, 0, 0, 255], TextureRole::LayerMask)?);
+        layer.textures[1] = Some(texture(
+            [cloth[0], cloth[1], cloth[2], 255],
+            TextureRole::BaseColor,
+        )?);
+        if let Some(map) = map {
+            layer.textures[OVERLAY_SLOT] = Some(texture(
+                [map[0], map[1], map[2], 255],
+                TextureRole::LayerMask,
+            )?);
+        }
+        layer.uniform.layers[0] = LayerEntryUniform {
+            dye: [1.0, 1.0, 1.0, 0.0],
+            affine: [1.0, 0.0, 0.0, 1.0],
+            offset: [0.0, 0.0, 15.0, 0.0],
+            properties: [1.0, 0.2, 1.0, 0.0],
+            ..Default::default()
+        };
+        let colour = temporary.path().join(format!("{name}-base.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            &[layer],
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &colour,
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: None,
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(colour)?;
+        let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+        for channel in 0..3 {
+            let albedo = f32::from(cloth[channel]) / 255.0;
+            let expected = linear(match over {
+                None => albedo,
+                Some(over) if over[channel] < 0.5 => 2.0 * over[channel] * albedo,
+                Some(over) => 1.0 - 2.0 * (1.0 - over[channel]) * (1.0 - albedo),
+            });
+            let drawn = linear(f32::from(pixel[2 - channel]) / 255.0);
+            assert!(
+                (drawn - expected).abs() <= 0.012,
+                "{name}: channel {channel}, {drawn} != {expected}"
+            );
+        }
+    }
+    Ok(())
+}
+
 /// The game's Ver2 scratch rule: where `_detailMaskTexture` red marks a scratch,
 /// the drawn layer's roughness moves through its remaining range and its metal by
 /// the plain step, and the scratch tint is overlaid on the colour.
