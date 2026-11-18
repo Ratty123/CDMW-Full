@@ -14,7 +14,7 @@ import pytest
 
 from cdmw.services.mesh_rust_preview_package import (
     LEAF_SHADER_KIND,
-    _apply_preview_core_leaf_surfaces,
+    _apply_preview_core_family_surfaces,
     leaf_surface_presentation,
 )
 
@@ -75,7 +75,7 @@ def test_a_leaf_batch_is_found_by_its_base_layer_wrapper() -> None:
         for index in range(3)
     ]
 
-    _apply_preview_core_leaf_surfaces(presentations, graph, batches, parameters)
+    _apply_preview_core_family_surfaces(presentations, graph, batches, parameters)
 
     frond, leaf, stick = presentations
     assert frond["shader_controls"][0] == 20.0

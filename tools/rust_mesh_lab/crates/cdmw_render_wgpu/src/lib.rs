@@ -579,6 +579,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
 
     var texel = textureSampleBias(base_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
     if material.flags == 0u && fixed_studio { texel = vec4(0.56,0.58,0.62,1.0); }
+    if shader_kind == 1.0 && shader_value(20u) > 0.5 && (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u
+        && texel.a >= material.surface_factors.w && texel.a > 0.0 {
+        // The game's Wing shader (and Standard's alpha-test permutation): what
+        // survives the 0.5 cut is divided by its alpha before any other step.
+        texel = vec4<f32>(min(texel.rgb / texel.a, vec3<f32>(1.0)), texel.a);
+    }
     // A colour-only layer binding (the legacy dye of a part without colour
     // layers) replaces the base colour and nothing else.
     let layer_colour_only = material_layers_colour_only();
@@ -12545,6 +12551,29 @@ mod tests {
         // The surface shader overrides the map's roughness and metal for it.
         assert!(SHADER.contains("if shader_kind == 20.0 {"));
         assert!(SHADER.contains("roughness = clamp(select(shader_value(5u), shader_value(4u), front_facing), 0.04, 1.0);"));
+    }
+
+    #[test]
+    fn wing_controls_draw_the_flow_map_discard_and_the_alpha_test_division() {
+        // Kind 1: the game's Wing rule. Progress 2, the preview's default, and
+        // the rgb / a step on lane 20.
+        let mut controls = [0.0; 32];
+        controls[0] = 1.0;
+        controls[4] = 2.0;
+        controls[20] = 1.0;
+        let factors = MaterialPreviewFactors {
+            shader_controls: Some(controls),
+            alpha_cutoff: Some(0.5),
+            ..Default::default()
+        };
+        assert!(validate_material_factor_ownership(factors, &[vec![0]]).is_ok());
+        // The traced discard: p = saturate(2 g - progress) * 2, cut where p > fr.
+        assert!(SHADER.contains(
+            "let cut = clamp(2.0 * clamp(2.0 * mask - shader_value(4u), 0.0, 1.0) - red, 0.0, 1.0);"
+        ));
+        assert!(SHADER.contains("let mask = select(blue, 1.0 - blue, shader_value(5u) >= 0.001);"));
+        assert!(SHADER.contains("if shader_kind == 1.0 && shader_value(20u) > 0.5"));
+        assert!(SHADER.contains("texel = vec4<f32>(min(texel.rgb / texel.a, vec3<f32>(1.0)), texel.a);"));
     }
 
     #[test]

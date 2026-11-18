@@ -1519,8 +1519,77 @@ def leaf_surface_presentation(family, parameters):
     }
 
 
-def _apply_preview_core_leaf_surfaces(presentations, graph, raw_batches, parameters):
-    """Draw the parts of the game's leaf shaders by their own rule.
+# shader_controls[0] of a Wing part: the renderer's wing rule (its flow-map
+# discard). Lane 20 asks for the alpha-test step's rgb / a.
+WING_SHADER_KIND = 1.0
+# The preview's _wingFlowProgress where the wrapper sets none: the formula's
+# own "whole wing shown" point (inferred, see wing_surface_presentation).
+WING_DEFAULT_PROGRESS = 2.0
+
+
+def wing_flow_discard(flow_red, flow_blue, progress, inverse):
+    """The second discard of the game's Wing shader (permutation 20670511ba45c617).
+
+        g = (_wingFlowInverse >= 0.001) ? 1 - fb : fb
+        p = saturate(2 g - _wingFlowProgress) * 2
+        discard if saturate(p - fr) > 0.001
+
+    fr is `_wingFlowTex1` red at uv * 4, fb its blue at uv. The renderer's
+    shader kind 1 draws this rule; this is its statement for tests.
+    """
+    g = 1.0 - flow_blue if inverse >= 0.001 else flow_blue
+    p = min(1.0, max(0.0, 2.0 * g - progress)) * 2.0
+    return min(1.0, max(0.0, p - flow_red)) > 0.001
+
+
+def wing_surface_presentation(parameters):
+    """How the preview draws a part of the game's Wing shader.
+
+    Wing is the Standard albedo path (the first 673 instructions of its pixel
+    shader match Standard's alpha-test permutation) plus two discards, both
+    unconditional because ALPHA_TEST is a define of the material file:
+
+        discard if _baseColorTexture.a < 0.5 (with the instance's alpha-test bit),
+        then base = rgb / a
+        the flow-map discard of `wing_flow_discard`
+
+    `_fresnelAlpha` only shades the emissive colour by view angle and no
+    wrapper sets it (default 0: no shading). No shipped wrapper sets
+    `_wingFlowProgress`, `_wingFlowInverse` or `_wingFlowTex1` either; the
+    material's default progress, -0.1, keeps 0.5% of the default flow map
+    (cdfx_wing_flowmap.dds). The game drives the progress at run time from
+    the unfold effect, which is not in the material, so the preview takes 2.0,
+    where the formula shows the whole wing, unless the wrapper states one.
+
+    Returns shader_controls (kind 1: lane 4 the progress, lane 5 the inverse
+    switch, lane 20 the rgb / a step), alpha_mode and alpha_cutoff.
+    """
+    values = {str(name).casefold().lstrip("_"): value for name, value in dict(parameters).items()}
+
+    def number(name, default):
+        try:
+            value = float(values.get(name, default))
+        except (TypeError, ValueError):
+            return default
+        return value if math.isfinite(value) else default
+
+    controls = [0.0] * 32
+    controls[0] = WING_SHADER_KIND
+    controls[4] = number("wingflowprogress", WING_DEFAULT_PROGRESS)
+    controls[5] = number("wingflowinverse", 0.0)
+    controls[20] = 1.0
+    return {"shader_controls": controls, "alpha_mode": "cutout", "alpha_cutoff": 0.5}
+
+
+def _family_surface_presentation(family, parameters):
+    family = str(family or "").strip().casefold()
+    if family == "skinnedmeshwing":
+        return wing_surface_presentation(parameters)
+    return leaf_surface_presentation(family, parameters)
+
+
+def _apply_preview_core_family_surfaces(presentations, graph, raw_batches, parameters):
+    """Draw the parts of the game's leaf and Wing shaders by their own rules.
 
     The wrapper is the base layer's: its model scope, wrapper item and index.
     """
@@ -1528,7 +1597,10 @@ def _apply_preview_core_leaf_surfaces(presentations, graph, raw_batches, paramet
     for parameter in parameters:
         if (
             isinstance(parameter, Mapping)
-            and str(parameter.get("shader_family", "") or "").casefold() in _LEAF_ROUGHNESS
+            and (
+                str(parameter.get("shader_family", "") or "").casefold() in _LEAF_ROUGHNESS
+                or str(parameter.get("shader_family", "") or "").casefold() == "skinnedmeshwing"
+            )
         ):
             key = (
                 str(parameter.get("component_scope_id", "") or ""),
@@ -1566,7 +1638,7 @@ def _apply_preview_core_leaf_surfaces(presentations, graph, raw_batches, paramet
         ))
         if wrapper is None:
             continue
-        surface = leaf_surface_presentation(*wrapper)
+        surface = _family_surface_presentation(*wrapper)
         if surface is not None:
             row.update(surface)
 
@@ -2191,7 +2263,7 @@ def build_rust_preview_package_from_preview_core(
         presentations, preview_core_material_graph, raw_batches,
         raw_material_conservation.get("parameters", ()), source_package, center, scale,
     )
-    _apply_preview_core_leaf_surfaces(
+    _apply_preview_core_family_surfaces(
         presentations, preview_core_material_graph, raw_batches,
         raw_material_conservation.get("parameters", ()),
     )
