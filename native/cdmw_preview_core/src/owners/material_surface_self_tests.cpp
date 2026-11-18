@@ -695,6 +695,45 @@ static void run_shared_mask_wrapper_owner_contract_self_test() {
     }
 }
 
+static void run_batch_shader_family_owner_contract_self_test() {
+    NativeSubmesh crown;
+    crown.name = "CD_PHW_00_Hel_00_0219_Crown";
+    crown.material = "cd_phw_00_hel_00_0219_crown";
+    crown.source_local_submesh_index = 1;
+    TextureBinding veil_base;
+    veil_base.role = "base";
+    veil_base.source_path = "cd_phw_00_hel_00_0219.dds";
+    veil_base.archive_path = "character/texture/cd_phw_00_hel_00_0219.dds";
+    veil_base.texture_name = "cd_phw_00_hel_00_0219.dds";
+    veil_base.material_name = "cd_phw_00_hel_00_0219";
+    veil_base.shader_family = "SkinnedMeshTransparency_Ver2";
+    veil_base.shader_rule = "transparency";
+    TextureBinding crown_normal;
+    crown_normal.role = "normal";
+    crown_normal.source_path = "cd_phw_00_hel_00_0219_crown_n.dds";
+    crown_normal.archive_path = "character/texture/cd_phw_00_hel_00_0219_crown_n.dds";
+    crown_normal.texture_name = "cd_phw_00_hel_00_0219_crown_n.dds";
+    crown_normal.material_name = "cd_phw_00_hel_00_0219_crown";
+    crown_normal.shader_family = "SkinnedMeshStandard_Ver2";
+    crown_normal.shader_rule = "standard";
+    const std::vector<const TextureBinding*> bindings{&veil_base, &crown_normal};
+    require_material_contract(
+        material_identity_match_score(crown_normal, crown) > material_identity_match_score(veil_base, crown),
+        "the crown's own material did not outscore the veil's shared base");
+    require_material_contract(
+        batch_shader_binding(bindings, crown) == &crown_normal,
+        "a part took its shader family from a sibling material's shared base");
+    TextureBinding unnamed;
+    unnamed.role = "base";
+    const std::vector<const TextureBinding*> no_family{&unnamed};
+    require_material_contract(
+        batch_shader_binding(no_family, crown) == &unnamed,
+        "a batch without a shader family lost its first binding");
+    require_material_contract(
+        batch_shader_binding({}, crown) == nullptr,
+        "an empty batch found a shader binding");
+}
+
 static void run_material_contract_self_test() {
     ArchiveEntryRef wanted_texture;
     wanted_texture.path = "leveldata/proxylod/stone.dds";
@@ -708,6 +747,7 @@ static void run_material_contract_self_test() {
     }
     run_pbd_profile_decoding_self_test();
     run_cached_material_owner_contract_self_test();
+    run_batch_shader_family_owner_contract_self_test();
     run_shared_mask_wrapper_owner_contract_self_test();
     run_embedded_mesh_owner_contract_self_test();
     run_bounded_material_dependencies_self_test();

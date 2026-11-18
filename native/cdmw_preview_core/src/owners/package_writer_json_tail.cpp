@@ -48,8 +48,8 @@ static void append_package_batch_runtime_json(PackageWriteState& state, const Pa
         << "},"
         << "\"has_texture_coordinates\":true,"
         << "\"tangents_usable\":true,"
-        << "\"shader_family\":\"" << json_escape(batch.bindings.empty() ? "" : batch.bindings.front()->shader_family) << "\","
-        << "\"shader_rule\":\"" << json_escape(batch.bindings.empty() ? "generic" : batch.bindings.front()->shader_rule) << "\","
+        << "\"shader_family\":\"" << json_escape(batch_shader_family(batch)) << "\","
+        << "\"shader_rule\":\"" << json_escape(batch_shader_rule(batch)) << "\","
         << "\"evidence_grade\":\"" << json_escape(batch.material_layers.empty() ? "approximate" : batch.material_layers.front().evidence_grade) << "\","
         << "\"base_low_authority_overlay\":" << (batch.base_low_authority_overlay_selected ? "true" : "false") << ","
         << "\"visible_layer_albedo_used\":" << (batch.visible_layer_albedo_used ? "true" : "false") << ","
@@ -149,7 +149,7 @@ static void append_package_batch_material_json(PackageWriteState& state, const P
         << "\"metalness\":" << batch.effective_material_hints.metalness << ","
         << "\"specular\":" << batch.effective_material_hints.specular << ","
         << "\"height_scale\":" << batch.effective_material_hints.height_scale << ","
-        << "\"native_material_hints\":{\"shader_family\":\"" << json_escape(batch.bindings.empty() ? "" : batch.bindings.front()->shader_family)
+        << "\"native_material_hints\":{\"shader_family\":\"" << json_escape(batch_shader_family(batch))
         << "\",\"roughness\":" << batch.effective_material_hints.roughness
         << ",\"metalness\":" << batch.effective_material_hints.metalness
         << ",\"specular\":" << batch.effective_material_hints.specular

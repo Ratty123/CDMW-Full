@@ -131,6 +131,44 @@ static const TextureBinding* package_preview_base(const PackageBatchState& batch
     return batch.base_tint_only_fallback ? nullptr : batch.base;
 }
 
+// The binding whose shader family and rule a batch publishes. The first
+// binding is the selected base texture, and a base can come from a sibling
+// part's material (a crown sharing the veil's texture set), so taking its
+// family gave the part the other material's shader. The binding that names
+// this part's material best decides; the first one still breaks ties and
+// stands in when no binding carries a family.
+static const TextureBinding* batch_shader_binding(
+    const std::vector<const TextureBinding*>& bindings,
+    const NativeSubmesh& mesh
+) {
+    const TextureBinding* best = nullptr;
+    int best_score = -1;
+    for (const TextureBinding* binding : bindings) {
+        if (binding == nullptr || binding->shader_family.empty()) continue;
+        const int score = material_identity_match_score(*binding, mesh);
+        if (score > best_score) {
+            best = binding;
+            best_score = score;
+        }
+    }
+    if (best != nullptr) return best;
+    return bindings.empty() ? nullptr : bindings.front();
+}
+
+static std::string batch_shader_family(const PackageBatchState& batch) {
+    const TextureBinding* binding = batch.mesh == nullptr
+        ? (batch.bindings.empty() ? nullptr : batch.bindings.front())
+        : batch_shader_binding(batch.bindings, *batch.mesh);
+    return binding == nullptr ? "" : binding->shader_family;
+}
+
+static std::string batch_shader_rule(const PackageBatchState& batch) {
+    const TextureBinding* binding = batch.mesh == nullptr
+        ? (batch.bindings.empty() ? nullptr : batch.bindings.front())
+        : batch_shader_binding(batch.bindings, *batch.mesh);
+    return binding == nullptr ? "generic" : binding->shader_rule;
+}
+
 static bool binding_is_layer_only_base(const TextureBinding& binding) {
     if (binding.role != "base") return false;
     const std::string parameter = normalized_key(binding.parameter_name);
