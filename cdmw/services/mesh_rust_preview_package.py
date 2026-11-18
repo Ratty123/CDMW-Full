@@ -671,6 +671,71 @@ def _preview_core_layer_tint(value: object) -> list[float]:
     return (components + [1.0] * 4)[:4]
 
 
+_LAYER_TRANSFORM_PROPERTY = {"r": "_dyeingtransformproperty0", "g": "_dyeingtransformproperty1",
+                              "b": "_dyeingtransformproperty3"}
+
+
+def _byte4_unit_channels(value: object) -> tuple[float, ...]:
+    text = str(value if value is not None else "").strip()
+    if not text or not text.lstrip("+-").isdigit():
+        return ()
+    integer = max(0, min(0xFFFFFFFF, int(text)))
+    return tuple(((integer >> (8 * index)) & 0xFF) / 255.0 for index in range(4))
+
+
+def _preview_core_batch_material_inputs(raw_batch: Mapping[str, object]) -> tuple[object, ...]:
+    """The batch's material inputs: Preview Core packages keep them under
+    ``dds_textures``; a batch can also carry them at its top level."""
+    found: list[object] = []
+    dds_textures = raw_batch.get("dds_textures")
+    for raw_inputs in (raw_batch.get("material_inputs"),
+                       dds_textures.get("material_inputs") if isinstance(dds_textures, Mapping) else None):
+        if isinstance(raw_inputs, Sequence) and not isinstance(raw_inputs, (str, bytes, bytearray)):
+            found.extend(raw_inputs)
+    return tuple(found)
+
+
+def _is_net_veil_wrapper(parameters: Sequence[object]) -> bool:
+    return any(isinstance(parameter, Mapping)
+               and str(parameter.get("parameter_name", "") or "").strip().casefold() == "_netpitch"
+               for parameter in parameters)
+
+
+def _preview_core_layer_uv_transform(parameters: Sequence[object], channel: str) -> list[float] | None:
+    """A detail layer's repeat sampling from its wrapper's Byte4 parameters, or None.
+
+    Same decoding as the material combiner: ``_dyeingTransformProperty0/1/3``
+    hold Mask R/G/B Scale X, Scale Y, Offset X, Offset Y as bytes / 255, and the
+    channel's byte of ``_dyeingPropertyBlend`` is its rotation (byte / 255 of a
+    full turn, minus a half turn). Identity, or nothing authored, is None.
+    """
+    wanted = _LAYER_TRANSFORM_PROPERTY.get(channel)
+    if wanted is None:
+        return None
+    transform: tuple[float, ...] = ()
+    rotation: tuple[float, ...] = ()
+    for parameter in parameters:
+        if not isinstance(parameter, Mapping):
+            continue
+        name = str(parameter.get("parameter_name", "") or "").strip().casefold()
+        value = parameter.get("integer_value")
+        if value is None:
+            value = parameter.get("value")
+        if name == wanted:
+            transform = _byte4_unit_channels(value)
+        elif name == "_dyeingpropertyblend":
+            rotation = _byte4_unit_channels(value)
+    if len(transform) < 4:
+        return None
+    scale_x, scale_y, offset_x, offset_y = transform
+    channel_index = "rgb".index(channel)
+    angle = rotation[channel_index] * 2.0 * math.pi - math.pi if len(rotation) > channel_index else 0.0
+    if (abs(scale_x - 1.0) <= 1e-12 and abs(scale_y - 1.0) <= 1e-12 and abs(offset_x) <= 1e-12
+            and abs(offset_y) <= 1e-12 and abs(angle) <= math.pi / 255.0 + 1e-12):
+        return None
+    return [scale_x, scale_y, offset_x, offset_y, angle]
+
+
 def _copy_preview_core_material_layers(
     raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes, copied_sources,
     materials, source_edge_count, cancelled, expected_root_identity,
@@ -686,6 +751,15 @@ def _copy_preview_core_material_layers(
         if not raw_layers or len(raw_layers) > _PREVIEW_CORE_MATERIAL_LAYER_LIMIT:
             raise ValueError("Preview Core material-layer graph exceeds the bounded layer limit.")
         layers: list[dict[str, object]] = []
+        # Each wrapper's authored parameters, as the batch's material inputs carry them.
+        wrapper_parameters: dict[str, Sequence[object]] = {}
+        for raw_input in _preview_core_batch_material_inputs(raw_batch):
+            if isinstance(raw_input, Mapping):
+                input_owner = str(raw_input.get("owner_wrapper_item_id", "") or "").strip()
+                input_parameters = raw_input.get("material_parameters")
+                if (input_owner and input_owner not in wrapper_parameters and isinstance(input_parameters, Sequence)
+                        and not isinstance(input_parameters, (str, bytes))):
+                    wrapper_parameters[input_owner] = input_parameters
         for raw_layer in raw_layers:
             if not isinstance(raw_layer, Mapping):
                 raise ValueError("Preview Core material graph contains an invalid layer.")
@@ -741,12 +815,21 @@ def _copy_preview_core_material_layers(
                 ),
                 "tint": _preview_core_layer_tint(raw_layer.get("tint")),
             }
+            if role != "base" and owner in wrapper_parameters:
+                uv_transform = _preview_core_layer_uv_transform(wrapper_parameters[owner], channel)
+                if uv_transform is not None:
+                    layer["uv_transform"] = uv_transform
             layer_has_source = False
+            # A net veil's detail height is not blended over its base height: the
+            # game adds it to the thread width, and the renderer samples it itself.
+            veil_detail = role != "base" and _is_net_veil_wrapper(wrapper_parameters.get(owner, ()))
             for resource_role in ("diffuse", "normal", "material", "height", "mask"):
                 _cancelled(cancelled)
                 source_key = f"{resource_role}_source"
                 archive_key = f"{resource_role}_archive_path"
                 source_text = str(raw_layer.get(source_key, "") or "").strip()
+                if veil_detail and resource_role == "height":
+                    source_text = ""
                 archive_path = str(raw_layer.get(archive_key, "") or "").strip().replace("\\", "/")
                 layer[f"{resource_role}_archive_path"] = archive_path
                 reference: dict[str, object] | None = None

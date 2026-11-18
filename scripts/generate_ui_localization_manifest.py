@@ -1816,7 +1816,15 @@ def build_manifest() -> dict[str, object]:
     from cdmw.domain.mesh.body_region_sliders import DEFAULT_BODY_REGION_SLIDER_TEMPLATES
     from cdmw.domain.mesh.body_regions import DEFAULT_BODY_REGION_RULES, sided_region_label
     from cdmw.domain.mesh.morph_layers import _MACROS
-    from cdmw.domain.mesh.shader_controls import BLENDED_FIELD_HELP, EYE_COVER, MESH_FAMILIES, GLASS_FIELD_HELP
+    from cdmw.domain.mesh.shader_controls import (BLENDED_FIELD_HELP, EYE_COVER, MESH_FAMILIES, GLASS_FIELD_HELP,
+                                                 SHADER_PRESETS, TEXTURE_SLOTS, VEIL_EXTRA_HELP,
+                                                 LAYOUT_TEXTURE_LABELS)
+    for slots in TEXTURE_SLOTS.values():
+        for _name, label in slots:
+            origins.setdefault(label, []).append({
+                "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
+                "sink": "rust-presentation",
+            })
     from cdmw.domain.textures.editor_presets import texture_editor_dds_presets
 
     # These built-in labels arrive in Rust through the typed morph state.
@@ -1849,16 +1857,23 @@ def build_manifest() -> dict[str, object]:
                 })
 
     for family in (*MESH_FAMILIES, EYE_COVER):
-        for text in (family.label, family.note, *(field.label for field in family.fields)):
+        for text in (family.label, family.note, *(field.label for field in (*family.fields, *family.extras))):
             origins.setdefault(text, []).append({
                 "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
                 "sink": "rust-presentation",
             })
-    for text in (*GLASS_FIELD_HELP.values(), *BLENDED_FIELD_HELP.values()):
+    for text in (*GLASS_FIELD_HELP.values(), *BLENDED_FIELD_HELP.values(), *VEIL_EXTRA_HELP.values(),
+                 *LAYOUT_TEXTURE_LABELS.values()):
         origins.setdefault(text, []).append({
             "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
             "sink": "rust-presentation",
         })
+    for presets in SHADER_PRESETS.values():
+        for label, _values in presets:
+            origins.setdefault(label, []).append({
+                "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
+                "sink": "rust-presentation",
+            })
     # The menu composes these titles at runtime; its tool identity stays separate.
     for key, rows in tuple(origins.items()):
         registry_rows = [row for row in rows if row["path"] == "cdmw/ui/shell/compact/registry.py" and row["sink"] == "CompactToolSpec"]

@@ -13,6 +13,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -50,6 +51,8 @@ from cdmw.services.mesh_saved_work_service import (
     SavedWorkProject,
     SavedWorkRow,
     add_built_mod_folder,
+    folder_model_choices,
+    folder_model_shaders,
     assign_project,
     create_project,
     delete_project,
@@ -868,7 +871,29 @@ class SavedWorkPage(QWidget):
             return
         root = self.draft_root
         project_id = self._selected_project if self._selected_project != ALL_WORK else NO_PROJECT
-        self._run(lambda: add_built_mod_folder(root, folder, project_id=project_id), self._action_done)
+
+        def choices_done(_token: int, choices: object, error: str) -> None:
+            if error:
+                self._action_done(_token, None, error)
+                return
+            models = None
+            if choices and choices[0]:
+                # An extracted game folder: ask which of its models to list.
+                from cdmw.ui.mesh_editor.folder_model_picker import FolderModelPicker
+
+                paths, shaders = choices
+                picker = FolderModelPicker(tuple(paths), self, shaders=shaders)
+                if picker.exec() != QDialog.DialogCode.Accepted:
+                    return
+                models = picker.selected_paths()
+            self._run(lambda: add_built_mod_folder(root, folder, project_id=project_id, model_paths=models),
+                      self._action_done)
+
+        def choices() -> tuple[list[str], dict[str, tuple[str, ...]]]:
+            paths = folder_model_choices(folder)
+            return paths, folder_model_shaders(folder, paths)
+
+        self._run(choices, choices_done)
 
     def _add_item_package(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Add an Item Package", "", "Item package (*.cdmw *.cditem)")

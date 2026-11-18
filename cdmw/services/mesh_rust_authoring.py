@@ -3327,7 +3327,7 @@ def _material_input_texture_role(value: object) -> str:
         if character.isalnum()
     )
     shader_family = normalize_shader_family(getattr(value, "shader_family", ""))
-    if parameter_name in {"wingflowtex1", "tornpatterntexture", "posterglownoisetex", "dissolvenoisetex", "hairanisotropydetailmasktexture", "cdmweyecoveralphatexture"}:
+    if parameter_name in {"wingflowtex1", "tornpatterntexture", "posterglownoisetex", "dissolvenoisetex", "hairanisotropydetailmasktexture", "cdmweyecoveralphatexture", "cdmwveildetailheighttexture"}:
         return "shader_mask"
     if parameter_name == "hairanisotropydetailnormaltexture":
         return "shader_normal"
@@ -5602,11 +5602,31 @@ def _mesh_texture_payloads(
 
         bindings: dict[tuple[str, str], list[set[int]]] = {}
         sources: dict[str, Path] = {}
+        from cdmw.services.shader_controls_preview import authored_veil_layer_textures
         for lod_index, submeshes in enumerate(lods):
             for submesh_index, submesh in enumerate(submeshes):
                 resolved_roles: set[str] = set()
+                # An archive Ver2 net veil: the renderer adds the detail height
+                # (sampled with the layer's own UV) to the wrapper's own height
+                # map, so neither comes from a composed map.
+                veil_height, veil_detail = authored_veil_layer_textures(submesh)
+                veil_paths = {
+                    role: path
+                    for role, item in (("height", veil_height), ("shader_mask", veil_detail))
+                    if item is not None and (path := _material_input_dds_path(item)) is not None
+                }
+                if "shader_mask" in veil_paths and not any(
+                    _material_input_texture_role(item) == "shader_mask"
+                    for item in getattr(submesh, "preview_material_texture_inputs", ()) or ()
+                ):
+                    path = veil_paths["shader_mask"]
+                    sources[str(path)] = path
+                    bindings.setdefault((str(path), "shader_mask"), [set() for _ in lods])[lod_index].add(submesh_index)
+                    resolved_roles.add("shader_mask")
                 for role, attributes in _TEXTURE_RESOURCE_SPECS:
                     path = synthesized.get((lod_index, submesh_index, role))
+                    if role == "height" and "shader_mask" in veil_paths and "height" in veil_paths:
+                        path = veil_paths["height"]
                     if path is None:
                         path = _first_texture_resource_dds_path(
                             submesh,

@@ -5,9 +5,10 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from cdmw.core.common import raise_if_cancelled
-from cdmw.core.material_shader_controls import control_material_sources, control_material_variants, equipment_glass_needs_bake
+from cdmw.core.material_shader_controls import (BAKED_CONVERSION_SHADERS, control_material_sources, control_material_variants,
+                                                equipment_glass_needs_bake)
 from cdmw.domain.mesh.replacement import bound_part_indices
-from cdmw.domain.mesh.shader_controls import GLASS_FAMILIES, family_for, preview_factors
+from cdmw.domain.mesh.shader_controls import GLASS_FAMILIES, family_for, preview_factors, veil_layer_inputs, veil_layer_texture
 from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 from cdmw.services.shader_controls_preview import EFFECT_NORMAL_PARAMETER, publish_preview_texture, attach_source_masks, shader_control_diagnostic, preview_material_variant
 
@@ -28,7 +29,8 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
         if path.endswith(".pac_xml"):
             for variant in control_material_variants(_sidecar_text(file.data)):
                 for name, (shader, values, textures) in variant.items():
-                    if (name in selected_names and selected_names[name].shader == "SkinnedMeshTranslucent"
+                    if (name in selected_names and selected_names[name].shader in BAKED_CONVERSION_SHADERS
+                            and not selected_names[name].force
                             and equipment_glass_needs_bake(shader, {*values, *textures})):
                         baked_names.add(name)
     files.update({file.path.replace("\\", "/").casefold(): file
@@ -60,15 +62,18 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
                     if not same_glass:
                         raise ValueError(f"{name}: multiple source material variants need separate shader previews.")
                 materials[name] = value
-    if baked_names:
-        _stage_baked_glass_materials(authoring, mesh, files, baked_names, source_names, payload, presentations, stop_event)
+    # A material with a replacement texture is rebuilt from its rewritten sidecar
+    # too, so the viewport shows the texture the export will ship.
+    restaged = baked_names | {name for name, controls in selected_names.items() if controls.textures}
+    if restaged:
+        _stage_baked_glass_materials(authoring, mesh, files, restaged, source_names, payload, presentations, stop_event)
     indices = bound_part_indices(mesh, state)
     selected = {indices[part.part_id]: part for part in state.parts if part.shader_controls is not None}
     names = {material_binding_name(mesh.submeshes[index], source_names): part
              for index, part in selected.items()}
     lods = _mesh_lods(mesh)
     bindings, resources, diagnostics = {}, {}, {}
-    touched = set()
+    touched, kept_masks = set(), set()
     for lod_index, level in enumerate(lods):
         for index, part in enumerate(level):
             rule = selected.get(index) if lod_index == 0 else names.get(material_binding_name(part, source_names))
@@ -78,8 +83,11 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
             if len(getattr(part, "shader_masks", ())) != len(part.vertices):
                 attach_source_masks(part, source)
             name = material_binding_name(source, source_names)
-            _, authored, textures = materials[name]
+            written_shader, authored, textures = materials[name]
             controls = rule.shader_controls
+            # The rewritten material: a Ver2 net veil keeps its detail layers unless it was rebuilt.
+            layers = veil_layer_inputs(written_shader, authored, textures) if written_shader == controls.shader else {}
+            authored = {**authored, **layers}
             if lod_index == 0:
                 diagnostics[rule.part_id] = shader_control_diagnostic(part, controls, authored)
             family = family_for(controls.shader)
@@ -87,11 +95,14 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
             row["shader_controls"] = list(preview_factors(controls, authored))
             touched.add((lod_index, index))
             for parameter, role in ((family.mask, "shader_mask"), (EFFECT_NORMAL_PARAMETER, "shader_normal")):
-                path = textures.get(parameter, "")
+                path = veil_layer_texture(layers, textures) if layers and role == "shader_mask" else textures.get(parameter, "")
                 if not path or (role == "shader_normal" and controls.shader != "SkinnedMeshAnisotropy"):
                     continue
                 raise_if_cancelled(stop_event)
                 file = files.get(path.replace("\\", "/").casefold())
+                if file is None and layers and role == "shader_mask":
+                    kept_masks.add((lod_index, index))  # The session's own binding of the detail height stays.
+                    continue
                 if file is None:
                     raise ValueError(f"The shader preview mask is missing: {path}. Reopen this mesh from Browse Archives.")
                 resource = publish_preview_texture(file.data)
@@ -101,7 +112,8 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
     for texture in payload["textures"]:
         row = copy.deepcopy(texture)
         if row["role"] in {"shader_mask", "shader_normal"}:
-            row["material_indices_by_lod"] = [[index for index in level if (lod, index) not in touched]
+            kept = kept_masks if row["role"] == "shader_mask" else ()
+            row["material_indices_by_lod"] = [[index for index in level if (lod, index) not in touched or (lod, index) in kept]
                                                for lod, level in enumerate(row["material_indices_by_lod"])]
         if any(row["material_indices_by_lod"]):
             retained.append(row)

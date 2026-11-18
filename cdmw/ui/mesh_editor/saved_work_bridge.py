@@ -9,7 +9,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMessageBox
 
 from cdmw.models import ArchiveEntry
-from cdmw.services.mesh_archive_results import EDITED_RESULT_NOTE
+from cdmw.services.mesh_archive_results import ADDED_RESULT_NOTE, EDITED_RESULT_NOTE
 from cdmw.services.mesh_saved_work_service import (
     SavedWorkLaunch,
     SavedWorkRow,
@@ -203,7 +203,10 @@ class MeshEditorSavedWorkBridgeMixin:
         root = self._mesh_saved_work_root()
         self._run_utility_task_when_idle(
             status_message=f"Preparing {row.display_name} for Mesh Editor...",
-            task=lambda _log: prepare_saved_work_launch(root, row, live_entry, edited_note=EDITED_RESULT_NOTE),
+            task=lambda _log: prepare_saved_work_launch(
+                root, row, live_entry, edited_note=EDITED_RESULT_NOTE, added_note=ADDED_RESULT_NOTE,
+                game_entry_for_path=context.entry_for_path,
+            ),
             on_complete=lambda launch, target=context: self._open_mesh_saved_work_launch(launch, target),
             on_error=lambda message: self.set_status_message(f"Continue Editing failed: {message}", error=True),
         )

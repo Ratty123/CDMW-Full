@@ -10,24 +10,41 @@ from cdmw.core.temp_cache import session_generated_cache_path
 
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.shader_controls import (EYE_COVER, BLENDED_FAMILIES, BLENDED_SHADERS, GLASS_FAMILIES,
-                                             ShaderControls, family_for, preview_factors, eye_cover_colour_range)
+                                             ShaderControls, family_for, preview_factors, eye_cover_colour_range,
+                                             veil_layer_inputs, veil_layer_texture, VEIL_LAYERS_KEY)
 
 
 EFFECT_MASK_PARAMETERS = frozenset({"_wingFlowTex1", "_tornPatternTexture", "_posterGlowNoiseTex",
                                     "_dissolveNoiseTex", "_hairAnisotropyDetailMaskTexture"})
 EFFECT_NORMAL_PARAMETER = "_hairAnisotropyDetailNormalTexture"
 EYE_COVER_ALPHA_PARAMETER = "_cdmwEyeCoverAlphaTexture"
+# The Ver2 net veil's detail height texture, sampled by the renderer with the layer's own UV.
+VEIL_DETAIL_HEIGHT_PARAMETER = "_cdmwVeilDetailHeightTexture"
 
 
-def source_inputs(part):
+def source_inputs(part, owner=-1):
+    """The part's resolved material values and texture paths from preview metadata.
+
+    ``owner`` (a PAC wrapper position) keeps only the inputs resolved from that
+    wrapper. A part's inputs can also carry rows of another wrapper of the same
+    file (a shared texture resolved through it), and merging those would show
+    and preview that wrapper's numbers as this part's.
+    """
     def field(row, name, default=None):
         return row.get(name, default) if isinstance(row, dict) else getattr(row, name, default)
     inputs = tuple(getattr(part, "preview_material_texture_inputs", ()) or ())
+    if isinstance(owner, int) and not isinstance(owner, bool) and owner >= 0:
+        own = tuple(item for item in inputs if field(item, "owner_slot_index", -1) == owner)
+        if own:
+            inputs = own
     parameters = list(getattr(part, "preview_material_parameters", ()) or ())
     textures, values = {}, {}
     for item in inputs:
         parameters.extend(field(item, "material_parameters", ()) or ())
-        textures[field(item, "parameter_name", "")] = field(item, "source_texture_path", "")
+        # An archive preview can bind a texture by its extracted file alone.
+        textures[field(item, "parameter_name", "")] = (
+            field(item, "source_texture_path", "") or field(item, "source_dds_path", "")
+            or field(item, "preview_texture_path", "") or "")
     for parameter in parameters:
         values[field(parameter, "parameter_name", "")] = field(parameter, "value", field(parameter, "numeric_value", ""))
     return values, textures
@@ -79,11 +96,48 @@ def authored_static_glass_factors(part):
 def authored_blended_factors(part):
     """Archive SkinnedMeshGlass/SkinnedMeshTransparency parts blend in the game's
     forward pass; without these factors the preview draws them solid."""
-    shader = next((name for name in BLENDED_SHADERS if name.casefold() == _exact_source_shader(part)), None)
+    shader = _source_blended_shader(part)
     if shader is None:
         return None
-    values, _ = source_inputs(part)
-    return preview_factors(ShaderControls(shader), values)
+    values, textures = _own_source_inputs(part)
+    return preview_factors(ShaderControls(shader), {**values, **veil_layer_inputs(shader, values, textures)})
+
+
+def _source_blended_shader(part):
+    return next((name for name in BLENDED_SHADERS if name.casefold() == _exact_source_shader(part)), None)
+
+
+def _own_source_inputs(part):
+    """The part's values and textures from the wrapper the preview drew it from."""
+    owner = getattr(part, "preview_pac_material_owner_slot_index", -1)
+    return source_inputs(part, owner if isinstance(owner, int) and not isinstance(owner, bool) else -1)
+
+
+def authored_veil_layer_textures(part):
+    """(base height input, detail height input) of an archive Ver2 net veil part, else (None, None).
+
+    The renderer adds the detail height to the base height itself, so the part
+    needs its own _heightTexture, not a height composed from the layers.
+    """
+    shader = _source_blended_shader(part)
+    if shader != "SkinnedMeshTransparency":
+        return None, None
+    values, textures = _own_source_inputs(part)
+    layers = veil_layer_inputs(shader, values, textures)
+    if not layers:
+        return None, None
+    detail_name = (f"_detailheightmask{layers[VEIL_LAYERS_KEY]}"
+                   if veil_layer_texture(layers, textures) else "")
+    owner = getattr(part, "preview_pac_material_owner_slot_index", -1)
+    owned = isinstance(owner, int) and not isinstance(owner, bool) and owner >= 0
+    found = {}
+    for item in getattr(part, "preview_material_texture_inputs", ()) or ():
+        field = item.get if isinstance(item, dict) else (lambda name, default=None, item=item: getattr(item, name, default))
+        name = str(field("parameter_name", "") or "").casefold()
+        if name in ("_heighttexture", detail_name) and name not in found and (
+                not owned or field("owner_slot_index", owner) == owner):
+            found[name] = item
+    return found.get("_heighttexture"), found.get(detail_name) if detail_name else None
 
 
 def shader_control_diagnostic(part, controls, authored):
@@ -123,7 +177,9 @@ def shader_preview_groups(mesh, choices, *, plain_pbr=False):
         selected = [settings[name.casefold()] for name in appearance_preview_part_names(part) if name.casefold() in settings]
         if selected and any(value != selected[0] for value in selected):
             raise ValueError("Parts sharing a preview material need the same shader controls.")
-        values, _ = source_inputs(part)
+        values, textures = source_inputs(part)
+        if selected and selected[0].shader == _source_blended_shader(part):
+            values = {**values, **veil_layer_inputs(selected[0].shader, values, textures)}
         if selected and plain_pbr and selected[0].shader == "SkinnedMeshWing":
             # Plain PBR conversion starts fully revealed in the output writer.
             # Explicit control values still win in preview_factors.
@@ -187,7 +243,8 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
     if not choices:
         return mesh
     from cdmw.services.new_item_materials import appearance_preview_part_names
-    from cdmw.core.material_shader_controls import control_material_sources, rewrite_shader_controls, equipment_glass_needs_bake
+    from cdmw.core.material_shader_controls import (BAKED_CONVERSION_SHADERS, control_material_sources, rewrite_shader_controls,
+                                                    equipment_glass_needs_bake)
     settings = {name.casefold(): controls for name, controls in choices}
     result = copy.copy(mesh)
     result.submeshes = []
@@ -205,6 +262,7 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
             raise ValueError("Parts sharing a preview material need the same shader controls.")
         clone = copy.copy(part)
         values, textures = source_inputs(part)
+        source_shader, rebuilt = _source_blended_shader(part), controls.rebuild
         if plain_pbr and controls.shader == "SkinnedMeshWing":
             values = {"_wingFlowProgress": "2"}
             textures.pop("_wingFlowTex1", None)
@@ -224,7 +282,8 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
                 # Use the same compatibility checks and inherited values as
                 # output, including Wing's visible starting pose on conversion.
                 shader, authored, source_textures = sources[source_name]
-                layered_glass = (controls.shader == "SkinnedMeshTranslucent"
+                source_shader = shader
+                layered_glass = (controls.shader in BAKED_CONVERSION_SHADERS and not controls.force
                                  and equipment_glass_needs_bake(shader, {*authored, *source_textures}))
                 if controls.shader == EYE_COVER.shader or controls.cutout_mask is not None or layered_glass:
                     # Read inherited values without generating export BC7 maps
@@ -232,7 +291,8 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
                     _, values, textures = sources[source_name]
                 else:
                     edited, _ = rewrite_shader_controls(text, ((source_name, controls),))
-                    _, values, textures = control_material_sources(edited)[source_name]
+                    source_shader, values, textures = control_material_sources(edited)[source_name]
+                    rebuilt = False  # The rewritten material already lacks the rows a rebuild drops.
             if controls.shader in {"SkinnedMeshTornCloth_Ver2", "SkinnedMeshHairAnimatedUV"} and snapshot.has_entry(path):
                 if path not in source_meshes:
                     from cdmw.modding.mesh_parser import parse_pac
@@ -247,6 +307,15 @@ def shader_preview_mesh(mesh, choices, *, snapshot=None, stop_event=None, plain_
         bindings = list(getattr(part, "preview_material_texture_inputs", ()) or ())
         resources = ((family.mask, textures.get(family.mask, family.default_mask), family.mask),
                      (EFFECT_NORMAL_PARAMETER, textures.get(EFFECT_NORMAL_PARAMETER, "") if controls.shader == "SkinnedMeshAnisotropy" else "", EFFECT_NORMAL_PARAMETER))
+        if not plain_pbr and controls.shader == source_shader and not rebuilt:
+            # A net veil with Ver2 detail layers keeps them unless the material is rebuilt.
+            layers = veil_layer_inputs(source_shader, values, textures)
+            values = {**values, **layers}
+            detail = veil_layer_texture(layers, textures)
+            if detail:
+                resources = ((VEIL_DETAIL_HEIGHT_PARAMETER, detail,
+                              next(name for name, path in textures.items()
+                                   if path == detail and name.startswith("_detailHeightMask"))),)
         if family == EYE_COVER:
             resources = ((EYE_COVER_ALPHA_PARAMETER, textures.get("_alphaTexture", ""), "_alphaTexture"),)
         if controls.cutout_mask is not None:

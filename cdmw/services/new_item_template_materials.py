@@ -20,7 +20,8 @@ _BAKE_CACHE_LOCK = threading.Lock()
 
 def bake_equipment_glass(text, choices, model_path, read_texture, *, on_log=None, stop_event=None):
     """Flatten supported layered equipment before the strict glass XML writer."""
-    from cdmw.core.material_shader_controls import equipment_glass_needs_bake, _parameter_rows, validate_source, material_variant_blocks
+    from cdmw.core.material_shader_controls import (BAKED_CONVERSION_SHADERS, equipment_glass_needs_bake, _parameter_rows,
+                                                    validate_source, material_variant_blocks)
     from cdmw.core.pac_xml_standard_material import find_material_wrappers
     from cdmw.domain.mesh.shader_controls import preview_factors
 
@@ -46,13 +47,17 @@ def bake_equipment_glass(text, choices, model_path, read_texture, *, on_log=None
             continue
         parameters = _parameter_rows(text[row.start:row.end])
         validate_source(row.shader, controls, parameters, allow_bake=True)
-        if controls.shader != "SkinnedMeshTranslucent" or not equipment_glass_needs_bake(row.shader, parameters):
+        if (controls.shader not in BAKED_CONVERSION_SHADERS or controls.force
+                or not equipment_glass_needs_bake(row.shader, parameters)):
             continue
         if counts[name] > 1:
             raise ValueError(f"Ambiguous layered material binding: {row.submesh_name}")
         selected.append(row)
         authored = {key: element.get("_value", "") for key, element in parameters.items()}
-        absorption[name] = tuple(preview_factors(controls, authored)[4:6])
+        # Equipment glass is written by the baker itself; the layered glass and
+        # net veil shaders take the baked plain material and are written after.
+        absorption[name] = (tuple(preview_factors(controls, authored)[4:6])
+                            if controls.shader == "SkinnedMeshTranslucent" else None)
     if not selected:
         return text, {}
     payloads = {}
