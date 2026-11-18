@@ -7774,6 +7774,8 @@
     "Material sidecar worker returned invalid data.": "材质 Sidecar Worker 返回了无效数据。",
     "Material source": "材质来源",
     "Material texture validation cancelled.": "材质纹理验证已取消。",
+    "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see that item's colours.": "显示材质变体 0；此模型的变体有 {value_0}。要查看该物品的颜色，请从其物品打开模型。",
+    "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.": "显示 {value_1} 所选的材质变体 {value_0}；此模型的变体有 {value_2}。",
     "Material warning: {value_0}": "材质警告：{value_0}",
     "Material {value_0}": "材质 {value_0}",
     "Material {value_0}/{value_1}: {value_2}. {value_3}": "材质 {value_0}/{value_1}：{value_2}。{value_3}",

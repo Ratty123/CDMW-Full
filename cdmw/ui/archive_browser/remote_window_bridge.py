@@ -388,6 +388,15 @@ class ArchiveRemoteWindowBridge(QObject):
         self._pending_item_set_query = None
         self._handle_failure("item_set_scope", message)
 
+    @property
+    def item_scope_preferred_prefab_stems(self) -> tuple[str, ...]:
+        """The scoped item's prefab stems, which pick each model's material variant."""
+        return self._item_scope_preferred_prefab_stems
+
+    @property
+    def item_scope_entry_ids(self) -> tuple[int, ...]:
+        return self._item_scope_entry_ids
+
     def item_set_contains(self, entry: ArchiveEntry | None) -> bool:
         return bool(self.item_set_active and entry is not None and any(
             _legacy_identity_key(entry) == _dto_identity_key(member) for member in self.item_set_members

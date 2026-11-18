@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+import re
 import struct
 import tempfile
 import time
@@ -73,28 +74,37 @@ def native_preview_core_timeout_seconds(render_settings: object) -> float:
     )
 
 
-def native_preview_model_property_indices(
+def _model_key(path: object) -> str:
+    return str(path or "").replace("\\", "/").strip().casefold()
+
+
+def _default_entry_reader(stop_event: object) -> Callable[[ArchiveEntry], bytes]:
+    from cdmw.core.archive_extraction import read_archive_entry_data
+
+    def read_entry_data(candidate: ArchiveEntry) -> bytes:
+        return read_archive_entry_data(candidate, stop_event=stop_event)[0]
+
+    return read_entry_data
+
+
+def native_preview_prefab_model_selections(
     prefab_entries: Sequence[ArchiveEntry],
     stop_event: object,
     *,
     read_entry_data: Optional[Callable[[ArchiveEntry], bytes]] = None,
-) -> Dict[str, int]:
-    """Recover the material-set index each selected item prefab assigns to a model.
+) -> Tuple[Tuple[str, str, int], ...]:
+    """Every ``(prefab path, model key, variant)`` the prefabs declare, in their order.
 
-    A physical PAC can serve several logical items. Their prefabs select the
-    intended ``ModelProperty`` block, so first-prefab authority is deliberate:
-    callers order the logical item's prefab before shared physical companions.
+    The variant is the object's ``_modelPropertyIndex`` beside its
+    ``_skinnedMeshFile``; an object without one selects variant 0. An index
+    above 255 is not a variant the preview core can be asked for and is left out.
     """
 
     from cdmw.core.prefab_binary import PrefabBinaryError, decode_prefab_binary
 
     if read_entry_data is None:
-        from cdmw.core.archive_extraction import read_archive_entry_data
-
-        def read_entry_data(candidate: ArchiveEntry) -> bytes:
-            return read_archive_entry_data(candidate, stop_event=stop_event)[0]
-
-    selections: Dict[str, int] = {}
+        read_entry_data = _default_entry_reader(stop_event)
+    selections: List[Tuple[str, str, int]] = []
     for entry in prefab_entries:
         if bool(getattr(stop_event, "is_set", lambda: False)()):
             raise RunCancelled("Native preview-core job cancelled.")
@@ -118,8 +128,150 @@ def native_preview_model_property_indices(
                 property_index = int.from_bytes(number.raw, "little", signed=False)
                 break
             if 0 <= property_index <= 255:
-                selections.setdefault(model_path.casefold(), property_index)
+                selections.append((str(entry.path or ""), model_path.casefold(), property_index))
+    return tuple(selections)
+
+
+def native_preview_model_property_indices(
+    prefab_entries: Sequence[ArchiveEntry],
+    stop_event: object,
+    *,
+    read_entry_data: Optional[Callable[[ArchiveEntry], bytes]] = None,
+    model_paths: Optional[Sequence[str]] = None,
+) -> Dict[str, int]:
+    """Recover the material-set index each selected item prefab assigns to a model.
+
+    A physical PAC can serve several logical items. Their prefabs select the
+    intended ``ModelProperty`` block, so first-prefab authority is deliberate:
+    callers order the logical item's prefab before shared physical companions.
+
+    ``model_paths`` keeps only those models: a job may name at most 32, and a
+    merged dependency list can hold prefabs for many more than it draws.
+    """
+
+    wanted = None if model_paths is None else {_model_key(path) for path in model_paths}
+    selections: Dict[str, int] = {}
+    for _prefab, model, index in native_preview_prefab_model_selections(
+        prefab_entries, stop_event, read_entry_data=read_entry_data,
+    ):
+        if wanted is None or model in wanted:
+            selections.setdefault(model, index)
     return selections
+
+
+@dataclasses.dataclass(frozen=True)
+class ModelVariantChoice:
+    """Which material variant a model opened without its item is drawn with, and why."""
+
+    model_path: str
+    index: int = 0
+    #: ``(prefab path, variant)`` for each prefab in view that names the model.
+    selections: Tuple[Tuple[str, int], ...] = ()
+    #: The ``Index`` values of the model's ``ModelProperty`` blocks, in file order.
+    available: Tuple[int, ...] = ()
+
+    @property
+    def selected_variants(self) -> Tuple[int, ...]:
+        return tuple(sorted({index for _prefab, index in self.selections}))
+
+    @property
+    def from_prefab(self) -> bool:
+        """The prefabs in view agree on one variant (one item, or items that share it)."""
+        return len(self.selected_variants) == 1
+
+    @property
+    def selecting_prefabs(self) -> Tuple[str, ...]:
+        return tuple(dict.fromkeys(PurePosixPath(path.replace("\\", "/")).name for path, _index in self.selections))
+
+    @property
+    def worth_saying(self) -> bool:
+        return self.index != 0 or len(self.available or self.selected_variants) > 1
+
+    def to_diagnostics(self) -> Dict[str, object]:
+        return {
+            "model_path": self.model_path,
+            "index": self.index,
+            "from_prefab": self.from_prefab,
+            "selecting_prefabs": list(self.selecting_prefabs),
+            "selected_variants": list(self.selected_variants),
+            "available": list(self.available or self.selected_variants),
+        }
+
+
+_MODEL_PROPERTY_INDEX = re.compile(rb'<ModelProperty\b[^>]*?\bIndex="(\d+)"')
+
+
+def native_preview_model_variants(
+    dependency_entries: Sequence[ArchiveEntry],
+    model_path: str,
+    stop_event: object,
+    *,
+    read_entry_data: Optional[Callable[[ArchiveEntry], bytes]] = None,
+) -> Tuple[int, ...]:
+    """The variants the model's own ``.pac_xml`` declares, or () when it is not in view."""
+
+    key = _model_key(model_path)
+    if not key.endswith(".pac") or "/model/" not in key:
+        return ()
+    sidecar = key.replace("/model/", "/modelproperty/", 1) + "_xml"
+    entry = next((candidate for candidate in dependency_entries if _model_key(candidate.path) == sidecar), None)
+    if entry is None:
+        return ()
+    if read_entry_data is None:
+        read_entry_data = _default_entry_reader(stop_event)
+    try:
+        data = bytes(read_entry_data(entry))
+    except RunCancelled:
+        raise
+    except (KeyError, OSError, RuntimeError, ValueError):
+        return ()
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        data = data.decode("utf-16", errors="ignore").encode("utf-8")
+    return tuple(dict.fromkeys(int(match.group(1)) for match in _MODEL_PROPERTY_INDEX.finditer(data)))
+
+
+def native_preview_variant_selection(
+    dependency_entries: Sequence[ArchiveEntry],
+    entry: Optional[ArchiveEntry],
+    stop_event: object,
+    *,
+    item_context: bool,
+    read_entry_data: Optional[Callable[[ArchiveEntry], bytes]] = None,
+) -> Tuple[Dict[str, int], Optional[ModelVariantChoice]]:
+    """The model-property indices of a preview job, and for a PAC opened alone, why.
+
+    With an item in view (``item_context``), the item's prefab comes first among
+    the dependencies and its choice wins, as ``native_preview_model_property_indices``
+    says. A PAC opened on its own has no such prefab: the prefabs that happen to
+    be in view (its own-name prefab, usually) decide when they agree on one
+    variant, and otherwise it draws variant 0, rather than whichever prefab the
+    archive listed first. The returned choice says which variants exist.
+    """
+
+    selections = native_preview_prefab_model_selections(
+        dependency_entries, stop_event, read_entry_data=read_entry_data,
+    )
+    indices: Dict[str, int] = {}
+    for _prefab, model, index in selections:
+        indices.setdefault(model, index)
+    extension = str(getattr(entry, "extension", "") or "").casefold()
+    if item_context or entry is None or extension != ".pac":
+        return indices, None
+    key = _model_key(entry.path)
+    own = tuple((prefab, index) for prefab, model, index in selections if model == key)
+    variants = {index for _prefab, index in own}
+    choice = ModelVariantChoice(
+        model_path=str(entry.path or ""),
+        index=next(iter(variants)) if len(variants) == 1 else 0,
+        selections=own,
+        available=native_preview_model_variants(
+            dependency_entries, entry.path, stop_event, read_entry_data=read_entry_data,
+        ),
+    )
+    indices.pop(key, None)
+    if choice.index:
+        indices[key] = choice.index
+    return indices, choice
 
 
 def _native_presentation_geometry_payload(mesh: object, stop_event: object) -> bytes:
@@ -341,9 +493,14 @@ class ArchivePreviewNativeMixin:
         dependency_entries = tuple(
             getattr(self, "native_preview_dependency_entries", ()) or ()
         )
-        model_property_indices = native_preview_model_property_indices(
+        # ``None``: the caller did not say whether an item is in view; its
+        # dependencies' first prefab decides, as before.
+        item_context = getattr(self, "native_preview_item_context", None)
+        model_property_indices, variant_choice = native_preview_variant_selection(
             dependency_entries,
+            self.entry,
             self.stop_event,
+            item_context=item_context is not False,
         )
         attempt = run_native_preview_core_preview_job(
             self.entry,
@@ -370,6 +527,8 @@ class ArchivePreviewNativeMixin:
         diagnostics = dict(attempt.diagnostics)
         if appearance_notes:
             diagnostics["character_appearance_notes"] = list(appearance_notes)
+        if variant_choice is not None:
+            diagnostics["material_variant"] = variant_choice.to_diagnostics()
         if payload and attempt.succeeded and not bool(diagnostics.get("presentation_geometry_applied", False)):
             return dataclasses.replace(
                 attempt,
@@ -937,6 +1096,23 @@ class ArchivePreviewNativeMixin:
                 f"technical_base={int(diagnostics.get('base_technical_count', 0) or 0)}"
             ),
         ]
+        variant = diagnostics.get("material_variant")
+        if isinstance(variant, Mapping):
+            # A PAC opened on its own: which material variant it shows, and which exist.
+            shown = int(variant.get("index", 0) or 0)
+            available = tuple(variant.get("available", ()) or ())
+            listed = ", ".join(str(value) for value in available)
+            if variant.get("from_prefab") and (shown or len(available) > 1):
+                prefabs = ", ".join(str(name) for name in variant.get("selecting_prefabs", ()) or ())
+                diagnostic_lines.append(
+                    f"Material variant {shown} is shown, as {prefabs} selects; this model has variants {listed}."
+                )
+            elif not variant.get("from_prefab") and len(available) > 1:
+                # No prefab in view names it, or they disagree (several items).
+                diagnostic_lines.append(
+                    f"Material variant 0 is shown; this model has variants {listed}. Open the model from its "
+                    "item to see that item's colours."
+                )
         shader_fidelity_lines = self._native_preview_core_shader_fidelity_lines(native_attempt.package_path)
         if shader_fidelity_lines:
             diagnostic_lines.extend(shader_fidelity_lines)

@@ -60,6 +60,11 @@ MANUAL_SOURCE_KEYS = frozenset(
         # The Mesh Editor's History names a texture edit so (shared_edit_history.py, B item 4);
         # the Rust editor translates the label it is sent.
         "Texture edit",
+        # Browse's preview details say which material variant a PAC opened on its
+        # own shows (archive_preview_native.py, appended detail lines).
+        "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.",
+        "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see "
+        "that item's colours.",
         # Command reasons (cdmw/ui/shell/shell_commands.py); the command views set
         # them as tooltips at run time, where the localizer translates them.
         "Wait for the current task to finish.",

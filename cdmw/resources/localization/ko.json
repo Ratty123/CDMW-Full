@@ -7774,6 +7774,8 @@
     "Material sidecar worker returned invalid data.": "머티리얼 사이드카 작업자가 잘못된 데이터를 반환했습니다.",
     "Material source": "머티리얼 소스",
     "Material texture validation cancelled.": "머티리얼 텍스처 검증이 취소되었습니다.",
+    "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see that item's colours.": "머티리얼 변형 0을 표시합니다. 이 모델의 변형은 {value_0}입니다. 해당 아이템의 색상을 보려면 아이템에서 모델을 여세요.",
+    "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.": "{value_1}이(가) 선택한 머티리얼 변형 {value_0}을(를) 표시합니다. 이 모델의 변형은 {value_2}입니다.",
     "Material warning: {value_0}": "머티리얼 경고: {value_0}",
     "Material {value_0}": "머티리얼 {value_0}",
     "Material {value_0}/{value_1}: {value_2}. {value_3}": "머티리얼 {value_0}/{value_1}: {value_2}. {value_3}",

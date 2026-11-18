@@ -7774,6 +7774,8 @@
     "Material sidecar worker returned invalid data.": "Обработчик файла материала вернул неверные данные.",
     "Material source": "Источник материала",
     "Material texture validation cancelled.": "Проверка текстуры материала отменена.",
+    "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see that item's colours.": "Показан вариант материала 0; у этой модели есть варианты {value_0}. Откройте модель из её предмета, чтобы увидеть цвета этого предмета.",
+    "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.": "Показан вариант материала {value_0}, который выбирает {value_1}; у этой модели есть варианты {value_2}.",
     "Material warning: {value_0}": "Предупреждение о материале: {value_0}",
     "Material {value_0}": "Материал {value_0}",
     "Material {value_0}/{value_1}: {value_2}. {value_3}": "Материал {value_0}/{value_1}: {value_2}. {value_3}",

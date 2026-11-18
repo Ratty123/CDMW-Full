@@ -48,7 +48,10 @@ from cdmw.rendering.native_preview_core import (
     run_native_preview_core_preview_job,
 )
 from cdmw.core.skeleton_resolver import resolve_skeleton_descriptor_for_model
-from cdmw.workers.archive_preview_native import _native_presentation_geometry_payload
+from cdmw.workers.archive_preview_native import (
+    _native_presentation_geometry_payload,
+    native_preview_model_property_indices,
+)
 from cdmw.workers.appearance_workers import (
     AppearanceExactMatchRequest,
     run_appearance_exact_match,
@@ -625,7 +628,34 @@ def prepare_character_context_presentation_components(
     return tuple(prepared), tuple(dict.fromkeys(notes))
 
 
-def _package_cache_key(request: CharacterContextPackageRequest) -> str:
+def character_context_model_property_indices(
+    request: CharacterContextPackageRequest,
+    stop_event: object = None,
+) -> dict[str, int]:
+    """The material variant of each drawn model, from the prefabs that brought it.
+
+    The source model takes its own prefabs' choice first; each component then
+    takes the choice of the prefabs in its own dependencies (an authored
+    appearance names the item's prefab there). A model no prefab names draws
+    variant 0, as before. Variant 0 is left out, being the default, so the job
+    stays within its 32 selections with the source and 32 components.
+    """
+
+    indices = native_preview_model_property_indices(
+        request.source_dependency_entries, stop_event, model_paths=(request.source_entry.path,),
+    )
+    for component in request.components:
+        for path, index in native_preview_model_property_indices(
+            component.dependency_entries, stop_event, model_paths=(component.entry.path,),
+        ).items():
+            indices.setdefault(path, index)
+    return dict(tuple((path, index) for path, index in indices.items() if index)[:32])
+
+
+def _package_cache_key(
+    request: CharacterContextPackageRequest,
+    model_property_indices: Mapping[str, int] | None = None,
+) -> str:
     binary = find_native_preview_core_binary()
     binary_signature = (
         NativePreviewCoreServiceClient.resolve_binary_signature(binary)
@@ -633,7 +663,10 @@ def _package_cache_key(request: CharacterContextPackageRequest) -> str:
         else (0, 0)
     )
     payload = {
-        "schema": 2,
+        # 3: packages are keyed by the material variants they draw; earlier
+        # ones drew every model at variant 0.
+        "schema": 3,
+        "model_property_indices": sorted((model_property_indices or {}).items()),
         "source": character_context_entry_key(request.source_entry),
         "fingerprint": request.archive_fingerprint,
         "source_dependencies": sorted(
@@ -715,7 +748,8 @@ class CharacterContextPackageWorker(QObject):
                 stop_event=self._stop_event,
             )
             request = replace(self.request, components=prepared_components)
-            key = _package_cache_key(request)
+            model_property_indices = character_context_model_property_indices(request, self._stop_event)
+            key = _package_cache_key(request, model_property_indices)
             cache_parent = Path(request.cache_root) / "character_context_packages"
             final_package = cache_parent / key / "package"
             if (final_package / "manifest.json").is_file():
@@ -744,6 +778,7 @@ class CharacterContextPackageWorker(QObject):
                 dependency_entries=dependency_entries,
                 dependency_entries_complete=dependencies_complete,
                 preview_context_components=request.components,
+                model_property_indices=model_property_indices,
                 package_root=request.package_root,
                 output_root=stage_package,
                 timeout_seconds=30.0,

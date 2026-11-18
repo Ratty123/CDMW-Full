@@ -52,6 +52,7 @@ from cdmw.ui.widgets import (
 from cdmw.workers.archive_preview_native import (
     NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS,
     native_preview_core_timeout_seconds,
+    native_preview_variant_selection,
 )
 
 
@@ -597,10 +598,16 @@ class ArchiveReferencePreviewMixin:
             )
         )
 
+        item_context = getattr(self, "_archive_preview_item_context", lambda: None)()
+
         def _task(log: Callable[[str], None]) -> ArchivePreviewResult:
             log(f"Preparing referenced-file preview for {resolved_entry.path}...")
             if use_preview_core:
                 try:
+                    # The prefabs are read here, off the UI thread, by Browse's rule.
+                    model_property_indices, _variant = native_preview_variant_selection(
+                        dependency_entries, resolved_entry, None, item_context=item_context is not False,
+                    )
                     native_attempt = run_native_preview_core_preview_job(
                         resolved_entry,
                         cache_root=native_preview_cache_root,
@@ -608,6 +615,7 @@ class ArchiveReferencePreviewMixin:
                         companion_entry=companion_entry,
                         dependency_entries=dependency_entries,
                         dependency_entries_complete=remote_dependencies is not None,
+                        model_property_indices=model_property_indices,
                         package_root=preview_package_root,
                         timeout_seconds=native_preview_core_timeout_seconds(preview_settings),
                     )

@@ -7774,6 +7774,8 @@
     "Material sidecar worker returned invalid data.": "マテリアル サイドカー ワーカーが無効なデータを返しました。",
     "Material source": "マテリアルソース",
     "Material texture validation cancelled.": "マテリアル テクスチャ検証がキャンセルされました。",
+    "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see that item's colours.": "マテリアルバリアント 0 を表示しています。このモデルのバリアントは {value_0} です。そのアイテムの色を見るには、アイテムからモデルを開いてください。",
+    "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.": "{value_1} が選択するマテリアルバリアント {value_0} を表示しています。このモデルのバリアントは {value_2} です。",
     "Material warning: {value_0}": "マテリアル警告: {value_0}",
     "Material {value_0}": "マテリアル {value_0}",
     "Material {value_0}/{value_1}: {value_2}. {value_3}": "マテリアル {value_0}/{value_1}: {value_2}。{value_3}",
