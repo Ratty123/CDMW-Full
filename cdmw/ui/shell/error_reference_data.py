@@ -48075,7 +48075,7 @@ MESSAGE_REFERENCE = [
     "message": "Input is missing the PAR mesh header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2909
+      "cdmw/modding/mesh_parser.py": 2913
     }
   },
   {
@@ -54167,7 +54167,7 @@ MESSAGE_REFERENCE = [
     "message": "Original PAC could not be parsed into usable geometry",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1537
+      "cdmw/modding/mesh_pac_builder.py": 1551
     }
   },
   {
@@ -54175,7 +54175,7 @@ MESSAGE_REFERENCE = [
     "message": "Original PAC data required for rebuild",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1533,
+      "cdmw/modding/mesh_pac_builder.py": 1547,
       "cdmw/modding/mesh_pac_legacy_builder.py": 24
     }
   },
@@ -54456,7 +54456,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC LOD index is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2571
+      "cdmw/modding/mesh_parser.py": 2575
     }
   },
   {
@@ -54896,7 +54896,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 3028
+      "cdmw/modding/mesh_parser.py": 3032
     }
   },
   {
@@ -55273,7 +55273,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2954
+      "cdmw/modding/mesh_parser.py": 2958
     }
   },
   {
@@ -55497,7 +55497,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2989
+      "cdmw/modding/mesh_parser.py": 2993
     }
   },
   {
@@ -59346,7 +59346,7 @@ MESSAGE_REFERENCE = [
     "message": "Select faces from one part before splitting.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_deformer.py": 860
+      "cdmw/modding/mesh_deformer.py": 861
     }
   },
   {
@@ -60413,7 +60413,7 @@ MESSAGE_REFERENCE = [
     "message": "Subdivision interchange vertex ordering changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_deformer.py": 332
+      "cdmw/modding/mesh_deformer.py": 333
     }
   },
   {
@@ -61570,6 +61570,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/preview/dotnet_host_protocol.py": 20
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The rebuilt PAC would read back from one of its lower LODs instead of LOD0, so it was not written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 1513
     }
   },
   {
@@ -102301,7 +102309,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a Texture Editor project: {resolved.name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 540
+      "cdmw/core/texture_editor_project_io.py": 541
     }
   },
   {
@@ -103017,10 +103025,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Texture Editor layer {layer.name} has no pixels to save.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/texture_editor_project_io.py": 359
+    }
+  },
+  {
+    "area": "textures",
     "message": "Texture Editor project has an unreadable version: {data.get('version')}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 544
+      "cdmw/core/texture_editor_project_io.py": 545
     }
   },
   {
@@ -103028,7 +103044,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor project is missing required asset files: {sample}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 602
+      "cdmw/core/texture_editor_project_io.py": 603
     }
   },
   {
@@ -103036,7 +103052,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor project save failed and rollback was incomplete. Recovery data was retained at: {recovery_paths or 'no recoverable backup path'}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 468
+      "cdmw/core/texture_editor_project_io.py": 469
     }
   },
   {
@@ -105163,7 +105179,7 @@ MESSAGE_REFERENCE = [
     "message": "{resolved.name} was saved by a newer version of the Texture Editor (project version {project_version}; this build reads up to {_PROJECT_VERSION}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 546
+      "cdmw/core/texture_editor_project_io.py": 547
     }
   },
   {
@@ -107392,7 +107408,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/texture_editor_layer_ops.py": {},
   "cdmw/core/texture_editor_project_io.py": {
     "finding": 2,
-    "raise": 7
+    "raise": 8
   },
   "cdmw/core/texture_editor_raster_ops.py": {
     "raise": 1
@@ -108148,7 +108164,7 @@ SOURCE_COVERAGE = {
     "raise": 30
   },
   "cdmw/modding/mesh_pac_builder.py": {
-    "raise": 73
+    "raise": 74
   },
   "cdmw/modding/mesh_pac_legacy_builder.py": {
     "raise": 2

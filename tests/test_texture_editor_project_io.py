@@ -210,3 +210,14 @@ def test_project_load_ignores_binding_fields_it_does_not_know(tmp_path: Path) ->
     loaded, _pixels_by_layer, _floating = project_io.load_texture_editor_project(project_path)
 
     assert loaded.layers[0].layer_id == "base"
+
+
+def test_save_refuses_a_layer_without_pixels_instead_of_dropping_it(tmp_path: Path) -> None:
+    project_path = tmp_path / "missing.ctfedit.json"
+    document = _document(_layer("base", "Base"), _layer("paint", "Paint"))
+
+    with pytest.raises(ValueError, match="Paint"):
+        project_io.save_texture_editor_project(document, {"base": _pixels(3)}, project_path)
+
+    assert not project_path.exists()
+    _assert_no_transaction_paths(project_path)

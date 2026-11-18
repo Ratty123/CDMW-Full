@@ -146,10 +146,13 @@ def test_in_place_face_edit_writes_each_face_to_its_own_stored_triple():
     assert parse_pac(output, "probe.pac").submeshes[0].faces == [(0, 1, 2), (1, 2, 3)]
 
 
-def test_full_rebuild_keeps_a_descriptor_the_parser_could_not_read():
+@pytest.mark.parametrize("b_lower_lod", [[0, 1, 2], [0, 0, 0]], ids=["live-lower-lods", "collapsed-everywhere"])
+def test_full_rebuild_keeps_a_descriptor_the_parser_could_not_read(b_lower_lod):
+    # partB has no live face at LOD0. With live lower LODs, the rebuilt LOD1 ties
+    # LOD0 on faces and has more vertices; it must still read back as LOD0.
     source = make_pac([
         {"name": "partA", "lods": [(QUAD, [0, 1, 2, 1, 3, 2])] + [(TRI, [0, 1, 2])] * 3},
-        {"name": "partB", "lods": [(TRI, [0, 0, 0])] * 4},
+        {"name": "partB", "lods": [(TRI, [0, 0, 0])] + [(TRI, b_lower_lod)] * 3},
         {"name": "partC", "lods": [(QUAD, [0, 1, 2, 1, 3, 2])] + [(TRI, [0, 1, 2])] * 3},
     ])
     original = parse_pac(source, "probe.pac")

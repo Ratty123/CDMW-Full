@@ -2547,7 +2547,11 @@ def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:
     if not candidates:
         return _pac_fallback_pam(data, filename)
 
-    candidates.sort(key=lambda item: (item[0], item[1], item[2], item[3]), reverse=True)
+    # Most faces wins; on a tie the declared LOD0 wins before vertex or part counts.
+    # CDMW-written files can store LOD0 again at a lower LOD beside a part whose
+    # lower LOD has more vertices, which must not make that LOD read as the model.
+    candidates.sort(key=lambda item: (item[0], item[3] == lod0_section_index, item[1], item[2], item[3]),
+                    reverse=True)
     result = candidates[0][4]
     logger.info(
         "Parsed PAC %s: %d submeshes, %d verts, %d faces",

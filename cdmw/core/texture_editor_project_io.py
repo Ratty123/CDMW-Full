@@ -355,7 +355,8 @@ def _write_texture_editor_project(
     for index, layer in enumerate(document.layers, start=1):
         pixels = layer_pixels.get(layer.layer_id)
         if pixels is None:
-            continue
+            # Skipping it would save a project that silently lost a layer.
+            raise ValueError(f"Texture Editor layer {layer.name!r} has no pixels to save.")
         file_name = f"{index:02d}_{_safe_slug(layer.name)}.png"
         relative_png = PurePosixPath("layers") / file_name
         save_rgba_array_png(pixels, layers_dir / file_name)

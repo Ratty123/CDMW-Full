@@ -1490,6 +1490,7 @@ def _build_pac_full_rebuild(
         struct.pack_into("<I", assembled, 0x10 + slot * 8 + 4, len(payload))
         assembled.extend(payload)
 
+    _require_pac_rebuild_reads_back_lod0(bytes(assembled), working_mesh.path, lod0_section_index)
     logger.info(
         "Built PAC %s with full rebuild: %d bytes, %d submeshes, %d verts, %d faces",
         working_mesh.path,
@@ -1499,6 +1500,19 @@ def _build_pac_full_rebuild(
         sum(len(sm.faces) for sm in working_mesh.submeshes),
     )
     return bytes(assembled)
+
+
+def _require_pac_rebuild_reads_back_lod0(rebuilt: bytes, path: str, lod0_section_index: int) -> None:
+    """Refuse output that CDMW itself would read back from a lower LOD instead of LOD0."""
+    section = next((item for item in _parse_par_sections(rebuilt) if item["index"] == lod0_section_index), None)
+    reparsed = parse_pac(rebuilt, str(path or ""))
+    if section is None or not reparsed.submeshes or not all(
+        section["offset"] <= part.source_index_offset < section["offset"] + section["size"]
+        for part in reparsed.submeshes
+    ):
+        raise ValueError(
+            "The rebuilt PAC would read back from one of its lower LODs instead of LOD0, so it was not written."
+        )
 
 
 def _format_roundtrip_topology_error(
