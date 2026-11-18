@@ -15,8 +15,8 @@ import time
 from pathlib import Path
 
 from cdmw.mcp.errors import FAILED, INVALID_ARGUMENTS, NOT_FOUND, UNAVAILABLE, ToolError
-from cdmw.mcp.names import EDIT, READ
-from cdmw.mcp.tools import ON_WORKER, Tool, object_schema
+from cdmw.mcp.names import EDIT, OUTPUT, READ
+from cdmw.mcp.tools import ON_CALL, ON_WORKER, Tool, object_schema
 
 SETTLE_S = 30.0
 ARRIVE_S = 5.0
@@ -309,6 +309,37 @@ def _findings(call) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {"report": payload}
 
 
+#: Message boxes that end a button's handler before it writes anything.
+REFUSAL_KINDS = ("warning", "critical", "information", "question")
+
+
+def _export_pac(call) -> dict[str, object]:
+    """Export PAC As, as its button does after its file chooser: the finished PAC alone."""
+
+    from cdmw.mcp.mesh_tools import NO_EDITOR, _act, _status, shown_document
+
+    context = call.context
+    path = str(Path(str(call.arguments["path"])))
+    if Path(path).suffix.lower() != ".pac":
+        raise ToolError(INVALID_ARGUMENTS, "Export PAC As writes a .pac file.")
+
+    def press() -> dict[str, object]:
+        tab = shown_document(context)
+        if tab is None or getattr(tab, "standalone_controller", None) is None:
+            raise ToolError(UNAVAILABLE, NO_EDITOR)
+        tab._start_standalone_export_pac_requested()
+        return {"status": _status(tab)}
+
+    outcome = _act(call, press, {"save_file": path})
+    refused = [row for row in outcome.get("asked") or () if str(row.get("kind", "")) in REFUSAL_KINDS]
+    chose = any("save" in str(row.get("kind", "")) for row in outcome.get("asked") or ())
+    if refused or not chose:
+        outcome["message"] = "Export PAC As did not start: 'asked' says why (Build Mod writes edits a PAC alone cannot hold)."
+    else:
+        outcome.update(started=True, path=path, message="The PAC is being written; mesh_state's status says when it is done.")
+    return outcome
+
+
 def _panels(call) -> dict[str, object]:
     """The panels' state as the editor is given it (the host's state, without the mesh)."""
 
@@ -443,6 +474,14 @@ def mesh_edit_tools() -> list[Tool]:
                                                       "items": {"type": "string", "maxLength": 64}}}),
              effect=READ, route="service:RustMeshAuthoringSession.state_payload", handler=_panels,
              runs_on=ON_WORKER),
+        Tool(name="mesh.export_pac", family="mesh", title="Export PAC As",
+             description="Export PAC As: the shown document's finished mesh as one .pac file at 'path' (a new file "
+                         "outside the game), as the button does after its file chooser. Refused, as the button "
+                         "refuses, when the edit needs companion files (textures, materials, sets): use "
+                         "mesh_build_mod then.",
+             input_schema=object_schema({"path": {"type": "string", "minLength": 3, "maxLength": 1024}}, ["path"]),
+             effect=OUTPUT, route="ui:_start_standalone_export_pac_requested", handler=_export_pac,
+             runs_on=ON_CALL, output_paths=("path",)),
         Tool(name="mesh.findings", family="mesh", title="Mesh findings",
              description="The shown document's validation, as Finish runs it: whether the mesh can be written "
                          "for its output, and each finding with its part and what to do about it.",

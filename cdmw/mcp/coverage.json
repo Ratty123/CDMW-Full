@@ -981,11 +981,7 @@
       "area": "Mesh Editor",
       "what": "Export PAC As",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.run_command"
-      ]
+      "tool": "mesh.export_pac"
     },
     {
       "id": "hair.tools",
@@ -1090,12 +1086,7 @@
       "area": "Mesh Editor",
       "what": "Build Mod's mod manager, output choice, Include body and kept texture layers (mesh.build_mod sets name, folder, version, author, description and ZIP)",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act"
-      ]
+      "tool": "mesh.build_mod"
     },
     {
       "id": "placement.pointer",

@@ -1326,3 +1326,32 @@ def test_panel_tools_reach_the_host_as_the_panels_do(editor, connect) -> None:  
     refused = mcp.ok("mesh_layers", {"action": "activate", "arguments": {"layer_id": "no-such-layer"}})
     assert refused["history"]["undo"] == refused["history_before"]["undo"], refused
     assert refused["status"], refused
+
+
+def test_export_pac_runs_the_button_and_reports_its_refusal(editor, connect, tmp_path) -> None:  # noqa: F811
+    """Export PAC As before the edit is finished: the button's own warning comes back as 'asked'."""
+
+    from PySide6.QtWidgets import QFileDialog
+
+    ui = editor.ui
+    ui.standalone_controller = getattr(ui, "standalone_controller", None) or SimpleNamespace(
+        active_session_id=editor.host.shadow_session_id, mesh_service=editor.service)
+    finished, written = [False], []
+
+    def press() -> None:  # the button's handler, cut down to its refusal and its chooser
+        if not finished[0]:
+            QMessageBox.warning(None, "Export PAC As…", "Finish Edit Mesh or run Check mesh successfully before "
+                                                        "exporting the PAC.")
+            return
+        target, _filter = QFileDialog.getSaveFileName(None, "Export PAC As…", "mesh.pac", "PAC files (*.pac)")
+        written.append(target)
+
+    ui._start_standalone_export_pac_requested = press
+    mcp = connect(editor.window)
+    assert mcp.error("mesh_export_pac", {"path": str(tmp_path / "x.obj")})["code"] == "invalid_arguments"
+    refused = mcp.ok("mesh_export_pac", {"path": str(tmp_path / "x.pac")})
+    assert refused["asked"] and "Export PAC As" in refused["asked"][0]["title"], refused
+    assert not (tmp_path / "x.pac").exists() and written == []
+    finished[0] = True
+    started = mcp.ok("mesh_export_pac", {"path": str(tmp_path / "x.pac")})
+    assert started["started"] and written == [str(tmp_path / "x.pac")]
