@@ -952,11 +952,11 @@
       "tool": "mesh.layers"
     },
     {
-      "id": "mesh.replacement_options",
+      "id": "mesh.part_options",
       "area": "Mesh Editor",
-      "what": "Import Replacement options: fit, include, islands, guides, cloth, jiggle, physics, collisions, emission, translucency, shader controls, compare, reset",
+      "what": "Per-part options: shader experiments, emission, translucency, jiggle, physics profile, collisions, cloth, guides, islands, include; Import Replacement's fit, compare, reset",
       "class": "edit",
-      "tool": "mesh.replacement_options"
+      "tool": "mesh.part_options"
     },
     {
       "id": "mesh.panels",
@@ -1007,16 +1007,14 @@
       "area": "Material panel",
       "what": "Every factor of a material",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+      "tool": "mesh.panels"
     },
     {
       "id": "materials.set",
       "area": "Material panel",
-      "what": "Set a factor or surface slider",
+      "what": "Set a material factor or surface option (Shader experiments, emission, translucency)",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+      "tool": "mesh.part_options"
     },
     {
       "id": "materials.variants",
@@ -1024,7 +1022,7 @@
       "what": "Variants",
       "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+      "milestone": "P13 full MCP: the Mesh Editor has no control for this yet (Material Colour is deliberately unavailable in the helper)"
     },
     {
       "id": "materials.recolour",
@@ -1032,7 +1030,7 @@
       "what": "Recolour",
       "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+      "milestone": "P13 full MCP: the Mesh Editor has no control for this yet (Material Colour is deliberately unavailable in the helper)"
     },
     {
       "id": "view.texture_image",

@@ -354,10 +354,11 @@ _PANEL_TOOLS = (
      "visibility {layer_id, visible}, copy, paste, delete {layer_id}."),
     ("hair", "mesh.hair", "Hair",
      "Hair Tools' commands for a hairstyle being made: color {color: [r, g, b]}, texture {...}."),
-    ("replacement", "mesh.replacement_options", "Import Replacement options",
-     "Import Replacement's options for the model in the mapping step, as its panel sends them: fit, include "
-     "{part_ids, included}, islands, guides, cloth, jiggle, physics_profile, collision_volumes, "
-     "weapon_collisions, emission, translucency, shader_controls, compare, reset."),
+    ("replacement", "mesh.part_options", "Part options",
+     "The Inspector's per-part options for the selected parts ('part_ids' as mesh_panels lists them), as its "
+     "controls send them: shader_controls (Shader experiments, {part_ids, shader_controls}), emission, "
+     "translucency, jiggle, physics_profile, collision_volumes, weapon_collisions, cloth, guides, islands, "
+     "include {part_ids, included}; and Import Replacement's fit, compare and reset."),
 )
 
 
