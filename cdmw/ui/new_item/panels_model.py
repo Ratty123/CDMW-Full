@@ -473,7 +473,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             if self.workspace_splitter.orientation() != orientation or squeezed:
                 self.workspace_splitter.setOrientation(orientation)
                 if orientation == Qt.Orientation.Vertical:
-                    self.workspace_splitter.setSizes((max(360, self.height() - 250), 250))
+                    # The viewport's floor is low so a short window never clips the
+                    # controls under it; stacked, it still starts at a working height.
+                    preferred = self.preview_column.minimumSizeHint().height() + 120
+                    total = max(self.workspace_splitter.height() - handle, 1)
+                    top = min(max(360, preferred, total - 250), max(total - 100, 1))
+                    self.workspace_splitter.setSizes((top, max(total - top, 1)))
                 else:
                     self.workspace_splitter.setSizes((max(preview_width, available - inspector_width), inspector_width))
             self.inspector_tabs.updateGeometry()
@@ -568,7 +573,10 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         operation_row.addStretch(1)
         operation_layout.addLayout(operation_row)
         self.operation_banner.setVisible(False)
-        self.preview.setMinimumHeight(300)
+        # The viewport gives up height before the controls under it do: on a short
+        # window (a laptop at 150% scaling) a taller floor pushed the Preview box and
+        # its status line below the bottom of the page.
+        self.preview.setMinimumHeight(180)
         self.preview.status_changed.connect(self._preview_status)
         self.preview.captured.connect(self._inline_capture_done)
         self.preview.placement_changed.connect(self._gizmo_moved)
