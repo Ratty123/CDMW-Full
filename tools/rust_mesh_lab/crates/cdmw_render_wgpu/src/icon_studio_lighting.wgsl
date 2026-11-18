@@ -72,7 +72,7 @@ fn icon_studio_irradiance(N: vec3<f32>, key: f32) -> vec3<f32> {
     return sum;
 }
 
-fn icon_studio_lighting(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, T: vec3<f32>, rough: f32, metal: f32, spec: f32, occlusion: f32, skin: bool, hair: bool, shadow: f32) -> StudioTerms {
+fn icon_studio_lighting(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, T: vec3<f32>, rough: f32, metal: f32, spec: f32, occlusion: f32, skin: bool, hair: bool, wet: bool, shadow: f32) -> StudioTerms {
     let normal = icon_studio_frame(N);
     let view = icon_studio_frame(V);
     let NV = clamp(dot(N,V),0.0,1.0);
@@ -83,9 +83,14 @@ fn icon_studio_lighting(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, T: vec3<f32>, 
     // A cavity hides the room from a rough surface more than from a mirror.
     let cavity = mix(0.4,1.0,occlusion);
     let specular_cavity = mix(cavity,1.0,(1.0-rough)*0.5);
+    // A soft box here has no edge: on a mirror-smooth eyeball or pane it would lie
+    // as a grey veil over the pupil or the glass instead of a small bright image
+    // of a light. Those surfaces take about a third of it.
+    var gloss = select(select(1.0,0.45,skin),0.3,hair);
+    if wet { gloss = 0.35; }
     var result = StudioTerms(
         C*(1.0-metal)*(vec3(1.0)-environment_brdf_approx(vec3(0.04*spec),rough,NV))*irradiance*cavity,
-        reflection*brdf*specular_cavity*select(select(1.0,0.45,skin),0.3,hair));
+        reflection*brdf*specular_cavity*gloss);
     let key = safe_normalize(icon_studio_axes()*ICON_BOX_AXES[0],V);
     if skin {
         result.diffuse += C*vec3(0.35,0.12,0.075)*clamp((dot(N,key)+0.35)/1.35,0.0,1.0)*0.35*shadow;

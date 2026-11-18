@@ -487,6 +487,18 @@ fn plate_centre(
     preset: LightingPreset,
     yaw_degrees: f32,
 ) -> Result<(i32, i32, i32), Box<dyn std::error::Error>> {
+    plate_centre_of(colour, roughness, metalness, None, preset, yaw_degrees)
+}
+
+/// `plate_centre` for a material of a given category code (10 is an eye).
+fn plate_centre_of(
+    colour: [u8; 3],
+    roughness: f32,
+    metalness: f32,
+    category_code: Option<u32>,
+    preset: LightingPreset,
+    yaw_degrees: f32,
+) -> Result<(i32, i32, i32), Box<dyn std::error::Error>> {
     let mut snapshot = triangle_application()?
         .mesh
         .as_ref()
@@ -526,6 +538,8 @@ fn plate_centre(
     let factors = [HeadlessMaterialFactors {
         factors: MaterialPreviewFactors {
             translucency_surface: Some([Some(roughness), Some(metalness)]),
+            category_code,
+            category_confidence: category_code.map(|_| 1.0),
             ..MaterialPreviewFactors::default()
         },
         material_indices_by_lod: &owner,
@@ -636,5 +650,23 @@ fn offscreen_icon_studio_lights_steel_and_cloth_from_one_room() -> TestResult {
             "red card at yaw {yaw} is ({red}, {green}, {blue})"
         );
     }
+    Ok(())
+}
+
+const PUPIL_LIMIT: i32 = 76;
+
+/// A soft box has no edge, so on a mirror-smooth eyeball it would lie as a grey
+/// veil over the pupil. An eye takes about a third of the studio's reflection:
+/// a black, glossy eye surface facing the camera stays dark.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_icon_studio_keeps_a_pupil_dark() -> TestResult {
+    let preset = LightingPreset::IconStudio;
+    let plain = plate_centre_of([2, 2, 2], 0.1, 0.0, None, preset, 0.0)?;
+    let eye = plate_centre_of([2, 2, 2], 0.1, 0.0, Some(10), preset, 0.0)?;
+    assert!(
+        eye.1 <= PUPIL_LIMIT && eye.1 + 20 <= plain.1,
+        "a black eye surface is {eye:?}; the same surface uncategorised is {plain:?}"
+    );
     Ok(())
 }

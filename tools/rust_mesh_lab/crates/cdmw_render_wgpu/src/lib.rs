@@ -1422,7 +1422,8 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         var terms: StudioTerms;
         if camera.lighting_preset == 4u {
             terms = icon_studio_lighting(texel.rgb,surface_normal,studio_view,studio_tangent,
-                studio_roughness,metalness,studio_spec,studio_occlusion,is_skin,is_hair,key_shadow);
+                studio_roughness,metalness,studio_spec,studio_occlusion,is_skin,is_hair,
+                is_eye || eye_cover || is_glass || shader_kind == 10.0,key_shadow);
         } else {
             terms = fixed_studio_lighting(texel.rgb,surface_normal,studio_view,studio_tangent,
                 studio_roughness,metalness,studio_spec,studio_occlusion,is_skin,is_hair,key_shadow);
