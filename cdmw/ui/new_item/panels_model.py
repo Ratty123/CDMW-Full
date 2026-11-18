@@ -7,6 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QSettings, QSignalBlocker, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
+    QBoxLayout,
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -327,12 +328,17 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         # under it, not among the item's own settings.
         self.preview_options = QWidget(self.preview_column)
         self.preview_options.setObjectName("new_item_preview_options")
-        preview_options_layout = QHBoxLayout(self.preview_options)
+        # Side by side when the column is wide enough for both boxes, stacked otherwise;
+        # squeezing them side by side clipped the controls and the status text.
+        preview_options_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight, self.preview_options)
         preview_options_layout.setContentsMargins(0, 0, 0, 0)
         preview_options_layout.setSpacing(6)
         preview_options_layout.addWidget(self.preview_controls, 3)
         preview_options_layout.addWidget(self.reference_group, 2)
         preview_column_layout.addWidget(self.preview_options)
+        self._fitting_preview_options = False
+        self.preview_options.installEventFilter(self)
+        self.preview_status.installEventFilter(self)
         self.reference_group.setVisible(controller.template_is_worn())
         self.material_warning = NoteLabel("", WARN)
         model_icon_column_layout.addWidget(self.material_warning)
@@ -396,7 +402,34 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def eventFilter(self, watched, event) -> bool:
         if watched is self.workspace_splitter and event.type() in (QEvent.Type.Resize, QEvent.Type.LayoutRequest):
             self._fit_model_workspace()
+        elif (watched in (getattr(self, "preview_options", None), getattr(self, "preview_status", None))
+              and event.type() in (QEvent.Type.Resize, QEvent.Type.LayoutRequest)):
+            self._fit_preview_options()
         return super().eventFilter(watched, event)
+
+    def _fit_preview_options(self) -> None:
+        """Lay the Preview and Fitting reference boxes out without clipping either."""
+        if self._fitting_preview_options:
+            return
+        self._fitting_preview_options = True
+        try:
+            layout = self.preview_options.layout()
+            side_by_side = self.preview_controls.minimumSizeHint().width()
+            if not self.reference_group.isHidden():
+                side_by_side += layout.spacing() + self.reference_group.minimumSizeHint().width()
+            direction = (QBoxLayout.Direction.LeftToRight if self.preview_options.width() >= side_by_side
+                         else QBoxLayout.Direction.TopToBottom)
+            if layout.direction() != direction:
+                layout.setDirection(direction)
+                layout.activate()
+            # The column sits in a splitter, which does not pass height-for-width down,
+            # so a wrapped status line reserves the height its text needs at this width.
+            status = self.preview_status
+            needed = status.heightForWidth(max(1, status.width())) if status.text() else 0
+            if status.minimumHeight() != max(0, needed):
+                status.setMinimumHeight(max(0, needed))
+        finally:
+            self._fitting_preview_options = False
 
     def _set_placement_visible(self, visible: bool) -> None:
         newly_available = bool(visible) and not self._placement_available

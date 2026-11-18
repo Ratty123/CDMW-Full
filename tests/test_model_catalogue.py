@@ -777,7 +777,7 @@ class ModelCatalogueTests(unittest.TestCase):
             with zipfile.ZipFile(compressed_archive, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
                 zip_file.writestr("scene/model.bin", b"\0" * (2 * 1024 * 1024))
             with self.assertRaisesRegex(ValueError, "compression ratio"):
-                safe_extract_zip(compressed_archive, root / "compressed")
+                safe_extract_zip(compressed_archive, root / "compressed", ratio_check_min_bytes=1024 * 1024)
 
             normal_archive = root / "normal.zip"
             with zipfile.ZipFile(normal_archive, "w") as zip_file:
@@ -785,6 +785,24 @@ class ModelCatalogueTests(unittest.TestCase):
             with mock.patch("cdmw.core.model_catalogue.shutil.disk_usage", return_value=mock.Mock(free=3)):
                 with self.assertRaisesRegex(ValueError, "free disk space"):
                     safe_extract_zip(normal_archive, root / "no-space")
+
+    def test_safe_extract_zip_accepts_small_highly_compressible_textures(self) -> None:
+        # A flat 1 MiB gloss map packs about 460:1. It is harmless at that size, and
+        # the archive name is not ASCII, as mods shared from Chinese sites often are.
+        name = "暗月大剑"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive = root / f"{name}.zip"
+            texture = b"DDS " + bytes(1024 * 1024)
+            member = "files/character/texture/cd_phm_02_sword_0034_mg.dds"
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+                zip_file.writestr(member, texture)
+                zip_file.writestr("files/character/cd_phm_02_sword_0034.pac", b"PAR " + bytes(range(256)) * 64)
+            with zipfile.ZipFile(archive) as zip_file:
+                info = zip_file.getinfo(member)
+            self.assertGreater(info.file_size / info.compress_size, 200)
+            safe_extract_zip(archive, root / name)
+            self.assertEqual((root / name / member).read_bytes(), texture)
 
     def test_safe_extract_zip_rejects_case_collisions_and_cancellation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

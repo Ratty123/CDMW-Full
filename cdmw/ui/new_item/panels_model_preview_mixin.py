@@ -381,6 +381,8 @@ class ModelPanelPreviewMixin:
             "Fast textures are visible; loading full textures…",
         }
         self.preview_status.setText("" if self._preview_busy else message)
+        if hasattr(self, "_fitting_preview_options"):
+            self._fit_preview_options()
         if not self._controller.busy:
             self.operation_banner.setVisible(self._preview_busy)
             self.operation_spinner.set_running(self._preview_busy)
