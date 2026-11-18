@@ -385,7 +385,7 @@ class TimingPanelMixin:
         try:
             # Moving more hand-offs later replaces this slot's earlier timing change, so one
             # event is never set by two changes; on a failure the earlier one stays.
-            with self._edits.keep_on_failure():
+            with self._edits.keep_on_failure(), self._edits.undo_step():
                 if previous and any(op.operation_id == previous for op in self._edits.operations()):
                     self._edits.discard_operation(previous)
                 with self._edits.begin_operation(scope, label=label) as handle:

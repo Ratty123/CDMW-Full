@@ -117,6 +117,8 @@ class SecondaryMotionMixin:
     def _init_constraint_state(self) -> None:
         """The rig being edited, which Your mod reads whether or not the page is built."""
 
+        from .window_rig_tabs import PanelHistory
+        self._constraint_history = PanelHistory()
         self._rig_constraints: Optional[RigConstraints] = None
         self._rig_constraints_original: Optional[RigConstraints] = None
         self._rig_constraints_bytes: bytes = b""
@@ -307,6 +309,7 @@ class SecondaryMotionMixin:
         return self.load_constraint_rig(data, path)
 
     def _clear_constraints(self, message: str) -> None:
+        self._constraint_history.clear()
         self._rig_constraints = None
         self._rig_constraints_original = None
         self._rig_constraints_bytes = b""
@@ -319,6 +322,7 @@ class SecondaryMotionMixin:
     def load_constraint_rig(self, data: bytes, game_path: str) -> Optional[str]:
         """Show a rig. Returns an error message, or None when it loaded."""
 
+        self._constraint_history.clear()
         try:
             rig = load_constraints(data, game_path)
         except Exception as error:  # noqa: BLE001 - a bad rig must not close the window
@@ -473,6 +477,7 @@ class SecondaryMotionMixin:
         except Exception as error:  # noqa: BLE001
             self._constraint_pending.setText(f"Could not apply: {error}")
             return
+        self._constraint_history.record((self._rig_constraints, self._chain_targets))
         self._chain_targets = targets
         self._rig_constraints = rig
         self._refresh_chain_table()
@@ -485,8 +490,18 @@ class SecondaryMotionMixin:
         if self._rig_constraints_original is None:
             return
         name = self._selected_chain_name()
+        if self._chain_targets:
+            self._constraint_history.record((self._rig_constraints, self._chain_targets))
         self._chain_targets = {}
         self._rig_constraints = self._rig_constraints_original
+        self._refresh_chain_table()
+        if name:
+            self._reselect(name)
+
+    def _step_constraint_history(self, *, redo):
+        name = self._selected_chain_name()
+        self._rig_constraints, self._chain_targets = self._constraint_history.step(
+            (self._rig_constraints, self._chain_targets), redo=redo)
         self._refresh_chain_table()
         if name:
             self._reselect(name)

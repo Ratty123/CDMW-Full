@@ -133,6 +133,7 @@ class SaveModMixin:
                                         rig_behaviour=behaviour)
 
     def _refresh_mod_list(self) -> None:
+        self._refresh_history_buttons()
         listing = self._built_attr("_mod_list")
         if listing is None:
             if not self._tab_built("mod"):
@@ -238,8 +239,10 @@ class SaveModMixin:
     def _discard_change(self, key: str) -> None:
         if key == DRIVEN_BONES:
             self._on_chain_reset()
+            self._constraint_history.clear()
         elif key == RIG_BEHAVIOUR:
             self._on_behaviour_reset()
+            self._behaviour_history.clear()
         elif self._edits is not None:
             if key == MANUAL:
                 self._edits.drop_hand_edits(adoptable=True)
@@ -262,8 +265,10 @@ class SaveModMixin:
             self._edits.reset()
         if getattr(self, "_rig_constraints_original", None) is not None:
             self._on_chain_reset()
+            self._constraint_history.clear()
         if getattr(self, "_behaviour_original", None) is not None:
             self._on_behaviour_reset()
+            self._behaviour_history.clear()
         self._mod_unchecked.clear()
         self._after_edit()
         self.statusBar().showMessage("Every change was removed")
@@ -302,23 +307,32 @@ class SaveModMixin:
 
         return not baseline_is_stale(self._baseline)
 
-    def _run_save(self, request: SaveRequest):
+    def _prepare_save_inputs(self, request: SaveRequest):
         ids = [key for key in request.include if key not in (MANUAL, DRIVEN_BONES, RIG_BEHAVIOUR)]
-        other = {
-            DRIVEN_BONES: getattr(self, "constraint_mod_files", dict)(),
-            RIG_BEHAVIOUR: getattr(self, "rig_behaviour_mod_files", dict)(),
-        }
-        return save_mod.save_mod(
-            self._edits,
-            request,
-            baseline=self._baseline,
-            units=self._packaged_units(ids),
-            shared_socket_users=self._shared_socket_users(),
-            other_files=other,
-            baseline_current=self._baseline_current,
-        )
+        # These documents are replaced on edit. The save job can encode these exact
+        # versions even if the user continues working while it writes the package.
+        driven = self._rig_constraints if DRIVEN_BONES in request.include else None
+        original = self._rig_constraints_bytes
+        behaviour = self._behaviour if RIG_BEHAVIOUR in request.include else None
+        baseline = self._baseline
+        units = self._packaged_units(ids)
+        users = self._shared_socket_users() if ids or MANUAL in request.include else {}
 
-    def _on_save_mod(self) -> None:
+        def inputs():
+            from .constraints import changed_files
+
+            other = {DRIVEN_BONES: dict(changed_files(original, driven)) if driven else {},
+                     RIG_BEHAVIOUR: behaviour.changed() if behaviour else {}}
+            return dict(baseline=baseline, units=units, shared_socket_users=users, other_files=other)
+
+        return inputs
+
+    def _run_save(self, request: SaveRequest):
+        inputs = self._prepare_save_inputs(request)
+        return save_mod.save_mod(self._edits, request, **inputs(),
+                                 baseline_current=self._baseline_current)
+
+    def _save_request(self):
         include = self._included_keys()
         if not include:
             self.statusBar().showMessage("Tick at least one change to save")
@@ -329,11 +343,17 @@ class SaveModMixin:
         folder = self._save_folder(into_dmm)
         if folder is None:
             return
-        request = SaveRequest(
+        return SaveRequest(
             name=name, folder=folder, include=tuple(include),
             author=self._mod_author_edit.text(), version=self._mod_version_edit.text(),
             into_dmm=into_dmm,
         )
+
+    def _on_save_mod(self) -> None:
+        request = self._save_request()
+        if request is None:
+            return
+        name, into_dmm = request.name, request.into_dmm
         outcome = self._run_save(request)
         if outcome.already_exists and outcome.destination is not None \
                 and outcome.destination.exists():
@@ -377,23 +397,9 @@ class SaveModMixin:
             box.exec()
             self.statusBar().showMessage("Not saved: see the reasons")
             return
-        settings = self._mod_settings()
-        settings.setValue(_TARGET, "dmm" if into_dmm else "folder")
-        if not into_dmm:
-            settings.setValue(_FOLDER, str(folder))
-        settings.setValue(_AUTHOR, self._mod_author_edit.text().strip())
         root = outcome.results[0].root
-        url = QUrl.fromLocalFile(str(root)).toString()
-        backup = ""
-        if outcome.backup is not None:
-            backup = translate_active_ui_text(f"The earlier version is kept in {outcome.backup}.")
-        saved = translate_active_ui_text(f"Saved {name} to {root}.")
-        link = f"<a href='{url}'>{root}</a>"
-        self._save_result.setText(
-            saved.replace(str(root), link) + f"<br>{_next_steps()}"
-            + (f"<br>{backup}" if backup else "")
-        )
-        self.statusBar().showMessage(f"Saved {name} to {root}")
+        backup = self._backup_note(outcome.backup)
+        self._show_saved_mod(request, root, backup)
         box = QMessageBox(self)
         box.setWindowTitle("Mod saved")
         box.setIcon(QMessageBox.Information)
@@ -404,6 +410,28 @@ class SaveModMixin:
         box.exec()
         if box.clickedButton() is open_button:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(root)))
+
+    @staticmethod
+    def _backup_note(backup_root):
+        if backup_root is None:
+            return ""
+        return translate_active_ui_text(f"The earlier version is kept in {backup_root}.")
+
+    def _show_saved_mod(self, request, root, backup):
+        name, folder, into_dmm = request.name, request.folder, request.into_dmm
+        settings = self._mod_settings()
+        settings.setValue(_TARGET, "dmm" if into_dmm else "folder")
+        if not into_dmm:
+            settings.setValue(_FOLDER, str(folder))
+        settings.setValue(_AUTHOR, request.author.strip())
+        url = QUrl.fromLocalFile(str(root)).toString()
+        saved = translate_active_ui_text(f"Saved {name} to {root}.")
+        link = f"<a href='{url}'>{root}</a>"
+        self._save_result.setText(
+            saved.replace(str(root), link) + f"<br>{_next_steps()}"
+            + (f"<br>{backup}" if backup else "")
+        )
+        self.statusBar().showMessage(f"Saved {name} to {root}")
 
 
 def _replace(request: SaveRequest, **fields) -> SaveRequest:
