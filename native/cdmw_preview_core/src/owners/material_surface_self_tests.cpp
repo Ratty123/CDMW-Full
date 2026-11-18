@@ -978,10 +978,64 @@ static void run_metal_class_floor_self_test() {
         "the metal class floor reached another class");
 }
 
+// Hair was cut at 0.18 whatever its wrapper said. The game's hair shaders cut
+// only with the AlphaTest permutation, and scale the texture alpha by byte 1 of
+// _hairDyeingProperty first.
+static void run_hair_shader_alpha_self_test() {
+    const HairAlphaRule opaque = hair_shader_alpha_rule(false, nullptr);
+    require_material_contract(!opaque.cutout && opaque.threshold == 0.0f,
+        "hair without the AlphaTest permutation was cut out");
+    const HairAlphaRule plain = hair_shader_alpha_rule(true, nullptr);
+    require_material_contract(plain.cutout && std::abs(plain.threshold - 0.18f) < 1.0e-6f,
+        "hair with AlphaTest lost its 0.18 cut");
+    MaterialParameterRecord property;
+    property.name = "_hairDyeingProperty";
+    property.value = "65408";  // roughness byte 0x80, alpha scale 0xFF
+    require_material_contract(
+        std::abs(hair_shader_alpha_rule(true, &property).threshold - 0.18f) < 1.0e-6f,
+        "a full alpha scale moved the hair cutout");
+    property.value = "32896";  // alpha scale 0x80: half the alpha, so twice the threshold
+    require_material_contract(
+        std::abs(hair_shader_alpha_rule(true, &property).threshold - 0.18f * 255.0f / 128.0f) < 1.0e-5f,
+        "the alpha scale of _hairDyeingProperty did not reach the hair cutout");
+    property.value = "38";  // one byte written: the scale is unset, not zero
+    require_material_contract(
+        std::abs(hair_shader_alpha_rule(true, &property).threshold - 0.18f) < 1.0e-6f,
+        "an unwritten alpha scale discarded the whole hair part");
+
+    // A batch drawn by a hair shader follows its wrapper; a part only named
+    // like hair keeps the name guess.
+    NativeSubmesh mesh;
+    mesh.name = "CD_PHM_00_Hair_Base_0001";
+    mesh.material = "CD_PHM_00_Hair_Base_0001";
+    TextureBinding base;
+    base.role = "base";
+    base.texture_name = "phm_00_hair_base_0001.dds";
+    base.shader_family = "SkinnedMeshHair";
+    base.shader_rule = "hair";
+    PackageBatchState batch;
+    batch.base = &base;
+    batch.bindings = {&base};
+    resolve_package_batch_alpha(batch, mesh);
+    require_material_contract(!batch.uses_alpha_cutout && batch.alpha_threshold == 0.0f,
+        "a hair wrapper without AlphaTest was cut out by its name");
+    base.alpha_test_enabled = true;
+    resolve_package_batch_alpha(batch, mesh);
+    require_material_contract(batch.uses_alpha_cutout && std::abs(batch.alpha_threshold - 0.18f) < 1.0e-6f,
+        "a hair wrapper with AlphaTest lost its cutout");
+    base.shader_family = "SkinnedMeshStandard";
+    base.shader_rule = "standard";
+    base.alpha_test_enabled = false;
+    resolve_package_batch_alpha(batch, mesh);
+    require_material_contract(batch.uses_alpha_cutout && std::abs(batch.alpha_threshold - 0.18f) < 1.0e-6f,
+        "a part only named like hair lost the name-guess cutout");
+}
+
 static void run_material_contract_self_test() {
     run_item_set_components_self_test();
     run_sub_component_wrapper_order_self_test();
     run_metal_class_floor_self_test();
+    run_hair_shader_alpha_self_test();
     run_weapon_sheath_component_self_test();
     ArchiveEntryRef wanted_texture;
     wanted_texture.path = "leveldata/proxylod/stone.dds";

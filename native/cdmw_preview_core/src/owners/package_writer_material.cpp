@@ -1,27 +1,35 @@
-static void prepare_package_batch_runtime(PackageWriteState& state, PackageBatchState& batch) {
-    const NativeSubmesh& mesh = *batch.mesh;
-    batch.cloth_runtime = build_native_cloth_runtime_batch(
-        state.job,
-        *state.package_index,
-        state.submeshes,
-        batch.index,
-        mesh,
-        batch.bindings,
-        state.package_dir,
-        state.geometry_dir,
-        batch.stem,
-        state.geometry.center,
-        state.geometry.scale);
-    if (batch.cloth_runtime.active) {
-        ++state.cloth_runtime_batch_count;
-        state.cloth_runtime_particle_count += batch.cloth_runtime.particle_count;
-        state.cloth_runtime_constraint_count += batch.cloth_runtime.constraint_count;
-        state.package.notes.push_back(
-            "native tool-side PBD physics runtime: batch " + std::to_string(batch.index)
-            + "; material=" + batch.cloth_runtime.hint.simulation_material_name
-            + "; particles=" + std::to_string(batch.cloth_runtime.particle_count)
-            + "; constraints=" + std::to_string(batch.cloth_runtime.constraint_count));
+struct HairAlphaRule {
+    bool cutout = false;
+    float threshold = 0.0f;
+};
+
+// The game's hair shaders (Hair, AnimalHair, HairAnimatedUV, HairAging,
+// WhiteHornHair; alpha-test permutation 2dbed5cc28bdb2cd):
+//   alpha = _baseColorTexture.a * (byte 1 of _hairDyeingProperty / 255)
+//   discard if alpha < dither        (dither: 0.03 to 0.53 over pixel and frame)
+// and nothing is discarded without the AlphaTest permutation. The preview has
+// no temporal dither, so it keeps one hard cut at 0.18. The dither's middle,
+// 0.28, was tried against the game's item icons (13 items with hair, 18 Nov
+// 2026): it lost silhouette on every one (icon area left uncovered up by 0.2
+// to 3.5 points, overlap down on 10), because a strand the game draws in a
+// share of its frames still shows in an icon. The alpha scale divides the
+// threshold, which is the same test on the unscaled texture alpha. A scale byte of 0 would discard
+// the whole part; it only occurs where the property is written as one byte
+// (WhiteHornHair, value 38 or 55), so it is read as unset, not as zero.
+static HairAlphaRule hair_shader_alpha_rule(bool alpha_test, const MaterialParameterRecord* dyeing_property) {
+    HairAlphaRule rule;
+    if (!alpha_test) return rule;
+    rule.cutout = true;
+    rule.threshold = 0.18f;
+    if (dyeing_property != nullptr) {
+        const float scale = byte4_channels(dyeing_property->value)[1];
+        if (scale > 0.0f) rule.threshold = std::min(1.0f, rule.threshold / scale);
     }
+    return rule;
+}
+
+// Which pixels of a batch are cut out, and at which alpha.
+static void resolve_package_batch_alpha(PackageBatchState& batch, const NativeSubmesh& mesh) {
     const std::string alpha_part_text = lower_copy(
         mesh.material + " " + mesh.name + " "
         + (batch.base == nullptr ? std::string() : batch.base->texture_name + " " + batch.base->archive_path));
@@ -56,6 +64,45 @@ static void prepare_package_batch_runtime(PackageWriteState& state, PackageBatch
     batch.alpha_threshold = batch.is_hair ? 0.18f
         : (batch.is_eye_surface ? 0.05f
             : (batch.is_tear_shell ? 0.35f : (batch.has_alpha_test ? 0.08f : 0.0f)));
+    // A part drawn by one of the game's hair shaders states its own cutout: the
+    // wrapper's AlphaTest permutation and the alpha scale of _hairDyeingProperty.
+    // The name guess above stays for parts without such a wrapper.
+    for (const TextureBinding* binding : batch.bindings) {
+        if (binding == nullptr || binding->shader_rule != "hair" || binding->shader_family.empty()) continue;
+        const HairAlphaRule rule = hair_shader_alpha_rule(
+            binding->alpha_test_enabled,
+            find_material_parameter(binding->material_parameters, {"_hairDyeingProperty"}));
+        batch.uses_alpha_cutout = rule.cutout;
+        batch.alpha_threshold = rule.threshold;
+        break;
+    }
+}
+
+static void prepare_package_batch_runtime(PackageWriteState& state, PackageBatchState& batch) {
+    const NativeSubmesh& mesh = *batch.mesh;
+    batch.cloth_runtime = build_native_cloth_runtime_batch(
+        state.job,
+        *state.package_index,
+        state.submeshes,
+        batch.index,
+        mesh,
+        batch.bindings,
+        state.package_dir,
+        state.geometry_dir,
+        batch.stem,
+        state.geometry.center,
+        state.geometry.scale);
+    if (batch.cloth_runtime.active) {
+        ++state.cloth_runtime_batch_count;
+        state.cloth_runtime_particle_count += batch.cloth_runtime.particle_count;
+        state.cloth_runtime_constraint_count += batch.cloth_runtime.constraint_count;
+        state.package.notes.push_back(
+            "native tool-side PBD physics runtime: batch " + std::to_string(batch.index)
+            + "; material=" + batch.cloth_runtime.hint.simulation_material_name
+            + "; particles=" + std::to_string(batch.cloth_runtime.particle_count)
+            + "; constraints=" + std::to_string(batch.cloth_runtime.constraint_count));
+    }
+    resolve_package_batch_alpha(batch, mesh);
     batch.material_hints = material_hints_for_bindings(batch.bindings);
     if (batch.base != nullptr || batch.primary_visible_layer != nullptr) return;
     for (const TextureBinding* binding : batch.bindings) {
