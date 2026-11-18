@@ -148,10 +148,11 @@ def pac_color_bytes(value: object) -> tuple[float, float, float, float] | None:
 
 
 def detail_mask_sources(manifest: object) -> tuple[str, ...]:
-    """Resolved `_detailMaskTexture` files of a native preview package manifest.
+    """Resolved `_detailMaskTexture` and `_maskTexture` files of a native preview package manifest.
 
-    The Ver2 grime and scratch rules read this map. No material layer row names
-    it, so readers that protect, check or copy layer sources ask here as well.
+    The Ver2 grime and scratch rules read the first, the legacy families' dye the
+    second. No material layer row is certain to name them, so readers that
+    protect, check or copy layer sources ask here as well.
     """
     conservation = manifest.get("material_conservation") if isinstance(manifest, Mapping) else None
     parameters = conservation.get("parameters") if isinstance(conservation, Mapping) else None
@@ -161,7 +162,9 @@ def detail_mask_sources(manifest: object) -> tuple[str, ...]:
     for parameter in parameters:
         if not isinstance(parameter, Mapping):
             continue
-        if str(parameter.get("parameter_name", "")).casefold().lstrip("_") != "detailmasktexture":
+        if str(parameter.get("parameter_name", "")).casefold().lstrip("_") not in {
+            "detailmasktexture", "masktexture",
+        }:
             continue
         source = str(parameter.get("resolved_source_path", "") or "").strip()
         if source and source not in sources:

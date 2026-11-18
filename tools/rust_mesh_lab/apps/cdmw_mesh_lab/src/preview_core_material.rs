@@ -1318,6 +1318,7 @@ fn compose_base_color(
         pixels
     };
 
+    apply_legacy_dye(&mut target, width, height, material, cache)?;
     let color_seed_applied =
         apply_color_seed_layers(&mut target, width, height, &material.layers, cache)?;
     for layer in material
@@ -1587,6 +1588,13 @@ fn compose_rgb_layer_base_color(
         .iter()
         .skip(1)
         .any(|layer| layer.mask_parameter != "_colorBlendingMaskTexture");
+    // Mode 4 of the layer shader: the legacy families' own rule.
+    let legacy = overlay && material.is_legacy_dye_family();
+    let legacy_seeds = if legacy {
+        crate::preview_gpu_layers::layered_legacy_dye(material)
+    } else {
+        None
+    };
     let base_layer = &material.layers[0];
     let base_mean = match base_layer.diffuse.as_ref() {
         Some(reference) => mean_linear_luminance(cache.image(reference)?),
@@ -1610,6 +1618,9 @@ fn compose_rgb_layer_base_color(
         flags: 15,
     });
     for layer in material.layers.iter().skip(1) {
+        if layer.is_legacy_dye() {
+            continue;
+        }
         let k = channel_index(&layer.mask_channel).min(2);
         if mask.is_none()
             && let Some(reference) = layer.mask.as_ref()
@@ -1636,6 +1647,10 @@ fn compose_rgb_layer_base_color(
                 cache.transformed(reference, width, height, layer)?,
                 detail,
             ));
+            continue;
+        }
+        if legacy && layer.colour_authored == Some(false) {
+            // No colour map of the wrapper's own: the game draws none.
             continue;
         }
         channels[k].mean = mean_linear_luminance(cache.image(reference)?);
@@ -1665,7 +1680,25 @@ fn compose_rgb_layer_base_color(
             Some(pixels) => std::array::from_fn(|k| unit(pixels[offset + k])),
             None => [1.0, 0.0, 0.0],
         };
-        let color = if overlay {
+        let color = if legacy {
+            let texel: [f32; 4] = match mask.as_deref() {
+                Some(pixels) => std::array::from_fn(|k| unit(pixels[offset + k])),
+                None => [0.0, 0.0, 0.0, 1.0],
+            };
+            let mut color = match legacy_seeds.as_ref() {
+                Some(seeds) => legacy_dye_pixel(base_rgb, seeds, texel),
+                None => base_rgb,
+            };
+            // One detail layer per pixel, the largest mask channel, by its own
+            // alpha times the opacity byte.
+            let channel = &channels[ver2_slot(weights)];
+            if let Some(pixels) = channel.pixels.as_deref() {
+                let amount = (unit(pixels[offset + 3]) * channel.opacity).clamp(0.0, 1.0);
+                let dyed = ver2_tint(linear_pixel(pixels, offset), channel.tint);
+                color = std::array::from_fn(|c| mix(color[c], dyed[c], amount));
+            }
+            color
+        } else if overlay {
             let mut color: [f32; 3] = std::array::from_fn(|k| base_rgb[k] * tint[k]);
             for (k, channel) in channels.iter().enumerate() {
                 let Some(pixels) = channel.pixels.as_deref() else {
@@ -1734,6 +1767,48 @@ fn compose_rgb_layer_base_color(
     }))
 }
 
+/// `legacy_dye` in material_layers.wgsl at one pixel: the game's dye of the
+/// legacy families. `base` is linear, `seeds` are the authored sRGB colours and
+/// alphas, `mask` is `_maskTexture` (its alpha is the overlay's base: it shades
+/// the dye, 0 black, 0.5 neutral, 1 white).
+fn legacy_dye_pixel(base: [f32; 3], seeds: &[[f32; 4]; 3], mask: [f32; 4]) -> [f32; 3] {
+    let mut c: [f32; 4] = std::array::from_fn(|k| seeds[0][k] * mask[0]);
+    c = std::array::from_fn(|k| mix(c[k], seeds[1][k], mask[1]));
+    c = std::array::from_fn(|k| mix(c[k], seeds[2][k], mask[2]));
+    let amount = c[3].clamp(0.0, 1.0);
+    std::array::from_fn(|k| {
+        let dyed = srgb_to_linear(overlay_blend(mask[3], c[k].clamp(0.0, 1.0)));
+        mix(base[k], dyed, amount)
+    })
+}
+
+/// The legacy dye over a composed sRGB base (the CPU form of the colour-only
+/// layer binding). Returns whether the material has one.
+fn apply_legacy_dye(
+    target: &mut [u8],
+    width: u32,
+    height: u32,
+    material: &PreviewCoreMaterial,
+    cache: &mut ImageCache,
+) -> Result<bool, SessionError> {
+    let Some((seeds, reference)) = material.legacy_dye() else {
+        return Ok(false);
+    };
+    let mask = cache.resized(reference, width, height)?;
+    for (pixel, mask) in target.chunks_exact_mut(4).zip(mask.chunks_exact(4)) {
+        let base = [
+            srgb_to_linear(unit(pixel[0])),
+            srgb_to_linear(unit(pixel[1])),
+            srgb_to_linear(unit(pixel[2])),
+        ];
+        let dyed = legacy_dye_pixel(base, &seeds, std::array::from_fn(|k| unit(mask[k])));
+        for k in 0..3 {
+            pixel[k] = unit_byte(linear_to_srgb(dyed[k]));
+        }
+    }
+    Ok(true)
+}
+
 fn apply_color_seed_layers(
     target: &mut [u8],
     width: u32,
@@ -1742,9 +1817,11 @@ fn apply_color_seed_layers(
     cache: &mut ImageCache,
 ) -> Result<bool, SessionError> {
     let seeds = ["r", "g", "b"].map(|channel| {
-        layers
-            .iter()
-            .find(|layer| layer.layer_role == "color_seed" && layer.mask_channel == channel)
+        layers.iter().find(|layer| {
+            layer.layer_role == "color_seed"
+                && layer.mask_channel == channel
+                && !layer.is_legacy_dye()
+        })
     });
     if seeds.iter().all(Option::is_none) {
         return Ok(false);
@@ -2627,6 +2704,7 @@ mod tests {
             uv_transform: None,
             blend_flags: None,
             blend_opacity: None,
+            colour_authored: None,
             diffuse_declared: false,
             diffuse_archive_path: String::new(),
             diffuse: None,

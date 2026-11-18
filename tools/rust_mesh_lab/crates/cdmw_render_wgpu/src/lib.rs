@@ -29,8 +29,9 @@ pub mod texture_view;
 pub use lighting_depth::LightingDepthSettings;
 pub use lighting_depth::verify_lighting_depth_compatibility;
 pub use material_layers::{
-    DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_TEXTURE_SLOTS, LayerEntryUniform, LayerTexture,
-    LayerUniform, MaterialLayerSet, material_layers_supported,
+    DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
+    LAYER_MODE_LEGACY, LAYER_TEXTURE_SLOTS, LayerEntryUniform, LayerTexture, LayerUniform,
+    MaterialLayerSet, material_layers_supported,
 };
 pub use texture_upload::run_headless_texture_upload_comparison;
 
@@ -575,9 +576,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
 
     var texel = textureSampleBias(base_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
     if material.flags == 0u && fixed_studio { texel = vec4(0.56,0.58,0.62,1.0); }
-    let gpu_layered = (material.flags & MATERIAL_GPU_LAYERS) != 0u;
+    // A colour-only layer binding (the legacy dye of a part without colour
+    // layers) replaces the base colour and nothing else.
+    let layer_colour_only = material_layers_colour_only();
+    let gpu_layered = (material.flags & MATERIAL_GPU_LAYERS) != 0u && !layer_colour_only;
     let layer_surface = evaluate_material_layers(sample_uv, texel);
-    if gpu_layered { texel = vec4<f32>(layer_surface.color, texel.a); }
+    if gpu_layered || layer_colour_only { texel = vec4<f32>(layer_surface.color, texel.a); }
     if (material.flags & MATERIAL_TEXTURE_TINT) != 0u && !gpu_layered {
         let texture_tint = max(
             material.texture_tint_and_strength.rgb,

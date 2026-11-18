@@ -2,6 +2,14 @@
 use super::*;
 
 pub(super) const FLAG: u32 = 1 << 27;
+/// `LayerUniform::control[3]` bit: the surface beneath the layers has no base colour map.
+pub const LAYER_CONTROL_NO_BASE: u32 = 1;
+/// `LayerUniform::control[3]` bit: the binding only recolours the base (the
+/// legacy dye of a part without colour layers); normal and response stay with
+/// the surface shader's own maps.
+pub const LAYER_CONTROL_COLOUR_ONLY: u32 = 2;
+/// `LayerUniform::control[0]` of the legacy families' rule.
+pub const LAYER_MODE_LEGACY: u32 = 4;
 /// Layer textures: the blend mask; colour, normal and response for R, G, B; the
 /// detail mask; then grime colour, normal and response for R, G, B.
 pub const LAYER_TEXTURE_SLOTS: usize = 20;
@@ -21,6 +29,8 @@ pub struct LayerEntryUniform {
     /// overlays (mode 2) carry it linear.
     pub dye: [f32; 4],
     pub affine: [f32; 4],
+    /// UV offset, the layer's blend flags, and 1 when the wrapper declares no
+    /// colour map for the layer (the legacy rule then draws none).
     pub offset: [f32; 4],
     /// Opacity, mean linear luminance, presence, normal encoding (0 RGB, 1 RG, 2 signed RG).
     pub properties: [f32; 4],
@@ -42,11 +52,14 @@ pub struct LayerEntryUniform {
 #[derive(Debug, Clone, Copy, Pod, Zeroable, Default)]
 pub struct LayerUniform {
     pub layers: [LayerEntryUniform; 3],
-    /// Reserved. It held `_dyeingColorMask*` colour seeds, which no Ver2 shader
-    /// of the game reads; the layer shader no longer draws them.
+    /// `_dyeingColorMaskR/G/B` of a legacy family (mode 4): authored sRGB
+    /// colour and alpha, zero where the wrapper has none. No Ver2 shader of the
+    /// game reads them, so the other modes leave them zero.
     pub seeds: [[f32; 4]; 3],
     pub base_color: [f32; 4],
-    /// Mode (1 normalized mask, 2 masked overlays, 3 eye alpha overlays), skin flag, eye flag, reserved.
+    /// Mode (1 normalized mask, 2 masked overlays, 3 eye alpha overlays, 4 the
+    /// legacy families' dye and one detail layer per pixel), skin flag, eye
+    /// flag, bits (1 no base colour map, 2 colour only: `COLOUR_ONLY`).
     pub control: [u32; 4],
 }
 
@@ -69,13 +82,13 @@ pub struct MaterialLayerSet {
 
 impl MaterialLayerSet {
     /// Whether `evaluate_material_layers` leaves the base colour map's colour off the
-    /// surface. Outside the masked-overlay (2) and eye (3) modes a pixel's colour is the
+    /// surface. Outside the masked-overlay (2), eye (3) and legacy (4) modes a pixel's colour is the
     /// layer of its largest mask channel, and the base only where that channel has none;
     /// with a layer on R, G and B the base colour never shows. Its alpha and the base
     /// normal map still do.
     #[must_use]
     pub fn hides_base_colour(&self) -> bool {
-        !matches!(self.uniform.control[0], 2 | 3)
+        !matches!(self.uniform.control[0], 2 | 3 | LAYER_MODE_LEGACY)
             && self
                 .uniform
                 .layers
@@ -237,7 +250,8 @@ pub(super) fn shader(device: &wgpu::Device, include_depth: bool) -> String {
     let source = if supported(device) {
         include_str!("material_layers.wgsl")
     } else {
-        "fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface { return LayerSurface(base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0)); }"
+        "fn material_layers_colour_only() -> bool { return false; }
+fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface { return LayerSurface(base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0)); }"
     };
     let main = SHADER.replace("// MATERIAL_LAYER_FUNCTIONS", source);
     let shadows = if include_depth && lighting_depth::shadow_supported(device) {

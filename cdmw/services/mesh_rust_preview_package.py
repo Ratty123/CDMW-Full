@@ -729,6 +729,8 @@ def _preview_core_layer_parameter_index(parameters):
             "tintcolorr", "tintcolorg", "tintcolorb", "detailmasktexture",
             "scratchroughness", "scratchmetallic",
             "scratchtintcolorr", "scratchtintcolorg", "scratchtintcolorb",
+            "masktexture", "dyeingcolormaskr", "dyeingcolormaskg", "dyeingcolormaskb",
+            "detaildiffusemaskr", "detaildiffusemaskg", "detaildiffusemaskb",
         }:
             continue
         key = (
@@ -739,7 +741,7 @@ def _preview_core_layer_parameter_index(parameters):
         value = parameter.get("integer_value")
         if value is None:
             value = parameter.get("value", "")
-        if name.casefold().lstrip("_") == "detailmasktexture":
+        if name.casefold().lstrip("_") in {"detailmasktexture", "masktexture"}:
             # A texture parameter: the layer rule needs the file, not a number.
             value = {
                 "source": str(parameter.get("resolved_source_path", "") or "").strip(),
@@ -749,13 +751,14 @@ def _preview_core_layer_parameter_index(parameters):
     return result
 
 
-def _preview_core_detail_mask(values, source_package):
+def _preview_core_detail_mask(values, source_package, name="detailmasktexture"):
     """The wrapper's `_detailMaskTexture` as (source, archive path), when its file is there.
 
     The map is optional: without it the layer keeps its plain form, so a pruned
-    or unresolved mask costs the wear, not the preview.
+    or unresolved mask costs the wear, not the preview. `name` reads another
+    texture parameter of the wrapper the same way.
     """
-    mask = values.get("detailmasktexture")
+    mask = values.get(name)
     if not isinstance(mask, Mapping) or not mask.get("source") or not mask.get("archive_path"):
         return None
     if _preview_core_material_source(source_package, mask["source"]) is None:
@@ -808,6 +811,72 @@ def _preview_core_ver2_scratch(layer, role, channel, mask_parameter, parameters,
     return mask
 
 
+# The game's shader families that dye the base colour through `_maskTexture` with
+# `_dyeingColorMaskR/G/B` (the non-Ver2 Standard group). No Ver2 shader reads those
+# colours, and the BlendHeight families have no dye.
+_LEGACY_DYE_FAMILIES = frozenset({
+    "skinnedmeshstandard", "skinnedmeshcloth", "skinnedmeshfur", "skinnedmeshemissive",
+    "skinnedmeshamplifiedglare", "skinnedmeshwing", "skinnedmeshposter",
+})
+
+
+def _preview_core_legacy_dye_layers(raw_layers, parameter_index, source_package):
+    """The legacy dye of a batch as `color_seed` rows on `_maskTexture`.
+
+    The game colours a legacy part's base through `_maskTexture`: red, green and
+    blue select `_dyeingColorMaskR/G/B`, alpha shades the result (an overlay
+    blend whose base is the alpha: 0 black, 0.5 the dye, 1 white). Preview Core
+    states the first colour as a whole-part tint only, so the rows are made here
+    from the wrapper's own parameters: one per authored colour with alpha above
+    zero, each naming the mask. Without the mask's file there is no dye.
+    """
+    base = raw_layers[0]
+    if (
+        not isinstance(base, Mapping)
+        or str(base.get("layer_role", "") or "").strip().casefold() != "base"
+        or str(base.get("shader_family", "") or "").strip().casefold() not in _LEGACY_DYE_FAMILIES
+        or any(
+            isinstance(layer, Mapping)
+            and str(layer.get("layer_role", "") or "").strip().casefold() == "color_seed"
+            for layer in raw_layers
+        )
+    ):
+        return []
+    owner = str(base.get("owner_wrapper_item_id", "") or "").strip()
+    wrapper_index = _preview_core_int(base.get("material_wrapper_index"), -1)
+    parameters = parameter_index.get(
+        (str(base.get("component_scope_id", "") or ""), owner, wrapper_index), (),
+    )
+    if not owner or wrapper_index < 0 or not parameters:
+        return []
+    values = {str(name).casefold().lstrip("_"): value for name, value in parameters}
+    mask = _preview_core_detail_mask(values, source_package, "masktexture")
+    if mask is None:
+        return []
+    layers = []
+    for channel in "rgb":
+        colour = pac_color_bytes(values.get(f"dyeingcolormask{channel}"))
+        if colour is None or colour[3] <= 0.0:
+            continue
+        layers.append({
+            "component_scope_id": str(base.get("component_scope_id", "") or ""),
+            "owner_wrapper_item_id": owner,
+            "material_wrapper_index": wrapper_index,
+            "layer_role": "color_seed",
+            "mask_channel": channel,
+            "shader_family": base.get("shader_family", ""),
+            "shader_rule": base.get("shader_rule", ""),
+            "evidence_grade": base.get("evidence_grade", ""),
+            "source_parameter": f"_dyeingColorMask{channel.upper()}",
+            "mask_parameter": "_maskTexture",
+            "weight": 1.0,
+            "tint": list(colour),
+            "mask_source": mask[0],
+            "mask_archive_path": mask[1],
+        })
+    return layers
+
+
 def _copy_preview_core_material_layers(
     raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes, copied_sources,
     materials, source_edge_count, cancelled, expected_root_identity, parameter_index, durable=True,
@@ -822,6 +891,12 @@ def _copy_preview_core_material_layers(
             raise ValueError("Preview Core batch is missing its material-layer graph.")
         if not raw_layers or len(raw_layers) > _PREVIEW_CORE_MATERIAL_LAYER_LIMIT:
             raise ValueError("Preview Core material-layer graph exceeds the bounded layer limit.")
+        raw_layers = list(raw_layers)
+        raw_layers.extend(
+            _preview_core_legacy_dye_layers(raw_layers, parameter_index, source_package)[
+                : _PREVIEW_CORE_MATERIAL_LAYER_LIMIT - len(raw_layers)
+            ]
+        )
         layers: list[dict[str, object]] = []
         for raw_layer in raw_layers:
             if not isinstance(raw_layer, Mapping):
@@ -894,6 +969,15 @@ def _copy_preview_core_material_layers(
                     if f"_dyeingdetaillayercolormask{channel}" not in values:
                         # A native default white is not an authored white dye.
                         layer["tint"][3] = 0.0
+                    if (
+                        layer["shader_family"].casefold() in _LEGACY_DYE_FAMILIES
+                        and f"_detaildiffusemask{channel}" not in values
+                    ):
+                        # Preview Core pairs a layer's normal map with the file of the
+                        # same name without the suffix. When the wrapper declares no
+                        # `_detailDiffuseMask*` that file is not a colour map (it is
+                        # often `_detailHeightMask*`), and the game draws no colour.
+                        layer["colour_authored"] = False
                 detail_mask = _preview_core_ver2_grime(
                     layer, role, channel, mask_parameter, parameters, source_package,
                 ) or _preview_core_ver2_scratch(

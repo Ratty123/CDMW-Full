@@ -258,6 +258,11 @@ pub struct PreviewCoreMaterialLayer {
     pub blend_flags: Option<u32>,
     #[serde(default)]
     pub blend_opacity: Option<f32>,
+    /// False when the wrapper declares no colour map for this layer: its
+    /// `diffuse` is then a file Preview Core found by name beside the layer's
+    /// normal map (often its height map), and the game draws no colour from it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub colour_authored: Option<bool>,
     pub diffuse_declared: bool,
     pub diffuse_archive_path: String,
     pub diffuse: Option<FileReference>,
@@ -314,6 +319,15 @@ impl PreviewCoreMaterialLayer {
             && self.mask_parameter == "_colorBlendingMaskTexture"
             && (self.scratch.is_some() || self.scratch_tint.is_some())
             && self.detail_mask.is_some()
+    }
+
+    /// Whether this row is one `_dyeingColorMaskR/G/B` colour of a legacy
+    /// family, selected by its channel of `_maskTexture`.
+    pub fn is_legacy_dye(&self) -> bool {
+        self.layer_role == "color_seed"
+            && self.mask_parameter == "_maskTexture"
+            && self.mask.is_some()
+            && matches!(self.mask_channel.as_str(), "r" | "g" | "b")
     }
 
     /// The signed roughness and metal steps of a scratch, each in -1 to 1.
@@ -377,6 +391,57 @@ pub struct PreviewCoreMaterial {
     /// Zero preserves the original graph composition for all older packages.
     #[serde(default)]
     pub authoring_channels: u8,
+}
+
+/// The game's shader families that dye the base colour through `_maskTexture`
+/// with `_dyeingColorMaskR/G/B` (the non-Ver2 Standard group).
+pub const LEGACY_DYE_FAMILIES: [&str; 7] = [
+    "SkinnedMeshStandard",
+    "SkinnedMeshCloth",
+    "SkinnedMeshFur",
+    "SkinnedMeshEmissive",
+    "SkinnedMeshAmplifiedGlare",
+    "SkinnedMeshWing",
+    "SkinnedMeshPoster",
+];
+
+impl PreviewCoreMaterial {
+    pub fn is_legacy_dye_family(&self) -> bool {
+        self.layers.first().is_some_and(|base| {
+            LEGACY_DYE_FAMILIES
+                .iter()
+                .any(|family| base.shader_family.eq_ignore_ascii_case(family))
+        })
+    }
+
+    /// The legacy dye of this material: `_dyeingColorMaskR/G/B` as authored
+    /// sRGB colour and alpha (zero where the wrapper has none) and the
+    /// `_maskTexture` that selects them. None when no colour would show.
+    pub fn legacy_dye(&self) -> Option<([[f32; 4]; 3], &FileReference)> {
+        if !self.is_legacy_dye_family() {
+            return None;
+        }
+        let mut seeds = [[0.0_f32; 4]; 3];
+        let mut mask: Option<&FileReference> = None;
+        for layer in self.layers.iter().skip(1).filter(|l| l.is_legacy_dye()) {
+            let reference = layer.mask.as_ref()?;
+            if mask.is_some_and(|known| !known.sha256.eq_ignore_ascii_case(&reference.sha256)) {
+                return None;
+            }
+            mask = Some(reference);
+            let channel = match layer.mask_channel.as_str() {
+                "r" => 0,
+                "g" => 1,
+                _ => 2,
+            };
+            seeds[channel] = layer.tint;
+        }
+        let mask = mask?;
+        seeds
+            .iter()
+            .any(|seed| seed[3] > 0.0)
+            .then_some((seeds, mask))
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

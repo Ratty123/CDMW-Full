@@ -9,7 +9,8 @@ use crate::preview_core_material::{
 };
 use cdmw_formats::MeshDocument;
 use cdmw_render_wgpu::{
-    DETAIL_MASK_SLOT, GRIME_SLOT, LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet,
+    DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
+    LAYER_MODE_LEGACY, LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet,
 };
 use cdmw_texture::{
     DdsFormat, TextureRole, dds_mean_luminance_with_verified_sha256,
@@ -62,6 +63,11 @@ pub(super) fn eligible(material: &PreviewCoreMaterial) -> bool {
     let mut mask = None;
     let mut mask_parameter = None;
     for layer in material.layers.iter().skip(1) {
+        if layer.is_legacy_dye() {
+            // The legacy dye recolours the base beneath the layers; it is not
+            // a layer and does not decide whether the layer path draws them.
+            continue;
+        }
         if layer.is_ver2_grime() {
             // Grime the game's rule can draw rides on its channel's layer slot.
             let Some(channel) = channel(layer) else {
@@ -125,6 +131,59 @@ pub(super) fn eligible(material: &PreviewCoreMaterial) -> bool {
         }
     }
     !channels.is_empty() && channels.len() <= 3
+}
+
+/// The dye colours the layer path draws for a layer-shaped legacy material: its
+/// legacy dye, when `_maskTexture` is also the mask its colour layers read (the
+/// layer binding has one mask slot).
+pub(super) fn layered_legacy_dye(material: &PreviewCoreMaterial) -> Option<[[f32; 4]; 3]> {
+    let (seeds, dye_mask) = material.legacy_dye()?;
+    let layer_mask = material
+        .layers
+        .iter()
+        .skip(1)
+        .filter(|layer| !layer.is_legacy_dye())
+        .find_map(|layer| layer.mask.as_ref())?;
+    layer_mask
+        .sha256
+        .eq_ignore_ascii_case(&dye_mask.sha256)
+        .then_some(seeds)
+}
+
+/// Whether the material is a legacy part whose only colour rule beyond its base
+/// map is the dye: `_dyeingColorMaskR/G/B` through `_maskTexture`, with no colour
+/// layer. The GPU then recolours the base and leaves every other map alone.
+pub(super) fn dye_only(material: &PreviewCoreMaterial) -> bool {
+    material.authoring_channels == 0
+        && material.legacy_dye().is_some()
+        && material
+            .layers
+            .first()
+            .is_some_and(|base| base.diffuse.is_some())
+        && !material.layers.iter().skip(1).any(|layer| {
+            !layer.is_legacy_dye() && (layer.diffuse.is_some() || layer.layer_role == "color_seed")
+        })
+}
+
+fn build_dye_only(
+    material: &PreviewCoreMaterial,
+    sources: &BTreeMap<String, Arc<[u8]>>,
+) -> MaterialLayerSet {
+    let (seeds, mask) = material.legacy_dye().expect("dye-only material");
+    let mut textures: [Option<LayerTexture>; cdmw_render_wgpu::LAYER_TEXTURE_SLOTS] =
+        std::array::from_fn(|_| None);
+    textures[0] = Some(layer_texture(mask, TextureRole::LayerMask, sources));
+    MaterialLayerSet {
+        lod_index: material.lod_index as usize,
+        material_index: material.material_index,
+        uniform: LayerUniform {
+            seeds,
+            base_color: [1.0; 4],
+            control: [LAYER_MODE_LEGACY, 0, 0, LAYER_CONTROL_COLOUR_ONLY],
+            ..Default::default()
+        },
+        textures,
+    }
 }
 
 fn eye_channel(layer: &PreviewCoreMaterialLayer) -> Option<usize> {
@@ -269,13 +328,23 @@ fn build(
         }
         return Ok(result);
     }
+    let legacy = material.is_legacy_dye_family();
     if material
         .layers
         .iter()
         .skip(1)
-        .any(|layer| layer.mask_parameter != "_colorBlendingMaskTexture")
+        .any(|layer| !layer.is_legacy_dye() && layer.mask_parameter != "_colorBlendingMaskTexture")
     {
-        result.uniform.control[0] = 2;
+        // The legacy families follow the game's traced rule; the other
+        // families that read `_maskTexture` keep the weighted mix.
+        result.uniform.control[0] = if legacy { LAYER_MODE_LEGACY } else { 2 };
+    }
+    let legacy = legacy && result.uniform.control[0] == LAYER_MODE_LEGACY;
+    if legacy {
+        // The game's legacy rule has no whole-part tint: `_dyeingColorMask*`
+        // colours the base through the mask instead.
+        result.uniform.base_color = [1.0; 4];
+        result.uniform.seeds = layered_legacy_dye(material).unwrap_or_default();
     }
     result.uniform.control[1] = u32::from(family.contains("skin") && !family.contains("skinned"));
     // Native names include SkinnedMeshSkin and SkinWrinkle.
@@ -288,9 +357,12 @@ fn build(
     } else {
         // A layered material without a base colour map samples white beneath
         // its layers (as CDMW Next does), not the grey untextured placeholder.
-        result.uniform.control[3] = 1;
+        result.uniform.control[3] = LAYER_CONTROL_NO_BASE;
     }
     for layer in material.layers.iter().skip(1) {
+        if layer.is_legacy_dye() {
+            continue;
+        }
         let k = channel(layer).expect("eligible channel");
         result.textures[0] = Some(layer_texture(
             layer.mask.as_ref().expect("eligible mask"),
@@ -347,8 +419,9 @@ fn build(
         );
         // Grime of this channel may already sit in the entry: keep it.
         result.uniform.layers[k] = LayerEntryUniform {
-            // Colour-blend layers are dyed by the game's overlay, on display values.
-            dye: if result.uniform.control[0] == 1 {
+            // Colour-blend and legacy layers are dyed by the game's overlay, on
+            // display values.
+            dye: if result.uniform.control[0] == 1 || legacy {
                 layer.tint
             } else {
                 dye(layer.tint)
@@ -358,7 +431,9 @@ fn build(
                 affine[4],
                 affine[5],
                 layer.blend_flags.unwrap_or(15) as f32,
-                0.0,
+                // The legacy rule draws no colour from a map the wrapper does
+                // not declare.
+                f32::from(u8::from(legacy && layer.colour_authored == Some(false))),
             ],
             properties: [
                 // Next and the source use the per-channel _dyeingGlobalOpacity
@@ -504,6 +579,12 @@ where
                 }
             }
             layers.push(gpu);
+        } else if gpu_supported && dye_only(&material) {
+            // The GPU dyes the authored base map; everything else about the
+            // material is composed as it is without the dye.
+            layers.push(build_dye_only(&material, &sources));
+            material.layers.retain(|layer| !layer.is_legacy_dye());
+            cpu.materials.push(material);
         } else {
             cpu.materials.push(material);
         }
@@ -1130,6 +1211,334 @@ mod tests {
                     assert!(
                         (drawn - expected).abs() <= 0.006,
                         "dye {dye:?}, channel {channel}: {drawn} != {expected}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The game's legacy dye (Standard, Cloth, Fur and kin): `_dyeingColorMaskR/G/B`
+    /// through `_maskTexture`, whose alpha shades the dye. The tunic of
+    /// `cd_m0001_00_no_phm_ub_43007` (cream base, R `#4a4639ff`, G `#a35835d4`)
+    /// drew undyed. The GPU gets a colour-only binding and leaves the base map
+    /// alone; the CPU fallback composes the same colour; a Ver2 family ignores
+    /// the colours, as the game does.
+    #[test]
+    fn legacy_dye_follows_the_games_formula_on_gpu_binding_and_cpu_fallback() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let cream = [179_u8, 163, 141];
+        let dyes = [
+            [74.0 / 255.0, 70.0 / 255.0, 57.0 / 255.0, 1.0],
+            [163.0 / 255.0, 88.0 / 255.0, 53.0 / 255.0, 212.0 / 255.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ];
+        let overlay = |base: f32, blend: f32| {
+            if base < 0.5 {
+                2.0 * base * blend
+            } else {
+                1.0 - 2.0 * (1.0 - base) * (1.0 - blend)
+            }
+        };
+        // (name, mask texel, expected sRGB bytes when the result is exact)
+        for (name, mask, exact) in [
+            (
+                "dye R at neutral shade",
+                [255_u8, 0, 0, 128],
+                Some([74_u8, 70, 57]),
+            ),
+            ("dye G by its alpha", [0, 255, 0, 128], None),
+            (
+                "no dye where the mask is empty",
+                [0, 0, 0, 128],
+                Some(cream),
+            ),
+            ("the mask's alpha darkens the dye", [255, 0, 0, 64], None),
+            // A bright dye under a dark mask: the alpha, not the dye, picks the
+            // overlay's branch (2ab here, not 1 - 2(1-a)(1-b)).
+            ("the alpha is the overlay's base", [0, 255, 0, 64], None),
+            ("a light mask whitens the dye", [255, 0, 0, 230], None),
+            ("R then G", [255, 128, 0, 200], None),
+        ] {
+            let bytes = [make([cream[0], cream[1], cream[2], 255]), make(mask)];
+            let refs = [
+                reference(&bytes[0], "tunic.dds"),
+                reference(&bytes[1], "tunic_m.dds"),
+            ];
+            let m: [f32; 4] = std::array::from_fn(|k| f32::from(mask[k]) / 255.0);
+            let mut c: [f32; 4] = std::array::from_fn(|k| dyes[0][k] * m[0]);
+            c = std::array::from_fn(|k| c[k] + (dyes[1][k] - c[k]) * m[1]);
+            c = std::array::from_fn(|k| c[k] + (dyes[2][k] - c[k]) * m[2]);
+            let expected: [f32; 3] = std::array::from_fn(|k| {
+                let base = linear(f32::from(cream[k]) / 255.0);
+                base + (linear(overlay(m[3], c[k])) - base) * c[3]
+            });
+            for family in ["SkinnedMeshStandard", "SkinnedMeshStandard_Ver2"] {
+                let mut base = layer("base", "r", &refs[0]);
+                base.mask = None;
+                base.shader_family = family.into();
+                base.source_parameter = "_baseColorTexture".into();
+                base.mask_parameter = String::new();
+                let mut layers = vec![base];
+                for (k, channel) in ["r", "g", "b"].into_iter().enumerate() {
+                    let mut seed = layer("color_seed", channel, &refs[1]);
+                    seed.diffuse = None;
+                    seed.shader_family = family.into();
+                    seed.source_parameter = [
+                        "_dyeingColorMaskR",
+                        "_dyeingColorMaskG",
+                        "_dyeingColorMaskB",
+                    ][k]
+                        .into();
+                    seed.mask_parameter = "_maskTexture".into();
+                    seed.tint = dyes[k];
+                    layers.push(seed);
+                }
+                let legacy = family == "SkinnedMeshStandard";
+                let value = material(layers);
+                assert_eq!(value.legacy_dye().is_some(), legacy, "{family}");
+                assert!(!eligible(&value), "a dye alone is not a layer stack");
+                assert_eq!(dye_only(&value), legacy, "{family}");
+                let graph = PreviewCoreMaterialGraph {
+                    schema_version: 1,
+                    graph_version: 5,
+                    semantics_version: 10,
+                    quality: "full".into(),
+                    resources_included: true,
+                    source_edge_count: 4,
+                    unique_resource_count: 2,
+                    copied_resource_count: 2,
+                    unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+                    materials: vec![value],
+                };
+                for gpu in [true, false] {
+                    let mut resources = Vec::new();
+                    let (_, sets) = prepare(
+                        &graph,
+                        &[],
+                        &document,
+                        &mut resources,
+                        gpu,
+                        false,
+                        |r| {
+                            Ok(bytes[refs
+                                .iter()
+                                .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                                .unwrap()]
+                            .clone())
+                        },
+                        &|| false,
+                    )
+                    .unwrap();
+                    let composed = resources
+                        .iter()
+                        .find(|r| r.role == TextureRole::BaseColor)
+                        .expect("base colour");
+                    let decoded =
+                        cdmw_texture::decode_dds_rgba8(&composed.bytes, composed.role).unwrap();
+                    if gpu && legacy {
+                        assert_eq!(sets.len(), 1, "{name}");
+                        assert_eq!(
+                            sets[0].uniform.control,
+                            [LAYER_MODE_LEGACY, 0, 0, LAYER_CONTROL_COLOUR_ONLY]
+                        );
+                        assert_eq!(sets[0].uniform.seeds, dyes, "sRGB colours, undecoded");
+                        assert_eq!(sets[0].uniform.base_color, [1.0; 4]);
+                        assert_eq!(
+                            sets[0].textures[0].as_ref().unwrap().source_sha256,
+                            refs[1].sha256
+                        );
+                        assert!(sets[0].textures[1..].iter().all(Option::is_none));
+                        assert_eq!(
+                            decoded.pixels[..3],
+                            cream,
+                            "{name}: the GPU dyes; the base map must not be dyed as well"
+                        );
+                        continue;
+                    }
+                    assert!(sets.is_empty(), "{family} {name}");
+                    for channel in 0..3 {
+                        let wanted = if legacy {
+                            expected[channel]
+                        } else {
+                            linear(f32::from(cream[channel]) / 255.0)
+                        };
+                        let drawn = linear(f32::from(decoded.pixels[channel]) / 255.0);
+                        assert!(
+                            (drawn - wanted).abs() <= 0.004,
+                            "{family} {name}, channel {channel}: {drawn} != {wanted}"
+                        );
+                        if let (true, Some(exact)) = (legacy, exact) {
+                            assert!(
+                                decoded.pixels[channel].abs_diff(exact[channel]) <= 1,
+                                "{name}, channel {channel}: {} != {}",
+                                decoded.pixels[channel],
+                                exact[channel]
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A legacy part with colour layers: the dye colours the base, then the
+    /// detail layer of the largest mask channel is laid over it by its own alpha
+    /// times the opacity byte, dyed by the game's overlay. No whole-part tint.
+    #[test]
+    fn legacy_layers_draw_one_layer_per_pixel_over_the_dyed_base() {
+        let make = |pixel: [u8; 4]| {
+            cdmw_texture::encode_rgba8_dds(1, 1, &pixel, TextureRole::BaseColor).unwrap()
+        };
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        let cream = [179_u8, 163, 141];
+        let weave = [120_u8, 90, 60, 153];
+        let mask = [64_u8, 255, 0, 128];
+        let dye_g = [163.0 / 255.0, 88.0 / 255.0, 53.0 / 255.0, 212.0 / 255.0];
+        let layer_dye = [0.2, 0.4, 0.8, 0.5];
+        let bytes = [
+            make([cream[0], cream[1], cream[2], 255]),
+            make(mask),
+            make(weave),
+        ];
+        let refs = [
+            reference(&bytes[0], "tunic.dds"),
+            reference(&bytes[1], "tunic_m.dds"),
+            reference(&bytes[2], "weave.dds"),
+        ];
+        let mut base = layer("base", "r", &refs[0]);
+        base.mask = None;
+        base.shader_family = "SkinnedMeshCloth".into();
+        let mut seed = layer("color_seed", "g", &refs[1]);
+        seed.diffuse = None;
+        seed.shader_family = "SkinnedMeshCloth".into();
+        seed.source_parameter = "_dyeingColorMaskG".into();
+        seed.mask_parameter = "_maskTexture".into();
+        seed.tint = dye_g;
+        // Layer R is not the largest channel here: it must not show.
+        let mut red = layer("detail", "r", &refs[0]);
+        red.shader_family = "SkinnedMeshCloth".into();
+        red.mask = Some(refs[1].clone());
+        red.mask_parameter = "_maskTexture".into();
+        red.blend_flags = Some(15);
+        red.blend_opacity = Some(1.0);
+        let mut green = layer("detail", "g", &refs[2]);
+        green.shader_family = "SkinnedMeshCloth".into();
+        green.source_parameter = "_detailDiffuseMaskG".into();
+        green.mask = Some(refs[1].clone());
+        green.mask_parameter = "_maskTexture".into();
+        green.tint = layer_dye;
+        green.blend_flags = Some(15);
+        green.blend_opacity = Some(0.5);
+        let mut value = material(vec![base, seed, red, green]);
+        // The whole-part tint the old rule multiplied in.
+        value.base_color = [0.29, 0.27, 0.22];
+        assert!(eligible(&value));
+        assert!(!dye_only(&value));
+        // The same part when the wrapper declares no colour map for layer G (the
+        // file is one Preview Core found beside the layer's normal map).
+        let mut unauthored = value.clone();
+        unauthored.layers[3].colour_authored = Some(false);
+        let graphs = [value, unauthored].map(|value| PreviewCoreMaterialGraph {
+            schema_version: 1,
+            graph_version: 5,
+            semantics_version: 10,
+            quality: "full".into(),
+            resources_included: true,
+            source_edge_count: 6,
+            unique_resource_count: 3,
+            copied_resource_count: 3,
+            unique_resource_bytes: bytes.iter().map(|b| b.len() as u64).sum(),
+            materials: vec![value],
+        });
+        let srgb = |value: f32| {
+            if value <= 0.003_130_8 {
+                value * 12.92
+            } else {
+                1.055 * value.powf(1.0 / 2.4) - 0.055
+            }
+        };
+        let overlay = |base: f32, blend: f32| {
+            if base < 0.5 {
+                2.0 * base * blend
+            } else {
+                1.0 - 2.0 * (1.0 - base) * (1.0 - blend)
+            }
+        };
+        let m: [f32; 4] = std::array::from_fn(|k| f32::from(mask[k]) / 255.0);
+        // No R or B colour: c = lerp(0, dyeG, m.g).
+        let c: [f32; 4] = std::array::from_fn(|k| dye_g[k] * m[1]);
+        let texel: [f32; 3] = std::array::from_fn(|k| linear(f32::from(weave[k]) / 255.0));
+        let luma = 0.299 * texel[0] + 0.587 * texel[1] + 0.114 * texel[2];
+        let amount = f32::from(weave[3]) / 255.0 * 0.5;
+        let dyed_base: [f32; 3] = std::array::from_fn(|k| {
+            let base = linear(f32::from(cream[k]) / 255.0);
+            base + (linear(overlay(m[3], c[k])) - base) * c[3]
+        });
+        let layered: [f32; 3] = std::array::from_fn(|k| {
+            let grey = srgb(texel[k] + (luma - texel[k]) * 0.8);
+            let tinted = texel[k] + (linear(overlay(grey, layer_dye[k])) - texel[k]) * layer_dye[3];
+            dyed_base[k] + (tinted - dyed_base[k]) * amount
+        });
+        for (graph, expected, authored) in
+            [(&graphs[0], layered, true), (&graphs[1], dyed_base, false)]
+        {
+            for gpu in [true, false] {
+                let mut resources = Vec::new();
+                let (_, sets) = prepare(
+                    graph,
+                    &[],
+                    &document,
+                    &mut resources,
+                    gpu,
+                    false,
+                    |r| {
+                        Ok(bytes[refs
+                            .iter()
+                            .position(|p| p.sha256 == r.sha256.to_ascii_uppercase())
+                            .unwrap()]
+                        .clone())
+                    },
+                    &|| false,
+                )
+                .unwrap();
+                if gpu {
+                    let uniform = &sets[0].uniform;
+                    assert_eq!(uniform.control[0], LAYER_MODE_LEGACY);
+                    assert_eq!(uniform.control[3] & LAYER_CONTROL_COLOUR_ONLY, 0);
+                    assert_eq!(uniform.base_color[..3], [1.0; 3], "no whole-part tint");
+                    assert_eq!(uniform.seeds, [[0.0; 4], dye_g, [0.0; 4]]);
+                    assert_eq!(uniform.layers[1].dye, layer_dye, "sRGB for the overlay");
+                    assert_eq!(uniform.layers[1].properties[0], 0.5);
+                    assert_eq!(
+                        uniform.layers[1].offset[3],
+                        if authored { 0.0 } else { 1.0 },
+                        "a map the wrapper does not declare draws no colour"
+                    );
+                    continue;
+                }
+                let composed = resources
+                    .iter()
+                    .find(|r| r.role == TextureRole::BaseColor)
+                    .expect("composed base colour");
+                let decoded =
+                    cdmw_texture::decode_dds_rgba8(&composed.bytes, composed.role).unwrap();
+                for channel in 0..3 {
+                    let drawn = linear(f32::from(decoded.pixels[channel]) / 255.0);
+                    assert!(
+                        (drawn - expected[channel]).abs() <= 0.004,
+                        "authored {authored}, channel {channel}: {drawn} != {}",
+                        expected[channel]
                     );
                 }
             }

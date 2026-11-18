@@ -598,6 +598,209 @@ fn offscreen_ver2_grime_follows_the_detail_mask_ramp() -> TestResult {
     Ok(())
 }
 
+/// The game's legacy dye on the GPU: `_dyeingColorMaskR/G/B` through
+/// `_maskTexture`, whose alpha shades the dye (0.5 neutral). The tunic of
+/// `cd_m0001_00_no_phm_ub_43007` (cream base, R `#4a4639ff`, G `#a35835d4`) drew
+/// undyed. A colour-only binding recolours the base and leaves the response
+/// maps to the surface shader; mode 4 lays one detail layer over the dyed base.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_legacy_dye_follows_the_mask_and_its_alpha() -> TestResult {
+    use cdmw_render_wgpu::{
+        LAYER_CONTROL_COLOUR_ONLY, LAYER_MODE_LEGACY, LayerEntryUniform, LayerTexture,
+        LayerUniform, MaterialLayerSet,
+    };
+    use cdmw_texture::{TextureRole, encode_rgba8_dds};
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.5, 0.5]; 4];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let texture = |pixel: [u8; 4], role| -> Result<LayerTexture, cdmw_texture::TextureError> {
+        let bytes = encode_rgba8_dds(1, 1, &pixel, role)?;
+        let sha = cdmw_texture::inspect_dds(&bytes, role)?.source_sha256;
+        Ok(LayerTexture {
+            bytes: Arc::from(bytes),
+            role,
+            source_sha256: sha,
+        })
+    };
+    let linear = |value: f32| {
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let srgb = |value: f32| {
+        if value <= 0.003_130_8 {
+            value * 12.92
+        } else {
+            1.055 * value.powf(1.0 / 2.4) - 0.055
+        }
+    };
+    let overlay = |base: f32, blend: f32| {
+        if base < 0.5 {
+            2.0 * base * blend
+        } else {
+            1.0 - 2.0 * (1.0 - base) * (1.0 - blend)
+        }
+    };
+    let cream = [179_u8, 163, 141];
+    let weave = [120_u8, 90, 60, 153];
+    let layer_dye = [0.2_f32, 0.4, 0.8, 0.5];
+    let dyes = [
+        [74.0 / 255.0, 70.0 / 255.0, 57.0 / 255.0, 1.0_f32],
+        [163.0 / 255.0, 88.0 / 255.0, 53.0 / 255.0, 212.0 / 255.0],
+        [0.0, 0.0, 0.0, 0.0],
+    ];
+    let ownership = vec![vec![0]];
+    let base = encode_rgba8_dds(
+        1,
+        1,
+        &[cream[0], cream[1], cream[2], 255],
+        TextureRole::BaseColor,
+    )?;
+    let surface = encode_rgba8_dds(1, 1, &[255, 200, 40, 255], TextureRole::Material)?;
+    let textures = [
+        HeadlessMaterialTexture {
+            bytes: &base,
+            role: TextureRole::BaseColor,
+            material_indices_by_lod: &ownership,
+        },
+        HeadlessMaterialTexture {
+            bytes: &surface,
+            role: TextureRole::Material,
+            material_indices_by_lod: &ownership,
+        },
+    ];
+    let temporary = tempdir()?;
+    let capture = |name: &str,
+                   layers: &[MaterialLayerSet]|
+     -> Result<([u8; 3], [u8; 3]), Box<dyn std::error::Error>> {
+        let colour = temporary.path().join(format!("{name}-base.bmp"));
+        let response = temporary.path().join(format!("{name}-response.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &[],
+            layers,
+            HeadlessMaterialCaptureOptions {
+                width: 96,
+                height: 96,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &temporary.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &colour,
+                part_id_bmp: &temporary.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: Some(&response),
+                layer_mask: None,
+            },
+        ))?;
+        let read = |path: &std::path::Path| -> Result<[u8; 3], Box<dyn std::error::Error>> {
+            let bytes = std::fs::read(path)?;
+            let pixel = &bytes[54 + (48 * 96 + 48) * 4..][..4];
+            Ok([pixel[2], pixel[1], pixel[0]])
+        };
+        Ok((read(&colour)?, read(&response)?))
+    };
+    let (plain_colour, plain_response) = capture("plain", &[])?;
+    for channel in 0..3 {
+        assert!(
+            plain_colour[channel].abs_diff(cream[channel]) <= 2,
+            "undyed base"
+        );
+    }
+    // (name, mask texel, with a detail layer on G)
+    for (name, mask, layered) in [
+        ("dye R at neutral shade", [255_u8, 0, 0, 128], false),
+        ("dye G by its alpha", [0, 255, 0, 128], false),
+        ("no dye where the mask is empty", [0, 0, 0, 128], false),
+        ("the mask's alpha darkens the dye", [255, 0, 0, 64], false),
+        ("the alpha is the overlay's base", [0, 255, 0, 64], false),
+        ("the mask's alpha lightens the dye", [255, 0, 0, 220], false),
+        ("layer G over the dyed base", [64, 255, 0, 128], true),
+    ] {
+        let mut layer = MaterialLayerSet {
+            lod_index: 0,
+            material_index: 0,
+            uniform: LayerUniform {
+                seeds: dyes,
+                base_color: [1.0; 4],
+                control: [
+                    LAYER_MODE_LEGACY,
+                    0,
+                    0,
+                    if layered {
+                        0
+                    } else {
+                        LAYER_CONTROL_COLOUR_ONLY
+                    },
+                ],
+                ..Default::default()
+            },
+            textures: std::array::from_fn(|_| None),
+        };
+        layer.textures[0] = Some(texture(mask, TextureRole::LayerMask)?);
+        if layered {
+            layer.textures[4] = Some(texture(weave, TextureRole::BaseColor)?);
+            layer.uniform.layers[1] = LayerEntryUniform {
+                dye: layer_dye,
+                affine: [1.0, 0.0, 0.0, 1.0],
+                // Flags 1: colour only, so the response stays the base's.
+                offset: [0.0, 0.0, 1.0, 0.0],
+                properties: [0.5, 0.2, 1.0, 0.0],
+                ..Default::default()
+            };
+        }
+        let (colour, response) = capture(name, &[layer])?;
+        let m: [f32; 4] = std::array::from_fn(|k| f32::from(mask[k]) / 255.0);
+        let mut c: [f32; 4] = std::array::from_fn(|k| dyes[0][k] * m[0]);
+        c = std::array::from_fn(|k| c[k] + (dyes[1][k] - c[k]) * m[1]);
+        c = std::array::from_fn(|k| c[k] + (dyes[2][k] - c[k]) * m[2]);
+        let texel: [f32; 3] = std::array::from_fn(|k| linear(f32::from(weave[k]) / 255.0));
+        let luma = 0.299 * texel[0] + 0.587 * texel[1] + 0.114 * texel[2];
+        for channel in 0..3 {
+            let base = linear(f32::from(cream[channel]) / 255.0);
+            let mut expected = base + (linear(overlay(m[3], c[channel])) - base) * c[3];
+            if layered {
+                let grey = srgb(texel[channel] + (luma - texel[channel]) * 0.8);
+                let tinted = texel[channel]
+                    + (linear(overlay(grey, layer_dye[channel])) - texel[channel]) * layer_dye[3];
+                expected += (tinted - expected) * (f32::from(weave[3]) / 255.0 * 0.5);
+            }
+            let drawn = linear(f32::from(colour[channel]) / 255.0);
+            assert!(
+                (drawn - expected).abs() <= 0.012,
+                "{name}: channel {channel}, {drawn} != {expected}"
+            );
+        }
+        if !layered {
+            // The response picture is metal, roughness and specular colour; the
+            // last follows the albedo, so only the first two must stay.
+            assert_eq!(
+                response[..2],
+                plain_response[..2],
+                "{name}: a colour-only binding leaves metal and roughness alone"
+            );
+        }
+    }
+    Ok(())
+}
+
 /// The game's Ver2 scratch rule: where `_detailMaskTexture` red marks a scratch,
 /// the drawn layer's roughness moves through its remaining range and its metal by
 /// the plain step, and the scratch tint is overlaid on the colour.
