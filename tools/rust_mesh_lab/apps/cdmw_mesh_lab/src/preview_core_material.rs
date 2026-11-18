@@ -2702,7 +2702,7 @@ fn decode_material_pixel(
 ) -> [f32; 3] {
     let green = unit(pixel[1]);
     let blue = unit(pixel[2]);
-    let mut roughness = green.clamp(0.04, 1.0);
+    let roughness = green.clamp(0.04, 1.0);
     let (mut metalness, mut specular) = match response_kind {
         MaterialResponseKind::Skin => (0.0, (0.06 + 0.24 * blue).clamp(0.04, 0.34)),
         MaterialResponseKind::Hair => (0.0, 0.19),
@@ -2711,9 +2711,8 @@ fn decode_material_pixel(
             (0.04 + 0.84 * blue).clamp(0.04, 0.88),
         ),
     };
-    if layer.roughness_hint > 0.02 {
-        roughness = (roughness * 0.72 + layer.roughness_hint * 0.28).clamp(0.04, 0.98);
-    }
+    // The map alone sets roughness, as in the game: the layer's roughness hint
+    // is a class guess and is not mixed over a map's texel.
     if layer.metalness_hint > 0.02 {
         metalness = metalness.max(layer.metalness_hint * 0.42).clamp(0.0, 1.0);
         specular = specular.max(0.14 + layer.metalness_hint * 0.32);
@@ -3931,9 +3930,11 @@ mod tests {
     fn material_response_matches_original_channel_bytes() {
         // Recorded from the original per-pixel decoder for every green/blue
         // byte pair, including disabled, threshold and active material hints.
-        let standard = "BE2F49FD68C1EF76E3F9070235C0C3967CCF176F2952BC84E5B1FF1298486EB7";
-        let skin = "A9F7DD3A42AE7E405608F6D98FC9DD1A3A9862B8D1A32760FCDF98C4D582922E";
-        let hair = "30E6F6B1C320A1AA051D8F8C238555425E2868D07E76E107ACC7F1B0D02C4AC5";
+        // Fix 16d: a roughness hint no longer mixes over the map, so the active
+        // hint rows changed and the hashes with them.
+        let standard = "15393E92E84C0B02F60EA745CFB0A5AEAF7896FD31D9E1399C71DB54AEDB8493";
+        let skin = "234B5796A895A7642F6B3DA0F8BD6D2D532EC1909178658D61B276CFFCFB166C";
+        let hair = "178A7294C058302DD118F810B60ED17E431EAC4A3B88B412404BEA5C7140A912";
         for (rule, family, expected) in [
             ("standard_v2", "SkinnedMeshStandard_Ver2", standard),
             ("SkIn", "", skin),

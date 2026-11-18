@@ -963,10 +963,10 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u && gltf_pbr {
         roughness = clamp(roughness * material.surface_factors.x, 0.04, 1.0);
     } else if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u {
-        // A part classed metal carries the class's scalar floor (smooth, metal).
-        // With its own surface map the map alone decides, as in the game: the
-        // class is a guess per part, the map says which texels are metal.
-        let factor_weight = select(select(0.55, 0.15, has_source_roughness), 0.0, is_metal && has_source_roughness);
+        // The stated roughness is a class guess per part (smooth for metal,
+        // rough for cloth). With its own surface map the map alone decides, as
+        // in the game, whatever the class; without one the guess counts 55%.
+        let factor_weight = select(0.55, 0.0, has_source_roughness);
         roughness = clamp(mix(roughness, material.surface_factors.x, factor_weight), 0.04, 1.0);
     }
     if (material.flags & MATERIAL_METALNESS_FACTOR) != 0u {
