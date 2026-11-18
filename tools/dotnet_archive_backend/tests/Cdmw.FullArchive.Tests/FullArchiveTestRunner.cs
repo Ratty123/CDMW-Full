@@ -355,7 +355,8 @@ internal static class FullArchiveTestRunner
             ("Uniform_Cat_Outfit", "Uniform Cat Outfit", "", "", "Mount / Pet", "Pet Gear"),
             ("Guard_Lantern_Hat", "Guard Lantern Hat", "", "", "Tool", "Light / Lantern"),
             ("Artisans_Hand", "Artisan's Hand", "", "", "Weapon", "Axe / Mace / Hammer"),
-            ("Unknown_Localized_Item", "Unknown Localized Item", "Silver Earring", "", "Accessory", "Earrings"),
+            // Translations do not classify: the display name is the English name.
+            ("Unknown_Localized_Item", "Unknown Localized Item", "Silver Earring", "", "Item", "Unclassified"),
             ("Unknown_Fishing_Item", "The Claw", "", "itemcatch_fishingrod_01", "Tool", "Fishing"),
             ("Password_Token", "Password Token", "", "", "Quest / Document", "Token / Seal"),
             ("Opaque_Entry", "Opaque Entry", "", "", "Item", "Unclassified"),

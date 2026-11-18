@@ -1379,8 +1379,9 @@ def _classify_item_definition(internal_name: str, equip_type: str) -> Optional[T
     return None
 
 
-# Ammunition has no equip slot, so it is recognised by name or by the game's
-# arrow model code ("cd_phm_04_arw_0007"). Keep in sync with ArchiveItemCatalog.cs.
+# Ammunition has no equip slot, so it is recognised by its internal name or by
+# the game's arrow model code ("cd_phm_04_arw_0007"). Display names are not
+# used: "Blinding Arrow" is also a faction. Keep in sync with ArchiveItemCatalog.cs.
 _AMMUNITION_NAME_TOKENS = ("arrow", "arrows", "ammo", "ammunition", "quiver")
 _AMMUNITION_MODEL_TOKENS = ("_arw_",)
 
@@ -1389,12 +1390,12 @@ def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> T
     definition = _classify_item_definition(item.internal_name, item.equip_type)
     if definition is not None:
         return definition
-    # The keyword rules below are English, so only plain-ASCII translated names
-    # take part: French "Flèche plate" is a flat arrow, not plate armor.
+    # The keyword rules below are English. The display name is the English
+    # name; the other translations would only add false friends (French
+    # "Flèche plate" is a flat arrow, not plate armor).
     primary_names = (
         item.internal_name,
         item.display_name,
-        *(name for name in item.localized_names if str(name or "").isascii()),
     )
     primary_text = " ".join(
         token.lower()
@@ -1412,10 +1413,6 @@ def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> T
     )
     text = " ".join(part for part in (primary_text, relation_text) if part)
     compact_internal_name = re.sub(r"[^a-z0-9]+", "", str(item.internal_name or "").lower())
-    if _catalog_text_matches_any(primary_text, _AMMUNITION_NAME_TOKENS) or _catalog_text_matches_any(
-        relation_text, _AMMUNITION_MODEL_TOKENS
-    ):
-        return "Weapon", "Arrows / Ammo"
     if _catalog_text_matches_any(primary_text, ("oblivion of the past", "artisan's hand", "artisans hand")):
         return "Weapon", "Axe / Mace / Hammer"
     if _catalog_text_matches_any(primary_text, ("broken visione",)):
@@ -1474,6 +1471,10 @@ def _classify_archive_asset_catalog_category_group(item: ArchiveItemRecord) -> T
         return "Consumable", "Potion / Medicine"
     if _catalog_text_matches_any(primary_text, ("food", "drink", "meal", "bread", "meat", "fruit", "carrot", "pear")):
         return "Consumable", "Food / Drink"
+    if _catalog_text_matches_any(item.internal_name, _AMMUNITION_NAME_TOKENS) or _catalog_text_matches_any(
+        relation_text, _AMMUNITION_MODEL_TOKENS
+    ):
+        return "Weapon", "Arrows / Ammo"
     primary_weapon_type_tests: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         ("Polearm / Spear", ("onehandspear", "twohandspear", "onehandlance", "lance", "spear", "halberd", "alebard", "pike", "scythe")),
     )
