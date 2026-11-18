@@ -525,13 +525,14 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         set_original_dds_root: bool = False,
         allow_original_dds_root: bool = False,
         description: str,
+        output_root_override: Optional[Path] = None,
     ) -> None:
         if not entries:
             self.shell.set_status_message("No archive entries selected for extraction.", error=True)
             return
 
-        output_root = self.shell._suggest_archive_extract_root().resolve()
-        update_archive_extract_root = True
+        output_root = (output_root_override or self.shell._suggest_archive_extract_root()).resolve()
+        update_archive_extract_root = output_root_override is None
         if allow_original_dds_root:
             target_result = self._prompt_archive_extract_target(
                 entries,
@@ -637,7 +638,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
             task_accepts_cancel=True,
         )
 
-    def extract_selected_archive_entries(self) -> None:
+    def extract_selected_archive_entries(self, *, output_root_override: Optional[Path] = None) -> None:
         if self._remote_archive_export_ready():
             selection = self.archive_remote_bridge.selected_export_selection()
             if selection is None:
@@ -649,14 +650,16 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                 return
             self._run_remote_archive_export(
                 selection,
-                allow_original_dds_root=True,
+                allow_original_dds_root=output_root_override is None,
                 description="Extracting selected archive entries...",
+                output_root_override=output_root_override,
             )
             return
         self._run_archive_extract(
             self._selected_archive_entries(),
-            allow_original_dds_root=True,
+            allow_original_dds_root=output_root_override is None,
             description="Extracting selected archive entries...",
+            output_root_override=output_root_override,
         )
 
     def extract_filtered_archive_entries(self) -> None:

@@ -74,6 +74,8 @@ class ToolCall:
     job: object = None
     #: The class this call was approved as (the tool's, or its ``effect_of``).
     effect: str = ""
+    #: Group boundaries for this client's calls into the native editor histories.
+    turn_history: object = None
 
     def cancelled(self) -> bool:
         return self.cancel_event.is_set()
@@ -122,7 +124,10 @@ class McpSession:
     """One connected app (one bridge)."""
 
     def __init__(self, server: "McpServer", send: Callable[[dict], None]) -> None:
+        from cdmw.mcp.turn_tools import TurnHistory
+
         self.server = server
+        self.turn_history = TurnHistory(server.editor_history_lock)
         self._send = send
         self._send_lock = threading.Lock()
         self.client = ""
@@ -200,6 +205,7 @@ class McpServer:
     """The tool table behind the MCP methods; one instance serves every session."""
 
     def __init__(self, table: ToolTable, context: object, *, policy=None, audit=None, jobs=None) -> None:
+        self.editor_history_lock = threading.RLock()
         from cdmw.mcp.approvals import ApprovalPolicy
         from cdmw.mcp.audit import AuditLog
         from cdmw.mcp.jobs import JobRegistry
@@ -289,7 +295,8 @@ class McpServer:
             self.audit.record(client=session.client, tool=name[:128], effect="", arguments=None, approval="",
                               result=UNKNOWN_TOOL, duration_s=watch.elapsed())
             raise _RpcError(INVALID_PARAMS, f"CDMW has no tool {name or '(none)'}.", {"code": UNKNOWN_TOOL})
-        call = ToolCall(tool, {}, self.context, client=session.client, cancel_event=cancel, server=self)
+        call = ToolCall(tool, {}, self.context, client=session.client, cancel_event=cancel, server=self,
+                        turn_history=session.turn_history)
         meta = params.get("_meta") if isinstance(params.get("_meta"), dict) else {}
         if meta.get("progressToken") is not None:
             call.on_progress = self._progress_sender(session, meta["progressToken"])
@@ -401,17 +408,24 @@ class McpServer:
         from cdmw.mcp.jobs import QUICK_RESULT_S
 
         tool = call.tool
-        try:
-            if tool.runs_on == ON_UI:
-                return self.context.ui_call(lambda: tool.handler(call))
-            if tool.runs_on == ON_CALL:
+
+        def execute():
+            def invoke():
+                if tool.runs_on == ON_UI:
+                    return self.context.ui_call(lambda: tool.handler(call))
                 return tool.handler(call)
+
+            return call.turn_history.execute(call, invoke) if call.turn_history is not None else invoke()
+
+        try:
+            if tool.runs_on in (ON_UI, ON_CALL):
+                return execute()
         except ToolError:
             raise
         except Exception as exc:
             raise ToolError(FAILED, str(exc) or type(exc).__name__) from exc
         game_folder = getattr(self.context, "game_folder", lambda: "")
-        job = self.jobs.start(call, lambda: tool.handler(call), game_folder=game_folder)
+        job = self.jobs.start(call, execute, game_folder=game_folder)
         job.paged = tool.paged
         if job.wait(self.quick_result_s if self.quick_result_s is not None else QUICK_RESULT_S):
             if job.error is not None:

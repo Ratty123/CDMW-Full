@@ -63,9 +63,11 @@ ANSWERS_SCHEMA: dict[str, object] = {
 class DialogAnswers:
     """One action's answers and the record of what was asked. UI thread only."""
 
-    def __init__(self, answers: Mapping[str, object] | None, game_folder: str = "") -> None:
+    def __init__(self, answers: Mapping[str, object] | None, game_folder: str = "",
+                 dialogs: Mapping[type | str, Callable] | None = None) -> None:
         self.answers = dict(answers or {})
         self.game_folder = game_folder
+        self.dialogs = dict(dialogs or {})
         self.asked: list[dict[str, object]] = []
         self.active = True
 
@@ -247,10 +249,23 @@ def _input(original, kind: str):
     return answered
 
 
+def _exec_dialog(original):
+    def answered(dialog, *args, **kwargs):
+        current = _current()
+        answer = (current.dialogs.get(dialog.objectName()) or current.dialogs.get(type(dialog))) if current else None
+        if answer is None:
+            return original(dialog, *args, **kwargs)
+        result = answer(dialog)
+        current.note("dialog", dialog.windowTitle(), "", int(result))
+        return result
+    return answered
+
+
 def _patches() -> list[tuple[object, str, Callable]]:
-    from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+    from PySide6.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
 
     return [
+        (QDialog, "exec", _exec_dialog),
         (QFileDialog, "getOpenFileName", _open_file),
         (QFileDialog, "getOpenFileNames", _open_files),
         (QFileDialog, "getSaveFileName", _save_file),
@@ -277,7 +292,8 @@ class answering:
             for owner, name, wrap in _patches():
                 original = getattr(owner, name)
                 _ORIGINALS[(owner, name)] = original
-                setattr(owner, name, staticmethod(wrap(original)))
+                wrapped = wrap(original)
+                setattr(owner, name, wrapped if name == "exec" else staticmethod(wrapped))
         _ACTIVE.append(self.answers)
         return self.answers
 
@@ -287,7 +303,7 @@ class answering:
             _ACTIVE.remove(self.answers)
         if not _ACTIVE:
             for (owner, name), original in list(_ORIGINALS.items()):
-                setattr(owner, name, staticmethod(original))
+                setattr(owner, name, original if name == "exec" else staticmethod(original))
             _ORIGINALS.clear()
 
 
@@ -336,7 +352,7 @@ def modal_dialog() -> dict[str, object] | None:
 
 
 def run_action(context, function: Callable[[], object], answers: Mapping[str, object] | None = None, *,
-               wait_s: float | None = None) -> dict[str, object]:
+               wait_s: float | None = None, dialogs: Mapping[type | str, Callable] | None = None) -> dict[str, object]:
     """Run ``function`` on the UI thread as a click would. Returns ``{"result", "asked"}``, or
     ``{"waiting_on", "asked"}`` when a dialog of the app's own is open and waits."""
 
@@ -344,7 +360,7 @@ def run_action(context, function: Callable[[], object], answers: Mapping[str, ob
 
     from cdmw.ui.commands.registry import CommandRefused
 
-    record = DialogAnswers(answers, getattr(context, "game_folder", lambda: "")())
+    record = DialogAnswers(answers, getattr(context, "game_folder", lambda: "")(), dialogs)
     settings = getattr(context, "settings", None)
     done = threading.Event()
     box: dict[str, object] = {}

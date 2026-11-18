@@ -1002,7 +1002,7 @@ class SavedWorkPage(QWidget):
         if answer == QMessageBox.StandardButton.Yes:
             self._run(lambda: delete_saved_draft(root, row), self._action_done)
 
-    def _add_mod_folder(self) -> None:
+    def _add_mod_folder(self, *, run_picker: Callable[[QDialog], int] | None = None) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Add a Mod Folder", "")
         if not folder:
             return
@@ -1020,9 +1020,12 @@ class SavedWorkPage(QWidget):
 
                 paths, shaders = choices
                 picker = FolderModelPicker(tuple(paths), self, shaders=shaders)
-                if picker.exec() != QDialog.DialogCode.Accepted:
-                    return
-                models = picker.selected_paths()
+                try:
+                    if (run_picker(picker) if run_picker is not None else picker.exec()) != QDialog.DialogCode.Accepted:
+                        return
+                    models = picker.selected_paths()
+                finally:
+                    picker.deleteLater()
             self._run(lambda: add_built_mod_folder(root, folder, project_id=project_id, model_paths=models),
                       self._action_done)
 
