@@ -7774,6 +7774,8 @@
     "Material sidecar worker returned invalid data.": "Il processo dei file associati dei materiali ha restituito dati non validi.",
     "Material source": "Fonte materiale",
     "Material texture validation cancelled.": "Convalida della texture del materiale annullata.",
+    "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see that item's colours.": "È mostrata la variante di materiale 0; questo modello ha le varianti {value_0}. Apri il modello dal suo oggetto per vedere i colori di quell'oggetto.",
+    "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.": "È mostrata la variante di materiale {value_0}, quella che seleziona {value_1}; questo modello ha le varianti {value_2}.",
     "Material warning: {value_0}": "Avviso materiale: {value_0}",
     "Material {value_0}": "Materiale {value_0}",
     "Material {value_0}/{value_1}: {value_2}. {value_3}": "Materiale {value_0}/{value_1}: {value_2}. {value_3}",

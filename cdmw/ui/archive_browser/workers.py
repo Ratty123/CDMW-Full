@@ -772,6 +772,7 @@ class ArchivePreviewWorkerMixin:
             native_preview_dependency_entries=native_preview_dependency_entries,
             native_preview_dependency_entries_complete=native_preview_dependency_entries_complete,
             native_preview_archive_index_path=native_preview_archive_index_path,
+            native_preview_item_context=getattr(self, "_archive_preview_item_context", lambda: None)(),
             enabled_prefab_component_paths=enabled_prefab_component_paths,
             preview_context_components=preview_context_components,
             native_preview_package_cache_key=native_package_cache_key,

@@ -277,6 +277,17 @@ class ArchivePreviewCacheMixin:
             "prepared_sha256": str(getattr(entry, "prepared_sha256", "") or "").strip().lower(),
         }
 
+    def _archive_preview_item_context(self) -> Optional[bool]:
+        """Whether the preview is of an item (Item Finder scope): its prefab picks the variant.
+
+        ``None`` outside the archive catalogue's own views, where it is not known.
+        """
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        if bridge is None or not bool(getattr(bridge, "displays_v2", False)):
+            return None
+        return bool(getattr(bridge, "item_scope_preferred_prefab_stems", ()) or ())
+
     def _archive_native_preview_package_cache_key(
         self,
         entry: Optional[ArchiveEntry],
@@ -356,6 +367,11 @@ class ArchivePreviewCacheMixin:
             ),
             "enabled_prefab_component_paths": enabled_prefab_paths,
             "preview_context_components": context_signatures,
+            # How the PAC's material variant is chosen: by the scoped item's prefab,
+            # or, opened alone, by the prefabs in view only when they agree.
+            "material_variant_rule": {None: "first_prefab", True: "item", False: "alone"}[
+                getattr(self, "_archive_preview_item_context", lambda: None)()
+            ],
             "render_settings": render_settings_to_native_preview_core_dict(self._current_model_preview_render_settings()),
             "support_slots": self._archive_preview_support_texture_slots(self._current_model_preview_render_settings()),
             "renderer_backend": str(self._archive_model_renderer_backend() or "").strip().lower(),

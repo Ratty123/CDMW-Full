@@ -102,6 +102,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         native_preview_dependency_entries: Sequence[ArchiveEntry] = (),
         native_preview_dependency_entries_complete: bool = False,
         native_preview_archive_index_path: Optional[Path] = None,
+        native_preview_item_context: Optional[bool] = None,
         enabled_prefab_component_paths: Sequence[str] = (),
         preview_context_components: Sequence[NativePreviewContextComponent] = (),
         native_preview_package_cache_key: str = "",
@@ -153,6 +154,9 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         self.native_preview_dependency_entries = tuple(native_preview_dependency_entries)
         self.native_preview_dependency_entries_complete = bool(native_preview_dependency_entries_complete)
         self.native_preview_archive_index_path = native_preview_archive_index_path
+        # True: an item is in view and its prefab, first among the dependencies,
+        # picks the variant. False: the model was opened alone. None: not known.
+        self.native_preview_item_context = native_preview_item_context
         self.enabled_prefab_component_paths = tuple(
             str(path or "").replace("\\", "/").strip()
             for path in enabled_prefab_component_paths

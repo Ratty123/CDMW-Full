@@ -7774,6 +7774,8 @@
     "Material sidecar worker returned invalid data.": "材質附屬檔案 Worker 傳回了無效資料。",
     "Material source": "材質來源",
     "Material texture validation cancelled.": "材質紋理驗證已取消。",
+    "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see that item's colours.": "顯示材質變體 0；此模型的變體有 {value_0}。要查看該物品的顏色，請從其物品開啟模型。",
+    "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.": "顯示 {value_1} 所選的材質變體 {value_0}；此模型的變體有 {value_2}。",
     "Material warning: {value_0}": "材質警告：{value_0}",
     "Material {value_0}": "材質 {value_0}",
     "Material {value_0}/{value_1}: {value_2}. {value_3}": "材質 {value_0}/{value_1}：{value_2}。{value_3}",

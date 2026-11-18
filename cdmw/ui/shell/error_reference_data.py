@@ -9369,7 +9369,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/archive_browser/preview_result.py": 444,
-      "cdmw/ui/archive_browser/workers.py": 926
+      "cdmw/ui/archive_browser/workers.py": 927
     }
   },
   {
@@ -10170,7 +10170,7 @@ MESSAGE_REFERENCE = [
     "message": "Character presentation geometry exceeds the 10,000,000-vertex safety bound",
     "recovery": "limits",
     "sources": {
-      "cdmw/workers/archive_preview_native.py": 133
+      "cdmw/workers/archive_preview_native.py": 285
     }
   },
   {
@@ -10178,7 +10178,7 @@ MESSAGE_REFERENCE = [
     "message": "Character presentation geometry is empty",
     "recovery": "empty",
     "sources": {
-      "cdmw/workers/archive_preview_native.py": 131
+      "cdmw/workers/archive_preview_native.py": 283
     }
   },
   {
@@ -10186,7 +10186,7 @@ MESSAGE_REFERENCE = [
     "message": "Character presentation submesh {submesh_index} contains invalid geometry",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/archive_preview_native.py": 158
+      "cdmw/workers/archive_preview_native.py": 310
     }
   },
   {
@@ -10194,7 +10194,7 @@ MESSAGE_REFERENCE = [
     "message": "Character presentation submesh {submesh_index} has {len(vertices)} vertices but {len(normals)} normals",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/archive_preview_native.py": 148
+      "cdmw/workers/archive_preview_native.py": 300
     }
   },
   {
@@ -11359,7 +11359,7 @@ MESSAGE_REFERENCE = [
     "message": "Full preview failed after {label} preview: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/workers.py": 967
+      "cdmw/ui/archive_browser/workers.py": 968
     }
   },
   {
@@ -12368,7 +12368,7 @@ MESSAGE_REFERENCE = [
     "message": "Native Rejected Texture Candidates: {detail}",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/archive_preview_native.py": 952
+      "cdmw/workers/archive_preview_native.py": 1128
     }
   },
   {
@@ -12400,7 +12400,7 @@ MESSAGE_REFERENCE = [
     "message": "Native character presentation preparation cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/workers/archive_preview_native.py": 144
+      "cdmw/workers/archive_preview_native.py": 296
     }
   },
   {
@@ -12424,7 +12424,7 @@ MESSAGE_REFERENCE = [
     "message": "Native preview-core job cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/workers/archive_preview_native.py": 100
+      "cdmw/workers/archive_preview_native.py": 110
     }
   },
   {
@@ -13944,7 +13944,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview package failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/archive_preview_workers.py": 732
+      "cdmw/workers/archive_preview_workers.py": 736
     }
   },
   {
@@ -13952,7 +13952,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview package unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/archive_preview_workers.py": 681
+      "cdmw/workers/archive_preview_workers.py": 685
     }
   },
   {
@@ -15690,7 +15690,7 @@ MESSAGE_REFERENCE = [
     "message": "The canonical preview cache root is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/archive_preview_workers.py": 681
+      "cdmw/workers/archive_preview_workers.py": 685
     }
   },
   {
@@ -16963,7 +16963,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: archive folder filters could not be loaded from the worker: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_window_bridge.py": 885
+      "cdmw/ui/archive_browser/remote_window_bridge.py": 894
     }
   },
   {
@@ -17838,7 +17838,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 275,
-      "cdmw/ui/archive_browser/workers.py": 969,
+      "cdmw/ui/archive_browser/workers.py": 970,
       "cdmw/ui/shell/archive_backend_client.py": 75
     }
   },
@@ -17959,7 +17959,8 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_filtering.py": 669,
       "cdmw/core/archive_model_preview.py": 208,
       "cdmw/core/archive_structured_preview.py": 201,
-      "cdmw/ui/archive_browser/attachment_package.py": 447
+      "cdmw/ui/archive_browser/attachment_package.py": 447,
+      "cdmw/workers/archive_preview_native.py": 229
     }
   },
   {
@@ -19623,7 +19624,7 @@ MESSAGE_REFERENCE = [
     "message": "{path_value}:missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/preview_cache.py": 381
+      "cdmw/ui/archive_browser/preview_cache.py": 397
     }
   },
   {
@@ -19703,7 +19704,7 @@ MESSAGE_REFERENCE = [
     "message": "{str(getattr(payload, 'detail_text', '') or '').rstrip()} Canonical Preview package generation failed: {exc}",
     "recovery": "stale",
     "sources": {
-      "cdmw/workers/archive_preview_workers.py": 732
+      "cdmw/workers/archive_preview_workers.py": 736
     }
   },
   {
@@ -38139,7 +38140,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set dependencies do not match the selected mesh",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_preview_material_source.py": 210
+      "cdmw/services/mesh_preview_material_source.py": 212
     }
   },
   {
@@ -40029,7 +40030,7 @@ MESSAGE_REFERENCE = [
     "message": "The resolved Archive Browser texture package could not be leased.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_preview_material_source.py": 224
+      "cdmw/services/mesh_preview_material_source.py": 231
     }
   },
   {
@@ -60695,7 +60696,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive catalogue changed while preparing the item set.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/item_set_preparation.py": 92
+      "cdmw/ui/mesh_editor/item_set_preparation.py": 101
     }
   },
   {
@@ -61793,7 +61794,7 @@ MESSAGE_REFERENCE = [
     "message": "These files could not be found in the archives: {missing}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/item_set_preparation.py": 209
+      "cdmw/ui/mesh_editor/item_set_preparation.py": 224
     }
   },
   {
@@ -61898,7 +61899,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/mesh_editor/hair_reference_picker.py": 403,
-      "cdmw/ui/mesh_editor/item_set_preparation.py": 49
+      "cdmw/ui/mesh_editor/item_set_preparation.py": 56
     }
   },
   {
@@ -76140,7 +76141,7 @@ MESSAGE_REFERENCE = [
     "message": "Character Context cache target already exists but is incomplete.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/character_context_workers.py": 762
+      "cdmw/workers/character_context_workers.py": 797
     }
   },
   {
@@ -76164,7 +76165,7 @@ MESSAGE_REFERENCE = [
     "message": "Character Context presentation deformation was unavailable for {component.entry.path}: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/character_context_workers.py": 621
+      "cdmw/workers/character_context_workers.py": 624
     }
   },
   {
@@ -81527,7 +81528,7 @@ MESSAGE_REFERENCE = [
     "message": "No exact authored appearance references this model; heuristic matches were not auto-selected.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/character_context_workers.py": 457
+      "cdmw/workers/character_context_workers.py": 460
     }
   },
   {
@@ -82688,7 +82689,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core did not publish a Character Context package.",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/character_context_workers.py": 754
+      "cdmw/workers/character_context_workers.py": 789
     }
   },
   {
@@ -85251,7 +85252,7 @@ MESSAGE_REFERENCE = [
     "message": "The source material dependency snapshot is incomplete; native archive lookup remains authoritative.",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/character_context_workers.py": 459
+      "cdmw/workers/character_context_workers.py": 462
     }
   },
   {
@@ -111091,8 +111092,8 @@ SOURCE_COVERAGE = {
   },
   "cdmw/workers/archive_preview_cleanup_worker.py": {},
   "cdmw/workers/archive_preview_native.py": {
-    "diagnostic_field": 1,
-    "raise": 14,
+    "diagnostic_field": 2,
+    "raise": 15,
     "report": 1
   },
   "cdmw/workers/archive_preview_workers.py": {

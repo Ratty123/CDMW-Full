@@ -7774,6 +7774,8 @@
     "Material sidecar worker returned invalid data.": "Material sidecar worker returned invalid data.",
     "Material source": "Material source",
     "Material texture validation cancelled.": "Material texture validation cancelled.",
+    "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see that item's colours.": "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see that item's colours.",
+    "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.": "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.",
     "Material warning: {value_0}": "Material warning: {value_0}",
     "Material {value_0}": "Material {value_0}",
     "Material {value_0}/{value_1}: {value_2}. {value_3}": "Material {value_0}/{value_1}: {value_2}. {value_3}",

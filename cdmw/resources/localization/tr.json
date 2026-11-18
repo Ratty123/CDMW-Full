@@ -7774,6 +7774,8 @@
     "Material sidecar worker returned invalid data.": "Malzeme yardımcı dosyası çalışanı geçersiz veri döndürdü.",
     "Material source": "Malzeme kaynağı",
     "Material texture validation cancelled.": "Malzeme dokusu doğrulaması iptal edildi.",
+    "Material variant 0 is shown; this model has variants {value_0}. Open the model from its item to see that item's colours.": "0 malzeme varyantı gösteriliyor; bu modelin varyantları: {value_0}. O eşyanın renklerini görmek için modeli kendi eşyasından açın.",
+    "Material variant {value_0} is shown, as {value_1} selects; this model has variants {value_2}.": "{value_1} dosyasının seçtiği {value_0} malzeme varyantı gösteriliyor; bu modelin varyantları: {value_2}.",
     "Material warning: {value_0}": "Malzeme uyarısı: {value_0}",
     "Material {value_0}": "Malzeme {value_0}",
     "Material {value_0}/{value_1}: {value_2}. {value_3}": "Malzeme {value_0}/{value_1}: {value_2}. {value_3}",
