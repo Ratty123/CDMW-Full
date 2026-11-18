@@ -1031,7 +1031,44 @@ static void run_hair_shader_alpha_self_test() {
         "a part only named like hair lost the name-guess cutout");
 }
 
+// A strip of quads whose UVs run far past 96, as rope and rigging tile their
+// texture. Under the exact canonical PAC layout that is tiling, not a misread
+// field; under a guessed layout the range limits still reject it.
+static void run_tiled_exact_uv_self_test() {
+    NativeSubmesh strip;
+    strip.vertex_layout_name = "pac40_uv8_n16";
+    const int segments = 200;
+    for (int index = 0; index <= segments; ++index) {
+        const float along = static_cast<float>(index);
+        strip.positions.push_back(Vec3{along * 0.1f, 0.0f, 0.0f});
+        strip.positions.push_back(Vec3{along * 0.1f, 0.1f, 0.0f});
+        strip.uvs.push_back(Vec2{0.0f, along * 0.9f});
+        strip.uvs.push_back(Vec2{1.0f, along * 0.9f});
+        strip.normals.push_back(Vec3{0.0f, 0.0f, 1.0f});
+        strip.normals.push_back(Vec3{0.0f, 0.0f, 1.0f});
+    }
+    for (std::uint32_t index = 0; index < static_cast<std::uint32_t>(segments); ++index) {
+        const std::uint32_t a = index * 2u;
+        for (std::uint32_t corner : {a, a + 1u, a + 2u, a + 1u, a + 3u, a + 2u}) strip.indices.push_back(corner);
+    }
+    NativeSubmesh guessed = strip;
+    evaluate_native_submesh_quality(guessed, false);
+    require_material_contract(!guessed.geometry_safe,
+        "a guessed layout with a UV range of 180 passed the range limits");
+    NativeSubmesh exact = strip;
+    evaluate_native_submesh_quality(exact, true);
+    require_material_contract(exact.geometry_safe && exact.geometry_quality_score > guessed.geometry_quality_score + 500.0f,
+        "the exact canonical layout lost a tiled part to the UV range limits");
+    // The same strip read from a zero field: constant UVs must not outscore it.
+    NativeSubmesh zero = strip;
+    std::fill(zero.uvs.begin(), zero.uvs.end(), Vec2{});
+    evaluate_native_submesh_quality(zero, false);
+    require_material_contract(exact.geometry_quality_score > zero.geometry_quality_score,
+        "a layout that reads every UV as zero outscored the exact layout's tiled UVs");
+}
+
 static void run_material_contract_self_test() {
+    run_tiled_exact_uv_self_test();
     run_item_set_components_self_test();
     run_sub_component_wrapper_order_self_test();
     run_metal_class_floor_self_test();

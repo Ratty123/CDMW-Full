@@ -141,8 +141,18 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh, bool exact_pac_
     score += std::min<float>(static_cast<float>(triangles), 250000.0f) * 0.002f;
     score += mesh.uv_finite_ratio * 140.0f;
     score += mesh.normal_valid_ratio * 60.0f;
-    score -= std::max(0.0f, uv_span - 24.0f) * 9.0f;
-    score -= std::max(0.0f, mesh.uv_abs_max - 48.0f) * 4.0f;
+    // The UV range limits tell a guessed offset from a real one: a field that is
+    // not a UV pair decodes to huge values. Under the exact canonical layout the
+    // offset is not a guess, and a large range there is tiling (the rigging of
+    // cd_r0048_00_bigship_sail_0001 spans 123 by 177 with 2.7% long UV edges).
+    // Rejecting it handed the whole model to a layout that reads a zero field
+    // as UVs: every vertex at (0, 0), and "safe" for that reason alone.
+    const bool tiled_exact_uvs = exact_pac_layout && mesh.uv_finite_ratio >= 1.0f
+        && mesh.uv_edge_outlier_ratio <= 0.10f;
+    if (!tiled_exact_uvs) {
+        score -= std::max(0.0f, uv_span - 24.0f) * 9.0f;
+        score -= std::max(0.0f, mesh.uv_abs_max - 48.0f) * 4.0f;
+    }
     score -= mesh.degenerate_triangle_ratio * 220.0f;
     if (!verified_long_edges) score -= mesh.edge_outlier_ratio * 260.0f;
     score -= mesh.uv_edge_outlier_ratio * 320.0f;
@@ -167,8 +177,8 @@ static void evaluate_native_submesh_quality(NativeSubmesh& mesh, bool exact_pac_
     mesh.geometry_quality_note = note.str();
     mesh.geometry_safe =
         mesh.uv_finite_ratio >= 0.92f
-        && mesh.uv_abs_max <= 96.0f
-        && std::max(mesh.uv_span_u, mesh.uv_span_v) <= 64.0f
+        && (tiled_exact_uvs || mesh.uv_abs_max <= 96.0f)
+        && (tiled_exact_uvs || std::max(mesh.uv_span_u, mesh.uv_span_v) <= 64.0f)
         && mesh.uv_edge_outlier_ratio <= 0.42f
         && mesh.degenerate_triangle_ratio <= 0.28f
         && (mesh.edge_outlier_ratio <= 0.22f || verified_long_edges)

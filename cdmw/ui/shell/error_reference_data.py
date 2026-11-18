@@ -54368,7 +54368,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC LOD count is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 519
+      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 529
     }
   },
   {
@@ -54880,7 +54880,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC section 0 is missing",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 515
+      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 525
     }
   },
   {
@@ -54888,7 +54888,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC section 0 is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 517
+      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 527
     }
   },
   {
@@ -69281,7 +69281,7 @@ MESSAGE_REFERENCE = [
     "message": "native PAC parser found no renderable geometry sections",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 566
+      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 576
     }
   },
   {
@@ -69289,7 +69289,7 @@ MESSAGE_REFERENCE = [
     "message": "native PAC parser found no submesh descriptors",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 522
+      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 532
     }
   },
   {
@@ -69297,7 +69297,7 @@ MESSAGE_REFERENCE = [
     "message": "native PAC parser found no valid PAR sections",
     "recovery": "empty",
     "sources": {
-      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 510
+      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 520
     }
   },
   {
@@ -72314,7 +72314,7 @@ MESSAGE_REFERENCE = [
     "message": "selected PAC is missing a PAR header",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 504
+      "native/cdmw_preview_core/src/owners/geometry_pac.cpp": 514
     }
   },
   {
