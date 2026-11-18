@@ -226,6 +226,31 @@ static bool declaration_has_exact_logical_texture_edge(
     return false;
 }
 
+// Every wrapper that belongs to the model is stated once, with or without
+// parameters, so the package can name the shader of a part that has no
+// binding at all (the game's NoRender wrappers declare nothing).
+static void record_material_wrapper_row(
+    NativePackage& package,
+    const std::string& component_scope_id,
+    const MaterialWrapperDeclaration& declaration,
+    const std::string& shader_family
+) {
+    for (const NativeMaterialWrapperRow& existing : package.material_wrapper_rows) {
+        if (existing.material_wrapper_index == declaration.material_wrapper_index
+            && lower_copy(existing.component_scope_id) == lower_copy(component_scope_id)
+            && lower_copy(existing.owner_wrapper_item_id)
+                == lower_copy(declaration.owner_wrapper_item_id)) return;
+    }
+    NativeMaterialWrapperRow row;
+    row.component_scope_id = component_scope_id;
+    row.material_name = declaration.material_name;
+    row.shader_family = shader_family;
+    row.owner_wrapper_item_id = declaration.owner_wrapper_item_id;
+    row.material_wrapper_index = declaration.material_wrapper_index;
+    row.parameter_count = static_cast<int>(declaration.material_parameters.size());
+    package.material_wrapper_rows.push_back(std::move(row));
+}
+
 static void record_material_wrapper_declaration(
     MaterialBindingBuildState& state,
     const ArchiveEntryRef& sidecar,
@@ -247,6 +272,8 @@ static void record_material_wrapper_declaration(
     const std::string shader_family = declaration.shader_family.empty()
         ? parsed.shader_family : declaration.shader_family;
     const std::string shader_rule = shader_rule_for_family(shader_family);
+    record_material_wrapper_row(
+        state.package, component_scope_id, declaration, shader_family);
     for (const MaterialParameterRecord& parameter : declaration.material_parameters) {
         const std::string key = material_conservation_parameter_key(
             component_scope_id, declaration, parameter);

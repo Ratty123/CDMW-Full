@@ -119,6 +119,18 @@ struct MaterialParameterRecord {
     std::string texture_path;
 };
 
+// One row per material wrapper a sidecar declares for the model, whether or
+// not it carries a parameter: a wrapper without one (SkinnedMeshNoRender)
+// leaves no parameter row and no binding, so nothing else names its shader.
+struct NativeMaterialWrapperRow {
+    std::string component_scope_id;
+    std::string material_name;
+    std::string shader_family;
+    std::string owner_wrapper_item_id;
+    int material_wrapper_index = -1;
+    int parameter_count = 0;
+};
+
 struct NativeMaterialConservationRow {
     std::string sidecar_path;
     std::vector<std::string> representation_sidecar_paths;
@@ -316,5 +328,6 @@ struct NativePackage {
     int asset_family_reference_count = 0;
     bool material_conservation_ok = true;
     std::vector<NativeMaterialConservationRow> material_conservation_rows;
+    std::vector<NativeMaterialWrapperRow> material_wrapper_rows;
     std::vector<std::string> material_conservation_findings;
 };

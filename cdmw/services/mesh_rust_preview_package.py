@@ -1348,6 +1348,55 @@ def _apply_preview_core_ghost_shells(presentations, graph, raw_batches, paramete
         row["alpha_cutoff"] = 0.0
 
 
+def _apply_preview_core_no_render_parts(presentations, graph, raw_batches, wrappers):
+    """Leave out the parts the game does not draw.
+
+    SkinnedMeshNoRender ships no shader (technique SkinnedMeshNoRender): the
+    part exists for the engine, a socket or a cover, and is never drawn. Its
+    wrapper declares no parameter and names no texture, so no binding, layer
+    row or parameter row carries its family. Preview Core states every wrapper
+    of the model in the conservation table's wrapper list; the part is found
+    there by its model (component scope) and submesh name, and is stated as a
+    blended shell of no coverage. The part keeps its place in the part list.
+
+    A model whose every part is NoRender (a socket opened on its own) keeps
+    its parts drawn: hiding them would leave nothing to look at, and the
+    headless capture refuses a frame that holds only the clear colour.
+    """
+    hidden = {
+        (
+            str(wrapper.get("component_scope_id", "") or ""),
+            str(wrapper.get("material_name", "") or "").casefold(),
+        )
+        for wrapper in wrappers
+        if isinstance(wrapper, Mapping)
+        and str(wrapper.get("shader_family", "") or "").casefold() == "skinnedmeshnorender"
+    }
+    materials = graph.get("materials") if isinstance(graph, Mapping) else None
+    if not hidden or not isinstance(materials, list):
+        return
+    rows = {
+        (row.get("lod_index"), row.get("material_index")): row
+        for row in presentations if isinstance(row, dict)
+    }
+    targets = []
+    for raw_batch, material in zip(raw_batches, materials):
+        identity = raw_batch.get("editor_identity") if isinstance(raw_batch, Mapping) else None
+        if not isinstance(identity, Mapping) or not isinstance(material, dict):
+            continue
+        key = (
+            str(identity.get("component_scope_id", "") or ""),
+            str(identity.get("part_name", "") or "").casefold(),
+        )
+        row = rows.get((material.get("lod_index"), material.get("material_index")))
+        if key in hidden and row is not None:
+            targets.append(row)
+    if len({id(row) for row in targets}) >= len(rows):
+        return
+    for row in targets:
+        row.update({"alpha_mode": "blend", "opacity": 0.0, "alpha_cutoff": 0.0})
+
+
 def _build_preview_core_material_graph(
     source_package: Path,
     package_dir: Path,
@@ -1918,6 +1967,10 @@ def build_rust_preview_package_from_preview_core(
     _apply_preview_core_ghost_shells(
         presentations, preview_core_material_graph, raw_batches,
         raw_material_conservation.get("parameters", ()), source_package, center, scale,
+    )
+    _apply_preview_core_no_render_parts(
+        presentations, preview_core_material_graph, raw_batches,
+        raw_material_conservation.get("wrappers", ()),
     )
     frame, session_id, scene_payload = _preview_core_scene_frame(metadata_mesh, center, scale, part_identities, preview_overlays, cancelled)
 
