@@ -1203,6 +1203,151 @@ def _copy_preview_core_material_layers(
     return aggregate_bytes, source_edge_count
 
 
+# SkinnedMeshGhost defaults (material/dist skinnedmeshghost.material).
+_GHOST_DEFAULTS = {
+    "ghostopacity": 1.0, "ghostfresnelalpha": -0.1, "ghostmaskradius": 1.0, "ghostmaskhardness": 4.0,
+    "ghostmetallic": 0.0, "ghostroughness": 1.0,
+}
+_GHOST_DEFAULT_MASK_POSITION = (0.0, -3.0, 0.0)
+_GHOST_DEFAULT_COLOUR = (0x88 / 255.0, 0xA4 / 255.0, 0xA7 / 255.0)
+
+
+def _preview_core_ghost_floats(value, count):
+    try:
+        numbers = [float(part) for part in str(value or "").replace(",", " ").split()]
+    except ValueError:
+        return None
+    # A value the reader could not make sense of (the archive holds a few
+    # denormal or huge floats here) is not an authored number.
+    if len(numbers) != count or any(not math.isfinite(number) or abs(number) > 1.0e6 for number in numbers):
+        return None
+    return numbers
+
+
+def _preview_core_batch_centre(source_package, raw_batch, center, scale):
+    """Mean model-space position of a batch (23 floats a vertex, position first)."""
+    path = _preview_core_child(Path(source_package), raw_batch.get("vertex_file"))
+    count = _preview_core_int(raw_batch.get("vertex_count"), 0)
+    if path is None or count <= 0 or not scale:
+        return None
+    step = max(1, count // 4096)
+    total = [0.0, 0.0, 0.0]
+    used = 0
+    try:
+        with path.open("rb") as handle:
+            for index in range(0, count, step):
+                handle.seek(index * 92)
+                record = handle.read(12)
+                if len(record) != 12:
+                    break
+                for axis, value in enumerate(struct.unpack("<3f", record)):
+                    total[axis] += value
+                used += 1
+    except OSError:
+        return None
+    if not used:
+        return None
+    return tuple(total[axis] / used / float(scale) + float(center[axis]) for axis in range(3))
+
+
+def ghost_shell_presentation(parameters, centre):
+    """How the preview draws a SkinnedMeshGhost part: a blended shell.
+
+    The game's Ghost shader reads no texture colour (permutation
+    3fe935f0e737c889). Its coverage is
+        a = saturate(F ^ |_ghostFresnelAlpha| * mask * _ghostOpacity)
+        F = |N.V|, or 1 - |N.V| when _ghostFresnelAlpha is negative
+        mask = saturate((d - _ghostMaskRadius + noise)
+                        / max(0.001, _ghostMaskHardness * saturate(_ghostMaskRadius * 10)))
+    drawn by a dithered discard, with _ghostColor as colour and emission, and
+    _ghostMetallic and _ghostRoughness as the surface. The distance d arrives
+    from the vertex shader; it is taken here as the distance from
+    _ghostMaskPosition in model space (inferred: under that reading the monocle
+    lens of cd_phm_00_hel_00_0451 is nearly clear, as its icon shows). The
+    preview has no dither, so the shell is blended at one coverage for the
+    part: F at its mean over a facing sphere, the mask at the centre of the
+    part, no noise.
+    """
+    values = dict(_GHOST_DEFAULTS)
+    position = _GHOST_DEFAULT_MASK_POSITION
+    colour = _GHOST_DEFAULT_COLOUR
+    for name, value in parameters.items():
+        key = str(name).casefold().lstrip("_")
+        if key in values:
+            number = _preview_core_ghost_floats(value, 1)
+            if number is not None:
+                values[key] = number[0]
+        elif key == "ghostmaskposition":
+            position = tuple(_preview_core_ghost_floats(value, 3) or position)
+        elif key == "ghostcolor":
+            authored = pac_color_bytes(value)
+            if authored is not None:
+                colour = authored[:3]
+    power = abs(values["ghostfresnelalpha"])
+    # Mean of F^k over the projected area of a sphere (weight 2 N.V over N.V in 0..1).
+    fresnel = 2.0 / (power + 2.0) if values["ghostfresnelalpha"] >= 0.0 else 2.0 / ((power + 1.0) * (power + 2.0))
+    mask = 1.0
+    if centre is not None:
+        radius = values["ghostmaskradius"]
+        mask = (math.dist(centre, position) - radius) / max(
+            0.001, values["ghostmaskhardness"] * max(0.0, min(1.0, radius * 10.0)),
+        )
+        mask = max(0.0, min(1.0, mask))
+    return {
+        "alpha_mode": "blend",
+        "opacity": max(0.0, min(1.0, fresnel * mask * max(0.0, min(1.0, values["ghostopacity"])))),
+        "metalness": max(0.0, min(1.0, values["ghostmetallic"])),
+        "roughness": max(0.0, min(1.0, values["ghostroughness"])),
+        "colour": [float(component) for component in colour],
+    }
+
+
+def _apply_preview_core_ghost_shells(presentations, graph, raw_batches, parameters, source_package, center, scale):
+    """Draw the parts of the game's Ghost shader as blended shells.
+
+    A Ghost wrapper usually names no texture, so its batch has no binding: no
+    layer row and no presentation row carries its shader family or wrapper.
+    The conservation table keeps every declared parameter with its family, its
+    model (component scope) and its submesh name, and a batch states the same
+    two, so the wrapper is found by them.
+    """
+    ghosts: dict[tuple[str, str], dict[str, object]] = {}
+    for parameter in parameters:
+        if (
+            isinstance(parameter, Mapping)
+            and str(parameter.get("shader_family", "") or "").casefold() == "skinnedmeshghost"
+        ):
+            key = (
+                str(parameter.get("component_scope_id", "") or ""),
+                str(parameter.get("material_name", "") or "").casefold(),
+            )
+            ghosts.setdefault(key, {})[str(parameter.get("parameter_name", ""))] = parameter.get("value", "")
+    materials = graph.get("materials") if isinstance(graph, Mapping) else None
+    if not ghosts or not isinstance(materials, list):
+        return
+    rows = {
+        (row.get("lod_index"), row.get("material_index")): row
+        for row in presentations if isinstance(row, dict)
+    }
+    for raw_batch, material in zip(raw_batches, materials):
+        identity = raw_batch.get("editor_identity") if isinstance(raw_batch, Mapping) else None
+        if not isinstance(identity, Mapping) or not isinstance(material, dict):
+            continue
+        wrapper = ghosts.get((
+            str(identity.get("component_scope_id", "") or ""),
+            str(identity.get("part_name", "") or "").casefold(),
+        ))
+        row = rows.get((material.get("lod_index"), material.get("material_index")))
+        if wrapper is None or row is None:
+            continue
+        shell = ghost_shell_presentation(
+            wrapper, _preview_core_batch_centre(source_package, raw_batch, center, scale),
+        )
+        material["base_color"] = shell.pop("colour")
+        row.update(shell)
+        row["alpha_cutoff"] = 0.0
+
+
 def _build_preview_core_material_graph(
     source_package: Path,
     package_dir: Path,
@@ -1769,6 +1914,10 @@ def build_rust_preview_package_from_preview_core(
         package_dir, metadata_mesh, root_identity, quality, source_package, raw_batches, cancelled,
         include_material_resources,
         raw_material_conservation.get("parameters", ()),
+    )
+    _apply_preview_core_ghost_shells(
+        presentations, preview_core_material_graph, raw_batches,
+        raw_material_conservation.get("parameters", ()), source_package, center, scale,
     )
     frame, session_id, scene_payload = _preview_core_scene_frame(metadata_mesh, center, scale, part_identities, preview_overlays, cancelled)
 
