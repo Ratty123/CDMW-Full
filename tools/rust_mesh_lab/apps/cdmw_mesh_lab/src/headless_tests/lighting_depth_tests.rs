@@ -373,6 +373,114 @@ fn verify_depth(preset: LightingPreset) -> TestResult {
     Ok(())
 }
 
+/// A part classed metal carried the class's scalar floor on every texel: metal at
+/// least 0.56, roughness pulled towards 0.32, a raised specular colour. With its
+/// own surface map the map alone decides, as in the game, so a leather strap the
+/// map marks rough and not metal draws so. A metal part without a map keeps the
+/// floor, and another class is untouched.
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_metal_class_floor_yields_to_the_parts_surface_map() -> TestResult {
+    let mut snapshot = triangle_application()?
+        .mesh
+        .as_ref()
+        .unwrap()
+        .draw_snapshot();
+    snapshot.positions = vec![
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, 1.0, 0.0],
+    ];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 4];
+    snapshot.uvs = vec![[0.5, 0.5]; 4];
+    snapshot.shader_masks = vec![[1.0, 1.0, 0.0]; 4];
+    snapshot.indices = vec![0, 1, 2, 0, 2, 3];
+    snapshot.triangle_materials = vec![0, 0];
+    let owner = [vec![0]];
+    let leather = cdmw_texture::encode_rgba8_dds(1, 1, &[96, 64, 40, 255], TextureRole::BaseColor)?;
+    // The strap in the part's packed map: roughness 200/255, metal 0.
+    let strap = cdmw_texture::encode_rgba8_dds(1, 1, &[255, 200, 0, 255], TextureRole::Material)?;
+    let folder = tempdir()?;
+    let response_of = |name: &str,
+                       category: u32,
+                       with_map: bool|
+     -> Result<[u8; 3], Box<dyn std::error::Error>> {
+        let mut textures = vec![HeadlessMaterialTexture {
+            bytes: &leather,
+            role: TextureRole::BaseColor,
+            material_indices_by_lod: &owner,
+        }];
+        if with_map {
+            textures.push(HeadlessMaterialTexture {
+                bytes: &strap,
+                role: TextureRole::Material,
+                material_indices_by_lod: &owner,
+            });
+        }
+        // The scalars Preview Core states for a part classed metal.
+        let factors = [HeadlessMaterialFactors {
+            factors: MaterialPreviewFactors {
+                roughness: Some(0.24),
+                metalness: Some(0.68),
+                specular: Some(0.68),
+                category_code: Some(category),
+                category_confidence: Some(1.0),
+                ..MaterialPreviewFactors::default()
+            },
+            material_indices_by_lod: &owner,
+        }];
+        let response = folder.path().join(format!("{name}-response.bmp"));
+        pollster::block_on(cdmw_render_wgpu::run_headless_layered_material_capture(
+            &snapshot,
+            &textures,
+            &factors,
+            &[],
+            HeadlessMaterialCaptureOptions {
+                width: 64,
+                height: 64,
+                ..Default::default()
+            },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &folder.path().join(format!("{name}-lit.bmp")),
+                base_color_bmp: &folder.path().join(format!("{name}-base.bmp")),
+                part_id_bmp: &folder.path().join(format!("{name}-parts.bmp")),
+                normal_map: None,
+                material_response: Some(&response),
+                layer_mask: None,
+            },
+        ))?;
+        let bytes = std::fs::read(response)?;
+        let pixel = &bytes[54 + (32 * 64 + 32) * 4..][..4];
+        // The response picture is metal, roughness and the specular colour's peak.
+        Ok([pixel[2], pixel[1], pixel[0]])
+    };
+    const METAL: u32 = 1;
+    let [metal, roughness, specular] = response_of("metal-with-map", METAL, true)?;
+    assert!(metal <= 3, "the map says not metal; drawn metal {metal}");
+    assert!(
+        roughness.abs_diff(200) <= 3,
+        "the map says roughness 200; drawn {roughness}"
+    );
+    assert!(
+        specular <= 80,
+        "a non-metal texel keeps a dielectric specular colour; drawn {specular}"
+    );
+    let [metal, roughness, _] = response_of("metal-without-map", METAL, false)?;
+    assert!(
+        metal >= 150,
+        "a metal part without a map keeps the floor; drawn metal {metal}"
+    );
+    assert!(roughness <= 120, "and stays smooth; drawn {roughness}");
+    // Another class never had the floor: its scalars still meet its map as before.
+    let cloth = response_of("cloth-with-map", 4, true)?;
+    assert!(
+        cloth[0] >= 150 && cloth[1] < 197,
+        "a class other than metal is untouched; drawn {cloth:?}"
+    );
+    Ok(())
+}
+
 /// A polished conductor has no diffuse term: away from the highlights its colour
 /// is its reflectance times the room. Mid-grey steel (the Ver2 plate layer:
 /// roughness 0.18, metal 1) facing the camera used to draw near-black navy.

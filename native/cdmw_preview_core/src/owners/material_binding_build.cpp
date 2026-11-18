@@ -90,6 +90,27 @@ static int sidecar_scoped_mesh_count(
     return count;
 }
 
+// Wrapper order is an authority only when the sidecar's wrappers and its own
+// model's submeshes are the same list. A `_subNN` PAC shares the primary's
+// component key (the suffix is stripped for name matching), so counting by
+// key added the other file's submeshes, the counts stopped agreeing, and both
+// files lost the exact ownership their colour layers G and B need. When the
+// sidecar's model is known exactly, only that model's submeshes count.
+static int sidecar_wrapper_order_mesh_count(
+    const MaterialComponentScope& component_scope,
+    const std::string& component_key,
+    const std::vector<NativeSubmesh>& meshes
+) {
+    if (component_scope.id.empty() || component_scope.id.starts_with("sidecar:")) {
+        return sidecar_scoped_mesh_count(component_key, meshes);
+    }
+    int count = 0;
+    for (const NativeSubmesh& mesh : meshes) {
+        if (material_component_scope_id_for_mesh(mesh) == component_scope.id) ++count;
+    }
+    return count;
+}
+
 static bool sidecar_ref_matches_meshes(
     const SidecarTextureRef& ref,
     const std::string& component_key,
@@ -752,7 +773,8 @@ static void process_material_sidecar(MaterialBindingBuildState& state, const Arc
         + "; flags=" + std::to_string(parsed->parameter_summary.bit_flags)
         + "; pbd_hints=" + std::to_string(parsed->pbd_hints.size())
         + "; model_property_index=" + std::to_string(model_property_index));
-    const int scoped_count = sidecar_scoped_mesh_count(component_key, state.meshes);
+    const int scoped_count = sidecar_wrapper_order_mesh_count(
+        component_scope, component_key, state.meshes);
     const bool wrapper_order_authoritative = parsed->material_wrapper_count > 0
         && parsed->material_wrapper_count == scoped_count;
     const std::string model_family_key = normalized_material_key(stem_from_path(state.job.path));

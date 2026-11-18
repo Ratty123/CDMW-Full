@@ -2,15 +2,37 @@
 use super::*;
 
 pub(super) const FLAG: u32 = 1 << 27;
+/// `LayerUniform::control[3]` bit: the surface beneath the layers has no base colour map.
+pub const LAYER_CONTROL_NO_BASE: u32 = 1;
+/// `LayerUniform::control[3]` bit: the binding only recolours the base (the
+/// legacy dye of a part without colour layers); normal and response stay with
+/// the surface shader's own maps.
+pub const LAYER_CONTROL_COLOUR_ONLY: u32 = 2;
+/// `LayerUniform::control[3]` bit: the Ver2 overlay step runs with the wrapper's
+/// map in `OVERLAY_SLOT`. The game runs the step on every Ver2 pixel; without a
+/// map of the wrapper's own it reads the engine's neutral grey, which changes
+/// nothing, so the step is then left out.
+pub const LAYER_CONTROL_OVERLAY: u32 = 4;
+/// `LayerUniform::control[3]`, shifted left by the layer's channel (0 R, 1 G, 2
+/// B): that layer overlays the map's luma (`_dyeingCustomPropertyMask* & 0x10000`).
+pub const LAYER_CONTROL_OVERLAY_LUMA: u32 = 16;
+/// `LayerUniform::control[0]` of the legacy families' rule.
+pub const LAYER_MODE_LEGACY: u32 = 4;
 /// Layer textures: the blend mask; colour, normal and response for R, G, B; the
-/// detail mask; then grime colour, normal and response for R, G, B.
-pub const LAYER_TEXTURE_SLOTS: usize = 20;
+/// detail mask; grime colour, normal and response for R, G, B; the overlay
+/// colour map; then the blend layer's colour map.
+pub const LAYER_TEXTURE_SLOTS: usize = 22;
 /// Slot of `_detailMaskTexture` (red marks scratches, green grime).
 pub const DETAIL_MASK_SLOT: usize = 10;
 /// First grime slot; grime of channel k starts at `GRIME_SLOT + 3 * k`.
 pub const GRIME_SLOT: usize = 11;
+/// Slot of `_overlayColorTexture` (Ver2), sampled at the mesh UV as linear data.
+pub const OVERLAY_SLOT: usize = 20;
+/// Slot of `_detailDiffuseBlend` (Ver2): the blend layer the game calls the
+/// symbol, placed once on the mesh UV, not tiled.
+pub const BLEND_SLOT: usize = 21;
 /// Sampled textures of one fragment stage with layers bound: 16 material maps,
-/// the layer slots and the shadow map.
+/// the layer slots and the shadow map (39 of them; the limit leaves one spare).
 const REQUIRED_SAMPLED_TEXTURES: u32 = 40;
 
 #[repr(C)]
@@ -21,6 +43,8 @@ pub struct LayerEntryUniform {
     /// overlays (mode 2) carry it linear.
     pub dye: [f32; 4],
     pub affine: [f32; 4],
+    /// UV offset, the layer's blend flags, and 1 when the wrapper declares no
+    /// colour map for the layer (the legacy rule then draws none).
     pub offset: [f32; 4],
     /// Opacity, mean linear luminance, presence, normal encoding (0 RGB, 1 RG, 2 signed RG).
     pub properties: [f32; 4],
@@ -42,12 +66,22 @@ pub struct LayerEntryUniform {
 #[derive(Debug, Clone, Copy, Pod, Zeroable, Default)]
 pub struct LayerUniform {
     pub layers: [LayerEntryUniform; 3],
-    /// Reserved. It held `_dyeingColorMask*` colour seeds, which no Ver2 shader
-    /// of the game reads; the layer shader no longer draws them.
+    /// `_dyeingColorMaskR/G/B` of a legacy family (mode 4): authored sRGB
+    /// colour and alpha, zero where the wrapper has none. No Ver2 shader of the
+    /// game reads them, so the other modes leave them zero.
     pub seeds: [[f32; 4]; 3],
     pub base_color: [f32; 4],
-    /// Mode (1 normalized mask, 2 masked overlays, 3 eye alpha overlays), skin flag, eye flag, reserved.
+    /// Mode (1 normalized mask, 2 masked overlays, 3 eye alpha overlays, 4 the
+    /// legacy families' dye and one detail layer per pixel), skin flag, eye
+    /// flag, bits (`LAYER_CONTROL_*`: no base colour map, colour only, the Ver2
+    /// overlay step and its options).
     pub control: [u32; 4],
+    /// `_dyeingDetailLayerColorBlend`: the blend layer's sRGB dye and strength.
+    pub blend_dye: [f32; 4],
+    /// The blend layer's placement on the mesh UV, as a layer's `affine`.
+    pub blend_affine: [f32; 4],
+    /// Its UV offset, its opacity (`_dyeingGlobalOpacity` byte 3), presence.
+    pub blend_offset: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -69,13 +103,13 @@ pub struct MaterialLayerSet {
 
 impl MaterialLayerSet {
     /// Whether `evaluate_material_layers` leaves the base colour map's colour off the
-    /// surface. Outside the masked-overlay (2) and eye (3) modes a pixel's colour is the
+    /// surface. Outside the masked-overlay (2), eye (3) and legacy (4) modes a pixel's colour is the
     /// layer of its largest mask channel, and the base only where that channel has none;
     /// with a layer on R, G and B the base colour never shows. Its alpha and the base
     /// normal map still do.
     #[must_use]
     pub fn hides_base_colour(&self) -> bool {
-        !matches!(self.uniform.control[0], 2 | 3)
+        !matches!(self.uniform.control[0], 2 | 3 | LAYER_MODE_LEGACY)
             && self
                 .uniform
                 .layers
@@ -183,7 +217,7 @@ pub(super) fn binding(
                     ..Default::default()
                 })
             } else {
-                let texture = if index == 0 || index == DETAIL_MASK_SLOT {
+                let texture = if index == 0 || index == DETAIL_MASK_SLOT || index >= OVERLAY_SLOT {
                     &defaults.layer_mask
                 } else {
                     let set = if index < DETAIL_MASK_SLOT {
@@ -237,7 +271,8 @@ pub(super) fn shader(device: &wgpu::Device, include_depth: bool) -> String {
     let source = if supported(device) {
         include_str!("material_layers.wgsl")
     } else {
-        "fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface { return LayerSurface(base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0)); }"
+        "fn material_layers_colour_only() -> bool { return false; }
+fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface { return LayerSurface(base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0)); }"
     };
     let main = SHADER.replace("// MATERIAL_LAYER_FUNCTIONS", source);
     let shadows = if include_depth && lighting_depth::shadow_supported(device) {
@@ -291,7 +326,7 @@ mod tests {
     #[test]
     fn layer_uniform_preserves_group_zero_abi() {
         assert_eq!(std::mem::size_of::<LayerEntryUniform>(), 160);
-        assert_eq!(std::mem::size_of::<LayerUniform>(), 560);
+        assert_eq!(std::mem::size_of::<LayerUniform>(), 608);
         assert_eq!(std::mem::size_of::<MaterialUniform>(), 288);
         let shader = include_str!("material_layers.wgsl");
         for binding in 0..=LAYER_TEXTURE_SLOTS {

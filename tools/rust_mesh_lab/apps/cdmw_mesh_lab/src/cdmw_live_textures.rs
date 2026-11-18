@@ -14,7 +14,9 @@
 //! layers. `live_texture_sources` tells CDMW which textures are shown, per part.
 
 use crate::loader::LoadedTexture;
-use cdmw_render_wgpu::{DETAIL_MASK_SLOT, GRIME_SLOT, MaterialLayerSet, WindowRenderer};
+use cdmw_render_wgpu::{
+    DETAIL_MASK_SLOT, GRIME_SLOT, MaterialLayerSet, OVERLAY_SLOT, WindowRenderer,
+};
 use cdmw_texture::{TextureRole, dds_mean_luminance_of_any_size};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -132,7 +134,8 @@ fn put_edit(
         texture.bytes = Arc::clone(&edit.bytes);
         texture.source_sha256.clone_from(&edit.key);
         changed = true;
-        if slot == 0 || slot == DETAIL_MASK_SLOT {
+        if slot == 0 || slot == DETAIL_MASK_SLOT || slot >= OVERLAY_SLOT {
+            // Masks and the overlay map have no per-layer uniform to follow them.
             continue;
         }
         if slot >= GRIME_SLOT {

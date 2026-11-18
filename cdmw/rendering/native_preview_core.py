@@ -685,10 +685,29 @@ def _native_preview_core_lighting_preset(
     return current_text or "neutral_studio"
 
 
+def _native_preview_core_batch_has_surface_map(batch: Mapping[str, Any]) -> bool:
+    """Whether a native batch has a surface map of its own (global or of a layer)."""
+    for key in ("textures", "dds_textures"):
+        textures = batch.get(key)
+        if isinstance(textures, Mapping) and any(
+            str(textures.get(role, "") or "").strip() for role in ("material", "specular")
+        ):
+            return True
+    layers = batch.get("material_layers")
+    return isinstance(layers, list) and any(
+        isinstance(layer, Mapping) and str(layer.get("material_source", "") or "").strip()
+        for layer in layers
+    )
+
+
 def _native_preview_core_repair_metal_batch(batch: Dict[str, Any]) -> bool:
     category = str(batch.get("material_category", "") or "").strip().lower()
     confidence = _clamp(batch.get("material_category_confidence"), 0.0, 1.0, 0.0)
     if category != "metal" or confidence < 0.45:
+        return False
+    if _native_preview_core_batch_has_surface_map(batch):
+        # The scalar floor stands in for a missing surface map. A part with its
+        # own map takes metal and roughness per texel from it, as the game does.
         return False
     response = str(batch.get("material_response_disposition", "") or "").strip().lower()
     strong_response = any(token in response for token in ("metal_response", "metallic", "promoted"))

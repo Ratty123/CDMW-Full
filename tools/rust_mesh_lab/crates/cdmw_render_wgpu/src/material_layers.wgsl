@@ -8,6 +8,8 @@ struct LayerEntry {
 };
 struct LayerUniform {
     layers: array<LayerEntry, 3>, seeds: array<vec4<f32>, 3>, base_color: vec4<f32>, control: vec4<u32>,
+    // The Ver2 blend layer: sRGB dye and strength, placement, (UV offset, opacity, presence).
+    blend_dye: vec4<f32>, blend_affine: vec4<f32>, blend_offset: vec4<f32>,
 };
 @group(2) @binding(0) var blend_mask: texture_2d<f32>;
 @group(2) @binding(1) var layer_r_color: texture_2d<f32>;
@@ -31,6 +33,10 @@ struct LayerUniform {
 @group(2) @binding(18) var grime_b_color: texture_2d<f32>;
 @group(2) @binding(19) var grime_b_normal: texture_2d<f32>;
 @group(2) @binding(20) var grime_b_sp: texture_2d<f32>;
+// _overlayColorTexture (Ver2): linear data at the mesh UV.
+@group(2) @binding(21) var overlay_color: texture_2d<f32>;
+// _detailDiffuseBlend (Ver2): the blend layer's colour, placed once.
+@group(2) @binding(22) var blend_color: texture_2d<f32>;
 
 fn layer_uv(layer: LayerEntry, uv: vec2<f32>) -> vec2<f32> {
     return vec2<f32>(layer.affine.x*uv.x + layer.affine.z*uv.y,
@@ -90,17 +96,45 @@ fn layer_rnm(base: vec3<f32>, detail: vec3<f32>) -> vec3<f32> {
     return safe_normalize(t * dot(t,u) / max(t.z,0.00001) - u, base);
 }
 
+// control.w bit 1: the layer binding carries a colour rule only (the legacy dye
+// of a part without colour layers). Normal, roughness, metal and occlusion then
+// stay with the surface shader's own maps.
+fn material_layers_colour_only() -> bool {
+    return (material.flags & MATERIAL_GPU_LAYERS) != 0u && (layer_uniform.control.w & 2u) != 0u;
+}
+
+// The game's dye of the legacy families (Standard, Cloth, Fur, Emissive,
+// AmplifiedGlare, Wing, Poster; permutation d2990a66b31f1efe):
+//   c = dyeR * m.r;  c = lerp(c, dyeG, m.g);  c = lerp(c, dyeB, m.b)    (rgb and alpha)
+//   albedo = lerp(base, srgb_to_linear(overlay(base = m.a, blend = c.rgb)), c.a)
+// m is _maskTexture, the dyes are _dyeingColorMaskR/G/B as sRGB values. The
+// mask's alpha is the overlay's base, so it shades the dye: 0.5 leaves it, 0 is
+// black, 1 white (%404-%426 of the permutation's listing branch on the alpha).
+fn legacy_dye(base: vec3<f32>, m: vec4<f32>) -> vec3<f32> {
+    var c = layer_uniform.seeds[0] * m.r;
+    c = mix(c, layer_uniform.seeds[1], m.g);
+    c = mix(c, layer_uniform.seeds[2], m.b);
+    let dyed = srgb_to_linear(layer_overlay(vec3<f32>(m.a), clamp(c.rgb, vec3<f32>(0.0), vec3<f32>(1.0))));
+    return mix(base, dyed, clamp(c.a, 0.0, 1.0));
+}
+
 fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurface {
-    // control.w == 1: no base colour map, so the surface beneath the layers is
+    // control.w bit 0: no base colour map, so the surface beneath the layers is
     // white rather than the grey placeholder bound for untextured geometry.
-    let base = vec4<f32>(select(sampled_base.rgb, vec3<f32>(1.0), layer_uniform.control.w == 1u), sampled_base.a);
+    let base = vec4<f32>(select(sampled_base.rgb, vec3<f32>(1.0), (layer_uniform.control.w & 1u) != 0u), sampled_base.a);
     var out = LayerSurface(sampled_base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0));
     if (material.flags & MATERIAL_GPU_LAYERS) == 0u { return out; }
     // Mode 1 picks one layer per pixel, so its mask is read as sharply as the base
     // maps are: at a mip two levels coarser the thin trims and inlays fall below
     // their neighbours and vanish from the picture.
-    var mask = textureSampleBias(blend_mask, material_sampler, uv, select(0.0, MATERIAL_MIP_LOD_BIAS, layer_uniform.control.x == 1u)).rgb;
+    let mask_texel = textureSampleBias(blend_mask, material_sampler, uv, select(0.0, MATERIAL_MIP_LOD_BIAS, layer_uniform.control.x == 1u));
+    var mask = mask_texel.rgb;
     let raw_mask = mask;
+    if (layer_uniform.control.w & 2u) != 0u {
+        out.color = legacy_dye(base.rgb, mask_texel);
+        out.mask = mask;
+        return out;
+    }
     let sum = dot(mask, vec3<f32>(1.0));
     if layer_uniform.control.x == 1u {
         mask = select(mask / max(sum,0.00001), vec3<f32>(1.0,0.0,0.0), sum < 0.00001);
@@ -155,6 +189,11 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     responses[1] = textureSampleBias(layer_g_sp, material_sampler, ug, 0.0).rgb;
     responses[2] = textureSampleBias(layer_b_sp, material_sampler, ub, 0.0).rgb;
     let detail_texel = textureSampleBias(detail_mask, material_sampler, uv, 0.0).rgb;
+    // The blend layer is placed once: it draws where its own UV lies in 0.005 to
+    // 0.995. Sampled here, outside the per-pixel choice below.
+    let blend_uv = vec2<f32>(layer_uniform.blend_affine.x*uv.x + layer_uniform.blend_affine.z*uv.y,
+                             layer_uniform.blend_affine.y*uv.x + layer_uniform.blend_affine.w*uv.y) + layer_uniform.blend_offset.xy;
+    let blend_texel = textureSampleBias(blend_color, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), 0.0);
     var grime_colors: array<vec3<f32>,3>;
     var grime_normals: array<vec3<f32>,3>;
     var grime_responses: array<vec3<f32>,3>;
@@ -173,18 +212,37 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     var color = vec3<f32>(0.0);
     var normal = vec3<f32>(0.0);
     var orm = vec3<f32>(0.0);
+    // Mode 4 is the game's rule for the legacy families; mode 2 keeps the older
+    // weighted mix for the other families that read _maskTexture.
+    let legacy = layer_uniform.control.x == 4u;
     if layer_uniform.control.x == 2u {
         color = base.rgb * layer_uniform.base_color.rgb;
         normal = base_normal;
         orm = base_sp;
     }
+    if legacy {
+        color = legacy_dye(base.rgb, mask_texel);
+        normal = base_normal;
+        orm = base_sp;
+        // One detail layer per pixel, the largest mask channel: its colour,
+        // dyed by the game's overlay, by its own alpha times the opacity byte.
+        var slot = 2u;
+        if mask.r >= mask.g && mask.r >= mask.b { slot = 0u; } else if mask.g >= mask.b { slot = 1u; }
+        let chosen = layer_uniform.layers[slot];
+        // offset.w marks a layer whose colour map the wrapper does not declare.
+        if chosen.properties.z > 0.5 && chosen.offset.w < 0.5 {
+            color = mix(color, layer_tint(colors[slot], chosen.dye), clamp(alphas[slot] * chosen.properties.x, 0.0, 1.0));
+        }
+    }
     for (var k = 0u; k < 3u; k += 1u) {
         let layer = layer_uniform.layers[k];
-        if layer_uniform.control.x == 2u {
+        if layer_uniform.control.x == 2u || legacy {
             if layer.properties.z > 0.5 {
                 let weight = clamp(mask[k] * layer.properties.x, 0.0, 1.0);
                 let flags = u32(layer.offset.z);
-                if (flags & 1u) != 0u {
+                if legacy {
+                    // Colour is settled above.
+                } else if (flags & 1u) != 0u {
                     color = mix(color, layer_dye(colors[k], layer.dye, layer.properties.y, 1.0) * layer_uniform.base_color.rgb, weight);
                 } else {
                     color = mix(color, layer_dye(color, layer.dye, layer_uniform.base_color.a, 1.0), weight);
@@ -246,6 +304,26 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
         let wear = detail_texel.r * step(0.5, layer.scratch.z);
         orm = vec3<f32>(orm.r, orm.g + (1.0 - orm.g) * layer.scratch.x * wear, orm.b + layer.scratch.y * wear);
         color = mix(color, srgb_to_linear(layer_overlay(vec3<f32>(detail_texel.r), layer.scratch_tint.rgb)), clamp(layer.scratch_tint.a * wear, 0.0, 1.0));
+        // The game's overlay step, after grime and scratch on every pixel:
+        // albedo = srgb_to_linear(overlay(base = O, blend = linear_to_srgb(albedo))),
+        // O = _overlayColorTexture at the mesh UV (0.5 is neutral), its luma when the
+        // drawn layer asks for it. A wrapper without the map reads the engine's
+        // neutral grey there, which changes nothing: the bit is then not set.
+        if (layer_uniform.control.w & 4u) != 0u {
+            var over = textureSampleBias(overlay_color, material_sampler, uv, 0.0).rgb;
+            if (layer_uniform.control.w & (16u << slot)) != 0u {
+                over = vec3<f32>(dot(over, vec3<f32>(0.299, 0.587, 0.114)));
+            }
+            color = srgb_to_linear(layer_overlay(over, linear_to_srgb(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)))));
+        }
+        // The game's blend layer, after the overlay step and only with a non-zero
+        // opacity byte: _detailDiffuseBlend dyed as a colour layer, laid over by
+        // its own alpha times that byte.
+        if layer_uniform.blend_offset.w > 0.5 {
+            let inside = all(blend_uv >= vec2<f32>(0.005)) && all(blend_uv <= vec2<f32>(0.995));
+            let amount = clamp(blend_texel.a * layer_uniform.blend_offset.z, 0.0, 1.0);
+            color = mix(color, layer_tint(blend_texel.rgb, layer_uniform.blend_dye), select(0.0, amount, inside));
+        }
     }
     out.color = color;
     out.normal = normal;

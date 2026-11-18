@@ -29,8 +29,10 @@ pub mod texture_view;
 pub use lighting_depth::LightingDepthSettings;
 pub use lighting_depth::verify_lighting_depth_compatibility;
 pub use material_layers::{
-    DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_TEXTURE_SLOTS, LayerEntryUniform, LayerTexture,
-    LayerUniform, MaterialLayerSet, material_layers_supported,
+    BLEND_SLOT, DETAIL_MASK_SLOT, GRIME_SLOT, LAYER_CONTROL_COLOUR_ONLY, LAYER_CONTROL_NO_BASE,
+    LAYER_CONTROL_OVERLAY, LAYER_CONTROL_OVERLAY_LUMA, LAYER_MODE_LEGACY, LAYER_TEXTURE_SLOTS,
+    LayerEntryUniform, LayerTexture, LayerUniform, MaterialLayerSet, OVERLAY_SLOT,
+    material_layers_supported,
 };
 pub use texture_upload::run_headless_texture_upload_comparison;
 
@@ -575,9 +577,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
 
     var texel = textureSampleBias(base_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
     if material.flags == 0u && fixed_studio { texel = vec4(0.56,0.58,0.62,1.0); }
-    let gpu_layered = (material.flags & MATERIAL_GPU_LAYERS) != 0u;
+    // A colour-only layer binding (the legacy dye of a part without colour
+    // layers) replaces the base colour and nothing else.
+    let layer_colour_only = material_layers_colour_only();
+    let gpu_layered = (material.flags & MATERIAL_GPU_LAYERS) != 0u && !layer_colour_only;
     let layer_surface = evaluate_material_layers(sample_uv, texel);
-    if gpu_layered { texel = vec4<f32>(layer_surface.color, texel.a); }
+    if gpu_layered || layer_colour_only { texel = vec4<f32>(layer_surface.color, texel.a); }
     if (material.flags & MATERIAL_TEXTURE_TINT) != 0u && !gpu_layered {
         let texture_tint = max(
             material.texture_tint_and_strength.rgb,
@@ -918,14 +923,17 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u && gltf_pbr {
         roughness = clamp(roughness * material.surface_factors.x, 0.04, 1.0);
     } else if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u {
-        let factor_weight = select(0.55, 0.15, has_source_roughness);
+        // A part classed metal carries the class's scalar floor (smooth, metal).
+        // With its own surface map the map alone decides, as in the game: the
+        // class is a guess per part, the map says which texels are metal.
+        let factor_weight = select(select(0.55, 0.15, has_source_roughness), 0.0, is_metal && has_source_roughness);
         roughness = clamp(mix(roughness, material.surface_factors.x, factor_weight), 0.04, 1.0);
     }
     if (material.flags & MATERIAL_METALNESS_FACTOR) != 0u {
         let declared_metalness = clamp(material.surface_factors.y, 0.0, 1.0);
         if gltf_pbr {
             metalness *= declared_metalness;
-        } else {
+        } else if !(is_metal && has_source_metalness) {
             metalness = select(declared_metalness, max(metalness, declared_metalness), has_source_metalness);
         }
     }
@@ -1127,8 +1135,9 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         let source_weight = max(metalness, select(0.0, 0.75, is_glossy));
         f0 = mix(f0, max(f0, mapped_specular), vec3<f32>(source_weight));
     }
+    // The metal class's specular floor is for parts without a surface map too.
     if !gltf_pbr && (material.flags & MATERIAL_SPECULAR_FACTOR) != 0u
-        && material.surface_factors.z > 0.02 {
+        && material.surface_factors.z > 0.02 && !(is_metal && has_source_metalness) {
         let factored_specular = mix(
             dielectric_f0,
             material.surface_factors.z,

@@ -413,6 +413,253 @@ def test_ver2_colour_layers_state_their_scratch_bytes_tint_and_detail_mask(tmp_p
     assert "scratch" not in other_wrapper and "detail_mask" not in other_wrapper
 
 
+def _legacy_dye_fixture(tmp_path: Path, family: str, *, mask_exists: bool = True):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    mask = tmp_path / "tunic_m.dds"
+    if mask_exists:
+        mask.write_bytes(b"DDS " + b"M" * 512)
+    base = native["batches"][0]["material_layers"][0]
+    base.update(shader_family=family, component_scope_id="piece-a")
+    wrapper = dict(component_scope_id="piece-a", owner_wrapper_item_id=base["owner_wrapper_item_id"],
+                   material_wrapper_index=base["material_wrapper_index"])
+    parameters = [
+        dict(wrapper, parameter_name="_dyeingColorMaskR", value="#4a4639ff"),
+        dict(wrapper, parameter_name="_dyeingColorMaskG", value="#a35835d4"),
+        # No alpha: the game shows no blue dye, so no row.
+        dict(wrapper, parameter_name="_dyeingColorMaskB", value="#60492000"),
+        dict(wrapper, parameter_name="_maskTexture", value="",
+             resolved_source_path=str(mask),
+             resolved_archive_path="character/texture/tunic_m.dds"),
+        # Another wrapper's colours are not this part's.
+        dict(wrapper, owner_wrapper_item_id="other", parameter_name="_dyeingColorMaskB", value="#ffffffff"),
+    ]
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=5,
+                                           transported_parameter_count=5)
+    (source / "manifest.json").write_text(json.dumps(native))
+    return source, native, mask
+
+
+@pytest.mark.parametrize(
+    ("family", "dyed"),
+    (
+        ("SkinnedMeshStandard", True), ("SkinnedMeshCloth", True), ("SkinnedMeshFur", True),
+        ("SkinnedMeshEmissive", True), ("SkinnedMeshAmplifiedGlare", True),
+        ("SkinnedMeshWing", True), ("SkinnedMeshPoster", True),
+        # No Ver2 shader reads `_dyeingColorMask*`, and BlendHeight has no dye.
+        ("SkinnedMeshStandard_Ver2", False), ("SkinnedMeshCloth_Ver2", False),
+        ("SkinnedMeshBlendHeight", False), ("SkinnedMeshHair", False),
+    ),
+)
+def test_legacy_families_state_their_dye_as_rows_on_the_mask_texture(tmp_path: Path, family: str, dyed: bool):
+    """`cd_m0001_00_no_phm_ub_43007`: a cream tunic whose wrapper says dark olive drew undyed."""
+    from cdmw.domain.material_layer_uv import detail_mask_sources
+
+    source, native, mask = _legacy_dye_fixture(tmp_path, family)
+    assert str(mask) in detail_mask_sources(native)  # Kept alive with the layer sources.
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    layers = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"]
+    seeds = [layer for layer in layers if layer["layer_role"] == "color_seed"]
+    if not dyed:
+        assert not seeds
+        return
+    assert [(seed["mask_channel"], seed["source_parameter"]) for seed in seeds] == [
+        ("r", "_dyeingColorMaskR"), ("g", "_dyeingColorMaskG"),
+    ]
+    assert seeds[0]["tint"] == pytest.approx([0x4A / 255, 0x46 / 255, 0x39 / 255, 1.0])
+    assert seeds[1]["tint"] == pytest.approx([0xA3 / 255, 0x58 / 255, 0x35 / 255, 0xD4 / 255])
+    for seed in seeds:
+        assert seed["mask_parameter"] == "_maskTexture"
+        assert seed["mask_declared"] is True and seed["diffuse_declared"] is False
+        assert seed["mask_archive_path"] == "character/texture/tunic_m.dds"
+        assert (package.manifest_path.parent / seed["mask"]["path"]).read_bytes() == mask.read_bytes()
+        assert seed["owner_wrapper_item_id"] == layers[0]["owner_wrapper_item_id"]
+        assert seed["shader_family"] == family
+
+
+@pytest.mark.parametrize(
+    ("family", "declared", "expected"),
+    (
+        # `cd_phm_00_hand_00_0407` (wolf fur): only `_detailNormalMaskR` and
+        # `_detailHeightMaskR`; the paired file is the height map and drew as noise.
+        ("SkinnedMeshFur", False, False),
+        ("SkinnedMeshStandard", True, None),
+        ("SkinnedMeshStandard_Ver2", False, None),
+    ),
+)
+def test_a_legacy_layer_says_when_its_colour_map_is_not_the_wrappers_own(
+    tmp_path: Path, family: str, declared: bool, expected,
+):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    base = native["batches"][0]["material_layers"][0]
+    base.update(shader_family=family, component_scope_id="piece-a")
+    native["batches"][0]["material_layers"].append(dict(
+        base, layer_role="detail", mask_channel="r", source_parameter="_detailDiffuseMaskR",
+        mask_parameter="_maskTexture", mask_source=base["diffuse_source"],
+        mask_archive_path="character/texture/wolf_m.dds"))
+    wrapper = dict(component_scope_id="piece-a", owner_wrapper_item_id=base["owner_wrapper_item_id"],
+                   material_wrapper_index=base["material_wrapper_index"])
+    parameters = [dict(wrapper, parameter_name="_dyeingGlobalOpacity", integer_value=0x00FF00FF)]
+    if declared:
+        parameters.append(dict(wrapper, parameter_name="_detailDiffuseMaskR", value="",
+                               resolved_source_path=base["diffuse_source"],
+                               resolved_archive_path="character/texture/weave.dds"))
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=len(parameters),
+                                           transported_parameter_count=len(parameters))
+    (source / "manifest.json").write_text(json.dumps(native))
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    detail = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"][1]
+    assert detail["layer_role"] == "detail" and detail["blend_opacity"] == 1.0
+    assert detail.get("colour_authored") is expected
+
+
+def test_a_missing_mask_texture_costs_the_dye_not_the_preview(tmp_path: Path):
+    source, _native, mask = _legacy_dye_fixture(tmp_path, "SkinnedMeshStandard", mask_exists=False)
+    assert not mask.exists()
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    layers = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"]
+    assert [layer["layer_role"] for layer in layers] == ["base"]
+
+
+def _ver2_overlay_fixture(tmp_path: Path, family: str, *, declared: bool = True, exists: bool = True,
+                          luma=()):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    overlay = tmp_path / "plate_o.dds"
+    if exists:
+        overlay.write_bytes(b"DDS " + b"O" * 512)
+    base = native["batches"][0]["material_layers"][0]
+    native["batches"][0]["material_layers"].append(dict(
+        base, layer_role="detail", mask_channel="r", component_scope_id="piece-a", shader_family=family,
+        source_parameter="_detailDiffuseMaskR", mask_parameter="_colorBlendingMaskTexture",
+        mask_source=base["diffuse_source"], mask_archive_path="character/texture/plate_ma.dds"))
+    wrapper = dict(component_scope_id="piece-a", owner_wrapper_item_id=base["owner_wrapper_item_id"],
+                   material_wrapper_index=base["material_wrapper_index"])
+    parameters = [dict(wrapper, parameter_name="_dyeingGlobalOpacity", integer_value=0x00FFFFFF)]
+    if declared:
+        parameters.append(dict(wrapper, parameter_name="_overlayColorTexture", value="",
+                               resolved_source_path=str(overlay),
+                               resolved_archive_path="character/texture/plate_o.dds"))
+    for channel in luma:
+        parameters.append(dict(wrapper, parameter_name=f"_dyeingCustomPropertyMask{channel}",
+                               integer_value=0x10000 | 0x21))
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=len(parameters),
+                                           transported_parameter_count=len(parameters))
+    (source / "manifest.json").write_text(json.dumps(native))
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    layers = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"]
+    return package, overlay, [layer for layer in layers if layer["layer_role"] == "overlay"]
+
+
+def test_a_ver2_wrapper_states_its_overlay_colour_map_as_one_row(tmp_path: Path):
+    """The game applies `_overlayColorTexture` to every Ver2 pixel; CDMW dropped it."""
+    package, overlay, rows = _ver2_overlay_fixture(tmp_path, "SkinnedMeshCloth_Ver2", luma="GB")
+    (row,) = rows
+    assert row["source_parameter"] == "_overlayColorTexture" and row["mask_parameter"] == ""
+    assert row["diffuse_declared"] is True and row["mask_declared"] is False
+    assert row["diffuse_archive_path"] == "character/texture/plate_o.dds"
+    assert (package.manifest_path.parent / row["diffuse"]["path"]).read_bytes() == overlay.read_bytes()
+    assert row["blend_flags"] == 0b110  # Layers G and B overlay the map's luma.
+
+
+def test_a_ver2_wrapper_without_an_overlay_map_gets_no_overlay_step(tmp_path: Path):
+    """The engine's default there is neutral grey (0x80 pixels): the game's step changes nothing."""
+    _package, _overlay, rows = _ver2_overlay_fixture(tmp_path, "SkinnedMeshStandard_Ver2", declared=False)
+    assert rows == []
+
+
+def test_a_missing_overlay_map_leaves_the_overlay_step_out(tmp_path: Path):
+    _package, overlay, rows = _ver2_overlay_fixture(tmp_path, "SkinnedMeshStandard_Ver2", exists=False)
+    assert not overlay.exists() and rows == []
+
+
+@pytest.mark.parametrize("family", ("SkinnedMeshStandard", "SkinnedMeshCloth", "SkinnedMeshHair"))
+def test_only_ver2_families_run_the_overlay_step(tmp_path: Path, family: str):
+    _package, _overlay, rows = _ver2_overlay_fixture(tmp_path, family)
+    assert rows == []
+
+
+def _ver2_blend_fixture(tmp_path: Path, *, family="SkinnedMeshCloth_Ver2", opacity=0xFFFFFFFF, exists=True,
+                        extra=()):
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    native = json.loads((source / "manifest.json").read_text())
+    symbol = tmp_path / "symbol_dec.dds"
+    if exists:
+        symbol.write_bytes(b"DDS " + b"S" * 512)
+    base = native["batches"][0]["material_layers"][0]
+    native["batches"][0]["material_layers"].append(dict(
+        base, layer_role="detail", mask_channel="r", component_scope_id="piece-a", shader_family=family,
+        source_parameter="_detailDiffuseMaskR", mask_parameter="_colorBlendingMaskTexture",
+        mask_source=base["diffuse_source"], mask_archive_path="character/texture/sail_ma.dds"))
+    wrapper = dict(component_scope_id="piece-a", owner_wrapper_item_id=base["owner_wrapper_item_id"],
+                   material_wrapper_index=base["material_wrapper_index"])
+    parameters = [
+        dict(wrapper, parameter_name="_dyeingGlobalOpacity", integer_value=opacity),
+        dict(wrapper, parameter_name="_detailDiffuseBlend", value="",
+             resolved_source_path=str(symbol), resolved_archive_path="character/texture/symbol_dec.dds"),
+        *(dict(wrapper, **row) for row in extra),
+    ]
+    native["material_conservation"].update(parameters=parameters, declared_parameter_count=len(parameters),
+                                           transported_parameter_count=len(parameters))
+    (source / "manifest.json").write_text(json.dumps(native))
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "full", material_quality="full")
+    layers = json.loads(package.manifest_path.read_text())["preview_core_material_graph"]["materials"][0]["layers"]
+    return package, symbol, [layer for layer in layers if layer["source_parameter"] == "_detailDiffuseBlend"]
+
+
+def test_a_ver2_wrapper_states_its_blend_layer_as_one_placed_row(tmp_path: Path):
+    """The griffin on the great helm `cd_phm_00_hel_set_0101`: `_detailDiffuseBlend` was dropped.
+
+    The parameter values here are those of a sail wrapper of `cd_r0048_00_bigship_sail_0001`.
+    """
+    from cdmw.domain.material_layer_uv import pac_blend_layer_uv_transform
+
+    extra = (
+        dict(parameter_name="_dyeingDetailLayerColorBlend", value="#4d1a1aff"),
+        dict(parameter_name="_dyeingTransformProperty4", integer_value=0x7FA9FFFF),
+        dict(parameter_name="_dyeingPropertyBlend", integer_value=0x80B97F00),
+        dict(parameter_name="_dyeingBlendTextureTranslation", integer_value=3075252249),
+    )
+    package, symbol, rows = _ver2_blend_fixture(tmp_path, opacity=0x80FFFFFF, extra=extra)
+    (row,) = rows
+    assert row["layer_role"] == "overlay" and row["mask_parameter"] == ""
+    assert row["diffuse_archive_path"] == "character/texture/symbol_dec.dds"
+    assert (package.manifest_path.parent / row["diffuse"]["path"]).read_bytes() == symbol.read_bytes()
+    assert row["tint"] == pytest.approx([0x4D / 255, 0x1A / 255, 0x1A / 255, 1.0])
+    assert row["blend_opacity"] == pytest.approx(0x80 / 255)
+    assert row["uv_transform"] == pytest.approx(pac_blend_layer_uv_transform((
+        ("_dyeingTransformProperty4", 0x7FA9FFFF), ("_dyeingPropertyBlend", 0x80B97F00),
+        ("_dyeingBlendTextureTranslation", 3075252249),
+    )))
+
+
+def test_a_blend_layer_without_a_dye_keeps_its_own_colour(tmp_path: Path):
+    _package, _symbol, rows = _ver2_blend_fixture(tmp_path)
+    (row,) = rows
+    assert row["tint"][3] == 0 and row["blend_opacity"] == 1.0
+    # The engine's defaults: scale 1, no turn, no translation.
+    assert row["uv_transform"] == pytest.approx([1.0, 0.0, 0.0, 1.0, 0.0, 0.0], abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    (
+        dict(opacity=0x00FFFFFF),  # Byte 3 zero: the game skips the layer.
+        dict(exists=False),  # No file: nothing to draw.
+        dict(family="SkinnedMeshStandard"),  # The legacy rule has no blend layer.
+    ),
+)
+def test_the_blend_layer_is_left_out_when_the_game_would_not_draw_it(tmp_path: Path, arguments):
+    _package, _symbol, rows = _ver2_blend_fixture(tmp_path, **arguments)
+    assert rows == []
+
+
 def _called_names(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     result: set[str] = set()
@@ -647,7 +894,7 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
 ) -> None:
     from cdmw.services import mesh_rust_preview_cache as cache
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 11
+    assert RUST_PREVIEW_CACHE_SCHEMA == 14
     upgraded = cache.rust_preview_package_cache_key("same-archive-identity")
     monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 8)
     assert cache.rust_preview_package_cache_key("same-archive-identity") != upgraded

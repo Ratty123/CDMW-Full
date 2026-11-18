@@ -895,8 +895,81 @@ static void run_weapon_sheath_component_self_test() {
         "a scabbard the prefab lists was listed twice");
 }
 
+// A `_subNN` PAC is another mesh of the same item with its own sidecar. Its
+// submeshes must not be counted against the primary's wrappers, or neither
+// file keeps wrapper-order ownership and their colour layers G and B are lost
+// (cd_phw_00_hand_0137 with _sub01 drew a white glove).
+static void run_sub_component_wrapper_order_self_test() {
+    NativeSubmesh primary;
+    primary.name = "CD_PHW_00_Hand_0137";
+    primary.material = "cd_phw_00_hand_0137_00_01_01";
+    primary.source_model_path = "character/model/1_pc/2_phw/armor/5_hand/cd_phw_00_hand_0137.pac";
+    primary.source_local_submesh_index = 0;
+    NativeSubmesh sub = primary;
+    sub.name = "CD_PHW_00_Hand_0137_sub01";
+    sub.source_model_path = "character/model/1_pc/2_phw/armor/5_hand/cd_phw_00_hand_0137_sub01.pac";
+    const std::vector<NativeSubmesh> meshes{primary, sub};
+    for (const NativeSubmesh& mesh : meshes) {
+        ArchiveEntryRef sidecar;
+        sidecar.path = mesh.source_model_path;
+        const std::string marker = "/model/";
+        sidecar.path.replace(sidecar.path.find(marker), marker.size(), "/modelproperty/");
+        sidecar.path += "_xml";
+        sidecar.extension = ".pac_xml";
+        const MaterialComponentScope scope = material_component_scope_for_sidecar(sidecar, meshes);
+        require_material_contract(
+            scope.id == material_component_scope_id_for_mesh(mesh) && !scope.ambiguous,
+            "a _subNN sidecar was not scoped to its own model");
+        const std::string component_key = material_component_key_from_path(sidecar.path);
+        require_material_contract(
+            sidecar_scoped_mesh_count(component_key, meshes) == 2,
+            "the _subNN name key no longer spans both files; revisit this test");
+        require_material_contract(
+            sidecar_wrapper_order_mesh_count(scope, component_key, meshes) == 1,
+            "a _subNN PAC's submeshes were counted against the other file's wrappers");
+    }
+    // Without an exact model the name key still decides.
+    MaterialComponentScope loose;
+    loose.id = "sidecar:character/modelproperty/other.pac_xml#model_property=0";
+    require_material_contract(
+        sidecar_wrapper_order_mesh_count(
+            loose, material_component_key_from_path(primary.source_model_path), meshes) == 2,
+        "a sidecar without an exact model lost its name-keyed mesh count");
+}
+
+// The metal class floor made every texel of a part classed metal draw as
+// metal, though its own surface map marks leather straps and cloth as not
+// metal. The floor is only for a metal part without a surface map.
+static void run_metal_class_floor_self_test() {
+    TextureBinding surface;
+    surface.source_path = "cache/plate_sp.dds";
+    TextureBinding unresolved;
+    MaterialLayer plain;
+    MaterialLayer layered;
+    layered.material_source = "cache/texturelayer_sp.dds";
+    require_material_contract(
+        !batch_has_surface_map(nullptr, nullptr, {})
+            && !batch_has_surface_map(&unresolved, nullptr, {plain})
+            && batch_has_surface_map(&surface, nullptr, {})
+            && batch_has_surface_map(nullptr, &surface, {})
+            && batch_has_surface_map(nullptr, nullptr, {plain, layered}),
+        "a batch's own surface map was not recognised");
+    require_material_contract(
+        metal_class_scalar_floor_applies("metal", false),
+        "a metal part without a surface map lost its scalar floor");
+    require_material_contract(
+        !metal_class_scalar_floor_applies("metal", true),
+        "the metal class floor overrode a part's own surface map");
+    require_material_contract(
+        !metal_class_scalar_floor_applies("cloth", false)
+            && !metal_class_scalar_floor_applies("leather", true),
+        "the metal class floor reached another class");
+}
+
 static void run_material_contract_self_test() {
     run_item_set_components_self_test();
+    run_sub_component_wrapper_order_self_test();
+    run_metal_class_floor_self_test();
     run_weapon_sheath_component_self_test();
     ArchiveEntryRef wanted_texture;
     wanted_texture.path = "leveldata/proxylod/stone.dds";

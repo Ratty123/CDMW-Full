@@ -688,6 +688,13 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertEqual([str(output_root)], captured_output_roots)
 
     def test_run_native_preview_core_repairs_metal_manifest_contract(self) -> None:
+        self._check_metal_manifest_repair(surface_map=False)
+
+    def test_run_native_preview_core_leaves_a_metal_part_with_a_surface_map_to_its_map(self) -> None:
+        """The class floor made leather straps and cloth of a metal-classed part draw as metal."""
+        self._check_metal_manifest_repair(surface_map=True)
+
+    def _check_metal_manifest_repair(self, *, surface_map: bool) -> None:
         def fake_run_process(cmd, **_kwargs):
             report_path = Path(cmd[3])
             job = json.loads(Path(cmd[2]).read_text(encoding="utf-8"))
@@ -708,7 +715,10 @@ class NativePreviewCoreTests(unittest.TestCase):
                                 "material_category_confidence": 0.95,
                                 "material_category_reason": "metal:armor_family_material_response",
                                 "material_response_disposition": "specular_gloss_metal_response",
-                                "dds_textures": {"material": {"source_path": "cd_temp_r_m.dds"}},
+                                "dds_textures": (
+                                    {"material": {"source_path": "cd_phm_gold_armor_sp.dds"}}
+                                    if surface_map else {}
+                                ),
                             }
                         ],
                     }
@@ -749,6 +759,13 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertEqual("shiny_metal_inspection", manifest["lighting_preset"])
         self.assertAlmostEqual(0.91, manifest["diffuse_wrap_bias"])
         batch = manifest["batches"][0]
+        if surface_map:
+            # Metal and roughness come per texel from the part's own map.
+            self.assertNotIn("metalness", batch)
+            self.assertNotIn("roughness", batch)
+            self.assertNotIn("native_material_hints", batch)
+            self.assertEqual(0, attempt.diagnostics["native_preview_core_repaired_metal_batches"])
+            return
         self.assertGreaterEqual(batch["metalness"], 0.68)
         self.assertGreaterEqual(batch["specular"], 0.68)
         self.assertLessEqual(batch["roughness"], 0.24)
