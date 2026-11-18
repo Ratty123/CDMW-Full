@@ -1019,8 +1019,9 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         if shader_value(8u) >= 0.0 { metalness = clamp(shader_value(8u), 0.0, 1.0); }
     }
     if shader_kind == 10.0 {
-        // SkinnedMeshGlass never reads the material map: roughness is a scalar.
-        roughness = clamp(shader_value(6u), 0.04, 1.0);
+        // SkinnedMeshGlass never reads the material map: roughness is a scalar,
+        // clamped to 0.05 at the bottom (permutation 847d3e4f4bfba86c).
+        roughness = clamp(shader_value(6u), 0.05, 1.0);
         metalness = 0.0;
     }
     var raw_occlusion = 1.0;
@@ -12507,6 +12508,13 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn glass_roughness_is_clamped_where_the_games_glass_shader_clamps_it() {
+        // SkinnedMeshGlass: r = clamp(_roughness, 0.05, 1); a = r * r.
+        assert!(SHADER.contains("roughness = clamp(shader_value(6u), 0.05, 1.0);"));
+        assert!(!SHADER.contains("roughness = clamp(shader_value(6u), 0.04, 1.0);"));
     }
 
     #[test]
