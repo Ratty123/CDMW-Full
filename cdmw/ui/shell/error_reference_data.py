@@ -38958,7 +38958,7 @@ MESSAGE_REFERENCE = [
     "message": "Painted material channel requires one owned source texture",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 1207
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 1281
     }
   },
   {
@@ -38990,7 +38990,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core composed resources exceed the total texture byte safety limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2748
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 3232
     }
   },
   {
@@ -38998,7 +38998,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core composed texture ownership LOD is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2703
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 3187
     }
   },
   {
@@ -39038,7 +39038,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material LOD exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2699
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 3183
     }
   },
   {
@@ -39046,7 +39046,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material dimensions exceed this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2515
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2999
     }
   },
   {
@@ -39054,7 +39054,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph is missing its base layer",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 1291
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 1376
     }
   },
   {
@@ -39062,7 +39062,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material source offset overflowed",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2507
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs": 2991
     }
   },
   {
@@ -40323,7 +40323,7 @@ MESSAGE_REFERENCE = [
     "message": "native material index: no matching .pac_xml/.pam_xml/.pamlod_xml/.pami/.material/.technique/.prefab sidecar",
     "recovery": "empty",
     "sources": {
-      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 945
+      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 972
     }
   },
   {
@@ -40331,7 +40331,7 @@ MESSAGE_REFERENCE = [
     "message": "native material sidecar read failed:",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 756
+      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 783
     }
   },
   {
@@ -41777,7 +41777,7 @@ MESSAGE_REFERENCE = [
     "message": "BMP dimensions require {expected_len} BGRA bytes, received {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8620
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8684
     }
   },
   {
@@ -42733,7 +42733,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW cancelled the Rust session",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2215
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2283
     }
   },
   {
@@ -42765,7 +42765,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW closed the control input{detail}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4220
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4293
     }
   },
   {
@@ -42773,7 +42773,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW control input failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4259
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4332
     }
   },
   {
@@ -42781,7 +42781,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW control line exceeded 256 KiB{detail}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4227
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4300
     }
   },
   {
@@ -42797,7 +42797,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW control queue overflowed{detail}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4242
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4315
     }
   },
   {
@@ -42933,7 +42933,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW reported a protocol error",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2223
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2291
     }
   },
   {
@@ -42941,7 +42941,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW sent invalid JSON: {error}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4251
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4324
     }
   },
   {
@@ -43343,7 +43343,7 @@ MESSAGE_REFERENCE = [
     "message": "Capture material owns no visible triangles",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 4983
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5045
     }
   },
   {
@@ -44256,7 +44256,7 @@ MESSAGE_REFERENCE = [
     "message": "Combined preview exceeds the bounded material graph limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 2072
+      "cdmw/services/mesh_rust_preview_package.py": 2424
     }
   },
   {
@@ -44312,7 +44312,7 @@ MESSAGE_REFERENCE = [
     "message": "Conflicting shader controls",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10006
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10070
     }
   },
   {
@@ -44592,7 +44592,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS dimensions {}x{} exceed the selected device 2D texture limit of {}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11249
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11313
     }
   },
   {
@@ -44600,7 +44600,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS format is not mapped to wgpu",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11362
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11426
     }
   },
   {
@@ -44608,7 +44608,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS format {format:?} has no sRGB wgpu sampling variant",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11322
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11386
     }
   },
   {
@@ -44616,7 +44616,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS mip count {} exceeds the {} mip levels available for {}x{}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11256
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11320
     }
   },
   {
@@ -44624,7 +44624,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS mip {} dimensions {}x{} do not match the expected {}x{}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11277
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11341
     }
   },
   {
@@ -44632,7 +44632,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS mip {} upload extent {}x{} exceeds the selected device 2D texture limit of {}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11284
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11348
     }
   },
   {
@@ -44648,7 +44648,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS texture has no owning material range",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5193
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5255
     }
   },
   {
@@ -44656,7 +44656,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS texture upload failed: {0}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2195
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2257
     }
   },
   {
@@ -44664,7 +44664,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS upload plan contains out-of-range mip level {}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11270
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11334
     }
   },
   {
@@ -44672,7 +44672,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS upload plan contains {} mip levels for a declared count of {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11262
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11326
     }
   },
   {
@@ -44928,7 +44928,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct preview requires Preview Core material graph v4 or v5 and semantics v10.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1807
+      "cdmw/services/mesh_rust_preview_package.py": 2151
     }
   },
   {
@@ -44936,7 +44936,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct preview requires Preview Core schema 8 or newer.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1802
+      "cdmw/services/mesh_rust_preview_package.py": 2146
     }
   },
   {
@@ -44944,7 +44944,7 @@ MESSAGE_REFERENCE = [
     "message": "Direct preview requires a conserved Preview Core material graph.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1814
+      "cdmw/services/mesh_rust_preview_package.py": 2158
     }
   },
   {
@@ -45288,7 +45288,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect preview contains too many sprite textures.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 100
+      "cdmw/services/mesh_rust_preview_package.py": 102
     }
   },
   {
@@ -45296,7 +45296,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect preview sprite textures exceed the aggregate size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 130
+      "cdmw/services/mesh_rust_preview_package.py": 132
     }
   },
   {
@@ -45304,7 +45304,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect preview texture archive path is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 119
+      "cdmw/services/mesh_rust_preview_package.py": 121
     }
   },
   {
@@ -45312,7 +45312,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect preview texture is not a bounded DDS resource: {archive_path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 126
+      "cdmw/services/mesh_rust_preview_package.py": 128
     }
   },
   {
@@ -47038,7 +47038,7 @@ MESSAGE_REFERENCE = [
     "message": "GPU rendering stopped: {0}",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2181
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2243
     }
   },
   {
@@ -48107,7 +48107,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid RGB glow reveal",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2968
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3041
     }
   },
   {
@@ -48259,7 +48259,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid experimental shader controls",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5292
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5356
     }
   },
   {
@@ -49330,7 +49330,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD {lod['level']} part '{part['name']}': {count} source UVs are not finite numbers and are drawn at 0.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 2123
+      "cdmw/services/mesh_rust_preview_package.py": 2475
     }
   },
   {
@@ -49362,7 +49362,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD{lod_index} material {material_index} has duplicate {:?} texture ownership",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3492
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3565
     }
   },
   {
@@ -49370,7 +49370,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD{lod_index} texture ownership contains invalid material {material_index}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3487
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3560
     }
   },
   {
@@ -49378,7 +49378,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD{} material presentation contains invalid material {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2889
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2962
     }
   },
   {
@@ -49386,7 +49386,7 @@ MESSAGE_REFERENCE = [
     "message": "LOD{} material {} has duplicate presentation rows",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2895
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2968
     }
   },
   {
@@ -55593,7 +55593,7 @@ MESSAGE_REFERENCE = [
     "message": "PNG dimensions require {expected_len} BGRA bytes, received {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8681
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8745
     }
   },
   {
@@ -55873,7 +55873,7 @@ MESSAGE_REFERENCE = [
     "message": "Parts sharing a preview material need the same shader controls.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/shader_controls_preview.py": 141
+      "cdmw/services/shader_controls_preview.py": 189
     }
   },
   {
@@ -56132,7 +56132,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core batch geometry is invalid or duplicated",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3140
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3213
     }
   },
   {
@@ -56140,7 +56140,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core batch identity or vertex count is invalid.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1683
+      "cdmw/services/mesh_rust_preview_package.py": 2027
     }
   },
   {
@@ -56148,7 +56148,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core batch is missing its material-layer graph.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1021
+      "cdmw/services/mesh_rust_preview_package.py": 1125
     }
   },
   {
@@ -56156,7 +56156,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core batch list is invalid or exceeds the package limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1827
+      "cdmw/services/mesh_rust_preview_package.py": 2171
     }
   },
   {
@@ -56164,7 +56164,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core binary payload changed while it was copied.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 515
+      "cdmw/services/mesh_rust_preview_package.py": 517
     }
   },
   {
@@ -56172,7 +56172,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core binary payload is empty.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 477
+      "cdmw/services/mesh_rust_preview_package.py": 479
     }
   },
   {
@@ -56180,7 +56180,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core binary payload is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 481
+      "cdmw/services/mesh_rust_preview_package.py": 483
     }
   },
   {
@@ -56188,7 +56188,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core binary payload size does not match its manifest.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 483
+      "cdmw/services/mesh_rust_preview_package.py": 485
     }
   },
   {
@@ -56196,7 +56196,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core element size exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3047
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3120
     }
   },
   {
@@ -56204,7 +56204,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core geometry format is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3115
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3188
     }
   },
   {
@@ -56212,7 +56212,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core geometry is allowed only in read-only preview packages",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2272
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2340
     }
   },
   {
@@ -56220,7 +56220,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core geometry is missing or escaped its package.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1698
+      "cdmw/services/mesh_rust_preview_package.py": 2042
     }
   },
   {
@@ -56228,7 +56228,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core geometry metadata is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3106
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3179
     }
   },
   {
@@ -56236,7 +56236,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core identity payload is duplicated",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3154
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3227
     }
   },
   {
@@ -56244,7 +56244,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core local vertex index exceeds u32",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3195
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3268
     }
   },
   {
@@ -56252,7 +56252,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core manifest is missing or invalid.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1785
+      "cdmw/services/mesh_rust_preview_package.py": 2129
     }
   },
   {
@@ -56260,7 +56260,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core manifest is not an object.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1787
+      "cdmw/services/mesh_rust_preview_package.py": 2131
     }
   },
   {
@@ -56268,7 +56268,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS changed while it was copied.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 670
+      "cdmw/services/mesh_rust_preview_package.py": 672
     }
   },
   {
@@ -56276,7 +56276,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS changed while its graph was built.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1160
+      "cdmw/services/mesh_rust_preview_package.py": 1276
     }
   },
   {
@@ -56284,7 +56284,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 605
+      "cdmw/services/mesh_rust_preview_package.py": 607
     }
   },
   {
@@ -56292,7 +56292,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS is outside the package size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 607
+      "cdmw/services/mesh_rust_preview_package.py": 609
     }
   },
   {
@@ -56300,7 +56300,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS reference identity conflicts",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2659
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2732
     }
   },
   {
@@ -56308,7 +56308,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS reference is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2648
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2721
     }
   },
   {
@@ -56316,7 +56316,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material DDS resources exceed the 512 MiB package limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 632
+      "cdmw/services/mesh_rust_preview_package.py": 634
     }
   },
   {
@@ -56324,7 +56324,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material conservation report is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2305
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2373
     }
   },
   {
@@ -56332,7 +56332,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material contract must be graph v4 or v5 and semantics v10",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2296
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2364
     }
   },
   {
@@ -56340,7 +56340,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph DDS is missing: {archive_path or source_text}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1148
+      "cdmw/services/mesh_rust_preview_package.py": 1264
     }
   },
   {
@@ -56348,7 +56348,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph contains an invalid batch.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1016
+      "cdmw/services/mesh_rust_preview_package.py": 1120
     }
   },
   {
@@ -56356,7 +56356,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph contains an invalid layer.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1035
+      "cdmw/services/mesh_rust_preview_package.py": 1140
     }
   },
   {
@@ -56364,7 +56364,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph contains too many unique DDS resources.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 676
+      "cdmw/services/mesh_rust_preview_package.py": 678
     }
   },
   {
@@ -56372,7 +56372,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph failed conservation",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2319
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2387
     }
   },
   {
@@ -56380,7 +56380,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph index is outside the geometry",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2483
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2551
     }
   },
   {
@@ -56388,7 +56388,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph must contain exactly one neutral/base layer",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2608
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2681
     }
   },
   {
@@ -56396,7 +56396,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material graph ownership or base contract is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2501
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2569
     }
   },
   {
@@ -56404,7 +56404,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material layer identity is invalid.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1067
+      "cdmw/services/mesh_rust_preview_package.py": 1172
     }
   },
   {
@@ -56412,7 +56412,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material layer lost its wrapper owner",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2594
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2667
     }
   },
   {
@@ -56420,7 +56420,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material layer lost its wrapper owner identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1185
+      "cdmw/services/mesh_rust_preview_package.py": 1301
     }
   },
   {
@@ -56428,7 +56428,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material layer semantics are invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2561
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2634
     }
   },
   {
@@ -56436,7 +56436,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material resource byte count overflowed",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2618
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2691
     }
   },
   {
@@ -56444,7 +56444,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material resource conservation does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2627
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2700
     }
   },
   {
@@ -56452,7 +56452,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material transport graph contract does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2464
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2532
     }
   },
   {
@@ -56460,7 +56460,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material transport graph is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2327
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2395
     }
   },
   {
@@ -56468,7 +56468,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core material-layer graph exceeds the bounded layer limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1023
+      "cdmw/services/mesh_rust_preview_package.py": 1127
     }
   },
   {
@@ -56476,7 +56476,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core normalization is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1818
+      "cdmw/services/mesh_rust_preview_package.py": 2162
     }
   },
   {
@@ -56484,7 +56484,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core package contains an invalid batch.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1672
+      "cdmw/services/mesh_rust_preview_package.py": 2016
     }
   },
   {
@@ -56492,7 +56492,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core payload size overflowed",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3051
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3124
     }
   },
   {
@@ -56508,7 +56508,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core source format is not supported by Preview.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1820
+      "cdmw/services/mesh_rust_preview_package.py": 2164
     }
   },
   {
@@ -56516,7 +56516,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core source vertex index exceeds i32",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3207
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3280
     }
   },
   {
@@ -56612,7 +56612,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core vertex count exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3127
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3200
     }
   },
   {
@@ -56620,7 +56620,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core vertex count overflowed",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3131
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3204
     }
   },
   {
@@ -56628,7 +56628,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core vertex stride exceeds u32",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3227
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3300
     }
   },
   {
@@ -56636,7 +56636,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core visible layer lost its source parameter identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 1187
+      "cdmw/services/mesh_rust_preview_package.py": 1303
     }
   },
   {
@@ -56644,7 +56644,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core visible material layer lost its source parameter",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2602
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2675
     }
   },
   {
@@ -56652,7 +56652,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3085
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3158
     }
   },
   {
@@ -56660,7 +56660,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} layer resource identity is invalid",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2576
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2649
     }
   },
   {
@@ -56668,7 +56668,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} layer resource was not declared",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2581
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2654
     }
   },
   {
@@ -56676,7 +56676,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} path escaped the session root",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3073
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3146
     }
   },
   {
@@ -56684,7 +56684,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} path must be one owned filename",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3067
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3140
     }
   },
   {
@@ -56692,7 +56692,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} reference does not match its binary contract",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3060
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3133
     }
   },
   {
@@ -56700,7 +56700,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview Core {role} size does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3079
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3152
     }
   },
   {
@@ -56845,7 +56845,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview load cancelled",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2242,
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2310,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_effect_mesh.rs": 15,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_effect_spawn.rs": 236,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_loader.rs": 75
@@ -56944,7 +56944,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview refused: LOD {lod['level']} part '{part['name']}' has a vertex {channel[:-1]} that is not a finite number, so its geometry was not read correctly.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 2115
+      "cdmw/services/mesh_rust_preview_package.py": 2467
     }
   },
   {
@@ -57321,7 +57321,7 @@ MESSAGE_REFERENCE = [
     "message": "Raw colour contribution can be outside 0–1 ({low} to {high}); the viewport clamps it, while the inspected game expression does not.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/shader_controls_preview.py": 111
+      "cdmw/services/shader_controls_preview.py": 159
     }
   },
   {
@@ -62834,7 +62834,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Preview Core binary role.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 475
+      "cdmw/services/mesh_rust_preview_package.py": 477
     }
   },
   {
@@ -63050,7 +63050,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported preview interaction mode: {mode}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 2244
+      "cdmw/services/mesh_rust_preview_package.py": 2596
     }
   },
   {
@@ -63059,7 +63059,7 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/mesh_rust_preview_cache.py": 1062,
-      "cdmw/services/mesh_rust_preview_package.py": 2238
+      "cdmw/services/mesh_rust_preview_package.py": 2590
     }
   },
   {
@@ -63067,7 +63067,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported preview material quality: {quality}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 231
+      "cdmw/services/mesh_rust_preview_package.py": 233
     }
   },
   {
@@ -63203,7 +63203,7 @@ MESSAGE_REFERENCE = [
     "message": "Verified coloured, clear and overlapping glass transmission and material diagnostic pixels.",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12071
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12135
     }
   },
   {
@@ -63219,7 +63219,7 @@ MESSAGE_REFERENCE = [
     "message": "Vertex R/G masks are unavailable; this preview leaves the vertices unchanged.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/shader_controls_preview.py": 119
+      "cdmw/services/shader_controls_preview.py": 167
     }
   },
   {
@@ -63651,7 +63651,7 @@ MESSAGE_REFERENCE = [
     "message": "a pending Mesh Editor helper accepts only its own protocol",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4150
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4223
     }
   },
   {
@@ -63659,7 +63659,7 @@ MESSAGE_REFERENCE = [
     "message": "a pending Mesh Editor helper cannot handle {event} before open_session",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4168
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4241
     }
   },
   {
@@ -63715,7 +63715,7 @@ MESSAGE_REFERENCE = [
     "message": "adapter requires CPU material composition",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 3217
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 3279
     }
   },
   {
@@ -63747,7 +63747,7 @@ MESSAGE_REFERENCE = [
     "message": "another DDS upload is still pending",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 3357
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 3419
     }
   },
   {
@@ -63763,7 +63763,7 @@ MESSAGE_REFERENCE = [
     "message": "archive Refit material identity does not match its payload",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1769
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1837
     }
   },
   {
@@ -63771,7 +63771,7 @@ MESSAGE_REFERENCE = [
     "message": "archive Refit material identity is invalid",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1744
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1812
     }
   },
   {
@@ -63779,7 +63779,7 @@ MESSAGE_REFERENCE = [
     "message": "archive Refit material reference is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1762
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1830
     }
   },
   {
@@ -63787,7 +63787,7 @@ MESSAGE_REFERENCE = [
     "message": "archive Refit materials require a mesh document",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1752
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1820
     }
   },
   {
@@ -63947,7 +63947,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh path escaped the session root",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3315
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3388
     }
   },
   {
@@ -63955,7 +63955,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh path must be one owned document filename",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3309
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3382
     }
   },
   {
@@ -63963,7 +63963,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh payload exceeds available memory",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3330
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3403
     }
   },
   {
@@ -63971,7 +63971,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh reference size does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3322
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3395
     }
   },
   {
@@ -63979,7 +63979,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh reference size or SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3338
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3411
     }
   },
   {
@@ -63987,7 +63987,7 @@ MESSAGE_REFERENCE = [
     "message": "binary mesh reference type, count, or size is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3295
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3368
     }
   },
   {
@@ -64003,7 +64003,7 @@ MESSAGE_REFERENCE = [
     "message": "blended material {case}: BGRA pixel {actual:?}, expected {expected:?}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11983
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12047
     }
   },
   {
@@ -64059,7 +64059,7 @@ MESSAGE_REFERENCE = [
     "message": "candidate exceeds 512 MiB",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4454
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4527
     }
   },
   {
@@ -64347,7 +64347,7 @@ MESSAGE_REFERENCE = [
     "message": "cdmw_command arguments must be an object",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2146
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2214
     }
   },
   {
@@ -64355,7 +64355,7 @@ MESSAGE_REFERENCE = [
     "message": "cdmw_command names no command CDMW may send",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2140
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2208
     }
   },
   {
@@ -64507,7 +64507,7 @@ MESSAGE_REFERENCE = [
     "message": "constant emissive factors without a texture did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7612
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7676
     }
   },
   {
@@ -64691,7 +64691,7 @@ MESSAGE_REFERENCE = [
     "message": "decoded jiggle snapshot is unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 987
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1055
     }
   },
   {
@@ -64707,7 +64707,7 @@ MESSAGE_REFERENCE = [
     "message": "deformation positions must be finite",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2599
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2661
     }
   },
   {
@@ -64715,7 +64715,7 @@ MESSAGE_REFERENCE = [
     "message": "deformation reference contains a non-finite coordinate",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2545
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2607
     }
   },
   {
@@ -64723,7 +64723,7 @@ MESSAGE_REFERENCE = [
     "message": "deformation reference has {} positions for {} current vertices",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2583
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2645
     }
   },
   {
@@ -64763,7 +64763,7 @@ MESSAGE_REFERENCE = [
     "message": "document has no source LOD {lod_index}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4497
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4570
     }
   },
   {
@@ -64795,7 +64795,7 @@ MESSAGE_REFERENCE = [
     "message": "draw snapshot exceeds GPU index limits",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2189
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2251
     }
   },
   {
@@ -64803,7 +64803,7 @@ MESSAGE_REFERENCE = [
     "message": "draw snapshot material ownership is invalid: {0}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2191
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2253
     }
   },
   {
@@ -64811,7 +64811,7 @@ MESSAGE_REFERENCE = [
     "message": "duplicate material layer ownership",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5819
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5883
     }
   },
   {
@@ -64891,7 +64891,7 @@ MESSAGE_REFERENCE = [
     "message": "effect billboard instance is non-finite or names an unavailable texture",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 4369
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 4431
     }
   },
   {
@@ -64899,7 +64899,7 @@ MESSAGE_REFERENCE = [
     "message": "effect line-list positions and colours must be finite",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2325
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2387
     }
   },
   {
@@ -64907,7 +64907,7 @@ MESSAGE_REFERENCE = [
     "message": "effect line-list vertex count must be even",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2317
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2379
     }
   },
   {
@@ -64915,7 +64915,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite archive identity is invalid or duplicated",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3595
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3668
     }
   },
   {
@@ -64923,7 +64923,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite path escaped the package texture directory",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3557
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3630
     }
   },
   {
@@ -64931,7 +64931,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite reference does not match its DDS contract",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3547
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3620
     }
   },
   {
@@ -64939,7 +64939,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite size or SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3565
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3638
     }
   },
   {
@@ -64947,7 +64947,7 @@ MESSAGE_REFERENCE = [
     "message": "effect sprite textures exceed the aggregate limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3609
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3682
     }
   },
   {
@@ -64955,7 +64955,7 @@ MESSAGE_REFERENCE = [
     "message": "effect texture directory does not conserve declared resources",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3947
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4020
     }
   },
   {
@@ -64963,7 +64963,7 @@ MESSAGE_REFERENCE = [
     "message": "effect texture directory must not be a link",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3926
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3999
     }
   },
   {
@@ -65255,7 +65255,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to create headless capture PNG {}: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8691
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8755
     }
   },
   {
@@ -65407,7 +65407,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to write headless capture BMP {}: {error}",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8650
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8714
     }
   },
   {
@@ -65415,7 +65415,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to write headless capture PNG header {}: {error}",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8702
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8766
     }
   },
   {
@@ -65423,7 +65423,7 @@ MESSAGE_REFERENCE = [
     "message": "failed to write headless capture PNG {}: {error}",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8708
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8772
     }
   },
   {
@@ -65439,7 +65439,7 @@ MESSAGE_REFERENCE = [
     "message": "file must stay inside the session folder",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1613
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1681
     }
   },
   {
@@ -65447,7 +65447,7 @@ MESSAGE_REFERENCE = [
     "message": "file reference SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3381
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3454
     }
   },
   {
@@ -65455,7 +65455,7 @@ MESSAGE_REFERENCE = [
     "message": "file reference size does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3375
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3448
     }
   },
   {
@@ -65463,7 +65463,7 @@ MESSAGE_REFERENCE = [
     "message": "file reference type or count is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3368
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3441
     }
   },
   {
@@ -65722,7 +65722,7 @@ MESSAGE_REFERENCE = [
     "message": "geometry update requires an existing GPU mesh",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 4002
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 4064
     }
   },
   {
@@ -65738,7 +65738,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF HDR lighting lost highlights, roughness, hue, or category independence: {samples:?}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12194
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12258
     }
   },
   {
@@ -65786,7 +65786,7 @@ MESSAGE_REFERENCE = [
     "message": "hair publication queue is full: {e}",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1499
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1567
     }
   },
   {
@@ -65834,7 +65834,7 @@ MESSAGE_REFERENCE = [
     "message": "headless Base Color view changed a mid-gray sRGB texture during GPU sampling or presentation",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7389
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7453
     }
   },
   {
@@ -65842,7 +65842,7 @@ MESSAGE_REFERENCE = [
     "message": "headless Base Color view did not preserve any source sRGB texels through the GPU output path",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7374
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7438
     }
   },
   {
@@ -65850,7 +65850,7 @@ MESSAGE_REFERENCE = [
     "message": "headless Bones overlay did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7316
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7380
     }
   },
   {
@@ -65858,7 +65858,7 @@ MESSAGE_REFERENCE = [
     "message": "headless Flow texture changed a non-hair material",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7700
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7764
     }
   },
   {
@@ -65866,7 +65866,7 @@ MESSAGE_REFERENCE = [
     "message": "headless GPU frame contained only the clear color",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7511
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7575
     }
   },
   {
@@ -65874,7 +65874,7 @@ MESSAGE_REFERENCE = [
     "message": "headless GPU validation failed: {error}",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7224
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7288
     }
   },
   {
@@ -65882,7 +65882,7 @@ MESSAGE_REFERENCE = [
     "message": "headless GPU wait failed: {error}",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7221
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7285
     }
   },
   {
@@ -65890,7 +65890,7 @@ MESSAGE_REFERENCE = [
     "message": "headless Game Outdoor lighting matched the standard Textured frame",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7498
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7562
     }
   },
   {
@@ -65970,7 +65970,7 @@ MESSAGE_REFERENCE = [
     "message": "headless Part ID view rendered {} distinct owner colors for {} material ranges",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7551
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7615
     }
   },
   {
@@ -65978,7 +65978,7 @@ MESSAGE_REFERENCE = [
     "message": "headless Textured view had no source-color surface samples for readability proof",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7412
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7476
     }
   },
   {
@@ -65986,7 +65986,7 @@ MESSAGE_REFERENCE = [
     "message": "headless authored-colour effect overlay did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7323
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7387
     }
   },
   {
@@ -65994,7 +65994,7 @@ MESSAGE_REFERENCE = [
     "message": "headless bone overlay proof requires mesh bounds",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6873
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6937
     }
   },
   {
@@ -66002,7 +66002,7 @@ MESSAGE_REFERENCE = [
     "message": "headless capture camera must use finite yaw and pitch within -89..89 degrees",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7995
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8059
     }
   },
   {
@@ -66010,7 +66010,7 @@ MESSAGE_REFERENCE = [
     "message": "headless cloth proof is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7477
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7541
     }
   },
   {
@@ -66018,7 +66018,7 @@ MESSAGE_REFERENCE = [
     "message": "headless emissive color/intensity factors did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7604
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7668
     }
   },
   {
@@ -66026,7 +66026,7 @@ MESSAGE_REFERENCE = [
     "message": "headless frame has no complete BGRA pixels",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7800
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7864
     }
   },
   {
@@ -66034,7 +66034,7 @@ MESSAGE_REFERENCE = [
     "message": "headless front-facing textured readability was {front_lighting_luma_percent}% of Base Color; expected 35%..=175%",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7425
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7489
     }
   },
   {
@@ -66042,7 +66042,7 @@ MESSAGE_REFERENCE = [
     "message": "headless glass proof is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7485
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7549
     }
   },
   {
@@ -66050,7 +66050,7 @@ MESSAGE_REFERENCE = [
     "message": "headless glossiness texture did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7666
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7730
     }
   },
   {
@@ -66058,7 +66058,7 @@ MESSAGE_REFERENCE = [
     "message": "headless hair Flow texture did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7709
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7773
     }
   },
   {
@@ -66066,7 +66066,7 @@ MESSAGE_REFERENCE = [
     "message": "headless height texture changed pixels at an explicit zero scale",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7691
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7755
     }
   },
   {
@@ -66074,7 +66074,7 @@ MESSAGE_REFERENCE = [
     "message": "headless height texture did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7682
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7746
     }
   },
   {
@@ -66082,7 +66082,7 @@ MESSAGE_REFERENCE = [
     "message": "headless in-place geometry refresh did not advance the cached revision",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6853
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6917
     }
   },
   {
@@ -66090,7 +66090,7 @@ MESSAGE_REFERENCE = [
     "message": "headless layer-mask blue-channel probe is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7521
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7585
     }
   },
   {
@@ -66098,7 +66098,7 @@ MESSAGE_REFERENCE = [
     "message": "headless layer-mask channel selector did not change any rendered pixel",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7529
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7593
     }
   },
   {
@@ -66106,7 +66106,7 @@ MESSAGE_REFERENCE = [
     "message": "headless layer-mask fallback probe is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7515
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7579
     }
   },
   {
@@ -66114,7 +66114,7 @@ MESSAGE_REFERENCE = [
     "message": "headless layer-mask red-channel probe is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7518
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7582
     }
   },
   {
@@ -66122,7 +66122,7 @@ MESSAGE_REFERENCE = [
     "message": "headless leather proof is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7473
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7537
     }
   },
   {
@@ -66130,7 +66130,7 @@ MESSAGE_REFERENCE = [
     "message": "headless material capture batch has no requests",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5704
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5768
     }
   },
   {
@@ -66138,7 +66138,7 @@ MESSAGE_REFERENCE = [
     "message": "headless material categories distinguished {category_materials_distinguished} of {} non-generic responses",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7437
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7501
     }
   },
   {
@@ -66146,7 +66146,7 @@ MESSAGE_REFERENCE = [
     "message": "headless material categories preserved source chroma for {category_materials_preserving_chroma} of {} responses",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7460
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7524
     }
   },
   {
@@ -66154,7 +66154,7 @@ MESSAGE_REFERENCE = [
     "message": "headless material proof requires at least one triangle",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6774
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6838
     }
   },
   {
@@ -66162,7 +66162,7 @@ MESSAGE_REFERENCE = [
     "message": "headless material roles did not change any rendered pixel from the base-only pass",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7594
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7658
     }
   },
   {
@@ -66170,7 +66170,7 @@ MESSAGE_REFERENCE = [
     "message": "headless mesh cache did not choose an in-place same-topology refresh",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6839
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6903
     }
   },
   {
@@ -66178,7 +66178,7 @@ MESSAGE_REFERENCE = [
     "message": "headless mesh cache did not replace buffers after topology changed",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6860
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6924
     }
   },
   {
@@ -66186,7 +66186,7 @@ MESSAGE_REFERENCE = [
     "message": "headless mesh cache rejected its current snapshot",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6821
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6885
     }
   },
   {
@@ -66194,7 +66194,7 @@ MESSAGE_REFERENCE = [
     "message": "headless mesh cache reused buffers for a different mesh with equal revisions",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6828
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6892
     }
   },
   {
@@ -66218,7 +66218,7 @@ MESSAGE_REFERENCE = [
     "message": "headless metal proof is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7469
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7533
     }
   },
   {
@@ -66226,7 +66226,7 @@ MESSAGE_REFERENCE = [
     "message": "headless metalness factor did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7630
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7694
     }
   },
   {
@@ -66234,7 +66234,7 @@ MESSAGE_REFERENCE = [
     "message": "headless opacity cutout removed {opacity_cutout_pixels_removed} of {opacity_cutout_pixels_changed} changed pixels",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7732
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7796
     }
   },
   {
@@ -66242,7 +66242,7 @@ MESSAGE_REFERENCE = [
     "message": "headless opacity texture changed an explicitly opaque material",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7718
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7782
     }
   },
   {
@@ -66250,7 +66250,7 @@ MESSAGE_REFERENCE = [
     "message": "headless pixel comparison size mismatch: {} versus {} bytes",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8717
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8781
     }
   },
   {
@@ -66258,7 +66258,7 @@ MESSAGE_REFERENCE = [
     "message": "headless readback access failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8516
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8580
     }
   },
   {
@@ -66266,7 +66266,7 @@ MESSAGE_REFERENCE = [
     "message": "headless readback callback failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8510
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8574
     }
   },
   {
@@ -66274,7 +66274,7 @@ MESSAGE_REFERENCE = [
     "message": "headless readback mapping failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8513
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8577
     }
   },
   {
@@ -66282,7 +66282,7 @@ MESSAGE_REFERENCE = [
     "message": "headless readback size mismatch: expected {expected_len}, got {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8524
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8588
     }
   },
   {
@@ -66290,7 +66290,7 @@ MESSAGE_REFERENCE = [
     "message": "headless readback wait failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8506
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8570
     }
   },
   {
@@ -66306,7 +66306,7 @@ MESSAGE_REFERENCE = [
     "message": "headless reversed-winding surfaces were culled or rendered completely dark",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7309
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7373
     }
   },
   {
@@ -66314,7 +66314,7 @@ MESSAGE_REFERENCE = [
     "message": "headless roughness factor did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7622
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7686
     }
   },
   {
@@ -66322,7 +66322,7 @@ MESSAGE_REFERENCE = [
     "message": "headless skin proof is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7481
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7545
     }
   },
   {
@@ -66330,7 +66330,7 @@ MESSAGE_REFERENCE = [
     "message": "headless specular factor did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7639
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7703
     }
   },
   {
@@ -66338,7 +66338,7 @@ MESSAGE_REFERENCE = [
     "message": "headless specular texture changed a dielectric material",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7657
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7721
     }
   },
   {
@@ -66346,7 +66346,7 @@ MESSAGE_REFERENCE = [
     "message": "headless specular texture did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7648
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7712
     }
   },
   {
@@ -66354,7 +66354,7 @@ MESSAGE_REFERENCE = [
     "message": "headless unresolved material rendered no surface pixels",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7342
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7406
     }
   },
   {
@@ -66362,7 +66362,7 @@ MESSAGE_REFERENCE = [
     "message": "headless unresolved material rendered {non_neutral_pixels} non-neutral or translucent surface pixels",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7355
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7419
     }
   },
   {
@@ -66370,7 +66370,7 @@ MESSAGE_REFERENCE = [
     "message": "headless {label} probe is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7330
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7394
     }
   },
   {
@@ -66378,7 +66378,7 @@ MESSAGE_REFERENCE = [
     "message": "headless {role} sampling did not change any rendered pixel",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7587
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7651
     }
   },
   {
@@ -66402,7 +66402,7 @@ MESSAGE_REFERENCE = [
     "message": "highlight_part needs a part number or null",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2123
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2191
     }
   },
   {
@@ -66418,7 +66418,7 @@ MESSAGE_REFERENCE = [
     "message": "host event is missing",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2077
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2145
     }
   },
   {
@@ -66426,7 +66426,7 @@ MESSAGE_REFERENCE = [
     "message": "host message identity does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4016
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4089
     }
   },
   {
@@ -66434,7 +66434,7 @@ MESSAGE_REFERENCE = [
     "message": "host message {key} is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4064
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4137
     }
   },
   {
@@ -66442,7 +66442,7 @@ MESSAGE_REFERENCE = [
     "message": "host rejected {event} without a recovery state",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4035
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4108
     }
   },
   {
@@ -66450,7 +66450,7 @@ MESSAGE_REFERENCE = [
     "message": "host replayed result request {request_id}; last accepted request is {}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1158
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1226
     }
   },
   {
@@ -66458,7 +66458,7 @@ MESSAGE_REFERENCE = [
     "message": "host result is out of order: expected {expected_event} for request {expected_request_id}, received {event} for request {request_id}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1152
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1220
     }
   },
   {
@@ -66466,7 +66466,7 @@ MESSAGE_REFERENCE = [
     "message": "host result revision {expected_revision} does not match state revision {revision}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4054
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4127
     }
   },
   {
@@ -66474,7 +66474,7 @@ MESSAGE_REFERENCE = [
     "message": "host sent unsupported event {event}",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2231
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2299
     }
   },
   {
@@ -66482,7 +66482,7 @@ MESSAGE_REFERENCE = [
     "message": "host shadow revision moved backwards: current={}, received={base_revision}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1164
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1232
     }
   },
   {
@@ -66490,7 +66490,7 @@ MESSAGE_REFERENCE = [
     "message": "host state session identity does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4048
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4121
     }
   },
   {
@@ -66498,7 +66498,7 @@ MESSAGE_REFERENCE = [
     "message": "host state snapshot is stale: current={}, received={base_revision}",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1197
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1265
     }
   },
   {
@@ -66506,7 +66506,7 @@ MESSAGE_REFERENCE = [
     "message": "host state snapshot was replayed or arrived after a result",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1191
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1259
     }
   },
   {
@@ -66514,7 +66514,7 @@ MESSAGE_REFERENCE = [
     "message": "host {event} omitted its authoritative state",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4033
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4106
     }
   },
   {
@@ -66566,7 +66566,7 @@ MESSAGE_REFERENCE = [
     "message": "initial replacement material identity does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3809
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3882
     }
   },
   {
@@ -66574,7 +66574,7 @@ MESSAGE_REFERENCE = [
     "message": "initial replacement material reference is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3799
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3872
     }
   },
   {
@@ -66582,7 +66582,7 @@ MESSAGE_REFERENCE = [
     "message": "initial replacement material states are invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3789
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3862
     }
   },
   {
@@ -66590,7 +66590,7 @@ MESSAGE_REFERENCE = [
     "message": "initial replacement materials omitted the original or active state",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3840
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3913
     }
   },
   {
@@ -66766,7 +66766,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid RGB glow reveal factors",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5303
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5367
     }
   },
   {
@@ -66822,7 +66822,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid decoded jiggle snapshot reference",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 972
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1040
     }
   },
   {
@@ -66830,7 +66830,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid editable piece",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1558
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1626
     }
   },
   {
@@ -66838,7 +66838,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid emission animation factors",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5313
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5377
     }
   },
   {
@@ -66878,7 +66878,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid hair rest-state reference",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1511
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1579
     }
   },
   {
@@ -66886,7 +66886,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid host control payload",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2069
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2137
     }
   },
   {
@@ -66894,7 +66894,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid host control reference",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2062
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2130
     }
   },
   {
@@ -66902,7 +66902,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid initial hair state reference",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3758
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3831
     }
   },
   {
@@ -66910,7 +66910,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid item set reference identity",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3732
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3805
     }
   },
   {
@@ -66918,7 +66918,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid item set reference membership",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3710
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3783
     }
   },
   {
@@ -67238,7 +67238,7 @@ MESSAGE_REFERENCE = [
     "message": "layer byte budget overflow",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_gpu_layers.rs": 549
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_gpu_layers.rs": 628
     }
   },
   {
@@ -67278,7 +67278,7 @@ MESSAGE_REFERENCE = [
     "message": "line-list positions must be finite",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2257
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2319
     }
   },
   {
@@ -67286,7 +67286,7 @@ MESSAGE_REFERENCE = [
     "message": "line-list vertex count must be even",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2252
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2314
     }
   },
   {
@@ -67334,7 +67334,7 @@ MESSAGE_REFERENCE = [
     "message": "manifest has no parent",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 749
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 817
     }
   },
   {
@@ -67350,7 +67350,7 @@ MESSAGE_REFERENCE = [
     "message": "material alpha mode {:?} is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2945
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3018
     }
   },
   {
@@ -67382,7 +67382,7 @@ MESSAGE_REFERENCE = [
     "message": "material capture contained only the clear color",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6101
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6165
     }
   },
   {
@@ -67390,7 +67390,7 @@ MESSAGE_REFERENCE = [
     "message": "material capture frame sizes do not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7880
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 7944
     }
   },
   {
@@ -67398,7 +67398,7 @@ MESSAGE_REFERENCE = [
     "message": "material capture setup validation failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5895
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5959
     }
   },
   {
@@ -67406,7 +67406,7 @@ MESSAGE_REFERENCE = [
     "message": "material capture validation failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6010
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6074
     }
   },
   {
@@ -67414,7 +67414,7 @@ MESSAGE_REFERENCE = [
     "message": "material category code is outside the shared CDMW contract",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5337
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5401
     }
   },
   {
@@ -67422,7 +67422,7 @@ MESSAGE_REFERENCE = [
     "message": "material category confidence is outside 0..=1",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2913
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2986
     }
   },
   {
@@ -67430,7 +67430,7 @@ MESSAGE_REFERENCE = [
     "message": "material category {:?} is not canonical",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2901
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2974
     }
   },
   {
@@ -67438,7 +67438,7 @@ MESSAGE_REFERENCE = [
     "message": "material category {} does not match code {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2907
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2980
     }
   },
   {
@@ -67446,7 +67446,7 @@ MESSAGE_REFERENCE = [
     "message": "material emissive color is outside 0..=2",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2992
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3065
     }
   },
   {
@@ -67454,7 +67454,7 @@ MESSAGE_REFERENCE = [
     "message": "material factor set contains no sampled value",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5241
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5303
     }
   },
   {
@@ -67462,7 +67462,7 @@ MESSAGE_REFERENCE = [
     "message": "material factors contain a non-finite or out-of-range value",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5274
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5336
     }
   },
   {
@@ -67470,7 +67470,7 @@ MESSAGE_REFERENCE = [
     "message": "material factors have no owning material range",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5210
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5272
     }
   },
   {
@@ -67478,7 +67478,7 @@ MESSAGE_REFERENCE = [
     "message": "material isolation requires aligned positions, normals, UVs, and triangle owners",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8040
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8104
     }
   },
   {
@@ -67510,7 +67510,7 @@ MESSAGE_REFERENCE = [
     "message": "material normal-Y flag does not match its policy",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2940
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3013
     }
   },
   {
@@ -67518,7 +67518,7 @@ MESSAGE_REFERENCE = [
     "message": "material normal-Y policy {:?} is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2933
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3006
     }
   },
   {
@@ -67526,7 +67526,7 @@ MESSAGE_REFERENCE = [
     "message": "material presentation LOD index exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2875
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2948
     }
   },
   {
@@ -67534,7 +67534,7 @@ MESSAGE_REFERENCE = [
     "message": "material presentation index exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2880
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2953
     }
   },
   {
@@ -67542,7 +67542,7 @@ MESSAGE_REFERENCE = [
     "message": "material presentation ownership exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2862
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2935
     }
   },
   {
@@ -67550,7 +67550,7 @@ MESSAGE_REFERENCE = [
     "message": "material proof panel dimensions do not match the readback dimensions",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8571
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8635
     }
   },
   {
@@ -67558,7 +67558,7 @@ MESSAGE_REFERENCE = [
     "message": "material proof requires six panels, received {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8558
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8622
     }
   },
   {
@@ -67566,7 +67566,7 @@ MESSAGE_REFERENCE = [
     "message": "material response {case}: BGRA pixel {actual:?}, expected {expected:?}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12123
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12187
     }
   },
   {
@@ -67582,7 +67582,7 @@ MESSAGE_REFERENCE = [
     "message": "material shader family is missing or invalid",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2925
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2998
     }
   },
   {
@@ -67590,7 +67590,7 @@ MESSAGE_REFERENCE = [
     "message": "material sources exceed the 512 MiB limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_gpu_layers.rs": 553
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_gpu_layers.rs": 632
     }
   },
   {
@@ -67614,7 +67614,7 @@ MESSAGE_REFERENCE = [
     "message": "material texture tint is outside 0..=2",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3001
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3074
     }
   },
   {
@@ -67622,7 +67622,7 @@ MESSAGE_REFERENCE = [
     "message": "material {label} is outside {minimum}..={maximum}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2732
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2805
     }
   },
   {
@@ -67630,7 +67630,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material_index} owns no triangles in the capture snapshot",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8082
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 8146
     }
   },
   {
@@ -67638,7 +67638,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting RGB glow reveal",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10017
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10081
     }
   },
   {
@@ -67646,7 +67646,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting alpha blend modes in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10105
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10169
     }
   },
   {
@@ -67654,7 +67654,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting alpha cutoffs in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10094
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10158
     }
   },
   {
@@ -67662,7 +67662,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting base tint strengths in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 9984
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10048
     }
   },
   {
@@ -67670,7 +67670,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting category codes in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10171
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10235
     }
   },
   {
@@ -67678,7 +67678,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting category confidence in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10182
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10246
     }
   },
   {
@@ -67686,7 +67686,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting emission animations",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10028
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10092
     }
   },
   {
@@ -67694,7 +67694,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting emissive colors in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 9960
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10024
     }
   },
   {
@@ -67702,7 +67702,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting emissive intensities in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10039
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10103
     }
   },
   {
@@ -67710,7 +67710,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting glTF PBR workflows in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10149
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10213
     }
   },
   {
@@ -67718,7 +67718,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting glow surface colors in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 9995
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10059
     }
   },
   {
@@ -67726,7 +67726,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting hair anisotropy policies in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10160
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10224
     }
   },
   {
@@ -67734,7 +67734,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting height scales in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10083
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10147
     }
   },
   {
@@ -67742,7 +67742,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting layer-mask channels in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10242
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10306
     }
   },
   {
@@ -67750,7 +67750,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting metalness factors in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10061
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10125
     }
   },
   {
@@ -67758,7 +67758,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting normal-Y policies in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10193
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10257
     }
   },
   {
@@ -67766,7 +67766,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting opacity factors in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10138
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10202
     }
   },
   {
@@ -67774,7 +67774,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting roughness factors in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10050
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10114
     }
   },
   {
@@ -67782,7 +67782,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting skin detail opacities in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10226
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10290
     }
   },
   {
@@ -67790,7 +67790,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting skin detail scales in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10215
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10279
     }
   },
   {
@@ -67798,7 +67798,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting specular factors in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10072
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10136
     }
   },
   {
@@ -67806,7 +67806,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting texture V-flip policies in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10204
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10268
     }
   },
   {
@@ -67814,7 +67814,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting texture tints in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 9973
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10037
     }
   },
   {
@@ -67822,7 +67822,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting translucency factors in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10116
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10180
     }
   },
   {
@@ -67830,7 +67830,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has conflicting translucent surface factors in LOD {lod_index}",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10127
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10191
     }
   },
   {
@@ -67838,7 +67838,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has invalid layer-mask channel {layer_mask_channel} in LOD {lod_index}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10234
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10298
     }
   },
   {
@@ -67846,7 +67846,7 @@ MESSAGE_REFERENCE = [
     "message": "material {material} has more than one {role:?} texture in LOD {lod_index}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 9829
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 9893
     }
   },
   {
@@ -67886,7 +67886,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh document is empty",
     "recovery": "empty",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2680
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2753
     }
   },
   {
@@ -68145,7 +68145,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles contains a link at {}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3970
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4043
     }
   },
   {
@@ -68153,7 +68153,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles contains an unexpected entry at {}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3988
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4061
     }
   },
   {
@@ -68161,7 +68161,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles contains too many entries",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3963
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4036
     }
   },
   {
@@ -68169,7 +68169,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles exceeds the directory-depth limit at {}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3977
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4050
     }
   },
   {
@@ -68177,7 +68177,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles exceeds the total size limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4002
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4075
     }
   },
   {
@@ -68185,7 +68185,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh_slider_profiles file exceeds the size limit at {}",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3995
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4068
     }
   },
   {
@@ -68276,7 +68276,7 @@ MESSAGE_REFERENCE = [
     "message": "missing hair LOD",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1369
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1437
     }
   },
   {
@@ -68405,7 +68405,7 @@ MESSAGE_REFERENCE = [
     "message": "missing previous hair LOD",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1416
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1484
     }
   },
   {
@@ -69137,7 +69137,7 @@ MESSAGE_REFERENCE = [
     "message": "morph_state needs an object payload",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2170
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2238
     }
   },
   {
@@ -69145,7 +69145,7 @@ MESSAGE_REFERENCE = [
     "message": "motion changed topology",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5934
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5998
     }
   },
   {
@@ -69153,7 +69153,7 @@ MESSAGE_REFERENCE = [
     "message": "motion frame contains only background",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5970
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6034
     }
   },
   {
@@ -70282,7 +70282,7 @@ MESSAGE_REFERENCE = [
     "message": "native topology must be committed through CDMW before export",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4514
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4587
     }
   },
   {
@@ -70442,7 +70442,7 @@ MESSAGE_REFERENCE = [
     "message": "no Direct3D 12 adapter is available",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2177
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2239
     }
   },
   {
@@ -70650,7 +70650,7 @@ MESSAGE_REFERENCE = [
     "message": "open_session needs a manifest path",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4164
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4237
     }
   },
   {
@@ -70690,7 +70690,7 @@ MESSAGE_REFERENCE = [
     "message": "outbound queue is busy: {error}",
     "recovery": "locked",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1328
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1396
     }
   },
   {
@@ -70698,7 +70698,7 @@ MESSAGE_REFERENCE = [
     "message": "outbound queue is busy: {e}",
     "recovery": "locked",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1397
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1465
     }
   },
   {
@@ -70714,7 +70714,7 @@ MESSAGE_REFERENCE = [
     "message": "overlay line geometry is invalid: {0}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2193
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2255
     }
   },
   {
@@ -70810,7 +70810,7 @@ MESSAGE_REFERENCE = [
     "message": "particle GPU validation failed: {validation}",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6657
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6721
     }
   },
   {
@@ -70858,7 +70858,7 @@ MESSAGE_REFERENCE = [
     "message": "payload path escaped the session root",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3641
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3714
     }
   },
   {
@@ -70866,7 +70866,7 @@ MESSAGE_REFERENCE = [
     "message": "payload path must be one owned JSON filename",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3635
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3708
     }
   },
   {
@@ -70930,7 +70930,7 @@ MESSAGE_REFERENCE = [
     "message": "prepared host result became stale before publication",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1225
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1293
     }
   },
   {
@@ -71122,7 +71122,7 @@ MESSAGE_REFERENCE = [
     "message": "preview manifest exceeds its size limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 2353
+      "cdmw/services/mesh_rust_preview_package.py": 2705
     }
   },
   {
@@ -71130,7 +71130,7 @@ MESSAGE_REFERENCE = [
     "message": "preview manifest is not an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 2381
+      "cdmw/services/mesh_rust_preview_package.py": 2733
     }
   },
   {
@@ -71138,7 +71138,7 @@ MESSAGE_REFERENCE = [
     "message": "preview manifest {key} does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 2390
+      "cdmw/services/mesh_rust_preview_package.py": 2742
     }
   },
   {
@@ -71172,7 +71172,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/services/mesh_rust_preview_cache.py": 91,
       "cdmw/services/mesh_rust_preview_files.py": 122,
-      "cdmw/services/mesh_rust_preview_package.py": 416
+      "cdmw/services/mesh_rust_preview_package.py": 418
     }
   },
   {
@@ -72194,7 +72194,7 @@ MESSAGE_REFERENCE = [
     "message": "run_command names no editor command",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2100
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2168
     }
   },
   {
@@ -72226,7 +72226,7 @@ MESSAGE_REFERENCE = [
     "message": "rust_preview_material_synthesis_budget source=%s parts=%d",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_package.py": 2302
+      "cdmw/services/mesh_rust_preview_package.py": 2654
     }
   },
   {
@@ -72234,7 +72234,7 @@ MESSAGE_REFERENCE = [
     "message": "same-topology geometry refresh changed a GPU buffer length",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2827
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2889
     }
   },
   {
@@ -72242,7 +72242,7 @@ MESSAGE_REFERENCE = [
     "message": "scene role list has {} entries for {vertex_count} vertices",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2560
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2622
     }
   },
   {
@@ -72250,7 +72250,7 @@ MESSAGE_REFERENCE = [
     "message": "scene role list has {} entries for {} positions",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2651
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2713
     }
   },
   {
@@ -72258,7 +72258,7 @@ MESSAGE_REFERENCE = [
     "message": "scene transform must be finite and invertible",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 4041
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 4103
     }
   },
   {
@@ -72274,7 +72274,7 @@ MESSAGE_REFERENCE = [
     "message": "schema, protocol, renderer, or edit backend does not match",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2261
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2329
     }
   },
   {
@@ -72306,7 +72306,7 @@ MESSAGE_REFERENCE = [
     "message": "select_parts needs part numbers",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2113
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2181
     }
   },
   {
@@ -72338,7 +72338,7 @@ MESSAGE_REFERENCE = [
     "message": "selected adapter does not support BC texture upload",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11230
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11294
     }
   },
   {
@@ -72346,7 +72346,7 @@ MESSAGE_REFERENCE = [
     "message": "selected adapter does not support filterable RGBA32F texture upload",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11237
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 11301
     }
   },
   {
@@ -72354,7 +72354,7 @@ MESSAGE_REFERENCE = [
     "message": "selected edge is stale",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4640
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4713
     }
   },
   {
@@ -72362,7 +72362,7 @@ MESSAGE_REFERENCE = [
     "message": "selected edge vertex is stale",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4644
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4717
     }
   },
   {
@@ -72370,7 +72370,7 @@ MESSAGE_REFERENCE = [
     "message": "selected face is stale",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4627
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4700
     }
   },
   {
@@ -72378,7 +72378,7 @@ MESSAGE_REFERENCE = [
     "message": "selected vertex is stale",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4614
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4687
     }
   },
   {
@@ -72442,7 +72442,7 @@ MESSAGE_REFERENCE = [
     "message": "session exceeds 768 MiB",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3853
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3926
     }
   },
   {
@@ -72450,7 +72450,7 @@ MESSAGE_REFERENCE = [
     "message": "session id and process generation are required",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2266
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2334
     }
   },
   {
@@ -72466,7 +72466,7 @@ MESSAGE_REFERENCE = [
     "message": "session texture resources exceed the 512 MiB aggregate limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3478
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3551
     }
   },
   {
@@ -72522,7 +72522,7 @@ MESSAGE_REFERENCE = [
     "message": "skin detail opacity is outside 0..=1",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5353
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5417
     }
   },
   {
@@ -72530,7 +72530,7 @@ MESSAGE_REFERENCE = [
     "message": "skin detail scale is outside 0.001..=1",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5345
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5409
     }
   },
   {
@@ -72538,7 +72538,7 @@ MESSAGE_REFERENCE = [
     "message": "source LOD {source_lod_index} is not present in the authoring document",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 873
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 941
     }
   },
   {
@@ -72586,7 +72586,7 @@ MESSAGE_REFERENCE = [
     "message": "source.lod_index exceeds this platform",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2673
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2746
     }
   },
   {
@@ -72594,7 +72594,7 @@ MESSAGE_REFERENCE = [
     "message": "source.lod_index must be a non-negative integer",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2670
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2743
     }
   },
   {
@@ -72602,7 +72602,7 @@ MESSAGE_REFERENCE = [
     "message": "stale changed vertex",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4574
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4647
     }
   },
   {
@@ -72858,7 +72858,7 @@ MESSAGE_REFERENCE = [
     "message": "surface frame failed: {0}",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2187
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2249
     }
   },
   {
@@ -72866,7 +72866,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile anisotropy was not enabled for rendering",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2846
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2919
     }
   },
   {
@@ -72874,7 +72874,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile coating is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2783
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2856
     }
   },
   {
@@ -72882,7 +72882,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile confidence does not match its category",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2752
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2825
     }
   },
   {
@@ -72890,7 +72890,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile evidence is missing or invalid",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2791
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2864
     }
   },
   {
@@ -72898,7 +72898,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile fallback {name} overrides authored data",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2832
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2905
     }
   },
   {
@@ -72906,7 +72906,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile family does not match its material category",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2744
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2817
     }
   },
   {
@@ -72914,7 +72914,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile finish is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2760
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2833
     }
   },
   {
@@ -72922,7 +72922,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile height scale exceeds profile fallback authority",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2838
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2911
     }
   },
   {
@@ -72930,7 +72930,7 @@ MESSAGE_REFERENCE = [
     "message": "surface-profile structure is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2775
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2848
     }
   },
   {
@@ -72970,7 +72970,7 @@ MESSAGE_REFERENCE = [
     "message": "texture edit directory must not be a link",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3887
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3960
     }
   },
   {
@@ -72978,7 +72978,7 @@ MESSAGE_REFERENCE = [
     "message": "texture label and one ownership list per LOD are required",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3472
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3545
     }
   },
   {
@@ -72986,7 +72986,7 @@ MESSAGE_REFERENCE = [
     "message": "texture path escaped the session root",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3410
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3483
     }
   },
   {
@@ -72994,7 +72994,7 @@ MESSAGE_REFERENCE = [
     "message": "texture path must be one owned DDS filename",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3404
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3477
     }
   },
   {
@@ -73002,7 +73002,7 @@ MESSAGE_REFERENCE = [
     "message": "texture reference SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3422
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3495
     }
   },
   {
@@ -73010,7 +73010,7 @@ MESSAGE_REFERENCE = [
     "message": "texture reference size does not match",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3416
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3489
     }
   },
   {
@@ -73018,7 +73018,7 @@ MESSAGE_REFERENCE = [
     "message": "texture reference type or count is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3393
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3466
     }
   },
   {
@@ -73026,7 +73026,7 @@ MESSAGE_REFERENCE = [
     "message": "texture_update {what}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1595
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1663
     }
   },
   {
@@ -73154,7 +73154,7 @@ MESSAGE_REFERENCE = [
     "message": "the manifest must be named manifest.json",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 744
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 812
     }
   },
   {
@@ -73170,7 +73170,7 @@ MESSAGE_REFERENCE = [
     "message": "the session contains too many effect sprite textures",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3577
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3650
     }
   },
   {
@@ -73178,7 +73178,7 @@ MESSAGE_REFERENCE = [
     "message": "the session contains too many material presentation rows",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2868
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2941
     }
   },
   {
@@ -73186,7 +73186,7 @@ MESSAGE_REFERENCE = [
     "message": "the session contains too many texture resources",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3461
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3534
     }
   },
   {
@@ -73194,7 +73194,7 @@ MESSAGE_REFERENCE = [
     "message": "the shared adapter cannot present to this window",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 3604
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 3666
     }
   },
   {
@@ -73210,7 +73210,7 @@ MESSAGE_REFERENCE = [
     "message": "the {role:?} role is classified but is not sampled by the current material approximation",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5198
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5260
     }
   },
   {
@@ -73218,7 +73218,7 @@ MESSAGE_REFERENCE = [
     "message": "the {role:?} role is not sampled by the current material approximation",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 9823
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 9887
     }
   },
   {
@@ -73346,7 +73346,7 @@ MESSAGE_REFERENCE = [
     "message": "translucency factors must be in 0..=1",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5322
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5386
     }
   },
   {
@@ -73354,7 +73354,7 @@ MESSAGE_REFERENCE = [
     "message": "translucent surface factors must be in 0..=1",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5332
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 5396
     }
   },
   {
@@ -73362,7 +73362,7 @@ MESSAGE_REFERENCE = [
     "message": "transmission {case}: BGRA pixel {actual:?}, expected {expected:?}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12066
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12130
     }
   },
   {
@@ -73370,7 +73370,7 @@ MESSAGE_REFERENCE = [
     "message": "triangle index count is not divisible by three",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10302
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10366
     }
   },
   {
@@ -73386,7 +73386,7 @@ MESSAGE_REFERENCE = [
     "message": "triangle index {index} exceeds the normal count",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6796
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6860
     }
   },
   {
@@ -73394,7 +73394,7 @@ MESSAGE_REFERENCE = [
     "message": "triangle index {index} exceeds the texture-coordinate count",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6800
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6864
     }
   },
   {
@@ -73402,7 +73402,7 @@ MESSAGE_REFERENCE = [
     "message": "triangle index {index} exceeds the vertex count",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6792
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 6856
     }
   },
   {
@@ -73490,7 +73490,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected effect texture entry {name}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3941
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4014
     }
   },
   {
@@ -73506,7 +73506,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected session entry {name}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3873
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3946
     }
   },
   {
@@ -73514,7 +73514,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected texture edit entry {name}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3898
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3971
     }
   },
   {
@@ -73538,7 +73538,7 @@ MESSAGE_REFERENCE = [
     "message": "unknown hairstyle preset",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2131
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 2199
     }
   },
   {
@@ -73610,7 +73610,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported hair rest-state version",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1518
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 1586
     }
   },
   {
@@ -73764,7 +73764,7 @@ MESSAGE_REFERENCE = [
     "message": "verified texture sources exceed the 512 MiB limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 800
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 868
     }
   },
   {
@@ -73788,7 +73788,7 @@ MESSAGE_REFERENCE = [
     "message": "vertex overlay colours must match the mesh and contain finite RGBA values in 0..1",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2510
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2572
     }
   },
   {
@@ -73804,7 +73804,7 @@ MESSAGE_REFERENCE = [
     "message": "vertex source index is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4522
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4595
     }
   },
   {
@@ -73812,7 +73812,7 @@ MESSAGE_REFERENCE = [
     "message": "vertex submesh is invalid",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4519
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 4592
     }
   },
   {
@@ -73868,7 +73868,7 @@ MESSAGE_REFERENCE = [
     "message": "wgpu device request failed: {0}",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2179
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2241
     }
   },
   {
@@ -73892,7 +73892,7 @@ MESSAGE_REFERENCE = [
     "message": "window surface creation failed: {0}",
     "recovery": "gpu",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2183
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2245
     }
   },
   {
@@ -73900,7 +73900,7 @@ MESSAGE_REFERENCE = [
     "message": "window surface has no supported format",
     "recovery": "empty",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2185
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2247
     }
   },
   {
@@ -74495,7 +74495,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.name}: the shader preview texture is unavailable: {source_path}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/shader_controls_preview.py": 284
+      "cdmw/services/shader_controls_preview.py": 332
     }
   },
   {
@@ -74695,7 +74695,7 @@ MESSAGE_REFERENCE = [
     "message": "{} exceeds the payload limit",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3651
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session.rs": 3724
     }
   },
   {
@@ -74703,7 +74703,7 @@ MESSAGE_REFERENCE = [
     "message": "{} normals have {} cached tangents",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10258
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10322
     }
   },
   {
@@ -74711,7 +74711,7 @@ MESSAGE_REFERENCE = [
     "message": "{} positions have {} normals and {} texture coordinates",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10294
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10358
     }
   },
   {
@@ -74719,7 +74719,7 @@ MESSAGE_REFERENCE = [
     "message": "{} positions have {} tangents",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2644
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 2706
     }
   },
   {
@@ -74727,7 +74727,7 @@ MESSAGE_REFERENCE = [
     "message": "{} triangles have {} material owners",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10385
+      "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 10449
     }
   },
   {
@@ -103902,7 +103902,7 @@ MESSAGE_REFERENCE = [
     "message": "could not read {}: {error}",
     "recovery": "format",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_live_textures.rs": 188
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_live_textures.rs": 193
     }
   },
   {
