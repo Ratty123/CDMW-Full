@@ -619,6 +619,7 @@ class ItemIconWorkerMixin:
         action: str,
         spec: ItemIconOverrideSpec,
         destination: Path,
+        notify=None,
     ) -> None:
         if self._item_icon_shutdown_requested:
             return
@@ -631,6 +632,7 @@ class ItemIconWorkerMixin:
             resolve_target_template_path=self.resolve_target_template_path,
         )
         self._pending_output_request = request
+        self._output_notice = notify
         self._set_item_icon_output_busy(True)
         self._emit_status("Generating item icon output...")
         if self._output_worker is not None:
@@ -662,11 +664,9 @@ class ItemIconWorkerMixin:
             return
         if payload.action == "export":
             self._emit_status(f"Exported generated item icon: {payload.destination}")
-            QMessageBox.information(
-                self,
-                "Icon Creator",
-                f"Generated icon written to:\n{payload.destination}",
-            )
+            self._show_item_icon_output_notice(lambda: QMessageBox.information(
+                self, "Icon Creator", f"Generated icon written to:\n{payload.destination}",
+            ))
             return
         result = payload.patch_result
         if result is None:
@@ -688,8 +688,15 @@ class ItemIconWorkerMixin:
         if request is None or request.request_id != request_id:
             return
         prefix = "Item icon export failed" if request.action == "export" else "Existing loose mod icon patch failed"
-        QMessageBox.warning(self, "Icon Creator", message)
+        self._show_item_icon_output_notice(lambda: QMessageBox.warning(self, "Icon Creator", message))
         self._emit_status(f"{prefix}: {message}", True)
+
+    def _show_item_icon_output_notice(self, dialog) -> None:
+        notify = getattr(self, "_output_notice", None)
+        if notify is None:
+            dialog()
+        else:
+            notify(dialog)
 
     def _cleanup_item_icon_output_worker(self) -> None:
         self._output_thread = None
@@ -698,6 +705,7 @@ class ItemIconWorkerMixin:
         if not self._item_icon_shutdown_requested and self._pending_output_request is not None:
             self._start_item_icon_output_worker()
         else:
+            self._output_notice = None
             self._set_item_icon_output_busy(False)
         self._cleanup_temp_preview_dir_if_idle()
 

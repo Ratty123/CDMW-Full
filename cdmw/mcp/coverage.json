@@ -1040,39 +1040,21 @@
       "area": "Browse Archives",
       "what": "Describe a local file",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "local_file.describe"
     },
     {
       "id": "local_file.bytes",
       "area": "Browse Archives",
       "what": "Bytes of a local file",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "local_file.bytes"
     },
     {
       "id": "local_file.parse",
       "area": "Browse Archives",
       "what": "Parsed content of a local file",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "local_file.parse"
     },
     {
       "id": "textures.standalone",
@@ -1195,52 +1177,28 @@
       "area": "Drafts & Mods",
       "what": "Continue a draft",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "saved.change"
     },
     {
       "id": "saved.rename",
       "area": "Drafts & Mods",
       "what": "Rename a row",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "saved.change"
     },
     {
       "id": "saved.combine",
       "area": "Drafts & Mods",
       "what": "Combine into one mod",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "saved.combine"
     },
     {
       "id": "saved.delete",
       "area": "Drafts & Mods",
       "what": "Delete a draft or row",
       "class": "destructive",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "saved.delete"
     },
     {
       "id": "new_item.steps",
@@ -1273,39 +1231,21 @@
       "area": "Mod Management",
       "what": "List mods",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "mods.list"
     },
     {
       "id": "mods.change",
       "area": "Mod Management",
-      "what": "Enable, order",
+      "what": "Add or remove packages and merge folders, review compatibility, and cancel a merge",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "mods.change"
     },
     {
       "id": "mods.export",
       "area": "Mod Management",
-      "what": "Export and merge",
+      "what": "Write the checked merge when Mod Management exposes Combine",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "mods.export"
     },
     {
       "id": "placement.edit",
@@ -1403,119 +1343,65 @@
     {
       "id": "translation.edit",
       "area": "Translation Studio",
-      "what": "Load and edit",
+      "what": "Open and load tables, find, edit, replace, revert, reset and machine-translate selected text",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "translation.edit"
     },
     {
       "id": "translation.save",
       "area": "Translation Studio",
       "what": "Save",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "translation.save"
     },
     {
       "id": "item_icons.make",
       "area": "Item Icons",
       "what": "Make and export icons",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "item_icons.make"
     },
     {
       "id": "research.read",
       "area": "Research",
       "what": "Read research notes",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "research.read"
     },
     {
       "id": "app.settings_set",
       "area": "Settings",
       "what": "Change settings (never AI connections, approvals, Full access or the game folder)",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "app.settings_set"
     },
     {
       "id": "shortcuts.change",
       "area": "Settings > Shortcuts",
       "what": "Rebind, unbind, reset",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "shortcuts.change"
     },
     {
       "id": "app.undo",
       "area": "The app",
-      "what": "Undo and redo, one group per turn",
+      "what": "Undo one group per turn using the editors' histories",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "app.undo"
     },
     {
       "id": "app.turn_end",
       "area": "The app",
       "what": "Mark the end of an assistant turn",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "app.turn_end"
     },
     {
       "id": "app.diagnostics",
       "area": "Diagnostics",
-      "what": "Diagnostics",
+      "what": "Read the redacted diagnostic snapshot, build identity and recent logs",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "app.diagnostics"
     },
     {
       "id": "archive.overlay_install",
@@ -1617,6 +1503,182 @@
       "class": "edit",
       "gap": "not_built",
       "milestone": "P13: the current editor offers grain and pattern brush strokes."
+    },
+    {
+      "id": "saved.list",
+      "area": "Drafts & Mods",
+      "what": "List drafts, mods, item packages and projects",
+      "class": "read",
+      "tool": "saved.list"
+    },
+    {
+      "id": "saved.add",
+      "area": "Drafts & Mods",
+      "what": "Add a mod folder or an item package",
+      "class": "edit",
+      "tool": "saved.change"
+    },
+    {
+      "id": "saved.move",
+      "area": "Drafts & Mods",
+      "what": "Move an entry to a project",
+      "class": "edit",
+      "tool": "saved.change"
+    },
+    {
+      "id": "saved.duplicate",
+      "area": "Drafts & Mods",
+      "what": "Duplicate a draft",
+      "class": "edit",
+      "tool": "saved.change"
+    },
+    {
+      "id": "saved.project_change",
+      "area": "Drafts & Mods",
+      "what": "Create and rename projects",
+      "class": "edit",
+      "tool": "saved.change"
+    },
+    {
+      "id": "saved.project_delete",
+      "area": "Drafts & Mods",
+      "what": "Delete a project",
+      "class": "destructive",
+      "tool": "saved.delete"
+    },
+    {
+      "id": "translation.review",
+      "area": "Translation Studio",
+      "what": "Review table rows, pending changes and worker progress",
+      "class": "read",
+      "tool": "translation.review"
+    },
+    {
+      "id": "search.text_state",
+      "area": "Search File Text",
+      "what": "Read result rows and progress",
+      "class": "read",
+      "tool": "search.text_state"
+    },
+    {
+      "id": "search.text_action",
+      "area": "Search File Text",
+      "what": "Run or stop a search with page options, set preview options, and open a hit",
+      "class": "edit",
+      "tool": "search.text_action"
+    },
+    {
+      "id": "search.text_export",
+      "area": "Search File Text",
+      "what": "Export selected or all matched files",
+      "class": "output",
+      "tool": "search.text_export"
+    },
+    {
+      "id": "archive.browser_state",
+      "area": "Browse Archives",
+      "what": "Read reference-search and export status",
+      "class": "read",
+      "tool": "files.browser_state"
+    },
+    {
+      "id": "archive.tools_view",
+      "area": "Browse Archives",
+      "what": "Preview, open preview window, search for references, filter or inspect a family, inspect a sidecar",
+      "class": "read",
+      "tool": "files.browser_view"
+    },
+    {
+      "id": "archive.tools_edit",
+      "area": "Browse Archives",
+      "what": "Open mesh and HKX physics editors",
+      "class": "edit",
+      "tool": "files.browser_edit"
+    },
+    {
+      "id": "archive.extract",
+      "area": "Browse Archives",
+      "what": "Extract a file or current selection",
+      "class": "output",
+      "tool": "files.browser_export"
+    },
+    {
+      "id": "archive.export",
+      "area": "Browse Archives",
+      "what": "Export a file or family, copy the filename, or write a sidecar corpus report",
+      "class": "output",
+      "tool": "files.browser_export"
+    },
+    {
+      "id": "archive.mesh_export",
+      "area": "Browse Archives",
+      "what": "Export a mesh or its family as OBJ, GLB or FBX",
+      "class": "output",
+      "tool": "files.browser_export"
+    },
+    {
+      "id": "models.state",
+      "area": "Model Library",
+      "what": "Read model sources and result rows",
+      "class": "read",
+      "tool": "models.state"
+    },
+    {
+      "id": "models.change",
+      "area": "Model Library",
+      "what": "Manage sources, search, preview and use a model in Create New Item",
+      "class": "edit",
+      "tool": "models.change"
+    },
+    {
+      "id": "models.output",
+      "area": "Model Library",
+      "what": "Build the search index, download checked models and generate an icon",
+      "class": "output",
+      "tool": "models.output"
+    },
+    {
+      "id": "item_icons.state",
+      "area": "Item Icons",
+      "what": "Read sources, target and preview status",
+      "class": "read",
+      "tool": "item_icons.state"
+    },
+    {
+      "id": "item_icons.change",
+      "area": "Item Icons",
+      "what": "Manage sources and configure or preview the selected icon",
+      "class": "edit",
+      "tool": "item_icons.change"
+    },
+    {
+      "id": "format_explorer.read",
+      "area": "Inspect File Formats",
+      "what": "Read format reports as text",
+      "class": "read",
+      "tool": "research.read"
+    },
+    {
+      "id": "app.redo",
+      "area": "The app",
+      "what": "Redo one group per turn using the editors' histories",
+      "class": "edit",
+      "tool": "app.redo"
+    },
+    {
+      "id": "mods.enable_order",
+      "area": "Mod Management",
+      "what": "Enable, disable or change load order in DMM",
+      "class": "edit",
+      "gap": "user_only",
+      "reason": "DMM owns these controls. CDMW only prepares packages for DMM."
+    },
+    {
+      "id": "mods.send_to_dmm",
+      "area": "Mod Management",
+      "what": "Export selected item packages for DMM to enable and mount later",
+      "class": "output",
+      "tool": "mods.export"
     }
   ]
 }

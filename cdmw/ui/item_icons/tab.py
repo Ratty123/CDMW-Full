@@ -209,7 +209,7 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
         self.edited_root.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.edited_root)))
 
-    def export_generated_icon(self) -> None:
+    def export_generated_icon(self, *, notify=None) -> None:
         source_path = self.current_source_path()
         target_entry = self._current_target_entry()
         target_path = self._current_target_path()
@@ -236,6 +236,7 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
                 background_mode=self._background_mode(),
             ),
             destination=destination,
+            notify=notify,
         )
 
     def add_to_existing_loose_mod(self) -> None:
