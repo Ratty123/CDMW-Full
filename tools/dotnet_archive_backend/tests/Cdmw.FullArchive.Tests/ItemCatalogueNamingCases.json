@@ -1,0 +1,7 @@
+[
+  {"name": "Bomb_Arrow", "display": "Explosive Arrow", "localized": ["Flèche explosive"], "models": ["cd_phm_04_arw_0007", "cd_phm_04_arw_head_0007"], "category": "Weapon", "group": "Arrows / Ammo"},
+  {"name": "Pyeonjeon_Arrow", "display": "Stub Arrow", "localized": ["Flèche plate"], "models": ["cd_phm_04_arw_0020", "cd_phm_04_arwline_0020"], "category": "Weapon", "group": "Arrows / Ammo"},
+  {"name": "Test_Flat_Thing", "display": "Flat Thing", "localized": ["Chose plate"], "models": [], "category": "Item", "group": "Unclassified"},
+  {"name": "Test_Faction_Letter", "display": "Blinding Arrow's Letter", "localized": [], "models": [], "category": "Quest / Document", "group": "Document"},
+  {"name": "Test_Coded_Helm", "display": "Sentinel", "localized": [], "models": ["cd_phm_01_hel_0001"], "category": "Armor", "group": "Head"}
+]

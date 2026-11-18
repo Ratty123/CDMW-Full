@@ -361,7 +361,9 @@ public sealed class ArchiveItemCatalog
     {
         if (ClassifyDefinition(internalName, equipType) is { } definition)
             return (definition.Category, definition.Group, "Recovered item definition / equip type");
-        var primaryNames = new[] { internalName, displayName }.Concat(localizedNames).ToArray();
+        // The keyword rules are English. The display name is the English name; the other
+        // translations would only add false friends (French "Flèche plate" is a flat arrow).
+        var primaryNames = new[] { internalName, displayName };
         var primaryText = string.Join(' ', primaryNames).ToLowerInvariant();
         var relationText = string.Join(' ', pacFiles.Concat(modelStems).Concat(iconPaths)).ToLowerInvariant();
         var text = $"{primaryText} {relationText}";
@@ -418,6 +420,14 @@ public sealed class ArchiveItemCatalog
             return ("Consumable", "Potion / Medicine", evidence);
         if (CatalogTextMatchesAny(primaryText, "food", "drink", "meal", "bread", "meat", "fruit", "carrot", "pear"))
             return ("Consumable", "Food / Drink", evidence);
+        // Ammunition has no equip slot; it is recognised by its internal name or by the
+        // game's arrow model code ("cd_phm_04_arw_0007"). Display names are not used:
+        // "Blinding Arrow" is also a faction. Keep in sync with item_index.py.
+        if (CatalogTextMatchesAny(internalName, "arrow", "arrows", "ammo", "ammunition", "quiver")
+            || CatalogTextMatchesAny(relationText, "_arw_"))
+        {
+            return ("Weapon", "Arrows / Ammo", evidence);
+        }
         if (CatalogTextMatchesAny(primaryText, "onehandspear", "twohandspear", "onehandlance", "lance", "spear", "halberd", "alebard", "pike", "scythe"))
             return ("Weapon", "Polearm / Spear", evidence);
 
@@ -506,7 +516,20 @@ public sealed class ArchiveItemCatalog
             ("Progression / Reward", "Currency", ["money", "gold", "golden", "golden999k", "coin"]),
         })
         {
-            if (CatalogTextMatchesAny(text, rule.Tokens)) return (rule.Category, rule.Group, evidence);
+            if (rule.Category == "Armor")
+            {
+                // Model files name sub-parts with plain words (an arrow's "arw_head"), so
+                // only the game's slot codes such as "_hel" or "_ub" count from file names.
+                if (CatalogTextMatchesAny(primaryText, rule.Tokens)
+                    || CatalogTextMatchesAny(relationText, rule.Tokens.Where(static token => token.Contains('_')).ToArray()))
+                {
+                    return (rule.Category, rule.Group, evidence);
+                }
+            }
+            else if (CatalogTextMatchesAny(text, rule.Tokens))
+            {
+                return (rule.Category, rule.Group, evidence);
+            }
         }
         return ("Item", "Unclassified", "No stronger category evidence was recovered");
     }

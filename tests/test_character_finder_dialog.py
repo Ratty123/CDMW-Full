@@ -477,6 +477,32 @@ def test_ownership_navigation_and_exact_scope(finder):
     assert scopes[0][0] == (3, 4) and dialog._closing
 
 
+def test_double_click_opens_exact_files_once_details_arrive(finder):
+    dialog, service, scopes = finder
+    publish_rows(dialog, service, [row(1), row(2)])
+    dialog._grid.setCurrentRow(1)
+    dialog._grid.itemDoubleClicked.emit(dialog._grid.item(1))
+    assert "scope" not in dialog._requests
+    service.result_ready.emit(dialog._requests["detail"], "get_character_catalog_detail", detail(row(2)))
+    assert service.calls[-1][1].include_related is False
+    service.result_ready.emit(dialog._requests["scope"], "scope_character_catalog", CharacterCatalogScopeResult("session-a", (5,), 1, 1, False))
+    assert scopes[0][0] == (5,) and dialog._closing
+
+
+def test_double_click_with_details_opens_at_once_and_reselect_forgets_it(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(1), row(2)])
+    service.result_ready.emit(dialog._requests["detail"], "get_character_catalog_detail", detail(row(1)))
+    dialog._grid.itemDoubleClicked.emit(dialog._grid.item(0))
+    assert "scope" in dialog._requests
+    dialog._cancel("scope")
+    dialog._grid.setCurrentRow(1)
+    dialog._grid.itemDoubleClicked.emit(dialog._grid.item(1))
+    dialog._grid.setCurrentRow(0)
+    service.result_ready.emit(dialog._requests["detail"], "get_character_catalog_detail", detail(row(1)))
+    assert "scope" not in dialog._requests
+
+
 def test_refresh_invalidates_requests_and_actions(finder):
     dialog, service, scopes = finder
     publish_rows(dialog, service, [row(1)])

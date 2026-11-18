@@ -67,6 +67,7 @@ class CharacterFinderDialog(QDialog):
         self._rows = {}
         self._items = {}
         self._details = None
+        self._open_when_ready = None
         self._page_start = 0
         self._total = 0
         self._related_key = None
@@ -119,6 +120,7 @@ class CharacterFinderDialog(QDialog):
         for combo in self._filters.values():
             combo.currentIndexChanged.connect(self._queue_search)
         self._grid.currentItemChanged.connect(self._selection_changed)
+        self._grid.itemDoubleClicked.connect(self._open_item)
         self._grid.verticalScrollBar().valueChanged.connect(lambda: self._visible_timer.start())
         self._grid.viewport().installEventFilter(self)
         self._service.result_ready.connect(self._result)
@@ -481,6 +483,9 @@ class CharacterFinderDialog(QDialog):
         elif kind == "detail" and isinstance(result, CharacterCatalogDetailResult):
             if result.row.key == self._selected_key():
                 self._show_detail(result)
+                if self._open_when_ready == result.row.key:
+                    self._open_when_ready = None
+                    self._scope(False)
         elif kind == "scope" and isinstance(result, CharacterCatalogScopeResult):
             if self._bridge.current_session is not None and self._bridge.current_session.session_id == self._session_id:
                 if self._bridge.apply_entry_id_scope(result.entry_ids, label=self.windowTitle(),
@@ -560,7 +565,19 @@ class CharacterFinderDialog(QDialog):
         item = self._grid.currentItem()
         return item.data(Qt.ItemDataRole.UserRole) if item else None
 
+    def _open_item(self, item):
+        """Double-click opens the card as Show exact files does, once its details arrive."""
+        key = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        if key is None or self._closing or self._invalid:
+            return
+        if self._details is not None and self._details.row.key == key:
+            self._scope(False)
+        else:
+            self._open_when_ready = key
+
     def _selection_changed(self, *_args):
+        if self._open_when_ready != self._selected_key():
+            self._open_when_ready = None
         self._cancel("detail")
         self._cancel("scope")
         self._details = None

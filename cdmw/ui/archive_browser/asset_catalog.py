@@ -113,6 +113,7 @@ class ArchiveAssetCatalogMixin:
                 "Axe / Mace / Hammer",
                 "Polearm / Spear",
                 "Bow / Crossbow",
+                "Arrows / Ammo",
                 "Firearm",
                 "Fist / Martial",
                 "Wand / Fan",

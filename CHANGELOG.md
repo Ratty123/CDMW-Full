@@ -79,6 +79,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
   - **Models:** items made of a main model and a `_sub01` or `_sub02` model no longer draw white or pale once the other model is shown (about 310 models); a model with a part whose texture repeats very many times, such as a ship's rigging, keeps its texture coordinates; heads include their eyes and teeth; models show geometry while textures arrive.
   - Polished metal now reflects the lighting preset's surroundings, so under **Neutral studio** and **Showcase** it can look darker than in alpha.5.
 - CDMW pauses far less while you work. Selecting a model or a set in Browse Archives or Item Finder, opening the Mesh Editor, Create New Item, Model Library, Drafts & Mods and the Textures workspace, opening a large texture, closing or finishing in the Mesh Editor and listing a lot of saved work each held the window for a tenth of a second to several seconds, and now answer at once or within a few hundredths of a second. Background work (the item table preload, Finder thumbnails and memory clean-up) waits while you click, preview or open the Mesh Editor, and runs when you are idle.
+- **Body & Face Finder:** double-clicking a body or face opens its exact files in Browse Archives, as **Show exact files** does.
 
 ### Fixed
 
@@ -132,6 +133,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - In the Mesh Editor, Esc clears the selection when there is nothing else for it to cancel or close, as a click on empty space in the view does.
 - Gimmick rows from game 1.0.0.3663 decode again; CDMW had refused every one of them, base and DLC, with "Invalid compact static presence flag." The update added two fields to each gimmick and a new kind of condition, which moved the numbers of most later condition kinds. Condition, interaction, character, inventory and minigame rows that use those conditions decode again too, and rows from earlier game versions are still read. Browse Archives shows these rows' fields again. Not yet checked in game.
 - With monitors at different scales, such as 150 % and 100 %, the Mesh Editor's text no longer comes out 1.5 times larger or smaller than the rest of CDMW. The editor kept the scale of the monitor it was first opened on; it now uses the scale of the screen CDMW is on, and follows when the window moves to another monitor.
+- **Item Finder** lists arrows in a new **Weapon > Arrows / Ammo** group instead of under Armor (Explosive Arrow showed under Head). Words from translated names or from a model's file names, such as French *plate* or the *head* part of an arrow, no longer put items in armor groups.
+- **Body & Face Finder** shows a head with the eyes, brows and other facial parts that the appearance wearing it uses, in the preview and in **Export FBX…**, instead of a head without eyes. **Show exact files** still lists only the head file.
 
 ### Docs
 

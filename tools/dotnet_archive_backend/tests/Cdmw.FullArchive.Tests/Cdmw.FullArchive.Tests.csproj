@@ -12,6 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="ItemCatalogueDefinitions.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="ItemCatalogueNamingCases.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../src/Cdmw.FullArchive.Contracts/Cdmw.FullArchive.Contracts.csproj" />
     <ProjectReference Include="../../src/Cdmw.FullArchive.Core/Cdmw.FullArchive.Core.csproj" />
     <ProjectReference Include="../../src/Cdmw.FullArchive.Worker/Cdmw.FullArchive.Worker.csproj" />
