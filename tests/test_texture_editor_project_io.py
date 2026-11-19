@@ -167,3 +167,57 @@ def test_project_round_trip_preserves_typed_mesh_source_binding(tmp_path: Path) 
     assert loaded.source_binding.mesh_submesh_indices == (2, 4)
     assert loaded.source_binding.mesh_channel == "base"
     assert loaded.source_binding.mesh_commit_mode == "preview"
+
+
+def test_live_mesh_editor_link_is_not_saved_into_a_project(tmp_path: Path) -> None:
+    """The Textures panel's live link belongs to one Mesh Editor session; a saved
+    project reopens as an ordinary document instead of one tied to a dead session."""
+
+    project_path = tmp_path / "live.ctfedit.json"
+    layer = _layer("base", "Base")
+    document = _document(layer)
+    document.source_binding = TextureEditorSourceBinding(
+        launch_origin="mesh_editor",
+        display_name="body.dds",
+        source_path="C:/cache/body.dds",
+        archive_relative_path="character/texture/body.dds",
+        mesh_session_id="session",
+        mesh_resource_id="sha",
+        mesh_channel="base",
+        mesh_commit_mode="live",
+    )
+
+    saved = project_io.save_texture_editor_project(document, {"base": _pixels(5)}, project_path)
+    loaded, _pixels_by_layer, _floating = project_io.load_texture_editor_project(project_path)
+
+    assert saved.source_binding.mesh_commit_mode == "live"  # the open document keeps its link
+    binding = loaded.source_binding
+    assert (binding.launch_origin, binding.mesh_session_id, binding.mesh_commit_mode, binding.mesh_channel) == (
+        "", "", "", "")
+    assert binding.archive_relative_path == "character/texture/body.dds"
+    assert binding.display_name == "body.dds"
+
+
+def test_project_load_ignores_binding_fields_it_does_not_know(tmp_path: Path) -> None:
+    import json
+
+    project_path = tmp_path / "newer.ctfedit.json"
+    project_io.save_texture_editor_project(_document(_layer("base", "Base")), {"base": _pixels(9)}, project_path)
+    payload = json.loads(project_path.read_text(encoding="utf-8"))
+    payload["source_binding"]["field_from_a_newer_version"] = "x"
+    project_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded, _pixels_by_layer, _floating = project_io.load_texture_editor_project(project_path)
+
+    assert loaded.layers[0].layer_id == "base"
+
+
+def test_save_refuses_a_layer_without_pixels_instead_of_dropping_it(tmp_path: Path) -> None:
+    project_path = tmp_path / "missing.ctfedit.json"
+    document = _document(_layer("base", "Base"), _layer("paint", "Paint"))
+
+    with pytest.raises(ValueError, match="Paint"):
+        project_io.save_texture_editor_project(document, {"base": _pixels(3)}, project_path)
+
+    assert not project_path.exists()
+    _assert_no_transaction_paths(project_path)

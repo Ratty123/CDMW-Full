@@ -45593,7 +45593,7 @@ MESSAGE_REFERENCE = [
     "message": "Dense preserve-split output requires PAC draw-section cloning. PAM/PAMLOD cloning is not enabled; reduce the source mesh or map fewer source parts into each target.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/static_mesh_build.py": 101
+      "cdmw/modding/static_mesh_build.py": 106
     }
   },
   {
@@ -46107,7 +46107,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement cannot be combined with a full PAC rebuild.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 564
+      "cdmw/modding/mesh_pac_builder.py": 565
     }
   },
   {
@@ -46115,7 +46115,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement cannot change shared source vertex record {record_offset}; it is also used by unedited submesh {owner_submesh} vertex {owner_vertex}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 524
+      "cdmw/modding/mesh_pac_builder.py": 525
     }
   },
   {
@@ -46123,7 +46123,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement cannot change the submesh count.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 448
+      "cdmw/modding/mesh_pac_builder.py": 449
     }
   },
   {
@@ -46131,7 +46131,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement changed an unowned byte at file offset {offset}; only record bytes 20:34 are authorized.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 782
+      "cdmw/modding/mesh_importer.py": 790
     }
   },
   {
@@ -46139,7 +46139,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement changed the file size; byte ownership could not be proven.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 710
+      "cdmw/modding/mesh_importer.py": 718
     }
   },
   {
@@ -46147,7 +46147,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement for submesh {submesh_index} changed the source bone palette.",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 400
+      "cdmw/modding/mesh_pac_builder.py": 401
     }
   },
   {
@@ -46155,7 +46155,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement for submesh {submesh_index} references a vertex record outside the source file.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 419
+      "cdmw/modding/mesh_pac_builder.py": 420
     }
   },
   {
@@ -46163,7 +46163,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement for submesh {submesh_index} requires an unchanged non-empty vertex count.",
     "recovery": "empty",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 370
+      "cdmw/modding/mesh_pac_builder.py": 371
     }
   },
   {
@@ -46171,7 +46171,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement for submesh {submesh_index} requires complete skin-weight rows.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 424
+      "cdmw/modding/mesh_pac_builder.py": 425
     }
   },
   {
@@ -46179,7 +46179,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement for submesh {submesh_index} requires every original vertex-record offset.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 411
+      "cdmw/modding/mesh_pac_builder.py": 412
     }
   },
   {
@@ -46187,7 +46187,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement for submesh {submesh_index} requires the original one-to-one LOD0 source map.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 383
+      "cdmw/modding/mesh_pac_builder.py": 384
     }
   },
   {
@@ -46195,7 +46195,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement for submesh {submesh_index} requires the proven 40-byte pac_slot_u10x6 layout.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 393
+      "cdmw/modding/mesh_pac_builder.py": 394
     }
   },
   {
@@ -46203,7 +46203,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement for submesh {submesh_index} requires unchanged faces.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 375
+      "cdmw/modding/mesh_pac_builder.py": 376
     }
   },
   {
@@ -46211,7 +46211,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement for submesh {submesh_index} vertex {vertex_index} attempted to change a protected record byte.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 502
+      "cdmw/modding/mesh_pac_builder.py": 503
     }
   },
   {
@@ -46219,7 +46219,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement lacks the proven 40-byte source records for submesh {submesh_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 744
+      "cdmw/modding/mesh_importer.py": 752
     }
   },
   {
@@ -46227,7 +46227,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement may target only valid LOD 0 submeshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 718
+      "cdmw/modding/mesh_importer.py": 726
     }
   },
   {
@@ -46235,7 +46235,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement produced conflicting edits for shared source vertex record {record_offset}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 510
+      "cdmw/modding/mesh_pac_builder.py": 511
     }
   },
   {
@@ -46243,7 +46243,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement references missing submesh {submesh_index}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 551
+      "cdmw/modding/mesh_pac_builder.py": 552
     }
   },
   {
@@ -46251,7 +46251,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement references missing submesh(es): {detail}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 455
+      "cdmw/modding/mesh_pac_builder.py": 456
     }
   },
   {
@@ -46259,7 +46259,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement requires an in-place base rebuild of unchanged size.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 441
+      "cdmw/modding/mesh_pac_builder.py": 442
     }
   },
   {
@@ -46267,7 +46267,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement source record is outside the file for submesh {submesh_index} vertex {vertex_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 752
+      "cdmw/modding/mesh_importer.py": 760
     }
   },
   {
@@ -46275,7 +46275,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement targets missing submesh {submesh_index}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 731
+      "cdmw/modding/mesh_importer.py": 739
     }
   },
   {
@@ -48652,7 +48652,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/mesh/export_validation.py": 1799,
-      "cdmw/modding/mesh_importer.py": 827
+      "cdmw/modding/mesh_importer.py": 835
     }
   },
   {
@@ -48732,7 +48732,7 @@ MESSAGE_REFERENCE = [
     "message": "Input is missing the PAR mesh header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2840
+      "cdmw/modding/mesh_parser.py": 2913
     }
   },
   {
@@ -48780,7 +48780,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid PAC LOD count: {n_lods}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1052
+      "cdmw/modding/mesh_pac_builder.py": 1119
     }
   },
   {
@@ -48796,7 +48796,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid PAC part requested for original LOD preservation.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 994
+      "cdmw/modding/mesh_pac_builder.py": 1045
     }
   },
   {
@@ -49460,6 +49460,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Island exclusion cannot locate the stored triangles of this part.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/mesh_islands.py": 304
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Island exclusion cannot preserve an invisible part at LOD {lod_index}.",
     "recovery": "input",
     "sources": {
@@ -49479,7 +49487,7 @@ MESSAGE_REFERENCE = [
     "message": "Island exclusion lost its original LOD mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_islands.py": 306
+      "cdmw/modding/mesh_islands.py": 315
     }
   },
   {
@@ -49487,7 +49495,7 @@ MESSAGE_REFERENCE = [
     "message": "Island exclusion lost its original part mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_islands.py": 312
+      "cdmw/modding/mesh_islands.py": 321
     }
   },
   {
@@ -49503,7 +49511,7 @@ MESSAGE_REFERENCE = [
     "message": "Island exclusion requires unchanged source topology. Restore islands before replacing or rebuilding this part.",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/mesh_islands.py": 315
+      "cdmw/modding/mesh_islands.py": 324
     }
   },
   {
@@ -50028,14 +50036,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 6640
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "LOD replacement was requested, but this first version only replaces the selected mesh/LOD.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/static_mesh_build.py": 93
     }
   },
   {
@@ -51756,7 +51756,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh edit operation blocked rebuild: {blockers[0].message}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 839
+      "cdmw/modding/mesh_importer.py": 847
     }
   },
   {
@@ -52631,7 +52631,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh sidecar metadata drift blocked rebuild: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 975
+      "cdmw/modding/mesh_importer.py": 983
     }
   },
   {
@@ -54055,7 +54055,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC normal precision for {part.name} (reconstructed direction error {degrees} degrees). Use a source-coordinate OBJ for this normal edit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 562
+      "cdmw/modding/mesh_importer.py": 570
     }
   },
   {
@@ -54063,7 +54063,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC normal precision for {part.name}: the Blender input contains a zero-length normal. Restore its normal direction before reimport.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 554
+      "cdmw/modding/mesh_importer.py": 562
     }
   },
   {
@@ -54071,7 +54071,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC position precision for {part.name} (reconstructed displacement {error}). Use a source-coordinate OBJ or Mesh Replacement for this edit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 546
+      "cdmw/modding/mesh_importer.py": 554
     }
   },
   {
@@ -54352,7 +54352,7 @@ MESSAGE_REFERENCE = [
     "message": "Non-finite or incomplete UV.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 58
+      "cdmw/modding/mesh_pac_builder.py": 59
     }
   },
   {
@@ -54408,7 +54408,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a valid PAC file: bad magic {data[:4]}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1460
+      "cdmw/modding/mesh_parser.py": 1465
     }
   },
   {
@@ -54416,7 +54416,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a valid PAM file: bad magic {data[:4]}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 681
+      "cdmw/modding/mesh_parser.py": 686
     }
   },
   {
@@ -54496,7 +54496,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed protected PAC tangent bits in submesh {submesh_index} vertex {vertex_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 677
+      "cdmw/modding/mesh_importer.py": 685
     }
   },
   {
@@ -54504,7 +54504,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed protected PAC vertex bytes for submesh {submesh_index} vertex {vertex_index} at record bytes {start}:{end}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 682
+      "cdmw/modding/mesh_importer.py": 690
     }
   },
   {
@@ -54512,7 +54512,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed the PAC file size; protected vertex-byte preservation could not be proven.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 628
+      "cdmw/modding/mesh_importer.py": 636
     }
   },
   {
@@ -54520,7 +54520,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip could not prove protected PAC vertex-byte preservation for submesh {submesh_index} vertex {vertex_index}: source record is outside the file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 670
+      "cdmw/modding/mesh_importer.py": 678
     }
   },
   {
@@ -54528,7 +54528,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip could not prove protected PAC vertex-byte preservation for submesh {submesh_index}: source offsets or stride are incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 654
+      "cdmw/modding/mesh_importer.py": 662
     }
   },
   {
@@ -54825,7 +54825,7 @@ MESSAGE_REFERENCE = [
     "message": "Original PAC LOD preservation requires the original draw-section layout.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1067
+      "cdmw/modding/mesh_pac_builder.py": 1141
     }
   },
   {
@@ -54833,7 +54833,7 @@ MESSAGE_REFERENCE = [
     "message": "Original PAC could not be parsed into usable geometry",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1393
+      "cdmw/modding/mesh_pac_builder.py": 1551
     }
   },
   {
@@ -54841,7 +54841,7 @@ MESSAGE_REFERENCE = [
     "message": "Original PAC data required for rebuild",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1389,
+      "cdmw/modding/mesh_pac_builder.py": 1547,
       "cdmw/modding/mesh_pac_legacy_builder.py": 24
     }
   },
@@ -55122,7 +55122,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC LOD index is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2506
+      "cdmw/modding/mesh_parser.py": 2575
     }
   },
   {
@@ -55130,7 +55130,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC LOD {lod} has no geometry section to preserve.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1003
+      "cdmw/modding/mesh_pac_builder.py": 1008
     }
   },
   {
@@ -55138,7 +55138,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC UV for submesh {submesh_index} vertex {vertex_index} must fit finite half-float coordinates.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 61
+      "cdmw/modding/mesh_pac_builder.py": 62
     }
   },
   {
@@ -55154,7 +55154,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC bounds expansion cannot locate the shared LOD descriptors.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 604
+      "cdmw/modding/mesh_pac_builder.py": 605
     }
   },
   {
@@ -55162,7 +55162,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC bounds expansion cannot preserve LOD{lod} position precision.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 636
+      "cdmw/modding/mesh_pac_builder.py": 639
     }
   },
   {
@@ -55170,7 +55170,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC bounds expansion cannot prove LOD{lod} vertex ownership.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 618
+      "cdmw/modding/mesh_pac_builder.py": 621
     }
   },
   {
@@ -55178,7 +55178,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC bounds expansion cannot prove all LOD{lod} vertex records.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 643
+      "cdmw/modding/mesh_pac_builder.py": 646
     }
   },
   {
@@ -55186,7 +55186,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC bounds expansion changes a shared lower-LOD vertex inconsistently.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 640
+      "cdmw/modding/mesh_pac_builder.py": 643
     }
   },
   {
@@ -55194,7 +55194,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC bounds expansion overlaps another edited LOD.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 646
+      "cdmw/modding/mesh_pac_builder.py": 649
     }
   },
   {
@@ -55202,7 +55202,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC cloned draw section {clone_ordinal} has an invalid descriptor source.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 817
+      "cdmw/modding/mesh_pac_builder.py": 849
     }
   },
   {
@@ -55210,7 +55210,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC cloned draw section {clone_ordinal} references missing descriptor {source_index}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 819
+      "cdmw/modding/mesh_pac_builder.py": 851
     }
   },
   {
@@ -55218,7 +55218,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC cloned submesh {sm_idx} references invalid source target {source_target_index}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1120
+      "cdmw/modding/mesh_pac_builder.py": 1222
     }
   },
   {
@@ -55226,7 +55226,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC dense replacement output plan does not match the working mesh: {len(working_mesh.submeshes)} submesh(es), expected {expected_submesh_count}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1092
+      "cdmw/modding/mesh_pac_builder.py": 1175
     }
   },
   {
@@ -55234,15 +55234,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC descriptor count does not match the parsed original submesh set.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1062
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "PAC descriptor count does not match the planned submesh set.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1104
+      "cdmw/modding/mesh_pac_builder.py": 1133
     }
   },
   {
@@ -55251,6 +55243,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "native/cdmw_preview_core/src/owners/mesh_rebuild_pac.cpp": 343
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAC descriptor set does not match the parsed original parts, so this file cannot be rebuilt safely.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 990
     }
   },
   {
@@ -55266,7 +55266,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC descriptor {sm_idx} points outside section 0.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1184
+      "cdmw/modding/mesh_pac_builder.py": 1300
     }
   },
   {
@@ -55274,7 +55274,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC descriptor {source_index} cannot be cloned from section 0.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 824
+      "cdmw/modding/mesh_pac_builder.py": 856
     }
   },
   {
@@ -55282,7 +55282,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC descriptor {source_index} cannot be copied from section 0.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 875
+      "cdmw/modding/mesh_pac_builder.py": 907
     }
   },
   {
@@ -55298,7 +55298,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC face in submesh {sm_idx} references an out-of-range vertex.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1305
+      "cdmw/modding/mesh_pac_builder.py": 1449
     }
   },
   {
@@ -55330,7 +55330,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC face record {fi} for submesh {sm_idx} points outside the file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 758
+      "cdmw/modding/mesh_pac_builder.py": 781
     }
   },
   {
@@ -55346,7 +55346,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC face {fi} in submesh {sm_idx} references an out-of-range vertex.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 755
+      "cdmw/modding/mesh_pac_builder.py": 778
     }
   },
   {
@@ -55482,7 +55482,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC import contains duplicate submesh name '{sm.name}'. Keep unique object names when exporting OBJ from Blender.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 117
+      "cdmw/modding/mesh_pac_builder.py": 118
     }
   },
   {
@@ -55490,7 +55490,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC import contains extra unnamed submeshes that could not be matched to the original mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 201
+      "cdmw/modding/mesh_pac_builder.py": 202
     }
   },
   {
@@ -55498,7 +55498,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC import contains more renamed submeshes than the original mesh can match.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 135
+      "cdmw/modding/mesh_pac_builder.py": 136
     }
   },
   {
@@ -55506,7 +55506,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC import edited a shared index buffer inconsistently across submeshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 764
+      "cdmw/modding/mesh_pac_builder.py": 787
     }
   },
   {
@@ -55514,7 +55514,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC import edited a shared vertex buffer inconsistently across submeshes. Apply the same change to every linked PAC submesh before reimport.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 743
+      "cdmw/modding/mesh_pac_builder.py": 765
     }
   },
   {
@@ -55522,7 +55522,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC import only contained a partial mesh without recognizable original submesh names.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 211
+      "cdmw/modding/mesh_pac_builder.py": 212
     }
   },
   {
@@ -55546,7 +55546,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC output draw section {output_index} has an invalid descriptor source.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 868
+      "cdmw/modding/mesh_pac_builder.py": 900
     }
   },
   {
@@ -55554,7 +55554,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC output draw section {output_index} references missing descriptor {source_index}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 870
+      "cdmw/modding/mesh_pac_builder.py": 902
     }
   },
   {
@@ -55562,7 +55562,31 @@ MESSAGE_REFERENCE = [
     "message": "PAC parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2959
+      "cdmw/modding/mesh_parser.py": 3032
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAC part name {text[:40]}... is {len(encoded)} characters long; the limit is {PAC_NAME_MAX_LENGTH}. Rename it before export.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 827
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAC part name {text} contains characters other than plain ASCII; rename it before export.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 821
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAC part name {text} contains control characters; rename it before export.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 825
     }
   },
   {
@@ -55570,7 +55594,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC part {index} LOD {lod} records exceed their geometry section.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1020
+      "cdmw/modding/mesh_pac_builder.py": 1025
     }
   },
   {
@@ -55578,7 +55602,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC part {index} LOD {lod} uses shared or invalid vertex indices; original LOD preservation is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1023
+      "cdmw/modding/mesh_pac_builder.py": 1028
     }
   },
   {
@@ -55586,7 +55610,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC part {index} no longer matches its original descriptor and geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 998
+      "cdmw/modding/mesh_pac_builder.py": 1049
     }
   },
   {
@@ -55594,7 +55618,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC part {sm_idx} cannot preserve unverified original skin records.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1164
+      "cdmw/modding/mesh_pac_builder.py": 1266
     }
   },
   {
@@ -55618,7 +55642,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC runtime ABI preservation cannot clone or rename draw descriptors.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1072
+      "cdmw/modding/mesh_pac_builder.py": 1146
     }
   },
   {
@@ -55650,7 +55674,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC section table is missing section 0.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1048,
+      "cdmw/modding/mesh_pac_builder.py": 1115,
       "cdmw/modding/mesh_pac_topology_builder.py": 672
     }
   },
@@ -55659,7 +55683,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC source-owned output descriptor plan does not match the working mesh: {len(output_descriptor_sources)} descriptor source(s), {len(working_mesh.submeshes)} submesh(es).",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1076
+      "cdmw/modding/mesh_pac_builder.py": 1155
     }
   },
   {
@@ -55675,7 +55699,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC submesh {sm_idx} changed face count ({len(orig_sm.faces)} -> {len(new_sm.faces)}). Keep the same topology when importing OBJ for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 669
+      "cdmw/modding/mesh_pac_builder.py": 691
     }
   },
   {
@@ -55683,7 +55707,15 @@ MESSAGE_REFERENCE = [
     "message": "PAC submesh {sm_idx} changed vertex count ({len(orig_sm.vertices)} -> {len(new_sm.vertices)}). Keep the same topology when importing OBJ for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 663
+      "cdmw/modding/mesh_pac_builder.py": 685
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAC submesh {sm_idx} has stored triangles the parser skipped and no record of where each face is stored, so its faces cannot be rewritten in place.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 666
     }
   },
   {
@@ -55691,7 +55723,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC submesh {sm_idx} is missing source vertex metadata and cannot be rebuilt safely.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 675
+      "cdmw/modding/mesh_pac_builder.py": 697
     }
   },
   {
@@ -55699,7 +55731,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC submesh {sm_idx} is missing source vertex metadata for a full rebuild.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1142
+      "cdmw/modding/mesh_pac_builder.py": 1244
     }
   },
   {
@@ -55771,7 +55803,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC vertex record for submesh {sm_idx} points outside the file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 1149
+      "cdmw/modding/mesh_pac_builder.py": 1251
     }
   },
   {
@@ -55779,7 +55811,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC vertex record {vi} for submesh {sm_idx} points outside the file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pac_builder.py": 699
+      "cdmw/modding/mesh_pac_builder.py": 721
     }
   },
   {
@@ -55907,7 +55939,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2885
+      "cdmw/modding/mesh_parser.py": 2958
     }
   },
   {
@@ -55963,7 +55995,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD %s has no consistent level block table; scanning for its layout",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1134
+      "cdmw/modding/mesh_parser.py": 1139
     }
   },
   {
@@ -56091,7 +56123,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD geometry blocks are still LZ4-compressed; read the archive entry decoded.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1197
+      "cdmw/modding/mesh_parser.py": 1202
     }
   },
   {
@@ -56131,7 +56163,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2920
+      "cdmw/modding/mesh_parser.py": 2993
     }
   },
   {
@@ -56147,7 +56179,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: level {lod_i} part {entry_index} indexes vertex {highest} of {e['nv']}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1221
+      "cdmw/modding/mesh_parser.py": 1226
     }
   },
   {
@@ -56155,7 +56187,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: the part descriptors do not account for the stated level blocks with {PAMLOD_VERTEX_STRIDE}-byte vertices.",
     "recovery": "locked",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1211
+      "cdmw/modding/mesh_parser.py": 1216
     }
   },
   {
@@ -58505,6 +58537,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Replaced parts use the full replacement mesh at every LOD distance; CDMW does not build reduced LODs. Parts left unchanged keep their original LODs.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/static_mesh_build.py": 96
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Replacement OBJ has no parsed submeshes.",
     "recovery": "format",
     "sources": {
@@ -59988,7 +60028,7 @@ MESSAGE_REFERENCE = [
     "message": "Select faces from one part before splitting.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_deformer.py": 860
+      "cdmw/modding/mesh_deformer.py": 861
     }
   },
   {
@@ -61055,7 +61095,7 @@ MESSAGE_REFERENCE = [
     "message": "Subdivision interchange vertex ordering changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_deformer.py": 332
+      "cdmw/modding/mesh_deformer.py": 333
     }
   },
   {
@@ -62227,6 +62267,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The rebuilt PAC would read back from one of its lower LODs instead of LOD0, so it was not written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 1513
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The reference body has no surface to fit against.",
     "recovery": "internal",
     "sources": {
@@ -62688,6 +62736,30 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/modding/pac_cloth_preview.py": 212
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This PAC declares {lod_count} LODs; CDMW can only adjust PAC bounds with at most 4.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 608
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This PAC declares {n_lods} LODs; CDMW can rebuild PAC files with at most 4.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 1123
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This PAC has a draw section CDMW cannot read, and rebuilding the file would lose it. ({exc})",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/mesh_pac_builder.py": 1204
     }
   },
   {
@@ -63155,7 +63227,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology provenance is only rebuildable into PAC; this mesh is {fmt or 'unknown'}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 593
+      "cdmw/modding/mesh_importer.py": 601
     }
   },
   {
@@ -63839,7 +63911,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh format for rebuild: {fmt}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 524
+      "cdmw/modding/mesh_importer.py": 532
     }
   },
   {
@@ -64032,7 +64104,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported static replacement mesh format: {original_mesh.format or 'unknown'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/static_mesh_build.py": 143
+      "cdmw/modding/static_mesh_build.py": 148
     }
   },
   {
@@ -103701,7 +103773,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a Texture Editor project: {resolved.name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 518
+      "cdmw/core/texture_editor_project_io.py": 541
     }
   },
   {
@@ -104457,10 +104529,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Texture Editor layer {layer.name} has no pixels to save.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/texture_editor_project_io.py": 359
+    }
+  },
+  {
+    "area": "textures",
     "message": "Texture Editor project has an unreadable version: {data.get('version')}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 522
+      "cdmw/core/texture_editor_project_io.py": 545
     }
   },
   {
@@ -104468,7 +104548,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor project is missing required asset files: {sample}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 580
+      "cdmw/core/texture_editor_project_io.py": 603
     }
   },
   {
@@ -104476,7 +104556,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor project save failed and rollback was incomplete. Recovery data was retained at: {recovery_paths or 'no recoverable backup path'}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 446
+      "cdmw/core/texture_editor_project_io.py": 469
     }
   },
   {
@@ -106771,7 +106851,7 @@ MESSAGE_REFERENCE = [
     "message": "{resolved.name} was saved by a newer version of the Texture Editor (project version {project_version}; this build reads up to {_PROJECT_VERSION}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 524
+      "cdmw/core/texture_editor_project_io.py": 547
     }
   },
   {
@@ -109016,7 +109096,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/texture_editor_layer_ops.py": {},
   "cdmw/core/texture_editor_project_io.py": {
     "finding": 2,
-    "raise": 7
+    "raise": 8
   },
   "cdmw/core/texture_editor_raster_ops.py": {
     "raise": 1
@@ -109814,7 +109894,7 @@ SOURCE_COVERAGE = {
   "cdmw/modding/mesh_islands.py": {
     "diagnostic_field": 2,
     "diagnostic_text": 1,
-    "raise": 18
+    "raise": 19
   },
   "cdmw/modding/mesh_morph_sliders.py": {
     "finding": 5,
@@ -109891,7 +109971,7 @@ SOURCE_COVERAGE = {
     "raise": 30
   },
   "cdmw/modding/mesh_pac_builder.py": {
-    "raise": 65
+    "raise": 74
   },
   "cdmw/modding/mesh_pac_legacy_builder.py": {
     "raise": 2

@@ -225,6 +225,16 @@ def _pac_in_place_rebuild_safe(original: ParsedMesh, edited: ParsedMesh) -> bool
             return False
         if not _faces_match(original_sm, edited_sm) and int(getattr(original_sm, "source_index_offset", -1) or -1) < 0:
             return False
+        # The C++ patcher writes face j at triple j. That only matches the file when
+        # the parser dropped no collapsed or out-of-range triple from this part.
+        if int(getattr(original_sm, "source_index_count", 0) or 0) != len(getattr(original_sm, "faces", []) or []) * 3:
+            return False
+        # Clean shading in C++ clears skin slots 20-27 on every record, while the
+        # Python writer keeps them on cloth-bound records. Leave that case to Python.
+        if bool(getattr(edited_sm, "clean_donor_shading_records", False)):
+            return False
+    if bool(getattr(edited, "clean_donor_shading_records", False)):
+        return False
     return True
 
 
@@ -280,31 +290,12 @@ def _native_full_pam_rebuild_safe(mesh: ParsedMesh, original_data: bytes, layout
 
 
 def _native_full_pac_rebuild_safe(mesh: ParsedMesh, original_data: bytes, layout: str) -> bool:
-    if layout != "native_pac":
-        return False
-    try:
-        from cdmw.modding.mesh_parser import parse_pac
-
-        original_mesh = parse_pac(original_data, str(getattr(mesh, "path", "") or ""))
-    except Exception:
-        return False
-    original_submeshes = list(getattr(original_mesh, "submeshes", []) or [])
-    edited_submeshes = list(getattr(mesh, "submeshes", []) or [])
-    if not original_submeshes or len(original_submeshes) != len(edited_submeshes):
-        return False
-    for original_sm, edited_sm in zip(original_submeshes, edited_submeshes):
-        if int(getattr(original_sm, "source_vertex_stride", 0) or 0) < 12:
-            return False
-        if not getattr(original_sm, "source_vertex_offsets", None):
-            return False
-        if len(getattr(edited_sm, "vertices", []) or []) > 65535:
-            return False
-        for face in getattr(edited_sm, "faces", []) or []:
-            if len(face) != 3:
-                return False
-            if min(face) < 0 or max(face) >= len(getattr(edited_sm, "vertices", []) or []):
-                return False
-    return True
+    # The C++ full rebuild pairs parts with descriptors by position and writes LOD0 at
+    # every LOD. The Python writer now pairs them by descriptor offset, carries over
+    # descriptors the parser could not read, and keeps the source lower LODs of parts
+    # whose geometry is unchanged. Until the native twin does the same, it is not used.
+    del mesh, original_data, layout
+    return False
 
 
 def _native_full_pamlod_rebuild_safe(mesh: ParsedMesh, original_data: bytes, layout: str) -> bool:

@@ -3454,6 +3454,19 @@ vertex/index splits also match. Their counts and offsets are updated and their
 complete payloads checked against the rebuilt LOD0. A distinct lower LOD that would
 outrank the new LOD0 still blocks output; no approximate correspondence is inferred.
 
+The generic PAC full rebuild (replacement import, contract-free OBJ/GLB/FBX return,
+Create New Item weight transfer) has no decimator. A part whose positions, faces, UVs
+and normals are unchanged keeps the source's own lower-LOD records, with skin lanes
+taken from the LOD0 vertex at the same stored position (else the nearest one) when its
+weights changed. Any other rebuilt part writes its whole LOD0 at every stored LOD.
+Parts are paired with descriptors by descriptor offset, and faces are addressed by the
+stored triple the parser read them from (`SubMesh.source_face_slots`), because the
+parser skips collapsed triples and descriptors with no live LOD0 face. A descriptor
+the parser skipped is carried over byte for byte, or the rebuild is refused. Writers
+refuse PAC files declaring more than four LODs, and part names that are not plain
+ASCII or exceed 120 characters. The native C++ twin is used only for in-place patches
+over dense index streams without clean-shading records; its full rebuild is off.
+
 **Free Edit** also accepts verified compacted source rows, checked against the
 original source map, record offset, descriptor and stride. Its OBJ output retains
 geometry without a rig.

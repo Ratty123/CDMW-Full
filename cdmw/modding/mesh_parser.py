@@ -256,6 +256,11 @@ class SubMesh:
     source_vertex_offsets: list[int] = field(default_factory=list)
     source_index_offset: int = -1
     source_index_count: int = 0
+    # Stored triple number (counted from ``source_index_offset``) of each entry
+    # in ``faces``. The parser drops collapsed and out-of-range triples, so face
+    # ``j`` is not always triple ``j``; writers address the file through this.
+    # Empty when the mesh did not come from a PAC parse.
+    source_face_slots: list[int] = field(default_factory=list)
     source_vertex_stride: int = 0
     source_descriptor_offset: int = -1
     source_bbox_min: tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -1740,8 +1745,55 @@ def _parse_par_sections(data: bytes) -> list[dict]:
     return sections
 
 
-def _find_name_strings(region: bytes, desc_start: int) -> tuple[str, str]:
-    """Extract descriptor identity from either known PAC name-record layout."""
+def _pac_descriptor_record_length(stored_lod_count: int) -> int:
+    """Byte length of a section-0 descriptor record with ``stored_lod_count`` LODs."""
+    stored_lod_count = max(1, int(stored_lod_count or 0))
+    if stored_lod_count >= 4:
+        return 48 + stored_lod_count * 4
+    if stored_lod_count == 3:
+        return 46 + stored_lod_count * 4
+    return 44 + stored_lod_count * 4
+
+
+def _printable_pac_name(raw: bytes) -> bool:
+    return bool(raw) and all(32 <= value < 127 for value in raw)
+
+
+def _pac_names_filling_gap(region: bytes, gap_start: int, desc_start: int) -> tuple[str, str] | None:
+    """Read the name records forward when they exactly fill a known gap.
+
+    Reading forward from a known start is unambiguous. The backward scan is
+    not: any name byte whose value equals its distance from the end of the
+    name looks like a length prefix.
+    """
+    if not 0 <= gap_start < desc_start <= len(region):
+        return None
+    gap = region[gap_start:desc_start]
+    name_len = gap[0]
+    if name_len and 1 + name_len < len(gap):
+        material_len = gap[1 + name_len]
+        name = gap[1:1 + name_len]
+        material = gap[2 + name_len:]
+        if (material_len and 2 + name_len + material_len == len(gap)
+                and _printable_pac_name(name) and _printable_pac_name(material)):
+            return name.decode("ascii"), material.decode("ascii")
+    if len(gap) >= 3 and gap[-1] == 0 and name_len == len(gap) - 2 and _printable_pac_name(gap[1:-1]):
+        name = gap[1:-1].decode("ascii")
+        return name, name
+    return None
+
+
+def _find_name_strings(region: bytes, desc_start: int, gap_start: int | None = None) -> tuple[str, str]:
+    """Extract descriptor identity from either known PAC name-record layout.
+
+    ``gap_start``, when known, is where the name records begin (the end of the
+    previous descriptor or of the section-0 header); the records are then read
+    forward, falling back to the backward scan only when they do not fill it.
+    """
+    if gap_start is not None:
+        exact = _pac_names_filling_gap(region, gap_start, desc_start)
+        if exact is not None:
+            return exact
     # Current equipment PACs may store one shared name/material record as
     # ``length + ASCII + NUL + descriptor``.  The older layout below stores
     # two adjacent length-prefixed records without terminators.  Decode the
@@ -1882,6 +1934,12 @@ def _find_pac_descriptors(
             pos = idx + len(pattern)
 
     found.sort(key=lambda item: item[0])
+    # Re-read each descriptor's names forward from the end of the record before
+    # it; the first descriptor's names follow the per-LOD offset table.
+    gap_start = 5 + max(0, int(region[4]) if len(region) > 4 else 0) * 8
+    for desc_start, desc in found:
+        desc.name, desc.material = _find_name_strings(region, desc_start, gap_start)
+        gap_start = desc_start + _pac_descriptor_record_length(desc.stored_lod_count)
     return [desc for _, desc in found]
 
 
@@ -2176,8 +2234,11 @@ def _pac_faces_from_indices(
     *,
     require_distinct: bool,
     base_offset: int = 0,
+    slots: list[int] | None = None,
 ):
     """Filter index triples into face tuples, matching the scalar loops exactly.
+
+    ``slots``, when given, receives the stored triple number of each kept face.
 
     Returns None when numpy is unavailable.
     """
@@ -2187,6 +2248,8 @@ def _pac_faces_from_indices(
         return None
     triple_count = len(indices) // 3
     if triple_count <= 0:
+        if slots is not None:
+            slots.clear()
         return []
     arr = np.asarray(indices[: triple_count * 3], dtype=np.int64).reshape(-1, 3)
     a, b, c = arr[:, 0], arr[:, 1], arr[:, 2]
@@ -2194,6 +2257,8 @@ def _pac_faces_from_indices(
     if require_distinct:
         mask &= (a != b) & (b != c) & (a != c)
     kept = arr[mask]
+    if slots is not None:
+        slots[:] = np.nonzero(mask)[0].tolist()
     if base_offset:
         kept = kept + base_offset
     return list(zip(kept[:, 0].tolist(), kept[:, 1].tolist(), kept[:, 2].tolist()))
@@ -2482,7 +2547,11 @@ def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:
     if not candidates:
         return _pac_fallback_pam(data, filename)
 
-    candidates.sort(key=lambda item: (item[0], item[1], item[2], item[3]), reverse=True)
+    # Most faces wins; on a tie the declared LOD0 wins before vertex or part counts.
+    # CDMW-written files can store LOD0 again at a lower LOD beside a part whose
+    # lower LOD has more vertices, which must not make that LOD read as the model.
+    candidates.sort(key=lambda item: (item[0], item[3] == lod0_section_index, item[1], item[2], item[3]),
+                    reverse=True)
     result = candidates[0][4]
     logger.info(
         "Parsed PAC %s: %d submeshes, %d verts, %d faces",
@@ -2573,13 +2642,16 @@ def _parse_pac_geometry_section(
                 bone_indices.append(bones)
                 bone_weights.append(weights)
 
-        faces = _pac_faces_from_indices(indices, len(verts), require_distinct=True)
+        face_slots: list[int] = []
+        faces = _pac_faces_from_indices(indices, len(verts), require_distinct=True, slots=face_slots)
         if faces is None:
             faces = []
+            face_slots = []
             for i in range(0, len(indices) - 2, 3):
                 a, b, c = indices[i], indices[i + 1], indices[i + 2]
                 if a < len(verts) and b < len(verts) and c < len(verts) and len({a, b, c}) == 3:
                     faces.append((a, b, c))
+                    face_slots.append(i // 3)
 
         bbox_max = tuple(desc.bbox_min[i] + desc.bbox_extent[i] for i in range(3))
         sm = SubMesh(
@@ -2601,6 +2673,7 @@ def _parse_pac_geometry_section(
             source_vertex_offsets=source_offsets,
             source_index_offset=geom_sec["offset"] + idx_byte_offset,
             source_index_count=len(indices),
+            source_face_slots=face_slots,
             source_vertex_stride=40,
             shader_masks=[(data[offset + 36] / 255., data[offset + 37] / 255., 1.)
                           for offset in source_offsets],

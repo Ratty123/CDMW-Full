@@ -28,6 +28,7 @@ def _clone_submesh_fast(submesh: SubMesh) -> SubMesh:
             -1 if submesh.source_index_offset is None else submesh.source_index_offset
         ),
         source_index_count=int(submesh.source_index_count or 0),
+        source_face_slots=list(getattr(submesh, "source_face_slots", ()) or ()),
         source_vertex_stride=int(submesh.source_vertex_stride or 0),
         source_descriptor_offset=int(
             -1

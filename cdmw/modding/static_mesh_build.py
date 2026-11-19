@@ -89,9 +89,14 @@ def build_static_mesh_replacement(
             "serializer preserves the original draw-section descriptor set. Attach the part to an existing target "
             f"draw slot, or export after native draw-section cloning is available. Independent part(s): {labels}."
         )
-    if normalized_options.replace_lods:
-        report.warnings.append("LOD replacement was requested, but this first version only replaces the selected mesh/LOD.")
     fmt = original_mesh.format.lower()
+    if fmt == "pac" and any(int(part.source_lod_count or 0) > 1 for part in original_mesh.submeshes):
+        # The PAC writer has no decimator: a replaced part carries its whole mesh at every
+        # stored LOD, and only parts left untouched keep their original lower LODs.
+        report.warnings.append(
+            "Replaced parts use the full replacement mesh at every LOD distance; CDMW does not build reduced "
+            "LODs. Parts left unchanged keep their original LODs."
+        )
     cloned_draw_sections = [
         section
         for section in report.output_draw_sections
