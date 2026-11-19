@@ -360,8 +360,9 @@ def _panels(call) -> dict[str, object]:
 
 
 #: The host state's sections the panels draw from, returned by default.
-PANEL_SECTIONS = ("skeleton", "morph", "morphs", "refit", "layers", "cloth", "jiggle", "replacement", "hair",
-                  "rig", "materials", "material_presentations")
+PANEL_SECTIONS = ("skeleton", "rig_influence", "morph_refit", "geometry_layers", "cloth", "cloth_guides", "cloth_paint",
+                  "jiggle", "physics", "physics_profiles", "collision_volumes", "weapon_collisions", "replacement",
+                  "shader_controls", "emission", "translucency", "hair", "mesh_islands", "vertex_parameters")
 
 _PANEL_TOOLS = (
     ("rig", "mesh.weights", "Weights",
@@ -467,9 +468,10 @@ def mesh_edit_tools() -> list[Tool]:
                effect=EDIT, route=f"helper:cdmw_command {family}_*", handler=_panel(family), runs_on=ON_WORKER)
           for family, name, title, text in _PANEL_TOOLS],
         Tool(name="mesh.panels", family="mesh", title="Mesh Editor panels",
-             description="What the shown document's panels show: the skeleton and bones, morphs and their "
-                         "profiles, refit, layers, cloth, jiggle, Import Replacement and materials, as the "
-                         "editor is given them. 'sections' picks some; 'available' lists them all.",
+             description="What the shown document's panels show, as the editor is given them: skeleton and "
+                         "bone influence, morph_refit, geometry_layers, cloth, jiggle, physics, collisions, "
+                         "replacement (with each part's id), shader_controls, emission, translucency, hair, "
+                         "mesh_islands. 'sections' picks some; 'available' lists them all.",
              input_schema=object_schema({"sections": {"type": "array", "maxItems": 32,
                                                       "items": {"type": "string", "maxLength": 64}}}),
              effect=READ, route="service:RustMeshAuthoringSession.state_payload", handler=_panels,

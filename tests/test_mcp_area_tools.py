@@ -1578,6 +1578,7 @@ def test_panel_tools_reach_the_host_as_the_panels_do(editor, connect) -> None:  
     panels = mcp.ok("mesh_panels")
     assert panels["available"] and isinstance(panels["sections"], dict)
     assert "skeleton" in mcp.ok("mesh_panels", {"sections": ["skeleton"]})["sections"]
+    assert set(panels["sections"]) <= set(panels["available"]) and panels["sections"]
     assert mcp.error("mesh_weights", {"action": "paint"})["code"] == "invalid_arguments"
     assert mcp.ok("mesh_select", {"vertices": {"0": [0, 1]}})["done"]
     normalized = mcp.ok("mesh_weights", {"action": "normalize_weights"})
