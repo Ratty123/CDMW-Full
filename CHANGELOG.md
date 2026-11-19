@@ -21,6 +21,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Create New Item** works again on game build 1.0.0.3732, which added a byte to every item record and failed with "ItemInfo row 2200 did not decode". Items made on 3732 keep the new values from their template, and tables from earlier builds still read. When a later patch changes the item format again, the error now says that none of the game's items decode with the formats this version knows, instead of naming only the first row.
 - Mesh Editor's **Build Mod** with **Keep layers underneath** ticked no longer fails when the edited garment never cut the ticked layers, such as Lowerbody on the pants themselves. The mod is built without its own shrink rules, and a note names the layers the garment does cut. When Build Mod does fail, a message now says why instead of the progress bar closing with no mod.
 - When the archive backend stops unexpectedly, **Copy error report** now includes the worker's exit code and, for common Windows crash codes, what it means, such as a file removed by antivirus or a CPU instruction the worker cannot run.
 - **Texture Recolor** now changes material colours, such as `_tintColorR`, in character armour. Their long file paths gave every colour in the file the same name, so **Build Variants** finished without changing any of them. The rewritten `.pac_xml` also keeps its original encoding mark and line endings.

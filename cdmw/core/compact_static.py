@@ -34,6 +34,34 @@ _ITEMINFO_3527 = (
     ("field", "ItemInfo", "_soundSocketNameOnMaxCharged", ("text",)),
     *_ITEMINFO_BASE[_SOUND_INSERT:],
 )
+# 1.0.0.3732 adds two one-byte fields. ItemInfo._discardSingleCount sits in the
+# run of one-byte flags before _itemType; every byte in that run is 0 or 1 on the
+# shipped table, so the data cannot place it. Its position after _discardable
+# rests on the executable's field-label order (the labels run in reverse field
+# order: _useAveragePrice, _discardSingleCount, _discardable). PageData gains
+# _uiTextureRotationType after _rightPageRelatedKnowledgeInfo, placed the same
+# way. Only _fixedPageDataList has populated rows on 3732; _dynamicPageDataList
+# shares the PageData reader and takes the same shape.
+def _insert_after(program, owner, name, *ops):
+    at = next(i + 1 for i, op in enumerate(program)
+              if isinstance(op, tuple) and op[:3] == ("field", owner, name))
+    return (*program[:at], *ops, *program[at:])
+
+
+_PAGE_BASE = READERS[808][1][2]
+assert _PAGE_BASE[-1][:3] == ("field", "PageData", "_rightPageRelatedKnowledgeInfo")
+_PAGE_3732 = (*_PAGE_BASE, ("field", "PageData", "_uiTextureRotationType", ("raw", 1)))
+_ITEMINFO_3732 = tuple(
+    ("field", "ItemInfo", op[2], ("presence", ("seq", ("array", 4, _PAGE_3732))))
+    if isinstance(op, tuple) and op[0] == "field" and op[2] in ("_fixedPageDataList", "_dynamicPageDataList")
+    else op
+    for op in _insert_after(_ITEMINFO_3527, "ItemInfo", "_discardable",
+                            ("field", "ItemInfo", "_discardSingleCount", ("raw", 1))))
+assert READERS[513] == ("optional", 808)
+# Oldest first. A row must match exactly one; each later build adds bytes, so a
+# row from one build cannot complete under another's grammar by accident.
+ITEMINFO_GENERATIONS = (("pre-3527", _ITEMINFO_BASE), ("3527", _ITEMINFO_3527), ("3732", _ITEMINFO_3732))
+
 _DROPSET_BASE = READERS[TABLE_READERS["dropsetinfo"]]
 _VEHICLE_INSERT = next(i + 1 for i, op in enumerate(_DROPSET_BASE)
                        if isinstance(op, tuple) and op[:3] == ("field", "DropSetInfo", "_isEqualPercent"))
@@ -45,7 +73,7 @@ _DROPSET_3663 = (
 
 
 def read_compact_layout(raw, kind="iteminfo"):
-    programs = (("pre-3527", _ITEMINFO_BASE), ("3527", _ITEMINFO_3527)) if kind == "iteminfo" else ((kind, None),)
+    programs = ITEMINFO_GENERATIONS if kind == "iteminfo" else ((kind, None),)
     candidates, errors, failures = [], [], []
     for label, program in programs:
         drop_seen = set()
@@ -66,7 +94,7 @@ def read_compact_layout(raw, kind="iteminfo"):
             if not candidates:
                 raise failures[0]
             raise RecordError("Unsupported or ambiguous compact static layout.")
-        detail = "; ".join(errors) if not candidates else "both known layouts match"
+        detail = "; ".join(errors) if not candidates else "more than one known layout matches"
         raise RecordError(f"Unsupported or ambiguous compact ItemInfo layout ({detail}).")
     return candidates[0]
 
@@ -166,7 +194,7 @@ def _field_shape(kind, field):
 
     op = find(READERS[TABLE_READERS[kind]])
     if op is None and kind == "iteminfo":
-        op = find(_ITEMINFO_3527)
+        op = find(_ITEMINFO_3527) or find(_ITEMINFO_3732)
     if op is None:
         raise RecordError("This compact static generation has no such field.")
     while op[0] == "call" or op[0] == "seq" and len(op) == 2:
