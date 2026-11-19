@@ -100,7 +100,6 @@ impl PresentationView {
                     pages.number("selected", 0.0) as usize,
                     named(pages, "mod_management_package_task")
                         .map(|node| node.number("selected", 0.0) as usize),
-                    named(pages, "virtual_loader_page").is_some(),
                 ))
                 .auto_shrink([false, false])
                 .show(ui, |ui| {

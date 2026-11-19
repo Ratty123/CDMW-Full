@@ -3,10 +3,6 @@
 use super::*;
 
 #[cfg(test)]
-#[path = "mod_management_virtual_tests.rs"]
-mod virtual_tests;
-
-#[cfg(test)]
 #[path = "mod_management_flat_tests.rs"]
 mod flat_tests;
 
@@ -14,14 +10,6 @@ impl PresentationView {
     pub(in super::super) fn management_page_control(&mut self, ui: &mut Ui, node: &Node) -> bool {
         let s = scale(ui);
         match node.kind.as_str() {
-            "column" if node.name == "virtual_loader_page" => {
-                // This workspace has expanding package/review panes. The generic
-                // bounded splitter keeps their scrolling local instead of giving
-                // every table a six-row height inside the page's outer scroll.
-                self.management_page = false;
-                self.column(ui, &node.children);
-                self.management_page = true;
-            }
             "column" | "dialog" => {
                 self.management_column(ui, &node.children.iter().collect::<Vec<_>>());
             }
