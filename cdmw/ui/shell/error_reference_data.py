@@ -87831,6 +87831,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "error",
+    "recovery": "internal",
+    "sources": {
+      "tools/patch_day_check.py": 223
+    }
+  },
+  {
+    "area": "other",
     "message": "event at {event.offset} is {event.kind_name}, not ModelAttachmentSocket",
     "recovery": "internal",
     "sources": {
@@ -89597,7 +89605,8 @@ MESSAGE_REFERENCE = [
       "cdmw/services/old_install_removal.py": 596,
       "cdmw/services/problem_report_diagnostics.py": 61,
       "tools/audit_crimson_shader_corpus.py": 22,
-      "tools/extract_crimson_shader_corpus.py": 27
+      "tools/extract_crimson_shader_corpus.py": 27,
+      "tools/patch_day_check.py": 146
     }
   },
   {
@@ -106966,6 +106975,7 @@ DYNAMIC_REFERENCE = {
     "tools/pac_shader_consumer_study.py",
     "tools/pac_vertex_channel_sampling.py",
     "tools/pac_vertex_channel_study.py",
+    "tools/patch_day_check.py",
     "tools/report_crimson_normal_y_policy.py",
     "tools/report_crimson_shader_long_run_status.py",
     "tools/report_format_decode_progress.py",
@@ -113324,6 +113334,12 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "tools/pac_vertex_channel_study.py": {
+    "raise": 1,
+    "report": 1
+  },
+  "tools/patch_day_check.py": {
+    "diagnostic_field": 1,
+    "failure": 2,
     "raise": 1,
     "report": 1
   },
