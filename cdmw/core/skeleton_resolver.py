@@ -12,7 +12,7 @@ from cdmw.models import ArchiveEntry
 from cdmw.domain.archives.filters import archive_entry_load_priority
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.modding.mesh_parser import pac_bone_palette_candidates
-from cdmw.modding.skeleton_parser import Skeleton, iter_pab_candidate_basenames, parse_pab
+from cdmw.modding.skeleton_parser import Skeleton, iter_pab_candidate_basenames, npc_player_family, parse_pab
 
 
 @dataclass(frozen=True)
@@ -126,6 +126,7 @@ def _shared_prefix_len(left: str, right: str) -> int:
 #: :func:`_short_palette_rig_is_near`.
 _SHORT_PALETTE = 8
 _PLAYER_MODELS = ("character", "model", "1_pc")
+_NPC_MODELS = ("character", "model", "3_npc")
 
 
 def _short_palette_rig_is_near(candidate_path: str, model_path: str) -> bool:
@@ -135,13 +136,14 @@ def _short_palette_rig_is_near(candidate_path: str, model_path: str) -> bool:
     creature's, ``Bone001`` in a carriage's, a horse's spine in every mount's. So
     the rig has to sit in a folder above the model, or be a player rig for a
     player model, where the shared rigs are told apart by name and by the
-    family's prefab descriptors.
+    family's prefab descriptors. NPC equipment is worn on the player rigs, so it
+    counts as a player model here.
     """
     rig_folder = PurePosixPath(candidate_path).parent.parts
     model_parts = PurePosixPath(model_path).parts
     if model_parts[:len(rig_folder)] == rig_folder:
         return True
-    return rig_folder[:3] == _PLAYER_MODELS and model_parts[:3] == _PLAYER_MODELS
+    return rig_folder[:3] == _PLAYER_MODELS and model_parts[:3] in (_PLAYER_MODELS, _NPC_MODELS)
 
 
 def _skeleton_palette_hits(skeleton: Skeleton, pac_data: bytes, *, palettes=None) -> int:
@@ -868,11 +870,21 @@ def _family_rig_from_descriptors(
     and goblin men ``phm_01.pab``, women ``phw_01.pab``). Prefab folders pad the
     family number that model folders do not (``09_pgm`` for ``9_pgm``).
     Creature families mix rigs per character; Refit settles those itself.
+
+    NPC equipment (``character/model/3_npc/1_nhm``) has no skeleton of its own
+    and its prefabs name none: it is worn by NPCs built on the player rigs, so
+    an ``n<race>`` family is settled by its ``p<race>`` player family
+    (``nhm`` by ``phm``, ``ngm`` by ``pgm``, ``ntm`` by ``ptm``).
     """
     parts = PurePosixPath(model_path).parts
-    if len(parts) < 5 or parts[:3] != ("character", "model", "1_pc") or "_" not in parts[3]:
+    if len(parts) < 5 or parts[:2] != ("character", "model") or "_" not in parts[3]:
         return ""
-    group, family = parts[2], parts[3].split("_", 1)[1]
+    family = parts[3].split("_", 1)[1]
+    if parts[2] == "3_npc" and npc_player_family(family):
+        family = npc_player_family(family)
+    elif parts[2] != "1_pc":
+        return ""
+    group = "1_pc"
     named: Counter[str] = Counter()
     read = 0
     for key, entries in (archive_entries_by_normalized_path or {}).items():

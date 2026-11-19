@@ -104,3 +104,39 @@ def test_a_dlc_copy_of_a_rig_wins_over_the_base_copy_it_shadows(dlc_first):
         model, (), archive_entries_by_normalized_path={}, archive_entries_by_basename={"body.pab": group})
     assert selected is dlc, report
     assert len(report.candidates) == 1
+
+
+NPC_HUMAN_TOP = "character/model/3_npc/1_nhm/armor_south/9_upperbody/cd_nhm_00_so_ub_10109.pac"
+NPC_DWARF_TOP = "character/model/3_npc/7_ndm/armor_south/9_upperbody/cd_ndm_00_so_ub_10001.pac"
+DWARF_NUDE = "character/prefab/1_pc/07_pdm/nude/cd_pdm_00_nude_00_0001.prefabdata_xml"
+
+
+def test_npc_armor_names_the_player_rig_of_its_race():
+    from cdmw.modding.skeleton_parser import iter_pab_candidate_basenames
+
+    assert "phm_01.pab" in iter_pab_candidate_basenames(NPC_HUMAN_TOP)
+    assert "phw_01.pab" in iter_pab_candidate_basenames(NPC_HUMAN_TOP.replace("1_nhm", "2_nhw").replace("_nhm_", "_nhw_"))
+    assert "phm_01.pab" not in iter_pab_candidate_basenames(GOBLIN_HEAD.replace("9_pgm", "9_xgm"))
+
+
+def test_a_human_npc_armor_piece_takes_the_player_male_rig(tied_rigs):
+    # NPC armor ships no .pab and its prefabs name no skeleton; every humanoid rig resolves its palette.
+    selected, report, _reads = _resolve(NPC_HUMAN_TOP, {})
+
+    assert selected is not None and selected.path == PHM
+    assert not report.blocking_errors
+
+
+def test_a_dwarf_npc_armor_piece_takes_the_rig_its_player_family_prefabs_name(tied_rigs):
+    selected, report, reads = _resolve(NPC_DWARF_TOP, {DWARF_NUDE: _nude("1_pc/1_phm/phm_01.pab")})
+
+    assert selected is not None and selected.path == PHM
+    assert report.confidence == "family_descriptor" and DWARF_NUDE in reads
+
+
+def test_npc_families_without_a_player_twin_use_the_body_their_appearances_wear():
+    from cdmw.modding.skeleton_parser import npc_player_family
+
+    assert npc_player_family("nhm") == "phm" and npc_player_family("ntm") == "ptm"
+    assert npc_player_family("ndem") == "phm"
+    assert npc_player_family("") == "" and npc_player_family("phm") == ""

@@ -98,6 +98,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- Archive Browser exports NPC armour and clothing (`character/model/3_npc/`, such as the Greymane Cloth Armor pieces) to GLB or FBX with its skeleton, instead of saying no candidate skeleton resolves the bone palette and offering a mesh-only export. NPC gear ships no skeleton of its own; it now takes the player rig of its race, as the NPCs wearing it do: men of the human, orc, dwarf and goblin families the male rig, women the female rig, the tall family its own, and the "ndem" family the male rig its NPCs are built on. A handful of pieces (about 10 of 1,700) still ask you to pick a skeleton.
 - Closing a model and opening it again with **Open Selected Mesh** keeps the materials it first opened with. It could rebuild them from the native package with parts and materials paired wrongly, such as the veil's shader on the crown parts. Contributed by blablahandsome1212 (issue #34).
 - Preview Core publishes each batch's shader family from the texture binding that names the part's own material. It took the family of the batch's first binding, its base texture, which can belong to a sibling part's material. Reported by blablahandsome1212 (issue #34).
 - Material layers read per-part inputs where Preview Core writes them, under `dds_textures.material_inputs`, instead of only the batch's top level. Contributed by blablahandsome1212 (issue #34).

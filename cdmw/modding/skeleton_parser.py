@@ -303,6 +303,19 @@ def is_skeleton_file(path: str) -> bool:
     return os.path.splitext(path.lower())[1] == ".pab"
 
 
+#: NPC families without a player family of the same name. Their appearances
+#: wear the human male body (``phm_00_nude_*``).
+_NPC_PLAYER_FAMILY_ALIASES = {"ndem": "phm"}
+
+
+def npc_player_family(npc_family: str) -> str:
+    """The player family whose rig an NPC family wears (``nhm`` -> ``phm``), or ""."""
+    family = str(npc_family or "").lower()
+    if family in _NPC_PLAYER_FAMILY_ALIASES:
+        return _NPC_PLAYER_FAMILY_ALIASES[family]
+    return f"p{family[1:]}" if len(family) > 1 and family.startswith("n") else ""
+
+
 def iter_pab_candidate_basenames(pac_path: str) -> tuple[str, ...]:
     normalized_path = str(pac_path or "").replace("\\", "/").strip().lower()
     stem = PurePosixPath(normalized_path).stem
@@ -347,6 +360,10 @@ def iter_pab_candidate_basenames(pac_path: str) -> tuple[str, ...]:
         class_match = re.match(r"^\d+_([a-z]{2,5})$", part)
         if class_match is not None:
             _append(f"{class_match.group(1)}_01")
+            # NPC families (1_nhm, 2_nhw, 14_ntm) wear the player rig of the
+            # same race (phm_01, phw_01, ptm_01) and ship no .pab of their own.
+            if "3_npc" in path_parts and npc_player_family(class_match.group(1)):
+                _append(f"{npc_player_family(class_match.group(1))}_01")
         if re.match(r"^cd_m\d{4}_", part):
             _append(part)
     if "character/model/1_pc/" in normalized_path:
