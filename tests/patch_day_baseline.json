@@ -319,79 +319,98 @@
   "known_failures": {
     "test_archive_overlay::test_the_writer_lays_a_shipped_archive_out_the_way_the_game_ships_it[0002]": {
       "entry": "S-5",
-      "reason": "walks the pre-1.0.0.3392 index layout; overlays retired (P-06); retire or retarget the test"
+      "reason": "walks the pre-1.0.0.3392 index layout; overlays retired (P-06); retire or retarget the test",
+      "message": "struct.error: unpack_from requires a buffer of at least 1702102788 bytes for unpacking 4 bytes at offset 1702102784 (actual buffer size is 25)"
     },
     "test_archive_overlay::test_the_writer_lays_a_shipped_archive_out_the_way_the_game_ships_it[0011]": {
       "entry": "S-5",
-      "reason": "walks the pre-1.0.0.3392 index layout; overlays retired (P-06); retire or retarget the test"
+      "reason": "walks the pre-1.0.0.3392 index layout; overlays retired (P-06); retire or retarget the test",
+      "message": "struct.error: unpack_from requires a buffer of at least 1768754436 bytes for unpacking 4 bytes at offset 1768754432 (actual buffer size is 158)"
     },
     "test_archive_overlay::test_the_writer_lays_a_shipped_archive_out_the_way_the_game_ships_it[0013]": {
       "entry": "S-5",
-      "reason": "walks the pre-1.0.0.3392 index layout; overlays retired (P-06); retire or retarget the test"
+      "reason": "walks the pre-1.0.0.3392 index layout; overlays retired (P-06); retire or retarget the test",
+      "message": "struct.error: unpack_from requires a buffer of at least 1767966724 bytes for unpacking 4 bytes at offset 1767966720 (actual buffer size is 18)"
     },
     "test_multichangeinfo_table::VanillaMultiChangeTests::test_every_shipped_row_parses_and_ziane_lists_fourteen_of_its_own": {
       "entry": "S-4",
-      "reason": "only 1,508 items resolve MultiChange rows through the older helper; not yet classified"
+      "reason": "only 1,508 items resolve MultiChange rows through the older helper; not yet classified",
+      "message": "AssertionError: 1508 not greater than 3500"
     },
     "test_new_item_service::VanillaNewItemTests::test_snapshot_and_plans_against_the_shipped_archives": {
       "entry": "S-3",
-      "reason": "expects 14 PALOC patches; the game ships 15 languages (P-33)"
+      "reason": "expects 14 PALOC patches; the game ships 15 languages (P-33)",
+      "message": "AssertionError: 15 != 14"
     },
     "test_pappt_format::VanillaPapptTests::test_the_shipped_table_parses_to_the_last_byte_and_rebuilds_exactly": {
       "entry": "S-1",
-      "reason": "still expects CD_MainWeapon_Sword_R (P-18)"
+      "reason": "still expects CD_MainWeapon_Sword_R (P-18)",
+      "message": "AssertionError: Lists differ: ['MainWeapon_Sword_R'] != ['CD_MainWeapon_Sword_R']"
     },
     "test_patch_day_format_guards::test_static_table_decodes[detectinfo]": {
       "entry": "P-35",
-      "reason": "DetectInfo gained _detectDetailData after 1.0.0.3576; first bad table of P-31"
+      "reason": "DetectInfo gained _detectDetailData after 1.0.0.3576; first bad table of P-31",
+      "message": "AssertionError: ('detectinfo', 0, {'Unproven static record boundary': 44})"
     },
     "test_patch_day_format_guards::test_static_table_decodes[factionspawndatainfo]": {
       "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table"
+      "reason": "generic table reader still refuses rows on this table",
+      "message": "AssertionError: ('factionspawndatainfo', 23, {\"Compact static list exceeds the supported bound at ('_patrolSpawnData', '_patrolGroupDataList', 0, '_partyDataList', 0, '_characterSpawnList').\": 40, 'Truncated static record': 68})"
     },
     "test_patch_day_format_guards::test_static_table_decodes[missioninfo]": {
       "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table"
+      "reason": "generic table reader still refuses rows on this table",
+      "message": "AssertionError: ('missioninfo', 5077, {\"Compact static list exceeds the supported bound at ('_uiDesc', '_targetStageInfoList').\": 187, 'Static record list exceeds the supported bound': 926, 'Truncated static record': 300})"
     },
     "test_patch_day_format_guards::test_static_table_decodes[skillgroupinfo]": {
       "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table"
+      "reason": "generic table reader still refuses rows on this table",
+      "message": "AssertionError: ('skillgroupinfo', 0, {'Truncated static record': 27})"
     },
     "test_patch_day_format_guards::test_static_table_decodes[spawningpoolautospawninfo]": {
       "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table"
+      "reason": "generic table reader still refuses rows on this table",
+      "message": "AssertionError: ('spawningpoolautospawninfo', 0, {'Unproven static record boundary': 148})"
     },
     "test_patch_day_format_guards::test_static_table_decodes[stageinfo]": {
       "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table"
+      "reason": "generic table reader still refuses rows on this table",
+      "message": "AssertionError: ('stageinfo', 53301, {'Invalid compact static presence flag.': 11})"
     },
     "test_patch_day_format_guards::test_static_table_decodes[statusinfo]": {
       "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table"
+      "reason": "generic table reader still refuses rows on this table",
+      "message": "AssertionError: ('statusinfo', 83, {\"Compact static list exceeds the supported bound at ('_minPassiveSkillList',).\": 7})"
     },
     "test_patch_day_format_guards::test_static_table_decodes[uimaptextureinfo]": {
       "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table"
+      "reason": "generic table reader still refuses rows on this table",
+      "message": "AssertionError: ('uimaptextureinfo', 0, {'Static record list exceeds the supported bound': 1892, 'Truncated static record': 198})"
     },
     "test_posemodifier_xml::VanillaDescriptorTests::test_editing_one_value_changes_one_value": {
       "entry": "P-32",
-      "reason": "the descriptor is a stub pointing to PoseModifierData_Common"
+      "reason": "the descriptor is a stub pointing to PoseModifierData_Common",
+      "message": "cdmw.core.posemodifier_xml.PoseModifierError: not a pose-modifier descriptor"
     },
     "test_posemodifier_xml::VanillaDescriptorTests::test_it_holds_the_sections_the_engine_names": {
       "entry": "P-32",
-      "reason": "the descriptor is a stub pointing to PoseModifierData_Common"
+      "reason": "the descriptor is a stub pointing to PoseModifierData_Common",
+      "message": "cdmw.core.posemodifier_xml.PoseModifierError: not a pose-modifier descriptor"
     },
     "test_posemodifier_xml::VanillaDescriptorTests::test_the_player_skeleton_has_settings": {
       "entry": "P-32",
-      "reason": "the descriptor is a stub pointing to PoseModifierData_Common"
+      "reason": "the descriptor is a stub pointing to PoseModifierData_Common",
+      "message": "cdmw.core.posemodifier_xml.PoseModifierError: not a pose-modifier descriptor"
     },
     "test_posemodifier_xml::VanillaDescriptorTests::test_the_shipped_descriptor_round_trips_byte_for_byte": {
       "entry": "P-32",
-      "reason": "the descriptor is a stub pointing to PoseModifierData_Common"
+      "reason": "the descriptor is a stub pointing to PoseModifierData_Common",
+      "message": "AssertionError: False is not true"
     },
     "test_static_table_records::test_every_installed_row_decodes_or_is_refused_by_a_closed_variant": {
       "entry": "P-35",
-      "reason": "DetectInfo gained _detectDetailData after 1.0.0.3576; first bad table of P-31"
+      "reason": "DetectInfo gained _detectDetailData after 1.0.0.3576; first bad table of P-31",
+      "message": "AssertionError: ('detectinfo', ((1, 'Unproven static record boundary'), (2, 'Unproven static record boundary'), (9, 'Unproven static record boundary')))"
     }
   },
   "expected_skips": {

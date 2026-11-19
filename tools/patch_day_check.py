@@ -11,8 +11,9 @@ procedure and every past break; worktrees do not carry it):
    baseline, recounts the archive inventory in memory, runs the `real_game` sweep once
    and sorts every result into an area of the register.
 2. Read the report (`.work/tests/<date>-patch-<build>/patch-day.md`). It exits 1 when
-   anything is NEW: a failure the baseline does not list, a skip it does not expect, or
-   a changed metadata file, inventory or static table name. An ASI loader the virtual
+   anything is NEW: a failure the baseline does not list, a known failure whose reason
+   changed, a skip it does not expect, a missing metadata file, or a changed inventory or
+   static table name. Changed metadata files and the new build are reported, not failed. An ASI loader the virtual
    runtime does not know is reported as a warning (it is not a game change).
 3. For each new failure, decide: real break (the app's own path fails on this build)
    or stale test (the test asserts an old name or layout the app already handles).
@@ -280,7 +281,13 @@ def classify(results: Mapping[str, dict], baseline: Mapping[str, object]) -> lis
         if outcome == "passed":
             verdict = "FIXED (was a known failure)" if key in known else "ok"
         elif outcome in ("failed", "error"):
-            verdict = f"known ({known[key]['entry']})" if key in known else "NEW FAILURE"
+            if key not in known:
+                verdict = "NEW FAILURE"
+            elif "message" in known[key] and (failure_signature(known[key]["message"])
+                                              != failure_signature(result["message"])):
+                verdict = f"KNOWN FAILURE CHANGED ({known[key]['entry']}; was: {known[key]['message'][:120]})"
+            else:
+                verdict = f"known ({known[key]['entry']})"
         else:
             reason = next((r for pattern, r in skips.items() if skip_matches(key, pattern)), None)
             local = next((why for rule, why in ENVIRONMENT_SKIPS if rule.search(result["message"])), None)
@@ -308,7 +315,13 @@ ENVIRONMENT_SKIPS = (
 )
 
 #: Verdicts that make the run fail: something the baseline does not explain.
-NEW_VERDICTS = ("NEW FAILURE", "UNEXPECTED SKIP", "KNOWN FAILURE NO LONGER RUNS")
+NEW_VERDICTS = ("NEW FAILURE", "KNOWN FAILURE CHANGED", "UNEXPECTED SKIP", "KNOWN FAILURE NO LONGER RUNS")
+
+
+def failure_signature(message: str) -> str:
+    """A known failure's message with its numbers blanked: counts may drift, the reason may not."""
+
+    return re.sub(r"\d[\d,._]*", "#", str(message or "")).strip()
 
 
 def is_new(row: Mapping[str, str]) -> bool:
@@ -376,7 +389,8 @@ def write_baseline(report: Mapping[str, object], previous: Mapping[str, object],
     known = {} if report.get("tests") else dict(known_before)  # a --no-sweep run keeps the known set
     for row in report.get("tests", []):
         if row["outcome"] in ("failed", "error"):
-            known[row["test"]] = known_before.get(row["test"], {"entry": "unclassified", "reason": row["message"]})
+            known[row["test"]] = {**known_before.get(row["test"], {"entry": "unclassified", "reason": row["message"]}),
+                                  "message": row["message"]}
     baseline = dict(previous)
     baseline.update(
         exe=report["build"]["exe"], steam_build=report["build"]["steam"], recorded=report["date"],
@@ -463,7 +477,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Baseline written: {BASELINE_PATH}")
         return 0
     new = [row for row in report.get("tests", []) if is_new(row)]
-    flagged = (new or any(v.get("changed") or v.get("missing") for v in meta.values())
+    # A patch changes the meta files every time; that is reported, not a failure. A missing one is.
+    flagged = (new or any(v.get("missing") for v in meta.values())
                or any(report["inventory"].values()) or any(report["static_tables"].values())
                or (not args.no_sweep and not report.get("tests")))
     return 1 if flagged else 0

@@ -19,6 +19,11 @@ Rules every test follows:
 - Floors are invariants with a margin (every file read, byte-identical rebuilds, a
   refusal share), set from the 1.0.0.3732 figures noted beside each test. Raise a
   floor only after reading the new refusals.
+- Each check was shown to refuse damaged copies (truncated, or four bytes inserted
+  mid-file) of shipped files, except where its docstring says it is weaker
+  (`.work/research/2026-11-19-patch-day-coverage/stronger_checks.py` in the main checkout).
+- The stride sample rarely lands on files a patch adds; the inventory diff in
+  `tools/patch_day_check.py` is what notices those.
 """
 
 from __future__ import annotations
@@ -196,10 +201,14 @@ def test_dds_headers_inspect(game, by_extension):
     """The DDS header reader understands shipped textures (texture editor, previews, replacement)."""
 
     from cdmw.core.dds_native import inspect_dds_native
+    from cdmw.core.pathc_format import validate_dds_payload
 
     def check(data, _path):
         info = inspect_dds_native(data, payload_size=len(data))
-        return "" if info.width and info.height and not info.reason else f"refused: {info.reason or info.format_name}"
+        if not (info.width and info.height) or info.reason:
+            return f"refused: {info.reason or info.format_name}"
+        validate_dds_payload(data)  # the header explains every byte (a damaged copy fails here)
+        return ""
 
     checked, refused = _refusals(game, sample(by_extension, ".dds", 400), check)
     _assert_share("dds", checked, refused, at_most=0.02)
@@ -231,8 +240,10 @@ def test_character_meshes_parse(game, by_extension):
 def test_static_meshes_parse(game, by_extension, extension):
     """Static and LOD meshes parse to geometry (previews, static replacement, Format Explorer).
 
-    The PAC harness's source-map checks do not apply to these, so the guard is that the
-    parser returns vertices. All-zero proxy PAMs exist ([P-05]), hence the margin.
+    The PAC harness's source-map checks do not apply to these, so the guard is only that the
+    parser returns vertices. It is weak: a copy with four bytes inserted mid-file still
+    parses, so this catches a header or section-table change, not a vertex layout drift.
+    All-zero proxy PAMs exist ([P-05]), hence the margin.
     """
 
     from cdmw.modding.mesh_parser import parse_mesh
@@ -314,11 +325,12 @@ def test_appearance_xml_lists_prefabs(game, by_extension):
 def test_prefabs_decode(game, by_extension):
     """The prefab reader decodes shipped prefabs (New Item, Placement, sockets, part roles) ([P-21])."""
 
-    from cdmw.core.prefab_binary import decode_prefab_binary
+    from cdmw.core.prefab_binary import decode_prefab_binary, walk_is_determined
 
     def check(data, _path):
         decode_prefab_binary(data)
-        return ""
+        # A completed decode alone proved little in P-21; the walk must also be determined.
+        return "" if walk_is_determined(data) else "walk not determined"
 
     sentinels = ("character/bin__/prefab/1_pc/1_phm/weapon/cd_phm_00_sword_0001.prefab",)
     sentinels = tuple(s for s in sentinels if s in game.by_path)
@@ -334,10 +346,10 @@ def test_effects_decode(game, by_extension, extension):
     """Effect and emitter binaries decode (effect catalogue, New Item effects) ([P-28])."""
 
     from cdmw.core.effect_binary import decode_effect_binary
+    from cdmw.core.effect_writer import serialize_effect
 
     def check(data, _path):
-        decode_effect_binary(data)
-        return ""
+        return "" if serialize_effect(data, decode_effect_binary(data)) == data else "does not rebuild byte for byte"
 
     checked, refused = _refusals(game, sample(by_extension, extension, 150), check)
     _assert_share(extension, checked, refused, at_most=0.02)
@@ -355,6 +367,8 @@ def test_sound_banks_read(game, by_extension):
         chunks, _ = read_bank_chunks(data)
         if not chunks:
             return "no chunks"
+        if chunks[-1].offset + chunks[-1].size != len(data):
+            return "chunks do not end the file"
         if any(c.identifier == "HIRC" for c in chunks):
             read_hirc_graph(data)
         return ""

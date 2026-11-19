@@ -106,8 +106,8 @@ def test_writing_a_baseline_keeps_known_reasons_and_adds_new_ones(tmp_path):
     written = json.loads(path.read_text(encoding="utf-8"))
     assert written["exe"] == "1.0.0.2" and written["static_tables"] == ["iteminfo"]
     assert written["meta"] == {"meta/0.paver": {"size": 28, "sha256": "ab"}}
-    assert written["known_failures"] == {"t::a": {"entry": "P-31", "reason": "kept"},
-                                         "t::b": {"entry": "unclassified", "reason": "boom"}}
+    assert written["known_failures"] == {"t::a": {"entry": "P-31", "reason": "kept", "message": "m"},
+                                         "t::b": {"entry": "unclassified", "reason": "boom", "message": "boom"}}
     assert written["expected_skips"] == {"t::s": "x", "t::s2": "why"}
 
 
@@ -117,3 +117,24 @@ def test_the_tracked_baseline_names_a_register_entry_for_every_known_failure():
     unnamed = [key for key, row in baseline["known_failures"].items()
                if not re.match(r"(P|S)-\d+", row.get("entry", ""))]
     assert not unnamed, unnamed
+
+
+def test_a_known_failure_that_fails_for_a_new_reason_is_flagged(monkeypatch):
+    """A test that already fails must not hide a second break: its reason is compared too."""
+
+    monkeypatch.setattr(pdc, "AREAS", {"test_a": ("A", "-")})
+    known = {"known_failures": {
+        "test_a::test_tables": {"entry": "P-31", "reason": "r",
+                                "message": "AssertionError: ('stageinfo', 53301, {'Invalid compact static presence flag.': 11})"},
+        "test_a::test_old": {"entry": "S-1", "reason": "r"},  # no stored message: id only
+    }}
+    drift = {"test_a::test_tables": {"outcome": "failed", "message":
+             "AssertionError: ('stageinfo', 53410, {'Invalid compact static presence flag.': 12})"},
+             "test_a::test_old": {"outcome": "failed", "message": "anything"}}
+    rows = {row["test"]: row for row in pdc.classify(drift, known)}
+    assert rows["test_a::test_tables"]["verdict"] == "known (P-31)"  # counts drift, same reason
+    assert rows["test_a::test_old"]["verdict"] == "known (S-1)"
+    changed = {"test_a::test_tables": {"outcome": "failed", "message":
+               "AssertionError: ('stageinfo', 0, {'Truncated static record': 53301})"}}
+    row = pdc.classify(changed, known)[0]
+    assert row["verdict"].startswith("KNOWN FAILURE CHANGED (P-31") and pdc.is_new(row)
