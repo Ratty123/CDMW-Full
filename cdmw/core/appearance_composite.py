@@ -155,7 +155,7 @@ def _dedupe_entries(entries: Sequence[ArchiveEntry]) -> Tuple[ArchiveEntry, ...]
 
 def _read_entry_text(entry: ArchiveEntry) -> str:
     data, _decompressed, _note = read_archive_entry_data(entry)
-    return try_decode_text_like_archive_data(data) or data.decode("utf-8-sig", errors="replace")
+    return try_decode_text_like_archive_data(data, limit=None) or data.decode("utf-8-sig", errors="replace")
 
 
 def _xml_local_name(tag: object) -> str:

@@ -17,7 +17,7 @@ from cdmw.services.mesh_replacement_import import archive_entry, archive_locatio
 
 def _sidecar_text(data):
     from cdmw.core.archive_binary_preview import try_decode_text_like_archive_data
-    text = try_decode_text_like_archive_data(data)
+    text = try_decode_text_like_archive_data(data, limit=None)
     if not text:
         raise ValueError("Replacement material sidecar is not readable text.")
     return text

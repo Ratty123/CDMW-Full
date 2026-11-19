@@ -278,7 +278,7 @@ class ArchiveMeshSwapSupportMixin:
                     score += 8
             try:
                 data, _decompressed, _note = read_archive_entry_data(candidate)
-                text = (try_decode_text_like_archive_data(data) or "").lower()
+                text = (try_decode_text_like_archive_data(data, limit=None) or "").lower()
             except Exception:
                 raise_if_cancelled(stop_event, "Character appearance scan cancelled.")
                 text = ""
@@ -478,7 +478,7 @@ class ArchiveMeshSwapSupportMixin:
             raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
             try:
                 sidecar_data, _decompressed, _note = read_archive_entry_data(sidecar_entry)
-                sidecar_text = try_decode_text_like_archive_data(sidecar_data) or ""
+                sidecar_text = try_decode_text_like_archive_data(sidecar_data, limit=None) or ""
             except Exception:
                 continue
             for raw_texture_path in _extract_archive_sidecar_texture_lookup_paths(sidecar_text):
@@ -532,7 +532,7 @@ class ArchiveMeshSwapSupportMixin:
             raise_if_cancelled(stop_event, "In-game mesh texture evidence cancelled.")
             try:
                 sidecar_data, _decompressed, _note = read_archive_entry_data(sidecar_entry)
-                sidecar_text = try_decode_text_like_archive_data(sidecar_data) or ""
+                sidecar_text = try_decode_text_like_archive_data(sidecar_data, limit=None) or ""
                 profile = parse_material_sidecar_profile(sidecar_text, sidecar_path=sidecar_entry.path)
             except Exception:
                 continue

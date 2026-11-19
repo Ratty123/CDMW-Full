@@ -917,7 +917,7 @@ def _collect_archive_texture_sidecar_texts_from_entries(
             raw_data, _decompressed, _note = read_archive_entry_data(sidecar_entry, stop_event=stop_event)
         except Exception:
             continue
-        text = str(try_decode_text_like_archive_data(raw_data) or "").strip()
+        text = str(try_decode_text_like_archive_data(raw_data, limit=None) or "").strip()
         if not text or text in seen_texts:
             continue
         seen_texts.add(text)

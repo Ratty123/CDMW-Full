@@ -152,7 +152,7 @@ class ArchiveMaterialSidecarActionsMixin:
 
     @staticmethod
     def _decode_material_sidecar_bytes(data: bytes) -> str:
-        decoded = try_decode_text_like_archive_data(data)
+        decoded = try_decode_text_like_archive_data(data, limit=None)
         if decoded is not None:
             return decoded
         return data.decode("utf-8", errors="replace")

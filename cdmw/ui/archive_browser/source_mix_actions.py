@@ -209,7 +209,7 @@ class ArchiveSourceMixActionsMixin:
                 payload = sidecar_candidate.read_payload()
             except Exception:
                 continue
-            sidecar_text = try_decode_text_like_archive_data(payload) or payload.decode("utf-8", errors="replace")
+            sidecar_text = try_decode_text_like_archive_data(payload, limit=None) or payload.decode("utf-8", errors="replace")
             try:
                 bindings = parse_texture_sidecar_bindings(sidecar_text, sidecar_path=sidecar_candidate.display_path)
             except Exception:
