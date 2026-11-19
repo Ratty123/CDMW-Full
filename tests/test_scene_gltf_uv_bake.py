@@ -658,3 +658,202 @@ def test_real_native_xatlas_mikk_temp_sessions_do_not_grow(
         assert material_report["layout"]["backend"] == "xatlas"
         assert len(result.mesh.submeshes[0].tangent_signs) == len(result.mesh.submeshes[0].vertices)
         assert session_count() == baseline
+
+
+def _write_mirrored_gltf(root: Path, *, multi_uv: bool, skinned: bool = False) -> Path:
+    """Two triangles whose UVs mirror across their shared edge and no TANGENT.
+
+    MikkTSpace gives the shared vertices 0 and 2 a different tangent sign on
+    each side, so it has to split them.
+    """
+
+    chunks: list[bytes] = []
+    views: list[dict[str, int]] = []
+    accessors: list[dict[str, int | str]] = []
+
+    def add(rows: list[tuple[float, ...]], kind: str, code="f", component_type=5126) -> int:
+        raw = struct.pack(f"<{sum(len(row) for row in rows)}{code}", *(value for row in rows for value in row))
+        offset = sum(len(chunk) for chunk in chunks)
+        chunks.append(raw + b"\0" * ((-len(raw)) % 4))
+        views.append({"buffer": 0, "byteOffset": offset, "byteLength": len(raw)})
+        accessors.append({"bufferView": len(views) - 1, "componentType": component_type, "count": len(rows), "type": kind})
+        return len(accessors) - 1
+
+    mirrored_uvs = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 0.0)]
+    attributes = {
+        "POSITION": add([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0)], "VEC3"),
+        "NORMAL": add([(0.0, 0.0, 1.0)] * 4, "VEC3"),
+        "TEXCOORD_0": add(mirrored_uvs, "VEC2"),
+    }
+    if multi_uv:
+        attributes["TEXCOORD_1"] = add([(u * 0.5 + 0.25, v * 0.5 + 0.25) for u, v in mirrored_uvs], "VEC2")
+    if skinned:
+        attributes["JOINTS_0"] = add([(0, 1, 0, 0)] * 4, "VEC4", "H", 5123)
+        attributes["WEIGHTS_0"] = add([(1, 0, 0, 0), (0, 1, 0, 0), (.5, .5, 0, 0), (.25, .75, 0, 0)], "VEC4")
+    indices = (0, 1, 2, 0, 2, 3)
+    index_raw = struct.pack(f"<{len(indices)}H", *indices)
+    index_offset = sum(len(chunk) for chunk in chunks)
+    chunks.append(index_raw + b"\0" * ((-len(index_raw)) % 4))
+    views.append({"buffer": 0, "byteOffset": index_offset, "byteLength": len(index_raw)})
+    accessors.append({"bufferView": len(views) - 1, "componentType": 5123, "count": len(indices), "type": "SCALAR"})
+    document = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": "mesh.bin", "byteLength": sum(len(chunk) for chunk in chunks)}],
+        "bufferViews": views,
+        "accessors": accessors,
+        "meshes": [{"primitives": [{"attributes": attributes, "indices": len(accessors) - 1, "material": 0}]}],
+        "materials": [
+            {
+                "name": "Mirrored",
+                "pbrMetallicRoughness": {"baseColorTexture": {"index": 0, "texCoord": 0}},
+                "normalTexture": {"index": 1, "texCoord": 1 if multi_uv else 0},
+            }
+        ],
+        "textures": [{"source": 0}, {"source": 1}],
+        "images": [{"uri": "base.png"}, {"uri": "normal.png"}],
+        "nodes": [{"mesh": 0}],
+        "scenes": [{"nodes": [0]}],
+        "scene": 0,
+    }
+    if skinned:
+        document["nodes"][0]["skin"] = 0
+        document["nodes"].extend([{"name": "first"}, {"name": "second"}])
+        document["skins"] = [{"joints": [1, 2]}]
+        document["scenes"][0]["nodes"].extend([1, 2])
+    (root / "mesh.bin").write_bytes(b"".join(chunks))
+    Image.new("RGBA", (16, 16), (180, 90, 30, 255)).save(root / "base.png")
+    Image.new("RGBA", (16, 16), (128, 128, 255, 255)).save(root / "normal.png")
+    path = root / "mirrored.gltf"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def _fake_split_tangents(temporary_mesh, _indices, **_kwargs):
+    """Mimic the native MikkTSpace split of the mirrored quad: face 1 gets its own copies of vertices 0 and 2."""
+
+    output = temporary_mesh.submeshes[0]
+    count = len(output.vertices)
+    vertex_map = list(range(count)) + [0, 2]
+    output.vertices = [output.vertices[index] for index in vertex_map]
+    output.normals = [output.normals[index] for index in vertex_map]
+    output.uvs = [output.uvs[index] for index in vertex_map]
+    output.faces = [(0, 1, 2), (count, count + 1, 3)]
+    output.source_vertex_map = vertex_map
+    output.tangents = [(1.0, 0.0, 0.0)] * len(vertex_map)
+    setattr(output, "tangent_signs", [1.0, 1.0, 1.0, -1.0, -1.0, -1.0])
+    return {0}
+
+
+def _corner_positions(submesh: SubMesh) -> list[tuple[tuple[float, float, float], ...]]:
+    return [tuple(tuple(submesh.vertices[index]) for index in face) for face in submesh.faces]
+
+
+def test_single_uv_normal_import_accepts_mikk_tangent_split(tmp_path: Path) -> None:
+    path = _write_mirrored_gltf(tmp_path, multi_uv=False, skinned=True)
+
+    with patch(
+        "cdmw.modding.scene_gltf_uv_bake.apply_native_mesh_generate_tangents",
+        side_effect=_fake_split_tangents,
+    ):
+        result = import_scene_mesh_with_report(path, include_external_audit=False, preserve_skinning=True)
+
+    submesh = result.mesh.submeshes[0]
+    assert len(submesh.vertices) == 6
+    assert submesh.vertex_count == 6
+    assert _corner_positions(submesh) == [
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0)),
+    ]
+    for channel in (submesh.uvs, submesh.normals, submesh.tangents, submesh.tangent_signs, submesh.bone_indices, submesh.bone_weights):
+        assert len(channel) == 6
+    # Each copy keeps the skin weights of the vertex it was split from.
+    assert submesh.bone_weights[4] == submesh.bone_weights[0]
+    assert submesh.bone_weights[5] == submesh.bone_weights[2]
+    assert submesh.uvs[4] == submesh.uvs[0]
+    assert submesh.tangent_signs == [1.0, 1.0, 1.0, -1.0, -1.0, -1.0]
+
+
+def test_source_tangent_split_remaps_the_combined_material() -> None:
+    first = _triangle("first", 0.0)
+    second = SubMesh(
+        name="second",
+        material="Shared",
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0)],
+        normals=[(0.0, 0.0, 1.0)] * 4,
+        uvs=[(0.0, 0.0)] * 4,
+        faces=[(0, 1, 2), (0, 2, 3)],
+        vertex_count=4,
+        face_count=2,
+    )
+    mesh = ParsedMesh(submeshes=[first, second])
+    mirrored = ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 0.0))
+    records = [
+        GltfUvPrimitiveRecord(0, 0, "first", GltfPrimitiveUvInputs("first", (GltfPrimitiveUvSet(0, 0, ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0))),))),
+        GltfUvPrimitiveRecord(0, 1, "second", GltfPrimitiveUvInputs("second", (GltfPrimitiveUvSet(0, 0, mirrored),))),
+    ]
+    plan = GltfMaterialUvPlan(
+        0,
+        "Shared",
+        (_slot("normal", "normal", 0, 0, GLTF_IDENTITY_UV_TRANSFORM),),
+        0,
+        GLTF_IDENTITY_UV_TRANSFORM,
+    )
+    combined = _build_combined_material(mesh, plan, records)
+
+    def fake(temporary_mesh, _indices, **_kwargs):
+        output = temporary_mesh.submeshes[0]
+        # Combined vertices 3..6 are the second primitive; split 3 and 5 for its second face.
+        vertex_map = list(range(7)) + [3, 5]
+        output.vertices = [output.vertices[index] for index in vertex_map]
+        output.normals = [output.normals[index] for index in vertex_map]
+        output.uvs = [output.uvs[index] for index in vertex_map]
+        output.faces = [(0, 1, 2), (3, 4, 5), (7, 8, 6)]
+        output.source_vertex_map = vertex_map
+        output.tangents = [(1.0, 0.0, 0.0)] * 9
+        setattr(output, "tangent_signs", [1.0] * 7 + [-1.0, -1.0])
+        return {0}
+
+    with patch("cdmw.modding.scene_gltf_uv_bake.apply_native_mesh_generate_tangents", side_effect=fake):
+        _prepare_source_tangent_frames(combined, [0], stop_event=None)
+
+    submesh = combined.mesh.submeshes[0]
+    assert len(submesh.vertices) == 9
+    assert submesh.faces == [(0, 1, 2), (3, 4, 5), (7, 8, 6)]
+    assert submesh.source_vertex_map == list(range(9))
+    assert combined.source_owners[7] == combined.source_owners[3] == (1, 0)
+    assert combined.source_owners[8] == combined.source_owners[5] == (1, 2)
+    assert combined.source_uvs[0][7] == mirrored[0]
+    assert combined.source_uvs[0][8] == mirrored[2]
+    assert combined.source_tangent_frames[0][1] == [1.0] * 7 + [-1.0, -1.0]
+    assert sum(combined.input_face_signatures.values()) == 3
+    assert combined.input_face_signatures[(6, 7, 8)] == 1
+
+
+@pytest.mark.parametrize("multi_uv", [False, True])
+def test_real_native_mirrored_uv_normal_import_splits_instead_of_rejecting(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    multi_uv: bool,
+) -> None:
+    monkeypatch.delenv("CDMW_DISABLE_NATIVE_MESH_CORE", raising=False)
+    if mesh_native_core.find_native_mesh_core_binary() is None:
+        pytest.skip("native mesh core is not built")
+    path = _write_mirrored_gltf(tmp_path, multi_uv=multi_uv, skinned=True)
+
+    result = import_scene_mesh_with_report(path, include_external_audit=False, preserve_skinning=True)
+
+    submesh = result.mesh.submeshes[0]
+    assert len(submesh.faces) == 2
+    assert len(submesh.vertices) > 4
+    for channel in (submesh.uvs, submesh.normals, submesh.tangents, submesh.tangent_signs, submesh.bone_weights):
+        assert len(channel) == len(submesh.vertices)
+    assert sorted(sorted(face) for face in _corner_positions(submesh)) == [
+        [(-1.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        [(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0)],
+    ]
+    if multi_uv:
+        # The raster bake re-lays the UVs and regenerates tangents on the new layout.
+        assert result.uv_bake_report["materials"][0]["layout"]["backend"] == "xatlas"
+    else:
+        # The mirrored UVs keep their opposite tangent signs on the split vertices.
+        assert {float(sign) for sign in submesh.tangent_signs} == {-1.0, 1.0}

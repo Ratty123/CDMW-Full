@@ -12510,7 +12510,7 @@ MESSAGE_REFERENCE = [
     "message": "Native Rejected Texture Candidates: {detail}",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/archive_preview_native.py": 1128
+      "cdmw/workers/archive_preview_native.py": 1168
     }
   },
   {
@@ -42914,7 +42914,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_asset_context.py": 81,
-      "cdmw/services/mesh_item_set_editing.py": 348
+      "cdmw/services/mesh_item_set_editing.py": 398
     }
   },
   {
@@ -42978,7 +42978,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot finish sculpted normals for source file: {asset.entry.basename}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 307
+      "cdmw/services/mesh_item_set_editing.py": 357
     }
   },
   {
@@ -43002,7 +43002,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot paste geometry between source files; select its original file",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 330
+      "cdmw/services/mesh_item_set_editing.py": 380
     }
   },
   {
@@ -48683,7 +48683,7 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/mesh_asset_context.py": 62,
-      "cdmw/services/mesh_item_set_editing.py": 166
+      "cdmw/services/mesh_item_set_editing.py": 216
     }
   },
   {
@@ -48691,7 +48691,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set contains no editable files",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 198
+      "cdmw/services/mesh_item_set_editing.py": 248
     }
   },
   {
@@ -48699,7 +48699,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set dependencies do not match the selected mesh",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 96,
+      "cdmw/services/mesh_item_set_editing.py": 144,
       "cdmw/services/mesh_item_set_references.py": 24,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 170
     }
@@ -48725,7 +48725,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set inclusion no longer matches its parts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 370
+      "cdmw/services/mesh_item_set_editing.py": 420
     }
   },
   {
@@ -48749,7 +48749,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set needs an original game mesh: {entry.basename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 164
+      "cdmw/services/mesh_item_set_editing.py": 214
     }
   },
   {
@@ -48765,7 +48765,7 @@ MESSAGE_REFERENCE = [
     "message": "Item set selection no longer matches its parts",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 320
+      "cdmw/services/mesh_item_set_editing.py": 370
     }
   },
   {
@@ -53219,7 +53219,7 @@ MESSAGE_REFERENCE = [
     "message": "No editable item set is open",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 365
+      "cdmw/services/mesh_item_set_editing.py": 415
     }
   },
   {
@@ -55598,7 +55598,7 @@ MESSAGE_REFERENCE = [
     "message": "Part rig differs from its source file: {asset.entry.basename}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 257
+      "cdmw/services/mesh_item_set_editing.py": 307
     }
   },
   {
@@ -62246,7 +62246,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology edits must stay within one source file",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_item_set_editing.py": 332
+      "cdmw/services/mesh_item_set_editing.py": 382
     }
   },
   {
@@ -76390,7 +76390,7 @@ MESSAGE_REFERENCE = [
     "message": "Character thumbnail capture timed out.",
     "recovery": "timeout",
     "sources": {
-      "cdmw/workers/character_finder_workers.py": 422
+      "cdmw/workers/character_finder_workers.py": 434
     }
   },
   {
@@ -77224,7 +77224,7 @@ MESSAGE_REFERENCE = [
     "message": "Combined body/head preview. Separate facial components remain available in Faces; replacing the embedded head requires customization support.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/character_finder_workers.py": 319
+      "cdmw/workers/character_finder_workers.py": 320
     }
   },
   {
@@ -78328,7 +78328,7 @@ MESSAGE_REFERENCE = [
     "message": "Downscaled {slot.slot_key} from {source.source_width}x{source.source_height} to {source.width}x{source.height} for the 4096 runtime ceiling.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 540
+      "cdmw/modding/scene_gltf_uv_bake.py": 662
     }
   },
   {
@@ -79078,7 +79078,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB file does not contain a JSON chunk: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 509
+      "cdmw/modding/scene_gltf_import.py": 525
     }
   },
   {
@@ -79086,7 +79086,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB file is too small: {path}",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 490
+      "cdmw/modding/scene_gltf_import.py": 506
     }
   },
   {
@@ -79782,7 +79782,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid GLB header: {path}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 493
+      "cdmw/modding/scene_gltf_import.py": 509
     }
   },
   {
@@ -84294,7 +84294,7 @@ MESSAGE_REFERENCE = [
     "message": "The Rust preview helper is unavailable. Rebuild the helper or use a current CDMW build.",
     "recovery": "helper",
     "sources": {
-      "cdmw/workers/character_finder_workers.py": 407
+      "cdmw/workers/character_finder_workers.py": 419
     }
   },
   {
@@ -84862,7 +84862,7 @@ MESSAGE_REFERENCE = [
     "message": "The geometry preview could not be prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/character_finder_workers.py": 361
+      "cdmw/workers/character_finder_workers.py": 373
     }
   },
   {
@@ -85102,7 +85102,7 @@ MESSAGE_REFERENCE = [
     "message": "The native preview could not decode this model.",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/character_finder_workers.py": 351
+      "cdmw/workers/character_finder_workers.py": 363
     }
   },
   {
@@ -85270,7 +85270,7 @@ MESSAGE_REFERENCE = [
     "message": "The renderer did not publish a readable thumbnail.",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/character_finder_workers.py": 445
+      "cdmw/workers/character_finder_workers.py": 457
     }
   },
   {
@@ -85623,7 +85623,7 @@ MESSAGE_REFERENCE = [
     "message": "The thumbnail could not be saved.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/character_finder_workers.py": 452
+      "cdmw/workers/character_finder_workers.py": 464
     }
   },
   {
@@ -85903,7 +85903,7 @@ MESSAGE_REFERENCE = [
     "message": "This glTF/GLB uses compressed mesh data ({', '.join(compressed)}). Export an uncompressed GLB/glTF before importing.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 518
+      "cdmw/modding/scene_gltf_import.py": 534
     }
   },
   {
@@ -86455,7 +86455,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported GLB version {version}; export as GLB 2.0.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 495
+      "cdmw/modding/scene_gltf_import.py": 511
     }
   },
   {
@@ -87955,7 +87955,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF JOINTS_0/WEIGHTS_0 contain invalid skin rows; export one complete skin row per vertex.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 1215
+      "cdmw/modding/scene_gltf_import.py": 1231
     }
   },
   {
@@ -87971,7 +87971,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake could not generate {label} MikkTSpace tangents. {GLTF_UV_BAKE_REMEDY}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 235
+      "cdmw/modding/scene_gltf_uv_bake.py": 257
     }
   },
   {
@@ -87987,7 +87987,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake lost TEXCOORD_{slot.texcoord} through topology remapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 427
+      "cdmw/modding/scene_gltf_uv_bake.py": 549
     }
   },
   {
@@ -87995,7 +87995,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake lost all faces for primitive {record.primitive_label}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 585
+      "cdmw/modding/scene_gltf_uv_bake.py": 707
     }
   },
   {
@@ -88019,7 +88019,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake material {plan.material_name} is missing texture slot {slot.slot_key}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 456
+      "cdmw/modding/scene_gltf_uv_bake.py": 578
     }
   },
   {
@@ -88043,7 +88043,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake primitive {record.primitive_label} has incomplete skin weights.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 609
+      "cdmw/modding/scene_gltf_uv_bake.py": 731
     }
   },
   {
@@ -88088,6 +88088,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "glTF UV bake received incomplete {label} MikkTSpace output.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/scene_gltf_uv_bake.py": 267
+    }
+  },
+  {
+    "area": "other",
     "message": "glTF UV bake received invalid or unsafe raster source dimensions.",
     "recovery": "input",
     "sources": {
@@ -88099,7 +88107,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake received invalid output texture dimensions.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 393
+      "cdmw/modding/scene_gltf_uv_bake.py": 515
     }
   },
   {
@@ -88124,14 +88132,6 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "cdmw/modding/scene_gltf_uv_raster.py": 652
-    }
-  },
-  {
-    "area": "other",
-    "message": "glTF UV bake source MikkTSpace requires unsupported topology splitting.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 244
     }
   },
   {
@@ -88163,7 +88163,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake source tangents used unsupported backend {backend}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 248
+      "cdmw/modding/scene_gltf_uv_bake.py": 274
     }
   },
   {
@@ -88203,7 +88203,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake xatlas output crossed primitive ownership.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 576
+      "cdmw/modding/scene_gltf_uv_bake.py": 698
     }
   },
   {
@@ -88211,7 +88211,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake xatlas output no longer maps to an input triangle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 572
+      "cdmw/modding/scene_gltf_uv_bake.py": 694
     }
   },
   {
@@ -88219,7 +88219,15 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV bake xatlas output omitted one or more input triangles.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 580
+      "cdmw/modding/scene_gltf_uv_bake.py": 702
+    }
+  },
+  {
+    "area": "other",
+    "message": "glTF UV bake {label} MikkTSpace output no longer matches the input triangles.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/scene_gltf_uv_bake.py": 269
     }
   },
   {
@@ -88227,7 +88235,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV raster bake could not create the bundled xatlas layout. {GLTF_UV_BAKE_REMEDY}",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 327
+      "cdmw/modding/scene_gltf_uv_bake.py": 449
     }
   },
   {
@@ -88235,7 +88243,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV raster bake could not regenerate native MikkTSpace tangents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 343
+      "cdmw/modding/scene_gltf_uv_bake.py": 465
     }
   },
   {
@@ -88243,7 +88251,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV raster bake received an incomplete xatlas vertex remap.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 332
+      "cdmw/modding/scene_gltf_uv_bake.py": 454
     }
   },
   {
@@ -88251,7 +88259,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV raster bake received an out-of-range xatlas vertex remap.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 334
+      "cdmw/modding/scene_gltf_uv_bake.py": 456
     }
   },
   {
@@ -88259,7 +88267,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV raster bake received incomplete native MikkTSpace output.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 354
+      "cdmw/modding/scene_gltf_uv_bake.py": 476
     }
   },
   {
@@ -88267,7 +88275,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF UV raster bake used unsupported tangent backend {backend}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 358
+      "cdmw/modding/scene_gltf_uv_bake.py": 480
     }
   },
   {
@@ -88275,7 +88283,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF WEIGHTS_0 contains an invalid zero-sum skin row at vertex {vertex_index}; export normalized non-zero weights for every skinned vertex.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 1219
+      "cdmw/modding/scene_gltf_import.py": 1235
     }
   },
   {
@@ -88323,7 +88331,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF document is not a JSON object: {source_path}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 454
+      "cdmw/modding/scene_gltf_import.py": 470
     }
   },
   {
@@ -88387,7 +88395,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF image {image_index} has an invalid data URI; embed a valid supported image.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 1018
+      "cdmw/modding/scene_gltf_import.py": 1034
     }
   },
   {
@@ -88403,7 +88411,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF image {image_index} has invalid bufferView {buffer_view_index} bounds. Embed one complete supported image payload and export again.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 1043
+      "cdmw/modding/scene_gltf_import.py": 1059
     }
   },
   {
@@ -88427,7 +88435,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF image {image_index} is missing at {image_path}. Restore that file or embed it, then export again.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 1027
+      "cdmw/modding/scene_gltf_import.py": 1043
     }
   },
   {
@@ -88459,7 +88467,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF import did not contain supported uncompressed triangle geometry: {source_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 378
+      "cdmw/modding/scene_gltf_import.py": 394
     }
   },
   {
@@ -88475,7 +88483,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF joint index exceeds the skin in {submesh.name}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 224
+      "cdmw/modding/scene_gltf_import.py": 226
     }
   },
   {
@@ -88483,7 +88491,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF joint weights have no skin binding in {submesh.name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 226
+      "cdmw/modding/scene_gltf_import.py": 228
     }
   },
   {
@@ -88547,7 +88555,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF material {uv_plan.material_name} failed material-slot resolution for {', '.join(missing_slots)}. Re-export every referenced slot with one valid core texture source and decodable image.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 939
+      "cdmw/modding/scene_gltf_import.py": 955
     }
   },
   {
@@ -88595,7 +88603,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF normal bake lost source TEXCOORD_{slot.texcoord} tangent frame.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 438
+      "cdmw/modding/scene_gltf_uv_bake.py": 560
     }
   },
   {
@@ -88611,7 +88619,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF normal bake received an invalid source tangent remap.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 442
+      "cdmw/modding/scene_gltf_uv_bake.py": 564
     }
   },
   {
@@ -88635,7 +88643,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF normal tangent generation lost TEXCOORD_{texcoord}. {GLTF_UV_BAKE_REMEDY}",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/scene_gltf_uv_bake.py": 268
+      "cdmw/modding/scene_gltf_uv_bake.py": 352
     }
   },
   {
@@ -88699,7 +88707,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF skinned mesh requires complete non-zero joint weights in {submesh.name}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 222
+      "cdmw/modding/scene_gltf_import.py": 224
     }
   },
   {
@@ -88716,6 +88724,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/modding/scene_gltf_geometry.py": 286
+    }
+  },
+  {
+    "area": "other",
+    "message": "glTF tangent vertex split found incomplete {what} data.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/modding/scene_gltf_uv_bake.py": 293
     }
   },
   {
@@ -88755,7 +88771,7 @@ MESSAGE_REFERENCE = [
     "message": "glTF {slot_kind} texture uses unsupported image format {suffix or '<none>'}. Convert it to PNG, JPEG, WebP, TGA, BMP, TIFF, or DDS and export the glTF again.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/scene_gltf_import.py": 601
+      "cdmw/modding/scene_gltf_import.py": 617
     }
   },
   {
@@ -96499,7 +96515,7 @@ MESSAGE_REFERENCE = [
     "message": "Open an archive mesh before importing a replacement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 25
+      "cdmw/ui/mesh_editor/replacement_flow.py": 39
     }
   },
   {
@@ -97922,7 +97938,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive target changed during replacement selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 47
+      "cdmw/ui/mesh_editor/replacement_flow.py": 61
     }
   },
   {
@@ -98106,7 +98122,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh session closed during replacement selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 45
+      "cdmw/ui/mesh_editor/replacement_flow.py": 59
     }
   },
   {
@@ -99904,7 +99920,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is not a Blender CDMW can run. Choose blender.exe, or export the model as GLB.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 73
+      "cdmw/ui/mesh_editor/replacement_flow.py": 87
     }
   },
   {
@@ -109192,7 +109208,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/modding/scene_gltf_uv_bake.py": {
     "finding": 1,
-    "raise": 28,
+    "raise": 30,
     "report": 1
   },
   "cdmw/modding/scene_gltf_uv_raster.py": {
@@ -113113,12 +113129,12 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/OperationContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/WorkerProtocol.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveAnimationReferences.cs": {},
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
+    "native_message": 1
+  },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": {
     "native_handoff": 18,
     "native_message": 12
-  },
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
-    "native_message": 1
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalog.cs": {
     "native_handoff": 4,
@@ -113200,11 +113216,11 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePathOrder.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePbdMaterialReferences.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePreviewReferenceScanner.cs": {},
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.cs": {
     "native_handoff": 1,
     "native_message": 1
   },
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveRoleDisplay.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": {
     "native_handoff": 3,

@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Import Replacement** accepts glTF/GLB models with a normal map that were exported without tangents, which is Blender's default. A model whose UVs are mirrored or split where the normal map's tangent direction changes, such as a body, stopped with "glTF UV bake source MikkTSpace requires unsupported topology splitting." CDMW now gives those vertices one copy per tangent direction, as Blender does when you export with **Tangents** ticked, and keeps their skin weights.
+
 ## [0.12.0-alpha.6] - 2026-11-19
 
 ### Highlights
