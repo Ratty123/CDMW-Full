@@ -5774,8 +5774,19 @@ impl LabApplication {
                     // material, so a part mapped only there has nowhere to go.
                     if imported {
                         let helpers = pending["materials"]["helper_targets"].as_array().cloned().unwrap_or_default();
+                        let is_helper = |choice: &str| helpers.iter().any(|id| id.as_str() == Some(choice));
+                        // Same rule as Apply: a part is only refused when its
+                        // material is not also mapped to a main part.
+                        let material_of = |source: &serde_json::Value| {
+                            source["material"].as_str().filter(|text| !text.is_empty())
+                                .or_else(|| source["name"].as_str()).unwrap_or("").to_lowercase()
+                        };
+                        let routed: std::collections::HashSet<String> = sources.iter().zip(&choices)
+                            .filter(|(_, choice)| !is_helper(choice.as_str()))
+                            .map(|(source, _)| material_of(source))
+                            .collect();
                         for (source, choice) in sources.iter().zip(&choices) {
-                            if !helpers.iter().any(|id| id.as_str() == Some(choice.as_str())) {
+                            if !is_helper(choice.as_str()) || routed.contains(&material_of(source)) {
                                 continue;
                             }
                             let target = targets.iter().find(|row| row["id"].as_str() == Some(choice.as_str()))

@@ -9684,6 +9684,7 @@
     "Other game files use this texture, and the mod changes it for them too: {files}. Still searching the rest of the game files for more...": "Эту текстуру используют и другие файлы игры, и мод меняет её и для них: {files}. Поиск других в остальных файлах игры продолжается...",
     "Other game files use this texture, and the mod changes it for them too: {files}. There may be more: {reason}": "Эту текстуру используют и другие файлы игры, и мод меняет её и для них: {files}. Их может быть больше: {reason}",
     "Other influences redistribute proportionally. Cloth guide weights are preserved.": "Другие влияния перераспределяются пропорционально. Тканевые направляющие грузики сохранены.",
+    "Other items share this item's file for this point, so copying another item's point here would move them too. Hang like is only offered for a point this item has to itself.": "Для этой точки файл этого предмета используют и другие предметы, поэтому копирование сюда точки другого предмета сдвинет и их. Hang like доступно только для точки, которая есть только у этого предмета.",
     "Other models": "Другие модели",
     "Other parts": "Другие части",
     "Other tool / feature *": "Другой инструмент / функция *",

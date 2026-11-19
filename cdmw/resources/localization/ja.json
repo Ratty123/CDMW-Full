@@ -9684,6 +9684,7 @@
     "Other game files use this texture, and the mod changes it for them too: {files}. Still searching the rest of the game files for more...": "他のゲームファイルもこのテクスチャを使っており、Mod はそれらのテクスチャも変更します: {files}。残りのゲームファイルでさらに検索しています...",
     "Other game files use this texture, and the mod changes it for them too: {files}. There may be more: {reason}": "他のゲームファイルもこのテクスチャを使っており、Mod はそれらのテクスチャも変更します: {files}。他にもある可能性があります: {reason}",
     "Other influences redistribute proportionally. Cloth guide weights are preserved.": "その他の影響は比例的に再分配されます。布のガイドウェイトは保持されます。",
+    "Other items share this item's file for this point, so copying another item's point here would move them too. Hang like is only offered for a point this item has to itself.": "このポイントでは他のアイテムもこのアイテムのファイルを共有しているため、別のアイテムのポイントをここにコピーするとそれらも動いてしまいます。Hang like は、このアイテムだけが使うポイントでのみ使用できます。",
     "Other models": "その他のモデル",
     "Other parts": "その他の部位",
     "Other tool / feature *": "その他のツール / 機能 *",

@@ -9684,6 +9684,7 @@
     "Other game files use this texture, and the mod changes it for them too: {files}. Still searching the rest of the game files for more...": "Other game files use this texture, and the mod changes it for them too: {files}. Still searching the rest of the game files for more...",
     "Other game files use this texture, and the mod changes it for them too: {files}. There may be more: {reason}": "Other game files use this texture, and the mod changes it for them too: {files}. There may be more: {reason}",
     "Other influences redistribute proportionally. Cloth guide weights are preserved.": "Other influences redistribute proportionally. Cloth guide weights are preserved.",
+    "Other items share this item's file for this point, so copying another item's point here would move them too. Hang like is only offered for a point this item has to itself.": "Other items share this item's file for this point, so copying another item's point here would move them too. Hang like is only offered for a point this item has to itself.",
     "Other models": "Other models",
     "Other parts": "Other parts",
     "Other tool / feature *": "Other tool / feature *",

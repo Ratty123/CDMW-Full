@@ -9684,6 +9684,7 @@
     "Other game files use this texture, and the mod changes it for them too: {files}. Still searching the rest of the game files for more...": "Bu dokuyu başka oyun dosyaları da kullanıyor ve mod onu onlar için de değiştirir: {files}. Oyunun kalan dosyalarında başkaları için arama sürüyor...",
     "Other game files use this texture, and the mod changes it for them too: {files}. There may be more: {reason}": "Bu dokuyu başka oyun dosyaları da kullanıyor ve mod onu onlar için de değiştirir: {files}. Daha fazlası olabilir: {reason}",
     "Other influences redistribute proportionally. Cloth guide weights are preserved.": "Diğer etkiler orantılı olarak yeniden dağıtılır. Kumaş kılavuzu ağırlıkları korunur.",
+    "Other items share this item's file for this point, so copying another item's point here would move them too. Hang like is only offered for a point this item has to itself.": "Bu nokta için başka eşyalar da bu eşyanın dosyasını paylaşıyor; bu yüzden başka bir eşyanın noktasını buraya kopyalamak onları da taşır. Hang like yalnızca bu eşyanın tek başına kullandığı bir nokta için sunulur.",
     "Other models": "Diğer modeller",
     "Other parts": "Diğer parçalar",
     "Other tool / feature *": "Başka araç / özellik *",

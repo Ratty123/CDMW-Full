@@ -1107,3 +1107,25 @@ def test_untraced_creature_shaders_keep_the_mean_of_their_own_surface(editor, tm
     assert 'StringItemID="_materialTexture" ItemID="6"' in text.split('_subMeshName="target1"')[0]
     path, size, pixel = _surface_binding(files, "_materialTexture")
     assert path.endswith("_cdmw_surface_255_120_057_sp.dds") and pixel == (255, 120, 57, 255)
+
+
+def test_imported_material_status_is_cached_per_pending_and_revision(monkeypatch):
+    """The status parses the original PAC; UI refreshes reuse it until the import or mesh changes."""
+    from types import SimpleNamespace
+    import cdmw.services.mesh_rust_replacement as rust
+    calls = []
+
+    def build(pending):
+        calls.append(pending.token)
+        return {"error": "", "textures": 0, "helper_targets": ["a"]}
+
+    monkeypatch.setattr(rust, "_build_imported_material_status", build)
+    monkeypatch.setattr(rust, "_MATERIAL_STATUS_CACHE", {})
+    pending = SimpleNamespace(token="t1", snapshot=SimpleNamespace(mesh_revision=1))
+    first = rust.imported_material_status(pending)
+    first["helper_targets"].append("mutated")
+    assert rust.imported_material_status(pending)["helper_targets"] == ["a"]
+    assert calls == ["t1"]
+    rust.imported_material_status(SimpleNamespace(token="t1", snapshot=SimpleNamespace(mesh_revision=2)))
+    rust.imported_material_status(SimpleNamespace(token="t2", snapshot=SimpleNamespace(mesh_revision=1)))
+    assert calls == ["t1", "t1", "t2"]

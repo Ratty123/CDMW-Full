@@ -9684,6 +9684,7 @@
     "Other game files use this texture, and the mod changes it for them too: {files}. Still searching the rest of the game files for more...": "其他遊戲檔案也使用此紋理，模組也會為它們變更此紋理：{files}。仍在其餘遊戲檔案中搜尋更多...",
     "Other game files use this texture, and the mod changes it for them too: {files}. There may be more: {reason}": "其他遊戲檔案也使用此紋理，模組也會為它們變更此紋理：{files}。可能還有更多：{reason}",
     "Other influences redistribute proportionally. Cloth guide weights are preserved.": "其他影響按比例重新分配。布料引導權重保持不變。",
+    "Other items share this item's file for this point, so copying another item's point here would move them too. Hang like is only offered for a point this item has to itself.": "其他物品也共用此物品在這個點上的檔案，因此把另一個物品的點複製到這裡也會移動它們。Hang like 僅適用於此物品獨有的點。",
     "Other models": "其他模型",
     "Other parts": "其他部位",
     "Other tool / feature *": "其他工具 / 功能 *",
