@@ -100941,77 +100941,77 @@
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 568,
+          "line": 573,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 631,
+          "line": 636,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 641,
+          "line": 648,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 655,
+          "line": 676,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 660,
+          "line": 681,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 684,
+          "line": 705,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 693,
+          "line": 714,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 695,
+          "line": 716,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 698,
+          "line": 719,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 769,
+          "line": 790,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 822,
+          "line": 843,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 830,
+          "line": 851,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 845,
+          "line": 866,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 895,
+          "line": 916,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 897,
+          "line": 918,
           "sink": "raise_if_cancelled"
         },
         {
@@ -129111,7 +129111,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 632,
+          "line": 637,
           "sink": "_log_progress"
         }
       ]
@@ -129141,7 +129141,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 685,
+          "line": 706,
           "sink": "_log_progress"
         }
       ]
@@ -129151,7 +129151,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 656,
+          "line": 677,
           "sink": "_log_progress"
         }
       ]
@@ -129526,7 +129526,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 770,
+          "line": 791,
           "sink": "_log_progress"
         }
       ]
@@ -129816,7 +129816,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 835,
+          "line": 856,
           "sink": "_log_progress"
         }
       ]
@@ -159441,7 +159441,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 907,
+          "line": 928,
           "sink": "_log_progress"
         }
       ]
@@ -175146,7 +175146,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 841,
+          "line": 862,
           "sink": "_log_progress"
         }
       ]
@@ -227782,18 +227782,6 @@
       "symbol": "recover_profile",
       "source": "after",
       "reason": "Internal recovery disposition, not a user-facing status; the page displays a separate translated completion message."
-    },
-    {
-      "path": "cdmw/ui/new_item/virtual_loader_page.py",
-      "symbol": "VirtualLoaderPage._append_selection",
-      "source": "item",
-      "reason": "Internal selection kind, with a separate translated item or mod label."
-    },
-    {
-      "path": "cdmw/ui/new_item/virtual_loader_page.py",
-      "symbol": "VirtualLoaderPage._append_selection",
-      "source": "mod",
-      "reason": "Internal selection kind, with a separate translated item or mod label."
     },
     {
       "path": "cdmw/ui/new_item/rust_ui_document.py",

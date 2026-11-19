@@ -26279,14 +26279,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": ": {detail}. Apply changes in CDMW and publish the profile again.",
-    "recovery": "write",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 253
-    }
-  },
-  {
-    "area": "independent",
     "message": "A batch contains two different versions of the same item. Select one version.",
     "recovery": "input",
     "sources": {
@@ -26315,14 +26307,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_item_native_resources.py": 153
-    }
-  },
-  {
-    "area": "independent",
-    "message": "A standalone profile cannot name a session host or launcher",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 104
     }
   },
   {
@@ -26371,14 +26355,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_references.py": 103
-    }
-  },
-  {
-    "area": "independent",
-    "message": "An existing game cannot claim a new session",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 186
     }
   },
   {
@@ -26535,403 +26511,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Cannot allocate a served path",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 143
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot await runtime",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 256
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot claim Steam session",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 468
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot create bounded trace",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 341
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot create readiness event",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 251
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot create session pipe",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 249
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot encode session owner",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 132
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot exclude an existing game process",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 177
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot grant Steam runtime claim",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 304
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot identify executable",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 25
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot identify game process",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 161
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot identify lock directory",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 454,
-      "native/cdmw_virtual_loader/protocol.cpp": 169
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot identify process creation time",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 166
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot identify runtime process",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 292
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot identify session owner",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 127
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot identify the runtime",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 403
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot inspect a composition source",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 89
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot inspect active game processes",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 171
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot inspect catalogue source",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 47
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot list the change sets",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 129
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot normalize path",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 14
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot open a composition source",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 110
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot open a profile source",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 303
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot open a resource loader slot",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 240
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot pin a composed file",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 228
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot pin a prepared item file",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 320
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot pin catalogue source",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 45
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot pin input file for hashing",
-    "recovery": "integrity",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 45
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot pin launch input",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 62
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot pin runtime module",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 344
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot pin snapshot file",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 506
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot protect import slot",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 148
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot protect session pipe",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 134
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot publish session manifest",
-    "recovery": "write",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 222
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot publish the composition",
-    "recovery": "write",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 315
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot read",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 64
-    }
-  },
-  {
-    "area": "independent",
     "message": "Cannot read identity profile: {exc}",
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_item_install.py": 120
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot request the Steam game launch",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 284
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot resolve the game folder",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 443
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot resume fixture process",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 270
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot retain runtime lease",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 315
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot retire an earlier composition",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 312
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot size a prepared item file",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 333
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot start fixture executable",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 264
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot start trace writer",
-    "recovery": "write",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 357
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot transfer runtime lease",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 236
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot verify Steam parent",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 188
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot write a composed file",
-    "recovery": "write",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 245
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot write session manifest",
-    "recovery": "write",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 221
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Cannot write the composition record",
-    "recovery": "write",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 175
     }
   },
   {
@@ -26996,14 +26579,6 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/independent_item_install.py": 86
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Controlled loading requires a separately reviewed host opt-in",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 221
     }
   },
   {
@@ -27104,38 +26679,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Game launch blocked: startup timing, Steam handoff and save tests are not verified",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 222
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Import exceeds image",
-    "recovery": "limits",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 199
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Import slot changed or protection restore failed",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 151
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Imported module unavailable",
-    "recovery": "missing",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 195
-    }
-  },
-  {
-    "area": "independent",
     "message": "Incompatible owned mesh {path}: {exc}",
     "recovery": "internal",
     "sources": {
@@ -27216,83 +26759,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Input read failed",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 49
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Installation lane unavailable",
-    "recovery": "missing",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 230
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid DOS header",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 166,
-      "native/cdmw_virtual_loader/runtime.cpp": 178
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid Steam runtime claim",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 295
-    }
-  },
-  {
-    "area": "independent",
     "message": "Invalid asset reservations.",
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_item_install.py": 94
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid catalogue guard",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 165
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid composition file",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 212
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid composition files",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 207
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid composition group",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 194
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid composition record text",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 153
     }
   },
   {
@@ -27317,38 +26787,6 @@ MESSAGE_REFERENCE = [
     "recovery": "integrity",
     "sources": {
       "cdmw/services/independent_item_package.py": 591
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid game root",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 106
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid import descriptor",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 191
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid import directory",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 183
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid import name",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 203
     }
   },
   {
@@ -27385,14 +26823,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Invalid installation lock",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 172
-    }
-  },
-  {
-    "area": "independent",
     "message": "Invalid item package title.",
     "recovery": "input",
     "sources": {
@@ -27409,38 +26839,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Invalid launcher descriptor",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 201
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid logical depth",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 124
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid map size",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 119
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid or duplicate resource path",
-    "recovery": "conflict",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 143
-    }
-  },
-  {
-    "area": "independent",
     "message": "Invalid owned texture {path}: {exc}",
     "recovery": "input",
     "sources": {
@@ -27453,14 +26851,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_item_package.py": 160
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid path length",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 68
     }
   },
   {
@@ -27501,38 +26891,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_item_package.py": 659
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid served resource count",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 263
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid served resource path",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 267
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid session identity",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 105
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Invalid source guard",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 153
     }
   },
   {
@@ -27737,42 +27095,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Linked composition paths are unsupported",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 74
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Linked virtual paths are unsupported",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 94
-    }
-  },
-  {
-    "area": "independent",
     "message": "Local dye mask files are not supported in independent packages. Clear the custom dye mask before exporting.",
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/independent_item_package.py": 627
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Map targets must be archives or game metadata",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 129
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Missing virtual mount list",
-    "recovery": "missing",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 138
     }
   },
   {
@@ -27801,22 +27127,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "No live session host; stale activation refused",
-    "recovery": "stale",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 457
-    }
-  },
-  {
-    "area": "independent",
-    "message": "No supported file imports",
-    "recovery": "empty",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 231
-    }
-  },
-  {
-    "area": "independent",
     "message": "Owned physics has no unambiguous template mesh binding.",
     "recovery": "internal",
     "sources": {
@@ -27833,22 +27143,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Packages conflict:",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 265
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Path is not valid Unicode",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 27
-    }
-  },
-  {
-    "area": "independent",
     "message": "Physics settings inside a render material are unverified.",
     "recovery": "configuration",
     "sources": {
@@ -27861,14 +27155,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_item_package.py": 610
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Readiness handshake failed",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 239
     }
   },
   {
@@ -27917,71 +27203,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/independent_item_compatibility.py": 678
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Runtime handshake read failed",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 203
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Runtime readiness failed; no verified Steam game acknowledged this session",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 155
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Runtime refused activation",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 312
-    }
-  },
-  {
-    "area": "independent",
-    "message": "SHA256 failed",
-    "recovery": "integrity",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 58
-    }
-  },
-  {
-    "area": "independent",
-    "message": "SHA256 finalization failed",
-    "recovery": "integrity",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 54
-    }
-  },
-  {
-    "area": "independent",
-    "message": "SHA256 initialization failed",
-    "recovery": "integrity",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 40
-    }
-  },
-  {
-    "area": "independent",
-    "message": "SHA256 unavailable",
-    "recovery": "integrity",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 46,
-      "native/cdmw_virtual_loader/protocol.cpp": 37
-    }
-  },
-  {
-    "area": "independent",
-    "message": "SHA256 update failed",
-    "recovery": "integrity",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 51
     }
   },
   {
@@ -28042,51 +27263,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Served path is not valid Unicode",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 156
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Session pipe failed",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 157
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Snapshot checksum mismatch",
-    "recovery": "integrity",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 504,
-      "native/cdmw_virtual_loader/session.cpp": 34
-    }
-  },
-  {
-    "area": "independent",
     "message": "Stack count cannot be edited through both legacy and inventory settings.",
     "recovery": "configuration",
     "sources": {
       "cdmw/services/independent_item_operations.py": 27
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Steam session binding timed out",
-    "recovery": "timeout",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 473
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Steam session binding was refused",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 478
     }
   },
   {
@@ -28111,22 +27291,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_compatibility.py": 497
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Test mode is unavailable in the production runtime",
-    "recovery": "missing",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 99
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Text is not valid UTF-8",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 35
     }
   },
   {
@@ -28203,14 +27367,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "The composition record cannot be read back",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 431
-    }
-  },
-  {
-    "area": "independent",
     "message": "The contribution depends on other packages with exact installation pins.",
     "recovery": "internal",
     "sources": {
@@ -28239,14 +27395,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/independent_item_package.py": 213
-    }
-  },
-  {
-    "area": "independent",
-    "message": "The game's resource loader classes were not found",
-    "recovery": "missing",
-    "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 208
     }
   },
   {
@@ -28667,42 +27815,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Truncated composition record",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 145
-    }
-  },
-  {
-    "area": "independent",
     "message": "Truncated item package resource.",
     "recovery": "format",
     "sources": {
       "cdmw/services/independent_item_package.py": 777
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Truncated manifest",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 65
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Truncated path",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 70
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Truncated runtime handshake",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_virtual_loader/session.cpp": 207
     }
   },
   {
@@ -28771,22 +27887,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Unreadable change set (",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 281
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Unreadable input:",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 267
-    }
-  },
-  {
-    "area": "independent",
     "message": "Unresolved item dependency: {path}",
     "recovery": "internal",
     "sources": {
@@ -28803,27 +27903,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "independent",
-    "message": "Unsupported PE",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_virtual_loader/resource_serving.cpp": 168,
-      "native/cdmw_virtual_loader/runtime.cpp": 180
-    }
-  },
-  {
-    "area": "independent",
     "message": "Unsupported XML declaration.",
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/independent_item_physics.py": 20
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Unsupported composition record",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 188
     }
   },
   {
@@ -28864,30 +27947,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/independent_item_references.py": 372
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Unsupported input:",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_virtual_loader/compose_launch.cpp": 266
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Unsupported launcher",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 116
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Unsupported manifest",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_virtual_loader/protocol.cpp": 180
     }
   },
   {
@@ -28977,14 +28036,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_item_references.py": 299
-    }
-  },
-  {
-    "area": "independent",
-    "message": "Unverified startup path; virtual loading refused. Loader callout",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_virtual_loader/runtime.cpp": 493
     }
   },
   {
@@ -107425,12 +106476,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/independent_item_native_resources.py",
     "cdmw/services/independent_item_package.py",
     "cdmw/services/independent_item_physics.py",
-    "cdmw/services/virtual_loader_state.py",
-    "native/cdmw_virtual_loader/compose_launch.cpp",
-    "native/cdmw_virtual_loader/protocol.cpp",
-    "native/cdmw_virtual_loader/resource_serving.cpp",
-    "native/cdmw_virtual_loader/runtime.cpp",
-    "native/cdmw_virtual_loader/session.cpp"
+    "cdmw/services/virtual_loader_state.py"
   ],
   "items": [
     "cdmw/domain/new_item/authoring_rules.py",
@@ -113970,31 +113016,6 @@ SOURCE_COVERAGE = {
   "native/cdmw_preview_core/src/preview_core_internal.hpp": {},
   "native/cdmw_qt_rhi/rhitriangle.cpp": {},
   "native/cdmw_qt_rhi/rhitriangle.h": {},
-  "native/cdmw_virtual_loader/bootstrap.cpp": {},
-  "native/cdmw_virtual_loader/bootstrap.hpp": {},
-  "native/cdmw_virtual_loader/compose_launch.cpp": {
-    "native_handoff": 3,
-    "native_message": 32
-  },
-  "native/cdmw_virtual_loader/compose_launch.hpp": {},
-  "native/cdmw_virtual_loader/protocol.cpp": {
-    "native_handoff": 3,
-    "native_message": 31
-  },
-  "native/cdmw_virtual_loader/protocol.hpp": {},
-  "native/cdmw_virtual_loader/resource_serving.cpp": {
-    "native_handoff": 1,
-    "native_message": 8
-  },
-  "native/cdmw_virtual_loader/resource_serving.hpp": {},
-  "native/cdmw_virtual_loader/runtime.cpp": {
-    "native_handoff": 8,
-    "native_message": 35
-  },
-  "native/cdmw_virtual_loader/session.cpp": {
-    "native_handoff": 1,
-    "native_message": 36
-  },
   "native/common/long_path.hpp": {},
   "native/common/native_diagnostics.h": {},
   "native/common/pamt_compact.hpp": {

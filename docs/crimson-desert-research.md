@@ -3284,9 +3284,14 @@ Sources: [independent items and composition][independent-items],
 
 ## 13. Virtual loading, native resources and saves
 
+**Retired.** CDMW no longer loads anything into the game itself; items reach the game
+through DMM. The virtual loader's native sources and research notes were removed from
+the repository on 2026-11-19; the links below point at the last revision that held them.
+What follows is the historical record of that route, kept for its findings.
+
 ### 13.1 Guarded launch and recorded game evidence
 
-The experimental virtual loader prepares a private, verified game view and
+The experimental virtual loader prepared a private, verified game view and
 launches through an admitted executable/bootstrap route. It does not turn every
 independent package into a new native registry. Physical and virtual ownership
 remain separate; preparation and publication have their own recovery contracts.
@@ -3397,7 +3402,7 @@ A further 2026-10-21 continuation from
 hazard: sequential single-map calls can expose the numeric entry before the
 name map refuses validation. Source review also identified premature cleanup
 on observer reentry. A maintained
-[paired-publication C++ experiment](../native/cdmw_virtual_loader/research/README.md)
+[paired-publication C++ experiment](https://github.com/Ratty123/CDMW-Full/blob/52cc7e8f60ee16930cc68b49b80ae89c368a66d0/native/cdmw_virtual_loader/research/README.md)
 now validates both maps and concrete owned backing before writes, retains their
 ownership together, and rejects recursive publication without cleanup.
 Its 41 cases and 963 checks pass under address/undefined sanitizers.
@@ -3410,7 +3415,7 @@ Joining actual native storage and decoding to a qualified reader boundary is
 still required. Other reference sections retain their existing review scope.
 
 Sources: [native registration investigation][virtual-loader] and the
-[current identity/native architecture contract](../native/cdmw_virtual_loader/research/runtime-registration.md).
+[current identity/native architecture contract](https://github.com/Ratty123/CDMW-Full/blob/52cc7e8f60ee16930cc68b49b80ae89c368a66d0/native/cdmw_virtual_loader/research/runtime-registration.md).
 
 ### 13.3 Native resource loading: separate from item registration
 
@@ -3441,14 +3446,14 @@ value still hides terminal errors and exposes no transferred count. These are
 source/API conclusions. The later fixed 102-byte game observation is recorded
 below; visible use and general resource retirement remain unproved.
 
-The new offline [private archive path reviewer](../native/cdmw_virtual_loader/research/runtime-registration.md#private-archive-path-evidence-review)
+The new offline [private archive path reviewer](https://github.com/Ratty123/CDMW-Full/blob/52cc7e8f60ee16930cc68b49b80ae89c368a66d0/native/cdmw_virtual_loader/research/runtime-registration.md#private-archive-path-evidence-review)
 binds independently pinned preparation, the selected private archive and its
 expected payload. It refuses a different archive beneath the same root. Focused
 fixtures and a retained-input check passed on 2026-10-21. The later controlled
 B113 capture now passes exact-path review and a separate actual process/source
 provenance join. That path result did not itself prove byte delivery or resource use.
 
-The maintained [per-package resource image preparation](../native/cdmw_virtual_loader/research/runtime-registration.md#per-package-resource-image-preparation)
+The maintained [per-package resource image preparation](https://github.com/Ratty123/CDMW-Full/blob/52cc7e8f60ee16930cc68b49b80ae89c368a66d0/native/cdmw_virtual_loader/research/runtime-registration.md#per-package-resource-image-preparation)
 now produces a separate PAPGT/PAMT/PAZ image from each package's actual validated
 compiler contributions. Each included resource is joined to that package's
 ownership and reservations. Shared definitions and integrations remain omitted
@@ -4050,7 +4055,7 @@ one supported lifecycle. Metadata success, prepared archives and related Loadout
 observations remain separate evidence.
 
 Sources: [resource-admission research and recorded receipt limits][virtual-loader]
-and the [independent-content evidence boundary](../native/cdmw_virtual_loader/research/runtime-registration.md#retained-evidence-and-unresolved-contracts).
+and the [independent-content evidence boundary](https://github.com/Ratty123/CDMW-Full/blob/52cc7e8f60ee16930cc68b49b80ae89c368a66d0/native/cdmw_virtual_loader/research/runtime-registration.md#retained-evidence-and-unresolved-contracts).
 
 ### 13.4 Save lineage and migration
 

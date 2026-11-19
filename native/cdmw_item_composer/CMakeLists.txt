@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.24)
 project(cdmw_item_composer LANGUAGES CXX)
 
-# Portable C++: no platform APIs, so the virtual loader can link it and any host can test it.
+# Portable C++: no platform APIs, so any host can test it against the Python composer.
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-# Match the virtual loader's static runtime so the library links into the ASI.
+# Static runtime, as the retired virtual loader needed; kept so builds stay unchanged.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_library(cdmw_item_composer STATIC
@@ -37,7 +37,7 @@ else()
     target_compile_options(cdmw_item_composer PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-# The virtual loader adds this directory for the library alone; its test driver and
+# A parent project may add this directory for the library alone; the test driver and
 # self-test build only here.
 if(NOT PROJECT_IS_TOP_LEVEL)
     return()

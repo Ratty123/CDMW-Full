@@ -1,4 +1,4 @@
-// The launch-time composition: virtual_loader_composition.prepare_profile's tail for
+// The composition the retired virtual loader ran at launch: compose_packages' tail for
 // packages without field or texture operations. Each package's owned changes merge onto
 // what the game reads today; the changed files become one private archive group mounted
 // first, beside the composed texture registry.

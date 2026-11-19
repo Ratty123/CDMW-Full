@@ -1321,4 +1321,4 @@ supported route. Both supported routes compose the shared game tables at
 installation; package-owned identities, names, keys and asset paths, together
 with overlap refusal, keep separate packages from overwriting each other. The
 native research, its evidence and open contracts are in
-[native runtime registration research](../../../native/cdmw_virtual_loader/research/runtime-registration.md).
+[native runtime registration research](https://github.com/Ratty123/CDMW-Full/blob/52cc7e8f60ee16930cc68b49b80ae89c368a66d0/native/cdmw_virtual_loader/research/runtime-registration.md), removed from the repository with the virtual loader.

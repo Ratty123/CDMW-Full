@@ -1,9 +1,9 @@
 # CDMW Item Composer
 
 A portable C++20 port of `cdmw/domain/archives/overlay_merge.py` and the codecs it
-composes with. It is the first step of milestone 2 of the `.cditem` ASI loader: the
-virtual loader will compose installed packages into the current game files at launch,
-without CDMW's Apply step. Nothing here touches the platform, the file system or an
+composes with. It was written for the `.cditem` ASI loader, which composed installed
+packages into the current game files at launch. That virtual loader is retired (CDMW
+delivers through DMM only), so this library is now a parity check of the Python composer. Nothing here touches the platform, the file system or an
 archive; callers pass bytes in and get bytes back.
 
 `merge_overlay_files(before, after, current)` applies one owned change onto the current
@@ -120,9 +120,8 @@ game; they need explicit opt-in (`-m real_game`) and only read the game folder. 
 2026-10-26 all three passed on game 2.03.02 with DMM's group mounted, the composition
 publishing 11 files (9.3 MB) in one Python and one native pass of 10.4 s together.
 
-`tools/compose_cli.cpp` is a test driver only. The virtual loader links the library
-(its CMake adds this directory for the library target alone) with the same static
-runtime and warning settings, and composes at launch; see its README.
+`tools/compose_cli.cpp` is a test driver only. The retired virtual loader linked the
+library with the same static runtime and warning settings and composed at launch.
 
 On 2026-10-26 the five applied Wolf Trial packages (no field or texture operations)
 were taken from CDMW's own resolve, written as five change sets and composed with
@@ -135,7 +134,7 @@ takes 3.9 to 4.5 s end to end, reading the 546 MB of change sets included: about
 only the touched paths, and 2.0 to 2.3 s merges each file's chain over the five
 packages in parallel, `meta/0.pathc` being the longest. A failure is still reported
 as the sequential order meets it first. `compose_view(..., parallel = false)` does
-the same work on the calling thread (about 6.2 s here); the virtual loader composes
+the same work on the calling thread (about 6.2 s here); the virtual loader composed
 that way, because on the game's startup path worker threads do not run until its
 initialization returns. The change sets hold full before/after
 tables, 109 MB per package; patch 0004's reduced records would shrink them and the

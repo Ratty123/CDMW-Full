@@ -1,5 +1,5 @@
 // Portable port of cdmw/domain/archives/overlay_merge.py and the codecs it uses.
-// No platform APIs: the virtual loader links it, and the CLI tests it against Python.
+// No platform APIs; the CLI tests it against Python. Its one consumer, the virtual loader, is retired.
 #pragma once
 #include <array>
 #include <cstddef>
