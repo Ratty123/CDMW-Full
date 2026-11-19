@@ -60,6 +60,17 @@ Please try to:
   and focused contracts by default, with full nonvisual QA available through
   the manual `exhaustive_tests` option
 
+## Keep every doc current
+
+This rule applies to every change, by a person, Claude, Codex or any other agent.
+
+1. Before you open a pull request, search the whole repository (and the other project repositories that mention it: CDAL-dev, Crimson-FastLoad, Crimson-Live-Edit, CDMW-Full, crimson-discord, status) for every name the change touches: the feature, file, command, setting, ID, version number, game build and any count you changed.
+2. Update every doc that mentions it, in the same pull request: READMEs, `ROADMAP.md`, `CHANGELOG.md`, `docs/`, `AGENTS.md` and `CLAUDE.md`, help and status text, and comments that describe behaviour. A doc in another repository gets a linked pull request there.
+3. Don't write that something is "current" or "latest" next to a build or version number that will go out of date; say what it was checked on and when ("checked on 1.0.0.3663, 2026-11-13"), or link the page that is kept up to date.
+4. A pull request that leaves a related doc stale is not done. Say in the description which docs you checked.
+
+Here the docs to check include each `cdmw/**/README.md`, **Help > Documentation** and the Wiki in every language, the [research reference](docs/crimson-desert-research.md), [CHANGELOG.md](CHANGELOG.md), and the version in `cdmw/constants.py` (`APP_VERSION`) and in the README's badge and "current source version" line, which change together. This applies to coding agents too: agent instruction files stay local in this repository (`.gitignore`), so this section is where the rule lives.
+
 ## Research and documentation maintenance
 
 The [Crimson Desert research reference](docs/crimson-desert-research.md) is the

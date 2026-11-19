@@ -31,7 +31,7 @@ What problem does this solve, or what workflow does it improve?
 
 - verification:
   - [ ] I tested the changed workflow locally
-  - [ ] I updated docs/help text if user-facing behavior changed
+  - [ ] I searched the repository for every doc that mentions what changed (README files, Help, Wiki, CHANGELOG, research reference, AGENTS.md) and updated each one in this pull request
   - [ ] I reviewed research impact and updated confirmed findings, evidence, limits and open questions in the public research reference where affected
   - [ ] I archived superseded documentation where needed and repaired current navigation without publishing local notes
   - [ ] I updated the changelog if this should be called out in release notes
