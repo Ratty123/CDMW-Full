@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Import Replacement in the Mesh Editor works again.** Choosing the replacement model failed at once with "missing signature". The same fault also hit the Blender question for an FBX, the Apply Edited Hair DDS chooser and the Texture Editor's refusal message.
+
 ## [0.12.0-alpha.6] - 2026-11-19
 
 ### Highlights
