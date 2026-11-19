@@ -335,6 +335,19 @@ later patch adds a field, the reader still needs a named update; the probe
 `tools/probe_iteminfo_layout.py` narrows the candidates. This is source and
 corpus evidence, not archive mutation or in-game acceptance.
 
+**19 November 2026 generic table read on `1.0.0.3732`:** the generic gameplay-table
+reader decodes 305,276 rows and refuses 4,703, all in eight tables (DetectInfo,
+FactionSpawnDataInfo, MissionInfo, SkillGroupInfo, SpawningPoolAutoSpawnInfo, StageInfo,
+StatusInfo, UIMapTextureInfo). DetectInfo is a confirmed layout change: the `1.0.0.3576`
+executable has no `DetectInfo._detectDetailData`, and the `1.0.0.3732` one lists it after
+`_detectSenseData` with a new `DetectDetailData` record holding
+`_detectDetailDataListNew`, the list the retired DetectDetailInfo table carried. A
+presence byte before a counted list decodes the 25 of 44 rows that have no detail data;
+the list element is still unplaced, so all 44 stay refused. The other seven tables' causes
+and start builds are not established. Corpus and executable-label evidence only.
+`tools/patch_day_check.py` now runs every `real_game` guard after a patch and compares
+the result with `tests/patch_day_baseline.json`.
+
 Numbered archive groups pair a `.pamt` index with numbered `.paz` payloads.
 The index records paths, payload locations, stored/original sizes and flags.
 `meta/0.papgt` describes mounted archive groups and their ordering. Correct
