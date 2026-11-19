@@ -67,7 +67,9 @@ Localization, Mesh Editor state matrices and format-specific regressions remain
 available for focused work, outside the default smoke selection.
 
 CodeQL runs weekly or by manual dispatch, retaining all five language analyses.
-It does not run on each push or pull request. Workflow changes take effect on
+A weekly run skips when `main` has not changed since the last successful
+analysis. It does not run on each push or pull request. Focused Windows QA stops
+after 20 minutes; the manual exhaustive suite keeps a two-hour limit. Workflow changes take effect on
 GitHub only after they are pushed; repository protection settings are separate.
 
 Manual `exhaustive_tests` opts into native preparation and the retained nonvisual
