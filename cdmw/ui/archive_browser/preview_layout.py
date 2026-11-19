@@ -693,14 +693,14 @@ class ArchivePreviewLayoutMixin:
         from cdmw.ui.archive_browser.item_set_components import remember_scene_panel_width
 
         remember_scene_panel_width(preview_with_components, self.archive_item_set_components)
-        archive_preview_tab_layout.addWidget(preview_with_components)
+        archive_preview_tab_layout.addWidget(preview_with_components, stretch=1)
         archive_preview_tab_layout.addWidget(self.archive_preview_text_tools)
         archive_preview_tab_layout.addWidget(self.archive_preview_info_tools)
         archive_details_tab = QWidget()
         archive_details_tab_layout = QVBoxLayout(archive_details_tab)
         archive_details_tab_layout.setContentsMargins(0, 0, 0, 0)
         archive_details_tab_layout.setSpacing(6)
-        archive_details_tab_layout.addWidget(self.archive_preview_details_edit)
+        archive_details_tab_layout.addWidget(self.archive_preview_details_edit, stretch=1)
         self.archive_preview_tabs.addTab(archive_preview_tab, "Preview")
         self.archive_preview_tabs.addTab(archive_details_tab, "Details")
         self.archive_preview_stack.currentChanged.connect(self._update_archive_preview_text_tools_visibility)
