@@ -84,3 +84,38 @@ def test_the_component_code_never_passes_itself_as_a_dialog_parent():
                     and node.args[0].id == "self":
                 offenders.append(f"{module.__name__}:{node.lineno}")
     assert offenders == []
+
+
+def test_flows_can_keep_their_pickers_on_the_component():
+    """Hair, archive refit and cloth collision store their pickers on ``tab``, the component.
+
+    Those are host names, and a read-only host property made the first Hair entry,
+    Choose from Archives in Refit and the cloth collision picker fail with
+    "property ... has no setter".
+    """
+
+    QApplication.instance() or QApplication([])
+    host = QWidget()
+    component = LiveEditComponent(host)
+    for name in ("_hair_context_preparation", "_archive_refit_picker", "_cloth_collision_picker", "_hair_picker"):
+        marker = object()
+        setattr(component, name, marker)
+        assert getattr(host, name) is marker and getattr(component, name) is marker
+    host.deleteLater()
+
+
+def test_the_hair_setup_choice_reaches_the_component():
+    """Hair Tools setup leaves its character and context on the tab; the hair flow reads them from the component."""
+
+    from cdmw.ui.mesh_editor.hair_flow import hair_character_for_target
+
+    QApplication.instance() or QApplication([])
+    host = QWidget()
+    component = LiveEditComponent(host)
+    host._pending_hair_character = "Oongka"
+    host._pending_hair_context = "context"
+    assert component._pending_hair_context == "context"
+    assert hair_character_for_target(component, SimpleNamespace(path="unrelated/path.pac")) == "Oongka"
+    component._pending_hair_context = None
+    assert host._pending_hair_context is None
+    host.deleteLater()
