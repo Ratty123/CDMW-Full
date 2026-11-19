@@ -314,6 +314,27 @@ gimmicks differ from their base rows only in one `_managementStatDataList` entry
 (StatusInfo 1000079 "Service" with a value of 1 to 6). This is corpus evidence; the
 game was not run.
 
+**19 November 2026 ItemInfo patch compatibility:** executable `1.0.0.3732` (Steam
+build `26776744`) adds two one-byte fields, so no ItemInfo row decoded and Create
+New Item refused. `ItemInfo._discardSingleCount` sits in the one-byte flag run
+before `_itemType`, and `PageData._uiTextureRotationType` ends each fixed or
+dynamic page record. Parsing alone accepts the flag at 61 positions. The shield
+flags match shield items only when it comes before `_isTowerShieldItem`, and the
+executable's field labels, stored in reverse field order beside their owner
+names, place it after `_discardable` and the page byte after
+`_rightPageRelatedKnowledgeInfo`. The 133 items that set the flag are puzzle and
+gimmick parts; its meaning is otherwise unknown. Base pages all hold rotation 0,
+and 40 DLC pages hold 2. The reader keeps the pre-3527 and 3527 layouts and
+still requires exactly one complete match. All 7,068 base and 1,555 DLC rows
+decode, including 1,601 fixed and 21 dynamic pages. A read-only snapshot loaded
+8,379 effective items. A planned clone kept the template's new values, and
+every untouched row was copied byte for byte. The same check found 146
+random-box item-use actions still unreadable since `1.0.0.3663`: their inline
+`DropInfoData` lacked that build's enchantment byte. They now read too. When a
+later patch adds a field, the reader still needs a named update; the probe
+`tools/probe_iteminfo_layout.py` narrows the candidates. This is source and
+corpus evidence, not archive mutation or in-game acceptance.
+
 Numbered archive groups pair a `.pamt` index with numbered `.paz` payloads.
 The index records paths, payload locations, stored/original sizes and flags.
 `meta/0.papgt` describes mounted archive groups and their ordering. Correct

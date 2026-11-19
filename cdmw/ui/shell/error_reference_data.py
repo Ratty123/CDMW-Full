@@ -30335,7 +30335,7 @@ MESSAGE_REFERENCE = [
     "message": "DLC ItemInfo identity differs from its directory.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 746
+      "cdmw/services/new_item_snapshot.py": 767
     }
   },
   {
@@ -31602,7 +31602,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo has an inconsistent or duplicate row identity.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 645
+      "cdmw/services/new_item_snapshot.py": 652
     }
   },
   {
@@ -31674,15 +31674,15 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo row {entry.row_id} did not decode: {exc} Source: {pair.payload_entry.path} ({pair.payload_entry.pamt_path}); row offset 0x{start}, length {end - start} bytes.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 740
+      "cdmw/services/new_item_snapshot.py": 761
     }
   },
   {
     "area": "items",
-    "message": "ItemInfo row {row.row_id} did not decode: {exc} Source: {iteminfo.payload_entry.path} ({iteminfo.payload_entry.pamt_path}); row offset 0x{start}, length {end - start} bytes.",
+    "message": "ItemInfo row {row.row_id} did not decode: {exc} {scope}Source: {iteminfo.payload_entry.path} ({iteminfo.payload_entry.pamt_path}); row offset 0x{start}, length {end - start} bytes.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 648
+      "cdmw/services/new_item_snapshot.py": 669
     }
   },
   {
@@ -32903,7 +32903,7 @@ MESSAGE_REFERENCE = [
     "message": "StoreInfo did not decode: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 691
+      "cdmw/services/new_item_snapshot.py": 712
     }
   },
   {
@@ -36191,7 +36191,7 @@ MESSAGE_REFERENCE = [
     "message": "item {item_key} is not in ItemInfo",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 264
+      "cdmw/services/new_item_snapshot.py": 269
     }
   },
   {
@@ -36295,7 +36295,7 @@ MESSAGE_REFERENCE = [
     "message": "no archive entries were given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 625
+      "cdmw/services/new_item_snapshot.py": 630
     }
   },
   {
@@ -36561,7 +36561,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no English localisation table",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 774
+      "cdmw/services/new_item_snapshot.py": 795
     }
   },
   {
@@ -36569,7 +36569,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no complete {stem} table pair for the selected item-data layout",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 493
+      "cdmw/services/new_item_snapshot.py": 498
     }
   },
   {
@@ -36577,7 +36577,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no entry {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 163
+      "cdmw/services/new_item_snapshot.py": 168
     }
   },
   {
@@ -36593,7 +36593,7 @@ MESSAGE_REFERENCE = [
     "message": "the archives have no {PAPPT_PATH}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 663
+      "cdmw/services/new_item_snapshot.py": 684
     }
   },
   {
@@ -36851,7 +36851,7 @@ MESSAGE_REFERENCE = [
     "message": "there is no localisation table for {language}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 324
+      "cdmw/services/new_item_snapshot.py": 329
     }
   },
   {
@@ -36859,7 +36859,7 @@ MESSAGE_REFERENCE = [
     "message": "there is no store named {name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 271
+      "cdmw/services/new_item_snapshot.py": 276
     }
   },
   {
@@ -36996,7 +36996,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is not where the workbench last saw it ({moved}). The game's archives have been rewritten since they were read -- a mod manager mounting or unmounting them will do that -- so read the archives again before building.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 249
+      "cdmw/services/new_item_snapshot.py": 254
     }
   },
   {
@@ -37148,7 +37148,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} has conflicting base/DLC identities for key {entry.row_id}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 729,
+      "cdmw/services/new_item_snapshot.py": 750,
       "cdmw/services/new_item_tables.py": 35
     }
   },
@@ -37157,7 +37157,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} has duplicate row {entry.row_id}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_snapshot.py": 723
+      "cdmw/services/new_item_snapshot.py": 744
     }
   },
   {
@@ -75884,7 +75884,7 @@ MESSAGE_REFERENCE = [
     "message": "A required static field cannot be absent.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 257
+      "cdmw/core/compact_static.py": 285
     }
   },
   {
@@ -76089,10 +76089,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Ambiguous compact item-use DropInfoData width.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/item_layout.py": 242
+    }
+  },
+  {
+    "area": "other",
     "message": "Ambiguous compact static field.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 191
+      "cdmw/core/compact_static.py": 219
     }
   },
   {
@@ -76116,7 +76124,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous root item field.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_layout.py": 155
+      "cdmw/core/item_layout.py": 160
     }
   },
   {
@@ -76244,7 +76252,7 @@ MESSAGE_REFERENCE = [
     "message": "An owned hash has no declared icon, prefab or animation reference.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/item_layout.py": 303
+      "cdmw/core/item_layout.py": 322
     }
   },
   {
@@ -76252,7 +76260,7 @@ MESSAGE_REFERENCE = [
     "message": "An owned recipe has no declared ItemInfo reference.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_layout.py": 320
+      "cdmw/core/item_layout.py": 339
     }
   },
   {
@@ -76604,7 +76612,7 @@ MESSAGE_REFERENCE = [
     "message": "Blocked item-use definition.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/item_layout.py": 206
+      "cdmw/core/item_layout.py": 211
     }
   },
   {
@@ -78213,7 +78221,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static list exceeds the supported bound at {path}.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 167
+      "cdmw/core/compact_static.py": 195
     }
   },
   {
@@ -78221,7 +78229,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact static record exceeds the layout limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/compact_static.py": 141
+      "cdmw/core/compact_static.py": 169
     }
   },
   {
@@ -79715,7 +79723,7 @@ MESSAGE_REFERENCE = [
     "message": "Expected a compact item-use definition.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/item_layout.py": 215
+      "cdmw/core/item_layout.py": 220
     }
   },
   {
@@ -80587,7 +80595,7 @@ MESSAGE_REFERENCE = [
     "message": "Incomplete static item field inventory.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/item_layout.py": 176
+      "cdmw/core/item_layout.py": 181
     }
   },
   {
@@ -80755,7 +80763,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid compact static presence flag.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/compact_static.py": 161
+      "cdmw/core/compact_static.py": 189
     }
   },
   {
@@ -81028,7 +81036,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid owned item resource hash.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/item_layout.py": 299
+      "cdmw/core/item_layout.py": 318
     }
   },
   {
@@ -81340,7 +81348,7 @@ MESSAGE_REFERENCE = [
     "message": "Item layout edit changed an unassigned field.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_layout.py": 260
+      "cdmw/core/item_layout.py": 279
     }
   },
   {
@@ -81485,7 +81493,7 @@ MESSAGE_REFERENCE = [
     "message": "ItemInfo.{name} at row offset 0x{start}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 184
+      "cdmw/core/compact_static.py": 212
     }
   },
   {
@@ -84040,7 +84048,7 @@ MESSAGE_REFERENCE = [
     "message": "Resource rebinding changed an unrelated ItemInfo field.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/item_layout.py": 307
+      "cdmw/core/item_layout.py": 326
     }
   },
   {
@@ -84715,7 +84723,7 @@ MESSAGE_REFERENCE = [
     "message": "Static item layout instruction limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/item_layout.py": 78
+      "cdmw/core/item_layout.py": 79
     }
   },
   {
@@ -84723,7 +84731,7 @@ MESSAGE_REFERENCE = [
     "message": "Static item layout recursion limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/item_layout.py": 71
+      "cdmw/core/item_layout.py": 72
     }
   },
   {
@@ -84731,7 +84739,7 @@ MESSAGE_REFERENCE = [
     "message": "Static item list exceeds the supported bound.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/item_layout.py": 102
+      "cdmw/core/item_layout.py": 107
     }
   },
   {
@@ -86460,7 +86468,7 @@ MESSAGE_REFERENCE = [
     "message": "The template needs its owned description key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_layout.py": 333
+      "cdmw/core/item_layout.py": 352
     }
   },
   {
@@ -86732,7 +86740,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static generation has no such field.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/compact_static.py": 238
+      "cdmw/core/compact_static.py": 266
     }
   },
   {
@@ -86740,7 +86748,7 @@ MESSAGE_REFERENCE = [
     "message": "This compact static variant has not been qualified.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 144
+      "cdmw/core/compact_static.py": 172
     }
   },
   {
@@ -87020,7 +87028,7 @@ MESSAGE_REFERENCE = [
     "message": "Truncated compact use action.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/item_layout.py": 217
+      "cdmw/core/item_layout.py": 222
     }
   },
   {
@@ -87076,7 +87084,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown ItemInfo generation.",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/item_layout.py": 187
+      "cdmw/core/item_layout.py": 192
     }
   },
   {
@@ -87124,7 +87132,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown compact static layout operation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/compact_static.py": 206
+      "cdmw/core/compact_static.py": 234
     }
   },
   {
@@ -87164,7 +87172,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown or ambiguous complete ItemInfo layout. {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_layout.py": 197
+      "cdmw/core/item_layout.py": 202
     }
   },
   {
@@ -87172,7 +87180,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown or empty item layout field edit.",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/item_layout.py": 251
+      "cdmw/core/item_layout.py": 270
     }
   },
   {
@@ -87228,7 +87236,7 @@ MESSAGE_REFERENCE = [
     "message": "Unqualified dynamic item width.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_layout.py": 89
+      "cdmw/core/item_layout.py": 94
     }
   },
   {
@@ -87236,7 +87244,7 @@ MESSAGE_REFERENCE = [
     "message": "Unqualified icon reference width.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_layout.py": 278
+      "cdmw/core/item_layout.py": 297
     }
   },
   {
@@ -87244,7 +87252,7 @@ MESSAGE_REFERENCE = [
     "message": "Unqualified item-use payload reader.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/item_layout.py": 139
+      "cdmw/core/item_layout.py": 144
     }
   },
   {
@@ -87348,7 +87356,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported ItemInfo use-list prefix.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/item_layout.py": 245
+      "cdmw/core/item_layout.py": 264
     }
   },
   {
@@ -87412,7 +87420,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static discriminant.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 201
+      "cdmw/core/compact_static.py": 229
     }
   },
   {
@@ -87420,7 +87428,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported compact static record.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 132
+      "cdmw/core/compact_static.py": 160
     }
   },
   {
@@ -87550,7 +87558,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item discriminant.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/item_layout.py": 110
+      "cdmw/core/item_layout.py": 115
     }
   },
   {
@@ -87574,7 +87582,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item-name localization layout.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/item_layout.py": 328
+      "cdmw/core/item_layout.py": 347
     }
   },
   {
@@ -87590,7 +87598,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item-use variant.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/item_layout.py": 128
+      "cdmw/core/item_layout.py": 133
     }
   },
   {
@@ -87630,7 +87638,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported or ambiguous compact ItemInfo layout ({detail}).",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 122
+      "cdmw/core/compact_static.py": 150
     }
   },
   {
@@ -87638,7 +87646,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported or ambiguous compact static layout.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/compact_static.py": 120
+      "cdmw/core/compact_static.py": 148
     }
   },
   {
@@ -87727,7 +87735,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported static item discriminator.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/item_layout.py": 122
+      "cdmw/core/item_layout.py": 127
     }
   },
   {
@@ -87735,7 +87743,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported static item layout branch.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/item_layout.py": 149
+      "cdmw/core/item_layout.py": 154
     }
   },
   {
@@ -87743,7 +87751,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported static item layout.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/item_layout.py": 178
+      "cdmw/core/item_layout.py": 183
     }
   },
   {
@@ -108543,7 +108551,7 @@ SOURCE_COVERAGE = {
     "raise": 6
   },
   "cdmw/core/compact_static.py": {
-    "assertion": 1,
+    "assertion": 3,
     "diagnostic_field": 1,
     "finding": 2,
     "raise": 15
@@ -108655,8 +108663,8 @@ SOURCE_COVERAGE = {
     "raise": 6
   },
   "cdmw/core/item_layout.py": {
-    "finding": 1,
-    "raise": 29
+    "finding": 2,
+    "raise": 31
   },
   "cdmw/core/item_model_family.py": {
     "raise": 5
