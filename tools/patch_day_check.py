@@ -13,8 +13,7 @@ procedure and every past break; worktrees do not carry it):
 2. Read the report (`.work/tests/<date>-patch-<build>/patch-day.md`). It exits 1 when
    anything is NEW: a failure the baseline does not list, a known failure whose reason
    changed, a skip it does not expect, a missing metadata file, or a changed inventory or
-   static table name. Changed metadata files and the new build are reported, not failed. An ASI loader the virtual
-   runtime does not know is reported as a warning (it is not a game change).
+   static table name. Changed metadata files and the new build are reported, not failed.
 3. For each new failure, decide: real break (the app's own path fails on this build)
    or stale test (the test asserts an old name or layout the app already handles).
    For an ItemInfo row break, run `tools/probe_iteminfo_layout.py --game <root>` first.
@@ -47,7 +46,6 @@ from typing import Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = REPO_ROOT / "tests" / "patch_day_baseline.json"
-BOOTSTRAP_SOURCE = REPO_ROOT / "native" / "cdmw_virtual_loader" / "bootstrap.cpp"
 DEFAULT_GAME_ROOT = Path(r"C:\games\Steam\steamapps\common\Crimson Desert")
 STEAM_APP_ID = "3321460"
 META_FILES = (
@@ -165,26 +163,6 @@ def meta_fingerprints(game_root: Path) -> dict[str, dict]:
         path = game_root / relative
         rows[relative] = {"size": path.stat().st_size, "sha256": sha256(path)} if path.is_file() else {"missing": True}
     return rows
-
-
-def known_bootstrap_hashes(source: Path = BOOTSTRAP_SOURCE) -> set[str]:
-    """The winmm.dll (Ultimate ASI Loader) builds the virtual runtime's witnesses accept."""
-
-    try:
-        text = source.read_text(encoding="utf-8")
-    except OSError:
-        return set()
-    return set(re.findall(r'bootstrap_hash\[\]\s*=\s*"([0-9a-f]{64})"', text))
-
-
-def bootstrap_check(game_root: Path) -> dict:
-    loader = game_root / "bin64" / "winmm.dll"
-    if not loader.is_file():
-        return {"status": "absent", "note": "no bin64/winmm.dll; the virtual runtime cannot start"}
-    digest = sha256(loader)
-    known = known_bootstrap_hashes()
-    return {"status": "known" if digest in known else "UNKNOWN", "sha256": digest,
-            "note": "" if digest in known else "the virtual runtime's startup witnesses will refuse this loader"}
 
 
 # --------------------------------------------------------------------------- inventory
@@ -335,9 +313,7 @@ def render(report: Mapping[str, object]) -> str:
     lines = [f"# Patch-day check, {report['date']}", ""]
     build = report["build"]
     lines += [f"- Executable: {build['exe'] or 'unreadable'} (baseline {build['baseline_exe']})",
-              f"- Steam build: {build['steam'] or 'unknown'} (baseline {build['baseline_steam']})",
-              f"- Bootstrap loader (outside the app; warns, does not fail the run): {report['bootstrap']['status']} "
-              f"{report['bootstrap'].get('note', '')}".rstrip(), ""]
+              f"- Steam build: {build['steam'] or 'unknown'} (baseline {build['baseline_steam']})", ""]
     changed = [k for k, v in report["meta"].items() if v.get("changed")]
     lines.append(f"- Changed metadata files: {', '.join(changed) if changed else 'none'}")
     inventory = report.get("inventory")
@@ -443,7 +419,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         before = baseline.get("meta", {}).get(relative)
         row["changed"] = bool(before) and before.get("sha256") != row.get("sha256")
     report["meta"] = meta
-    report["bootstrap"] = bootstrap_check(game)
     print(f"Build {exe} (Steam {report['build']['steam']}); baseline {report['build']['baseline_exe']}")
 
     from tools.report_format_decode_progress import load_inventory, scan_inventory

@@ -78,18 +78,13 @@ def test_junit_results_are_sorted_against_the_baseline(tmp_path, monkeypatch):
     assert new == ["test_b::test_broke", "test_b::test_skip_new", "test_c::test_gone"]
     text = pdc.render({"date": "2026-11-19", "build": {"exe": "1.0.0.1", "steam": "1", "baseline_exe": "1.0.0.0",
                                                        "baseline_steam": "0"},
-                       "bootstrap": {"status": "known"}, "meta": {}, "tests": list(rows.values())})
+                       "meta": {}, "tests": list(rows.values())})
     assert "NEW FAILURE: `test_b::test_broke`" in text and "| B | 3 | 0 | **2** | 0 | 1 | 0 |" in text
 
 
 def test_inventory_diff_reports_new_removed_and_moved_extensions():
     diff = pdc.inventory_diff({".pac": 13307, ".new": 5, ".dds": 400000}, {".pac": 13300, ".old": 2, ".dds": 388451})
     assert diff == {"added": [".new"], "removed": [".old"], "moved": {".dds": [388451, 400000]}}
-
-
-def test_the_bootstrap_hashes_come_from_the_virtual_loader_source():
-    hashes = pdc.known_bootstrap_hashes()
-    assert len(hashes) == 2 and all(len(h) == 64 for h in hashes)
 
 
 def test_writing_a_baseline_keeps_known_reasons_and_adds_new_ones(tmp_path):
