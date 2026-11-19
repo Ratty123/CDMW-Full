@@ -45,6 +45,54 @@ def item_set_material_cache(session_root: Path) -> Path:
     return sessions / "item-set-native-cache"
 
 
+def head_companion_appearance(contexts, context, source, stop_event):
+    """The head's own shape for a set piece that a head in the same set declares.
+
+    A head's eyes and teeth are shared PACs posed by the head's skeleton
+    variation, not by one of their own. Each piece otherwise resolves its own
+    appearance, so the head opens reshaped while its eyes stay at their source
+    rig's pose inside the skull. Returns None when no head in the set declares
+    the piece, or its shape cannot be applied; the piece keeps its own then.
+    """
+
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
+    from cdmw.core.skeleton_resolver import resolve_skeleton_descriptor_for_model
+    from cdmw.workers.archive_preview_native import native_preview_model_property_indices
+
+    def key(path):
+        return str(path or "").replace("\\", "/").casefold()
+
+    piece = context.selected_entry
+    read = lambda candidate: read_archive_entry_data(candidate, stop_event=stop_event)[0]
+    for head_context in contexts:
+        head = head_context.selected_entry
+        if head_context is context or "/head/head/" not in key(head.path):
+            continue
+        stem = Path(head.path).stem.casefold()
+        prefabs = tuple(entry for entry in head_context.entries
+                        if entry.extension.casefold() == ".prefab" and Path(entry.path).stem.casefold() == stem)
+        declared = native_preview_model_property_indices(prefabs, stop_event)
+        if key(head.path) not in declared or key(piece.path) not in declared:
+            continue
+        paths = {**context.entries_by_normalized_path, **head_context.entries_by_normalized_path}
+        basenames = {**context.entries_by_basename, **head_context.entries_by_basename}
+        resolution = resolve_skeleton_descriptor_for_model(head, head_context.entries,
+            archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames, read_entry_data=read)
+        descriptor = resolution.skeleton_descriptor_entry or resolution.descriptor_entry
+        if descriptor is None or resolution.skeleton_variation_entry is None:
+            continue
+        entries = {entry.identity: entry for entry in (*head_context.entries, *context.entries)}
+        try:
+            shaped, _notes = apply_archive_mesh_appearance(piece, source.mesh, source.original_data,
+                archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames,
+                context_entries=tuple(entries.values()), authored_descriptor=descriptor, stop_event=stop_event)
+        except ValueError:
+            return None
+        return getattr(shaped, "_cdmw_neutral_appearance", None)
+    return None
+
+
 class PreparedItemSet(NamedTuple):
     mesh: object
     context: object
@@ -112,7 +160,9 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
         timings[f"piece_parse_ms:{name}"] = round((parsed - piece_started) * 1000.0, 1)
         timings[f"piece_material_ms:{name}"] = round((_time.perf_counter() - parsed) * 1000.0, 1)
         leases = (prepared.get("_archive_preview_lease"), native_lease)
-        return (context.selected_entry, source, prepared.get("_archive_neutral_appearance"), leases, context)
+        appearance = (head_companion_appearance(contexts, context, source, stop_event)
+                      or prepared.get("_archive_neutral_appearance"))
+        return (context.selected_entry, source, appearance, leases, context)
 
     progress("Preparing editable item set...")
     # Each piece loads into its own mesh service and runs its own Preview Core

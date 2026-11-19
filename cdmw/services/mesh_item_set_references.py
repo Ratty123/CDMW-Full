@@ -34,6 +34,10 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
         try:
             mesh = bounded if bounded is not None else prepared["_archive_snapshot"].mesh
             appearance = prepared.get("_archive_neutral_appearance")
+            if bounded is None:
+                from cdmw.services.mesh_item_set_editing import head_companion_appearance
+                appearance = (head_companion_appearance(contexts, context, prepared["_archive_snapshot"], stop_event)
+                              or appearance)
             if appearance is not None:
                 mesh = appearance.to_neutral(mesh)
             if editing_set and bounded is None:

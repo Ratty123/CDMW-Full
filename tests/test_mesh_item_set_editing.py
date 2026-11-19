@@ -601,3 +601,64 @@ def test_the_tab_says_which_set_files_are_read_only_before_the_editor_shows() ->
     MeshEditorRustEditorMixin._handle_rust_session_prepared(tab, 4, session)
     assert [kind for kind, _ in events[:3]] == ["status", "log", "launch"]
     assert "lower.pac" in events[0][1]
+
+
+def test_a_set_piece_a_head_declares_opens_in_the_head_s_shape(tmp_path, monkeypatch):
+    # Eyes and teeth are shared PACs that the head's skeleton variation poses.
+    # Their own appearance left them inside the reshaped head's skull.
+    from cdmw.services import mesh_item_set_editing
+    from cdmw.services.mesh_item_set_editing import prepare_editable_item_set
+
+    head_shape = SimpleNamespace(to_neutral=lambda mesh: copy.deepcopy(mesh))
+    asked = []
+
+    def companion(contexts, context, source, stop_event):
+        asked.append(context.selected_entry.path)
+        return head_shape
+
+    monkeypatch.setattr(mesh_item_set_editing, "head_companion_appearance", companion)
+    own_shape = SimpleNamespace(to_neutral=lambda mesh: pytest.fail("the piece's own shape was used"))
+    service, controller, contexts, primary = _set_preparation_stubs(
+        tmp_path, monkeypatch,
+        lambda args, lower, started: {"_archive_snapshot": lower, "_archive_neutral_appearance": own_shape})
+    try:
+        _mesh, context, *_rest = prepare_editable_item_set(
+            service, controller.active_session_id, copy.deepcopy(primary.mesh), contexts, threading.Event(),
+            lambda _message: None, tmp_path / "root", None)
+        assert asked == ["lower.pac"]
+        assert context.assets[1].neutral_appearance is head_shape
+    finally:
+        service.close_edit_session(controller.active_session_id, force_without_saving=True)
+
+
+def test_head_companion_appearance_uses_the_head_descriptor_only_for_declared_pieces(monkeypatch):
+    from cdmw.services.mesh_item_set_editing import head_companion_appearance
+
+    def entry(path):
+        return SimpleNamespace(path=path, extension="." + path.rsplit(".", 1)[1], identity=path)
+
+    head = entry("character/model/1_pc/8_pdw/head/head/face.pac")
+    eye = entry("character/model/1_pc/2_phw/head/head_sub/eye.pac")
+    hair = entry("character/model/1_pc/2_phw/hair/hair.pac")
+    prefab = entry("character/bin__/prefab/1_pc/08_pdw/head/head/face.prefab")
+    descriptor = entry("character/prefab/1_pc/08_pdw/head/head/face.prefabdata_xml")
+
+    def context(selected):
+        return SimpleNamespace(selected_entry=selected, entries=(head, eye, prefab, descriptor),
+                               entries_by_normalized_path={}, entries_by_basename={})
+
+    contexts = (context(head), context(eye), context(hair))
+    shaped = SimpleNamespace(_cdmw_neutral_appearance="head shape")
+    calls = []
+    monkeypatch.setattr("cdmw.workers.archive_preview_native.native_preview_model_property_indices",
+                        lambda prefabs, stop: {head.path: 0, eye.path: 0} if prefabs == (prefab,) else {})
+    monkeypatch.setattr("cdmw.core.skeleton_resolver.resolve_skeleton_descriptor_for_model",
+        lambda *a, **kw: SimpleNamespace(skeleton_descriptor_entry=descriptor, descriptor_entry=descriptor,
+                                         skeleton_variation_entry=object()))
+    monkeypatch.setattr("cdmw.core.archive_mesh_appearance.apply_archive_mesh_appearance",
+                        lambda piece, mesh, data, **kw: calls.append((piece, kw["authored_descriptor"])) or (shaped, ()))
+    source = SimpleNamespace(mesh=object(), original_data=b"PAC")
+    assert head_companion_appearance(contexts, contexts[1], source, None) == "head shape"
+    assert calls == [(eye, descriptor)]
+    assert head_companion_appearance(contexts, contexts[2], source, None) is None  # not declared by the head
+    assert head_companion_appearance(contexts, contexts[0], source, None) is None  # the head keeps its own

@@ -157,7 +157,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Mesh Editor's **Create body slider** and **+ Create** scroll the slider creator into view when it opens. With a long tool panel above it, the creator could open out of sight.
 - Portable builds no longer fail to start because an unrelated installed tool supplies an incompatible ICU library.
 - Closing CDMW while the Mesh Editor is open no longer reports an error.
-- The Mesh Editor shows a model's companion parts, such as a head's eyes and teeth, as read-only references with the same materials as Browse Archives. Before, a head opened without its eyes.
+- The Mesh Editor shows a model's companion parts, such as a head's eyes and teeth, as read-only references with the same materials as Browse Archives. Before, a head opened without its eyes. A head opened with its eyes and teeth ticked in the **Scene** panel shows them in the head's own face shape.
 - Character Finder previews no longer freeze the window intermittently while thumbnails finish loading.
 - Mesh Editor's **Delete unavailable** message names the operation it is waiting for, and gives the Free Edit advice only when the output mode is the reason.
 - **Preview Settings** stays on the page you are on. Changing the Lighting preset, or any other setting on Quality or Lighting, moved the window to Camera Input.
