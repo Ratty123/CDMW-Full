@@ -273,7 +273,8 @@ visible UI and in-game testing.
 
 CI runs focused startup and safety checks on code changes to `main` and pull
 requests. Packaging and the full Python compatibility matrix are manual options;
-release tags do not start another package build. CodeQL runs weekly or on request.
+release tags do not start another package build. CodeQL runs weekly when `main`
+has new commits, or on request.
 
 Before publishing, run the focused tests for the changed behavior and verify the
 requested release build, including its bundled helpers and startup checks. A

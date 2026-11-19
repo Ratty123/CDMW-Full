@@ -119,7 +119,10 @@ jobs:
     needs: native
     if: ${{ !cancelled() && (needs.native.result == 'success' || needs.native.result == 'skipped') }}
     runs-on: windows-latest
-    timeout-minutes: 120
+    # Focused validation finishes in about two minutes, so a hung everyday run
+    # stops after 20 instead of holding a Windows runner for two hours. Only the
+    # manual exhaustive suite keeps the long limit it needs.
+    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests) && 120 || 20 }}
     strategy:
       fail-fast: false
       matrix:

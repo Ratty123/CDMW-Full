@@ -503,6 +503,28 @@ def test_codeql_uploads_security_results_without_optional_database_bundles() -> 
     assert "continue-on-error:" not in source
 
 
+def test_windows_workflow_stops_hung_focused_runs_early() -> None:
+    """Everyday QA takes minutes; only the manual exhaustive suite gets two hours."""
+
+    source = WORKFLOW.read_text(encoding="utf-8")
+    qa_job = source.split("  qa:\n", 1)[1].split("  package:\n", 1)[0]
+    assert (
+        "timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' && "
+        "inputs.exhaustive_tests) && 120 || 20 }}"
+    ) in qa_job
+
+
+def test_codeql_workflow_skips_scheduled_runs_on_an_already_analyzed_commit() -> None:
+    source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
+    gate = source.split("  changed:\n", 1)[1].split("  analyze:\n", 1)[0]
+    analyze = source.split("  analyze:\n", 1)[1]
+    assert 'if [ "$EVENT_NAME" != "schedule" ]; then' in gate
+    assert "actions/workflows/codeql.yml/runs?status=success&per_page=1" in gate
+    assert '[ "$last" = "$HEAD_SHA" ]' in gate
+    assert "needs: changed" in analyze
+    assert "if: needs.changed.outputs.analyze == 'true'" in analyze
+
+
 def test_windows_workflow_defaults_to_focused_checks_and_opt_in_full() -> None:
     """Pushes, PRs and releases must not implicitly run the exhaustive matrix."""
 
