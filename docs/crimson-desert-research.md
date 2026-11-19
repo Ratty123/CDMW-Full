@@ -1890,6 +1890,21 @@ runtime dump, archives read-only):
 - **Not yet named.** Most node, branch, key-guide and frame-event payload fields
   stay raw bytes, as do two u32 hashes and a second rate after
   `ActionSpeedRate`.
+- **Finisher states (read-only scan, 2026-11-15, game 2.05, exe 1.0.0.3663).**
+  Paired finishers are identifiable only by clip name. Thirty-six attacker-side
+  animations (`att_finish_link_*`, `execute_lk_*`, `takedown`) in nine player
+  charts, most of them in `sword_upper` (12) and `dualsword_upper` (8), each sit
+  in a node of their own and open with `AttackCatch` and close with
+  `ReleaseCatch`. The victim's matching `*_link_*` clips are mostly in
+  `common_hitaction` and `basic_hitaction`. `AttackCatch` is no finisher marker:
+  1,040 animations in 59 charts use it, including grabs, pickups and
+  assassinations. In the 32-byte branch records, +8 is `FLT_MAX` in 196,604 of
+  196,773 records. In `dualsword_upper` the u32 at +12 is the only place any of its
+  finisher node indices appear, which suggests a target node, but in 163 charts
+  40,793 records exceed the chart's own node count. The field therefore stays
+  unproven, as does how branch instances own these records and their conditions.
+  Removing finishers needs those branch semantics; slowing or speeding them
+  needs only the speed-window edits already proven in game.
 - **Writes (constrained).** Any string table entry can be retargeted at any
   length up to 254 ASCII characters: the table is rebuilt and every other byte
   moves as one block, which round-trips on every table of all 558 charts. One
