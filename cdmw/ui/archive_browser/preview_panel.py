@@ -117,6 +117,9 @@ class ArchivePreviewTextToolsMixin:
 
     def _build_archive_text_tools(self, editor: object) -> QWidget:
         tools = QWidget()
+        # Fixed height: in a QVBoxLayout a Preferred toolbar shares spare height with the
+        # preview above it, which left a band of dead space under text/tag previews.
+        tools.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         tools_layout = QHBoxLayout(tools)
         tools_layout.setContentsMargins(0, 0, 0, 0)
         tools_layout.setSpacing(6)

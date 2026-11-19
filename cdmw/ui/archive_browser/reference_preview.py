@@ -203,7 +203,7 @@ class ArchiveReferencePreviewMixin:
         preview_tab_layout.addWidget(preview_text_tools)
         preview_tab_layout.addWidget(preview_summary_tools)
         preview_tab_layout.addWidget(preview_info_tools)
-        preview_tab_layout.addWidget(preview_stack)
+        preview_tab_layout.addWidget(preview_stack, stretch=1)
         preview_stack.currentChanged.connect(_update_reference_preview_text_tools_visibility)
         from cdmw.ui.preview.scene_panel_binding import attach_scene_panel
 
@@ -235,7 +235,7 @@ class ArchiveReferencePreviewMixin:
         details_tab_layout.setContentsMargins(0, 0, 0, 0)
         details_tab_layout.setSpacing(6)
         details_tab_layout.addWidget(self._build_archive_text_tools(details_edit))
-        details_tab_layout.addWidget(details_edit)
+        details_tab_layout.addWidget(details_edit, stretch=1)
 
         preview_tabs.addTab(preview_tab, "Preview")
         reference_family_graph = result.asset_family_graph
