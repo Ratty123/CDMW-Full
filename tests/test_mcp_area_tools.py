@@ -803,6 +803,266 @@ class _TemplateSearch(QObject):
     busy = False
 
 
+@pytest.fixture
+def new_item_page(app, connect, tmp_path, monkeypatch, request):
+    from PySide6.QtCore import QCoreApplication, QEvent, Qt
+
+    from cdmw.core.archive_format import parse_archive_pamt
+    from cdmw.ui.new_item.controller import NewItemStudioController
+    from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    from tests.test_new_item_service import _read, build_package, synthetic_files
+
+    monkeypatch.setattr("cdmw.constants.MOD_FOLDER_TOOLS_ENABLED", True)
+    # The owned archive fixture contains sample models and tables. These Qt
+    # workflow tests do not need to start a native rendering process.
+    monkeypatch.setattr(ItemPreviewFrame, "_start_package", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("cdmw.ui.new_item.effect_placement_dialog._default_host_factory", lambda *_args: None)
+    monkeypatch.setattr("cdmw.ui.new_item.panels_output.QDesktopServices.openUrl", lambda _url: True)
+    monkeypatch.setattr("cdmw.ui.new_item.panels_output.resolve_settings_file_path", lambda: tmp_path / "CDMW.cfg")
+    if getattr(request, "param", None) == "independent":
+        from tests.test_independent_items import setup_game
+
+        _service, _snapshot, entries = setup_game(tmp_path / "snapshot")
+    else:
+        files = synthetic_files()
+        effect = Path(__file__).parent / "fixtures" / "effects" / "fx_hit_common_fire_attach_a_loop.pae"
+        files["effect/binary__/releasebin/fx_test_fire.pae"] = effect.read_bytes()
+        archive = build_package(tmp_path / "snapshot", files)
+        entries = tuple(parse_archive_pamt(archive))
+
+    presenter = QWidget()
+    shell = SimpleNamespace(new_item_studio_tab=presenter, settings=create_settings(settings_file_path=tmp_path / "studio.cfg"))
+    window = SimpleNamespace(shell=shell)
+    controller = NewItemStudioController(read_entry=_read, parent=presenter)
+    controller.saved_work_root = tmp_path / "saved-work"
+    tab = NewItemStudioTab(presenter, window=window, controller=controller, get_archive_entries=lambda: entries)
+    presenter.workflow = tab
+    presenter.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    presenter.resize(1200, 720)
+    tab.resize(1200, 720)
+    presenter.show()
+    tab.start_snapshot()
+    mcp = connect(window)
+    try:
+        mcp.wait_until(lambda: controller.ready and tab._panels_built)
+        yield mcp, tab
+    finally:
+        tab.close()
+        mcp.wait_until(lambda: not tab.iter_shutdown_workers())
+        presenter.close()
+        presenter.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()
+
+
+def _pick_real_new_item(mcp, tab):
+    from tests.test_new_item_service import TEMPLATE
+
+    found = mcp.ok("new_item_search", {"text": str(TEMPLATE)})
+    assert found["templates"]
+    mcp.ok("new_item_pick", {"row": 0})
+    mcp.wait_until(lambda: tab.controller.draft.template_key == TEMPLATE)
+
+
+def _name_real_new_item(mcp):
+    assert mcp.ok("new_item_set", {"fields": {
+        "internal_name": "Mcp_Sword", "display_names": {"eng": "MCP Sword"},
+    }})["refused"] == {}
+
+
+def test_stage4_new_item_step_uses_the_header_and_answers_the_staged_effect_prompt(new_item_page):
+    mcp, tab = new_item_page
+    error = mcp.error("new_item_step", {"step": "template"})
+    assert error["message"] == tab.steps.item(0).toolTip()
+    _pick_real_new_item(mcp, tab)
+    assert mcp.ok("new_item_step", {"step": "effects"})["step"]["id"] == "effects"
+    assert tab.steps.currentRow() == tab.pages.currentIndex() == 4
+    mcp.ok("new_item_effects", {"action": "search", "text": "fx_test_fire"})
+    mcp.ok("new_item_effects", {"action": "pick", "stem": "fx_test_fire"})
+    assert tab.perks_panel.has_staged_effect_changes()
+    assert mcp.error("new_item_step", {"step": "distribution"})["data"]["asked"][0]["answer"] == "stay"
+    assert tab.pages.currentIndex() == 4
+    result = mcp.ok("new_item_step", {"step": "distribution", "staged": "discard"})
+    assert result["asked"][0]["answer"] == "discard"
+    assert tab.steps.currentRow() == tab.pages.currentIndex() == 5
+    assert tab.controller.draft.effect_stem == "" and not tab.perks_panel.has_staged_effect_changes()
+    assert QApplication.activeModalWidget() is None
+
+
+def test_stage4_new_item_draft_reads_fields_and_current_step_issues(new_item_page):
+    from dataclasses import fields
+
+    mcp, tab = new_item_page
+    snapshot = mcp.ok("new_item_draft")
+    assert snapshot["step"] == "template"
+    assert {name for step in snapshot["steps"] for name in step["fields"]} == {
+        field.name for field in fields(tab.controller.draft)
+    }
+    assert snapshot["steps"][0]["state"] == "blocked"
+    _pick_real_new_item(mcp, tab)
+    _name_real_new_item(mcp)
+    identity = mcp.ok("new_item_draft", {"step": "identity"})["steps"][0]
+    assert identity["fields"]["internal_name"]["value"] == tab.identity_panel.internal_name.text() == "Mcp_Sword"
+    assert identity["fields"]["display_names"]["value"]["eng"] == tab.identity_panel.display_name.text() == "MCP Sword"
+    assert "eng" in {choice["value"] for choice in identity["fields"]["display_names"]["allowed"]["choices"]}
+
+
+def test_stage4_new_item_set_names_prices_stats_and_shop_fields(new_item_page):
+    from tests.test_new_item_service import COPPER, DDD
+
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    result = mcp.ok("new_item_set", {"fields": {
+        "internal_name": "Bad name", "display_names": {"eng": "Copper Blade", "ger": "Kupferklinge"},
+        "descriptions": {"ger": "Eine Klinge."},
+        "grid_values": [{"level": 0, "kind": "stat", "key": DDD, "value": 15800}],
+        "price_values": [{"key": COPPER, "value": 27}],
+        "placement_kind": "insert", "store_name": "Store_Camp_Equipment",
+        "unlimited_stock": False, "stock_count": 4,
+    }})
+    assert set(result["refused"]) == {"internal_name"}
+    draft, identity = tab.controller.draft, tab.identity_panel
+    assert draft.display_names["ger"] == identity.display_name.text() == "Kupferklinge"
+    assert draft.descriptions["ger"] == identity.description.toPlainText() == "Eine Klinge."
+    stats = tab.stats_panel
+    assert int(stats.table.item(0, 0).text()) == draft.grid_values[(0, 0)] == 15800
+    assert int(stats.price_table.item(0, 1).text()) == draft.price_values[COPPER] == 27
+    assert tab.placement_panel.store.currentData() == draft.store_name == "Store_Camp_Equipment"
+    assert tab.placement_panel.stock_count.value() == draft.stock_count == 4
+    assert tab.placement_panel.insert.isChecked() and draft.placement_kind.value == "insert"
+
+
+def test_stage4_new_item_model_uses_the_socket_and_icon_controls(new_item_page, tmp_path):
+    from PIL import Image
+
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    mcp.ok("new_item_model", {"action": "sockets", "slots": [{"material_key": 1, "amount": 25}]})
+    slot, = tab.controller.draft.socket_slots
+    costs = tab.perks_panel.socket_editor.costs
+    assert costs.rowCount() == 1 and costs.cellWidget(0, 2).text() == str(slot.amount) == "25"
+    picture = tmp_path / "icon.png"
+    Image.new("RGBA", (32, 32), (220, 160, 70, 255)).save(picture)
+    mcp.ok("new_item_model", {"action": "icon", "path": str(picture)})
+    assert tab.model_panel.generate_icon.isChecked() and tab.controller.draft.icon.value == "generated"
+    assert tab.model_panel.icon_source.text() == tab.controller.draft.icon_source_path == str(picture)
+
+
+def test_stage4_new_item_model_paints_the_published_mask_by_points(new_item_page, monkeypatch):
+    from cdmw.core.material_shader_controls import equipment_shader_options
+    from cdmw.services.new_item_transparency_paint import TransparencyPaintSource
+    from tests.test_new_item_transparency_paint import gradient
+    from tests.test_shader_controls import material
+
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    controller, panel = tab.controller, tab.model_panel
+    monkeypatch.setattr(controller, "material_parts", lambda: (("Blade", "Blade"),))
+    monkeypatch.setattr(controller, "material_shader_options", lambda: equipment_shader_options(material()))
+    mask = gradient()
+    prepared = TransparencyPaintSource(mask, bytes([90, 120, 160, 255]) * (mask.width * mask.height))
+    monkeypatch.setattr("cdmw.services.new_item_transparency_paint.prepare_transparency_paint",
+                        lambda *_args, **_kwargs: prepared)
+    panel.refresh_glow_parts()
+    fields = {"part": "Blade", "paint_mode": "blending"}
+    mcp.ok("new_item_model", {"action": "transparency", **fields})
+    mcp.ok("new_item_model", {"action": "paint", **fields, "points": [[5, 5], [20, 5]],
+                              "value": 255, "brush_size": 5, "hardness": 100, "opacity": 100})
+    edited = dict(controller.draft.shader_controls)["Blade"].transparency_mask
+    assert edited.pixels != mask.pixels
+    editor = panel.shader_controls_editor
+    assert editor.part.currentData() == "Blade" and editor.restore_mask.isEnabled()
+    assert editor._choices["Blade"].transparency_mask == edited
+    assert QApplication.activeModalWidget() is None
+
+
+def test_stage4_new_item_effects_stages_layers_and_edits_perk_controls(new_item_page):
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    found = mcp.ok("new_item_effects", {"action": "search", "text": "fx_test_fire"})
+    assert "fx_test_fire" in {row["stem"] for row in found["choices"]}
+    staged = mcp.ok("new_item_effects", {"action": "pick", "stem": "fx_test_fire"})
+    assert staged["unapplied"] and tab.controller.draft.effect_stem == ""
+    mcp.ok("new_item_effects", {"action": "layer", "operation": "duplicate", "name": "Second flame"})
+    workspace = tab.perks_panel.effects_workspace
+    assert workspace.recipe_panel.layers.item(1).text() == workspace.staged_state.resolved_layers()[1].name == "Second flame"
+    applied = mcp.ok("new_item_effects", {"action": "apply", "answers": {"confirm": "yes"}})
+    assert not applied["unapplied"]
+    assert tab.controller.draft.effect_stem == workspace.staged_state.stem == "fx_test_fire"
+    assert tab.controller.draft.effect_layers[1].name == workspace.recipe_panel.layers.item(1).text() == "Second flame"
+    mcp.ok("new_item_effects", {"action": "perks", "customize": True})
+    assert tab.perks_panel.own_perks.isChecked() and tab.controller.draft.socket_items is not None
+
+
+def test_stage4_new_item_plan_waits_for_the_published_output_review(new_item_page):
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    _name_real_new_item(mcp)
+    result = mcp.ok("new_item_plan", {"action": "refresh"})
+    assert result["current"] and not result["review_pending"]
+    assert "Mcp_Sword" in result["review"] == tab.output_panel.summary.toPlainText()
+    assert result["warnings"] == list(tab.controller.plan.warnings)
+    assert result["files"] == [{"path": path, "change": change} for path, change in tab.output_panel._file_model.rows]
+    mcp.ok("new_item_set", {"fields": {"internal_name": "Mcp_New_Name"}})
+    assert not mcp.ok("new_item_plan")["current"] and not tab.output_panel.export_button.isEnabled()
+
+
+def test_stage4_new_item_build_writes_a_new_folder_and_reports_worker_result(new_item_page, settings, tmp_path):
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    _name_real_new_item(mcp)
+    assert mcp.ok("new_item_plan", {"action": "refresh"})["current"]
+    game = _game(tmp_path, settings)
+    error = mcp.error("new_item_build", {"folder": str(game)})
+    assert "does not write into the game folder" in error["message"]
+    output = tmp_path / "mods"
+    output.mkdir()
+    result = mcp.ok("new_item_build", {"folder": str(output), "mod_name": "Copper Sword", "zip": True})
+    assert result["started"] and result["status"] in ("running", "written")
+    completed = mcp.wait_until(lambda: (lambda build: build["status"] != "running" and build)(
+        mcp.ok("new_item_plan")["build"]))
+    assert completed["status"] == "written" and completed["asked"][0]["answer"] == "ok"
+    assert Path(completed["path"]).is_dir() and Path(completed["zip"]).is_file()
+    assert tab.output_panel.export_root.text() == tab.controller.draft.export_root == str(output)
+    assert tab.output_panel.mod_name.text() == tab.controller.draft.mod_name == "Copper Sword"
+    assert mcp.error("new_item_build", {"folder": str(output)})["code"] == "refused"
+
+
+@pytest.mark.parametrize("new_item_page", ["independent"], indirect=True)
+def test_stage4_new_item_draft_file_continues_settings_and_an_item_package(new_item_page, tmp_path):
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    _name_real_new_item(mcp)
+    draft_path = tmp_path / "sword.draft.json"
+    assert mcp.ok("new_item_draft_file", {"action": "save", "path": str(draft_path)})["saved"] == str(draft_path)
+    assert draft_path.is_file()
+    mcp.ok("new_item_set", {"fields": {"internal_name": "Different_Sword"}})
+    assert mcp.ok("new_item_draft_file", {"action": "load", "file": str(draft_path)})["loaded"]
+    assert tab.identity_panel.internal_name.text() == tab.controller.draft.internal_name == "Mcp_Sword"
+    assert tab.identity_panel.display_name.text() == tab.controller.draft.display_names["eng"] == "MCP Sword"
+
+    assert mcp.ok("new_item_plan", {"action": "refresh", "mode": "independent"})["current"]
+    package = tmp_path / "sword.cdmw"
+    assert mcp.ok("new_item_draft_file", {"action": "save_package", "path": str(package)})["started"]
+    mcp.wait_until(lambda: not tab.controller.busy and package.is_file())
+    mcp.ok("new_item_set", {"fields": {"internal_name": "Different_Sword"}})
+    packages = mcp.ok("new_item_draft_file", {"action": "list"})["packages"]
+    row = next(row for row in packages if Path(row["package_path"]) == package)
+    assert mcp.ok("new_item_draft_file", {"action": "continue", "row_id": row["id"]})["loaded"]
+    assert tab.identity_panel.internal_name.text() == tab.controller.draft.internal_name == "Mcp_Sword"
+    assert tab.controller.continued_package_path == package
+    assert str(package) in tab.output_panel.continued_package_button.toolTip()
+    identity = tab.controller.draft.independent_identity
+    mcp.ok("new_item_set", {"fields": {"display_names": {"eng": "Updated Sword"}}})
+    assert mcp.ok("new_item_plan", {"action": "refresh"})["current"]
+    assert mcp.ok("new_item_draft_file", {"action": "update_package", "package": str(package)})["started"]
+    mcp.wait_until(lambda: not tab.controller.busy)
+    assert mcp.ok("new_item_plan")["build"]["status"] == "written"
+    assert tab.identity_panel.display_name.text() == tab.controller.draft.display_names["eng"] == "Updated Sword"
+    assert tab.controller.draft.independent_identity == identity
+
+
 def test_create_new_items_templates_are_searched_and_picked_and_its_controls_listed(app, connect) -> None:
     from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QVBoxLayout
 

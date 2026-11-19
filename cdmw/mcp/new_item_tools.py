@@ -1,4 +1,4 @@
-"""Create New Item's tools: the page, its templates, and New painting.
+"""Create New Item's typed tools, including templates and New painting.
 
 Create New Item's page is drawn by a helper from Qt controls that are never
 shown themselves; a click in the page runs the control's handler. The tools
@@ -231,6 +231,13 @@ def _painting_close(call) -> dict[str, object]:
 
 
 def new_item_tools() -> list[Tool]:
+    from cdmw.mcp.new_item_draft import draft_tools
+    from cdmw.mcp.new_item_effects import effects_tool
+    from cdmw.mcp.new_item_fields import field_tool
+    from cdmw.mcp.new_item_files import draft_file_tool
+    from cdmw.mcp.new_item_model import model_tool
+    from cdmw.mcp.new_item_output import output_tools
+
     text = {"type": "string", "maxLength": 512}
     return [
         Tool(name="new_item.state", family="new_item", title="Create New Item state",
@@ -250,6 +257,12 @@ def new_item_tools() -> list[Tool]:
                          "(text in the row) or 'row' (its number).",
              input_schema=object_schema({"match": text, "row": {"type": "integer", "minimum": 0}}),
              effect=EDIT, route="ui:TemplatePanel.matches", handler=_pick, runs_on=ON_CALL),
+        *draft_tools(),
+        field_tool(),
+        model_tool(),
+        effects_tool(),
+        *output_tools(),
+        draft_file_tool(),
         Tool(name="new_item.painting_state", family="new_item", title="New painting state",
              description="The New painting dialog as shown: the frames offered, each painting with its frame, "
                          "picture, fit and texts, the mod name and folder, the status line and log, and "

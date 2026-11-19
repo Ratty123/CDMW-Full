@@ -5,7 +5,7 @@ from dataclasses import replace
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QGridLayout,
-                              QLabel, QPushButton, QScrollArea, QSpinBox, QVBoxLayout)
+                              QHBoxLayout, QLabel, QPushButton, QScrollArea, QSpinBox, QVBoxLayout)
 
 from cdmw.domain.textures.editor_brush import apply_texture_editor_stroke
 from cdmw.domain.textures.transparency_mask import TransparencyMask
@@ -40,6 +40,8 @@ class TransparencyPaintDialog(QDialog):
         self.document = TextureEditorDocument("Transparency mask", prepared.mask.width, prepared.mask.height,
             active_layer_id="mask", layers=(TextureEditorLayer("mask", "Mask", "", alpha_locked=True),))
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(4)
         if glass:
             note = QLabel("Paint lighter for more transparency and darker for less. White reduces absorption; black uses the selected absorption strength. Reflections can remain.")
         elif self._mode == "cutout":
@@ -52,7 +54,12 @@ class TransparencyPaintDialog(QDialog):
         self.target = QComboBox()
         self.target.addItems(["Colour coverage", "Surface response", "Linked fade"])
         self.target.setVisible(self._dual)
-        layout.addWidget(self.target)
+        self.view = QComboBox()
+        self.view.addItems(["Texture + mask", "Mask only"])
+        display = QHBoxLayout()
+        display.addWidget(self.target)
+        display.addWidget(self.view)
+        layout.addLayout(display)
         toolbar = QGridLayout()
         self.value = QSpinBox()
         self.value.setRange(0, 255)
@@ -67,9 +74,6 @@ class TransparencyPaintDialog(QDialog):
             form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
             form.addRow(title, control)
             toolbar.addLayout(form, 0, column)
-        self.view = QComboBox()
-        self.view.addItems(["Texture + mask", "Mask only"])
-        toolbar.addWidget(self.view, 1, 0, 1, 4)
         layout.addLayout(toolbar)
         actions = QGridLayout()
         self.more = QPushButton("More transparent")
@@ -211,17 +215,48 @@ class TransparencyPaintDialog(QDialog):
     def _stroke(self, payload):
         if not isinstance(payload, dict) or not payload.get("points"):
             return
+        self._edit(self._stroke_operation(payload["points"]))
+
+    def _stroke_operation(self, points):
         shade = f"{self.value.value():02X}"
         settings = TextureEditorToolSettings(tool="paint", color_hex="#" + shade * 3,
             size=self.brush_size.value(), hardness=self.hardness.value(), opacity=self.opacity.value())
-        width, height = self.document.width, self.document.height
-        def stroke(_pixels, mask, channel):
-            document = replace(self.document, width=mask.width, height=mask.height)
-            points = [(x * mask.width / width, y * mask.height / height) for x, y in payload["points"]]
+        document = self.document
+        width, height = document.width, document.height
+
+        def stroke(pixels, mask, _channel):
+            plane = np.frombuffer(pixels, dtype=np.uint8).reshape(mask.height, mask.width)
+            rgba = np.empty((*plane.shape, 4), dtype=np.uint8)
+            rgba[..., :3], rgba[..., 3] = plane[..., None], 255
+            target = replace(document, width=mask.width, height=mask.height)
+            scaled_points = [(x * mask.width / width, y * mask.height / height) for x, y in points]
             scaled = replace(settings, size=max(1, round(settings.size * mask.width / width)))
-            result = apply_texture_editor_stroke(document, {"mask": self._pixels(channel)}, scaled, points)
+            result = apply_texture_editor_stroke(target, {"mask": rgba}, scaled, scaled_points)
             return result["mask"][..., 0].tobytes()
-        self._edit(stroke)
+        return stroke
+
+    def stroke_points(self, points, completed):
+        """Use the same brush and history as the canvas, with computation on the mask lane."""
+        from cdmw.domain.cancellation import raise_if_cancelled
+
+        stroke = self._stroke_operation(tuple(points))
+        colour = (0, self._initial, self._history[self._history_index])
+        surface = (1, self._surface_initial, self._surface_history[self._history_index])
+        selected = (colour, surface) if self._dual and self.target.currentIndex() == 2 else (
+            (surface,) if self._channel() else (colour,))
+
+        def task(_log, stop):
+            painted = {}
+            for channel, mask, pixels in selected:
+                raise_if_cancelled(stop)
+                painted[channel] = stroke(pixels, mask, channel)
+            return painted
+
+        def publish(painted):
+            self._edit(lambda _pixels, _mask, channel: painted[channel])
+            completed()
+
+        self._file_task(task, publish)
 
     def _gradient(self):
         def gradient(_pixels, mask, _channel):

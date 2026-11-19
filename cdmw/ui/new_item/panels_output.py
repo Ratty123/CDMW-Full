@@ -309,6 +309,7 @@ class OutputPanel(QGroupBox):
         sidebar_layout.addWidget(self.actions)
         self._stale_reason = self._pending_stale_reason = self._plan_blocked = ""
         self._plan_was_shown = False
+        self._export_notification = None
         self.output_mode.currentIndexChanged.connect(self._output_mode_changed)
         self._output_mode_changed()
 
@@ -367,14 +368,24 @@ class OutputPanel(QGroupBox):
             + (f"\n\n{path}" if path is not None else ""))
         self._refresh_export_state()
 
+    def show_draft(self) -> None:
+        """Restore the destination controls for a standalone draft."""
+        draft = self._controller.draft
+        self.add_to_mod.setChecked(False)
+        self.output_mode.setCurrentIndex(self.output_mode.findData("folder"))
+        self.export_root.setText(draft.export_root)
+        self.mod_name.setText(draft.mod_name)
+        self.continued_package_button.hide()
+        self._refresh_export_state()
+
     def _write_continued(self) -> None:
         path = self._controller.continued_package_path
         if path is not None and self._controller.has_current_plan:
             self._controller.start_independent_export(str(path), update=True)
 
-    def _write_independent(self, *, update=False):
+    def _write_independent(self, *, update=False, notify=None) -> bool:
         if not self._controller.has_current_plan:
-            return
+            return False
         if update:
             path, _ = QFileDialog.getOpenFileName(self, self.tr("Select the item package to update"), "", self.tr("Independent item (*.cdmw *.cditem)"))
         else:
@@ -382,16 +393,19 @@ class OutputPanel(QGroupBox):
         if path:
             if not path.lower().endswith(constants.PACKAGE_EXTENSIONS):
                 path += constants.PACKAGE_EXTENSION
-            self._controller.start_independent_export(path, update=update)
+            return self._start_write(lambda: self._controller.start_independent_export(path, update=update), notify)
+        return False
 
-    def _build(self) -> None:
+    def _build(self) -> bool:
         self.summary.setPlainText("Building the plan...")
         self._plan_blocked = ""
-        if not self._controller.start_plan() and not self._plan_blocked:
+        started = self._controller.start_plan()
+        if not started and not self._plan_blocked:
             self.plan_state.set_note("The plan could not start; see the activity log.", BLOCK)
-            return
+            return False
         # Starting clears the previous plan; show building, ready or blocked instead.
         self._refresh_export_state()
+        return started
 
     def _mod_base_changed(self, reason: str = "") -> None:
         """Only use the selected folder as a base when the user asks to extend it."""
@@ -488,31 +502,41 @@ class OutputPanel(QGroupBox):
                 WARN if warnings else OK,
             )
 
-    def _export(self) -> None:
+    def _export(self, *, notify=None) -> bool:
         if self.output_mode.currentData() == "independent":
-            self._write_independent()
-            return
+            return self._write_independent(notify=notify)
         if self._source_export_problem():
             self._refresh_export_state()
-            return
+            return False
         root = self._package_root()
         if root is None:
             QMessageBox.information(self, "Write loose mod", "Choose an output folder first.")
-            return
+            return False
         if self.add_to_mod.isChecked() and not root.is_dir():
             QMessageBox.information(self, "Write loose mod", "Choose the existing mod folder you want to add this item to.")
-            return
+            return False
         if self._controller.plan is None:
             QMessageBox.information(self, "Write loose mod", "Build the plan first.")
-            return
+            return False
         self._open_export_folder = self.open_folder_after_creation.isChecked()
+        return self._start_write(
+            lambda: self._controller.start_export(root, self.manager.currentText(), create_zip=self.create_zip.isChecked(),
+                                                  replace_existing=self.add_to_mod.isChecked()),
+            notify,
+        )
+
+    def _start_write(self, start, notify) -> bool:
         self._export_error = ""
         self._export_requested = True
+        self._export_notification = notify
+        started = False
         try:
-            self._controller.start_export(root, self.manager.currentText(), create_zip=self.create_zip.isChecked(),
-                                          replace_existing=self.add_to_mod.isChecked())
+            started = start()
+            return started
         finally:
             self._export_requested = False
+            if not started:
+                self._export_notification = None
 
     # ------------------------------------------------------------------ results
 
@@ -639,7 +663,9 @@ class OutputPanel(QGroupBox):
         if isinstance(result, IndependentItemExport):
             self._export_error = ""
             self.append_log(f"Item package written: {result.path}")
-            QMessageBox.information(self, self.tr("Write item package"), self.tr("Package written. Add it on Mod Management's Mods page and choose Send to DMM.") + "\n\n" + str(result.path))
+            self._notify_export(result, lambda: QMessageBox.information(
+                self, self.tr("Write item package"),
+                self.tr("Package written. Add it on Mod Management's Mods page and choose Send to DMM.") + "\n\n" + str(result.path)))
             return
         if isinstance(result, DmmSendResult):
             self._export_error = ""
@@ -656,18 +682,33 @@ class OutputPanel(QGroupBox):
         count = len(getattr(result, "payload_paths", ()) or ())
         new = len(getattr(result, "new_paths", ()) or ())
         self.append_log(f"Loose mod written to {root}: {count} file(s), {new} new.")
-        message = f"Written to {root}\n\n{count} file(s), {new} of them new."
         zip_path = getattr(result, "zip_path", None)
         if zip_path is not None:
-            message += f"\n\nZIP: {zip_path}"
             self.append_log(f"ZIP written to {zip_path}")
         if self._open_export_folder and root:
             if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(root))):
                 self.append_log(f"The mod was created, but its folder could not be opened: {root}")
-        QMessageBox.information(self, "Write loose mod", message)
+        def dialog():
+            message = f"Written to {root}\n\n{count} file(s), {new} of them new."
+            if zip_path is not None:
+                message += f"\n\nZIP: {zip_path}"
+            return QMessageBox.information(self, "Write loose mod", message)
+
+        self._notify_export(result, dialog)
+
+    def _notify_export(self, result, dialog):
+        notify, self._export_notification = self._export_notification, None
+        if notify is None:
+            dialog()
+        else:
+            notify(dialog, result)
 
     def _busy_changed(self, busy: bool) -> None:
         lane = str(getattr(self._controller, "_lane", "") or "")
+        if not busy:
+            notify, self._export_notification = self._export_notification, None
+            if notify is not None:
+                notify(None, None)
         if busy and lane == "install":
             self._install_error = ""
         if busy and lane == "export":

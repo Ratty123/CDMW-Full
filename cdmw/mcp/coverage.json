@@ -1203,27 +1203,94 @@
     {
       "id": "new_item.steps",
       "area": "Create New Item",
-      "what": "Every other step's fields",
+      "what": "Navigate the workflow header and resolve staged Effects changes",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "tool": "new_item.step",
       "also": [
         "app.ui",
-        "app.ui_act",
-        "app.run_command"
+        "app.ui_act"
       ]
+    },
+    {
+      "id": "new_item.draft",
+      "area": "Create New Item",
+      "what": "Read the draft, choices, step states and validation issues",
+      "class": "read",
+      "tool": "new_item.draft"
+    },
+    {
+      "id": "new_item.set",
+      "area": "Create New Item",
+      "what": "Set identity, localized texts, stats, prices, shops, groups, rewards and recipes",
+      "class": "edit",
+      "tool": "new_item.set"
+    },
+    {
+      "id": "new_item.model",
+      "area": "Create New Item",
+      "what": "Import a model, select components, place it, and set its skin weights, sockets, body visibility, dyes and icon",
+      "class": "edit",
+      "tool": "new_item.model"
+    },
+    {
+      "id": "new_item.transparency_paint",
+      "area": "Create New Item",
+      "what": "Paint transparency or cutout masks by points and apply them",
+      "class": "edit",
+      "tool": "new_item.model"
+    },
+    {
+      "id": "new_item.effects",
+      "area": "Create New Item",
+      "what": "Select effects, edit layers and look, apply or discard, and set glow, perks and inherent bonuses",
+      "class": "edit",
+      "tool": "new_item.effects"
+    },
+    {
+      "id": "new_item.plan",
+      "area": "Create New Item",
+      "what": "Read or rebuild the Output plan review",
+      "class": "edit",
+      "tool": "new_item.plan",
+      "note": "Reading the current review is read-class. Rebuilding it is edit-class."
     },
     {
       "id": "new_item.build",
       "area": "Create New Item",
-      "what": "Build",
+      "what": "Write a loose mod into a new folder",
       "class": "output",
+      "tool": "new_item.build"
+    },
+    {
+      "id": "new_item.draft_file",
+      "area": "Create New Item",
+      "what": "Save and load draft settings, continue or update an item package, check mod updates, and merge mod folders",
+      "class": "output",
+      "tool": "new_item.draft_file",
+      "note": "The approval class follows the action. Replacing an existing item package is destructive-class."
+    },
+    {
+      "id": "new_item.advanced_tables",
+      "area": "Create New Item",
+      "what": "Experimental item definition, behavior, inventory, and shared game table editors",
+      "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "milestone": "P13 typed advanced table editors",
       "also": [
         "app.ui",
-        "app.ui_act",
-        "app.run_command"
+        "app.ui_act"
+      ]
+    },
+    {
+      "id": "new_item.effect_emitters",
+      "area": "Create New Item",
+      "what": "Edit individual effect emitters and saved effect presets",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 typed emitter and preset editors",
+      "also": [
+        "app.ui",
+        "app.ui_act"
       ]
     },
     {

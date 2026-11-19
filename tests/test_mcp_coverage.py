@@ -129,7 +129,7 @@ def _registered_commands(app, tmp_path: Path) -> dict[str, object]:
     return commands
 
 
-def test_every_registry_command_has_a_row_and_no_row_names_a_missing_command(app, tmp_path) -> None:
+def test_every_registry_command_has_a_row_and_no_row_names_a_missing_command(app, tmp_path, preserve_app_appearance) -> None:
     commands = _registered_commands(app, tmp_path)
     assert any(command_id.startswith("shell.") for command_id in commands)
     assert any(command_id.startswith("browse.") for command_id in commands), "Browse registers at start-up"

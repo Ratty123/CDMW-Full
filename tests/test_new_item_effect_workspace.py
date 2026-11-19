@@ -1210,9 +1210,9 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace._rebuild_preview()
         self.app.processEvents()
         resident = workspace.placement
-        self.assertTrue(workspace.library_panel.isHidden())
+        self.assertTrue(workspace.library_panel.isVisibleTo(workspace))
         self.assertIn("fx_fire_ring_loop", workspace.selected_effect_label.toolTip().splitlines())
-        for expanded in (True, False, True):
+        for expanded in (False, True, False, True):
             workspace.library_toggle.setChecked(expanded)
             self.app.processEvents()
             self.assertEqual(workspace.library_panel.isVisibleTo(workspace), expanded)

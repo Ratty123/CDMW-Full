@@ -265,6 +265,7 @@ class ModelLibraryTab(
         on_resolved: Callable[[Path], None],
         on_missing: Callable[[], None],
         selected_member: str = "",
+        choose_member=None,
     ) -> None:
         if self._task_thread is not None and self._task_thread.isRunning():
             if bool(getattr(self, "_inline_preview_task_running", False)):
@@ -283,6 +284,7 @@ class ModelLibraryTab(
                         on_resolved=on_resolved,
                         on_missing=on_missing,
                         selected_member=selected_member,
+                        choose_member=choose_member,
                     )
 
                 self._pending_model_action_after_task = retry
@@ -320,6 +322,7 @@ class ModelLibraryTab(
                     status=status,
                     on_resolved=on_resolved,
                     on_missing=on_missing,
+                    choose_member=choose_member,
                 )
                 return
             callback = (lambda: on_resolved(value.import_path)) if value.import_path is not None else on_missing
@@ -339,15 +342,15 @@ class ModelLibraryTab(
         status: str,
         on_resolved: Callable[[Path], None],
         on_missing: Callable[[], None],
+        choose_member=None,
     ) -> None:
-        selected, accepted = QInputDialog.getItem(
-            self,
-            "Choose Model from ZIP",
-            "This ZIP contains multiple importable models. Choose one:",
-            list(members),
-            0,
-            False,
-        )
+        def prompt():
+            return QInputDialog.getItem(
+                self, "Choose Model from ZIP", "This ZIP contains multiple importable models. Choose one:",
+                list(members), 0, False,
+            )
+
+        selected, accepted = choose_member(prompt) if choose_member else prompt()
         if not accepted:
             self._set_status("ZIP model selection cancelled.")
             return
@@ -357,6 +360,7 @@ class ModelLibraryTab(
             on_resolved=on_resolved,
             on_missing=on_missing,
             selected_member=str(selected),
+            choose_member=choose_member,
         )
 
     def _apply_mirror_local_state(self, payload: dict[str, object]) -> None:

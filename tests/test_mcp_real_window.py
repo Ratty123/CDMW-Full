@@ -34,7 +34,7 @@ def profile(monkeypatch, tmp_path) -> Path:
 
 
 @pytest.fixture
-def real(app, profile, tmp_path):
+def real(app, profile, tmp_path, preserve_app_appearance):
     from cdmw.app.events import AppEventBus
     from cdmw.services.service_container import ServiceContainer
     from cdmw.services.settings_service import create_settings

@@ -56,6 +56,7 @@ ANSWERS_SCHEMA: dict[str, object] = {
         "text": {"type": "string", "maxLength": 4096, "description": "The text for a text prompt."},
         "item": {"type": "string", "maxLength": 512, "description": "The choice for a pick-one prompt."},
         "number": {"type": "number", "description": "The number for a number prompt."},
+        "color": {"type": "string", "maxLength": 32, "description": "A colour for a colour picker, such as #ff8844."},
     },
 }
 
@@ -64,10 +65,12 @@ class DialogAnswers:
     """One action's answers and the record of what was asked. UI thread only."""
 
     def __init__(self, answers: Mapping[str, object] | None, game_folder: str = "",
-                 dialogs: Mapping[type | str, Callable] | None = None) -> None:
+                 dialogs: Mapping[type | str, Callable] | None = None, *,
+                 message_boxes: Mapping[str, str] | None = None) -> None:
         self.answers = dict(answers or {})
         self.game_folder = game_folder
         self.dialogs = dict(dialogs or {})
+        self.message_boxes = dict(message_boxes or {})
         self.asked: list[dict[str, object]] = []
         self.active = True
 
@@ -261,8 +264,41 @@ def _exec_dialog(original):
     return answered
 
 
+def _instance_message(original):
+    def answered(box):
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QMessageBox
+
+        current = _current()
+        wanted = current.message_boxes.get(box.objectName()) if current else None
+        if wanted is not None and box.windowTitle() not in user_only_titles():
+            roles = QMessageBox.ButtonRole
+            labels = {roles.AcceptRole: "apply", roles.DestructiveRole: "discard", roles.RejectRole: "stay"}
+            buttons = {labels[box.buttonRole(button)]: button for button in box.buttons()
+                       if box.buttonRole(button) in labels}
+            if wanted in buttons:
+                current.note("question", box.windowTitle(), box.text(), wanted, buttons=list(buttons))
+                QTimer.singleShot(0, box, buttons[wanted].click)
+        return original(box)
+    return answered
+
+
+def _color(original):
+    def answered(*args, **kwargs):
+        from PySide6.QtGui import QColor
+
+        current = _current()
+        if current is None:
+            return original(*args, **kwargs)
+        color = QColor(str(current.answers.get("color") or ""))
+        current.note("color", _argument(args, kwargs, 2, "title"), "",
+                     color.name() if color.isValid() else "cancelled")
+        return color
+    return answered
+
+
 def _patches() -> list[tuple[object, str, Callable]]:
-    from PySide6.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
+    from PySide6.QtWidgets import QColorDialog, QDialog, QFileDialog, QInputDialog, QMessageBox
 
     return [
         (QDialog, "exec", _exec_dialog),
@@ -274,10 +310,12 @@ def _patches() -> list[tuple[object, str, Callable]]:
         (QMessageBox, "warning", lambda original: _message(original, "warning")),
         (QMessageBox, "information", lambda original: _message(original, "information")),
         (QMessageBox, "critical", lambda original: _message(original, "critical")),
+        (QMessageBox, "exec", _instance_message),
         (QInputDialog, "getText", lambda original: _input(original, "text")),
         (QInputDialog, "getItem", lambda original: _input(original, "item")),
         (QInputDialog, "getInt", lambda original: _input(original, "int")),
         (QInputDialog, "getDouble", lambda original: _input(original, "double")),
+        (QColorDialog, "getColor", _color),
     ]
 
 
@@ -290,8 +328,19 @@ class answering:
     def __enter__(self) -> DialogAnswers:
         if not _ACTIVE:
             for owner, name, wrap in _patches():
-                original = getattr(owner, name)
-                _ORIGINALS[(owner, name)] = original
+                # Read each class's own attribute before any is patched: QMessageBox inherits
+                # exec from QDialog, so reading it after QDialog's patch would keep the patch.
+                own = name in owner.__dict__
+                original = owner.__dict__[name] if own else getattr(owner, name)
+                _ORIGINALS[(owner, name)] = (original, own)
+            for owner, name, wrap in _patches():
+                original, own = _ORIGINALS[(owner, name)]
+                if not own:
+                    # Inherited (QMessageBox.exec): wrap what the base class now does, which
+                    # is its own patch, so a dialog answered by type is answered here too.
+                    original = getattr(owner, name)
+                if isinstance(original, staticmethod):
+                    original = original.__func__
                 wrapped = wrap(original)
                 setattr(owner, name, wrapped if name == "exec" else staticmethod(wrapped))
         _ACTIVE.append(self.answers)
@@ -302,8 +351,11 @@ class answering:
         if self.answers in _ACTIVE:
             _ACTIVE.remove(self.answers)
         if not _ACTIVE:
-            for (owner, name), original in list(_ORIGINALS.items()):
-                setattr(owner, name, original if name == "exec" else staticmethod(original))
+            for (owner, name), (original, own) in list(_ORIGINALS.items()):
+                if own:
+                    setattr(owner, name, original)
+                else:
+                    delattr(owner, name)  # inherited again, as before
             _ORIGINALS.clear()
 
 
@@ -352,7 +404,8 @@ def modal_dialog() -> dict[str, object] | None:
 
 
 def run_action(context, function: Callable[[], object], answers: Mapping[str, object] | None = None, *,
-               wait_s: float | None = None, dialogs: Mapping[type | str, Callable] | None = None) -> dict[str, object]:
+               wait_s: float | None = None, dialogs: Mapping[type | str, Callable] | None = None,
+               message_boxes: Mapping[str, str] | None = None) -> dict[str, object]:
     """Run ``function`` on the UI thread as a click would. Returns ``{"result", "asked"}``, or
     ``{"waiting_on", "asked"}`` when a dialog of the app's own is open and waits."""
 
@@ -360,7 +413,8 @@ def run_action(context, function: Callable[[], object], answers: Mapping[str, ob
 
     from cdmw.ui.commands.registry import CommandRefused
 
-    record = DialogAnswers(answers, getattr(context, "game_folder", lambda: "")(), dialogs)
+    record = DialogAnswers(answers, getattr(context, "game_folder", lambda: "")(), dialogs,
+                           message_boxes=message_boxes)
     settings = getattr(context, "settings", None)
     done = threading.Event()
     box: dict[str, object] = {}

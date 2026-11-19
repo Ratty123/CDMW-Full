@@ -812,6 +812,7 @@ class NewItemStudioTab(QWidget):
 
     def _prompt_for_staged_effect(self) -> str:
         prompt = QMessageBox(self)
+        prompt.setObjectName("new_item_staged_effect")
         prompt.setIcon(QMessageBox.Icon.Warning)
         prompt.setWindowTitle("Apply placement changes?")
         prompt.setText("The Effects workspace has placement or look changes that have not been applied.")
@@ -1039,8 +1040,13 @@ class NewItemStudioTab(QWidget):
             self._append_log("Create New Item is busy. Choose Continue Editing again when it finishes.")
             return
         self._pending_package, self._pending_package_requested = launch, True
-        self.output_panel.show_continued_package()
-        self.template_panel.prefill(int(launch.draft.template_key))
+        if launch.package_path is not None:
+            self.output_panel.show_continued_package()
+        if launch.draft.template_key is None:
+            self.controller.set_template(None)
+            QTimer.singleShot(0, self, self._restore_pending_package)
+        else:
+            self.template_panel.prefill(int(launch.draft.template_key))
 
     def _resume_pending_package(self, key) -> None:
         launch = self._pending_package
@@ -1077,8 +1083,13 @@ class NewItemStudioTab(QWidget):
         for panel in (self.identity_panel, self.model_panel, self.perks_panel, self.placement_panel):
             panel.show_draft()
         self.stats_panel.rebuild()
-        self.output_panel.show_continued_package()
+        if launch.package_path is not None:
+            self.output_panel.show_continued_package()
+        else:
+            self.output_panel.show_draft()
         self._refresh_summary()
+        if launch.package_path is None:
+            return
         name = Path(launch.package_path).name
         if launch.from_saved_draft:
             self._append_log(f"Continuing {name} with the settings it was written from. Build the plan, then "

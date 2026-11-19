@@ -81,12 +81,14 @@ def test_the_shell_menus_are_views_of_shell_commands(app, monkeypatch):
     for attribute in SHELL_ACTIONS.values():
         setattr(shell, attribute, QAction(attribute, shell))
     from cdmw.ui.commands.palette import PALETTE_COMMAND
+    from cdmw.ui.mesh_editor.saved_work_combine import COMMAND_ID as COMBINE_COMMAND
 
     registry = install_shell_commands(shell)
-    # The registry is the application's, so a main window built by an earlier test file leaves
-    # its palette command (installed with the window's shortcuts, not by install_shell_commands).
+    # The registry is the application's, so a main window or a Drafts & Mods page built by an
+    # earlier test file leaves its own commands (the palette, Combine into one mod), installed
+    # with the window and the page, not by install_shell_commands.
     assert {c.id for c in registry.commands("shell") if not c.id.startswith(TOOL_COMMAND_PREFIX)} - {
-        PALETTE_COMMAND} == set(SHELL_ACTIONS)
+        PALETTE_COMMAND, COMBINE_COMMAND} == set(SHELL_ACTIONS)
     shell._shell_busy = True
     shell._window_menu_state = (True, False, False)
     registry.refresh("shell")
