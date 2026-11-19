@@ -54,7 +54,7 @@ class ItemLayout:
 
 
 class _Walker:
-    def __init__(self, raw, grammar, generation, stop_at=None):
+    def __init__(self, raw, grammar, generation, stop_at=None, enchant_width=2):
         if not isinstance(raw, (bytes, bytearray)) or not 1 <= len(raw) <= MAX_RECORD:
             raise RecordError('Static item row exceeds the layout limit.')
         self.cursor = Cursor(raw)
@@ -65,6 +65,7 @@ class _Walker:
         self.members = []
         self.variants = []
         self.stop_at = stop_at
+        self.enchant_width = enchant_width
 
     def run(self, program, path=(), depth=0, root=False):
         if depth > 40:
@@ -84,6 +85,10 @@ class _Walker:
                 if self.generation == 'legacy' and (owner, label) in (
                         ('InspectAction', '_catchTagNameHash'), ('ItemInfo_FactionManagementData', '_tier')):
                     size = 0
+                if (owner, label) == ('DropInfoData', '_enchantLevel'):
+                    # Build 1.0.0.3663 reads an opaque byte after the i16 level (as in
+                    # compact_static); the caller tries both widths.
+                    size = self.enchant_width
                 size = width if size is None else size
                 if type(size) is not int or not 0 <= size <= MAX_RECORD:
                     raise RecordError('Unqualified dynamic item width.')
@@ -161,14 +166,14 @@ class _Walker:
             pc += 1
 
 
-def _read(raw, kind, generation):
+def _read(raw, kind, generation, *, enchant_width=2):
     if generation == 'compact':
         if kind == 'itemuseinfo':
             return _read_compact_use(raw)
         from cdmw.core.compact_static import read_compact_layout
         return read_compact_layout(raw, kind)
     grammar, fields = (ITEMINFO_LAYOUT, ITEMINFO_FIELDS) if kind == 'iteminfo' else (ITEMUSE_LAYOUT, ITEMUSE_FIELDS)
-    walk = _Walker(raw, grammar, generation)
+    walk = _Walker(raw, grammar, generation, enchant_width=enchant_width)
     try:
         walk.run(grammar[0], root=True)
         walk.cursor.finish()
@@ -221,7 +226,21 @@ def _read_compact_use(raw):
         result = read_compact_layout(raw,'itemuseinfo')
         return replace(result,variants=(ITEMUSE_LAYOUT[0][4][3][tag],))
     converted = key.to_bytes(4,'little') + text_bytes(name) + bytes([blocked]) + raw[cursor.pos:]
-    result = _read(converted,'itemuseinfo','current')
+    # A random box's inline DropInfoData carries the 1.0.0.3663 enchantment byte.
+    # Rows without DropInfoData read the same at either width; others match one.
+    results, errors = [], []
+    for width in (2, 3):
+        try:
+            results.append(_read(converted,'itemuseinfo','current', enchant_width=width))
+        except RecordError as exc:
+            errors.append(exc)
+        if width == 2 and results and not any(m.owner == 'DropInfoData' for m in results[0].members):
+            break
+    if len(results) != 1:
+        if not results:
+            raise errors[0]
+        raise RecordError('Ambiguous compact item-use DropInfoData width.')
+    result = results[0]
     fields = dict(result.fields)
     fields['_stringKey'] = Span(0,len(text_bytes(name)))
     fields['_key'] = Span(fields['_stringKey'].end,fields['_stringKey'].end+4)

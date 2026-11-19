@@ -163,3 +163,56 @@ def test_probe_finds_both_3732_changes_when_the_generation_is_unknown(monkeypatc
     assert any(t.reader is None and t.after == '_discardable' and t.op == ('raw', 1) for t in found)
     assert any(t.reader is not None and t.after == '_rightPageRelatedKnowledgeInfo' and t.op == ('raw', 1)
                for t in found)
+
+
+@pytest.mark.real_game
+def test_installed_item_tables_decode_under_exactly_one_generation():
+    """Guard for patch register P-34: every shipped ItemInfo and ItemUseInfo row, base and DLC."""
+    import os
+    from pathlib import Path
+
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.compact_static import ITEMINFO_GENERATIONS, _read_compact_layout
+    from cdmw.core.item_layout import read_item_use_layout
+    from tools.placement_studio import corpus
+
+    root = Path(os.environ.get('CDMW_GAME_ROOT') or corpus.game_root())
+    if not root.is_dir():
+        pytest.skip('needs the installed game')
+    pairs = {}
+    for _package, entry in corpus._iter_archive_entries(root):
+        path = corpus.normalize_game_path(entry.path)
+        if path.startswith(ROOT) and path.rsplit('/', 1)[1].startswith(('iteminfo.', 'itemuseinfo.')):
+            stem, part = path.rsplit('.', 1)
+            pairs.setdefault(stem, {}).setdefault(part, entry)
+    read = lambda entry: bytes(read_archive_entry_data(entry)[0])  # noqa: E731
+    stems = {stem.rsplit('/', 1)[1] for stem in pairs}
+    assert {'iteminfo', 'iteminfo.dlc_01', 'itemuseinfo', 'itemuseinfo.dlc_01'} <= stems, stems
+    newest = ITEMINFO_GENERATIONS[-1][0]
+    for stem, pair in pairs.items():
+        body, header = read(pair['staticinfobody']), read(pair['staticinfoheader'])
+        spans = parse_pabgh_table(header, payload=body).row_spans(len(body))
+        assert len(spans) > 1000, stem
+        failures = []
+        for row, start, end in spans:
+            raw = body[start:end]
+            try:
+                if '/itemuseinfo' in stem:
+                    read_item_use_layout(raw)
+                    continue
+                parsed = parse_iteminfo_row(raw)
+                assert parsed.key == row.row_id and rebuild_stat_block(parsed) == raw
+                matched = []
+                for label, program in ITEMINFO_GENERATIONS:
+                    try:
+                        _read_compact_layout(raw, 'iteminfo', program)
+                        matched.append(label)
+                    except (RecordError, UnicodeError):
+                        pass
+                assert matched == [newest], matched
+            except RecordError as exc:
+                if 'Blocked item-use definition' not in str(exc):
+                    failures.append((row.row_id, str(exc)[:120]))
+            except AssertionError as exc:
+                failures.append((row.row_id, str(exc)[:120]))
+        assert not failures, (stem, len(failures), failures[:3])

@@ -35,13 +35,13 @@ _ITEMINFO_3527 = (
     *_ITEMINFO_BASE[_SOUND_INSERT:],
 )
 # 1.0.0.3732 adds two one-byte fields. ItemInfo._discardSingleCount sits in the
-# run of one-byte flags before _itemType; every byte in that run is 0 or 1 on the
-# shipped table, so the data cannot place it. Its position after _discardable
-# rests on the executable's field-label order (the labels run in reverse field
-# order: _useAveragePrice, _discardSingleCount, _discardable). PageData gains
-# _uiTextureRotationType after _rightPageRelatedKnowledgeInfo, placed the same
-# way. Only _fixedPageDataList has populated rows on 3732; _dynamicPageDataList
-# shares the PageData reader and takes the same shape.
+# run of one-byte flags before _itemType. Parsing alone accepts it anywhere in
+# that run; the shield flags only line up with shield items when it comes before
+# _isTowerShieldItem, and the executable's field labels (stored in reverse field
+# order: _useAveragePrice, _discardSingleCount, _discardable) place it after
+# _discardable. PageData gains _uiTextureRotationType after
+# _rightPageRelatedKnowledgeInfo, placed by the labels the same way; fixed and
+# dynamic page lists share the record and both decode on 3732.
 def _insert_after(program, owner, name, *ops):
     at = next(i + 1 for i, op in enumerate(program)
               if isinstance(op, tuple) and op[:3] == ("field", owner, name))
