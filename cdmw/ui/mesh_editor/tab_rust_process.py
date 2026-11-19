@@ -851,7 +851,7 @@ class MeshEditorRustProcessMixin:
             self.status_message_requested.emit(exc.reason, True)
             from PySide6.QtWidgets import QMessageBox
 
-            QMessageBox.warning(self, "Texture Editor", exc.reason)
+            QMessageBox.warning(self.window(), "Texture Editor", exc.reason)
             return
         self._live_textures().remember_source(row.source_sha256, LiveTextureSource(
             game_path=row.game_path, original=original, users=users, role=row.role))
@@ -1092,7 +1092,7 @@ class MeshEditorRustProcessMixin:
             from PySide6.QtWidgets import QFileDialog
             self._archive_refit_picker_active = True
             try:
-                path, _ = QFileDialog.getOpenFileName(self, "Apply Edited Hair DDS", "", "DDS textures (*.dds)")
+                path, _ = QFileDialog.getOpenFileName(self.window(), "Apply Edited Hair DDS", "", "DDS textures (*.dds)")
             finally:
                 self._archive_refit_picker_active = False
             if self.standalone_rust_authoring_session is not session or self.standalone_rust_closing:

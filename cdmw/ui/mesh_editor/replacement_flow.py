@@ -1,6 +1,6 @@
 """Host-owned file selection and archive context for replacement commands."""
 
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QWidget
 
 from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
@@ -8,6 +8,20 @@ from cdmw.ui.shell.tab_registry import DetachedToolWindow
 # The mesh file the next Import Replacement takes instead of asking with the file
 # chooser; used once. Only CDMW's automated test runs set it (cdmw.automation).
 source_path_override = None
+
+
+def _dialog_parent(tab):
+    """The widget a file chooser opens over.
+
+    ``tab`` is usually the Live Edit component, a QObject and not a widget, so
+    Qt refuses it as a dialog parent. Its host's window is used instead.
+    """
+
+    if tab is None or isinstance(tab, QWidget):
+        return tab
+    window = getattr(tab, "window", None)
+    parent = window() if callable(window) else None
+    return parent if isinstance(parent, QWidget) else None
 
 
 def prepare_replacement_event(tab, session, event):
@@ -32,7 +46,7 @@ def prepare_replacement_event(tab, session, event):
     if event.get("command") == "replacement_choose":
         path, source_path_override = source_path_override, None
         if path is None:
-            path, _ = QFileDialog.getOpenFileName(tab, "Import Replacement", "",
+            path, _ = QFileDialog.getOpenFileName(_dialog_parent(tab), "Import Replacement", "",
                                                   "Mesh models (*.obj *.dae *.gltf *.glb *.fbx)")
         blender = _blender_for(tab, path) if path.lower().endswith(".fbx") else ""
         if not path or blender is None:
@@ -64,7 +78,7 @@ def _blender_for(tab, fbx_path):
         return chosen
     suggestion = suggested_blender()
     path, _ = QFileDialog.getOpenFileName(
-        tab, "Choose the Blender that reads FBX", str(suggestion) if suggestion is not None else "",
+        _dialog_parent(tab), "Choose the Blender that reads FBX", str(suggestion) if suggestion is not None else "",
         "Blender (blender.exe blender);;All files (*)")
     if not path:
         return None

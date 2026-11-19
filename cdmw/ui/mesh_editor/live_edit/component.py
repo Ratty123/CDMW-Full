@@ -24,6 +24,7 @@ from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
 HOST_NAMES = (
     "_archive_refit_picker", "_archive_texture_indexes", "_cloth_collision_picker",
     "_current_target_entry", "_hair_context_preparation", "_hair_picker",
+    "_pending_hair_character", "_pending_hair_context",
     "_start_archive_material_context_resolution", "_texture_tools_panel", "_textures_panel", "archive_material_context_package_path",
     "archive_material_context_verified_for_rust", "archive_physics_profile_context",
     "archive_session_retry_request", "close_standalone_session", "current_archive_selection",
@@ -211,7 +212,13 @@ def _host_property(name: str) -> property:
     def get(self: LiveEditComponent):
         return getattr(self._live_edit_host, name)
 
-    return property(get, doc=f"Read from the host: {name}.")
+    def set_(self: LiveEditComponent, value: object) -> None:
+        # The replacement, hair, refit and cloth flows receive the component as
+        # their ``tab`` and keep their pickers and pending context on it. Those
+        # belong to the host, so writes go there too.
+        setattr(self._live_edit_host, name, value)
+
+    return property(get, set_, doc=f"Read from and written to the host: {name}.")
 
 
 for _name in HOST_NAMES:
