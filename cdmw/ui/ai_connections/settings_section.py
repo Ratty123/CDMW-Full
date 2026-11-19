@@ -32,7 +32,8 @@ CLASS_ROWS = (
 
 class AiConnectionsSettingsSection(QGroupBox):
     def __init__(self, settings, parent: QWidget | None = None, *, controller_lookup=None) -> None:
-        super().__init__("AI connections", parent)
+        super().__init__(parent)
+        self.setTitle("AI connections (experimental)")
         self.setObjectName("AiConnectionsSettings")
         self.settings = settings
         self._controller_lookup = controller_lookup
@@ -45,7 +46,8 @@ class AiConnectionsSettingsSection(QGroupBox):
         self.enabled_checkbox.setObjectName("AiConnectionsEnabled")
         hint = QLabel("Lets AI apps on this computer, such as Claude and Codex CLI, see and use CDMW through "
                       "its tools: search the archives, read files, and work in its tools as you do. Off by "
-                      "default; while it is off nothing listens.")
+                      "default; while it is off nothing listens. Experimental: review what an AI app does "
+                      "and test the result in game.")
         hint.setWordWrap(True)
         hint.setObjectName("HintLabel")
         self.status_label = QLabel()

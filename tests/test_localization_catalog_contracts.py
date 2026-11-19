@@ -1731,11 +1731,7 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
             "authoritative."
         ),
         "Settings > Paths > Archive Locations",
-        (
-            "Treat archive patch and install actions as deliberate writes: review "
-            "the target, confirmation, backup, and output mode. Ordinary preview, "
-            "extraction, and loose-package creation do not patch archives."
-        ),
+        "Choose output folders outside the game folder. Enable and mount finished mods in DMM.",
         (
             "first run checklist setup appearance language layout archive paths "
             "browser tools safety profile texture policy"
