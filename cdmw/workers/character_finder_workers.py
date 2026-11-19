@@ -29,7 +29,7 @@ from cdmw.rendering.dotnet_preview_package_cache import (
     acquire_dotnet_preview_package_cache_lease_for_path, dotnet_preview_package_cache_build_lock,
 )
 
-_CHARACTER_RENDER_SCHEMA = 5
+_CHARACTER_RENDER_SCHEMA = 6
 
 
 def character_row_cache_root(cache_root, fingerprint, settings):
@@ -268,7 +268,8 @@ class CharacterFinderRenderWorker(QObject):
         from cdmw.rendering.native_preview_core import run_native_preview_core_preview_job
         from cdmw.services.mesh_rust_preview_cache import build_or_lookup_rust_preview_package
         from cdmw.services.preview_material_status import native_preview_missing_texture_reason
-        from cdmw.workers.archive_preview_native import _native_presentation_geometry_payload, native_preview_model_property_indices
+        from cdmw.workers.archive_preview_native import (
+            _native_presentation_geometry_payload, native_head_component_geometry, native_preview_model_property_indices)
         from cdmw.rendering.dotnet_preview_package_cache import dotnet_preview_package_cache_budget
 
         detail = self.inputs.detail
@@ -324,6 +325,17 @@ class CharacterFinderRenderWorker(QObject):
         # presentation-geometry ABI, avoiding a duplicate primary mesh.
         payload, presentation_source, source_notes = presentation_geometry(source, source_component, source_scale)
         notes = tuple(dict.fromkeys((*notes, *source_notes)))
+        # A head PAC always brings the eyes and teeth its prefab declares; pose
+        # them with the head's own shape and scale, as Browse Archives does,
+        # instead of leaving them at their source skeleton's rest pose.
+        head_pieces, head_notes = native_head_component_geometry(source, entries, paths, basenames, self._stop,
+            dependencies_complete=self.inputs.dependencies_complete,
+            descriptor=self._authored_descriptor(source_component), scale=source_scale,
+            appearance_path=detail.appearance_path)
+        if head_pieces:
+            fitted = {piece.entry.path.casefold() for piece in head_pieces}
+            components = [*(c for c in components if c.entry.path.casefold() not in fitted), *head_pieces]
+            notes = tuple(dict.fromkeys((*notes, *head_notes)))
         authored_stems = [c.name.casefold() for c in detail.components]
         ordered_entries = tuple(sorted(entries, key=lambda e: authored_stems.index(Path(e.path).stem.casefold())
             if e.extension == ".prefab" and Path(e.path).stem.casefold() in authored_stems else len(authored_stems)))

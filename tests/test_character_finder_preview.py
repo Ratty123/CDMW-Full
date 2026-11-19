@@ -1420,6 +1420,59 @@ def test_finder_passes_authored_shape_to_primary_and_attached_meshes(tmp_path, m
     assert struct.unpack_from("<6f", context[0].presentation_geometry_payload, 24)[:3] == pytest.approx(changed.submeshes[0].vertices[0])
 
 
+def test_finder_head_poses_its_eyes_and_teeth_with_the_head_shape_and_scale(tmp_path, monkeypatch):
+    # The native core always loads a head's prefab-declared eyes and teeth. Unless
+    # Finder hands over posed geometry for them, they keep the source rig's rest
+    # pose inside a head that took its own skeleton variation.
+    import copy
+    import struct
+    from cdmw.domain.character_finder import CharacterPreviewInputs
+    from tests.test_release_inspired_improvements import _entry
+    from tests.test_pabc_neutral_bind_frames import _fixture
+
+    head = _entry("character/model/1_pc/8_pdw/head/head/cd_pdw_00_head_00_0003.pac")
+    eye = _entry("character/model/1_pc/2_phw/head/head_sub/phw_00_eyeleft_00_0001.pac")
+    prefab = _entry("character/bin__/prefab/1_pc/08_pdw/head/head/cd_pdw_00_head_00_0003.prefab")
+    descriptor = _entry("character/prefab/1_pc/08_pdw/head/head/cd_pdw_00_head_00_0003.prefabdata_xml")
+    component = CharacterCatalogComponent("head", "cd_pdw_00_head_00_0003", (1,), (3, 4), 1.03, {}, "resolved")
+    selected = replace(detail(row(1, role="head")), models=(_dto(1, head.path),), components=(component,))
+    inputs = CharacterPreviewInputs(selected, {1: head, 2: eye, 3: prefab, 4: descriptor},
+        (head, eye, prefab, descriptor), True)
+    worker = CharacterFinderRenderWorker(1, inputs, cache_root=tmp_path, fingerprint="fp", settings=ModelPreviewRenderSettings())
+    _rig, raw = _fixture()
+    posed = copy.deepcopy(raw)
+    posed.submeshes[0].vertices[0] = (.03, 1.69, -.15)
+    posed._cdmw_skeleton_variation_source = "character/head.pabc"
+    shaped = []
+
+    def appearance(entry, parsed, data, **kwargs):
+        assert kwargs["authored_descriptor"] == descriptor  # the head's shape, never the eye's own rig
+        shaped.append(entry)
+        return posed, ()
+
+    calls = []
+    monkeypatch.setattr("cdmw.core.archive.read_archive_entry_data", lambda *a, **kw: (b"PAC", False, ""))
+    monkeypatch.setattr("cdmw.core.archive_extraction.read_archive_entry_data", lambda *a, **kw: (b"PAC", ""))
+    monkeypatch.setattr("cdmw.modding.mesh_parser.parse_mesh", lambda *a, **kw: raw)
+    monkeypatch.setattr("cdmw.core.archive_mesh_appearance.apply_archive_mesh_appearance", appearance)
+    monkeypatch.setattr("cdmw.workers.archive_preview_native.native_preview_model_property_indices",
+                        lambda *a: {head.path: 0, eye.path: 0})
+    monkeypatch.setattr("cdmw.rendering.native_preview_core.run_native_preview_core_preview_job",
+                        lambda entry, **kw: calls.append((entry, kw)) or SimpleNamespace(succeeded=True, package_path=str(tmp_path)))
+    monkeypatch.setattr("cdmw.services.preview_material_status.native_preview_missing_texture_reason", lambda *a: None)
+    monkeypatch.setattr("cdmw.services.mesh_rust_preview_cache.build_or_lookup_rust_preview_package", lambda *a, **kw: "package")
+
+    worker._build_package("fixture")
+    assert shaped == [head, eye]
+    assert len(calls) == 1 and calls[0][0] == head
+    context = calls[0][1]["preview_context_components"]
+    assert [c.entry for c in context] == [eye] and context[0].scale == 1.0
+    # The core gives these required head pieces no context scale, so the head's is baked in.
+    vertex = struct.unpack_from("<6f", context[0].presentation_geometry_payload, 24)[:3]
+    assert vertex == pytest.approx(tuple(v * 1.03 for v in posed.submeshes[0].vertices[0]))
+
+
+
 def test_lane_results_are_attributed_without_qobject_sender():
     # sender() took Qt's connection lock while holding the GIL and deadlocked
     # against a worker thread; lanes are now passed explicitly.

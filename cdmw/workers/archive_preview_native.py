@@ -340,6 +340,93 @@ def _preserve_native_preview_core_staging_package(
         return None
 
 
+def native_head_component_geometry(
+    entry: Optional[ArchiveEntry],
+    dependencies: Sequence[ArchiveEntry],
+    paths: Dict[str, Sequence[ArchiveEntry]],
+    basenames: Dict[str, Sequence[ArchiveEntry]],
+    stop_event: object,
+    *,
+    dependencies_complete: bool,
+    descriptor: Optional[ArchiveEntry] = None,
+    scale: float = 1.0,
+    appearance_path: str = "",
+) -> tuple[tuple[object, ...], tuple[str, ...]]:
+    """Fit a head PAC's declared eyes, teeth and other facial pieces to the head's pose.
+
+    Native Preview Core always loads the facial PACs a ``/head/head/`` PAC's
+    same-stem prefab declares, but it poses them only with presentation
+    geometry handed over as context components. Without these, the pieces stay
+    at their source skeleton's rest pose while the head takes its authored
+    skeleton variation, so eyes sit inside the skull and teeth show through.
+
+    ``descriptor`` is the head's authored descriptor when the caller already
+    knows it (an appearance's head prefab); otherwise it is resolved from the
+    head. ``scale`` is baked into the vertices because the core applies no
+    context scale to these required head pieces.
+    """
+
+    if entry is None or "/head/head/" not in entry.path.replace("\\", "/").casefold():
+        return (), ()
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
+    from cdmw.core.skeleton_resolver import resolve_skeleton_descriptor_for_model
+    from cdmw.domain.character_context import NativePreviewContextComponent
+    from cdmw.modding.mesh_parser import parse_mesh
+
+    dependencies = tuple(dependencies)
+    read = lambda candidate: read_archive_entry_data(candidate, stop_event=stop_event)[0]
+    if descriptor is None:
+        resolution = resolve_skeleton_descriptor_for_model(entry, dependencies,
+            archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames,
+            read_entry_data=read)
+        descriptor = resolution.skeleton_descriptor_entry or resolution.descriptor_entry
+        if descriptor is None or resolution.skeleton_variation_entry is None:
+            return (), ()
+    head_path = entry.path.replace("\\", "/").casefold()
+    stem = Path(entry.path).stem.casefold()
+    prefabs = tuple(candidate for candidate in dependencies
+        if candidate.extension.casefold() == ".prefab" and Path(candidate.path).stem.casefold() == stem)
+    declared = native_preview_model_property_indices(prefabs, stop_event)
+    if head_path not in declared:
+        return (), ()
+    components, notes = [], []
+    for path in declared:
+        if path == head_path:
+            continue
+        if len(components) >= 32:
+            break
+        candidates = tuple(paths.get(path, ()))
+        if len(candidates) != 1 or candidates[0].extension.casefold() != ".pac":
+            continue
+        component = candidates[0]
+        try:
+            data = read(component)
+            parsed = parse_mesh(data, component.path)
+            presentation, detail = apply_archive_mesh_appearance(component, parsed, data,
+                archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames,
+                context_entries=dependencies, stop_event=stop_event, authored_descriptor=descriptor)
+            notes.extend(detail)
+            source = str(getattr(presentation, "_cdmw_skeleton_variation_source", "") or "")
+            if presentation is parsed or not source:
+                continue
+            if scale != 1.0:
+                presentation = dataclasses.replace(presentation, submeshes=[dataclasses.replace(mesh,
+                    vertices=[tuple(float(v) * scale for v in point) for point in mesh.vertices])
+                    for mesh in presentation.submeshes])
+                source = f"{source}; authored scale {scale}"
+            components.append(NativePreviewContextComponent(component, "face", component.basename,
+                "authored", appearance_path=appearance_path or entry.path,
+                dependencies_complete=bool(dependencies_complete),
+                presentation_geometry_payload=_native_presentation_geometry_payload(presentation, stop_event),
+                presentation_geometry_source=source))
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            notes.append(f"Head component appearance was not applied for {path}: {exc}")
+    return tuple(components), tuple(notes)
+
+
 class ArchivePreviewNativeMixin:
     """Native preview-core package generation and metadata helpers."""
 
@@ -422,61 +509,14 @@ class ArchivePreviewNativeMixin:
 
     def _prepare_native_head_component_geometry(self):
         """Fit declared facial pieces with the selected head's authored pose."""
-        entry = self.entry
-        if entry is None or "/head/head/" not in entry.path.replace("\\", "/").casefold():
-            return (), ()
-        from cdmw.core.archive_extraction import read_archive_entry_data
-        from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
-        from cdmw.core.skeleton_resolver import resolve_skeleton_descriptor_for_model
-        from cdmw.domain.character_context import NativePreviewContextComponent
-        from cdmw.modding.mesh_parser import parse_mesh
-
-        dependencies = tuple(getattr(self, "native_preview_dependency_entries", ()) or ())
-        paths = getattr(self, "texture_entries_by_normalized_path", {}) or {}
-        basenames = getattr(self, "texture_entries_by_basename", {}) or {}
-        read = lambda candidate: read_archive_entry_data(candidate, stop_event=self.stop_event)[0]
-        resolution = resolve_skeleton_descriptor_for_model(entry, dependencies,
-            archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames,
-            read_entry_data=read)
-        descriptor = resolution.skeleton_descriptor_entry or resolution.descriptor_entry
-        if descriptor is None or resolution.skeleton_variation_entry is None:
-            return (), ()
-        stem = Path(entry.path).stem.casefold()
-        prefabs = tuple(candidate for candidate in dependencies
-            if candidate.extension.casefold() == ".prefab" and Path(candidate.path).stem.casefold() == stem)
-        declared = native_preview_model_property_indices(prefabs, self.stop_event)
-        if entry.path.replace("\\", "/").casefold() not in declared:
-            return (), ()
-        components, notes = [], []
-        for path in declared:
-            if path == entry.path.replace("\\", "/").casefold():
-                continue
-            if len(components) >= 32:
-                break
-            candidates = tuple(paths.get(path, ()))
-            if len(candidates) != 1 or candidates[0].extension.casefold() != ".pac":
-                continue
-            component = candidates[0]
-            try:
-                data = read(component)
-                parsed = parse_mesh(data, component.path)
-                presentation, detail = apply_archive_mesh_appearance(component, parsed, data,
-                    archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames,
-                    context_entries=dependencies, stop_event=self.stop_event, authored_descriptor=descriptor)
-                notes.extend(detail)
-                source = str(getattr(presentation, "_cdmw_skeleton_variation_source", "") or "")
-                if presentation is parsed or not source:
-                    continue
-                components.append(NativePreviewContextComponent(component, "face", component.basename,
-                    "authored", appearance_path=entry.path,
-                    dependencies_complete=bool(getattr(self, "native_preview_dependency_entries_complete", False)),
-                    presentation_geometry_payload=_native_presentation_geometry_payload(presentation, self.stop_event),
-                    presentation_geometry_source=source))
-            except RunCancelled:
-                raise
-            except Exception as exc:
-                notes.append(f"Head component appearance was not applied for {path}: {exc}")
-        return tuple(components), tuple(notes)
+        return native_head_component_geometry(
+            self.entry,
+            tuple(getattr(self, "native_preview_dependency_entries", ()) or ()),
+            getattr(self, "texture_entries_by_normalized_path", {}) or {},
+            getattr(self, "texture_entries_by_basename", {}) or {},
+            self.stop_event,
+            dependencies_complete=bool(getattr(self, "native_preview_dependency_entries_complete", False)),
+        )
 
     def _run_native_preview_core_with_presentation(
         self,

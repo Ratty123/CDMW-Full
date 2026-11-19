@@ -166,7 +166,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - Gimmick rows from game 1.0.0.3663 decode again; CDMW had refused every one of them, base and DLC, with "Invalid compact static presence flag." The update added two fields to each gimmick and a new kind of condition, which moved the numbers of most later condition kinds. Condition, interaction, character, inventory and minigame rows that use those conditions decode again too, and rows from earlier game versions are still read. Browse Archives shows these rows' fields again. Not yet checked in game.
 - With monitors at different scales, such as 150 % and 100 %, the Mesh Editor's text no longer comes out 1.5 times larger or smaller than the rest of CDMW. The editor kept the scale of the monitor it was first opened on; it now uses the scale of the screen CDMW is on, and follows when the window moves to another monitor.
 - **Item Finder** lists arrows in a new **Weapon > Arrows / Ammo** group instead of under Armor (Explosive Arrow showed under Head). Words from translated names or from a model's file names, such as French *plate* or the *head* part of an arrow, no longer put items in armor groups.
-- **Body & Face Finder** shows a head with the eyes, brows and other facial parts that the appearance wearing it uses, in the preview and in **Export FBX…**, instead of a head without eyes. **Show exact files** still lists only the head file.
+- **Body & Face Finder** shows a head with the eyes, brows and other facial parts that the appearance wearing it uses, in the preview and in **Export FBX…**, instead of a head without eyes. The eyes and teeth take the head's own face shape and size. **Show exact files** still lists only the head file.
 
 ### Docs
 
