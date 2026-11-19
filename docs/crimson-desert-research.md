@@ -293,17 +293,19 @@ packaged behavior, archive mutation or in-game acceptance.
 build `26776744`) adds two one-byte fields, so no ItemInfo row decoded and Create
 New Item refused. `ItemInfo._discardSingleCount` sits in the one-byte flag run
 before `_itemType`, and `PageData._uiTextureRotationType` ends each fixed or
-dynamic page record. Every byte of the flag run is 0 or 1 across the table, so
-the data alone allows 61 positions. The executable's field labels, stored in
-reverse field order beside their owner names, place the flag after `_discardable`
-and the page byte after `_rightPageRelatedKnowledgeInfo`. Their meanings are
-unknown: 133 items set the flag, and all 1,233 shipped pages hold rotation 0.
-Only `_fixedPageDataList` has populated rows, so the dynamic list's shape is
-inferred from the shared reader. The reader keeps the pre-3527 and 3527 layouts
-and still requires exactly one complete match. All 7,068 base rows decode. A
-read-only snapshot loaded 8,379 effective items. A planned clone kept the
-template's new values, and every untouched row was copied byte for byte. Field
-positions inside a fixed-width run cannot be proven from table data. When a
+dynamic page record. Parsing alone accepts the flag at 61 positions. The shield
+flags match shield items only when it comes before `_isTowerShieldItem`, and the
+executable's field labels, stored in reverse field order beside their owner
+names, place it after `_discardable` and the page byte after
+`_rightPageRelatedKnowledgeInfo`. The 133 items that set the flag are puzzle and
+gimmick parts; its meaning is otherwise unknown. Base pages all hold rotation 0,
+and 40 DLC pages hold 2. The reader keeps the pre-3527 and 3527 layouts and
+still requires exactly one complete match. All 7,068 base and 1,555 DLC rows
+decode, including 1,601 fixed and 21 dynamic pages. A read-only snapshot loaded
+8,379 effective items. A planned clone kept the template's new values, and
+every untouched row was copied byte for byte. The same check found 146
+random-box item-use actions still unreadable since `1.0.0.3663`: their inline
+`DropInfoData` lacked that build's enchantment byte. They now read too. When a
 later patch adds a field, the reader still needs a named update; the probe
 `tools/probe_iteminfo_layout.py` narrows the candidates. This is source and
 corpus evidence, not archive mutation or in-game acceptance.
