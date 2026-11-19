@@ -66,6 +66,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- **Placement & Animations:** changes on the **Constraints** and **Rig Behaviour** pages can be undone and redone like the window's other edits, and the animation editor has **Redo** beside Undo.
+- **Texture Editor** keys and its **Actions** menu act on the editor you are using when the one beside the Mesh Editor and the one in **Textures** are both open, instead of whichever opened last.
 - **Materials in the 3D previews.** Browse Archives, the Mesh Editor, Create New Item and the other preview windows draw materials much closer to the game, by the game's own shader rules. Previews made before this release are built again the first time you open them. The previews still do not reproduce the game's lighting or post-processing.
   - **Dye:** dyed armour and clothing of the older material types (about 20,000 parts) show each of their up to three dye colours where the part's mask selects it; hair, manes, fur trims and feathers (about 3,700 dyed parts) take their dye over the strands' own light and dark, at full brightness and with the roughness the dye sets.
   - **Layered materials:** the newer layered types (Ver2) get their overlay colour map (about 17,500 parts), their symbol, such as the griffin on a great helm, at its authored place with its own relief, roughness and metal (about 520 parts), and the layers' relief at the strength the material states. Each spot's own map decides whether it is metal and how rough it is, so leather and cloth on a mostly metal part look matt and brass trim on leather shines. Layered materials without a colour texture of their own show their authored colour layers, and where two layers meet one or the other shows, as in the game.
@@ -98,6 +100,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- A floating panel no longer crashes CDMW when it is fitted to a small screen.
 - Archive Browser exports NPC armour and clothing (`character/model/3_npc/`, such as the Greymane Cloth Armor pieces) to GLB or FBX with its skeleton, instead of saying no candidate skeleton resolves the bone palette and offering a mesh-only export. NPC gear ships no skeleton of its own; it now takes the player rig of its race, as the NPCs wearing it do: men of the human, orc, dwarf and goblin families the male rig, women the female rig, the tall family its own, and the "ndem" family the male rig its NPCs are built on. A handful of pieces (about 10 of 1,700) still ask you to pick a skeleton.
 - Closing a model and opening it again with **Open Selected Mesh** keeps the materials it first opened with. It could rebuild them from the native package with parts and materials paired wrongly, such as the veil's shader on the crown parts. Contributed by blablahandsome1212 (issue #34).
 - Preview Core publishes each batch's shader family from the texture binding that names the part's own material. It took the family of the batch's first binding, its base texture, which can belong to a sibling part's material. Reported by blablahandsome1212 (issue #34).
