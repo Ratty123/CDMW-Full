@@ -14,7 +14,7 @@ from cdmw.ui.new_item.state import NewItemDraft, draft_from_spec
 class ItemPackageLaunch:
     """A package's draft and finished models, ready for ``restore_continued_item``."""
 
-    package_path: Path
+    package_path: Path | None
     identity: str
     title: str
     draft: NewItemDraft
@@ -31,7 +31,10 @@ class ItemPackageLaunch:
 def prepare_item_package_launch(draft_root, row_id: str, *, stop_event=None) -> ItemPackageLaunch:
     """Read the package and its kept draft, or rebuild a draft from its recipe."""
 
-    source = read_item_package_source(draft_root, row_id, stop_event=stop_event)
+    return item_package_launch(read_item_package_source(draft_root, row_id, stop_event=stop_event))
+
+
+def item_package_launch(source) -> ItemPackageLaunch:
     spec = source.spec
     if source.draft_bytes is not None:
         draft = decode_draft(source.draft_bytes)

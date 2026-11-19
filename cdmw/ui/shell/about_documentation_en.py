@@ -30,9 +30,7 @@ CREATE_NEW_ITEM_SECTION = {
       <li><b>Output</b>: Build plan is read-only. Export a DMM mod folder or a .cdmw item package.</li>
     </ol>
     <p>Valid template sockets are preserved. Armour weight transfer needs a compatible template or verified body donor; disable template physics and review Build plan warnings. Each mesh section is limited to 65,535 vertices. Imported-model dyes are off by default.</p>
-    <p>Archive overlays are disabled because they are incompatible with the DLC update.</p>
     <p>Effects are approximate previews and do not add elemental damage. A successful build or game startup does not verify equipping, appearance, stats, or behavior in a save.</p>
-                <p>Supported layered materials preserve tiled fabric, dye and metal in previews, Mesh Editor and Create New Item when source materials are unchanged. Edited materials and exports keep their existing behavior. Grime is omitted. Preview shading does not establish game appearance.</p>
     <h4>Template</h4>
     <p>Start with a template from the same equipment family. Keep its original model for a first test, set a name, choose one supported shop route, then build a separate package. This checks identity and distribution before you add imported geometry, materials or effects.</p>
     <p>Wearable by below Template’s preview adds Kliff, Damiane or Oongka without changing inherited wearers or model fit. For a female Kliff, choose Kliff. DMM exports and .cdmw packages retain the choice; changing templates resets it. Equipping still needs a game check.</p>
@@ -155,7 +153,8 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
-                <p><b>Help &gt; Documentation</b> opens the online manual on the GitHub Wiki in your browser.</p>
+                <p><b>Help &gt; Documentation</b> opens the GitHub Wiki manual in your interface language. If CDMW cannot open a browser, it opens the built-in manual.</p>
+                <p><b>Command Palette</b> opens with Ctrl+Shift+P from the app or the Mesh Editor viewport. Search commands for the current tool or the app. Recent commands appear first, with their shortcuts. Unavailable commands explain why. In Mesh Editor, commands act on the visible tab.</p>
                 <p>Documentation follows the source build it describes. Published releases and development builds can differ; check the release notes when controls or output options differ from your installed version.</p>
                 """,
             },
@@ -180,7 +179,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Use the <a href="topic:documentation_index">Documentation Index</a> or search to choose a tool.</li>
                   <li>For <b>Textures &gt; Upscale</b>, set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Test with <b>Disabled</b> first, then a configured <b>Real-ESRGAN NCNN</b> or <b>chaiNNer</b> backend.</li>
                   <li>Keep preserve-first texture policy and automatic rules enabled, preview the plan, and test a small filtered batch before expanding it.</li>
-                  <li>Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.</li>
+                  <li>Choose output folders outside the game folder. Enable and mount finished mods in DMM.</li>
                   <li>When setup is stable, export an app profile from <b>Settings &gt; General</b> so paths, preferences, language, and layout can be restored together.</li>
                 </ol>
                 <p>If anything fails, open <a href="topic:troubleshooting">Troubleshooting &amp; Limits</a> and check the Live Log before changing many settings at once.</p>
@@ -424,10 +423,10 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "archive_browser",
                 "title": "Archive Browser",
-                "summary": "Archive scan, preview, item lookup, active mod/original state, extraction, and supported patch surface.",
+                "summary": "Archive scan, preview, item lookup, active mod/original state, extraction, and DMM output.",
                 "keywords": "archive browser pamt paz scan preview filter extract patch mod ready mesh audio video text dds workflow research texture editor item finder dmm active mod shadowed placement hkx bnk wem wwise sound bank",
                 "html": """
-                <p><b>Archive Browser</b> is the in-app inspection surface for Crimson Desert package data. It can browse archives in flat or tree view, preview many supported formats directly, extract files, and for supported workflows either patch the game archives or write mod-ready loose output with confirmation and backup support.</p>
+                <p><b>Archive Browser</b> scans and browses Crimson Desert archives in flat or tree view. Use it to preview and extract files or write supported edits as loose DMM mods.</p>
                 <div class="doc-callout doc-warning"><b>First scan note:</b> set <b>Settings &gt; Paths &gt; Archive Locations &gt; Game / Package</b> first. Optional global sidecar indexing can take a long time because it reads many material sidecars to build reverse texture connections. If you enable it, let it complete; worker count and cache behavior are configured in <b>Settings &gt; Performance</b>.</div>
                 <p>Game-folder scans ignore .CrimsonModsCache and bin64/.CrimsonModsCache by default. Saved custom exclusion lists stay unchanged. To exclude the cache manually, add bin64/.CrimsonModsCache in Settings &gt; Paths &gt; Ignored folders, then reload or refresh the archives. No files are deleted.</p>
                 <p>If a scan fails, the error window shows the failing archive path when the worker provides it. For a recognised mod or backup folder, Exclude folder and refresh saves that folder in Ignored folders and starts a new scan. This does not delete files. Original game archives and unknown folders do not receive this shortcut; review Details and verify the installation when appropriate.</p>
@@ -462,19 +461,23 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 <p>October 2026 DLC: scan the complete game folder to include dlc/dlc_01. Browsing, extraction and Create New Item support the compact base and DLC tables. Empty DLC tables are skipped; incomplete nonempty tables still stop loading. Create New Item exports DMM mod folders and .cdmw item packages; other mod managers are not supported after the update. Direct archive patching and overlay installation remain unavailable. Export checks do not establish in-game compatibility.</p>
                 <p>A compact PAMT extension table may omit its final zero byte if its declared size matches exactly. Invalid tables are still rejected; archive writes remain unsupported.</p>
-                <p>Item Finder opens the worn set without its dropped ground model. Set components groups pieces by file. Use visibility checkboxes, Show all or Isolate. Selecting another file highlights it while keeping the set visible; Preview only this file returns to one model.</p>
+                <p><b>Item Finder</b> opens an item's worn pieces together in Browse Archives, using the item's material variants and leaving out the dropped ground model. <b>Set components</b> groups the set by file. Selecting a file highlights its parts and keeps the set visible.</p>
+                <p><b>Scene</b> is a resizable list of files and parts beside the 3D preview. Tick a file or part to show it, including unloaded prefab pieces such as a scabbard. Hover to highlight, click to select, and click empty space or press Esc to clear the selection.</p>
+                <p>Use <b>Show all</b> or <b>Isolate</b> in the panel or its right-click menu. The menu also offers <b>Hide</b> and <b>Preview only this file</b>. Choose <b>Open ticked parts in Mesh Editor</b> to open all files with a ticked part in one session, with unticked parts hidden.</p>
+                <p>Browse Archives shows the panel for every model. Model Library, Create New Item, Character Finder and the reference preview show it for models with several parts.</p>
                 <p>Item Finder shows recovered ship icons and model links; unavailable icons keep a letter tile. Body &amp; Face Finder reads character names from both the base game and DLC.</p>
                 <p>The DLC ships its own copies of about 13,500 base files, mostly textures, level data and models. Archive Browser, previews and the editors open the DLC's copy, which the game is expected to load instead of the base file. Searching by item name also finds DLC items. Texture packages can replace textures that only the DLC ships; such a package needs the DLC installed. Audio entries offer Import WAV as Loose Mod, which writes a loose mod for DMM instead of changing the game archives.</p>
                 <p>Browse Archives and the Textures replacement preview display supported DDS textures on the GPU. Choose RGB, R, G, B or A, a mip, and optional normal Z reconstruction; use Fit, 100%, zoom and pan. Signed channels map from black at -1 to white at +1. Unsupported inputs use image previews. The editing canvas is unchanged.</p>
                 <p>If a DDS preview shows raw bytes, open Details and include the file path and the Decoded preview failed line in your report. Readable strings alone do not identify the decoding error.</p>
                 <p>Prepared archive files and DDS preview caches support long Windows paths without changing Windows settings. If access still fails, Details includes the operating-system error and path length.</p>
                 <p>Reopen the DDS entry or choose Refresh to retry a failed preview. Raw-byte fallbacks are not saved as successful previews.</p>
-                <p>Not every archive format is editable. Browsing and preview support is broader than patch support, so use the visible actions beside the preview to see what is currently available for the selected entry.</p>
+                <p>Use the actions beside the preview to see which edits or exports are available for the selected entry.</p>
                 <p>If a model's referenced textures are unavailable, Preview shows its geometry with a Textures unavailable warning. Texture defaults from another material are not reused.</p>
                 <h3>Skinned decal sequences</h3>
                 <p>Right-click a PASEQ in Archive Browser and choose Edit Skinned Decal... to change existing texture paths and decal settings, then save a loose copy. Only stored settings are shown; missing settings keep their game defaults. Texture paths may change length. Unchanged saves preserve the original bytes; edited saves are reopened and checked for unrelated changes. This experimental editor supports metadata 3 and serialization 13/14 sequences with skinned decals. It does not add events or settings, install the effect, or verify in-game blending, attachment or removal.</p>
                 <h3>GLB / FBX / OBJ export</h3>
                 <p>Choose Export This Model as GLB... for one PAC, PAM or PAMLOD model. GLB is listed first for rigged editing; FBX and OBJ remain available. GLB includes companion metadata and resolved textures, plus weights when the skeleton and bone mapping resolve. Keep companion files together for Round-trip edit. Review export warnings; a missing skeleton or unresolved mapping means the export has no usable weights. OBJ is geometry-only.</p>
+                <p>For NPC armour and clothing under <code>character/model/3_npc/</code>, <b>GLB</b> and <b>FBX</b> exports use the player skeleton for the NPC's race and body. A few pieces still ask you to choose a skeleton.</p>
                 <p>OBJ export supports Chinese and other non-English characters in output folder and file names, regardless of the interface language.</p>
                 <ol>
                   <li>Select PAC, PAM or PAMLOD file rows with Ctrl or Shift. Folders and other file types are excluded.</li>
@@ -494,6 +497,7 @@ class AboutDocumentationEnglishMixin:
                 <ol>
                   <li>Set the package root in <b>Settings &gt; Paths &gt; Archive Locations</b>. This should be the Crimson Desert folder or package root that contains the game archive files.</li>
                   <li>Click <b>Scan</b>. Use the cached result on repeat scans when the package files have not changed.</li>
+                  <li>Use <b>Refresh</b> after a game update. The button changes to <b>Cancel</b> from the first version check, and Scan and the game-folder field wait until the refresh ends.</li>
                   <li>Use flat view when searching broadly and tree view when following folders.</li>
                 </ol>
                 <div class="doc-callout"><b>Finding things quickly:</b> the main search checks paths, basenames, and linked item/localization aliases when the item-name index is available. <b>Item Name</b> shows a direct ItemInfo/localization-to-model hash name when available, otherwise it shows the best related model-family, icon, texture, or sidecar name. Hover the cell to see whether the name is exact or inferred; an inferred name is navigation evidence, not proof that the selected file is that item.</div>
@@ -503,6 +507,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Use inclusion filters for what you want and exclusion filters for noisy families.</li>
                   <li>For meshes and sidecars, click <b>Asset Family</b> to load related textures, XML, material sidecars, skeletons, and metadata only when needed.</li>
                   <li>Use <b>Item Finder</b> for name/icon/category-based lookup when the archive path is unknown.</li>
+                  <li>Find arrows under <b>Weapon &gt; Arrows / Ammo</b> in Item Finder.</li>
                 </ul>
                 <h4>Reverse reference search</h4>
                 <ol>
@@ -562,7 +567,8 @@ class AboutDocumentationEnglishMixin:
                 <div class="doc-callout doc-warning"><b>Experimental:</b> a skeleton with added bones has not been tested in game. New bones have no animation or physics of their own, shipped bones cannot be renamed, removed or reordered, and another mod that replaces the same skeleton file overrides the added bones.</div>
                 <h4>Find bodies and faces</h4>
                 <p>After scanning, open <b>Body &amp; Face Finder</b>. Choose <b>Bodies</b> or <b>Faces</b>, then <b>Unique assets</b> or <b>Appearance variants</b>. Search character names, IDs or paths, and narrow results with the component, family and resolution filters.</p>
-                <p><b>Used by / Components</b> connects shared meshes and appearances. <b>Show exact files</b> or <b>Show related files</b> returns the selection to Archive Browser for extraction or export. Thumbnails load as you browse.</p>
+                <p><b>Used by / Components</b> connects shared meshes and appearances. Double-click a result or choose <b>Show exact files</b> to open its exact files in Browse Archives. Use <b>Show related files</b> for its dependencies. Thumbnails load as you browse.</p>
+                <p>The face preview and <b>Export FBX…</b> include the appearance's eyes, brows and other facial parts. <b>Show exact files</b> still lists only the head file for a face result.</p>
                 <p><b>Base appearance</b> applies supported context; complete customization is not reproduced. <b>Textures unavailable</b> identifies a geometry-only preview. Embedded faces use their owning body, and unresolved models remain listed with their source evidence. Refreshing archives requires reopening the finder.</p>
                 <p>Previews keep the selected face shape when sharing a skeleton, and faces without shape adjustments keep their original geometry.</p>
                 <p><b>Export FBX…</b> exports the selected models as FBX files, each with the face shape the selected appearance gives it. Choose an output folder; the next export starts there.</p>
@@ -653,12 +659,15 @@ class AboutDocumentationEnglishMixin:
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
                 <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Base Color needs them too and shows each material's base color texture without lighting or reflections, so dark or very reflective models are easier to read. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
-                <p>Shadows and Ambient occlusion start on in Textured and Game Outdoor views. Studio (fixed lights) keeps its lights in place as you orbit; the default preset is unchanged. Icons retain self-shadows on a transparent background.</p>
+                <p><b>Ground</b> shows the floor and its shadow. <b>Ground grid</b> shows the grid and the red X and blue Z axes. <b>Shadows</b> and <b>Ambient occlusion</b> start on in Textured and Game Outdoor. Icons and thumbnails omit the floor; icons keep self-shadows on a transparent background.</p>
+                <p><b>Studio (fixed lights)</b> is the default <b>Lighting preset</b>. Its lights stay put as you orbit and are tuned to the game's item icons. The preview has its own lighting and post-processing.</p>
+                <p>View mode, background colour, lighting and ground settings follow you between the Mesh Editor and 3D previews. Create New Item can use its own <b>Dark mode</b> or <b>Use global settings</b>. Turn off <b>Load textures automatically after geometry</b> to start with geometry only.</p>
                 <p>When declared by the asset, head previews load the eyes and teeth with the face and apply its authored shape. Iris and pupil textures keep their own colours.</p>
                 <p>Very large models with many materials compose their materials only while they fit the 768 MiB texture limit. The remaining parts show their plain game textures, and the status line says how many parts use simplified materials.</p>
-                <p>Open set in Mesh Editor edits the pieces together. View controls visibility; Include controls output. Build writes separate PACs for changed, included files. Topology edits and paste stay within one source file. Incompatible rigs and empty-file output are refused. Oversized sets name the pieces kept as references. Save a set draft to resume later.</p>
-                <p>Supported layered materials preserve tiled fabric, dye and metal in previews, Mesh Editor and Create New Item when source materials are unchanged. Edited materials and exports keep their existing behavior. Grime is omitted. Preview shading does not establish game appearance.</p>
+                <p><b>Open set in Mesh Editor</b> edits the pieces together. <b>View</b> controls visibility. <b>Include</b> controls output. Build writes separate PACs for changed, included files. Topology edits and paste stay within one source file. Incompatible rigs and empty-file output are refused. Before opening an oversized set, CDMW names the reduced-detail references and explains why. Save a set draft to resume later. Set output has not been checked in game.</p>
+                <p>Textured previews use the game's material rules for dye, layered colours and symbols, wear, eyes, skin, hair and foliage. Material variants follow the item when opened from Item Finder. Cached previews from earlier versions rebuild the first time you open them.</p>
                 <h4>Parts</h4>
+                <p><b>Parts</b> has the same right-click controls as the <a href="topic:archive_browser">Scene panel</a>, including on hidden parts. Click empty space or press Esc when it has nothing else to close or cancel to clear the selection.</p>
                 <p>Open Parts to find Part colors and Island colors above either list. These options also appear under Viewport &gt; Display and work outside Morph &amp; Refit. Matching swatches identify parts and islands; turn the active color option off to return to the normal display.</p>
                 <p>Island colors applies in Edit view and keeps selection, pending fitting edits, textures and exports unchanged. New local geometry stays gray until its island data updates.</p>
                 <p>Open Parts on hover is below the color options in Parts and is off by default. Enable it to open the list when hovering a visible surface; saved choices are retained. Open lists still highlight and reveal matching names while keeping the chosen Parts or Mesh islands tab. Selection and pending fitting edits stay unchanged.</p>
@@ -667,6 +676,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>Replacement imports</h4>
                 <p>Use Import Replacement... for an entire archive mesh or selected parts. Map every imported part, then choose original materials or imported materials and textures.</p>
                 <p>With Imported Materials &amp; Textures, the imported surface takes the model's own roughness and metallic maps or values when its MTL or glTF has them, and otherwise the average surface of the game part it replaces, so it no longer shines like a mirror. Roughness and Metallic start at that surface; moving one sets a single value for the whole import instead, which replaces the model's own maps. They work on the Ver2 equipment materials that armour uses and on the standard materials that most creatures use; hover them to see why they are unavailable on other items.</p>
+                <p>Helper parts such as a helmet's <code>_inside</code> keep the game's material. If mapping warns about one, map the import to a main part or keep the original materials.</p>
                 <p>Import Replacement reads OBJ, DAE, glTF, GLB and FBX. FBX is converted with the Blender chosen for Create New Item; the first FBX asks for blender.exe.</p>
                 <p>A rigged model shows a Weights choice before Apply Replacement:</p>
                 <ul>
@@ -685,6 +695,9 @@ class AboutDocumentationEnglishMixin:
                 <h4>Material experiments</h4>
                 <p>Open Parts at the top of the Inspector and choose the parts there. Choose Back to Inspector, then expand Glow, Translucency, or Shader experiments under their separate Inspector headings. The Parts page replaces the Inspector, so these sections are hidden while it is open. Mesh islands is a separate tab on the Parts page. Supported choices depend on the captured source shader and material dependencies. The game does not draw glow on translucent parts. Apply stages the edit; Restore and Undo/Redo recover earlier settings. Finish, validate, then Build Mod to include the material companions.</p>
                 <p>Parts sharing a material wrapper need matching settings. Restore incompatible overrides before choosing another experiment. Previews approximate the game shaders; refraction, lighting, and animation may differ in game.</p>
+                <p>In <b>Shader experiments</b>, sliders start at the original values and preview changes as you drag. Reset a field, choose a built-in or saved preset, or use <b>Index</b> to choose a material variant. Use <b>Copy rows</b> for the source values and <b>Show original material</b> to compare. <b>Replace...</b> accepts DDS or converts PNG, TGA, JPG or BMP to DDS, and reloads the replacement when saved again.</p>
+                <p>To switch to net veil or layered glass, use <b>Rewrite with this shader's own parameter set</b>. Ver2 layers are baked first. <b>Replace the material outright (force)</b> can rewrite other equipment materials and keep selected textures, but loses dye and layer colours. These conversions have not been checked in game.</p>
+                <p>On the wedding veil, use <b>Thread width scale</b>, <b>Lace strength</b> and lace repeat, offset and rotation. <b>Game screen size</b> sets the preview's net spacing. Lace edits have not been checked in game. Use <b>Hide selection highlight</b> (Shift+H) to judge the material without the selection tint.</p>
                 <h4>Vertex Parameters</h4>
                 <p>Open Mesh Data &gt; Vertex Parameters and select vertices, edges, faces, or parts. Inspect Position, UV Coordinates, Normals, and Skin Weights, enter supported changes, then choose Apply to commit the batch as one Undo step. Discard clears pending inputs.</p>
                 <p>Editing depends on the format, LOD, source mapping, and output support. Unsupported channels remain read-only; a rejected batch changes no vertices. UV1 and vertex colours are not editable. Skin weight editing requires a supported Exact PAC LOD0 layout and resolved bone palette; edit the weights of parts brought in by Import Replacement in Rig &amp; Weights.</p>
@@ -702,6 +715,7 @@ class AboutDocumentationEnglishMixin:
                 <p>Hair Tools is experimental for Kliff, Damiane and Oongka. Create starts on an empty fitting scalp; Edit loads an existing hairstyle. Hair and motion have not been tested in game and may not work correctly.</p>
                 <p>Edit lists every hairstyle in the character's game table. One marked "not offered by the barber" is in the game but hidden from its barber; a mod built from it is offered, with a borrowed icon. A hairstyle made of several meshes is listed as unavailable, and one whose mesh the game does not ship is left out. If the table cannot be read, the setup window names the file and the hairstyle at fault. Retry loading choices asks the archive catalogue again.</p>
                 <p>Draw offers Freehand, Straight, Arc and Circle. Use Stroke smoothing, Bend, Follow scalp and Move reach to control the shape. Ctrl temporarily draws away from the scalp while collision stays active.</p>
+                <p>After <b>Prepare existing hair sections</b>, motion can play when some sections have no guides. Those sections follow the head; set their roots to make them swing.</p>
                 <h4>Rig &amp; Weights</h4>
                 <p>Open Rig &gt; Rig &amp; Weights to inspect and repair skin weights on an Exact PAC, or on parts brought in by Import Replacement. It needs the model's skeleton, which Archive Browser attaches automatically.</p>
                 <ol>
@@ -728,16 +742,21 @@ class AboutDocumentationEnglishMixin:
                 <p>Finish accepts one validated revision into CDMW. It does not write a mod folder or install an overlay. For a mesh opened from Archive Browser, it also saves a draft you can continue after restarting CDMW. Build Mod can reuse that validation until another edit changes the revision. Free Edit uses its own export package route.</p>
                 <p>Resume current edit continues the accepted working session with the original source as reference. Start next edit pass rebuilds the accepted game bytes as a new baseline. Add to Archive Browser prepares Edited results for the current app session; those entries do not survive restarting CDMW.</p>
                 <h4>Several meshes at once</h4>
-                <p>Opening another mesh while the shown one has an unfinished edit opens it in a new tab above the Mesh Editor, and the first keeps its edit, selection, view and history. Finish and Discard act on the shown tab; closing a tab with an unfinished edit asks first. Up to 4 tabs keep their 3D view open; showing more parks the one shown longest ago, which opens again with its edits when you show it.</p>
+                <p>Open another mesh while an edit is unfinished to open a new tab. Each tab keeps its own edit, selection, view and history. <b>Finish</b> and <b>Discard</b> act on the visible tab. Closing a tab or quitting CDMW asks about each unfinished edit.</p>
+                <p>Up to four tabs keep their 3D view open. Extra views reopen with their edits when selected. If a step times out, only that tab's session reopens.</p>
                 <h4>Editing textures</h4>
-                <p>Click Textures at the top of the Mesh Editor to show or hide the Textures panel; it is off until you click it, and CDMW remembers your choice. Each part is one line that you open to see its textures, and when several files are open each file is named once above its parts. Point at a part or one of its textures to light that part up in the 3D view. A texture you open is fitted to the canvas. Both panels close with the mesh, and Close asks first when texture edits are not kept in a draft yet.</p>
-                <p>Closing the Textures panel, by its own close or the Textures button, hides only the list. A texture open in the Texture Editor panel stays open and takes the list's room beside the model, so the canvas has more space. Click Textures again to bring the list back; the texture is still open.</p>
-                <p>With the list hidden, the Texture Editor panel also widens to about half the Mesh Editor, so the texture is drawn larger; the 3D view keeps a usable width. Drag the panel's edge to choose another width and CDMW keeps it. When the list shows again, the panels have the width they had.</p>
-                <p>Close Editor, by the file name in the Texture Editor panel, closes that panel only. Your edits to the texture stay; double-click a texture in the Textures panel to open it again.</p>
-                <p>The Textures panel beside the 3D view lists each part's textures with a thumbnail, their role and their game file. Double-click a texture to edit it in the Texture Editor panel under it: the tools in two columns with the chosen tool's options, Layers, Adjustments and History below them, and the texture beside them. Each stroke or adjustment shows on the model when you release it, and another texture opens in the same panel. Both panels dock on either side, float onto another monitor, resize and remember where you left them.</p>
-                <p>A warning sign by the file name in the Texture Editor panel says, when you point at it, which parts a shared texture changes. CDMW also looks for other game files that use it; the status line at the bottom of the panel names them before you paint and says whether your texture edits are kept yet. Layer, detail and mask files the shader combines from a material also show on the model as you paint; for a file the 3D view does not draw directly, the warning sign says that edits to it are not shown. A colour CDMW made from several files says so and offers the files it is made from. Build Mod lists each edited texture and writes it at its own game path in the same mod, in the original's format, size and mips; a texture you left unchanged is not written. Each line of the list says what happens to the texture: writes; left out, when no part in the mod uses it any more (its parts were deleted or their Include is off, or only the body a Fit follows uses it and Include the body is off), so it is not written; or blocked, with the reason, which stops Build Mod. Texture edits share the Mesh Editor's Undo history with mesh edits: its Undo and Redo, and their keys pressed in the panel (Ctrl+Z and Ctrl+Y unless you changed them), work on both kinds. They are kept in the draft once it exists (Finish creates it), are shown on the model again when you continue the draft, and have not been checked in game.</p>
+                <p>Click <b>Textures</b> to open the list beside the 3D view. It starts closed and remembers your choice. Expand a part for texture thumbnails, roles, game paths and states. When several files are open, each file heads its group. Hover a part or texture to highlight that part without selecting it.</p>
+                <p>Double-click a texture to open or replace the one in the <b>Texture Editor</b> panel below the list. Tools and their options sit in two columns above Layers, Adjustments and History. The texture fits the canvas, and the panel follows the Mesh Editor's text size and Settings.</p>
+                <p>Both panels dock on either side, float, resize and remember their positions. Hiding the list widens the open editor to about half the Mesh Editor. <b>Textures</b> brings the list back at its previous width. <b>Close Editor</b> closes the editor panel and keeps the edits.</p>
+                <p>Strokes and adjustments show on the model on release, including material layers, details and masks. <b>Not one file</b> opens the source of a combined colour or asks you to pick one. The editor marks textures it cannot show live.</p>
+                <p>Before painting, point at the warning by the filename to see which parts share the texture. The status line shows whether edits are kept and reports other game files CDMW finds in the background, as with <b>Find References</b>.</p>
+                <p>Mesh and texture edits share one history. <b>Undo</b> and <b>Redo</b> and their keys work on both, including from the Texture Editor panel. The model updates at once, and <b>Action History</b> names the changed texture.</p>
+                <p><b>Finish</b> creates a draft that keeps the texture edits. When you continue it after restarting CDMW, the edits appear on the model again. Before a draft exists, the status says the edits are not kept yet and closing the mesh asks first.</p>
+                <p><b>Build Mod</b> can build from texture edits alone. It writes each changed texture to its game path in the same mod, in the original format, size and mip levels. Unchanged textures are skipped. Each edited texture's line says <b>writes</b>, <b>left out</b> or <b>blocked</b>, with the reason and any other game files the edit affects.</p>
+                <p>A texture is left out if no part in the mod uses it, including when its parts were deleted, <b>Include</b> is off or only the excluded fitted body uses it. A blocked texture stops the build. Mesh Editor texture edits have not been checked in game.</p>
                 <h4>Saved drafts and built mods</h4>
                 <p>A mesh opened from Archive Browser saves a draft each time you choose Finish Edit Mesh, so you can close CDMW and continue later. Changes still open in the editor are kept beside the draft until you finish or discard them; if CDMW closes first, the editor continues from them the next time you open the draft. Build Mod also keeps the editing state with the mod.</p>
+                <p>On the next start after an unexpected close, CDMW lists the drafts it saved while you were editing and offers to open <b>Drafts &amp; Mods</b> on those drafts.</p>
                 <ul>
                   <li>Open Drafts &amp; Mods from the tool list. Continue Earlier Work..., in Mesh Editor or on a mesh's right-click menu in Archive Browser, opens it as well.</li>
                   <li>Each row shows when it was saved, its name, the game file, whether it is a draft or a built mod, its edit pass, and whether it matches the current game files.</li>
@@ -748,11 +767,13 @@ class AboutDocumentationEnglishMixin:
                   <li>Choose Duplicate... to copy a draft and try a variation without changing the original.</li>
                   <li>Choose Delete... to remove a draft. For a built mod, Remove from List... keeps the mod folder; use Open Folder to delete its files yourself.</li>
                   <li>Choose Add Mod Folder... for a mod built by an earlier version or by someone else. Continue Editing opens its finished mesh as a new edit pass, with the game's own materials, skeleton and textures.</li>
+                  <li><b>Add Mod Folder...</b> also opens mods with only pac_xml material files. For a large extracted folder, use the model picker's name and shader filters.</li>
                   <li>Select two or more built mods that change different game files, such as two pieces of one armour, and choose Combine into One Mod... to write them into one new mod. CDMW first lists every file the new mod will hold and whether it becomes a loose mod or a DMM archive group; when two builds change the same game file, it names the file and both builds and writes nothing. Give a title and a new or empty folder outside the game folder, then choose Combine. The selected mods are kept as they are and the new mod is listed beside them. Cancel stops at any point and leaves no folder behind.</li>
                   <li>Create New Item lists each .cdmw item package it writes, with the settings it was written from. Select the package and choose Continue Editing to open it in Create New Item.</li>
                   <li>Choose Add Item Package... for a .cdmw written by an earlier version or by someone else. Continue Editing then rebuilds its settings from the package. Packages made by other tools, such as prefab or texture packages, are listed but cannot be continued.</li>
                   <li>For an item package, Remove from List... keeps the .cdmw file and removes only its saved settings.</li>
                 </ul>
+                <p>Combined mods have not been checked in game.</p>
                 <p>Opening a game file that already has drafts asks first, before anything loads. Choose Resume for the newest draft, Start Fresh to edit the game file, or Choose a Draft... to pick another. Your drafts are kept either way.</p>
                 <p>If the game has changed the file since the work was saved, CDMW asks before continuing from its saved copy of the earlier file. A recovered older save may not include the newest edit.</p>
                 <p>A draft keeps its Undo history after CDMW closes, up to 64 steps and 256 MiB a draft; the unfinished edits kept for a crash count toward the 256 MiB, up to half of it, and never push out the three newest steps. Texture and material files that drafts share do not count. Undo goes back through the edits you finished, and Redo forward again. Edits that were not finished come back in the editor as one step, Recovered edits. A mesh opened from disk has no draft and keeps its history only while it is open.</p>
@@ -767,10 +788,10 @@ class AboutDocumentationEnglishMixin:
                 <p>Build Mod includes required generated companions. A single mesh file may be unavailable when those companions cannot travel with it. Existing output folders and ZIPs are not overwritten. After an uncertain outcome, inspect the final output before retrying with a new destination.</p>
                 <p>After a Fit, Build Mod leaves out the body the outfit was fitted to, also in a later edit pass, so the mod changes only the outfit and other body mods keep working. To also ship changes you made to the body, turn on Include the body in the Build Mod window.</p>
                 <p>Keep layers underneath (experimental) in the Build Mod window stops an edited garment cutting the clothing layers you tick, such as Lowerbody for pants under a shortened coat. Whole-part hiding is unchanged. The mod ships partshrinkdesc.xml, so it conflicts with other mods that ship that file. Test in game; the preview does not show it.</p>
+                <p>If none of the selected layers are cut by the garment, the build leaves out custom shrink rules and lists the layers the garment does cut.</p>
                 <p>To verify an export, reopen the actual completed output with its dependencies and compare a known edit. Opening the original archive entry or resuming the live editor does not read back the exported bytes. Preview appearance and package validation remain separate from in-game testing.</p>
                 <ul>
                   <li>Export PAC As… writes only the finished PAC to the chosen path.</li>
-                  <li>Archive overlays are disabled because they are incompatible with the DLC update.</li>
                   <li>DMM Archive Group writes the mesh as an archive group in a package folder that DMM serves by path; nothing is installed into the game. Hairstyles are always built this way, with their barber choice.</li>
                 </ul>
                 <p>Use Textures for texture editing; Hair Appearance also has a dedicated DDS editing handoff. Use Create New Item for a new equipment identity and Placement &amp; Animations for equipment placement.</p>
@@ -838,7 +859,7 @@ class AboutDocumentationEnglishMixin:
                 <p><b>Placement &amp; Animations</b> changes where a character carries a weapon and which animations go with it, then saves the result as a mod for DMM. Choose the <b>Character</b>, <b>Weapon</b> and <b>Slot</b> at the top. The 3D view is in the middle and the tabs are on the right: <b>Carry</b>, <b>Animations</b>, <b>Edit</b>, <b>Armour</b>, <b>Your mod</b> and <b>Advanced</b>. The <b>?</b> button beside the tabs opens this page.</p>
                 <p><b>Move a weapon somewhere else on the body</b></p>
                 <ol>
-                  <li>Open <b>Carry</b>. <b>Where it hangs</b> shows where the weapon hangs now and which hand holds it.</li>
+                  <li>Open <b>Carry</b>. <b>Where it hangs</b> shows where the weapon hangs and which hand holds it. It explains missing points, such as a female Kliff musket point added by another mod. CDMW can move only points in the game's files.</li>
                   <li>Pick a spot in <b>Move to</b>. The footer says what the move does; hover over it for every row and file it changes.</li>
                   <li>Keep <b>Mirror to the other side</b> ticked for a body that holds the weapon in the left hand, such as Damiane or a female Kliff. A new attach point then hangs the weapon on the reflected spot.</li>
                   <li>Press <b>Move it</b>. The weapon and its case move together, and nothing else that hangs from that spot moves with them.</li>
@@ -847,12 +868,15 @@ class AboutDocumentationEnglishMixin:
                 <p><b>Weapon and case rows…</b> lists the rows in this body's descriptor that decide where the weapon and its case hang.</p>
                 <p><b>Fine-tune the position or angle</b></p>
                 <ul>
-                  <li>Under <b>Carry &gt; Fine-tune</b>, choose in <b>Adjust</b> whether to move the item's own attach point or the spot on the body. A note says when other items share that point.</li>
+                  <li>Under <b>Carry &gt; Fine-tune</b>, choose in <b>Adjust</b> whether to move the item's point or the body point. A shared body point moves every item named in the note, and the change can be saved.</li>
+                  <li><b>Over the other shoulder</b> mirrors a back point without a left or right partner in each of the body's files. For hip points, use <b>Mirror to the other side</b> under <b>Where it hangs</b>.</li>
+                  <li><b>Hang like…</b> copies another item's point into the selected item's file. All models sharing that file change together, such as every model of one shield type.</li>
+                  <li><b>On the back</b> moves one kind of item at a shared body point. Pick a direction or turn and step with − or +. <b>With the files in step</b> also moves its other files, such as both sheaths. One Undo restores them.</li>
                   <li>Type a <b>Position</b> or <b>Angle</b>, use the <b>Nudge</b> and <b>Turn</b> arrows with their step, or choose <b>Move</b>, <b>Rotate</b> or <b>Tilt</b> above the view and drag the item.</li>
                   <li>To turn the view without moving the item, hold Alt while you drag, or drag with the right mouse button.</li>
                   <li>Switch the view between <b>In hand</b> and <b>Put away</b> above the view. The <b>Show</b> menu under the view turns the skeleton, labels, unused points, meshes and solid body on or off.</li>
                 </ul>
-                <p>An attach point several slots share cannot be saved after a change, because it would move all of them; use <b>Move it</b> instead.</p>
+                <p>A manual edit to an item point shared by several slots in the same file cannot be saved. Use <b>Move it</b> for a slot-specific change. The new carry adjustments have not been checked in game.</p>
                 <p><b>Give it draws that reach the new spot</b></p>
                 <ol>
                   <li>Open <b>Animations</b> and choose <b>Replace draws</b>.</li>
@@ -881,7 +905,9 @@ class AboutDocumentationEnglishMixin:
                   <li>Give the mod a name, choose <b>DMM's mods folder</b> or <b>A folder I choose</b>, and press <b>Save as DMM mod</b>.</li>
                   <li>In DMM, tick the mod and press Mount. The mod's README.txt lists what to check in game.</li>
                 </ol>
+                <p>An item's own socket edits usually save as a <code>.sockets.xml.patch</code>. A new point can require the whole file. Another mod that supplies the whole file can override your patch.</p>
                 <p><b>Advanced</b> has a dropdown of pages: the full attach point list with what each one affects, new attach points, Driven bones (experimental: the game may not read these files), Rig behaviour, action chart retargeting, and the exact file changes.</p>
+                <p><b>Undo</b> and <b>Redo</b> also cover edits in <b>Constraints</b> and <b>Rig Behaviour</b>, and are available in the animation editor.</p>
                 <div class="doc-callout doc-warning"><b>Experimental:</b> edited and new animations, Reach, Plant, joins and retiming, and mods saved from <b>Your mod</b> have not been tested in game yet. Check the result in game before relying on it.</div>
                 <p>Each time the tool opens it checks its copies of the game files against the installed game and refreshes them after an update. Changes made before an update cannot be saved. Previews and checks in this tool do not prove in-game behaviour; test the mod in game.</p>
                 """,
@@ -891,7 +917,12 @@ class AboutDocumentationEnglishMixin:
                 "title": 'Textures: Edit',
                 "summary": 'Layered editing within the shared texture job.',
                 "keywords": "texture editor layers masks selections brush clone heal smudge patch gradient dodge burn channels compare",
-                "html": '<p><b>Textures &gt; Edit</b> provides layers, masks, selections, channel locks, brush tools, clone/heal, smudge, sharpen, and soften.</p><p>Switching to Recolor or Upscale retains the same sessions, history, original DDS, and target bindings. Use <b>Review &amp; Export</b> for DDS, PNG, project, or replacement-package output. Icon Creator handoffs remain available. Technical-map constraints still apply.</p>',
+                "html": """
+                <p><b>Textures &gt; Edit</b> provides layers, masks, selections, channel locks, brush tools, clone/heal, smudge, sharpen, and soften.</p>
+                <p><b>Opacity</b> caps coverage for one stroke, even where stamps overlap. <b>Flow</b> sets how much each stamp adds. Lighter pen pressure paints a lighter stroke.</p>
+                <p>When both the standalone and Mesh Editor texture editors are open, keyboard shortcuts and <b>Actions</b> act on the one you are using.</p>
+                <p>Switching to Recolor or Upscale retains the same sessions, history, original DDS, and target bindings. Use <b>Review &amp; Export</b> for DDS, PNG, project, or replacement-package output. Icon Creator handoffs remain available. Technical-map constraints still apply.</p>
+                """,
             },
             {
                 "id": "replace_assistant",
@@ -991,6 +1022,7 @@ class AboutDocumentationEnglishMixin:
                 </ol>
                 <p>Packages saved before the .cdmw extension was introduced end in .cditem. They still load and need no conversion.</p>
                 <p>Sending again replaces CDMW items. Keep all your CDMW items in that one mod: a DMM mod carries complete item and shop tables, so two such mods replace each other's items. Each item keeps its ID from one send to the next, so saves find their items again. CDMW records the IDs in its own folder, separately for each game folder, and writes nothing into the game folder.</p>
+                <p><b>Send to DMM</b> carries over item IDs from the old <code>.cdmw</code> folder in the game directory the next time you send and leaves the old record intact.</p>
                 <p>After a game update, send the items again. A package that refuses with an incompatible game dependency needs updating in Create New Item first. A DMM mod that replaces the item or shop tables may hide CDMW's items.</p>
                 """,
             },
@@ -1069,7 +1101,7 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Mod-ready export</b> writes a package-prefixed loose tree with <code>manifest.json</code> and optional manager metadata when that export mode is enabled.</li>
                   <li><b>Target Mod Managers</b>: packages are written for DMM. Mesh, texture and new-item packages have different layouts and compatibility limits. Keep the generated folder structure and descriptors intact; do not copy metadata rules from another workflow.</li>
                   <li><b>Texture Replacer</b> is usually the cleanest path for one-off mod-ready texture output because it starts from the edited file and its matched original.</li>
-                  <li><b>Archive Browser</b> patch workflows are explicit, confirmed operations with backup/restore support where implemented. They are not part of ordinary browsing.</li>
+                  <li>CDMW exports mods for DMM. To undo changes from an older CDMW, use <b>Restore Backup...</b> or <b>Remove What an Older CDMW Installed...</b> in Browse Archives.</li>
                 </ul>
                 <p>Recommended practice: build into a review folder, inspect in Compare or an external viewer, then copy or point your mod manager at the final mod-ready folder.</p>
                 """,
@@ -1094,9 +1126,9 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Settings / General</b> combines archive auto-load, cache preference, last-tab restore, cleanup confirmations, diagnostic context, verbose Archive Browser logging, and direct profile import/export. Archive filters start neutral after launch.</li>
                   <li><b>Settings / Paths</b> holds workflow roots, archive locations, game/package roots, and extraction roots.</li>
                   <li><b>Settings / Performance</b> controls workload presets, archive-list batching/native helper use, optional DDS related-file indexing, preview caches, and Preview package caching.</li>
-                  <li><b>Settings / Appearance</b> controls layout, the shared theme, pane-size memory, all 14 built-in app languages plus imported custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults. <b>Preview Settings...</b> opens the existing full preview-settings window and reuses the same live controls and stored values.</li>
-                  <li><b>Settings / Shortcuts</b> lists the keys of every command in every tool, the Mesh Editor's and the Texture Editor's included, in a table with the command, its keys, where it works and what it clashes with. Group it by area, sort by any column, search, or show only conflicts or changed keys. Double-click a key and press the new one to change it in place; Change... also sets a second key. Reset to default restores one command and Restore all defaults restores every command.</li>
-                  <li><b>Settings / AI connections</b> lets AI apps on this computer, such as Claude Desktop, Claude Code and Codex CLI, see and do in CDMW what you can while CDMW is open: search the archives and read files, work in Browse Archives, the Mesh Editor, the Texture Editor and Create New Item, press the buttons and fill the fields of any page, and take pictures of the windows and 3D views. Turn on Allow AI connections, add CDMW to the app with a line this page shows, then restart the app. Tools that only read always run. Tools that change something, write a file or delete something ask you in CDMW first, unless you set that kind to allow or turn on Full access. No tool writes into the game, changes these settings or the game folder, or answers its own question, and CDMW logs every call.</li>
+                  <li><b>Settings / Appearance</b> controls layout, the shared theme, pane-size memory, all 14 built-in app languages plus imported custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults. Interface, list and log fonts accept 6 to 16 pt. <b>Preview Settings...</b> opens the existing full preview-settings window and reuses the same live controls and stored values.</li>
+                  <li><b>Settings / Shortcuts</b> lists the keys of every command in every tool, the Mesh Editor's and the Texture Editor's included, in a table with the command, its keys, where it works and what it clashes with. Group it by area, sort by any column, search, or show only conflicts or changed keys. Double-click a key and press the new one to change it in place; Change... also sets a second key. Reset to default restores one command and Restore all defaults restores every command. Keys set in the Mesh Editor or Texture Editor shortcut windows also appear here.</li>
+                  <li><b>Settings / AI connections</b> lets AI apps on this computer, such as Claude Desktop, Claude Code and Codex CLI, see and do in CDMW what you can while CDMW is open: search the archives and read files, edit by numbers in every tool on the rail, as you would by hand (the Mesh Editor, the Texture Editor, Create New Item, Placement & Animations, Edit Translations and the rest), undo an AI's whole turn at once, press the buttons and fill the fields of any page, and take pictures of the windows and 3D views. This is experimental. An AI app works through CDMW's controls one step at a time; it can misread a page or a model, pick the wrong part or value, and cannot tell whether a mod looks right or works in game. Watch what it does, review every change before you build, and test the result in game. Turn on Allow AI connections, add CDMW to the app with a line this page shows, then restart the app. Tools that only read always run. Tools that change something, write a file or delete something ask you in CDMW first, unless you set that kind to allow or turn on Full access. No tool writes into the game, changes these settings or the game folder, or answers its own question, and CDMW logs every call.</li>
                 </ul>
                 <p>Language export writes a JSON file with English keys and translated values. Keep keys unchanged, edit only values, then import the file from Settings / Appearance.</p>
                 """,
@@ -1123,6 +1155,7 @@ class AboutDocumentationEnglishMixin:
                   <li>CDMW never writes into the game's archives: extraction and preview only read them, and what you make is written as a mod.</li>
                 </ul>
                 <p>CDMW never writes into the game folder. An output, build or mod folder you choose inside it, inside a DLC folder of the game or inside any other Crimson Desert installation is refused before anything is written, and the message names the folder. Choose a folder outside the game; a mod manager installs the mod. Only Restore Backup... and Remove What an Older CDMW Installed... in Browse Archives write there, to put back or take out what an older CDMW changed. If you change the game folder while CDMW runs, the previous one stays protected until CDMW closes.</p>
+                <p><b>Clear Root</b> and <b>Clear Workflow Roots</b> also refuse a folder that contains a game installation.</p>
                 <p>If you are not sure what a file is, classify or inspect it in Research before assigning an aggressive workflow profile.</p>
                 """,
             },
@@ -1146,6 +1179,7 @@ class AboutDocumentationEnglishMixin:
                 "html": f"""
                 <p>The app stores its local settings and archive cache beside the executable or local source checkout.</p>
                 <p>The Windows portable executable is named CDMW.exe. Check About or Windows file properties for its version; the settings filename remains CrimsonDesertModWorkbench.cfg.</p>
+                <p>Use a writable CDMW folder. Temporary files go in <code>workspace/temp</code> within it, and crash leftovers there are cleared after a day. Create New Item's Blender path, rig folder and preview choices are copied from the Windows registry to the settings file once.</p>
                 <ul>
                   <li><b>Config file</b>: <code>{settings_text}</code></li>
                   <li><b>Archive cache</b>: <code>{cache_text}</code></li>
@@ -1157,6 +1191,7 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>The bundled cd-texture-dx.exe is required for DDS-to-PNG conversion, compare previews, DDS rebuilding and the image fallback. Supported GPU previews read DDS directly.</li>
                   <li><b>Real-ESRGAN NCNN</b> and <b>chaiNNer</b> are optional backends.</li>
+                  <li>CDMW uses your own <b>OpenImageIO</b> for sources that need it, such as EXR, PTX/Ptex and layered PSD. If it is missing, the file's message explains how to configure it.</li>
                 </ul>
                 <h4>References</h4>
                 <ul>
@@ -1202,7 +1237,8 @@ class AboutDocumentationEnglishMixin:
                 <p><b>What is the safest first backend?</b><br/>Use <b>Disabled</b> first to prove paths and DDS rebuild behavior. Then test direct <b>Real-ESRGAN NCNN</b> or a known-good <b>chaiNNer</b> chain on a small subset.</p>
                 <p><b>Why did output brightness or detail change?</b><br/>Upscale models and correction modes can shift luma, contrast, alpha, or detail. Compare against the original, test a different model, reduce aggressive settings, or try Source Match correction for visible textures.</p>
                 <h4>General</h4>
-                <p><b>Can the app patch archives directly?</b><br/>Direct archive patching and overlay installation are currently unavailable. Browsing, preview and extraction are read-only; use supported DMM mod outputs for edits.</p>
+                <p><b>Can an AI app make mods for me?</b><br/>AI connections are experimental, and an AI app can misread CDMW's controls or choose the wrong part or value. Watch its work, review every change before building, and test the mod in game yourself.</p>
+                <p><b>Can the app patch archives directly?</b><br/>CDMW builds mods for DMM. Browsing, preview and extraction only read the game archives.</p>
                 <p><b>Where are settings stored?</b><br/>The config file and cache are stored beside the executable or local source checkout. See <a href="topic:settings_files">Settings, Files &amp; Dependencies</a>.</p>
                 <p><b>Why does search not find my topic?</b><br/>Try feature names, tab names, file types, field labels, or symptoms such as <code>native DDS</code>, <code>brightness</code>, <code>normal</code>, <code>archive</code>, <code>profile</code>, or <code>mod-ready</code>.</p>
                 """,
@@ -1226,6 +1262,7 @@ class AboutDocumentationEnglishMixin:
                 """ + ARCHIVE_PREVIEW_GUIDANCE + """
                 <p>Look up named errors and warnings in the <a href="topic:error_code_library">Error Code Library</a>.</p>
                 <h4>Report a Problem</h4>
+                <p>After a native crash, the profile's <code>logs</code> folder keeps a small dump and a matching text report. For an archive worker crash, <b>Copy error report</b> includes the worker's exit code and explains common Windows crash codes.</p>
                 <p>Report a Problem is below Support Me in the sidebar and also under Help. Include the installed version, exact action, reproduction steps, expected and actual result, and relevant game or manager setup. Prepare and review the diagnostic draft and screenshots before sending. Reports go to a separate private inbox; keep report evidence links private.</p>
                 """,
             },

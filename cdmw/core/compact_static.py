@@ -34,6 +34,34 @@ _ITEMINFO_3527 = (
     ("field", "ItemInfo", "_soundSocketNameOnMaxCharged", ("text",)),
     *_ITEMINFO_BASE[_SOUND_INSERT:],
 )
+# 1.0.0.3732 adds two one-byte fields. ItemInfo._discardSingleCount sits in the
+# run of one-byte flags before _itemType. Parsing alone accepts it anywhere in
+# that run; the shield flags only line up with shield items when it comes before
+# _isTowerShieldItem, and the executable's field labels (stored in reverse field
+# order: _useAveragePrice, _discardSingleCount, _discardable) place it after
+# _discardable. PageData gains _uiTextureRotationType after
+# _rightPageRelatedKnowledgeInfo, placed by the labels the same way; fixed and
+# dynamic page lists share the record and both decode on 3732.
+def _insert_after(program, owner, name, *ops):
+    at = next(i + 1 for i, op in enumerate(program)
+              if isinstance(op, tuple) and op[:3] == ("field", owner, name))
+    return (*program[:at], *ops, *program[at:])
+
+
+_PAGE_BASE = READERS[808][1][2]
+assert _PAGE_BASE[-1][:3] == ("field", "PageData", "_rightPageRelatedKnowledgeInfo")
+_PAGE_3732 = (*_PAGE_BASE, ("field", "PageData", "_uiTextureRotationType", ("raw", 1)))
+_ITEMINFO_3732 = tuple(
+    ("field", "ItemInfo", op[2], ("presence", ("seq", ("array", 4, _PAGE_3732))))
+    if isinstance(op, tuple) and op[0] == "field" and op[2] in ("_fixedPageDataList", "_dynamicPageDataList")
+    else op
+    for op in _insert_after(_ITEMINFO_3527, "ItemInfo", "_discardable",
+                            ("field", "ItemInfo", "_discardSingleCount", ("raw", 1))))
+assert READERS[513] == ("optional", 808)
+# Oldest first. A row must match exactly one; each later build adds bytes, so a
+# row from one build cannot complete under another's grammar by accident.
+ITEMINFO_GENERATIONS = (("pre-3527", _ITEMINFO_BASE), ("3527", _ITEMINFO_3527), ("3732", _ITEMINFO_3732))
+
 _DROPSET_BASE = READERS[TABLE_READERS["dropsetinfo"]]
 _VEHICLE_INSERT = next(i + 1 for i, op in enumerate(_DROPSET_BASE)
                        if isinstance(op, tuple) and op[:3] == ("field", "DropSetInfo", "_isEqualPercent"))
@@ -77,7 +105,7 @@ _CONDITION_SWITCH_3663 = (*_CONDITION_SWITCH[:-1], MappingProxyType({
 
 def read_compact_layout(raw, kind="iteminfo"):
     if kind == "iteminfo":
-        programs = (("pre-3527", _ITEMINFO_BASE), ("3527", _ITEMINFO_3527))
+        programs = ITEMINFO_GENERATIONS
     elif kind == "gimmickinfo":
         programs = (("pre-3663", _GIMMICKINFO_BASE), ("3663", _GIMMICKINFO_3663))
     else:
@@ -118,7 +146,7 @@ def _select_compact_layout(raw, kind, programs, candidates, errors, failures):
                 # The newest layout tried is the one the current game writes.
                 raise failures[-1]
             raise RecordError("Unsupported or ambiguous compact static layout.")
-        detail = "; ".join(errors) if not candidates else "both known layouts match"
+        detail = "; ".join(errors) if not candidates else "more than one known layout matches"
         raise RecordError(f"Unsupported or ambiguous compact ItemInfo layout ({detail}).")
     return candidates[0]
 
@@ -231,7 +259,7 @@ def _find_field_shape(op, field):
 def _field_shape(kind, field):
     op = _find_field_shape(READERS[TABLE_READERS[kind]], field)
     if op is None and kind == "iteminfo":
-        op = _find_field_shape(_ITEMINFO_3527, field)
+        op = _find_field_shape(_ITEMINFO_3527, field) or _find_field_shape(_ITEMINFO_3732, field)
     if op is None and kind == "gimmickinfo":
         op = _find_field_shape(_GIMMICKINFO_3663, field)
     if op is None:

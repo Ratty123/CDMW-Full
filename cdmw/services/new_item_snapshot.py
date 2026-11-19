@@ -54,6 +54,11 @@ MODEL_ROOT = "character/model/"
 ReadEntry = Callable[[ArchiveEntry], bytes]
 
 
+#: Undecodable ItemInfo rows read before the snapshot refuses, to tell one bad row
+#: (an outdated mod, a damaged file) from a layout the game patch changed.
+_FAILURE_SAMPLE = 25
+
+
 class NewItemSnapshotError(RuntimeError):
     """Raised when the archives do not hold what a new item needs."""
 
@@ -635,6 +640,8 @@ def build_snapshot(
     spans = table.row_spans(len(iteminfo.payload))
     keys = {row.row_id for row, _s, _e in spans}
     rows: Dict[int, ItemInfoRow] = {}
+    first_failure = None
+    failed = 0
     for row, start, end in spans:
         # Per row: a paused preload (a Browse load, a click) parks here, not
         # after the table, which is seconds of Python.
@@ -645,11 +652,25 @@ def build_snapshot(
                 raise ItemInfoRowError('ItemInfo has an inconsistent or duplicate row identity.')
             rows[row.row_id] = parsed
         except (ItemInfoRowError, RecordError, struct.error, UnicodeError) as exc:
-            raise NewItemSnapshotError(
-                f"ItemInfo row {row.row_id} did not decode: {exc}\n"
-                f"Source: {iteminfo.payload_entry.path} ({iteminfo.payload_entry.pamt_path}); "
-                f"row offset 0x{start:X}, length {end - start} bytes."
-            ) from exc
+            failed += 1
+            if first_failure is None:
+                first_failure = (row, start, end, exc)
+            # Every key stays reserved by the table a new item is added to, so a
+            # skipped row would let a new item reuse its key. Read a few more rows
+            # only to say whether the whole layout changed, then refuse.
+            if failed >= _FAILURE_SAMPLE:
+                break
+    if first_failure is not None:
+        row, start, end, exc = first_failure
+        scanned = len(rows) + failed
+        scope = (f"None of the first {scanned} rows decode with the ItemInfo layouts this version of the app "
+                 "knows, so the installed game's ItemInfo format is newer than this version supports.\n"
+                 if not rows else f"{failed} of the first {scanned} rows did not decode.\n")
+        raise NewItemSnapshotError(
+            f"ItemInfo row {row.row_id} did not decode: {exc}\n{scope}"
+            f"Source: {iteminfo.payload_entry.path} ({iteminfo.payload_entry.pamt_path}); "
+            f"row offset 0x{start:X}, length {end - start} bytes."
+        ) from exc
     keys_by_name = {row.string_key: key for key, row in rows.items()}
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")

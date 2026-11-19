@@ -1,4 +1,4 @@
-"""Create New Item's tools: the page, its templates, and New painting.
+"""Create New Item's typed tools, including templates and New painting.
 
 Create New Item's page is drawn by a helper from Qt controls that are never
 shown themselves; a click in the page runs the control's handler. The tools
@@ -78,15 +78,38 @@ def _state(call) -> dict[str, object]:
         "controls": widget_id(workflow),
         "dialogs": [{"widget": widget_id(dialog), "title": dialog.windowTitle()} for dialog in dialogs],
     }
-    tabs = getattr(workflow, "tabs", None) or getattr(workflow, "step_tabs", None)
-    if tabs is not None and hasattr(tabs, "tabText"):
-        state["steps"] = [tabs.tabText(index) for index in range(tabs.count())]
-        state["step"] = tabs.tabText(tabs.currentIndex()) if tabs.count() else ""
+    # The step header (WorkflowHeader): its items, the current row and each step's state.
+    header = getattr(workflow, "steps", None)
+    if header is not None and hasattr(header, "item") and hasattr(header, "currentRow"):
+        items = [header.item(index) for index in range(header.count())]
+        state["steps"] = [{"index": index, "name": item.text() if item is not None else "",
+                           "state": str(getattr(header.stepState(index), "name", "") or "").lower()}
+                          for index, item in enumerate(items)]
+        row = int(header.currentRow())
+        state["step"] = state["steps"][row]["name"] if 0 <= row < len(items) else ""
     return state
 
 
+SEARCH_WAIT_S = 20.0
+
+
+def _templates(workflow) -> dict[str, object]:
+    matches = workflow.template_panel.matches
+    return {"search": workflow.template_panel.filter_edit.text(),
+            "template_count": int(matches.topLevelItemCount()),
+            "templates": [str(matches.topLevelItem(row).text(0))
+                          for row in range(min(matches.topLevelItemCount(), 200))]}
+
+
 def _search(call) -> dict[str, object]:
+    """Types the search and waits for its result: the page searches on a worker, after a
+    short pause, so the list right after typing is still the old one."""
+
+    import threading
+    import time
+
     context = call.context
+    found = threading.Event()
 
     def search() -> dict[str, object]:
         _tab, workflow = _workflow(context)
@@ -94,15 +117,36 @@ def _search(call) -> dict[str, object]:
             raise ToolError(UNAVAILABLE, NOT_OPEN)
         from cdmw.mcp.ui_tree import act
 
+        ready = getattr(getattr(workflow, "controller", None), "template_search_ready", None)
+        text = str(call.arguments.get("text") or "")
+        if ready is None or workflow.template_panel.filter_edit.text() == text:
+            found.set()  # nothing to wait for: the same text starts no new search
+        else:
+            def arrived(_options, signal=ready) -> None:
+                found.set()
+                try:
+                    signal.disconnect(arrived)
+                except (RuntimeError, TypeError):
+                    pass
+
+            # Connected after the page's own slot, so the page has shown the rows when this runs.
+            ready.connect(arrived)
         act(workflow.template_panel.filter_edit, "set_text", value=str(call.arguments.get("text") or ""),
             window=getattr(context, "window", None), game_folder=context.game_folder())
-        matches = workflow.template_panel.matches
-        return {"search": workflow.template_panel.filter_edit.text(),
-                "template_count": int(matches.topLevelItemCount()),
-                "templates": [str(matches.topLevelItem(row).text(0))
-                              for row in range(min(matches.topLevelItemCount(), 200))]}
+        return {}
 
-    return _act(call, search)
+    _act(call, search)
+    deadline = time.monotonic() + SEARCH_WAIT_S
+    while not found.wait(0.05):
+        call.check_cancelled()
+        if time.monotonic() > deadline:
+            break
+
+    def read() -> dict[str, object]:
+        _tab, workflow = _workflow(context)
+        return {**_templates(workflow), "searching": not found.is_set()}
+
+    return context.ui_call(read)
 
 
 def _pick(call) -> dict[str, object]:
@@ -114,6 +158,9 @@ def _pick(call) -> dict[str, object]:
         raise ToolError(INVALID_ARGUMENTS, "Name the template: match (text in its row) or row (its number).")
 
     def pick() -> dict[str, object]:
+        _tab, workflow = _workflow(context)
+        if workflow is None or getattr(workflow, "template_panel", None) is None:
+            raise ToolError(UNAVAILABLE, NOT_OPEN)
         result = _automation(new_item_pick, getattr(context, "window", None),
                              {"match": a.get("match") or "", "row": a.get("row") or 0})
         if not result.get("picked"):
@@ -184,6 +231,13 @@ def _painting_close(call) -> dict[str, object]:
 
 
 def new_item_tools() -> list[Tool]:
+    from cdmw.mcp.new_item_draft import draft_tools
+    from cdmw.mcp.new_item_effects import effects_tool
+    from cdmw.mcp.new_item_fields import field_tool
+    from cdmw.mcp.new_item_files import draft_file_tool
+    from cdmw.mcp.new_item_model import model_tool
+    from cdmw.mcp.new_item_output import output_tools
+
     text = {"type": "string", "maxLength": 512}
     return [
         Tool(name="new_item.state", family="new_item", title="Create New Item state",
@@ -203,6 +257,12 @@ def new_item_tools() -> list[Tool]:
                          "(text in the row) or 'row' (its number).",
              input_schema=object_schema({"match": text, "row": {"type": "integer", "minimum": 0}}),
              effect=EDIT, route="ui:TemplatePanel.matches", handler=_pick, runs_on=ON_CALL),
+        *draft_tools(),
+        field_tool(),
+        model_tool(),
+        effects_tool(),
+        *output_tools(),
+        draft_file_tool(),
         Tool(name="new_item.painting_state", family="new_item", title="New painting state",
              description="The New painting dialog as shown: the frames offered, each painting with its frame, "
                          "picture, fit and texts, the mod name and folder, the status line and log, and "

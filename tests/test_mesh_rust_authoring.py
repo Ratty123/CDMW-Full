@@ -6464,6 +6464,8 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 "weighted_normals",
                 "copy_normals",
                 "uv_transform",
+                # Move, rotate and scale by numbers (AI connections' mesh_transform).
+                "transform",
             },
             set(rust_authoring_module._HOST_MESH_ACTION_PARAMS),
         )

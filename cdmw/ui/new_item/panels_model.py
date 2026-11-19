@@ -1492,12 +1492,13 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         if (previous.masks if previous else ()) != (choice.masks if choice else ()):
             self._appearance_preview_timer.start()
 
-    def _paint_transparency(self, part, mode):
+    def _paint_transparency(self, part, mode, *, present=True):
         if mode == "blending" and dict(self._controller.draft.shader_controls)[part].shader == "SkinnedMeshWing":
             mode = "cutout"
-        self._controller.start_transparency_paint(part, mode, self._show_transparency_painter)
+        return self._controller.start_transparency_paint(
+            part, mode, lambda session, prepared: self._show_transparency_painter(session, prepared, present=present))
 
-    def _show_transparency_painter(self, session, prepared):
+    def _show_transparency_painter(self, session, prepared, *, present=True):
         from cdmw.ui.new_item.transparency_painter import TransparencyPaintDialog
         dialog = TransparencyPaintDialog(prepared, lambda mask: self._controller.apply_transparency_paint(session, mask),
             part=session[-2], glass=session[-1] == "translucency", parent=self,
@@ -1507,7 +1508,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         # The controller owns cancellable file I/O; closing discards draft paint
         # and cancels that lane without destroying a running worker.
         self._transparency_painter = dialog
-        dialog.open()
+        if present:
+            dialog.open()
 
     def _restore_transparency_mask(self, part, mode, *, target="colour"):
         controller = self._controller

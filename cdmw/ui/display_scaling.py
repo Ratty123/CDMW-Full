@@ -14,7 +14,7 @@ from time import monotonic
 from PySide6.QtCore import QEvent, QObject, QRect, QSize, Qt, QTimer
 from PySide6.QtGui import QRegion, QWindow
 from PySide6.QtWidgets import (
-    QAbstractButton, QAbstractSpinBox, QApplication, QComboBox, QFrame,
+    QAbstractButton, QAbstractSpinBox, QApplication, QComboBox, QDockWidget, QFrame,
     QLabel, QLayout, QLineEdit, QMainWindow, QPushButton, QScrollArea, QSizePolicy,
     QStackedWidget, QStyle, QStyleOptionButton, QStyleOptionToolButton,
     QToolButton, QVBoxLayout, QWidget,
@@ -161,7 +161,14 @@ def fit_window_to_screen(window: QWidget, available: QRect | None = None) -> Non
     decoration = frame.size() - window.size()
     limit = QSize(max(1, bounds.width() - max(0, decoration.width())),
                   max(1, bounds.height() - max(0, decoration.height())))
-    root = window.centralWidget() if isinstance(window, QMainWindow) else window
+    # Main windows and docks own internal layouts tied to their widget type.
+    # Only their content's layout can move into the overflow scroll area.
+    if isinstance(window, QMainWindow):
+        root = window.centralWidget()
+    elif isinstance(window, QDockWidget):
+        root = window.widget()
+    else:
+        root = window
     if root is not None and root.layout() is not None:
         required = window.minimumSizeHint().expandedTo(window.minimumSize())
         if required.width() > limit.width() or required.height() > limit.height():

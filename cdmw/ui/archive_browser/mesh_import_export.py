@@ -642,13 +642,17 @@ class ArchiveMeshImportExportMixin:
         self.shell.set_status_message("Reading the selected rows from the archive list...")
         reader.start()
 
-    def _open_batch_mesh_export(self, selections, export_format: str) -> None:
+    def _open_batch_mesh_export(self, selections, export_format: str, *, run_dialog=None) -> None:
         from cdmw.ui.archive_browser.mesh_batch_export_dialog import BatchMeshExportDialog
 
         if not selections:
             QMessageBox.information(self, "Batch Mesh Export", "Select PAC, PAM or PAMLOD file rows first. Folders and other file types are not included.")
             return
         dialog = BatchMeshExportDialog(self, selections, export_format)
+        if run_dialog is not None:
+            dialog.finished.connect(dialog.deleteLater)
+            run_dialog(dialog)
+            return
         try:
             dialog.exec()
         finally:

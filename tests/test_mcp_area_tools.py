@@ -11,18 +11,27 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QSettings, QTimer, Signal
+from PySide6.QtCore import QObject, QSettings, QTimer, Signal
 from PySide6.QtGui import QColor, QImage
-from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit, QMessageBox, QPushButton, QSlider, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSlider,
+    QWidget,
+)
 
 from cdmw.app import app_folder
 from cdmw.mcp import approvals
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.commands.registry import command_registry
 from tests.mcp_full_helpers import McpApp
+
 # The automation tests' stand-ins: a real host session behind the Mesh Editor's protocol
 # code, and Create New Item's Template page with the real New painting dialog.
-from tests.test_automation_authoring_commands import editor, studio  # noqa: F401
+from tests.test_automation_authoring_commands import editor, studio
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="AI connections are Windows-only")
 
@@ -72,7 +81,7 @@ def _game(tmp_path, settings) -> Path:
 
 # ===== the Mesh Editor ==================================================================
 @pytest.fixture
-def mesh(editor, connect):  # noqa: F811 - the imported fixture
+def mesh(editor, connect):
     """The stand-in editor with a recording helper, and the connection around its window."""
 
     ui = editor.ui
@@ -96,6 +105,34 @@ def test_mesh_state_is_empty_until_a_mesh_is_open(connect) -> None:
                             ("mesh_discard", {}), ("textures_stroke", {"points": [[0, 0]]})):
         error = mcp.error(tool, arguments)
         assert error["code"] == "unavailable" and "Mesh Editor" in error["message"], tool
+
+
+def test_mesh_state_says_why_the_editor_cannot_start(connect, app) -> None:
+    """A page whose helper failed its checks says so, as its status line does."""
+
+    holder = QWidget()
+    holder.active = SimpleNamespace(standalone_rust_incompatible_reason="provenance manifest is missing",
+                                    standalone_rust_authoring_session=None)
+    holder.documents = [holder.active]
+    try:
+        mcp = connect(SimpleNamespace(shell=SimpleNamespace(mesh_editor_tab=holder)))
+        state = mcp.ok("mesh_state")
+        assert state["open"] is False
+        assert state["unavailable"] == "Mesh Editor unavailable: provenance manifest is missing"
+        assert "asks" not in state
+        assert mcp.error("mesh_draft_choice", {"answer": "fresh"})["code"] == "unavailable"
+        # "Continue where you left off?": shown as 'asks', answered by its own buttons.
+        pressed = []
+        page = SimpleNamespace(**{name: SimpleNamespace(click=lambda n=name: pressed.append(n)) for name in (
+            "draft_resume_button", "draft_start_fresh_button", "draft_choice_cancel_button")})
+        holder.active.__dict__.update(page.__dict__, _draft_choice_showing=lambda: not pressed,
+                                      draft_choice_label=SimpleNamespace(text=lambda: "1 saved draft"))
+        asks = mcp.ok("mesh_state")["asks"]
+        assert asks["text"] == "1 saved draft" and asks["answers"] == ["cancel", "fresh", "resume"]
+        assert mcp.ok("mesh_draft_choice", {"answer": "fresh"})["answered"] == "fresh"
+        assert pressed == ["draft_start_fresh_button"] and "asks" not in mcp.ok("mesh_state")
+    finally:
+        holder.deleteLater()
 
 
 def test_mesh_state_and_geometry_are_the_sessions_parts_counts_and_selection(mesh) -> None:
@@ -287,15 +324,40 @@ def test_build_mod_presses_the_button_with_its_dialog_filled_and_reports_a_refus
     started = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Red cloak"})
     assert started["started"] and built == [("Red cloak", str(out), False, False)]
     assert mcp.ok("mesh_state")["building"]
+    # The dialog's other options: the mod manager and the layers kept underneath.
+    from cdmw.ui.mesh_editor.mod_export_dialog import CLOTHING_LAYERS
+
+    building[0] = False
+    options = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Archive cloak",
+                                        "manager": "dmm_archive", "keep_layers": [CLOTHING_LAYERS[0]]})
+    assert options["started"] and options["manager"] == "dmm_archive"
+    assert options["kept_layers"] == [CLOTHING_LAYERS[0]] and built[-1][0] == "Archive cloak"
+    building[0] = False
+    for wrong in ({"manager": "vortex"}, {"keep_layers": ["Wings"]}):
+        error = mcp.error("mesh_build_mod", {"output_folder": str(out), **wrong})
+        assert error["code"] == "invalid_arguments", wrong
+    assert built[-1][0] == "Archive cloak"  # nothing more was built
+    building[0] = True
     # The output folder must exist and never be in the game.
     game = _game(tmp_path, settings)
     assert "does not write into" in mcp.error("mesh_build_mod", {"output_folder": str(game)})["message"]
     assert mcp.error("mesh_build_mod", {"output_folder": str(tmp_path / "missing" / "x")})["code"] == "refused"
-    assert len(built) == 1 and tab_direct_output.MeshModExportDialog.__name__ == "MeshModExportDialog"
+    assert len(built) == 2 and tab_direct_output.MeshModExportDialog.__name__ == "MeshModExportDialog"
     # A hairstyle: the same folder answers its chooser.
     hair[0], building[0] = True, False
     assert mcp.ok("mesh_build_mod", {"output_folder": str(out)})["started"]
     assert built[-1] == ("hair", str(out), None, None)
+    # After Finish the helper and its session are gone; the finished document still builds.
+    hair[0], building[0] = False, False
+    session, ui.standalone_rust_authoring_session = ui.standalone_rust_authoring_session, None
+    ui.standalone_controller = SimpleNamespace(active_session_id="finished")
+    try:
+        assert mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "After finish"})["started"]
+        assert built[-1][0] == "After finish"
+        ui.standalone_controller = None  # nothing open at all
+        assert mcp.error("mesh_build_mod", {"output_folder": str(out)})["code"] == "unavailable"
+    finally:
+        ui.standalone_rust_authoring_session = session
     holder.deleteLater()
 
 
@@ -610,12 +672,66 @@ def textures(app, connect):
         widget.deleteLater()
 
 
+def test_the_texture_tools_paint_adjust_and_undo_a_real_texture_editor(connect, tmp_path) -> None:
+    """The real Texture Editor, not a stand-in: a stroke and an adjustment are one Undo step
+    each, and Undo brings the pixels back."""
+
+    import numpy as np
+
+    from cdmw.models import TextureEditorDocument, TextureEditorLayer
+    from cdmw.ui.texture_editor_tab import TextureEditorTab
+
+    editor = TextureEditorTab(settings=create_settings(settings_file_path=tmp_path / "texture.cfg"),
+                              base_dir=tmp_path, get_png_root=lambda: str(tmp_path))
+    panel, holder = QWidget(), QWidget()
+    try:
+        editor.document = TextureEditorDocument("Probe", 128, 64, active_layer_id="paint",
+                                                layers=(TextureEditorLayer("paint", "Paint", "unused.png"),))
+        editor.layer_pixels = {"paint": np.full((64, 128, 4), 90, dtype=np.uint8)}
+        editor._push_history("Open Document")
+        editor._refresh_ui()
+        panel.editor = editor
+        panel.isFloating = lambda: False
+        panel.notice_text = panel.sharing_text = panel.kept_text = ""
+        holder.active = SimpleNamespace(_texture_tools_panel=lambda: panel)
+        mcp = connect(SimpleNamespace(shell=SimpleNamespace(mesh_editor_tab=holder)))
+        opened = mcp.ok("textures_state")
+        assert opened["open"] and (opened["width"], opened["height"]) == (128, 64)
+        start, before = opened["history_index"], editor.layer_pixels["paint"].copy()
+        chosen = mcp.ok("textures_tool", {"tool": "paint", "colour": "#FF0000", "size": 12, "opacity": 100})
+        assert chosen["tool"] == "paint" and chosen["colour"].upper() == "#FF0000"
+        stroke = mcp.ok("textures_stroke", {"points": [[10, 32], [100, 32]]})
+        assert stroke["changed"] and stroke["history_index"] == start + 1
+        painted = editor.layer_pixels["paint"].copy()
+        assert not np.array_equal(painted, before) and painted[32, 50, 0] > painted[32, 50, 1]
+        kinds = [str(editor.adjustment_add_combo.itemData(row)) for row in range(editor.adjustment_add_combo.count())]
+        added = mcp.ok("textures_adjust", {"type": kinds[0]})
+        assert added["history_index"] == start + 2  # adding alone is one Undo step
+        adjustment = editor.document.adjustment_layers[-1]
+        set_too = mcp.ok("textures_adjust", {"type": kinds[0], "opacity": 40})
+        assert set_too["history_index"] == start + 4  # adding, then its sliders: two
+        assert editor.document.adjustment_layers[-1].opacity == 40 and adjustment.opacity != 40
+        for step in (start + 3, start + 2, start + 1):
+            assert mcp.ok("textures_undo")["history_index"] == step
+        np.testing.assert_array_equal(editor.layer_pixels["paint"], painted)
+        assert mcp.ok("textures_undo")["history_index"] == start
+        np.testing.assert_array_equal(editor.layer_pixels["paint"], before)
+        assert mcp.ok("textures_redo")["history_index"] == start + 1
+        np.testing.assert_array_equal(editor.layer_pixels["paint"], painted)
+    finally:
+        editor.request_shutdown()
+        for widget in (editor, panel, holder):
+            widget.deleteLater()
+
+
 def test_the_texture_editor_is_read_and_driven_through_its_own_controls(textures) -> None:
     mcp, editor_widget = textures.mcp, textures.editor
     state = mcp.ok("textures_state")
     assert state["open"] and (state["title"], state["width"], state["height"]) == ("belt_d.dds", 64, 32)
     assert state["tools"] == ["erase", "fill", "paint"] and state["tool"] == "paint"
-    assert state["layers"] == [{"id": "l1", "name": "Background", "visible": True, "active": True}]
+    assert state["layers"] == [{"id": "l1", "name": "Background", "visible": True, "active": True,
+                                "opacity": 100, "blend": "normal", "locked": False, "alpha_locked": False,
+                                "mask": None, "mask_enabled": False}]
     assert state["sharing"] == "Only this model uses this texture." and state["not_kept_yet"] == 1
     # Open: by the panel's id or by game path, as a double-click on the row.
     assert mcp.ok("textures_open", {"texture": "character/texture/belt_n.dds"})["texture"] == "tex-1"
@@ -623,7 +739,8 @@ def test_the_texture_editor_is_read_and_driven_through_its_own_controls(textures
     assert mcp.error("textures_open", {"texture": "nothing.dds"})["code"] == "not_found"
     # Tool and settings, then one stroke: one history step.
     chosen = mcp.ok("textures_tool", {"tool": "erase", "colour": "#00FF00", "size": 24})
-    assert chosen == {"tool": "erase", "colour": "#00FF00", "size": 24}
+    assert chosen == {"tool": "erase", "colour": "#00FF00", "size": 24, "editor": "docked",
+                      "history_before": 0, "history_after": 0, "history_index": 0}
     assert mcp.error("textures_tool", {"tool": "airbrush"})["code"] == "not_found"
     stroke = mcp.ok("textures_stroke", {"tool": "paint", "points": [[0, 0], [10, 5], [63, 31]]})
     assert stroke["changed"] and stroke["history_index"] == 1
@@ -643,7 +760,7 @@ def test_the_texture_editor_is_read_and_driven_through_its_own_controls(textures
 
 
 # ===== Create New Item =========================================================================
-def test_new_painting_is_opened_filled_and_built_with_the_dialogs_own_controls(studio, connect, tmp_path,  # noqa: F811
+def test_new_painting_is_opened_filled_and_built_with_the_dialogs_own_controls(studio, connect, tmp_path,
                                                                               settings) -> None:
     from PIL import Image
 
@@ -678,6 +795,274 @@ def test_new_painting_is_opened_filled_and_built_with_the_dialogs_own_controls(s
     assert mcp.ok("new_item_painting_close")["closed"] and not mcp.ok("new_item_painting_state")["open"]
 
 
+class _TemplateSearch(QObject):
+    """Create New Item's controller as its search sees it: results arrive later, on a signal."""
+
+    template_search_ready = Signal(object)
+    ready = True
+    busy = False
+
+
+@pytest.fixture
+def new_item_page(app, connect, tmp_path, monkeypatch, request):
+    from PySide6.QtCore import QCoreApplication, QEvent, Qt
+
+    from cdmw.core.archive_format import parse_archive_pamt
+    from cdmw.ui.new_item.controller import NewItemStudioController
+    from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    from tests.test_new_item_service import _read, build_package, synthetic_files
+
+    monkeypatch.setattr("cdmw.constants.MOD_FOLDER_TOOLS_ENABLED", True)
+    # The owned archive fixture contains sample models and tables. These Qt
+    # workflow tests do not need to start a native rendering process.
+    monkeypatch.setattr(ItemPreviewFrame, "_start_package", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("cdmw.ui.new_item.effect_placement_dialog._default_host_factory", lambda *_args: None)
+    monkeypatch.setattr("cdmw.ui.new_item.panels_output.QDesktopServices.openUrl", lambda _url: True)
+    monkeypatch.setattr("cdmw.ui.new_item.panels_output.resolve_settings_file_path", lambda: tmp_path / "CDMW.cfg")
+    if getattr(request, "param", None) == "independent":
+        from tests.test_independent_items import setup_game
+
+        _service, _snapshot, entries = setup_game(tmp_path / "snapshot")
+    else:
+        files = synthetic_files()
+        effect = Path(__file__).parent / "fixtures" / "effects" / "fx_hit_common_fire_attach_a_loop.pae"
+        files["effect/binary__/releasebin/fx_test_fire.pae"] = effect.read_bytes()
+        archive = build_package(tmp_path / "snapshot", files)
+        entries = tuple(parse_archive_pamt(archive))
+
+    presenter = QWidget()
+    shell = SimpleNamespace(new_item_studio_tab=presenter, settings=create_settings(settings_file_path=tmp_path / "studio.cfg"))
+    window = SimpleNamespace(shell=shell)
+    controller = NewItemStudioController(read_entry=_read, parent=presenter)
+    controller.saved_work_root = tmp_path / "saved-work"
+    tab = NewItemStudioTab(presenter, window=window, controller=controller, get_archive_entries=lambda: entries)
+    presenter.workflow = tab
+    presenter.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    presenter.resize(1200, 720)
+    tab.resize(1200, 720)
+    presenter.show()
+    tab.start_snapshot()
+    mcp = connect(window)
+    try:
+        mcp.wait_until(lambda: controller.ready and tab._panels_built)
+        yield mcp, tab
+    finally:
+        tab.close()
+        mcp.wait_until(lambda: not tab.iter_shutdown_workers())
+        presenter.close()
+        presenter.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()
+
+
+def _pick_real_new_item(mcp, tab):
+    from tests.test_new_item_service import TEMPLATE
+
+    found = mcp.ok("new_item_search", {"text": str(TEMPLATE)})
+    assert found["templates"]
+    mcp.ok("new_item_pick", {"row": 0})
+    mcp.wait_until(lambda: tab.controller.draft.template_key == TEMPLATE)
+
+
+def _name_real_new_item(mcp):
+    assert mcp.ok("new_item_set", {"fields": {
+        "internal_name": "Mcp_Sword", "display_names": {"eng": "MCP Sword"},
+    }})["refused"] == {}
+
+
+def test_stage4_new_item_step_uses_the_header_and_answers_the_staged_effect_prompt(new_item_page):
+    mcp, tab = new_item_page
+    error = mcp.error("new_item_step", {"step": "template"})
+    assert error["message"] == tab.steps.item(0).toolTip()
+    _pick_real_new_item(mcp, tab)
+    assert mcp.ok("new_item_step", {"step": "effects"})["step"]["id"] == "effects"
+    assert tab.steps.currentRow() == tab.pages.currentIndex() == 4
+    mcp.ok("new_item_effects", {"action": "search", "text": "fx_test_fire"})
+    mcp.ok("new_item_effects", {"action": "pick", "stem": "fx_test_fire"})
+    assert tab.perks_panel.has_staged_effect_changes()
+    assert mcp.error("new_item_step", {"step": "distribution"})["data"]["asked"][0]["answer"] == "stay"
+    assert tab.pages.currentIndex() == 4
+    result = mcp.ok("new_item_step", {"step": "distribution", "staged": "discard"})
+    assert result["asked"][0]["answer"] == "discard"
+    assert tab.steps.currentRow() == tab.pages.currentIndex() == 5
+    assert tab.controller.draft.effect_stem == "" and not tab.perks_panel.has_staged_effect_changes()
+    assert QApplication.activeModalWidget() is None
+
+
+def test_stage4_new_item_draft_reads_fields_and_current_step_issues(new_item_page):
+    from dataclasses import fields
+
+    mcp, tab = new_item_page
+    snapshot = mcp.ok("new_item_draft")
+    assert snapshot["step"] == "template"
+    assert {name for step in snapshot["steps"] for name in step["fields"]} == {
+        field.name for field in fields(tab.controller.draft)
+    }
+    assert snapshot["steps"][0]["state"] == "blocked"
+    _pick_real_new_item(mcp, tab)
+    _name_real_new_item(mcp)
+    identity = mcp.ok("new_item_draft", {"step": "identity"})["steps"][0]
+    assert identity["fields"]["internal_name"]["value"] == tab.identity_panel.internal_name.text() == "Mcp_Sword"
+    assert identity["fields"]["display_names"]["value"]["eng"] == tab.identity_panel.display_name.text() == "MCP Sword"
+    assert "eng" in {choice["value"] for choice in identity["fields"]["display_names"]["allowed"]["choices"]}
+
+
+def test_stage4_new_item_set_names_prices_stats_and_shop_fields(new_item_page):
+    from tests.test_new_item_service import COPPER, DDD
+
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    result = mcp.ok("new_item_set", {"fields": {
+        "internal_name": "Bad name", "display_names": {"eng": "Copper Blade", "ger": "Kupferklinge"},
+        "descriptions": {"ger": "Eine Klinge."},
+        "grid_values": [{"level": 0, "kind": "stat", "key": DDD, "value": 15800}],
+        "price_values": [{"key": COPPER, "value": 27}],
+        "placement_kind": "insert", "store_name": "Store_Camp_Equipment",
+        "unlimited_stock": False, "stock_count": 4,
+    }})
+    assert set(result["refused"]) == {"internal_name"}
+    draft, identity = tab.controller.draft, tab.identity_panel
+    assert draft.display_names["ger"] == identity.display_name.text() == "Kupferklinge"
+    assert draft.descriptions["ger"] == identity.description.toPlainText() == "Eine Klinge."
+    stats = tab.stats_panel
+    assert int(stats.table.item(0, 0).text()) == draft.grid_values[(0, 0)] == 15800
+    assert int(stats.price_table.item(0, 1).text()) == draft.price_values[COPPER] == 27
+    assert tab.placement_panel.store.currentData() == draft.store_name == "Store_Camp_Equipment"
+    assert tab.placement_panel.stock_count.value() == draft.stock_count == 4
+    assert tab.placement_panel.insert.isChecked() and draft.placement_kind.value == "insert"
+
+
+def test_stage4_new_item_model_uses_the_socket_and_icon_controls(new_item_page, tmp_path):
+    from PIL import Image
+
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    mcp.ok("new_item_model", {"action": "sockets", "slots": [{"material_key": 1, "amount": 25}]})
+    slot, = tab.controller.draft.socket_slots
+    costs = tab.perks_panel.socket_editor.costs
+    assert costs.rowCount() == 1 and costs.cellWidget(0, 2).text() == str(slot.amount) == "25"
+    picture = tmp_path / "icon.png"
+    Image.new("RGBA", (32, 32), (220, 160, 70, 255)).save(picture)
+    mcp.ok("new_item_model", {"action": "icon", "path": str(picture)})
+    assert tab.model_panel.generate_icon.isChecked() and tab.controller.draft.icon.value == "generated"
+    assert tab.model_panel.icon_source.text() == tab.controller.draft.icon_source_path == str(picture)
+
+
+def test_stage4_new_item_model_paints_the_published_mask_by_points(new_item_page, monkeypatch):
+    from cdmw.core.material_shader_controls import equipment_shader_options
+    from cdmw.services.new_item_transparency_paint import TransparencyPaintSource
+    from tests.test_new_item_transparency_paint import gradient
+    from tests.test_shader_controls import material
+
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    controller, panel = tab.controller, tab.model_panel
+    monkeypatch.setattr(controller, "material_parts", lambda: (("Blade", "Blade"),))
+    monkeypatch.setattr(controller, "material_shader_options", lambda: equipment_shader_options(material()))
+    mask = gradient()
+    prepared = TransparencyPaintSource(mask, bytes([90, 120, 160, 255]) * (mask.width * mask.height))
+    monkeypatch.setattr("cdmw.services.new_item_transparency_paint.prepare_transparency_paint",
+                        lambda *_args, **_kwargs: prepared)
+    panel.refresh_glow_parts()
+    fields = {"part": "Blade", "paint_mode": "blending"}
+    mcp.ok("new_item_model", {"action": "transparency", **fields})
+    mcp.ok("new_item_model", {"action": "paint", **fields, "points": [[5, 5], [20, 5]],
+                              "value": 255, "brush_size": 5, "hardness": 100, "opacity": 100})
+    edited = dict(controller.draft.shader_controls)["Blade"].transparency_mask
+    assert edited.pixels != mask.pixels
+    editor = panel.shader_controls_editor
+    assert editor.part.currentData() == "Blade" and editor.restore_mask.isEnabled()
+    assert editor._choices["Blade"].transparency_mask == edited
+    assert QApplication.activeModalWidget() is None
+
+
+def test_stage4_new_item_effects_stages_layers_and_edits_perk_controls(new_item_page):
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    found = mcp.ok("new_item_effects", {"action": "search", "text": "fx_test_fire"})
+    assert "fx_test_fire" in {row["stem"] for row in found["choices"]}
+    staged = mcp.ok("new_item_effects", {"action": "pick", "stem": "fx_test_fire"})
+    assert staged["unapplied"] and tab.controller.draft.effect_stem == ""
+    mcp.ok("new_item_effects", {"action": "layer", "operation": "duplicate", "name": "Second flame"})
+    workspace = tab.perks_panel.effects_workspace
+    assert workspace.recipe_panel.layers.item(1).text() == workspace.staged_state.resolved_layers()[1].name == "Second flame"
+    applied = mcp.ok("new_item_effects", {"action": "apply", "answers": {"confirm": "yes"}})
+    assert not applied["unapplied"]
+    assert tab.controller.draft.effect_stem == workspace.staged_state.stem == "fx_test_fire"
+    assert tab.controller.draft.effect_layers[1].name == workspace.recipe_panel.layers.item(1).text() == "Second flame"
+    mcp.ok("new_item_effects", {"action": "perks", "customize": True})
+    assert tab.perks_panel.own_perks.isChecked() and tab.controller.draft.socket_items is not None
+
+
+def test_stage4_new_item_plan_waits_for_the_published_output_review(new_item_page):
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    _name_real_new_item(mcp)
+    result = mcp.ok("new_item_plan", {"action": "refresh"})
+    assert result["current"] and not result["review_pending"]
+    assert "Mcp_Sword" in result["review"] == tab.output_panel.summary.toPlainText()
+    assert result["warnings"] == list(tab.controller.plan.warnings)
+    assert result["files"] == [{"path": path, "change": change} for path, change in tab.output_panel._file_model.rows]
+    mcp.ok("new_item_set", {"fields": {"internal_name": "Mcp_New_Name"}})
+    assert not mcp.ok("new_item_plan")["current"] and not tab.output_panel.export_button.isEnabled()
+
+
+def test_stage4_new_item_build_writes_a_new_folder_and_reports_worker_result(new_item_page, settings, tmp_path):
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    _name_real_new_item(mcp)
+    assert mcp.ok("new_item_plan", {"action": "refresh"})["current"]
+    game = _game(tmp_path, settings)
+    error = mcp.error("new_item_build", {"folder": str(game)})
+    assert "does not write into the game folder" in error["message"]
+    output = tmp_path / "mods"
+    output.mkdir()
+    result = mcp.ok("new_item_build", {"folder": str(output), "mod_name": "Copper Sword", "zip": True})
+    assert result["started"] and result["status"] in ("running", "written")
+    completed = mcp.wait_until(lambda: (lambda build: build["status"] != "running" and build)(
+        mcp.ok("new_item_plan")["build"]))
+    assert completed["status"] == "written" and completed["asked"][0]["answer"] == "ok"
+    assert Path(completed["path"]).is_dir() and Path(completed["zip"]).is_file()
+    assert tab.output_panel.export_root.text() == tab.controller.draft.export_root == str(output)
+    assert tab.output_panel.mod_name.text() == tab.controller.draft.mod_name == "Copper Sword"
+    assert mcp.error("new_item_build", {"folder": str(output)})["code"] == "refused"
+
+
+@pytest.mark.parametrize("new_item_page", ["independent"], indirect=True)
+def test_stage4_new_item_draft_file_continues_settings_and_an_item_package(new_item_page, tmp_path):
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    _name_real_new_item(mcp)
+    draft_path = tmp_path / "sword.draft.json"
+    assert mcp.ok("new_item_draft_file", {"action": "save", "path": str(draft_path)})["saved"] == str(draft_path)
+    assert draft_path.is_file()
+    mcp.ok("new_item_set", {"fields": {"internal_name": "Different_Sword"}})
+    assert mcp.ok("new_item_draft_file", {"action": "load", "file": str(draft_path)})["loaded"]
+    assert tab.identity_panel.internal_name.text() == tab.controller.draft.internal_name == "Mcp_Sword"
+    assert tab.identity_panel.display_name.text() == tab.controller.draft.display_names["eng"] == "MCP Sword"
+
+    assert mcp.ok("new_item_plan", {"action": "refresh", "mode": "independent"})["current"]
+    package = tmp_path / "sword.cdmw"
+    assert mcp.ok("new_item_draft_file", {"action": "save_package", "path": str(package)})["started"]
+    mcp.wait_until(lambda: not tab.controller.busy and package.is_file())
+    mcp.ok("new_item_set", {"fields": {"internal_name": "Different_Sword"}})
+    packages = mcp.ok("new_item_draft_file", {"action": "list"})["packages"]
+    row = next(row for row in packages if Path(row["package_path"]) == package)
+    assert mcp.ok("new_item_draft_file", {"action": "continue", "row_id": row["id"]})["loaded"]
+    assert tab.identity_panel.internal_name.text() == tab.controller.draft.internal_name == "Mcp_Sword"
+    assert tab.controller.continued_package_path == package
+    assert str(package) in tab.output_panel.continued_package_button.toolTip()
+    identity = tab.controller.draft.independent_identity
+    mcp.ok("new_item_set", {"fields": {"display_names": {"eng": "Updated Sword"}}})
+    assert mcp.ok("new_item_plan", {"action": "refresh"})["current"]
+    assert mcp.ok("new_item_draft_file", {"action": "update_package", "package": str(package)})["started"]
+    mcp.wait_until(lambda: not tab.controller.busy)
+    assert mcp.ok("new_item_plan")["build"]["status"] == "written"
+    assert tab.identity_panel.display_name.text() == tab.controller.draft.display_names["eng"] == "Updated Sword"
+    assert tab.controller.draft.independent_identity == identity
+
+
 def test_create_new_items_templates_are_searched_and_picked_and_its_controls_listed(app, connect) -> None:
     from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QVBoxLayout
 
@@ -695,7 +1080,12 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
             if text.casefold() in name.casefold():
                 panel.matches.addTopLevelItem(QTreeWidgetItem([name]))
 
-    panel.filter_edit.textChanged.connect(refill)
+    controller = _TemplateSearch()
+
+    def search_later(text: str) -> None:  # as the page: the old rows stay until the result is in
+        QTimer.singleShot(150, lambda: (refill(text), controller.template_search_ready.emit([])))
+
+    panel.filter_edit.textChanged.connect(search_later)
     panel.matches.itemClicked.connect(lambda item, _column: picked.append(item.text(0)))
     refill("")
     item_name = QLineEdit()
@@ -703,7 +1093,11 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     for widget in (panel.filter_edit, panel.matches, item_name, QPushButton("Next")):
         layout.addWidget(widget)
     workflow.template_panel = panel
-    workflow.controller = SimpleNamespace(ready=True, busy=False)
+    workflow.controller = controller
+    from cdmw.ui.new_item.workflow_header import WorkflowHeader
+
+    workflow.steps = WorkflowHeader(["Template", "Identity", "Model"])  # the step header, as the page has
+    workflow.steps.setCurrentRow(1)
     tab = QWidget()
     tab.workflow = workflow
     tab._bridge = object()  # the page is drawn by its helper from these controls
@@ -712,9 +1106,22 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     window = SimpleNamespace(shell=SimpleNamespace(
         new_item_studio_tab=tab, compact_workspace=SimpleNamespace(_active_tool_key="new_item_studio")))
     mcp = connect(window)
+    # Still building its pages: the page has no template list yet, and the tools say so.
+    workflow.template_panel = None
+    for tool, arguments in (("new_item_search", {"text": "x"}), ("new_item_pick", {"row": 0})):
+        assert mcp.error(tool, arguments)["code"] == "unavailable", tool
+    workflow.template_panel = panel
     state = mcp.ok("new_item_state")
     assert state["ready"] and state["templates"] == list(names) and state["picked"] == ""
+    assert [row["name"] for row in state["steps"]] == ["Template", "Identity", "Model"]
+    assert state["step"] == ["Template", "Identity", "Model"][workflow.steps.currentRow()]
     found = mcp.ok("new_item_search", {"text": "iron"})
+    import time as _time
+
+    started = _time.monotonic()
+    again = mcp.ok("new_item_search", {"text": "iron"})  # the same text: answered at once
+    assert again["templates"] == found["templates"] and not again["searching"]
+    assert _time.monotonic() - started < 5
     assert found["templates"] == ["Iron Sword", "Iron Shield"] and found["search"] == "iron"
     assert mcp.ok("new_item_pick", {"match": "shield"})["picked"] == "Iron Shield" and picked == ["Iron Shield"]
     assert mcp.error("new_item_pick", {"match": "axe"})["code"] == "unavailable"
@@ -734,5 +1141,478 @@ def test_create_new_items_templates_are_searched_and_picked_and_its_controls_lis
     assert refused == {"code": "unavailable",
                        "message": "Complete the file or colour dialog before editing the item."}
     assert item_name.text() == "Kliff's Blade"
-    for widget in (workflow, tab):
+    for widget in (workflow, tab, workflow.steps):
         widget.deleteLater()
+
+
+def test_mesh_state_history_counts_texture_edits_as_the_editor_does() -> None:
+    """A texture edit is a step of the document's one history: mesh_state counts it as the
+    editor's History list and Undo do, and still says how many are mesh steps."""
+
+    from cdmw.mcp.mesh_tools import _shared_history
+    from cdmw.ui.mesh_editor.shared_edit_history import SharedEditHistory
+
+    history = SharedEditHistory()
+    session = SimpleNamespace(shared_history=history)
+    history.merged([{"action": "select", "label": "Select", "state": "applied"}])
+    assert _shared_history(session) is None  # mesh steps only: the session's own counts hold
+    opened, painted = object(), object()
+    history.observe_texture("key", "belt_d.dds", [opened], 0)
+    history.observe_texture("key", "belt_d.dds", [opened, painted], 1)
+    merged = _shared_history(session)
+    assert merged["undo"] == 2 and merged["redo"] == 0 and merged["can_undo"] and merged["cursor"] == 2
+    assert merged["steps"] == ["Select", "Texture edit (belt_d.dds)"]
+    history.observe_texture("key", "belt_d.dds", [opened, painted], 0)  # undone in the Texture Editor
+    assert (_shared_history(session)["undo"], _shared_history(session)["redo"]) == (1, 1)
+
+
+# ===== editing the Mesh Editor by numbers ===============================================
+@pytest.mark.skipif(not __import__("cdmw.modding.mesh_native_core", fromlist=["x"]).native_mesh_core_available(),
+                    reason="the native mesh core is not built (CDMW_MESH_CORE_BIN names a built one)")
+def test_select_topology_output_and_findings_take_the_real_host_path(editor, connect, tmp_path) -> None:
+    """Through a real host session: each tool is one request the helper sends as its button
+    does, one History step, and the tool returns the history before and after."""
+
+    ui, host = editor.ui, editor.host
+    ui.standalone_rust_host_edit_commands_supported = True
+    forward = ui._send_rust_message
+
+    from_cdmw: list[dict] = []
+
+    def helper(message):  # the real helper puts its own selection into topology and mesh actions
+        if message.get("event") == "cdmw_command":
+            from_cdmw.append(dict(message))
+        if message.get("event") == "cdmw_command" and message["command"] in {"topology", "mesh_action"}:
+            view = host.shadow_service.session_view(host.shadow_session_id)
+            message = {**message, "arguments": {**message["arguments"], "selection": {
+                "faces_by_submesh": {str(p): list(i) for p, i in view.selection.faces_by_submesh},
+                "vertices_by_submesh": {str(p): list(i) for p, i in view.selection.vertices_by_submesh},
+                "edges_by_submesh": {str(p): [list(e) for e in i] for p, i in view.selection.edges_by_submesh},
+                "source_indices": list(view.selection.source_indices)}}}
+        return forward(message)
+
+    ui._send_rust_message = helper
+    # Each request the stand-in sends gets a newer id, as the helper's own do.
+    original_start = ui._start_next_rust_protocol_worker
+
+    def start() -> None:
+        queued = ui.standalone_rust_protocol_queue
+        if queued:
+            ui.standalone_rust_last_client_request_id = int(queued[-1].get("request_id", 0) or 0)
+        original_start()
+
+    ui._start_next_rust_protocol_worker = start
+    mcp = connect(editor.window)
+    before = mcp.ok("mesh_state")
+    triangles = before["parts"][0]["triangles"]
+    assert mcp.error("mesh_select", {"faces": {"0": [triangles]}})["code"] == "invalid_arguments"
+    assert mcp.error("mesh_select", {"faces": {"9": [0]}})["code"] == "not_found"
+    chosen = mcp.ok("mesh_select", {"faces": {"0": [0, 1]}})
+    assert chosen["done"] and chosen["selection"]["faces"] == 2
+    assert chosen["history"]["undo"] == chosen["history_before"]["undo"] + 1
+    commands = lambda: [m for m in editor.sent if m.get("event") == "cdmw_command"]
+    assert commands()[-1]["command"] == "select"
+    # Move two vertices by numbers: their positions change by exactly that, one History step.
+    part = 0
+    before_rows = mcp.ok("mesh_geometry", {"part": part, "what": "vertices", "limit": 500})["rows"]
+    assert mcp.ok("mesh_select", {"vertices": {str(part): [0, 1]}})["done"]
+    moved = mcp.ok("mesh_transform", {"translate": [0.0, 0.0, 0.25]})
+    assert moved["done"] and moved["history"]["undo"] == moved["history_before"]["undo"] + 1, moved
+    after_rows = mcp.ok("mesh_geometry", {"part": part, "what": "vertices", "limit": 500})["rows"]
+    for index in (0, 1):
+        assert after_rows[index][2] == pytest.approx(before_rows[index][2] + 0.25, abs=1e-4)
+    assert after_rows[2] == pytest.approx(before_rows[2])
+    chosen = mcp.ok("mesh_select", {"faces": {"0": [0, 1]}})
+    deleted = mcp.ok("mesh_topology", {"action": "delete"})
+    assert deleted["done"], deleted
+    after = mcp.ok("mesh_state")
+    assert after["parts"][0]["triangles"] == triangles - 2
+    assert deleted["history"]["undo"] == chosen["history"]["undo"] + 1
+    # CDMW sends no selection of its own: the helper acts on its selection, as its buttons do.
+    assert from_cdmw[-1]["command"] == "topology" and "selection" not in from_cdmw[-1]["arguments"]
+    assert mcp.error("mesh_transform", {})["code"] == "invalid_arguments"
+    findings = mcp.ok("mesh_findings")
+    assert isinstance(findings, dict) and findings
+    # Free Edit needs a folder outside the game; the policy then reads back.
+    assert mcp.error("mesh_output_policy", {"policy": "free_edit_rebuild"})["code"] == "invalid_arguments"
+    folder = tmp_path / "free-edit"
+    folder.mkdir()
+    chosen_output = mcp.ok("mesh_output_policy", {"policy": "free_edit_rebuild", "destination": str(folder)})
+    assert chosen_output["output"]["policy"] == "free_edit_rebuild", chosen_output["status"]
+    assert Path(chosen_output["output"]["destination"]).parent == folder
+
+
+@pytest.fixture
+def texture_pair(connect, tmp_path):
+    import numpy as np
+
+    from cdmw.models import TextureEditorDocument, TextureEditorLayer
+    from cdmw.ui.texture_editor_tab import TextureEditorTab
+
+    editors = []
+    panel, holder = QWidget(), QWidget()
+    try:
+        for location, colour in (("docked", [90, 110, 130, 255]), ("tool", [10, 60, 80, 255])):
+            widget = TextureEditorTab(settings=create_settings(settings_file_path=tmp_path / f"{location}.cfg"),
+                                      base_dir=tmp_path, get_png_root=lambda: str(tmp_path))
+            editors.append(widget)
+            widget.document = TextureEditorDocument(location, 32, 24, active_layer_id="top",
+                layers=(TextureEditorLayer("base", "Base", "base.png"), TextureEditorLayer("top", "Top", "top.png")))
+            widget.layer_pixels = {"base": np.full((24, 32, 4), 20, dtype=np.uint8),
+                                   "top": np.tile(np.uint8(colour), (24, 32, 1))}
+            widget._push_history("Open Document")
+            widget._refresh_ui()
+        panel.editor = editors[0]
+        panel.isFloating = lambda: False
+        holder.active = SimpleNamespace(_texture_tools_panel=lambda: panel)
+        window = SimpleNamespace(shell=SimpleNamespace(mesh_editor_tab=holder, texture_editor_tab=editors[1]))
+        yield connect(window), editors[0], editors[1]
+    finally:
+        for widget in editors:
+            widget.request_shutdown()
+        for widget in [*editors, panel, holder]:
+            widget.deleteLater()
+
+
+def _raster_state(editor):
+    doc = editor.document
+    return (doc.width, doc.height, doc.layers, doc.adjustment_layers, doc.selection, doc.quick_mask_enabled, doc.floating_selection,
+            {key: (pixels.shape, pixels.tobytes()) for key, pixels in editor.layer_pixels.items()})
+
+
+def _undoable_texture_call(mcp, editor, tool, args):
+    before = _raster_state(editor)
+    start = editor.history_index
+    result = mcp.ok(tool, {"editor": "tool", **args})
+    assert (result["history_before"], result["history_after"]) == (start, start + 1), (tool, args, result)
+    assert _raster_state(editor) != before
+    undo = mcp.ok("textures_undo", {"editor": "tool"})
+    assert (undo["history_before"], undo["history_after"]) == (start+1, start)
+    assert _raster_state(editor) == before, (tool, args)
+
+
+def test_texture_layers_masks_and_editor_ownership(texture_pair):
+    mcp, dock, rail = texture_pair
+    states = mcp.ok("textures_state", {"editor": "tool"})
+    assert states["title"] == "tool" and states["editors"]["docked"]["title"] == "docked"
+    dock_start = _raster_state(dock)
+    for action, parameters in [
+        ("add", {}), ("duplicate", {}), ("remove", {}), ("merge_down", {}), ("move_down", {}),
+        ("rename", {"name": "Leather"}), ("opacity", {"opacity": 28}), ("blend", {"mode": "multiply"}),
+        ("visibility", {"enabled": False}), ("lock", {"enabled": True}), ("alpha_lock", {"enabled": True}),
+        ("mask_add", {}),
+    ]:
+        _undoable_texture_call(mcp, rail, "textures_layer", {"action": action, **parameters})
+    mcp.ok("textures_layer", {"editor": "tool", "action": "mask_add"})
+    for action, parameters in [("mask_invert", {}), ("mask_enable", {"enabled": False}),
+                               ("mask_delete", {}), ("mask_to_selection", {})]:
+        _undoable_texture_call(mcp, rail, "textures_layer", {"action": action, **parameters})
+    before = rail.history_index
+    result = mcp.ok("textures_layer", {"editor": "tool", "action": "mask_target", "enabled": True})
+    assert rail._editing_mask_target and result["history_before"] == result["history_after"] == before
+    mcp.ok("textures_layer", {"editor": "tool", "action": "mask_target", "enabled": False})
+    mcp.ok("textures_select", {"editor": "tool", "action": "rect", "points": [[2, 2], [15, 14]]})
+    _undoable_texture_call(mcp, rail, "textures_layer", {"action": "selection_to_mask"})
+    active = mcp.ok("textures_layer", {"editor": "tool", "action": "active", "layer": "base"})
+    assert rail.document.active_layer_id == "base" and active["history_before"] == active["history_after"]
+    _undoable_texture_call(mcp, rail, "textures_layer", {"action": "move_up"})
+    assert _raster_state(dock) == dock_start
+
+
+def test_texture_selection_fill_generate_and_derive_undo(texture_pair):
+    mcp, dock, rail = texture_pair
+    for args in ({"action": "all"}, {"action": "rect", "points": [[4, 5], [19, 18]]},
+                 {"action": "lasso", "points": [[2, 2], [20, 2], [8, 19]]}, {"action": "quick_mask"}):
+        _undoable_texture_call(mcp, rail, "textures_select", args)
+    mcp.ok("textures_select", {"editor": "tool", "action": "rect", "points": [[4, 5], [19, 18]]})
+    for action in ("invert", "grow", "shrink", "copy_to_layer", "clear"):
+        _undoable_texture_call(mcp, rail, "textures_select", {"action": action})
+    for tool, actions in (("textures_fill", ["fill", "gradient"]), ("textures_generate", ["solid", "gradient", "pattern", "noise"])):
+        for action in actions:
+            args = {"action": action, "colour": "#ff0000", "points": [[8, 8]]}
+            if action in ("solid", "gradient"):
+                args.update(secondary="#0000ff", points=[[8, 8], [19, 18]])
+            _undoable_texture_call(mcp, rail, tool, args)
+    for args in ({"action": "pack", "channel": "green"}, {"action": "unpack", "channel": "alpha"},
+                 {"action": "resize", "width": 20, "height": 17}, {"action": "canvas_size", "width": 17, "height": 20}):
+        _undoable_texture_call(mcp, rail, "textures_derive", args)
+    for action, value, control in (("mips", "single", rail.native_dds_mip_combo),
+                                   ("format", rail.native_dds_format_combo.itemData(0), rail.native_dds_format_combo)):
+        result = mcp.ok("textures_derive", {"editor": "tool", "action": action, "value": value})
+        assert result["history_before"] == result["history_after"] and control.currentData() == value
+
+
+def test_texture_png_transfer_and_compare(texture_pair, tmp_path):
+    from io import BytesIO
+
+    import numpy as np
+    from PIL import Image
+    mcp, dock, rail = texture_pair
+    patch = np.tile(np.uint8([250, 35, 15, 77]), (3, 4, 1))
+    png = tmp_path / "patch.png"
+    Image.fromarray(patch).save(png)
+    data = base64.b64encode(png.read_bytes()).decode("ascii")
+    target = {"editor": "tool"}
+    for tool, source in (("textures_import_pixels", {"path": str(png), "name": "Decal"}),
+                         ("textures_write_region", {"data": data})):
+        before = _raster_state(rail)
+        result = mcp.ok(tool, {**target, **source, "x": 5, "y": 6})
+        assert result["history_after"] == result["history_before"] + 1
+        added = tool == "textures_import_pixels"
+        x, y = (0, 0) if added else (5, 6)
+        read = mcp.ok("textures_read_region", {**target, "layer": result["layer"], "x": x, "y": y, "width": 4, "height": 3})
+        np.testing.assert_array_equal(Image.open(BytesIO(base64.b64decode(read["data"]))), patch)
+        if added:
+            assert rail.document.layers[-1].name == "Decal"
+        picture = mcp.call("view_texture_image", {**target, "max_side": 16})
+        assert not picture["isError"] and picture["content"][0]["type"] == "image"
+        assert picture["structuredContent"]["width"] == 16
+        mcp.ok("textures_undo", target)
+        assert _raster_state(rail) == before
+    assert mcp.error("textures_write_region", {**target, "x": 31, "y": 23, "data": data})["code"] == "invalid_arguments"
+    assert mcp.error("textures_import_pixels", {**target, "data": "abcd", "path": str(png)})["code"] == "invalid_arguments"
+    assert mcp.error("textures_read_region", {**target, "width": 33, "height": 24})["code"] == "invalid_arguments"
+    compare = mcp.ok("textures_compare", {**target, "mode": "split", "split": 35})
+    assert compare == {"mode": "split", "split": 35} and rail.view_mode_combo.currentData() == "split"
+    assert dock.view_mode_combo.currentData() == "edited"
+
+
+def test_texture_export_and_reopen_project(texture_pair, tmp_path, settings):
+    import numpy as np
+    from PIL import Image
+    mcp, dock, rail = texture_pair
+    target = {"editor": "tool"}
+    game = _game(tmp_path, settings)
+    export = {**target, "format": "png", "path": str(game / "image.png")}
+    assert mcp.error("textures_export", export)["code"] == "refused"
+    png = tmp_path / "output.png"
+    mcp.ok("textures_export", {**export, "path": str(png)})
+    mcp.wait_until(lambda: png.exists() and not rail._busy())
+    np.testing.assert_array_equal(np.array(Image.open(png)), rail._current_composite_rgba())
+    assert mcp.error("textures_export", {**export, "path": str(png)})["code"] == "refused"
+    from cdmw.core.texture_native import find_directxtex_texture_binary
+    dds = tmp_path / "output.dds"
+    dds_args = {**target, "format": "dds", "path": str(dds)}
+    if find_directxtex_texture_binary():
+        mcp.ok("textures_derive", {**target, "action": "mips", "value": "single"})
+        failure = mcp.error("textures_export", dds_args)
+        assert failure["code"] == "failed" and "mips" in failure["message"] and not dds.exists()
+        mcp.ok("textures_derive", {**target, "action": "mips", "value": "full"})
+        mcp.ok("textures_export", dds_args)
+        mcp.wait_until(lambda: dds.exists() and not rail._busy())
+        data = dds.read_bytes()
+        assert data[:4] == b"DDS " and int.from_bytes(data[12:16], "little") == 24
+        assert int.from_bytes(data[16:20], "little") == 32 and int.from_bytes(data[28:32], "little") == 6
+    else:
+        assert mcp.error("textures_export", dds_args)["code"] == "unavailable"
+    project = tmp_path / "layers.ctfedit.json"
+    mcp.ok("textures_export", {**target, "format": "project", "path": str(project)})
+    mcp.wait_until(lambda: project.exists() and not rail._busy())
+    before = _raster_state(rail)
+    mcp.ok("textures_open", {**target, "texture": str(png), "source": "file"})
+    mcp.wait_until(lambda: not rail._busy() and rail.document.title != "tool")
+    mcp.ok("textures_open", {**target, "texture": str(project), "source": "project"})
+    mcp.wait_until(lambda: not rail._busy() and rail.document.title == "tool")
+    assert rail.document.layers[1].name == "Top"
+    assert _raster_state(rail)[-1] == before[-1]
+    project.unlink()
+    assert mcp.error("textures_export", {**target, "format": "project", "path": str(project)})["code"] == "refused"
+
+
+
+def test_texture_registry_commands_follow_the_shown_owner(texture_pair):
+    mcp, dock, rail = texture_pair
+    dock.show()
+    dock_size, rail_size = len(dock.document.layers), len(rail.document.layers)
+    mcp.ok("app_run_command", {"command": "texture_editor.new_layer"})
+    assert len(dock.document.layers) == dock_size + 1 and len(rail.document.layers) == rail_size
+    dock.hide()
+    rail.show()
+    mcp.ok("app_run_command", {"command": "texture_editor.new_layer"})
+    assert len(rail.document.layers) == rail_size + 1
+    mcp.ok("textures_undo", {"editor": "tool"})
+    assert len(rail.document.layers) == rail_size and len(dock.document.layers) == dock_size + 1
+
+
+def test_texture_adjustments_floating_channels_and_stamp(texture_pair, tmp_path):
+    from PIL import Image
+    mcp, dock, rail = texture_pair
+    target = {"editor": "tool"}
+    adj = mcp.ok("textures_adjust", {**target, "type": "levels"})["id"]
+    for args in ({"action": "update", "opacity": 30}, {"action": "enable", "enabled": False},
+                 {"action": "mask_active"}, {"action": "duplicate"}, {"action": "remove"}):
+        _undoable_texture_call(mcp, rail, "textures_adjust", {**args, "id": adj})
+    for args in ({"action": "swap_channels", "channel": "red", "other_channel": "blue"},
+                 {"action": "channel_to_selection", "channel": "red"}):
+        _undoable_texture_call(mcp, rail, "textures_derive", args)
+    _undoable_texture_call(mcp, rail, "textures_layer", {"action": "float_copy"})
+    mcp.ok("textures_layer", {**target, "action": "float_copy"})
+    for action, args in [("float_transform", {"scale": 75, "rotation": 25}), ("float_flip_h", {}),
+                         ("float_commit", {}), ("float_cancel", {})]:
+        _undoable_texture_call(mcp, rail, "textures_layer", {"action": action, **args})
+    mcp.ok("textures_undo", target)
+    stamp = tmp_path / "stamp.png"
+    Image.new("RGBA", (5, 5), "white").save(stamp)
+    result = mcp.ok("textures_fill", {**target, "action": "load_stamp", "path": str(stamp)})
+    assert rail.current_tool_settings.custom_brush_tip_path == str(stamp)
+    assert result["history_before"] == result["history_after"]
+    _undoable_texture_call(mcp, rail, "textures_fill", {"action": "stamp", "colour": "#ff8822", "points": [[9, 7]]})
+    result = mcp.ok("textures_fill", {**target, "action": "clear_stamp"})
+    assert not rail.current_tool_settings.custom_brush_tip_path and result["history_before"] == result["history_after"]
+    mcp.ok("textures_tool", {**target, "tool": "clone", "clone_source": [4, 3],
+           "settings": {"roundness": 45, "symmetry_mode": "horizontal", "clone_aligned": False}})
+    settings = rail.current_tool_settings
+    assert (settings.roundness, settings.symmetry_mode, settings.clone_aligned) == (45, "horizontal", False)
+    assert settings.clone_source_point == (4, 3)
+    mcp.ok("textures_select", {**target, "action": "rect", "points": [[2, 3], [12, 11]]})
+    _undoable_texture_call(mcp, rail, "textures_select", {"action": "feather", "radius": 2})
+
+
+
+def test_texture_history_and_atlas(texture_pair, tmp_path):
+    from PIL import Image
+    mcp, dock, rail = texture_pair
+    target = {"editor": "tool"}
+    before = _raster_state(rail)
+    selection = mcp.ok("textures_select", {**target, "action": "rect", "points": [[3, 2], [9, 10]]})
+    step = selection["history_after"]
+    selected = _raster_state(rail)
+    region = tmp_path / "region.png"
+    mcp.ok("textures_export", {**target, "format": "selection", "path": str(region), "padding": 1})
+    with Image.open(region) as image:
+        assert image.size == (8, 10)
+    atlas = tmp_path / "atlas"
+    mcp.ok("textures_export", {**target, "format": "grid", "path": str(atlas), "cell_size": 16, "padding": 0})
+    assert len(list(atlas.glob("*.png"))) == 4
+    assert mcp.error("textures_export", {**target, "format": "grid", "path": str(atlas)})["code"] == "refused"
+    restored = mcp.ok("textures_history", {**target, "action": "restore", "index": step-1})
+    assert restored["history_after"] == step-1 and _raster_state(rail) == before
+    mcp.ok("textures_redo", target)
+    assert _raster_state(rail) == selected
+    cleared = mcp.ok("textures_history", {**target, "action": "clear"})
+    assert cleared["history_after"] == 0 and cleared["steps"] == 1 and _raster_state(rail) == selected
+
+
+def test_texture_worker_rejects_a_changed_document(texture_pair, tmp_path, monkeypatch):
+    from threading import Event
+
+    from PIL import Image
+
+    from cdmw.ui.texture_workflow import editor_document_state
+    mcp, dock, rail = texture_pair
+    png = tmp_path / "import.png"
+    Image.new("RGBA", (3, 4), "red").save(png)
+    ready, resume = Event(), Event()
+    prepare = editor_document_state.texture_editor_png_change
+
+    def delayed(*args, **kwargs):
+        ready.set()
+        assert resume.wait(5)
+        return prepare(*args, **kwargs)
+
+    monkeypatch.setattr(editor_document_state, "texture_editor_png_change", delayed)
+    mcp.send("textures_import_pixels", {"editor": "tool", "path": str(png)})
+    try:
+        mcp.wait_until(ready.is_set)
+        rail.add_layer_button.click()
+        expected = _raster_state(rail)
+    finally:
+        resume.set()
+    result = mcp.read()
+    assert result["structuredContent"]["error"]["code"] == "unavailable"
+    assert _raster_state(rail) == expected and rail.history_index == 1
+
+
+def test_docked_texture_output_plan_matches_build_mod(texture_pair):
+    from types import MethodType
+
+    from cdmw.ui.mesh_editor.tab_rust_process import MeshEditorRustProcessMixin
+    mcp, dock, rail = texture_pair
+    tab = mcp.window.shell.mesh_editor_tab.active
+    tab._live_texture_plan = MethodType(MeshEditorRustProcessMixin._live_texture_plan, tab)
+    rgba = dock._current_composite_rgba()
+    image = QImage(rgba.data, 32, 24, 128, QImage.Format_RGBA8888).copy()
+    path = "textures/owned.dds"
+    source = SimpleNamespace(game_path=path, original=None, users=("Coat",))
+    tab._live_texture_updates = SimpleNamespace(edited_textures=lambda: {"key": image}, sources={"key": source})
+    tab._archive_texture_indexes = lambda: ({}, {})
+    tab._parts_in_build = lambda *, include_body: ("Coat",) if include_body else ()
+    expected = tab._live_texture_plan()
+    plan = mcp.ok("textures_output_plan")
+    assert plan["lines"] == list(expected.plan_lines) and path in plan["refusals"][0]
+    without_body = mcp.ok("textures_output_plan", {"include_body": False})
+    assert path in without_body["left_out"][0] and without_body["refusals"] == []
+    assert dock.history_index == 0
+
+
+@pytest.mark.skipif(not __import__("cdmw.modding.mesh_native_core", fromlist=["x"]).native_mesh_core_available(),
+                    reason="the native mesh core is not built (CDMW_MESH_CORE_BIN names a built one)")
+def test_panel_tools_reach_the_host_as_the_panels_do(editor, connect) -> None:  # noqa: F811
+    """Weights, layers and the panels' state through a real host session: each command is
+    one request the helper sends by its panel's name, checked by the host as the panel's."""
+
+    ui, host = editor.ui, editor.host
+    ui.standalone_rust_host_edit_commands_supported = True
+    ui.standalone_rust_host_panel_commands_supported = True
+    forward = ui._send_rust_message
+
+    def helper(message):  # the real helper adds its selection to rig and cloth commands
+        if message.get("event") == "cdmw_command" and message["command"].startswith(("rig_", "cloth_")):
+            view = host.shadow_service.session_view(host.shadow_session_id)
+            message = {**message, "arguments": {**message["arguments"], "selection": {
+                "vertices_by_submesh": {str(p): list(i) for p, i in view.selection.vertices_by_submesh},
+                "faces_by_submesh": {}, "edges_by_submesh": {}, "source_indices": []}}}
+        return forward(message)
+
+    ui._send_rust_message = helper
+    original_start = ui._start_next_rust_protocol_worker
+
+    def start() -> None:
+        queued = ui.standalone_rust_protocol_queue
+        if queued:
+            ui.standalone_rust_last_client_request_id = int(queued[-1].get("request_id", 0) or 0)
+        original_start()
+
+    ui._start_next_rust_protocol_worker = start
+    mcp = connect(editor.window)
+    panels = mcp.ok("mesh_panels")
+    assert panels["available"] and isinstance(panels["sections"], dict)
+    assert "skeleton" in mcp.ok("mesh_panels", {"sections": ["skeleton"]})["sections"]
+    assert set(panels["sections"]) <= set(panels["available"]) and panels["sections"]
+    assert mcp.error("mesh_weights", {"action": "paint"})["code"] == "invalid_arguments"
+    assert mcp.ok("mesh_select", {"vertices": {"0": [0, 1]}})["done"]
+    normalized = mcp.ok("mesh_weights", {"action": "normalize_weights"})
+    assert normalized["done"], normalized
+    # A command the host refuses says why in the status line, and changes nothing.
+    refused = mcp.ok("mesh_layers", {"action": "activate", "arguments": {"layer_id": "no-such-layer"}})
+    assert refused["history"]["undo"] == refused["history_before"]["undo"], refused
+    assert refused["status"], refused
+
+
+def test_export_pac_runs_the_button_and_reports_its_refusal(editor, connect, tmp_path) -> None:  # noqa: F811
+    """Export PAC As before the edit is finished: the button's own warning comes back as 'asked'."""
+
+    from PySide6.QtWidgets import QFileDialog
+
+    ui = editor.ui
+    ui.standalone_controller = getattr(ui, "standalone_controller", None) or SimpleNamespace(
+        active_session_id=editor.host.shadow_session_id, mesh_service=editor.service)
+    finished, written = [False], []
+
+    def press() -> None:  # the button's handler, cut down to its refusal and its chooser
+        if not finished[0]:
+            QMessageBox.warning(None, "Export PAC As…", "Finish Edit Mesh or run Check mesh successfully before "
+                                                        "exporting the PAC.")
+            return
+        target, _filter = QFileDialog.getSaveFileName(None, "Export PAC As…", "mesh.pac", "PAC files (*.pac)")
+        written.append(target)
+
+    ui._start_standalone_export_pac_requested = press
+    mcp = connect(editor.window)
+    assert mcp.error("mesh_export_pac", {"path": str(tmp_path / "x.obj")})["code"] == "invalid_arguments"
+    refused = mcp.ok("mesh_export_pac", {"path": str(tmp_path / "x.pac")})
+    assert refused["asked"] and "Export PAC As" in refused["asked"][0]["title"], refused
+    assert not (tmp_path / "x.pac").exists() and written == []
+    finished[0] = True
+    started = mcp.ok("mesh_export_pac", {"path": str(tmp_path / "x.pac")})
+    assert started["started"] and written == [str(tmp_path / "x.pac")]

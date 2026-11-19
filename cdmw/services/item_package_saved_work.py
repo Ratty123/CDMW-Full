@@ -238,14 +238,20 @@ class ItemPackageSource:
 def read_item_package_source(draft_root: Path | str, row_id: str, *, stop_event=None) -> ItemPackageSource:
     """Read a listed package and its kept draft; refuse one Create New Item did not author."""
 
-    from cdmw.domain.new_item.independent import IndependentItemError
-    from cdmw.services.independent_item_package import REBUILT_MODULES, read_package, unpack_recipe
-    from cdmw.services.independent_mod_package import has_legacy_item
-
     record = item_package_record(draft_root, row_id)
     if record is None:
         raise ValueError("This item package is no longer in the list.")
     package_path = Path(str(record.get("package_path") or ""))
+    draft_path = item_package_draft_path(draft_root, record)
+    return read_item_package_file(package_path, draft_path=draft_path, stop_event=stop_event)
+
+
+def read_item_package_file(package_path: Path, *, draft_path: Path | None = None, stop_event=None) -> ItemPackageSource:
+    """Read an authored package, with the kept draft when opened from its list row."""
+    from cdmw.domain.new_item.independent import IndependentItemError
+    from cdmw.services.independent_item_package import REBUILT_MODULES, read_package, unpack_recipe
+    from cdmw.services.independent_mod_package import has_legacy_item
+
     if not package_path.is_file():
         raise ValueError(f"The item package no longer exists: {package_path}")
     package = read_package(package_path, stop_event=stop_event)
@@ -258,7 +264,6 @@ def read_item_package_source(draft_root: Path | str, row_id: str, *, stop_event=
         spec, model, variants, icon = unpack_recipe(package)
     except IndependentItemError as exc:
         raise ValueError(f"{package_path.name} cannot be read: {exc}") from exc
-    draft_path = item_package_draft_path(draft_root, record)
     return ItemPackageSource(package_path, str(package.identity), str(package.title), spec, model, dict(variants),
                              icon, draft_path.read_bytes() if draft_path is not None else None)
 
@@ -273,6 +278,7 @@ __all__ = [
     "item_package_record",
     "read_item_package_source",
     "read_item_package_index",
+    "read_item_package_file",
     "register_item_package",
     "remove_item_package_from_list",
     "update_item_package_details",

@@ -76,7 +76,7 @@ def _material_contract_stats(
                 sidecar_entry,
                 stop_event=stop_event,
             )
-            sidecar_text = try_decode_text_like_archive_data(sidecar_data) or sidecar_data.decode(
+            sidecar_text = try_decode_text_like_archive_data(sidecar_data, limit=None) or sidecar_data.decode(
                 "utf-8",
                 errors="replace",
             )

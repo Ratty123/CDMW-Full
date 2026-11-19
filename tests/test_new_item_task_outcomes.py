@@ -203,14 +203,11 @@ def test_typed_cancellation_without_a_ui_request_has_one_terminal_callback(studi
     assert cancelled == [True] and completed == errors == []
 
 
-@pytest.mark.parametrize('kind,manager', [('merge', 'DMM'), ('merge', 'CDMW'), ('update', 'DMM')])
-def test_mod_export_dialog_keeps_committed_result_after_late_cancel(studio, tmp_path, monkeypatch, kind, manager):
+@pytest.mark.parametrize('manager', ['DMM', 'CDMW'])
+def test_mod_export_dialog_keeps_committed_result_after_late_cancel(studio, tmp_path, monkeypatch, manager):
     from types import SimpleNamespace
-    from cdmw.ui.new_item import mod_merge_dialog, mod_update_dialog
+    from cdmw.ui.new_item import mod_merge_dialog
     app, controller = studio
-    module, dialog_type, factory = (
-        (mod_merge_dialog, mod_merge_dialog.ModMergeDialog, 'mod_merge_export_task') if kind == 'merge' else
-        (mod_update_dialog, mod_update_dialog.ModUpdateDialog, 'mod_update_export_task'))
     entered, release = threading.Event(), threading.Event()
     destination = tmp_path / 'owned-export'
 
@@ -221,22 +218,41 @@ def test_mod_export_dialog_keeps_committed_result_after_late_cancel(studio, tmp_
         assert release.wait(5)
         return SimpleNamespace(package_root=destination, manager=manager)
 
-    monkeypatch.setattr(module, factory, lambda *args, **kwargs: task)
-    dialog = dialog_type(controller, str(tmp_path))
+    monkeypatch.setattr(mod_merge_dialog, 'mod_merge_export_task', lambda *args, **kwargs: task)
+    dialog = mod_merge_dialog.ModMergeDialog(controller, str(tmp_path))
     dialog.destination.setText(str(destination))
-    dialog._plan = SimpleNamespace(conflicts=(), can_update=True)
+    dialog._plan = SimpleNamespace(conflicts=(), semantic_export=object())
     try:
         dialog._export()
         assert entered.wait(5)
-        assert controller.cancel_operation('mod_' + kind)
+        assert controller.cancel_operation('mod_merge')
         release.set()
         pump(app, lambda: not controller.busy)
         assert str(destination) in dialog.status.text() and 'written' in dialog.status.text()
         assert dialog._plan is None and not dialog._working
         assert (destination / 'result').read_bytes() == b'owned fixture'
-        if kind == 'merge' and manager == 'CDMW':
+        if manager == 'CDMW':
             assert 'Import cdmw-semantic.cdmw through CDMW' in dialog.review.toPlainText()
     finally:
         release.set()
         dialog.reject()
         pump(app, lambda: not controller.busy)
+
+
+def test_mod_update_dialog_only_checks_compatibility(studio, tmp_path):
+    from types import SimpleNamespace
+    from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
+
+    _app, controller = studio
+    destination = tmp_path / 'owned-export'
+    dialog = ModUpdateDialog(controller, str(tmp_path), embedded=True)
+    try:
+        dialog.destination.setText(str(destination))
+        dialog._plan = SimpleNamespace(conflicts=(), can_update=True)
+        dialog._buttons()
+        assert dialog.export_button.isHidden() and not dialog.export_button.isEnabled()
+        dialog._export()
+        assert not controller.busy and not destination.exists()
+    finally:
+        dialog.reject()
+        dialog.deleteLater()

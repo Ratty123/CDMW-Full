@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import time
 from dataclasses import dataclass
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QItemSelectionModel, QTimer, Qt
@@ -665,7 +665,7 @@ class ArchiveBrowserActionMixin:
             return
         self._export_archive_reference_entry(entry, title="Export Archive File")
 
-    def _extract_current_archive_file(self) -> None:
+    def _extract_current_archive_file(self, *, output_root_override: Optional[Path] = None) -> None:
         entry = self._current_archive_action_entry("Extract File")
         if entry is None:
             return
@@ -677,14 +677,16 @@ class ArchiveBrowserActionMixin:
                 return
             self._run_remote_archive_export(
                 selection,
-                allow_original_dds_root=True,
+                allow_original_dds_root=output_root_override is None,
                 description=f"Extracting {entry.basename}...",
+                output_root_override=output_root_override,
             )
             return
         self._run_archive_extract(
             [entry],
-            allow_original_dds_root=True,
+            allow_original_dds_root=output_root_override is None,
             description=f"Extracting {entry.basename}...",
+            output_root_override=output_root_override,
         )
 
     def _scope_current_archive_asset_family(self) -> None:

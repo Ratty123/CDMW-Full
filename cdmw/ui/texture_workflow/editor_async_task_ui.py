@@ -22,12 +22,14 @@ class TextureEditorAsyncTaskUiMixin:
         label: str,
         task: Callable[[], object],
         on_success: Callable[[object], None],
+        report_result: Callable[[bool, str], None] | None = None,
     ) -> bool:
         if self._busy():
             self._set_status(texture_editor_busy_status_text(), True)
             return False
         self._busy_task_label = label
         self._task_success_callback = on_success
+        self._task_result_callback = report_result
         self._set_status(label, False)
         thread = QThread(self)
         worker = TextureEditorTaskWorker(task)
@@ -49,12 +51,24 @@ class TextureEditorAsyncTaskUiMixin:
     @Slot(object)
     def _handle_async_task_completed(self, result: object) -> None:
         callback = self._task_success_callback
-        if callback is not None:
+        report = self._task_result_callback
+        if report is None:
+            if callback is not None:
+                callback(result)
+            return
+        try:
             callback(result)
+        except Exception as exc:
+            report(False, str(exc))
+        else:
+            report(True, "")
 
     @Slot(str)
     def _handle_async_task_error(self, message: str) -> None:
-        QMessageBox.warning(self, APP_TITLE, message)
+        if self._task_result_callback is None:
+            QMessageBox.warning(self, APP_TITLE, message)
+        else:
+            self._task_result_callback(False, message)
         self._set_status(texture_editor_task_failed_status_text(self._busy_task_label), True)
 
     @Slot()
@@ -62,5 +76,6 @@ class TextureEditorAsyncTaskUiMixin:
         self._task_thread = None
         self._task_worker = None
         self._task_success_callback = None
+        self._task_result_callback = None
         self._busy_task_label = ""
         self._refresh_ui()

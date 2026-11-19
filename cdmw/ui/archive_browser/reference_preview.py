@@ -396,13 +396,17 @@ class ArchiveReferencePreviewMixin:
             lambda _checked=False, parent_dialog=dialog: self._open_modal_model_preview_settings_dialog(parent_dialog)
         )
         close_button.clicked.connect(dialog.accept)
+
+        def finished(_code: int) -> None:
+            pending_entry = pending_hkx_editor_entry.get("entry")
+            if isinstance(pending_entry, ArchiveEntry):
+                QTimer.singleShot(
+                    0,
+                    lambda current_entry=pending_entry: self._edit_archive_hkx_entry_when_idle(current_entry),
+                )
+
+        dialog.finished.connect(finished)
         dialog.exec()
-        pending_entry = pending_hkx_editor_entry.get("entry")
-        if isinstance(pending_entry, ArchiveEntry):
-            QTimer.singleShot(
-                0,
-                lambda current_entry=pending_entry: self._edit_archive_hkx_entry_when_idle(current_entry),
-            )
 
     def _update_archive_texture_reference_action_controls(self) -> None:
         controls_enabled = self.shell.worker_thread is None

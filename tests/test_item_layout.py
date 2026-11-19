@@ -111,3 +111,27 @@ def test_unknown_or_malformed_complete_layouts_refuse(damage):
         raw = raw[:offset] + struct.pack('<I', 4097) + raw[offset + 4:]
     with pytest.raises(RecordError):read_item_layout(raw)
     with pytest.raises(RecordError):read_item_use_layout(use_action(kind=255))
+
+
+def _random_box(enchant):
+    # Flags and refs around one inline DropInfoData item reward; independent of the
+    # grammar. Game 1.0.0.3663 follows the i16 enchantment level with one more byte.
+    drop = (struct.pack('<Q', 1) + b'\0' + struct.pack('<IIII', 0, 0, 0, 0) + struct.pack('<4Q', 1, 0, 1, 1)
+            + enchant + struct.pack('<I', 1000001))
+    payload = b'\1' + struct.pack('<I', 7) + b'\1' + b'\1' + drop + b'\0' + struct.pack('<I', 0) + b'\0'
+    current = use_action(key=1000032, kind=2, payload=payload)
+    # The compact tables put the name before the key.
+    size = struct.unpack_from('<I', current, 4)[0]
+    return current[4:8 + size] + current[:4] + current[8 + size:]
+
+
+@pytest.mark.parametrize('enchant', (struct.pack('<h', 3), struct.pack('<h', 3) + b'\x05'))
+def test_random_box_rewards_read_both_enchantment_widths(enchant):
+    raw = _random_box(enchant)
+    layout = read_item_use_layout(raw)
+    assert layout.variants[0] == 'ItemUseData_RandomBox'
+    level = next(m.span for m in layout.members if m.name == '_enchantLevel')
+    assert raw[level.start:level.end] == enchant
+    # One extra byte would fit the other width (the build decides which), two fit neither.
+    with pytest.raises(RecordError):
+        read_item_use_layout(raw + bytes(2))

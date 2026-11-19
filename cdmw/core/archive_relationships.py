@@ -171,7 +171,7 @@ def _build_basename_index(archive_entries: Sequence[ArchiveEntry]) -> Dict[str, 
 
 def _read_entry_text(entry: ArchiveEntry) -> str:
     data, _decompressed, _note = read_archive_entry_data(entry)
-    return try_decode_text_like_archive_data(data) or ""
+    return try_decode_text_like_archive_data(data, limit=None) or ""
 
 
 def _parse_xml(text: str) -> Optional[ET.Element]:

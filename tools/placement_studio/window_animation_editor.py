@@ -138,6 +138,7 @@ class AnimationEditorMixin:
         self._clip_edit_entry = None
         self._clip_edit_label = ""
         self._clip_edit_target = ""
+        self._clip_edit_redo: List[object] = []
         self._clip_edit_undo: List[object] = []
         self._clip_edit_rendered = None
         self._clip_edit_rendered_for = None
@@ -507,6 +508,7 @@ class AnimationEditorMixin:
         self._clip_edit_label = label
         self._clip_edit_entry = entry
         self._clip_edit_target = target
+        self._clip_edit_redo.clear()
         self._clip_edit_undo = []
         skeleton = self._editor_skeleton()
         self._pose_bone_box.blockSignals(True)
@@ -557,6 +559,7 @@ class AnimationEditorMixin:
             if task is not None:
                 task.cancel()
         self._clip_edit = None
+        self._clip_edit_redo.clear()
         self._clip_edit_undo = []
         self._clip_edit_rendered = self._clip_edit_rendered_for = None
         # The replace target and its entry belong to the old character too: Start a new one
@@ -626,6 +629,7 @@ class AnimationEditorMixin:
         if self._clip_edit is None or edit == self._clip_edit:
             return
         if record:
+            self._clip_edit_redo.clear()
             self._clip_edit_undo.append(self._clip_edit)
             del self._clip_edit_undo[:-200]
         self._clip_edit = edit
@@ -646,9 +650,13 @@ class AnimationEditorMixin:
 
     def _undo_clip_edit(self) -> None:
         if self._clip_edit_undo:
-            self._clip_edit = self._clip_edit_undo.pop()
-            self._clip_edit_timer.start()
-            self._refresh_clip_edit_controls()
+            self._clip_edit_redo.append(self._clip_edit)
+            self._set_clip_edit(self._clip_edit_undo.pop(), record=False)
+
+    def _redo_clip_edit(self) -> None:
+        if self._clip_edit_redo:
+            self._clip_edit_undo.append(self._clip_edit)
+            self._set_clip_edit(self._clip_edit_redo.pop(), record=False)
 
     def _reset_clip_edit(self) -> None:
         if self._clip_edit is not None and not self._clip_edit.is_identity:
@@ -1255,6 +1263,7 @@ class AnimationEditorMixin:
         for widget in (self._clip_edit_add_button, self._clip_edit_export_button,
                        self._clip_edit_reset_button, self._clip_edit_target_button):
             widget.setEnabled(active)
+        self._refresh_history_buttons()
         self._clip_edit_undo_button.setEnabled(active and bool(self._clip_edit_undo))
         if not active:
             self._refresh_timeline()
@@ -1332,7 +1341,10 @@ class AnimationEditorMixin:
             self.statusBar().showMessage(
                 "Select the animation to replace in the Animations tab's list first.")
             return
-        self._clip_edit_target = entry.path
+        self._set_clip_edit_target(entry.path)
+
+    def _set_clip_edit_target(self, path: str) -> None:
+        self._clip_edit_target = path
         self._refresh_clip_edit_controls()
 
     def _when_rendered(self, action) -> None:
@@ -1391,8 +1403,6 @@ class AnimationEditorMixin:
     def _put_clip_edit_in_mod(self) -> None:
         from tools.paa_motion.encode import encode_paa
 
-        from .editing import EditError, OP_EDIT_ANIMATION, OperationScope
-
         target = self._clip_edit_target
         if self._edits is None or not target:
             return
@@ -1411,10 +1421,15 @@ class AnimationEditorMixin:
                 original = encode_paa(self._clip_edit.base)
             except ValueError:
                 original = None
+        self._record_clip_replacement(target, data, self._clip_edit_label, original)
+
+    def _record_clip_replacement(self, target, data, source, original=None) -> bool:
+        from .editing import EditError, OP_EDIT_ANIMATION, OperationScope
+
         if original is not None and original == data:
             self._clip_edit_status.setText(translate_active_ui_text(
                 "Nothing changed yet: edit the animation first."))
-            return
+            return False
         previous = self._clip_edit_ops.get(target)
         scope = OperationScope(
             kind=OP_EDIT_ANIMATION,
@@ -1429,13 +1444,14 @@ class AnimationEditorMixin:
                 if previous and any(op.operation_id == previous for op in self._edits.operations()):
                     self._edits.discard_operation(previous)
                 with self._edits.begin_operation(scope, label=label) as handle:
-                    handle.replace_clip(target, data, self._clip_edit_label, original)
+                    handle.replace_clip(target, data, source, original)
         except EditError as exc:
             QMessageBox.warning(self, "Edit animation", _explain(str(exc)))
-            return
+            return False
         operation = self._edits.latest_operation()
         if operation is not None:
             self._clip_edit_ops[target] = operation.operation_id
         self._after_edit()
         self._clip_edit_status.setText(translate_active_ui_text(
             "Added to Your mod. Save it there; edit again and add again to replace this version."))
+        return True

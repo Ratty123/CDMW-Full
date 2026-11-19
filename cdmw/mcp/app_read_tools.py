@@ -135,6 +135,9 @@ def _textures(call) -> dict[str, object]:
         texture_rows_from_manifest,
     )
 
+    if call.arguments.get("editor") == "tool":
+        from cdmw.mcp.texture_files import rail_assets
+        return {"parts": call.context.ui_call(lambda: rail_assets(call.context))}
     root = call.context.ui_call(lambda: _shown_session_root(call.context))
     if not root:
         raise ToolError(UNAVAILABLE, NO_MESH)
@@ -160,6 +163,7 @@ def _textures(call) -> dict[str, object]:
 
 
 def app_read_tools() -> list[Tool]:
+    from cdmw.mcp.texture_tools import texture_schema
     from cdmw.ui.commands.registry import CONTEXTS
 
     return [
@@ -187,8 +191,8 @@ def app_read_tools() -> list[Tool]:
         Tool(name="textures.list", family="textures", title="Textures panel",
              description="The Mesh Editor's Textures panel for the tab that is shown: each part with its textures, "
                          "their role, game file, whether other parts share it, and for a colour CDMW made from "
-                         "several files the files it is made from. The panel need not be shown.",
-             input_schema=object_schema(), effect=READ,
+                         "several files the files it is made from. With editor=tool, lists the rail workspace assets in parts.",
+             input_schema=texture_schema(), effect=READ,
              route="service:ui.mesh_editor.textures_panel.texture_rows_from_manifest", handler=_textures,
              runs_on=ON_WORKER, paged="parts"),
     ]

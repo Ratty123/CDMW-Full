@@ -64,10 +64,10 @@ Compact is the default layout. Classic is available in
 | **Create New Item** | Assets > Create New Item | Create equipment from a template, with model, appearance, stats and distribution choices. |
 | **Model Library** | Assets > Model Library | Find and preview local or catalogue models, then send them to Create New Item. |
 | **Icon Creator** | Assets > Item Icons | Prepare item icons and build compatible replacement packages. |
-| **Mesh Editor** | Authoring > Mesh Editor | Edit supported meshes and materials; OBJ/FBX/GLB export, OBJ/FBX/DAE/glTF/GLB import. FBX import uses your selected Blender. |
+| **Mesh Editor** | Authoring > Mesh Editor | Edit supported meshes, materials and their textures (Textures panel); OBJ/FBX/GLB export, OBJ/FBX/DAE/glTF/GLB import. FBX import uses your selected Blender. |
 | **Placement & Animations** | Authoring > Placement & Animations | Adjust equipment attachments and review animation changes before packaging. |
 | **Textures** | Authoring > Textures | Edit layered textures, replace files in bulk, recolour, upscale and export. |
-| **Mod Management** | Utilities > Mod Management | Add `.cdmw` item packages, apply them and launch the game with the items (experimental). Other mods belong in DMM. |
+| **Mod Management** | Utilities > Mod Management | List `.cdmw` item packages and send them to DMM, which loads them into the game. |
 | **Format Explorer** | Utilities > Inspect File Formats | Check which formats and operations are supported. |
 | **Translations** | Utilities > Edit Translations | Edit game language tables or existing `.paloc` mods, with optional AI assistance. |
 | **Research** | Utilities > Asset Research | Review texture families, classifications, references and quality reports. |
@@ -110,7 +110,14 @@ See the [Create New Item guide](cdmw/ui/new_item/README.md) for detailed control
 
 Open a supported archive or local mesh, edit with Undo/Redo, then use
 **Finish Edit Mesh** to validate and accept the result. **Build Mod** writes a DMM
-package, with an optional ZIP.
+package, with an optional ZIP. Several meshes open as tabs, and **Ctrl+Shift+P**
+opens the command palette.
+
+The **Textures** button shows each part's textures beside the 3D view;
+double-click one to paint or adjust it in the Texture Editor panel. Each stroke
+shows on the model, one Undo history covers mesh and texture edits, and Build Mod
+writes the edited textures into the same mod. Texture editing is new and not yet
+checked in game.
 
 DMM (Definitive Mod Manager) is the supported mod manager; other managers are not
 being updated for the October 2026 DLC. Check the producing tool's output limitations
@@ -169,18 +176,27 @@ package outputs.
 - **Transparent surfaces can show visual artifacts when they overlap.** Physics
   and material previews approximate the game; preview tuning is separate from
   saved mesh and physics-profile edits.
+- **AI connections are experimental.** Settings > AI connections lets AI apps
+  such as Claude Code and Codex CLI use CDMW's tools. An AI app works through the
+  same controls you do, can misread what it sees and does not know what a good
+  mod looks like; it will not make a finished mod for you. Review every change it
+  makes, test the result in game, and keep the approval questions on unless you
+  watch it work.
 - **Format support is operation-specific.** Reading a file does not mean every
   part of it can be edited. Check **Inspect File Formats** or the
   [capability manifest](schemas/archive_content_capabilities.v1.json) for details.
 
 ## Safety model
 
-Browsing, previewing, extracting and building mod folders leave game archives
-unchanged. Installing overlays or applying supported archive patches requires
-confirmation and uses backups and recovery checks. Close the game before installing.
+CDMW never writes into the game folder. Browsing, previewing and extracting read
+the archives; edits are written as mod folders and packages, and items reach the
+game through DMM. **Browse Archives > Restore Backup...** and **Remove What an
+Older CDMW Installed...** take out what an older CDMW version installed; both list
+what they will change and ask first.
 
-Keep CDMW's overlay history and backup files if you need to disable, rebuild or
-remove installed changes. Mod Management provides the supported recovery tools.
+AI connections follow the same rule: no tool writes into the game folder, changes
+the AI connection settings or the game folder, or answers its own approval
+question, and every call is logged in `workspace\logs\ai-calls.log`.
 
 ## Privacy and support
 

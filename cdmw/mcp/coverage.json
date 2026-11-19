@@ -370,6 +370,13 @@
       "tool": "commands.list"
     },
     {
+      "id": "archive.load",
+      "area": "Browse Archives",
+      "what": "Load the game archives (Scan, Refresh) and wait until they are ready",
+      "class": "read",
+      "tool": "app.load_archives"
+    },
+    {
       "id": "archive.search",
       "area": "Browse Archives",
       "what": "Search with every filter Browse has",
@@ -622,6 +629,13 @@
       "tool": "mesh.open"
     },
     {
+      "id": "mesh.draft_choice",
+      "area": "Mesh Editor",
+      "what": "Continue where you left off? (Resume, Start Fresh, Cancel)",
+      "class": "edit",
+      "tool": "mesh.draft_choice"
+    },
+    {
       "id": "mesh.show_document",
       "area": "Mesh Editor",
       "what": "Show one of the open documents",
@@ -850,23 +864,14 @@
       "area": "Mesh Editor",
       "what": "Select vertices, edges, faces and islands by index",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command",
-        "mesh.geometry"
-      ]
+      "tool": "mesh.select"
     },
     {
       "id": "mesh.transform",
       "area": "Mesh Editor",
       "what": "Move, rotate, scale by numbers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.transform"
     },
     {
       "id": "mesh.stroke",
@@ -881,55 +886,84 @@
       "area": "Mesh Editor",
       "what": "Mesh findings and the fix each names",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.state"
-      ]
+      "tool": "mesh.findings"
     },
     {
       "id": "mesh.uv",
       "area": "Mesh Editor",
-      "what": "UV operations by numbers",
+      "what": "UV operations by numbers (uv_transform), as the UV page does",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.mesh_action"
+    },
+    {
+      "id": "mesh.topology",
+      "area": "Mesh Editor",
+      "what": "Topology: delete, duplicate, subdivide, refine, loop cut, edge split, split, dissolve, bridge, fill, merge, weld, extrude, inset, Create Part",
+      "class": "edit",
+      "tool": "mesh.topology"
+    },
+    {
+      "id": "mesh.mesh_actions",
+      "area": "Mesh Editor",
+      "what": "Mesh Data, Normals and Cleanup actions: mirror, remove doubles, loose vertices, winding, holes, normals, tangents",
+      "class": "edit",
+      "tool": "mesh.mesh_action"
+    },
+    {
+      "id": "mesh.output_policy",
+      "area": "Mesh Editor",
+      "what": "Output: Exact, Replacement or Free Edit with its folder",
+      "class": "edit",
+      "tool": "mesh.output_policy"
     },
     {
       "id": "mesh.weights",
       "area": "Mesh Editor",
       "what": "Rig and weights by numbers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.weights"
     },
     {
       "id": "mesh.morph",
       "area": "Mesh Editor",
       "what": "Morphs by numbers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.morph"
     },
     {
       "id": "mesh.cloth",
       "area": "Mesh Editor",
       "what": "Cloth by numbers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.cloth"
+    },
+    {
+      "id": "mesh.refit",
+      "area": "Mesh Editor",
+      "what": "Refit: drivers, bind, configure, fit to body, restore shape",
+      "class": "edit",
+      "tool": "mesh.refit"
+    },
+    {
+      "id": "mesh.layers",
+      "area": "Mesh Editor",
+      "what": "Layers: activate, rename, move, visibility, copy, paste, delete",
+      "class": "edit",
+      "tool": "mesh.layers"
+    },
+    {
+      "id": "mesh.part_options",
+      "area": "Mesh Editor",
+      "what": "Per-part options: shader experiments, emission, translucency, jiggle, physics profile, collisions, cloth, guides, islands, include; Import Replacement's fit, compare, reset",
+      "class": "edit",
+      "tool": "mesh.part_options"
+    },
+    {
+      "id": "mesh.panels",
+      "area": "Mesh Editor",
+      "what": "The panels' state: skeleton, morphs, refit, layers, cloth, jiggle, replacement, materials",
+      "class": "read",
+      "tool": "mesh.panels"
     },
     {
       "id": "mesh.camera",
@@ -947,39 +981,36 @@
       "area": "Mesh Editor",
       "what": "Export PAC As",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.run_command"
-      ]
+      "tool": "mesh.export_pac"
     },
     {
       "id": "hair.tools",
       "area": "Hair Tools",
-      "what": "Guides and brushes by numbers",
+      "what": "Guides and brushes by numbers (draw, comb, cut, curl, clump ... are pointer brushes)",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command",
-        "app.ui_act"
-      ]
+      "gap": "needs_pointer",
+      "by_points": "mesh.hair_stroke"
+    },
+    {
+      "id": "hair.colour",
+      "area": "Hair Tools",
+      "what": "Hair colour and texture",
+      "class": "edit",
+      "tool": "mesh.hair"
     },
     {
       "id": "materials.get",
       "area": "Material panel",
       "what": "Every factor of a material",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+      "tool": "mesh.panels"
     },
     {
       "id": "materials.set",
       "area": "Material panel",
-      "what": "Set a factor or surface slider",
+      "what": "Set a material factor or surface option (Shader experiments, emission, translucency)",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+      "tool": "mesh.part_options"
     },
     {
       "id": "materials.variants",
@@ -987,7 +1018,7 @@
       "what": "Variants",
       "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+      "milestone": "P13 full MCP: the Mesh Editor has no control for this yet (Material Colour is deliberately unavailable in the helper)"
     },
     {
       "id": "materials.recolour",
@@ -995,56 +1026,58 @@
       "what": "Recolour",
       "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper"
+      "milestone": "P13 full MCP: the Mesh Editor has no control for this yet (Material Colour is deliberately unavailable in the helper)"
     },
     {
       "id": "view.texture_image",
       "area": "Texture preview",
       "what": "A picture of any texture or layer",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.screenshot"
-      ]
+      "tool": "view.texture_image"
     },
     {
       "id": "local_file.describe",
       "area": "Browse Archives",
       "what": "Describe a local file",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "local_file.describe"
     },
     {
       "id": "local_file.bytes",
       "area": "Browse Archives",
       "what": "Bytes of a local file",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "local_file.bytes"
     },
     {
       "id": "local_file.parse",
       "area": "Browse Archives",
       "what": "Parsed content of a local file",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "tool": "local_file.parse"
+    },
+    {
+      "id": "textures.standalone",
+      "area": "Textures",
+      "what": "Add Textures, Add Mod and Review & Export on the rail",
+      "class": "edit",
+      "tool": "textures.workflow"
+    },
+    {
+      "id": "mesh.build_options",
+      "area": "Mesh Editor",
+      "what": "Build Mod's mod manager, output choice, Include body and kept texture layers (mesh.build_mod sets name, folder, version, author, description and ZIP)",
+      "class": "output",
+      "tool": "mesh.build_mod"
+    },
+    {
+      "id": "placement.pointer",
+      "area": "Placement & Animations",
+      "what": "Viewport translation and rotation by numbers, and timeline keys by track and time",
+      "class": "edit",
+      "tool": "placement.socket",
       "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
+        "placement.animation"
       ]
     },
     {
@@ -1052,130 +1085,70 @@
       "area": "Texture Editor",
       "what": "Layers",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.layer"
     },
     {
       "id": "textures.fill",
       "area": "Texture Editor",
       "what": "Fills",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.fill"
     },
     {
       "id": "textures.select",
       "area": "Texture Editor",
       "what": "Selections",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.select"
     },
     {
       "id": "textures.stencil",
       "area": "Texture Editor",
-      "what": "Stencils",
+      "what": "Image stamp loading, painting and clearing",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.fill"
     },
     {
       "id": "textures.compare",
       "area": "Texture Editor",
       "what": "Compare",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.compare"
     },
     {
       "id": "textures.import_pixels",
       "area": "Texture Editor",
       "what": "Pixels from a file or sent in the call",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.import_pixels"
     },
     {
       "id": "textures.write_region",
       "area": "Texture Editor",
       "what": "Write pixels by region",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.write_region"
     },
     {
       "id": "textures.read_region",
       "area": "Texture Editor",
       "what": "Read pixels by region",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.read_region"
     },
     {
       "id": "textures.generate",
       "area": "Texture Editor",
-      "what": "Fills, gradients, noise, patterns, tiles",
+      "what": "Solid and gradient fills, grain and patterned brush strokes",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.generate"
     },
     {
       "id": "textures.derive",
       "area": "Texture Editor",
-      "what": "Normal from height, pack, unpack, resize, mips, conversion",
+      "what": "Luma channel packing and extraction, document transforms, DDS format and mip settings",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.derive"
     },
     {
       "id": "textures.new_for_slot",
@@ -1183,115 +1156,141 @@
       "what": "A new texture for a material slot (Make unique)",
       "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "milestone": "P13: wire the Mesh Editor's Make unique action to its session before exposing it through MCP."
     },
     {
       "id": "textures.export",
       "area": "Texture Editor",
       "what": "Export a texture",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.export"
     },
     {
       "id": "textures.output_plan",
       "area": "Texture Editor",
       "what": "The output plan for a mod",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "textures.output_plan"
     },
     {
       "id": "saved.continue",
       "area": "Drafts & Mods",
       "what": "Continue a draft",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "saved.change"
     },
     {
       "id": "saved.rename",
       "area": "Drafts & Mods",
       "what": "Rename a row",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "saved.change"
     },
     {
       "id": "saved.combine",
       "area": "Drafts & Mods",
       "what": "Combine into one mod",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "saved.combine"
     },
     {
       "id": "saved.delete",
       "area": "Drafts & Mods",
       "what": "Delete a draft or row",
       "class": "destructive",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "saved.delete"
     },
     {
       "id": "new_item.steps",
       "area": "Create New Item",
-      "what": "Every other step's fields",
+      "what": "Navigate the workflow header and resolve staged Effects changes",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "tool": "new_item.step",
       "also": [
         "app.ui",
-        "app.ui_act",
-        "app.run_command"
+        "app.ui_act"
       ]
+    },
+    {
+      "id": "new_item.draft",
+      "area": "Create New Item",
+      "what": "Read the draft, choices, step states and validation issues",
+      "class": "read",
+      "tool": "new_item.draft"
+    },
+    {
+      "id": "new_item.set",
+      "area": "Create New Item",
+      "what": "Set identity, localized texts, stats, prices, shops, groups, rewards and recipes",
+      "class": "edit",
+      "tool": "new_item.set"
+    },
+    {
+      "id": "new_item.model",
+      "area": "Create New Item",
+      "what": "Import a model, select components, place it, and set its skin weights, sockets, body visibility, dyes and icon",
+      "class": "edit",
+      "tool": "new_item.model"
+    },
+    {
+      "id": "new_item.transparency_paint",
+      "area": "Create New Item",
+      "what": "Paint transparency or cutout masks by points and apply them",
+      "class": "edit",
+      "tool": "new_item.model"
+    },
+    {
+      "id": "new_item.effects",
+      "area": "Create New Item",
+      "what": "Select effects, edit layers and look, apply or discard, and set glow, perks and inherent bonuses",
+      "class": "edit",
+      "tool": "new_item.effects"
+    },
+    {
+      "id": "new_item.plan",
+      "area": "Create New Item",
+      "what": "Read or rebuild the Output plan review",
+      "class": "edit",
+      "tool": "new_item.plan",
+      "note": "Reading the current review is read-class. Rebuilding it is edit-class."
     },
     {
       "id": "new_item.build",
       "area": "Create New Item",
-      "what": "Build",
+      "what": "Write a loose mod into a new folder",
       "class": "output",
+      "tool": "new_item.build"
+    },
+    {
+      "id": "new_item.draft_file",
+      "area": "Create New Item",
+      "what": "Save and load draft settings, continue or update an item package, check mod updates, and merge mod folders",
+      "class": "output",
+      "tool": "new_item.draft_file",
+      "note": "The approval class follows the action. Replacing an existing item package is destructive-class."
+    },
+    {
+      "id": "new_item.advanced_tables",
+      "area": "Create New Item",
+      "what": "Experimental item definition, behavior, inventory, and shared game table editors",
+      "class": "edit",
       "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "milestone": "P13 typed advanced table editors",
       "also": [
         "app.ui",
-        "app.ui_act",
-        "app.run_command"
+        "app.ui_act"
+      ]
+    },
+    {
+      "id": "new_item.effect_emitters",
+      "area": "Create New Item",
+      "what": "Edit individual effect emitters and saved effect presets",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13 typed emitter and preset editors",
+      "also": [
+        "app.ui",
+        "app.ui_act"
       ]
     },
     {
@@ -1299,169 +1298,177 @@
       "area": "Mod Management",
       "what": "List mods",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "mods.list"
     },
     {
       "id": "mods.change",
       "area": "Mod Management",
-      "what": "Enable, order",
+      "what": "Add or remove packages and merge folders, review compatibility, and cancel a merge",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "mods.change"
     },
     {
       "id": "mods.export",
       "area": "Mod Management",
-      "what": "Export and merge",
+      "what": "Write the checked merge when Mod Management exposes Combine",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "mods.export"
     },
     {
       "id": "placement.edit",
       "area": "Placement & Animations",
-      "what": "Every action",
+      "what": "Animation editing, clip replacement and draw or put-away timing",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
+      "tool": "placement.animation",
       "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
+        "placement.socket",
+        "placement.constraints",
+        "placement.rig"
       ]
+    },
+    {
+      "id": "placement.state",
+      "area": "Placement & Animations",
+      "what": "Selected assets, editing state, events and pending changes",
+      "class": "read",
+      "tool": "placement.state"
+    },
+    {
+      "id": "placement.open",
+      "area": "Placement & Animations",
+      "what": "Prepare and select character, equipment and pages",
+      "class": "edit",
+      "tool": "placement.open"
+    },
+    {
+      "id": "placement.constraints",
+      "area": "Placement & Animations",
+      "what": "Driven bone chain strength",
+      "class": "edit",
+      "tool": "placement.constraints"
+    },
+    {
+      "id": "placement.rig",
+      "area": "Placement & Animations",
+      "what": "Rig behaviour settings",
+      "class": "edit",
+      "tool": "placement.rig"
+    },
+    {
+      "id": "placement.undo",
+      "area": "Placement & Animations",
+      "what": "Undo changes",
+      "class": "edit",
+      "tool": "placement.undo"
+    },
+    {
+      "id": "placement.redo",
+      "area": "Placement & Animations",
+      "what": "Redo changes",
+      "class": "edit",
+      "tool": "placement.redo"
+    },
+    {
+      "id": "placement.discard",
+      "area": "Placement & Animations",
+      "what": "Remove a pending change or start over",
+      "class": "destructive",
+      "tool": "placement.discard"
+    },
+    {
+      "id": "placement.save_mod",
+      "area": "Placement & Animations",
+      "what": "Save checked changes to a new mod folder",
+      "class": "output",
+      "tool": "placement.save_mod"
+    },
+    {
+      "id": "placement.standalone_export",
+      "area": "Placement & Animations",
+      "what": "Export loose edited files, an animation PAA, or a Blender GLB",
+      "class": "output",
+      "gap": "not_built",
+      "milestone": "P13 standalone file outputs. Stage 5 covers Save Mod.",
+      "also": [
+        "app.ui_act"
+      ]
+    },
+    {
+      "id": "placement.playback",
+      "area": "Placement & Animations",
+      "what": "Load, play, pause and scrub",
+      "class": "edit",
+      "tool": "placement.playback"
+    },
+    {
+      "id": "placement.capture",
+      "area": "Placement & Animations",
+      "what": "Capture the placement viewport",
+      "class": "read",
+      "tool": "placement.capture"
     },
     {
       "id": "translation.edit",
       "area": "Translation Studio",
-      "what": "Load and edit",
+      "what": "Open and load tables, find, edit, replace, revert, reset and machine-translate selected text",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "translation.edit"
     },
     {
       "id": "translation.save",
       "area": "Translation Studio",
       "what": "Save",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "translation.save"
     },
     {
       "id": "item_icons.make",
       "area": "Item Icons",
       "what": "Make and export icons",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "item_icons.make"
     },
     {
       "id": "research.read",
       "area": "Research",
       "what": "Read research notes",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "research.read"
     },
     {
       "id": "app.settings_set",
       "area": "Settings",
       "what": "Change settings (never AI connections, approvals, Full access or the game folder)",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "app.settings_set"
     },
     {
       "id": "shortcuts.change",
       "area": "Settings > Shortcuts",
       "what": "Rebind, unbind, reset",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "shortcuts.change"
     },
     {
       "id": "app.undo",
       "area": "The app",
-      "what": "Undo and redo, one group per turn",
+      "what": "Undo one group per turn using the editors' histories",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "app.undo"
     },
     {
       "id": "app.turn_end",
       "area": "The app",
       "what": "Mark the end of an assistant turn",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "app.turn_end"
     },
     {
       "id": "app.diagnostics",
       "area": "Diagnostics",
-      "what": "Diagnostics",
+      "what": "Read the redacted diagnostic snapshot, build identity and recent logs",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 5: a typed tool; reachable today through app.ui_act and app.run_command",
-      "also": [
-        "app.ui",
-        "app.ui_act",
-        "app.run_command"
-      ]
+      "tool": "app.diagnostics"
     },
     {
       "id": "archive.overlay_install",
@@ -1483,6 +1490,262 @@
       "what": "Restore game files from a backup",
       "class": "output",
       "gap": "writes_into_game"
+    },
+    {
+      "id": "textures.layer_masks",
+      "area": "Texture Editor",
+      "what": "Create, invert, delete, enable or target masks and transfer selections",
+      "class": "edit",
+      "tool": "textures.layer"
+    },
+    {
+      "id": "textures.document_transform",
+      "area": "Texture Editor",
+      "what": "Canvas and image size, crop, trim, flip and rotate",
+      "class": "edit",
+      "tool": "textures.derive"
+    },
+    {
+      "id": "textures.tile_fill",
+      "area": "Texture Editor",
+      "what": "Generate a tiled fill",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13: requires a corresponding Texture Editor operation."
+    },
+    {
+      "id": "textures.normal_from_height",
+      "area": "Texture Editor",
+      "what": "Derive normals from height inside the Texture Editor",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13: requires a corresponding Texture Editor operation."
+    },
+    {
+      "id": "textures.floating",
+      "area": "Texture Editor",
+      "what": "Floating selection, clipboards, transforms, commit and cancel",
+      "class": "edit",
+      "tool": "textures.layer"
+    },
+    {
+      "id": "textures.channels",
+      "area": "Texture Editor",
+      "what": "Channel editing, swapping, copying, packing and extracting",
+      "class": "edit",
+      "tool": "textures.derive"
+    },
+    {
+      "id": "textures.brush_settings",
+      "area": "Texture Editor",
+      "what": "Brush presets, tips, patterns, symmetry, clone source and recolor settings",
+      "class": "edit",
+      "tool": "textures.tool"
+    },
+    {
+      "id": "textures.adjustment_stack",
+      "area": "Texture Editor",
+      "what": "Manage existing adjustments, parameters, masks and stack order",
+      "class": "edit",
+      "tool": "textures.adjust"
+    },
+    {
+      "id": "textures.history",
+      "area": "Texture Editor",
+      "what": "Restore a texture history entry or clear its history",
+      "class": "destructive",
+      "tool": "textures.history"
+    },
+    {
+      "id": "textures.atlas",
+      "area": "Texture Editor",
+      "what": "Export a selection or a grid of PNG slices",
+      "class": "output",
+      "tool": "textures.export"
+    },
+    {
+      "id": "textures.procedural_fill",
+      "area": "Texture Editor",
+      "what": "Generate whole-layer noise and patterned fills",
+      "class": "edit",
+      "gap": "not_built",
+      "milestone": "P13: the current editor offers grain and pattern brush strokes."
+    },
+    {
+      "id": "saved.list",
+      "area": "Drafts & Mods",
+      "what": "List drafts, mods, item packages and projects",
+      "class": "read",
+      "tool": "saved.list"
+    },
+    {
+      "id": "saved.add",
+      "area": "Drafts & Mods",
+      "what": "Add a mod folder or an item package",
+      "class": "edit",
+      "tool": "saved.change"
+    },
+    {
+      "id": "saved.move",
+      "area": "Drafts & Mods",
+      "what": "Move an entry to a project",
+      "class": "edit",
+      "tool": "saved.change"
+    },
+    {
+      "id": "saved.duplicate",
+      "area": "Drafts & Mods",
+      "what": "Duplicate a draft",
+      "class": "edit",
+      "tool": "saved.change"
+    },
+    {
+      "id": "saved.project_change",
+      "area": "Drafts & Mods",
+      "what": "Create and rename projects",
+      "class": "edit",
+      "tool": "saved.change"
+    },
+    {
+      "id": "saved.project_delete",
+      "area": "Drafts & Mods",
+      "what": "Delete a project",
+      "class": "destructive",
+      "tool": "saved.delete"
+    },
+    {
+      "id": "translation.review",
+      "area": "Translation Studio",
+      "what": "Review table rows, pending changes and worker progress",
+      "class": "read",
+      "tool": "translation.review"
+    },
+    {
+      "id": "search.text_state",
+      "area": "Search File Text",
+      "what": "Read result rows and progress",
+      "class": "read",
+      "tool": "search.text_state"
+    },
+    {
+      "id": "search.text_action",
+      "area": "Search File Text",
+      "what": "Run or stop a search with page options, set preview options, and open a hit",
+      "class": "edit",
+      "tool": "search.text_action"
+    },
+    {
+      "id": "search.text_export",
+      "area": "Search File Text",
+      "what": "Export selected or all matched files",
+      "class": "output",
+      "tool": "search.text_export"
+    },
+    {
+      "id": "archive.browser_state",
+      "area": "Browse Archives",
+      "what": "Read reference-search and export status",
+      "class": "read",
+      "tool": "files.browser_state"
+    },
+    {
+      "id": "archive.tools_view",
+      "area": "Browse Archives",
+      "what": "Preview, open preview window, search for references, filter or inspect a family, inspect a sidecar",
+      "class": "read",
+      "tool": "files.browser_view"
+    },
+    {
+      "id": "archive.tools_edit",
+      "area": "Browse Archives",
+      "what": "Open mesh and HKX physics editors",
+      "class": "edit",
+      "tool": "files.browser_edit"
+    },
+    {
+      "id": "archive.extract",
+      "area": "Browse Archives",
+      "what": "Extract a file or current selection",
+      "class": "output",
+      "tool": "files.browser_export"
+    },
+    {
+      "id": "archive.export",
+      "area": "Browse Archives",
+      "what": "Export a file or family, copy the filename, or write a sidecar corpus report",
+      "class": "output",
+      "tool": "files.browser_export"
+    },
+    {
+      "id": "archive.mesh_export",
+      "area": "Browse Archives",
+      "what": "Export a mesh or its family as OBJ, GLB or FBX",
+      "class": "output",
+      "tool": "files.browser_export"
+    },
+    {
+      "id": "models.state",
+      "area": "Model Library",
+      "what": "Read model sources and result rows",
+      "class": "read",
+      "tool": "models.state"
+    },
+    {
+      "id": "models.change",
+      "area": "Model Library",
+      "what": "Manage sources, search, preview and use a model in Create New Item",
+      "class": "edit",
+      "tool": "models.change"
+    },
+    {
+      "id": "models.output",
+      "area": "Model Library",
+      "what": "Build the search index, download checked models and generate an icon",
+      "class": "output",
+      "tool": "models.output"
+    },
+    {
+      "id": "item_icons.state",
+      "area": "Item Icons",
+      "what": "Read sources, target and preview status",
+      "class": "read",
+      "tool": "item_icons.state"
+    },
+    {
+      "id": "item_icons.change",
+      "area": "Item Icons",
+      "what": "Manage sources and configure or preview the selected icon",
+      "class": "edit",
+      "tool": "item_icons.change"
+    },
+    {
+      "id": "format_explorer.read",
+      "area": "Inspect File Formats",
+      "what": "Read format reports as text",
+      "class": "read",
+      "tool": "research.read"
+    },
+    {
+      "id": "app.redo",
+      "area": "The app",
+      "what": "Redo one group per turn using the editors' histories",
+      "class": "edit",
+      "tool": "app.redo"
+    },
+    {
+      "id": "mods.enable_order",
+      "area": "Mod Management",
+      "what": "Enable, disable or change load order in DMM",
+      "class": "edit",
+      "gap": "user_only",
+      "reason": "DMM owns these controls. CDMW only prepares packages for DMM."
+    },
+    {
+      "id": "mods.send_to_dmm",
+      "area": "Mod Management",
+      "what": "Export selected item packages for DMM to enable and mount later",
+      "class": "output",
+      "tool": "mods.export"
     }
   ]
 }

@@ -147,7 +147,7 @@ def _build_archive_texture_sidecar_path_rows_for_group(
                     if on_entry_processed is not None:
                         on_entry_processed(1)
                     continue
-                text = try_decode_text_like_archive_data(raw_data)
+                text = try_decode_text_like_archive_data(raw_data, limit=None)
                 if not text:
                     if on_entry_processed is not None:
                         on_entry_processed(1)

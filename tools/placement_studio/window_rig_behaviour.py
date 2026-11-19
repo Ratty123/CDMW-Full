@@ -76,6 +76,8 @@ class RigBehaviourMixin:
     def _init_behaviour_state(self) -> None:
         """The settings being edited, which Your mod reads whether or not the page is built."""
 
+        from .window_rig_tabs import PanelHistory
+        self._behaviour_history = PanelHistory()
         self._behaviour: Optional[RigBehaviour] = None
         self._behaviour_original: Optional[RigBehaviour] = None
         self._behaviour_updating = False
@@ -227,20 +229,27 @@ class RigBehaviourMixin:
                 "Rig behaviour changes made before switching character were discarded")
         self._behaviour_shown_label = label
         if not rig_files.pose_modifier:
+            self._behaviour_history.clear()
+            self._behaviour = self._behaviour_original = None
+            self._behaviour_rows = []
             self._behaviour_header.setText(_NO_DESCRIPTOR.format(path=GAME_PATH))
             self._behaviour_table.setRowCount(0)
+            self._refresh_behaviour_pending()
             return None
         return self.load_rig_behaviour_data(rig_files.pose_modifier, rig_path)
 
     def load_rig_behaviour_data(self, data: bytes, model: str = "") -> Optional[str]:
         """Show the descriptor. Returns an error message, or None when it loaded."""
 
+        self._behaviour_history.clear()
         try:
             rig = load_rig_behaviour(data)
         except Exception as error:  # noqa: BLE001 - never take the window down
-            self._behaviour = None
+            self._behaviour = self._behaviour_original = None
+            self._behaviour_rows = []
             self._behaviour_header.setText(f"{GAME_PATH}: {error}")
             self._behaviour_table.setRowCount(0)
+            self._refresh_behaviour_pending()
             return str(error)
         keys = rig.selectable_keys()
         matched = pab_for_model(model, keys)
@@ -381,6 +390,8 @@ class RigBehaviourMixin:
         except PoseModifierError as error:
             self._behaviour_pending.setText(f"Could not apply: {error}")
             return
+        if self._behaviour != rig:
+            self._behaviour_history.record(rig)
         self._refresh_behaviour_table()
 
     def _on_behaviour_scale(self, factor: float) -> None:
@@ -393,12 +404,21 @@ class RigBehaviourMixin:
         except PoseModifierError as error:
             self._behaviour_pending.setText(f"Could not scale: {error}")
             return
+        if self._behaviour != rig:
+            self._behaviour_history.record(rig)
         self._refresh_behaviour_table()
 
     def _on_behaviour_reset(self) -> None:
         if self._behaviour_original is None:
             return
+        if self._behaviour != self._behaviour_original:
+            self._behaviour_history.record(self._behaviour)
         self._behaviour = self._behaviour_original
+        self._refresh_behaviour_table()
+
+    def _step_behaviour_history(self, *, redo):
+        self._behaviour = self._behaviour_history.step(self._behaviour, redo=redo)
+        self._behaviour_rig.setCurrentText(self._behaviour.pab)
         self._refresh_behaviour_table()
 
     def _refresh_behaviour_pending(self) -> None:

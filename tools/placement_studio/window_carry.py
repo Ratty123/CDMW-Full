@@ -541,7 +541,7 @@ class CarryPickerMixin:
             return
         self._apply_move_operation(plan, {path: data for path, data, _donor in payload})
 
-    def _apply_move_operation(self, plan, clip_bytes) -> None:
+    def _apply_move_operation(self, plan, clip_bytes, *, acknowledge=None) -> bool:
         """Commit the planned move, or report why nothing changed.
 
         One `EditOperation`: the route changes, the operation-owned child sockets and every
@@ -554,7 +554,7 @@ class CarryPickerMixin:
         self._pending_move = None
         session, edits = self._session, self._edits
         if session is None or edits is None:
-            return
+            return False
         try:
             from .prepared_move import PreparedMove
             operation = (clip_bytes.apply(session, edits) if isinstance(clip_bytes, PreparedMove)
@@ -562,7 +562,7 @@ class CarryPickerMixin:
         except (MoveBlocked, EditError) as exc:
             self.statusBar().showMessage(f"Nothing was changed: {exc}")
             QMessageBox.warning(self, "The move was not applied", str(exc))
-            return
+            return False
 
         self._after_edit()
         self._populate_parts()
@@ -587,10 +587,13 @@ class CarryPickerMixin:
         )
         if applied:
             self._show_swap_result(applied, set(operation.replaced_clips()))
+        elif plan.placement_changes and acknowledge is not None:
+            self._report_move(plan, operation, diagnostic, acknowledge=acknowledge)
         elif plan.placement_changes:
             self._report_move(plan, operation, diagnostic)
+        return True
 
-    def _report_move(self, plan, operation, diagnostic: str) -> None:
+    def _report_move(self, plan, operation, diagnostic: str, *, acknowledge=None) -> None:
         """Say what moved, in the words the review page used."""
 
         lines = [operation.describe(), ""]
@@ -605,7 +608,10 @@ class CarryPickerMixin:
         box.setWindowTitle("Moved")
         box.setIcon(QMessageBox.Information)
         box.setText("\n".join(lines))
-        box.exec()
+        if acknowledge is None:
+            box.exec()
+        else:
+            acknowledge(box)
 
     def _stop_swap(self) -> None:
         task = getattr(self, "_move_task", None)
@@ -668,6 +674,12 @@ class CarryPickerMixin:
         row and an asset cannot diverge into a mixed operation part-way through.
         """
 
+        dialog = self._make_move_dialog()
+        if dialog is None or dialog.exec() != QDialog.Accepted:
+            return
+        self._finish_move_dialog(dialog)
+
+    def _make_move_dialog(self):
         from .move_operation import plan_move
         from .move_weapon import MoveWeaponDialog
 
@@ -725,11 +737,9 @@ class CarryPickerMixin:
                     dialog._preview_placement.setEnabled(True)
             timer.timeout.connect(update_index)
             timer.start()
-        # `QDialog.Accepted` is a class constant, not an instance attribute: reading it off
-        # the instance raised, so nothing was applied and — under pythonw, with no console —
-        # nothing was reported either. Pressing "Move it" appeared to do nothing at all.
-        if dialog.exec() != QDialog.Accepted:
-            return
+        return dialog
+
+    def _finish_move_dialog(self, dialog):
         plan = dialog.plan()
         if plan is None:
             return

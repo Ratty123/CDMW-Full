@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QRect, QSize, Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication, QDialog, QLabel, QMainWindow, QMenu, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QDockWidget, QLabel, QMainWindow, QMenu, QPushButton, QVBoxLayout, QWidget
 
 from cdmw.ui.display_scaling import (
     CurrentToolStack, ensure_app_display_scaling, fit_window_to_screen,
@@ -131,6 +131,33 @@ def test_oversized_dialog_scrolls_to_actions_and_preserves_nested_preview_parent
     assert preview.parentWidget() is preview_container
     dialog.close()
     dialog.deleteLater()
+
+
+def test_oversized_floating_dock_scrolls_its_content_and_keeps_its_internal_layout(app):
+    dock = QDockWidget("Texture tools")
+    content = QWidget()
+    content.setMinimumSize(1180, 780)
+    content_layout = QVBoxLayout(content)
+    preview = QLabel("Texture preview")
+    content_layout.addWidget(preview)
+    dock.setWidget(content)
+    dock_layout = dock.layout()
+    try:
+        dock.show()
+        fit_window_to_screen(dock, QRect(0, 0, 960, 500))
+        _settle(app)
+        assert dock.layout() is dock_layout
+        assert dock.widget() is content
+        scroll = content._display_overflow_scroll
+        assert scroll.widget().layout() is content_layout
+        assert preview.parentWidget() is scroll.widget()
+        assert QRect(0, 0, 960, 500).contains(dock.frameGeometry())
+        assert scroll.horizontalScrollBar().maximum() > 0
+        assert scroll.verticalScrollBar().maximum() > 0
+    finally:
+        dock.close()
+        dock.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 def test_inactive_tools_do_not_force_scrollbars_on_small_tools(app):

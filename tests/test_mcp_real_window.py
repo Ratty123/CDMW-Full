@@ -34,7 +34,7 @@ def profile(monkeypatch, tmp_path) -> Path:
 
 
 @pytest.fixture
-def real(app, profile, tmp_path):
+def real(app, profile, tmp_path, preserve_app_appearance):
     from cdmw.app.events import AppEventBus
     from cdmw.services.service_container import ServiceContainer
     from cdmw.services.settings_service import create_settings
@@ -99,3 +99,58 @@ def test_the_tools_read_and_drive_the_real_window(real) -> None:
     field = real.window.archive.archive_package_root_edit
     error = mcp.error("app_ui_act", {"widget": widget_id(field), "action": "set_text", "value": "C:/x"})
     assert error["code"] == "refused" and field.text() != "C:/x"
+
+
+def test_rail_texture_workflow_uses_the_real_workspace(real, tmp_path):
+    from PIL import Image
+    from cdmw.ui.texture_editor_tab import TextureEditorTab
+
+    mcp = real
+    png = tmp_path / "asset.png"
+    Image.new("RGBA", (13, 17), (230, 16, 72, 255)).save(png)
+    target = {"editor": "tool"}
+    added = mcp.ok("textures_workflow", {**target, "action": "add_textures", "paths": [str(png)]})
+    assert added["assets"][0]["path"] == str(png)
+    workspace = real.window.shell.textures
+    container = real.window.shell.texture_editor_tab
+    mcp.wait_until(lambda: container.widget_if_created() is not None and container.widget_if_created().document is not None)
+    editor = container.widget_if_created()
+    assert isinstance(editor, TextureEditorTab)
+    assert (editor.document.width, editor.document.height) == (13, 17)
+    assert mcp.ok("textures_list", target)["parts"][0]["path"] == str(png)
+    plan = mcp.ok("textures_output_plan", target)
+    assert plan["mode"] == "edit" and plan["assets"][0]["selected"]
+    start = editor.history_index
+    reviewed = mcp.ok("textures_workflow", {**target, "action": "review_export", "operation": "edit"})
+    assert workspace._review_dialog.isVisible() and reviewed["history_before"] == reviewed["history_after"] == start
+    workspace._review_dialog.close()
+    mod = tmp_path / "loose"
+    mod.mkdir()
+    added = mcp.ok("textures_workflow", {**target, "action": "add_mod", "paths": [str(mod)]})
+    mcp.wait_until(lambda: workspace.recolor_container.widget_if_created() is not None)
+    assert workspace.recolor_container.widget_if_created().source_path_edit.text() == str(mod)
+    assert added["mode"] == "recolor" and editor.history_index == start
+
+
+
+def test_rail_opens_owned_archive_texture_with_its_binding(real, tmp_path):
+    from io import BytesIO
+    from PIL import Image
+    from cdmw.models import ArchiveEntry
+
+    png = BytesIO()
+    Image.new("RGBA", (12, 9), "green").save(png, format="PNG")
+    package = tmp_path / "0012"
+    package.mkdir()
+    archive = package / "0.paz"
+    archive.write_bytes(png.getvalue())
+    entry = ArchiveEntry("textures/owned.png", package / "0.pamt", archive, 0, png.tell(), png.tell(), 0, 0)
+    real.window.shell.archive.archive_entries = [entry]
+    result = real.ok("textures_open", {"editor": "tool", "source": "archive", "texture": entry.path, "package": "0012"})
+    assert result["opening"]
+    container = real.window.shell.texture_editor_tab
+    real.wait_until(lambda: container.widget_if_created() is not None and container.widget_if_created().document is not None)
+    doc = container.widget_if_created().document
+    assert (doc.width, doc.height, doc.source_binding.archive_relative_path, doc.source_binding.package_root) == (
+        12, 9, entry.path, "0012")
+    assert archive.read_bytes() == png.getvalue()

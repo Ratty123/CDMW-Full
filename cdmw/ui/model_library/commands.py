@@ -85,18 +85,19 @@ class ModelLibraryCommandsMixin:
             return
         self._download_mirror_payloads(payloads, import_after=False, preview_after=False)
 
-    def download_selected_model(self, *, import_after: bool) -> None:
+    def download_selected_model(self, *, import_after: bool, choose_member=None) -> None:
         payload = self._selected_payload()
         if not payload:
             self._set_status("Select a model first.", error=True)
             return
         if payload.get("kind") != "mirror":
             if import_after:
-                self.use_selected_model_in_new_item_studio()
+                self.use_selected_model_in_new_item_studio(choose_member=choose_member)
             else:
                 self._set_status("Local models are already on disk.", error=True)
             return
-        self._download_mirror_payloads([payload], import_after=import_after, preview_after=False)
+        self._download_mirror_payloads([payload], import_after=import_after, preview_after=False,
+                                       choose_member=choose_member)
 
     def open_selected_file_url(self) -> None:
         payload = self._selected_payload()
@@ -147,6 +148,7 @@ class ModelLibraryCommandsMixin:
         *,
         import_after: bool,
         preview_after: bool,
+        choose_member=None,
     ) -> None:
         if self._task_thread is not None and self._task_thread.isRunning():
             self._set_status("A model library task is already running.", error=True)
@@ -281,11 +283,12 @@ class ModelLibraryCommandsMixin:
                 self._pending_model_action_after_task = lambda: self._continue_downloaded_model_action(
                     payload,
                     import_after=import_after,
+                    choose_member=choose_member,
                 )
 
         self._run_task("Downloading mirror model(s)...", task, complete)
 
-    def _continue_downloaded_model_action(self, payload: dict[str, object], *, import_after: bool) -> None:
+    def _continue_downloaded_model_action(self, payload: dict[str, object], *, import_after: bool, choose_member=None) -> None:
         def resolved(import_path: Path) -> None:
             action = self._new_item_tool_name() if import_after else "preview"
             self._set_status(f"Downloaded and extracted model; opening {action} from {import_path}.")
@@ -300,6 +303,7 @@ class ModelLibraryCommandsMixin:
                 "Downloaded archive does not contain an importable OBJ/FBX/DAE/glTF/GLB model.",
                 error=True,
             ),
+            choose_member=choose_member,
         )
 
     def delete_selected_local_models(self) -> None:
@@ -388,7 +392,7 @@ class ModelLibraryCommandsMixin:
             return
         self._set_status(f"Deleted {len(deleted):,} {item_label}(s) from disk.")
 
-    def use_selected_model_in_new_item_studio(self) -> None:
+    def use_selected_model_in_new_item_studio(self, *, choose_member=None) -> None:
         payload = self._selected_payload()
         if not payload:
             self._set_status("Select a model first.", error=True)
@@ -402,7 +406,7 @@ class ModelLibraryCommandsMixin:
                 self._set_status(
                     f"Downloading and extracting model before opening {self._new_item_tool_name()}..."
                 )
-                self.download_selected_model(import_after=True)
+                self.download_selected_model(import_after=True, choose_member=choose_member)
                 return
             path = Path(str(payload.get("path", "") or ""))
             self._set_status(
@@ -415,6 +419,7 @@ class ModelLibraryCommandsMixin:
             status="Resolving model for import...",
             on_resolved=resolved,
             on_missing=missing,
+            choose_member=choose_member,
         )
 
     def import_selected_model(self) -> None:

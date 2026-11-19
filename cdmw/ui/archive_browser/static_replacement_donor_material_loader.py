@@ -47,7 +47,7 @@ def load_donor_material_source(
                 sidecar_entry,
                 stop_event=stop_event,
             )
-            sidecar_text = try_decode_text_like_archive_data(sidecar_data) or ""
+            sidecar_text = try_decode_text_like_archive_data(sidecar_data, limit=None) or ""
         except RunCancelled:
             raise
         except Exception:

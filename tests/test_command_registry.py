@@ -81,12 +81,14 @@ def test_the_shell_menus_are_views_of_shell_commands(app, monkeypatch):
     for attribute in SHELL_ACTIONS.values():
         setattr(shell, attribute, QAction(attribute, shell))
     from cdmw.ui.commands.palette import PALETTE_COMMAND
+    from cdmw.ui.mesh_editor.saved_work_combine import COMMAND_ID as COMBINE_COMMAND
 
     registry = install_shell_commands(shell)
-    # The registry is the application's, so a main window built by an earlier test file leaves
-    # its palette command (installed with the window's shortcuts, not by install_shell_commands).
+    # The registry is the application's, so a main window or a Drafts & Mods page built by an
+    # earlier test file leaves its own commands (the palette, Combine into one mod), installed
+    # with the window and the page, not by install_shell_commands.
     assert {c.id for c in registry.commands("shell") if not c.id.startswith(TOOL_COMMAND_PREFIX)} - {
-        PALETTE_COMMAND} == set(SHELL_ACTIONS)
+        PALETTE_COMMAND, COMBINE_COMMAND} == set(SHELL_ACTIONS)
     shell._shell_busy = True
     shell._window_menu_state = (True, False, False)
     registry.refresh("shell")
@@ -218,6 +220,80 @@ def test_the_texture_editor_s_actions_are_registry_commands(app, monkeypatch, tm
         assert editor.action_open_file.property("_cdmw_command_id") == command_id("open_file")
     finally:
         editor.deleteLater()
+
+
+@pytest.mark.parametrize("destroy_first", ("editor", "registry"))
+def test_texture_command_owners_release_their_connections(app, monkeypatch, tmp_path, destroy_first):
+    import shiboken6
+    from PySide6.QtCore import QSettings, SIGNAL
+
+    from cdmw.ui.texture_editor_tab import TextureEditorTab
+    from cdmw.ui.texture_workflow import editor_commands
+
+    focus_signal = SIGNAL("focusChanged(QWidget*,QWidget*)")
+    menu_signal = SIGNAL("aboutToShow()")
+    listeners_before = app.receivers(focus_signal)
+    registry = CommandRegistry()
+    monkeypatch.setattr(editor_commands, "command_registry", lambda: registry)
+    settings = QSettings(str(tmp_path / "owners.ini"), QSettings.Format.IniFormat)
+
+    def make_editor():
+        return TextureEditorTab(settings=settings, base_dir=tmp_path, get_png_root=lambda: str(tmp_path))
+
+    editor = make_editor()
+    owners = registry._texture_editor_owners
+    try:
+        assert app.receivers(focus_signal) == listeners_before + 1
+        menu_listeners = editor.actions_menu.receivers(menu_signal)
+        registry.keymap_changed.emit()
+        assert app.receivers(focus_signal) == listeners_before + 1
+        assert editor.actions_menu.receivers(menu_signal) == menu_listeners
+        assert owners.current() is editor
+
+        if destroy_first == "editor":
+            # Keep the Python wrapper alive after its C++ widget is gone.
+            canvas = editor.canvas
+            retired = editor
+            editor = make_editor()
+            assert app.receivers(focus_signal) == listeners_before + 1
+            editor.actions_menu.aboutToShow.emit()
+            assert owners.current() is editor
+            retired.actions_menu.aboutToShow.emit()
+            assert owners.current() is retired
+            shiboken6.delete(retired)
+            assert app.receivers(focus_signal) == listeners_before + 1
+            owners.focus_changed(None, canvas)
+            owners.focus_changed(None, retired)
+            owners.select(retired)
+            assert owners.current() is editor
+
+            shiboken6.delete(editor)
+            assert app.receivers(focus_signal) == listeners_before
+            assert owners.current() is None
+            assert registry.reason(editor_commands.command_id("open_file")) == "Unavailable"
+
+            # A surviving registry resumes listening once for its next editor.
+            editor = make_editor()
+            assert app.receivers(focus_signal) == listeners_before + 1
+            assert owners.current() is editor
+        else:
+            refreshed = []
+            monkeypatch.setattr(registry, "refresh", refreshed.append)
+            shiboken6.delete(registry)
+            assert app.receivers(focus_signal) == listeners_before
+            assert editor.actions_menu.receivers(menu_signal) == menu_listeners - 1
+            editor.actions_menu.aboutToShow.emit()
+            owners.focus_changed(None, editor.canvas)
+            owners.select(editor)
+            assert owners.current() is None
+            assert refreshed == []
+    finally:
+        if shiboken6.isValid(editor):
+            editor.request_shutdown()
+            shiboken6.delete(editor)
+        if shiboken6.isValid(registry):
+            shiboken6.delete(registry)
+    assert app.receivers(focus_signal) == listeners_before
 
 
 def test_a_browse_command_shows_its_button_s_state_and_reason(app, monkeypatch):
