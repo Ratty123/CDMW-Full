@@ -524,11 +524,12 @@ class VanillaItemInfoTests(unittest.TestCase):
         payload = found["iteminfo.pabgb"]
         spans = table.row_spans(len(payload))
         keys = {row.row_id for row, _s, _e in spans}
-        equip = parse_pabgh_table(found["equiptypeinfo.pabgh"], payload=found["equiptypeinfo.pabgb"])
-        equip_names = {}
-        for row, start, _end in equip.row_spans(len(found["equiptypeinfo.pabgb"])):
-            length = struct.unpack_from("<I", found["equiptypeinfo.pabgb"], start + 4)[0]
-            equip_names[row.row_id] = found["equiptypeinfo.pabgb"][start + 8 : start + 8 + length].split(b"\x00", 1)[0].decode()
+        # The app's own EquipTypeInfo reader: compact rows (1.0.0.3392 onward) open with the
+        # length-prefixed name; the retired `.pabgb` rows had a u32 key in front of it.
+        from cdmw.core.archive_attachment_iteminfo import parse_attachment_equip_type_records
+        equip_records = parse_attachment_equip_type_records(found["equiptypeinfo.pabgb"], found["equiptypeinfo.pabgh"])
+        equip_names = {record.row_id: record.name for record in equip_records}
+        self.assertEqual(len(equip_names), len(parse_pabgh_table(found["equiptypeinfo.pabgh"]).rows))
         weapons = {"OneHandSword", "TwoHandSword", "OneHandMace", "TwoHandPike", "TwoHandSpear", "OneHandDagger", "TwoHandAxe", "OneHandAxe", "OneHandCannon", "OneHandPistol", "TwoHandGiantSword", "OneHandBow"}
         parsed = 0
         with_block = 0
