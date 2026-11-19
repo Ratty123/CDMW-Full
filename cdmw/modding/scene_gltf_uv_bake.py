@@ -201,13 +201,35 @@ def _derive_tangent_signs(submesh: SubMesh) -> list[float]:
     return [float(value) for value in signs]
 
 
+@dataclass(slots=True)
+class _NativeTangentFrame:
+    tangents: list[tuple[float, float, float]]
+    signs: list[float]
+    # ``None`` when MikkTSpace kept the input vertices. Otherwise MikkTSpace
+    # split vertices whose corners need different tangents (mirrored UV
+    # islands, seams that share a position, hard tangent edges): each output
+    # vertex names the input vertex it was copied from, and ``faces`` index
+    # the output vertices.
+    vertex_map: tuple[int, ...] | None = None
+    faces: list[tuple[int, int, int]] = dataclasses.field(default_factory=list)
+
+
+def _face_signatures(
+    faces: Sequence[Sequence[int]],
+    vertex_map: Sequence[int] | None = None,
+) -> Counter[tuple[int, ...]]:
+    if vertex_map is None:
+        return Counter(tuple(sorted(int(index) for index in face)) for face in faces)
+    return Counter(tuple(sorted(int(vertex_map[int(index)]) for index in face)) for face in faces)
+
+
 def _generate_native_tangent_frame(
     source: SubMesh,
     source_uvs: Sequence[Sequence[float]],
     label: str,
     *,
     stop_event: object,
-) -> tuple[list[tuple[float, float, float]], list[float]]:
+) -> _NativeTangentFrame:
     temporary_submesh = copy.copy(source)
     temporary_submesh.vertices = list(source.vertices)
     temporary_submesh.normals = list(source.normals)
@@ -234,24 +256,79 @@ def _generate_native_tangent_frame(
         if result is None:
             raise ValueError(f"glTF UV bake could not generate {label} MikkTSpace tangents. {GLTF_UV_BAKE_REMEDY}")
         output = temporary.submeshes[0]
+        source_count = len(source.vertices)
+        output_count = len(output.vertices)
+        vertex_map = tuple(int(value) for value in tuple(output.source_vertex_map or ()))
         if (
-            len(output.vertices) != len(source.vertices)
-            or list(output.source_vertex_map) != list(range(len(source.vertices)))
-            or Counter(tuple(sorted(face)) for face in output.faces)
-            != Counter(tuple(sorted(face)) for face in source.faces)
-            or len(output.tangents) != len(source.vertices)
+            len(output.tangents) != output_count
+            or len(vertex_map) != output_count
+            or any(index < 0 or index >= source_count for index in vertex_map)
         ):
-            raise ValueError("glTF UV bake source MikkTSpace requires unsupported topology splitting.")
+            raise ValueError(f"glTF UV bake received incomplete {label} MikkTSpace output.")
+        if _face_signatures(output.faces, vertex_map) != _face_signatures(source.faces):
+            raise ValueError(f"glTF UV bake {label} MikkTSpace output no longer matches the input triangles.")
+        split = output_count != source_count or vertex_map != tuple(range(source_count))
         tangent_report = getattr(output, "tangent_face_corner_report", {})
         backend = str(tangent_report.get("backend") or "") if isinstance(tangent_report, Mapping) else ""
         if backend and not backend.startswith("mikktspace"):
             raise ValueError(f"glTF UV bake source tangents used unsupported backend {backend}.")
         signs = list(tuple(getattr(output, "tangent_signs", ()) or ()))
-        if len(signs) != len(output.vertices):
+        if len(signs) != output_count:
             signs = _derive_tangent_signs(output)
-        return list(output.tangents), [1.0 if float(value) >= 0.0 else -1.0 for value in signs]
+        return _NativeTangentFrame(
+            tangents=list(output.tangents),
+            signs=[1.0 if float(value) >= 0.0 else -1.0 for value in signs],
+            vertex_map=vertex_map if split else None,
+            faces=[tuple(int(index) for index in face) for face in output.faces] if split else [],  # type: ignore[misc]
+        )
     finally:
         release_native_temporary_mesh_sessions(temporary, {0})
+
+
+def _remap_rows(values: Sequence[object], vertex_map: Sequence[int], old_count: int, what: str) -> list:
+    rows = list(values or ())
+    if not rows:
+        return rows
+    if len(rows) != old_count:
+        raise ValueError(f"glTF tangent vertex split found incomplete {what} data.")
+    return [rows[index] for index in vertex_map]
+
+
+_SPLIT_VERTEX_CHANNELS = (
+    "vertices",
+    "uvs",
+    "normals",
+    "bone_indices",
+    "bone_weights",
+    "source_vertex_map",
+    "source_vertex_offsets",
+    "shader_masks",
+    "vertex_colors",
+)
+_SPLIT_VERTEX_CHANNEL_MAPS = ("uv_sets", "morph_targets", "morph_normals", "morph_tangents")
+
+
+def _split_submesh_vertices(
+    submesh: SubMesh,
+    vertex_map: Sequence[int],
+    faces: Sequence[tuple[int, int, int]],
+) -> None:
+    """Copy every per-vertex channel onto MikkTSpace's split vertices."""
+
+    old_count = len(submesh.vertices)
+    for name in _SPLIT_VERTEX_CHANNELS:
+        setattr(submesh, name, _remap_rows(getattr(submesh, name, ()), vertex_map, old_count, name))
+    for name in _SPLIT_VERTEX_CHANNEL_MAPS:
+        channels = getattr(submesh, name, None)
+        if channels:
+            setattr(
+                submesh,
+                name,
+                {key: _remap_rows(rows, vertex_map, old_count, f"{name} {key}") for key, rows in channels.items()},
+            )
+    submesh.faces = list(faces)
+    submesh.vertex_count = len(submesh.vertices)
+    submesh.face_count = len(submesh.faces)
 
 
 def ensure_gltf_source_tangents(
@@ -260,20 +337,62 @@ def ensure_gltf_source_tangents(
     texcoord: int,
     *,
     stop_event: object = None,
-) -> None:
+) -> tuple[int, ...] | None:
+    """Give ``submesh`` a complete tangent frame for its normal map.
+
+    Returns ``None`` when the vertices were kept, or the output-to-input vertex
+    map when MikkTSpace had to split vertices. The caller remaps any per-vertex
+    data it keeps outside the submesh with that map.
+    """
+
     _tangents, _signs, valid = _valid_tangent_frame(submesh)
     if valid and all(valid):
-        return
+        return None
     if len(source_uvs) != len(submesh.vertices):
         raise ValueError(f"glTF normal tangent generation lost TEXCOORD_{texcoord}. {GLTF_UV_BAKE_REMEDY}")
-    tangents, signs = _generate_native_tangent_frame(
+    frame = _generate_native_tangent_frame(
         submesh,
         source_uvs,
         f"source TEXCOORD_{texcoord}",
         stop_event=stop_event,
     )
-    submesh.tangents = tangents
-    setattr(submesh, "tangent_signs", signs)
+    if frame.vertex_map is not None:
+        _split_submesh_vertices(submesh, frame.vertex_map, frame.faces)
+    submesh.tangents = frame.tangents
+    setattr(submesh, "tangent_signs", frame.signs)
+    return frame.vertex_map
+
+
+def _split_combined_material(combined: _CombinedMaterial, frame: _NativeTangentFrame) -> None:
+    vertex_map = frame.vertex_map
+    if vertex_map is None:
+        return
+    submesh = combined.mesh.submeshes[0]
+    old_count = len(submesh.vertices)
+    submesh.vertices = _remap_rows(submesh.vertices, vertex_map, old_count, "position")
+    submesh.normals = _remap_rows(submesh.normals, vertex_map, old_count, "normal")
+    submesh.faces = list(frame.faces)
+    submesh.vertex_count = len(submesh.vertices)
+    submesh.face_count = len(submesh.faces)
+    submesh.source_vertex_map = list(range(submesh.vertex_count))
+    combined.mesh.total_vertices = submesh.vertex_count
+    combined.mesh.total_faces = submesh.face_count
+    combined.source_uvs = {
+        texcoord: _remap_rows(rows, vertex_map, old_count, f"TEXCOORD_{texcoord}")
+        for texcoord, rows in combined.source_uvs.items()
+    }
+    combined.source_owners = _remap_rows(combined.source_owners, vertex_map, old_count, "owner")
+    combined.authored_tangents = _remap_rows(combined.authored_tangents, vertex_map, old_count, "tangent")
+    combined.authored_signs = _remap_rows(combined.authored_signs, vertex_map, old_count, "tangent sign")
+    combined.authored_valid = _remap_rows(combined.authored_valid, vertex_map, old_count, "tangent validity")
+    combined.source_tangent_frames = {
+        texcoord: (
+            _remap_rows(tangents, vertex_map, old_count, "tangent frame"),
+            _remap_rows(signs, vertex_map, old_count, "tangent frame sign"),
+        )
+        for texcoord, (tangents, signs) in combined.source_tangent_frames.items()
+    }
+    combined.input_face_signatures = _face_signatures(submesh.faces)  # type: ignore[assignment]
 
 
 def _generate_source_tangent_frame(
@@ -281,7 +400,7 @@ def _generate_source_tangent_frame(
     texcoord: int,
     *,
     stop_event: object,
-) -> tuple[list[tuple[float, float, float]], list[float]]:
+) -> _NativeTangentFrame:
     return _generate_native_tangent_frame(
         combined.mesh.submeshes[0],
         combined.source_uvs[texcoord],
@@ -303,8 +422,11 @@ def _prepare_source_tangent_frames(
                 list(combined.authored_signs),
             )
             continue
-        tangents, signs = _generate_source_tangent_frame(combined, texcoord, stop_event=stop_event)
-        combined.source_tangent_frames[texcoord] = (tangents, signs)
+        frame = _generate_source_tangent_frame(combined, texcoord, stop_event=stop_event)
+        # A split only adds copies of existing vertices, so frames already made
+        # for other UV sets carry over to the copies unchanged.
+        _split_combined_material(combined, frame)
+        combined.source_tangent_frames[texcoord] = (frame.tangents, frame.signs)
 
 
 def _layout_material_native(

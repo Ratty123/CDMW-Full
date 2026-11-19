@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import copy
+import dataclasses
 import json
 import re
 import struct
@@ -33,6 +34,7 @@ from .scene_gltf_embedded_images import (
 )
 from .scene_gltf_uv import (
     GltfMaterialUvPlan,
+    GltfPrimitiveUvInputs,
     _gltf_texture_info_texcoord,
     _gltf_texture_transform,
     _validate_gltf_image_payload,
@@ -247,7 +249,21 @@ def _collect_gltf_geometry(
             if not payload.preserve_authoring and uv_plan is not None and uv_inputs is not None and not uv_plan.requires_raster_bake and any(
                 "normal" in slot.slot_kind.lower() for slot in uv_plan.slots
             ):
-                ensure_gltf_source_tangents(copied, uv_inputs.rows(uv_plan.source_texcoord), uv_plan.source_texcoord, stop_event=stop_event)
+                split_map = ensure_gltf_source_tangents(
+                    copied, uv_inputs.rows(uv_plan.source_texcoord), uv_plan.source_texcoord, stop_event=stop_event
+                )
+                if split_map is not None:
+                    # MikkTSpace split vertices at tangent seams; keep the raw
+                    # UV rows aligned with the split submesh.
+                    uv_inputs = GltfPrimitiveUvInputs(
+                        uv_inputs.primitive_label,
+                        tuple(
+                            dataclasses.replace(
+                                uv_set, raw_gltf_uvs=tuple(uv_set.raw_gltf_uvs[index] for index in split_map)
+                            )
+                            for uv_set in uv_inputs.sets
+                        ),
+                    )
             _apply_gltf_preview_material_metadata(
                 copied,
                 material_index,
