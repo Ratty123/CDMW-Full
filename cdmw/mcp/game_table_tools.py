@@ -14,6 +14,7 @@ shell's worker as the dialog's buttons start them.
 from __future__ import annotations
 
 from types import SimpleNamespace
+from pathlib import Path
 
 from cdmw.mcp.errors import INVALID_ARGUMENTS, NOT_FOUND, REFUSED, UNAVAILABLE, ToolError
 from cdmw.mcp.names import EDIT, OUTPUT, READ
@@ -228,28 +229,38 @@ def _write(call):
 
 
 def _mods_folder(call, given):
-    """DMM's mods folder the dialog will write into, when CDMW can tell beforehand."""
+    """DMM's mods folder the dialog will write into.
+
+    A given dmm_folder is the only folder checked, and it is remembered as DMM's folder (as the dialog's own
+    chooser does when the user picks one), so the dialog writes where the tool says. Without one, the dialog's
+    own lookup applies: the remembered folder, then DMM's usual places.
+    """
 
     from PySide6.QtCore import QSettings
 
     from cdmw.services.settings_service import resolve_settings_file_path
     from cdmw.ui.new_item import dmm_send_ui
+    from cdmw.ui.widgets import request_settings_sync
 
     # The same settings file the dialog's own chooser reads.
     settings = QSettings(str(resolve_settings_file_path()), QSettings.Format.IniFormat)
-    remembered = str(settings.value(dmm_send_ui.DMM_FOLDER_SETTING, "") or "")
-    install = dmm_send_ui.find_dmm(remembered) if remembered else None
-    if install is None and given:
-        install = dmm_send_ui.find_dmm(str(given))
-    if install is None:
-        if not given:
+    if given:
+        install = Path(str(given))
+        if not (install / "DMM.exe").is_file():
+            raise ToolError(NOT_FOUND, f"{given} is not DMM's folder (the one that contains DMM.exe).")
+    else:
+        install = dmm_send_ui.find_dmm(str(settings.value(dmm_send_ui.DMM_FOLDER_SETTING, "") or ""))
+        if install is None:
             raise ToolError(INVALID_ARGUMENTS, "CDMW does not know DMM's folder yet. Give dmm_folder: the folder "
                                                "that contains DMM.exe.")
-        raise ToolError(NOT_FOUND, f"{given} is not DMM's folder (the one that contains DMM.exe).")
     try:
-        return dmm_send_ui.dmm_mods_folder(install)
+        mods = dmm_send_ui.dmm_mods_folder(install)
     except ValueError as exc:
         raise ToolError(NOT_FOUND, str(exc)) from None
+    if given:
+        settings.setValue(dmm_send_ui.DMM_FOLDER_SETTING, str(install))
+        request_settings_sync(settings)
+    return mods
 
 
 def game_table_tools():

@@ -25,6 +25,7 @@ def app():
 def browse(tmp_path, app, monkeypatch):
     import cdmw.services.settings_service as settings_service
     import cdmw.ui.archive_browser.game_table_actions as actions
+    import cdmw.services.dmm_send as dmm_send
     import cdmw.ui.new_item.dmm_send_ui as dmm_send_ui
     from cdmw.services.game_table_edits import TableModResult
 
@@ -37,6 +38,8 @@ def browse(tmp_path, app, monkeypatch):
     ini = tmp_path / "cdmw.ini"
     monkeypatch.setattr(settings_service, "resolve_settings_file_path", lambda: ini)
     monkeypatch.setattr(dmm_send_ui, "resolve_settings_file_path", lambda: ini)
+    # A real DMM install on the test machine must not be found.
+    monkeypatch.setattr(dmm_send, "usual_dmm_places", lambda: [str(tmp_path / "no-usual-dmm")])
     monkeypatch.setattr(actions, "archive_table_layers", lambda root, table, **_kw: layers())
     monkeypatch.setattr(actions, "write_table_edit_mod", write)
     monkeypatch.setattr(actions, "composed_files", lambda layer: {"inventory.staticinfobody": (None, layer.body)})
@@ -113,3 +116,27 @@ def test_write_needs_a_dmm_folder_it_can_find(browse, tmp_path) -> None:
     elsewhere = tmp_path / "not-dmm"
     elsewhere.mkdir()
     assert client.call("tables.editor_write", dmm_folder=str(elsewhere))["error"]["code"] == "not_found"
+
+
+def test_a_given_dmm_folder_is_the_one_written_and_remembered(browse, tmp_path) -> None:
+    from PySide6.QtCore import QSettings
+
+    from cdmw.services.dmm_send import DMM_FOLDER_SETTING
+
+    client, _browser, written, dmm = browse
+    other = tmp_path / "OtherDMM"
+    (other / "mods").mkdir(parents=True)
+    (other / "DMM.exe").write_bytes(b"")
+    settings = QSettings(str(tmp_path / "cdmw.ini"), QSettings.Format.IniFormat)
+    settings.setValue(DMM_FOLDER_SETTING, str(other))
+    settings.sync()
+
+    state = client.ok("tables.editor_edit", action="open", table="inventory")
+    money = next(row for row in state["rows"] if row["name"] == "Money")
+    values = client.ok("tables.editor_state", row=money["row"])["values"]
+    slots = next(value for value in values if value["label"] == "Maximum slots")
+    assert client.ok("tables.editor_edit", action="set", row=money["row"], value=slots["value"],
+                     new_value=500)["can_write"] is True
+    result = client.ok("tables.editor_write", name="Given", dmm_folder=str(dmm))
+    assert result["dmm_mods_folder"] == str(dmm / "mods") and written["parent"] == dmm / "mods"
+    assert QSettings(str(tmp_path / "cdmw.ini"), QSettings.Format.IniFormat).value(DMM_FOLDER_SETTING) == str(dmm)
