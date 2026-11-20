@@ -338,7 +338,7 @@ def test_dialog_applies_every_kind_of_edit_and_shows_the_reread_chart(qt_app, mo
     monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: asked.append(args[2]) or QMessageBox.StandardButton.Yes)
     data = chart_bytes()
     dialog = _editor(data, used_by=("Player_Kliff (Sword)",))
-    assert "Player_Kliff (Sword)" in dialog.header_label.text()
+    assert "Player_Kliff" in dialog.header_label.text() and "Player_Kliff (Sword)" in dialog.header_label.toolTip()
     assert dialog.animation_table.rowCount() == 2 and dialog.string_table.rowCount() == 2
     assert not dialog.apply_button.isEnabled() and not dialog.export_button.isEnabled()
 

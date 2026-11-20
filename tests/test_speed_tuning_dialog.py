@@ -166,3 +166,51 @@ def test_the_actions_open_the_window_and_the_game_table_editor(qt_app, monkeypat
     assert "removed" in text
     text = speed_export_message(SpeedExportResult(__import__("pathlib").Path("m"), "Fast", (PATH,), 2), False)
     assert "experimental" in text and PATH in text
+
+
+def test_the_window_opens_on_a_loading_page_and_fills_when_the_sets_are_read(qt_app):
+    dialog = SpeedTuningDialog((), load_set=lambda path: _chart(path), plan=lambda *args: ())
+    dialog.show_loading("Indexing the game's action charts and clips")
+    assert dialog.loading and "Indexing" in dialog.loading_detail.text()
+    dialog.set_characters((SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"),)),))
+    assert not dialog.loading and dialog.character_combo.count() == 1 and dialog.select_set(PATH)
+    dialog.show_load_error("No character action charts were found in the game archives.")
+    assert dialog.load_failed and "No character" in dialog.loading_detail.text()
+
+
+def test_opening_speed_tuning_shows_the_window_before_the_charts_are_read(qt_app):
+    from PySide6.QtWidgets import QWidget
+
+    from cdmw.ui.archive_browser.speed_tuning_actions import ArchiveSpeedTuningActionsMixin, PreparedSpeedTuning
+
+    tasks = []
+
+    class Browser(ArchiveSpeedTuningActionsMixin, QWidget):
+        def __init__(self):
+            super().__init__()
+            self.shell = SimpleNamespace(
+                set_status_message=lambda *args, **kwargs: None,
+                _run_utility_task_when_idle=lambda **kwargs: tasks.append(kwargs))
+
+        def _action_chart_root(self):
+            return "C:/game"
+
+        def _open_action_chart_editor(self, path):
+            pass
+
+    browser = Browser()
+    browser._open_speed_tuning(PATH)
+    dialog = browser._speed_tuning_dialogs[0]
+    assert dialog.isVisible() and dialog.loading and len(tasks) == 1
+    browser._open_speed_tuning()  # still reading: raises the same window, starts no second read
+    assert len(tasks) == 1 and browser._speed_tuning_dialogs == [dialog]
+    characters = (SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"),)),)
+    tasks[0]["on_complete"](PreparedSpeedTuning(SimpleNamespace(), characters))
+    assert not dialog.loading and dialog.set_list.currentItem() is not None
+    browser._open_speed_tuning()  # a second open raises the same window
+    assert len(tasks) == 1 and browser._speed_tuning_dialogs == [dialog]
+    dialog.close()
+    browser._open_speed_tuning()
+    tasks[-1]["on_error"]("The archives are not open.")
+    assert browser._speed_tuning_dialogs[-1].load_failed
+    assert "not open" in browser._speed_tuning_dialogs[-1].loading_detail.text()

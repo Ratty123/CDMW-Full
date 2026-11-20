@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -28,8 +29,10 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QSplitter,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -61,7 +64,19 @@ def _spin(name: str, value: float = 1.0) -> QDoubleSpinBox:
     box.setSuffix("x")
     box.setValue(value)
     box.setKeyboardTracking(False)
+    box.setMaximumWidth(120)
     return box
+
+
+def _hint(text: str, tooltip: str = "") -> QLabel:
+    """A one-line muted note; the longer explanation lives in its tooltip."""
+
+    label = QLabel(text)
+    label.setObjectName("HintLabel")
+    label.setWordWrap(True)
+    if tooltip:
+        label.setToolTip(tooltip)
+    return label
 
 
 def plan_summary(plans: Sequence[SpeedPlan]) -> str:
@@ -81,9 +96,6 @@ def plan_summary(plans: Sequence[SpeedPlan]) -> str:
             before = f"{kind.before[0]:g}" if kind.before[0] == kind.before[1] else f"{kind.before[0]:g} to {kind.before[1]:g}"
             after = f"{kind.after[0]:g}" if kind.after[0] == kind.after[1] else f"{kind.after[0]:g} to {kind.after[1]:g}"
             lines.append(f"  {kind.label}: {kind.values} speed window(s), rate {before} -> {after}")
-    lines.append("")
-    lines.append("Experimental: chart speed edits were seen working in game through Crimson Live Edit; "
-                 "check the result in game before sharing the mod.")
     return "\n".join(lines)
 
 
@@ -129,16 +141,27 @@ class SpeedTuningDialog(QDialog):
         self._review_timer.timeout.connect(self.refresh_review)
 
         layout = QVBoxLayout(self)
-        intro = QLabel(
-            "Experimental. Set how fast moves play and save the result as a DMM mod. A factor multiplies the "
-            "game's speed, so 2x plays twice as fast. The game files are only read. To try speeds in the "
-            "running game without a mod, use Crimson Live Edit."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        layout.setContentsMargins(12, 12, 12, 10)
+        layout.setSpacing(8)
+        header = QHBoxLayout()
+        header.setSpacing(10)
+        badge = QLabel("Experimental")
+        badge.setObjectName("WarningBadge")
+        badge.setToolTip("Chart speed edits were seen working in game through Crimson Live Edit. Prefab and game "
+                         "table speed edits have not been tested in game. Check the result in game before sharing.")
+        header.addWidget(badge)
+        header.addWidget(_hint(
+            "A factor multiplies the game's speed: 2x plays twice as fast. Exports a DMM mod; game files are only read.",
+            "To try speeds in the running game without a mod, use Crimson Live Edit."), 1)
+        layout.addLayout(header)
+        self.stack = QStackedWidget()
+        self.stack.setObjectName("speedTuningStack")
+        self.stack.addWidget(self._build_loading_page())
         self.tabs = QTabWidget()
         self.tabs.setObjectName("speedTuningTabs")
-        layout.addWidget(self.tabs, 1)
+        self.stack.addWidget(self.tabs)
+        self.stack.setCurrentWidget(self.tabs)
+        layout.addWidget(self.stack, 1)
         self.tabs.addTab(self._build_animation_page(), "Animation speed")
         self.tabs.addTab(self._build_prefab_page(prefab_categories), "Prefabs")
         self.tabs.addTab(self._build_table_page(), "Game tables")
@@ -152,93 +175,196 @@ class SpeedTuningDialog(QDialog):
         self._fill_characters()
         self._sync_buttons()
 
+    # --- loading ------------------------------------------------------------------------
+
+    def _build_loading_page(self) -> QWidget:
+        page = QWidget()
+        page.setObjectName("speedLoadingPage")
+        column = QVBoxLayout(page)
+        column.setSpacing(12)
+        column.addStretch(1)
+        self.loading_title = QLabel("Reading the game's action charts…")
+        self.loading_title.setObjectName("EmptyStateTitle")
+        self.loading_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_title.setWordWrap(True)
+        column.addWidget(self.loading_title)
+        self.loading_bar = QProgressBar()
+        self.loading_bar.setObjectName("speedLoadingBar")
+        self.loading_bar.setRange(0, 0)
+        self.loading_bar.setTextVisible(False)
+        self.loading_bar.setFixedWidth(320)
+        self.loading_bar.setMaximumHeight(10)
+        column.addWidget(self.loading_bar, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.loading_detail = QLabel("The first time takes a few seconds.")
+        self.loading_detail.setObjectName("EmptyStateDetail")
+        self.loading_detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_detail.setWordWrap(True)
+        column.addWidget(self.loading_detail)
+        column.addStretch(2)
+        return page
+
+    @property
+    def load_failed(self) -> bool:
+        return self.loading and not self.loading_bar.isVisibleTo(self)
+
+    @property
+    def loading(self) -> bool:
+        return self.stack.currentIndex() == 0
+
+    def show_loading(self, detail: str = "") -> None:
+        """Show the loading page while the caller reads the charts on a worker."""
+
+        self.loading_title.setText("Reading the game's action charts…")
+        self.loading_bar.setVisible(True)
+        if detail:
+            self.loading_detail.setText(detail)
+        self.stack.setCurrentIndex(0)
+
+    def show_load_error(self, message: str) -> None:
+        self.loading_title.setText("Speed Tuning could not read the action charts.")
+        self.loading_bar.setVisible(False)
+        self.loading_detail.setText(str(message))
+        self.stack.setCurrentIndex(0)
+
+    def set_characters(self, characters: Sequence[SpeedCharacter]) -> None:
+        """Fill the sets once they are read, and leave the loading page."""
+
+        self._characters = tuple(characters)
+        self._fill_characters()
+        self.stack.setCurrentWidget(self.tabs)
+        self._sync_buttons()
+
     # --- building -----------------------------------------------------------------------
 
     def _build_animation_page(self) -> QWidget:
         page = QWidget()
         page.setObjectName("speedAnimationPage")
         row = QHBoxLayout(page)
+        row.setContentsMargins(8, 8, 8, 8)
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(10)
         row.addWidget(splitter)
 
-        left = QWidget()
+        left = QGroupBox("Set")
+        left.setToolTip("A set is one action chart: the moves of one weapon or stance.")
         left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.addWidget(QLabel("Character:"))
+        left_layout.setSpacing(6)
         self.character_combo = QComboBox()
         self.character_combo.setObjectName("speedCharacterCombo")
+        self.character_combo.setToolTip("Character")
         self.character_combo.currentIndexChanged.connect(lambda _index: self._fill_sets())
         left_layout.addWidget(self.character_combo)
         self.set_filter_edit = QLineEdit()
         self.set_filter_edit.setObjectName("speedSetFilterEdit")
         self.set_filter_edit.setPlaceholderText("Search sets...")
+        self.set_filter_edit.setClearButtonEnabled(True)
         self.set_filter_edit.textChanged.connect(lambda _text: self._filter_sets())
         left_layout.addWidget(self.set_filter_edit)
         self.set_list = QListWidget()
         self.set_list.setObjectName("speedSetList")
+        self.set_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.set_list.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.set_list.currentItemChanged.connect(lambda _current, _previous: self._open_selected_set())
         left_layout.addWidget(self.set_list, 1)
+        left.setMinimumWidth(240)
         splitter.addWidget(left)
 
         right = QWidget()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(8)
+        heading_box = QWidget()
+        heading = QVBoxLayout(heading_box)
+        heading.setContentsMargins(0, 0, 0, 0)
+        heading.setSpacing(2)
         self.set_title_label = QLabel("Choose a set.")
         self.set_title_label.setObjectName("speedSetTitleLabel")
+        self.set_title_label.setStyleSheet("font-size: 13pt; font-weight: 600;")
         self.set_title_label.setWordWrap(True)
-        right_layout.addWidget(self.set_title_label)
+        self.set_title_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        heading.addWidget(self.set_title_label)
+        self.set_path_label = _hint("")
+        self.set_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        heading.addWidget(self.set_path_label)
+        right_layout.addWidget(heading_box)
         self.served_label = QLabel()
         self.served_label.setObjectName("speedServedByLabel")
-        self.served_label.setWordWrap(True)
         self.served_label.setStyleSheet("color: #d9822b;")
+        self.served_label.setWordWrap(True)
+        self.served_label.setVisible(False)
         right_layout.addWidget(self.served_label)
 
-        grid = QGridLayout()
-        grid.addWidget(QLabel("Whole set (ActionSpeedRate):"), 0, 0)
+        factors = QGroupBox("Speed factors")
+        factors.setToolTip("A kind's factor applies to every move of that kind; a move's own factor wins over it.")
+        grid = QGridLayout(factors)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(6)
+        whole = QLabel("Whole set:")
+        whole.setToolTip("ActionSpeedRate: scales every move in this set.")
+        grid.addWidget(whole, 0, 0)
         self.set_factor_spin = _spin("speedSetFactorSpin")
+        self.set_factor_spin.setToolTip("ActionSpeedRate: scales every move in this set.")
         self.set_factor_spin.valueChanged.connect(lambda _value: self._changed())
         grid.addWidget(self.set_factor_spin, 0, 1)
         self.kind_spins: dict[str, QDoubleSpinBox] = {}
         self.kind_labels: dict[str, QLabel] = {}
-        for number, (kind, label) in enumerate(KIND_LABELS.items()):
+        for number, (kind, label) in enumerate(KIND_LABELS.items(), start=1):
             text = QLabel(label + ":")
             spin = _spin(f"speedKindFactor_{kind}")
             spin.valueChanged.connect(lambda _value: self._kind_changed())
-            line, column = 1 + number // 2, (number % 2) * 2
+            line, column = number // 3, (number % 3) * 3
             grid.addWidget(text, line, column)
             grid.addWidget(spin, line, column + 1)
             self.kind_spins[kind] = spin
             self.kind_labels[kind] = text
-        right_layout.addLayout(grid)
+        for spacer in (2, 5):
+            grid.setColumnMinimumWidth(spacer, 18)
+        grid.setColumnStretch(8, 1)
+        right_layout.addWidget(factors)
 
+        moves = QGroupBox("Moves")
+        moves_layout = QVBoxLayout(moves)
+        moves_layout.setSpacing(6)
         self.move_filter_edit = QLineEdit()
         self.move_filter_edit.setObjectName("speedMoveFilterEdit")
         self.move_filter_edit.setPlaceholderText("Filter moves...")
+        self.move_filter_edit.setClearButtonEnabled(True)
         self.move_filter_edit.textChanged.connect(lambda _text: self._filter_moves())
-        right_layout.addWidget(self.move_filter_edit)
+        moves_layout.addWidget(self.move_filter_edit)
         self.move_table = QTableWidget(0, len(_MOVE_COLUMNS))
         self.move_table.setObjectName("speedMoveTable")
         self.move_table.setHorizontalHeaderLabels(list(_MOVE_COLUMNS))
-        self.move_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header = self.move_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column in range(1, len(_MOVE_COLUMNS)):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         self.move_table.verticalHeader().setVisible(False)
         self.move_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        right_layout.addWidget(self.move_table, 2)
-
-        self.linked_checkbox = QCheckBox("Also change these moves in the charts that include this set's clips")
+        self.move_table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self.move_table.setWordWrap(False)
+        moves_layout.addWidget(self.move_table, 1)
+        linked_row = QHBoxLayout()
+        linked_row.setSpacing(10)
+        self.linked_checkbox = QCheckBox("Also change linked charts")
         self.linked_checkbox.setObjectName("speedLinkedCheckbox")
+        self.linked_checkbox.setToolTip("Also change these moves in the charts that include this set's clips.")
         self.linked_checkbox.toggled.connect(lambda _checked: self._changed())
-        right_layout.addWidget(self.linked_checkbox)
-        self.linked_label = QLabel()
+        linked_row.addWidget(self.linked_checkbox)
+        self.linked_label = _hint("")
         self.linked_label.setObjectName("speedLinkedLabel")
-        self.linked_label.setWordWrap(True)
-        right_layout.addWidget(self.linked_label)
+        linked_row.addWidget(self.linked_label, 1)
+        moves_layout.addLayout(linked_row)
+        right_layout.addWidget(moves, 1)
 
-        right_layout.addWidget(QLabel("Review:"))
+        review = QGroupBox("Review")
+        review_layout = QVBoxLayout(review)
         self.review_text = QPlainTextEdit()
         self.review_text.setObjectName("speedReviewText")
         self.review_text.setReadOnly(True)
-        self.review_text.setMaximumHeight(150)
-        right_layout.addWidget(self.review_text, 1)
+        self.review_text.setMaximumHeight(72)
+        review_layout.addWidget(self.review_text)
+        right_layout.addWidget(review)
 
         buttons = QHBoxLayout()
         self.reset_button = QPushButton("Reset to 1x")
@@ -246,9 +372,11 @@ class SpeedTuningDialog(QDialog):
         self.reset_button.clicked.connect(self.reset_factors)
         self.open_chart_button = QPushButton("Open in Action Chart Editor")
         self.open_chart_button.setObjectName("speedOpenChartButton")
+        self.open_chart_button.setToolTip("Edit this set's clips, timing and events by hand.")
         self.open_chart_button.clicked.connect(self._open_in_editor)
         self.export_button = QPushButton("Export DMM Mod...")
         self.export_button.setObjectName("speedExportButton")
+        self.export_button.setProperty("primaryAction", True)
         self.export_button.clicked.connect(self._export_clicked)
         buttons.addWidget(self.reset_button)
         buttons.addStretch(1)
@@ -256,21 +384,20 @@ class SpeedTuningDialog(QDialog):
         buttons.addWidget(self.export_button)
         right_layout.addLayout(buttons)
         splitter.addWidget(right)
-        splitter.setSizes([330, 850])
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([280, 880])
         return page
 
     def _build_prefab_page(self, categories: Sequence[tuple[str, str]]) -> QWidget:
         page = QWidget()
         page.setObjectName("speedPrefabPage")
         layout = QVBoxLayout(page)
-        intro = QLabel(
-            "Experimental. Prefabs hold speeds for effects, scene cameras, moving and wind-driven objects, NPC "
-            "walking routes and weather, not for the player's moves. Search, then open a prefab in the Prefab "
-            "Inspector with its Speed values filter on, and use Scale by factor there. Prefab speed edits have "
-            "not been tested in game."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.addWidget(_hint(
+            "Speeds for effects, scene cameras, moving objects, NPC routes and weather. Not the player's moves.",
+            "Search, then open a prefab in the Prefab Inspector with its Speed values filter on, and use Scale by "
+            "factor there. Prefab speed edits have not been tested in game."))
         row = QHBoxLayout()
         row.addWidget(QLabel("Category:"))
         self.prefab_category_combo = QComboBox()
@@ -281,6 +408,7 @@ class SpeedTuningDialog(QDialog):
         row.addWidget(self.prefab_category_combo, 1)
         self.prefab_search_button = QPushButton("Search Prefabs")
         self.prefab_search_button.setObjectName("speedPrefabSearchButton")
+        self.prefab_search_button.setToolTip("The first search reads every prefab and takes a few minutes.")
         self.prefab_search_button.clicked.connect(self._search_prefabs)
         self.prefab_search_button.setEnabled(self._prefab_search is not None)
         row.addWidget(self.prefab_search_button)
@@ -311,21 +439,25 @@ class SpeedTuningDialog(QDialog):
         page = QWidget()
         page.setObjectName("speedTablePage")
         layout = QVBoxLayout(page)
-        intro = QLabel(
-            "Experimental. Two game tables hold speeds: AI movement speeds (each AI move type's move, minimum and "
-            "turn speed) and the speed rate of pushed objects. They open in Edit Game Table Values, which writes "
-            "a DMM mod. Units are not known, and these edits have not been tested in game."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(10)
+        layout.addWidget(_hint(
+            "Game tables open in Edit Game Table Values, which writes a DMM mod.",
+            "Units are not known, and these edits have not been tested in game."))
         self.table_buttons: dict[str, QPushButton] = {}
-        for table, label in (("aimovespeedinfo", "Open AI Movement Speeds..."),
-                             ("gimmickinfo", "Open Pushed Object Speed...")):
+        for table, title, detail, label in (
+                ("aimovespeedinfo", "AI movement speeds", "Move, minimum and turn speed of each AI move type.",
+                 "Open AI Movement Speeds..."),
+                ("gimmickinfo", "Pushed objects", "How fast objects move when pushed.", "Open Pushed Object Speed...")):
+            card = QGroupBox(title)
+            card_layout = QHBoxLayout(card)
+            card_layout.addWidget(_hint(detail), 1)
             button = QPushButton(label)
             button.setObjectName(f"speedTableButton_{table}")
             button.setEnabled(self._open_game_table is not None)
             button.clicked.connect(lambda _checked=False, name=table: self._open_table(name))
-            layout.addWidget(button)
+            card_layout.addWidget(button)
+            layout.addWidget(card)
             self.table_buttons[table] = button
         layout.addStretch(1)
         return page
@@ -389,6 +521,7 @@ class SpeedTuningDialog(QDialog):
             chart = self._load_set(path)
         except Exception as exc:  # noqa: BLE001 - shown to the user
             self.set_title_label.setText(f"Could not read {path}: {exc}")
+            self.set_path_label.setText("")
             self._chart = None
             self._sync_buttons()
             return
@@ -405,11 +538,15 @@ class SpeedTuningDialog(QDialog):
         self._linked = tuple(linked)
         self._filling = True
         try:
-            self.set_title_label.setText(f"{chart.label}  ({chart.path}), whole set rate {chart.rate:g}"
-                                         + (f". Factors from the mod {chart.mod}." if chart.mod else ""))
+            self.set_title_label.setText(chart.label)
+            if chart.mod:
+                self.set_path_label.setText(f"{chart.path} · whole set rate {chart.rate:g} · factors from the mod {chart.mod}")
+            else:
+                self.set_path_label.setText(f"{chart.path} · whole set rate {chart.rate:g}")
             self.served_label.setText(
                 f"The mounted DMM mod {chart.served_by} already serves this chart. A mod exported here competes "
                 "with it in DMM's load order." if chart.served_by else "")
+            self.served_label.setVisible(bool(chart.served_by))
             self.set_factor_spin.setValue(float(chart.factors.set))
             kinds = {kind for kind, _label, _count in chart.kinds()}
             counts = {kind: count for kind, _label, count in chart.kinds()}
@@ -424,15 +561,18 @@ class SpeedTuningDialog(QDialog):
             self.linked_checkbox.setEnabled(bool(self._linked))
             self.linked_checkbox.setChecked(bool(included))
             if self._linked:
-                text = "Other charts play some of these clips: " + ", ".join(
-                    f"{path} (included by this set)" for path in included)
-                if others:
-                    text += (", " if included else "") + ", ".join(others[:6]) + (
-                        f" and {len(others) - 6} more" if len(others) > 6 else "")
-                self.linked_label.setText(text + ". A move can play from another chart, so a change here alone "
-                                                 "can show nothing in game.")
+                if included:
+                    self.linked_label.setText(f"{len(self._linked)} other chart(s) play some of these clips, "
+                                              f"{len(included)} included by this set.")
+                else:
+                    self.linked_label.setText(f"{len(self._linked)} other chart(s) play some of these clips.")
+                self.linked_label.setToolTip(
+                    "A move can play from another chart, so a change here alone can show nothing in game.\n\n"
+                    + "\n".join([f"{path} (included by this set)" for path in included] + others[:20]
+                                 + ([f"and {len(others) - 20} more"] if len(others) > 20 else [])))
             else:
                 self.linked_label.setText("")
+                self.linked_label.setToolTip("")
         finally:
             self._filling = False
         self._changed()

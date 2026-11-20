@@ -238,3 +238,14 @@ def test_show_again_reuses_the_open_window_and_the_helper_check(monkeypatch, fin
     other.archive = other
     other.archive_catalogue_service = SimpleNamespace(npc_catalog_available=False)
     assert feature.show_npc_finder(other) is None and "updated archive helper" in messages[0]
+
+
+def test_a_busy_bar_shows_while_the_catalogue_is_read(finder) -> None:
+    dialog, service, *_ = finder
+    dialog.show()
+    assert dialog._busy.isVisible()
+    _ready(dialog, service)
+    service.answer("outfit", _outfit())
+    assert not dialog._busy.isVisible()
+    assert dialog._results.columnCount() == 4 and "NHM_Unique_Russo_622" in dialog._results.item(0, 0).toolTip()
+    assert dialog._variant.currentText().endswith("cd_nhm_south_10335.app_xml") and dialog._variant.toolTip() == ROSS_APP

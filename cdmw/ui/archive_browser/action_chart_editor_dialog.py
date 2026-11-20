@@ -234,19 +234,38 @@ class ActionChartEditorDialog(QDialog):
         self.setWindowTitle(title or "Action Chart Editor")
         self._fit_to_screen()
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 10)
+        layout.setSpacing(8)
+        top = QHBoxLayout()
+        top.setSpacing(10)
+        heading_box = QWidget()
+        heading = QVBoxLayout(heading_box)
+        heading.setContentsMargins(0, 0, 0, 0)
+        heading.setSpacing(2)
+        self.title_label = QLabel(_file_name(self._path))
+        self.title_label.setObjectName("actionChartTitleLabel")
+        self.title_label.setStyleSheet("font-size: 12pt; font-weight: 600;")
+        self.title_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        heading.addWidget(self.title_label)
         self.header_label = QLabel()
+        self.header_label.setObjectName("HintLabel")
         self.header_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.header_label.setWordWrap(True)
-        layout.addWidget(self.header_label)
-        warning = QLabel(
+        heading.addWidget(self.header_label)
+        top.addWidget(heading_box, 1)
+        warning = QLabel("Experimental")
+        warning.setObjectName("WarningBadge")
+        warning.setToolTip(
             "Action chart editing is new and has not been confirmed in game. Your game files are not changed: "
             "the edited chart is written into a DMM mod folder that you enable in DMM."
         )
-        warning.setWordWrap(True)
-        layout.addWidget(warning)
+        top.addWidget(warning, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(top)
 
         rate_row = QHBoxLayout()
-        rate_row.addWidget(QLabel("Chart speed rate (ActionSpeedRate):"))
+        rate_label = QLabel("Chart speed rate:")
+        rate_label.setToolTip("ActionSpeedRate: scales the playback speed of every animation in this chart.")
+        rate_row.addWidget(rate_label)
         self.rate_spin = QDoubleSpinBox()
         self.rate_spin.setDecimals(4)
         self.rate_spin.setRange(0.0001, 100.0)
@@ -281,6 +300,7 @@ class ActionChartEditorDialog(QDialog):
         self.reset_button = QPushButton("Reset to Shipped")
         self.reset_button.clicked.connect(self._reset)
         self.export_button = QPushButton("Export DMM Mod...")
+        self.export_button.setProperty("primaryAction", True)
         self.export_button.clicked.connect(self._export)
         self.close_button = QPushButton("Close")
         self.close_button.clicked.connect(self.reject)
@@ -380,14 +400,15 @@ class ActionChartEditorDialog(QDialog):
         clip_buttons.addStretch(1)
         grid.addLayout(clip_buttons, 3, 1)
         self.clip_info_label = QLabel()
-        self.clip_info_label.setWordWrap(True)
+        self.clip_info_label.setObjectName("HintLabel")
         grid.addWidget(self.clip_info_label, 4, 1)
-        resource_hint = QLabel(
+        resource_hint = (
             "Clip paths are relative to character/motion/. If the new clip is longer or shorter, "
             "change Clip start and Clip end under Timing."
         )
-        resource_hint.setWordWrap(True)
-        grid.addWidget(resource_hint, 5, 0, 1, 2)
+        resources.setToolTip(resource_hint)
+        self.clip_edit.setToolTip(resource_hint)
+        grid.setColumnStretch(1, 1)
         self.detail_splitter.addWidget(resources)
 
         timing = QGroupBox("Timing")
@@ -405,12 +426,10 @@ class ActionChartEditorDialog(QDialog):
         self.value_table.itemChanged.connect(self._value_edited)
         self.value_table.setMinimumHeight(140)
         timing_layout.addWidget(self.value_table)
-        timing_hint = QLabel(
+        timing.setToolTip(
             "Some moves, such as dodges and rolls, may play from the character's lower-body chart "
             "(for Kliff, basic_lower). If a timing change does not show in game, check that chart too."
         )
-        timing_hint.setWordWrap(True)
-        timing_layout.addWidget(timing_hint)
         self.detail_splitter.addWidget(timing)
 
         events = QGroupBox("Frame events")
@@ -475,11 +494,13 @@ class ActionChartEditorDialog(QDialog):
     def _build_strings_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        hint = QLabel(
-            "Replacing an entry changes everything in this chart that names it: every animation that plays a clip, "
-            "every event that uses a socket or effect. To change one animation or one event, use the Animations tab."
-        )
+        hint = QLabel("Replacing an entry changes everything in this chart that names it.")
+        hint.setObjectName("HintLabel")
         hint.setWordWrap(True)
+        hint.setToolTip(
+            "Every animation that plays a clip, every event that uses a socket or effect. To change one animation "
+            "or one event, use the Animations tab."
+        )
         layout.addWidget(hint)
         row = QHBoxLayout()
         row.addWidget(QLabel("Table:"))
@@ -545,7 +566,8 @@ class ActionChartEditorDialog(QDialog):
         self.remove_pending_button.clicked.connect(self._remove_pending)
         pending_layout.addWidget(self.remove_pending_button)
         layout.addWidget(pending_box, 1)
-        changes_box = QGroupBox("Changes from the shipped chart, read back from the edited chart")
+        changes_box = QGroupBox("Changes from the shipped chart")
+        changes_box.setToolTip("Read back from the edited chart, so each line is a value the new chart holds.")
         changes_layout = QVBoxLayout(changes_box)
         self.changes_view = QPlainTextEdit()
         self.changes_view.setReadOnly(True)
@@ -577,13 +599,17 @@ class ActionChartEditorDialog(QDialog):
 
     def _refresh_all(self) -> None:
         chart = self._chart
-        self.header_label.setText(
-            f"{self._path}\n{len(chart.animations):,} animations, {len(chart.tables[1].raw):,} clips"
-        )
+        text = f"{self._path}\n{len(chart.animations):,} animations, {len(chart.tables[1].raw):,} clips"
         if self._used_by:
-            self.header_label.setText(
-                self.header_label.text() + "\n" + f"Used by: {', '.join(self._used_by)}"
-            )
+            # Entries read "Player_Kliff (Selector, via ...)": the header names the users, the tooltip says how.
+            names = list(dict.fromkeys(user.split(" (", 1)[0] for user in self._used_by))
+            shown = ", ".join(names[:3])
+            if len(names) > 3:
+                text = text + "\n" + f"Used by: {shown} and {len(names) - 3} more"
+            else:
+                text = text + "\n" + f"Used by: {shown}"
+        self.header_label.setText(text)
+        self.header_label.setToolTip("Used by:\n" + "\n".join(self._used_by) if self._used_by else "")
         self._filling = True
         try:
             self.rate_spin.setValue(self._pending_values.get(chart_rate_row(chart).key, chart.action_speed_rate))
@@ -656,12 +682,14 @@ class ActionChartEditorDialog(QDialog):
         others = self._other_charts(clip)
         self.other_charts_button.setEnabled(bool(others) and not self.busy())
         if others:
-            self.clip_info_label.setText(
-                f"{_file_name(clip)} is also played by {len(others)} other chart(s). "
-                "If an edit shows no change in game, the animation may come from one of them."
+            self.clip_info_label.setText(f"{_file_name(clip)} is also played by {len(others)} other chart(s).")
+            self.clip_info_label.setToolTip(
+                "If an edit shows no change in game, the animation may come from one of them.\n\n"
+                + "\n".join(use.chart for use in others[:20])
             )
         else:
             self.clip_info_label.setText(f"No other chart plays {_file_name(clip)}.")
+            self.clip_info_label.setToolTip("")
 
     def _open_other_charts(self) -> None:
         from cdmw.ui.archive_browser.action_chart_link_dialog import ActionChartLinkDialog

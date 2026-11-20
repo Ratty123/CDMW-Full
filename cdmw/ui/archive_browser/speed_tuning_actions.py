@@ -12,8 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Optional, Sequence
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
+from shiboken6 import isValid
 
 from cdmw.core.action_chart_binary import ActionChartError
 from cdmw.domain.archives.prefab_speed import CATEGORIES
@@ -65,20 +66,60 @@ class ArchiveSpeedTuningActionsMixin:
     """Open Speed Tuning, export its mods, and search prefabs for speed values."""
 
     def _open_speed_tuning(self, chart_path: str = "") -> None:
+        """Open the window at once on its loading page, read the charts on a worker, then fill it."""
+
+        # A window still reading the charts is raised too, so a second click starts no second read.
+        existing = next((dialog for dialog in getattr(self, "_speed_tuning_dialogs", None) or ()
+                         if isValid(dialog) and not dialog.load_failed), None)
+        if existing is not None:
+            if chart_path and not existing.loading:
+                existing.select_set(chart_path)
+            existing.show()
+            existing.raise_()
+            existing.activateWindow()
+            return
         root = self._action_chart_root()
         status_message = "Preparing Speed Tuning (experimental)..."
         self.shell.set_status_message(status_message)
+        state: dict[str, object] = {}
+        dialog = self._show_speed_tuning(None, chart_path, state=state)
+        relay = _LoadingRelay(self)
+        relay.message.connect(lambda text: isValid(dialog) and dialog.loading and dialog.show_loading(text))
+
+        def _task(log: Callable[[str], None]) -> PreparedSpeedTuning:
+            def _log(text: str) -> None:
+                log(text)
+                relay.message.emit(text)
+            return prepare_speed_tuning(root, _log)
+
+        def _failed(message: str) -> None:
+            relay.deleteLater()
+            if isValid(dialog):
+                dialog.show_load_error(message)
 
         def _done(result: object) -> None:
             if not isinstance(result, PreparedSpeedTuning):
                 self.shell.set_status_message(f"Could not open Speed Tuning: {result!r}", error=True)
+                _failed(str(result))
                 return
-            self._show_speed_tuning(result, chart_path)
+            relay.deleteLater()
+            if not isValid(dialog):
+                return
+            state["index"] = result.index
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                dialog.set_characters(result.characters)
+            finally:
+                QApplication.restoreOverrideCursor()
+            if chart_path:
+                dialog.select_set(chart_path)
+            self.shell.set_status_message("Speed Tuning (experimental) is ready.")
 
         self.shell._run_utility_task_when_idle(
             status_message=status_message,
-            task=lambda log: prepare_speed_tuning(root, log),
+            task=_task,
             on_complete=_done,
+            on_error=_failed,
             show_archive_progress=True,
         )
 
@@ -86,36 +127,42 @@ class ArchiveSpeedTuningActionsMixin:
         entry = self._current_archive_action_chart_entry()
         self._open_speed_tuning(entry.path if entry is not None else "")
 
-    def _show_speed_tuning(self, prepared: PreparedSpeedTuning, chart_path: str = ""):
+    def _show_speed_tuning(self, prepared: Optional[PreparedSpeedTuning], chart_path: str = "", *,
+                           state: Optional[dict] = None):
+        """The window; without ``prepared`` it opens on its loading page until ``state["index"]`` is set."""
+
         from cdmw.ui.archive_browser.speed_tuning_dialog import SpeedTuningDialog
 
-        index = prepared.index
+        state = {} if state is None else state
+        if prepared is not None:
+            state["index"] = prepared.index
         holder: dict[str, object] = {}
+
+        def index() -> ChartArchiveIndex:
+            return state["index"]  # type: ignore[return-value]
 
         def _linked(path: str):
             try:
-                return linked_sets(index, _read, path)
+                return linked_sets(index(), _read, path)
             except (ActionChartError, OSError, ValueError):
                 return ()
 
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            dialog = SpeedTuningDialog(
-                prepared.characters,
-                load_set=lambda path: read_speed_set(index, _read, path, mod_folder=holder.get("mod_folder")),
-                plan=lambda path, factors, linked: plan_speed_set(index, _read, path, factors, linked=linked),
-                linked_of=_linked,
-                export=lambda path, factors, linked: self._export_speed_tuning(dialog, index, path, factors, linked,
-                                                                               holder),
-                open_chart=self._open_action_chart_editor,
-                prefab_search=lambda category: self._search_speed_prefabs(dialog, index, category),
-                open_prefab=lambda path: self._open_speed_prefab(index, path),
-                prefab_categories=tuple(CATEGORIES.items()),
-                open_game_table=self._open_speed_game_table,
-                parent=self,
-            )
-        finally:
-            QApplication.restoreOverrideCursor()
+        dialog = SpeedTuningDialog(
+            prepared.characters if prepared is not None else (),
+            load_set=lambda path: read_speed_set(index(), _read, path, mod_folder=holder.get("mod_folder")),
+            plan=lambda path, factors, linked: plan_speed_set(index(), _read, path, factors, linked=linked),
+            linked_of=_linked,
+            export=lambda path, factors, linked: self._export_speed_tuning(dialog, index(), path, factors, linked,
+                                                                           holder),
+            open_chart=self._open_action_chart_editor,
+            prefab_search=lambda category: self._search_speed_prefabs(dialog, index(), category),
+            open_prefab=lambda path: self._open_speed_prefab(index(), path),
+            prefab_categories=tuple(CATEGORIES.items()),
+            open_game_table=self._open_speed_game_table,
+            parent=self,
+        )
+        if prepared is None:
+            dialog.show_loading()
         dialogs = getattr(self, "_speed_tuning_dialogs", None)
         if dialogs is None:
             dialogs = []
@@ -124,7 +171,7 @@ class ArchiveSpeedTuningActionsMixin:
         dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         dialog.finished.connect(lambda _result, d=dialog: d in dialogs and dialogs.remove(d))
         dialog.setModal(False)
-        if chart_path:
+        if chart_path and prepared is not None:
             dialog.select_set(chart_path)
         dialog.show()
         return dialog
@@ -225,6 +272,12 @@ class ArchiveSpeedTuningActionsMixin:
             self.shell.set_status_message(f"Could not read {path}: {exc}", error=True)
             return
         self._show_prefab_inspector(entry, data, {}, speed_filter=True)
+
+
+class _LoadingRelay(QObject):
+    """Carries the worker's progress lines to the loading page on the UI thread."""
+
+    message = Signal(str)
 
 
 @dataclass(frozen=True, slots=True)
