@@ -10709,3 +10709,52 @@ fn browse_shown_around_an_edit_hides_the_editor_s_panels_and_gives_them_back() -
     );
     Ok(())
 }
+
+#[test]
+fn host_view_state_sets_the_panels_values_and_reports_them() -> TestResult {
+    let mut application = two_part_application()?;
+    let before = application.view_state_report();
+    application.apply_host_view_state(crate::cdmw_session::ViewStateChange {
+        selection_shape: Some("lasso"),
+        selection_operation: Some("subtract"),
+        selection_xray: Some(true),
+        brush_radius: Some(80.0),
+        brush_strength: Some(-0.5),
+        brush_falloff: Some("constant"),
+        colours: vec![("wire", [0x10, 0x20, 0x30]), ("grid", [1, 2, 3])],
+        wire_width: Some(2.0),
+        vertex_size: Some(4.0),
+        hide_parts: vec![1, 9],
+        ..Default::default()
+    });
+    let state = application.view_state_report();
+    assert_eq!(state["selection_shape"], "lasso");
+    assert_eq!(state["selection_operation"], "subtract");
+    assert_eq!(state["selection_xray"], true);
+    assert_eq!(state["brush_radius"], 80.0);
+    assert_eq!(state["brush_strength"], -0.5);
+    assert_eq!(state["brush_falloff"], "constant");
+    assert_eq!(state["colours"]["wire"], "#102030");
+    assert_eq!(state["colours"]["grid"], "#010203");
+    assert_eq!(state["wire_width"], 2.0);
+    assert_eq!(state["vertex_size"], 4.0);
+    // Part 9 does not exist, so only part 1 is hidden.
+    assert_eq!(state["hidden_parts"], json!([1]));
+    assert!(!application.selection_visible_only);
+    application.apply_host_view_state(crate::cdmw_session::ViewStateChange {
+        reset: Some("colours"),
+        show_parts: vec![1],
+        ..Default::default()
+    });
+    let state = application.view_state_report();
+    assert_eq!(state["colours"]["grid"], before["colours"]["grid"]);
+    assert_eq!(state["colours"]["background"], before["colours"]["background"]);
+    assert_eq!(state["colours"]["wire"], "#102030", "colours reset leaves the overlay alone");
+    assert_eq!(state["hidden_parts"], json!([]));
+    application.apply_host_view_state(crate::cdmw_session::ViewStateChange {
+        reset: Some("overlay"),
+        ..Default::default()
+    });
+    assert_eq!(application.view_state_report()["colours"]["wire"], before["colours"]["wire"]);
+    Ok(())
+}

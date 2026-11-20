@@ -1727,39 +1727,52 @@ def test_output_commands_and_the_camera_go_to_the_helper(editor, connect, tmp_pa
 @pytest.mark.skipif(not __import__("cdmw.modding.mesh_native_core", fromlist=["x"]).native_mesh_core_available(),
                     reason="the native mesh core is not built (CDMW_MESH_CORE_BIN names a built one)")
 def test_view_settings_go_to_the_helper_and_come_back_as_it_holds_them(editor, connect) -> None:  # noqa: F811
-    """MCP gap plan item 10: mesh_view sets the selection, brush and overlay settings and part
-    visibility through set_view_state, and reports what the helper holds afterwards."""
+    """MCP gap plan item 10: mesh_view sends set_view_state only to a helper whose hello names
+    it, refuses bad values before sending, and returns the view_state the helper answers with.
+    The helper's own handling is headless_ui_tests' host_view_state_sets_the_panels_values_and_reports_them."""
 
     ui = editor.ui
     mcp = connect(editor.window)
-    supported = ui.standalone_rust_view_state_supported
     ui.standalone_rust_view_state_supported = False
     assert "host_view_state_v1" in mcp.error("mesh_view", {})["message"]
-    ui.standalone_rust_view_state_supported = supported
-    if not supported:
-        pytest.skip("this helper is older than host_view_state_v1")
+    ui.standalone_rust_view_state_supported = True
+    held = {"selection_shape": "click", "selection_operation": "replace", "selection_xray": False,
+            "brush_radius": 48.0, "brush_strength": 0.18, "brush_falloff": "smooth",
+            "colours": {"wire": "#697D9B"}, "wire_width": 1.2, "vertex_size": 2.5, "hidden_parts": []}
     sent, forward = [], ui._send_rust_message
 
-    def helper(message):
+    def helper(message):  # the helper applies what it is given and answers with its view
         sent.append(message)
-        return forward(message)
+        if message.get("event") != "set_view_state":
+            return forward(message)
+        if message.get("reset") == "overlay":
+            held["colours"] = {"wire": "#697D9B"}
+        for key in ("selection_shape", "selection_operation", "selection_xray", "brush_radius",
+                    "brush_strength", "brush_falloff", "wire_width", "vertex_size"):
+            if key in message:
+                held[key] = message[key]
+        held["colours"] = {**held["colours"], **message.get("colours", {})}
+        hidden = (set(held["hidden_parts"]) | set(message.get("hide_parts", []))) - set(message.get("show_parts", []))
+        held["hidden_parts"] = sorted(hidden)
+        ui.standalone_rust_view_state = {**held, "colours": dict(held["colours"])}
+        return True
 
     ui._send_rust_message = helper
     # Bad values are refused before anything is sent.
     assert mcp.error("mesh_view", {"colours": {"wire": "blue!!"}})["code"] == "invalid_arguments"
+    assert mcp.error("mesh_view", {"colours": {"floor": "#000000"}})["code"] == "invalid_arguments"
     assert mcp.error("mesh_view", {"show_parts": [0], "hide_parts": [0]})["code"] == "invalid_arguments"
     assert mcp.error("mesh_view", {"brush_radius": 500})["code"] == "invalid_arguments"
     assert sent == []
     before = mcp.ok("mesh_view")["view"]
     assert before["selection_shape"] == "click" and before["hidden_parts"] == []
+    assert sent[-1]["event"] == "set_view_state" and "hide_parts" not in sent[-1]
     view = mcp.ok("mesh_view", {"selection_shape": "lasso", "selection_operation": "add", "selection_xray": True,
-                                "brush_radius": 80, "brush_strength": 0.5, "brush_falloff": "linear",
-                                "colours": {"wire": "#102030"}, "wire_width": 2.0, "hide_parts": [0]})["view"]
-    assert sent[-1]["event"] == "set_view_state" and sent[-1]["hide_parts"] == [0]
+                                "brush_radius": 80, "brush_falloff": "linear", "colours": {"wire": "#102030"},
+                                "hide_parts": [0]})["view"]
+    assert sent[-1]["hide_parts"] == [0] and sent[-1]["colours"] == {"wire": "#102030"}
     assert (view["selection_shape"], view["selection_operation"], view["selection_xray"]) == ("lasso", "add", True)
-    assert view["brush_radius"] == pytest.approx(80) and view["brush_falloff"] == "linear"
-    assert view["colours"]["wire"] == "#102030" and view["wire_width"] == pytest.approx(2.0)
-    assert view["hidden_parts"] == [0]
+    assert view["colours"]["wire"] == "#102030" and view["hidden_parts"] == [0]
     reset = mcp.ok("mesh_view", {"reset": "overlay", "show_parts": [0]})["view"]
     assert reset["colours"]["wire"] == before["colours"]["wire"] and reset["hidden_parts"] == []
 
