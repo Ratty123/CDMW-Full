@@ -1892,6 +1892,20 @@
       "tool": "files.skeleton_add_bones"
     },
     {
+      "id": "files.prefab_read",
+      "area": "Browse Archives",
+      "what": "Prefab Inspector: list a prefab's objects and fields",
+      "class": "read",
+      "tool": "files.prefab_read"
+    },
+    {
+      "id": "files.prefab_save",
+      "area": "Browse Archives",
+      "what": "Prefab Inspector: change paths and save a loose mod package",
+      "class": "output",
+      "tool": "files.prefab_save"
+    },
+    {
       "id": "archive.export",
       "area": "Browse Archives",
       "what": "Export a file or family, copy the filename, or write a sidecar corpus report",
@@ -2789,15 +2803,11 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_dialog.py|PrefabInspectorDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.prefab_save"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_review.py|PrefabChangeReview",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.prefab_save"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_widgets.py|AssetPickerDialog",
