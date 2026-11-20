@@ -140,8 +140,13 @@ def _export(call):
                 answers["files"] = args["sources"]
             else:
                 answers["folder"] = required(args, "source_folder")
-    elif action in {"extract", "extract_selection"}:
+    elif action in {"extract", "extract_selection", "extract_filtered", "folder"}:
         destination = output(call, required(args, "path"))
+    elif action == "paths_list":
+        destination = output(call, required(args, "path"))
+        if destination.suffix.lower() not in {".txt", ".csv"}:
+            raise ToolError(REFUSED, "A path list is a .txt or .csv file.")
+        answers["save_file"] = str(destination)
     elif action != "copy_filename":
         destination = output(call, required(args, "folder"), folder=True)
         if any(destination.iterdir()):
@@ -149,6 +154,10 @@ def _export(call):
         answers["folder"] = str(destination)
     if action == "mesh_family":
         return _family_export(call, destination)
+    if action == "batch_mesh":
+        return _selection_batch_export(call, destination)
+    if action == "paths_list":
+        return _paths_list(call, destination, answers)
 
     def reference_dialog(dialog):
         tree = dialog.findChild(QTreeWidget)
@@ -174,7 +183,7 @@ def _export(call):
         return box.result()
 
     dialogs = {_REFERENCE_DIALOG: reference_dialog}
-    if action in {"extract", "extract_selection"}:
+    if action in {"extract", "extract_selection", "extract_filtered", "folder"}:
         dialogs[QMessageBox] = extract_dialog
 
     def run():
@@ -190,6 +199,20 @@ def _export(call):
             archive._extract_current_archive_file(output_root_override=destination)
         elif action == "extract_selection":
             archive.extract_selected_archive_entries(output_root_override=destination)
+        elif action == "folder":
+            from cdmw.ui.archive_browser.context_commands import NO_FOLDER, _selected_folder
+
+            if not _selected_folder(archive):
+                raise ToolError(UNAVAILABLE, NO_FOLDER + " (view_open with folder selects one.)")
+            archive.extract_selected_archive_entries(output_root_override=destination)
+        elif action == "extract_filtered":
+            archive.extract_filtered_archive_entries(output_root_override=destination)
+        elif action == "mesh_neutral_obj":
+            entry = archive._current_archive_entry()
+            if entry is None or entry.extension != ".pac":
+                raise ToolError(UNAVAILABLE, "Select a .pac model first: the neutral appearance is a character's.")
+            _completion(call, archive, lambda: archive._start_archive_mesh_export(
+                entry, "obj", bake_neutral_appearance=True), dialogs)
         else:
             button = {"file": archive.archive_action_export_file_button, "sidecar_corpus": archive.archive_sidecar_corpus_button,
                       "family": archive.archive_action_export_family_button,
@@ -235,11 +258,42 @@ def _family_export(call, destination):
                 raise ToolError(UNAVAILABLE, f"The catalogue no longer has this family member: {entry.path}.")
         selections.append(BatchMeshSelection(entry, dto))
 
-    def launch():
+    def check():
         archive = _archive(call)
         entry = archive._current_archive_entry()
         if archive is not captured["archive"] or entry is None or entry.identity != captured["source"]:
             raise ToolError(UNAVAILABLE, "The selected archive family changed. Choose it again.")
+        return archive
+
+    return _run_batch(call, check, tuple(selections), destination)
+
+
+def _selection_batch_export(call, destination):
+    """Batch Export Selected Models for the rows selected now (view_open with paths selects them)."""
+
+    from cdmw.ui.archive_browser import mesh_batch_export_controller as batch
+
+    def check():
+        archive = _archive(call)
+        nodes = tuple(archive.archive_tree.selectedItems())
+        if batch.batch_selection_has_unloaded_rows(archive, nodes):
+            raise ToolError(UNAVAILABLE, "Some selected rows are not loaded yet; select the files with view_open "
+                                         "paths instead of a folder or a filter.")
+        return archive
+
+    def read():
+        return batch.selected_batch_models(check())
+
+    selections = call.context.ui_call(read)
+    if not selections:
+        raise ToolError(UNAVAILABLE, "Select PAC, PAM or PAMLOD files first (view_open with paths). Folders and "
+                                     "other file types are not included.")
+    return _run_batch(call, check, tuple(selections), destination)
+
+
+def _run_batch(call, check, selections, destination):
+    def launch():
+        archive = check()
         if archive.shell._background_task_active() or getattr(archive, "_mcp_batch_export", None) is not None:
             raise ToolError(UNAVAILABLE, "Wait for the current Browse Archives operation to finish.")
 
@@ -258,10 +312,66 @@ def _family_export(call, destination):
             dialog.open()
             press(dialog.start_button)
 
-        archive._open_batch_mesh_export(tuple(selections), call.arguments.get("format", "obj"), run_dialog=configure)
-        return {**_state(archive), "destination": str(destination)}
+        archive._open_batch_mesh_export(selections, call.arguments.get("format", "obj"), run_dialog=configure)
+        return {**_state(archive), "destination": str(destination), "files": len(selections)}
 
     return ui(call, launch)
+
+
+_PATH_SCOPES = ("all", "filtered", "selected", "folder")
+
+
+def _paths_list(call, destination, answers):
+    """Export File Paths: the dialog's scope set, Export pressed, the list written in the background."""
+
+    from PySide6.QtCore import QEventLoop, QTimer
+
+    from cdmw.ui.archive_browser.path_export_dialog import ArchivePathExportDialog
+
+    scope = str(call.arguments.get("scope") or "filtered")
+    report: dict[str, object] = {}
+
+    def run_dialog(dialog):
+        index = _PATH_SCOPES.index(scope)
+        item = dialog.scope.model().item(index)
+        if item is None or not item.isEnabled():
+            report["error"] = f"The {scope} scope is not available now (select files or a folder first)."
+            return 0
+        dialog.scope.setCurrentIndex(index)
+        loop = QEventLoop()
+
+        def done(result):
+            report["result"] = {"count": int(getattr(result, "count", 0) or 0),
+                                "cancelled": bool(getattr(result, "cancelled", False)),
+                                "path": str(getattr(result, "destination", "") or destination)}
+            loop.quit()
+
+        def failed(message):
+            report["error"] = str(message)
+            loop.quit()
+
+        dialog.controller.finished.connect(done)
+        dialog.controller.failed.connect(failed)
+        press(dialog.export_button)
+        if not dialog.controller.active:
+            report.setdefault("error", dialog.status.text() or "The path export did not start.")
+            return 0
+        QTimer.singleShot(600_000, loop.quit)
+        loop.exec()
+        return 1
+
+    def run():
+        archive = _archive(call)
+        if archive.shell._background_task_active() or not archive.archive_remote_actions_safe:
+            raise ToolError(UNAVAILABLE, "Wait for the current Browse Archives operation to finish.")
+        from cdmw.ui.archive_browser.path_export_dialog import open_archive_path_export
+
+        open_archive_path_export(archive, scope)
+        if "error" in report:
+            raise ToolError(UNAVAILABLE, str(report["error"]))
+        return {**_state(archive), "destination": str(destination), "paths": report.get("result")}
+
+    return ui(call, run, answers, dialogs={ArchivePathExportDialog: run_dialog})
 
 
 def browse_archive_tools():
@@ -277,10 +387,16 @@ def browse_archive_tools():
              ("action",)),
         tool("files.browser_export", OUTPUT, "Extract or export the current archive selection, its family, "
              "or a mesh or mesh family as OBJ, GLB or FBX. Also copy a filename or scan a sidecar corpus. "
-             "Use a new path for file export or extraction, "
+             "extract_filtered extracts every file the filters show; folder extracts the selected folder; "
+             "batch_mesh exports every selected model (select them with view_open paths); mesh_neutral_obj "
+             "writes a .pac as OBJ with the character's neutral appearance; paths_list writes the archive "
+             "paths of 'scope' (all, filtered, selected or folder) to a .txt or .csv file without extracting. "
+             "Use a new path for file export, extraction and path lists, "
              "and an empty folder for family and mesh export.", "ui:Browse Archives export actions", _export,
-             {"action": choices("file", "extract", "extract_selection", "family", "mesh", "mesh_family",
+             {"action": choices("file", "extract", "extract_selection", "extract_filtered", "folder", "family",
+                                "mesh", "mesh_family", "mesh_neutral_obj", "batch_mesh", "paths_list",
                                 "copy_filename", "sidecar_corpus"),
+              "scope": choices(*_PATH_SCOPES),
               "path": PATH, "folder": PATH, "format": choices("obj", "glb", "fbx"),
               "source_folder": PATH, "sources": {"type": "array", "items": PATH, "minItems": 1, "maxItems": 256},
               "scan_limit": {"type": "integer", "minimum": 0, "maximum": 1000000},

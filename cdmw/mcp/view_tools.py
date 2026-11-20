@@ -23,7 +23,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from cdmw.mcp.errors import FAILED, NOT_FOUND, UNAVAILABLE, ToolError
+from cdmw.mcp.errors import FAILED, INVALID_ARGUMENTS, NOT_FOUND, UNAVAILABLE, ToolError
 from cdmw.mcp.names import EDIT, READ
 from cdmw.mcp.tools import ON_CALL, ON_UI, ON_WORKER, Tool, object_schema
 
@@ -74,9 +74,96 @@ def _selection(call) -> dict[str, object]:
     return _selection_now(call.context)
 
 
+MAX_PATHS = 4096
+
+
+def _open_paths(call) -> dict[str, object]:
+    """Several files at once: shown as one scope, every row selected, as Ctrl-click does."""
+
+    from cdmw.ui.ai_connections.context import NO_ARCHIVES
+
+    context = call.context
+    archive = _archive(context)
+    paths = [_normal(path) for path in call.arguments["paths"] if _normal(path)]
+    if not paths or len(paths) > MAX_PATHS:
+        raise ToolError(INVALID_ARGUMENTS, f"paths holds 1 to {MAX_PATHS} archive paths.")
+    outcome: dict[str, object] = {}
+
+    def reveal() -> bool:
+        archive._note_archive_ui_activity()
+        bridge = getattr(archive, "archive_remote_bridge", None)
+        if bridge is None or not getattr(bridge, "displays_v2", False):
+            return _select_listed(archive, paths, outcome)
+        return bool(archive._reveal_archive_paths_in_live_catalogue(
+            paths, on_done=lambda shown, missing: outcome.update(shown=shown, missing=missing)))
+
+    if not context.ui_call(reveal):
+        raise ToolError(UNAVAILABLE, NO_ARCHIVES)
+    deadline = time.monotonic() + OPEN_TIMEOUT_S * 4
+    while "shown" not in outcome:
+        call.check_cancelled()
+        if time.monotonic() > deadline:
+            raise ToolError(NOT_FOUND, "Browse Archives did not finish looking up the files.")
+        time.sleep(0.05)
+    if not outcome["shown"]:
+        raise ToolError(NOT_FOUND, "Browse Archives has none of these files. search_archive finds a file's path.")
+
+    def select_all() -> int:
+        tree = archive.archive_tree
+        model = tree.model()
+        rows = model.rowCount() if model is not None else 0
+        if rows >= len(outcome["shown"]) or "listed" in outcome:
+            if "listed" not in outcome:
+                tree.selectAll()
+            return len(archive._selected_archive_entries())
+        return -1
+
+    while True:
+        selected = context.ui_call(select_all)
+        if selected >= 0:
+            break
+        call.check_cancelled()
+        if time.monotonic() > deadline:
+            raise ToolError(NOT_FOUND, "Browse Archives did not show the files in time.")
+        time.sleep(0.05)
+    return {**context.ui_call(lambda: _selection_now(context)), "selected_files": selected,
+            "shown": len(outcome["shown"]), "missing": outcome["missing"][:200]}
+
+
+def _select_listed(archive, paths, outcome) -> bool:
+    """The local catalogue (no live session): select the listed rows whose paths are wanted."""
+
+    from PySide6.QtCore import QItemSelectionModel
+
+    flags = QItemSelectionModel.SelectionFlag
+    wanted = {path.casefold() for path in paths}
+    found = []
+    tree = archive.archive_tree
+    for index, entry in enumerate(archive.archive_filtered_entries):
+        if entry.path.casefold() not in wanted:
+            continue
+        item = archive._select_archive_tree_entry(index)
+        if item is None:
+            continue
+        if not found:
+            tree.clearSelection()
+            tree.setCurrentItem(item)
+        model_index = tree._index_for_node(item)
+        if model_index.isValid():
+            tree.selectionModel().select(model_index, flags.Select | flags.Rows)
+        found.append(entry.path)
+    shown = {path.casefold() for path in found}
+    outcome.update(shown=found, missing=[path for path in paths if path.casefold() not in shown], listed=True)
+    return True
+
+
 def _open(call) -> dict[str, object]:
     from cdmw.ui.ai_connections.context import NO_ARCHIVES
 
+    if call.arguments.get("paths"):
+        return _open_paths(call)
+    if not call.arguments.get("path"):
+        raise ToolError(INVALID_ARGUMENTS, "Name the file: path, or several with paths.")
     context = call.context
     archive = _archive(context)
     wanted = _normal(call.arguments["path"])
@@ -396,8 +483,13 @@ def view_tools() -> list[Tool]:
         Tool(name="view.open", family="view", title="Select and preview",
              description="Selects an archive file in Browse Archives by its path, as a click on its row does, "
                          "whatever filters are set; Browse previews it. Returns the selection once the row is "
-                         "shown; view_selection says when the preview has loaded.",
-             input_schema=object_schema({"path": {"type": "string", "minLength": 1, "maxLength": 512}}, ["path"]),
+                         "shown; view_selection says when the preview has loaded. 'paths' instead shows up to "
+                         "4,096 files as one scope and selects them all, as Ctrl-click does, for Extract Selected, "
+                         "Batch Export and the other actions on a selection (files_browser_export).",
+             input_schema=object_schema({"path": {"type": "string", "minLength": 1, "maxLength": 512},
+                                         "paths": {"type": "array", "minItems": 1, "maxItems": 4096,
+                                                   "items": {"type": "string", "minLength": 1,
+                                                             "maxLength": 512}}}),
              effect=READ, route="ui:_reveal_archive_path_in_live_catalogue", handler=_open, runs_on=ON_WORKER),
         Tool(name="view.parts", family="view", title="Scene panel",
              description="Browse Archives' Scene panel: each file of the shown model or set with its parts and "

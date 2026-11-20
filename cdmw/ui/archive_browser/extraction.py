@@ -662,7 +662,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
             output_root_override=output_root_override,
         )
 
-    def extract_filtered_archive_entries(self) -> None:
+    def extract_filtered_archive_entries(self, *, output_root_override: Optional[Path] = None) -> None:
         if self._remote_archive_export_ready():
             selection = self.archive_remote_bridge.filtered_export_selection()
             if selection is None or selection.requested_count <= 0:
@@ -670,14 +670,16 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                 return
             self._run_remote_archive_export(
                 selection,
-                allow_original_dds_root=True,
+                allow_original_dds_root=output_root_override is None,
                 description="Extracting filtered archive entries...",
+                output_root_override=output_root_override,
             )
             return
         self._run_archive_extract(
             self.archive_filtered_entries,
-            allow_original_dds_root=True,
+            allow_original_dds_root=output_root_override is None,
             description="Extracting filtered archive entries...",
+            output_root_override=output_root_override,
         )
 
     def extract_filtered_archive_dds_to_workflow(self) -> None:

@@ -117,5 +117,58 @@ class ArchiveVirtualPathLookupMixin:
         )
         return True
 
+    def _reveal_archive_paths_in_live_catalogue(self, virtual_paths: Sequence[str], on_done=None) -> bool:
+        """Show several archive files as one scope (up to 4,096), whatever filters are active.
+
+        ``on_done(found, missing)`` is called with the paths shown and the paths the catalogue
+        does not have. Returns False when the live catalogue cannot take the request.
+        """
+
+        from cdmw.domain.archives.catalogue import ArchiveLookupKind
+        from cdmw.ui.archive_browser.remote_entry_lookup import (
+            LiveCatalogueState,
+            RemoteLookupOutcome,
+            live_catalogue_state,
+            lookup_requests,
+            normalized_lookup_path,
+            start_live_catalogue_lookup,
+        )
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        session = getattr(bridge, "current_session", None)
+        display = tuple(dict.fromkeys(str(path or "").replace("\\", "/").strip().strip("/")
+                                      for path in virtual_paths if str(path or "").strip()))[:4096]
+        if live_catalogue_state(self) != LiveCatalogueState.READY or session is None or not display:
+            return False
+        wanted = {normalized_lookup_path(path): path for path in display}
+
+        def found(outcome: RemoteLookupOutcome) -> None:
+            chosen: dict[str, object] = {}
+            for dto in outcome.entries:
+                key = normalized_lookup_path(dto.path)
+                if key in wanted and (key not in chosen or dto.is_active_override):
+                    chosen[key] = dto
+            missing = [wanted[key] for key in wanted if key not in chosen]
+            shown = [wanted[key] for key in wanted if key in chosen]
+            if chosen and not bridge.apply_entry_id_scope(tuple(dto.entry_id for dto in chosen.values()),
+                                                          label=f"{len(chosen)} files (target)"):
+                shown = []
+            if callable(on_done):
+                on_done(shown, missing)
+
+        def failed(message: str) -> None:
+            self.shell.set_status_message(f"Could not look up the files: {message}", error=True)
+            if callable(on_done):
+                on_done([], list(display))
+
+        start_live_catalogue_lookup(
+            self,
+            "_archive_reveal_lookup",
+            lookup_requests(session.session_id, ArchiveLookupKind.EXACT_PATHS, display),
+            on_done=found,
+            on_error=failed,
+        )
+        return True
+
 
 __all__ = ["ArchiveVirtualPathLookupMixin"]
