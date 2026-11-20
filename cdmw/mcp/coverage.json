@@ -1878,6 +1878,20 @@
       "tool": "files.action_chart_export"
     },
     {
+      "id": "files.skeleton_read",
+      "area": "Browse Archives",
+      "what": "Add Bones: list a skeleton's bones",
+      "class": "read",
+      "tool": "files.skeleton_read"
+    },
+    {
+      "id": "files.skeleton_add_bones",
+      "area": "Browse Archives",
+      "what": "Add Bones: add child bones and save the skeleton as a mod package",
+      "class": "output",
+      "tool": "files.skeleton_add_bones"
+    },
+    {
       "id": "archive.export",
       "area": "Browse Archives",
       "what": "Export a file or family, copy the filename, or write a sidecar corpus report",
@@ -2759,9 +2773,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/pab_bone_editor_dialog.py|PabBoneEditorDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.skeleton_add_bones"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/pac_xml_editor_dialog_shell.py|PacXmlEditorDialog",
