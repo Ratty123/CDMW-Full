@@ -249,6 +249,12 @@ class ArchivePreviewDotNetLifecycleMixin:
             host.set_render_tuning(render_settings)
             host.set_viewport_display_mode("textured" if show_textures else "untextured_wire")
         has_textures = self._archive_active_package_draws_textures()
+        if has_textures and isinstance(
+            getattr(self.shell, "_mesh_editor_pending_rust_texture_launch", None), Mapping
+        ):
+            # A Mesh Editor open waiting on this request needs the textures listed;
+            # it keeps the answer, and the reason, it has always been given.
+            has_textures = self._archive_active_package_has_textures()
         request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
         pending_result = getattr(self, "_archive_pending_texture_result", None)
         self._finish_archive_texture_request(
