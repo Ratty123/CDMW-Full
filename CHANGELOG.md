@@ -9,6 +9,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Added
 
+- The **command palette** (Ctrl+Shift+P) now lists the Browse Archives actions that were only in the file tree's right-click menu, such as **Open Prefab Inspector**, **Add Bones**, **Edit Game Table Values**, the sound and action chart entries, **Extract Selected** and **Export Folder**. Each acts on the selected file or folder, and when the menu would not offer it for that file the palette says why. AI apps (experimental) run them by id too.
 - **AI connections (experimental):** an AI app can open right-click menus and the drop-down menus of buttons such as **Action Charts**, read their entries and pick one, without the menu appearing on screen. A disabled entry is refused with the reason its tooltip gives, and an entry that exports, saves or deletes asks you first as its button would. This reaches every right-click feature of Browse Archives, including **Open Prefab Inspector** and the sound and action chart entries, through the generic **app_ui_act** tool. It is still a helper you supervise, not a mod maker.
 
 ### Fixed
