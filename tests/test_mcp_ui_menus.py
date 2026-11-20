@@ -124,7 +124,7 @@ def test_no_menu_is_left_open(page):
 
 @pytest.mark.parametrize(("entry", "effect"), [
     (None, READ),
-    ("Preview", EDIT),
+    ("Rename Row", EDIT),  # no registry command has this label: its words decide
     ("Export > Export File...", OUTPUT),
     ("Extract Selected", OUTPUT),
     ("Delete Local Copy", DESTRUCTIVE),
@@ -133,6 +133,15 @@ def test_no_menu_is_left_open(page):
 ])
 def test_the_class_follows_the_entry(page, entry, effect):
     assert effect_of_action(page.tree, "menu", entry) == effect
+
+
+def test_an_entry_with_a_registry_command_takes_the_commands_class(page, monkeypatch):
+    from cdmw.mcp import ui_menus
+    from cdmw.ui.commands.registry import Command
+
+    command = Command("browse.preview", "Preview", "browse", lambda: None, effect=READ)
+    monkeypatch.setattr(ui_menus, "_command_for", lambda label: command if label == "Preview" else None)
+    assert effect_of_action(page.tree, "menu", "Preview") == READ
 
 
 def test_a_user_only_command_in_a_menu_is_refused(page, monkeypatch):
