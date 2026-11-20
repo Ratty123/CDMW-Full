@@ -29887,7 +29887,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an output folder first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_output.py": 110
+      "cdmw/mcp/new_item_output.py": 113
     }
   },
   {
@@ -33588,7 +33588,7 @@ MESSAGE_REFERENCE = [
     "message": "The item would be added to {root}, not to {folder}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_output.py": 122
+      "cdmw/mcp/new_item_output.py": 125
     }
   },
   {
@@ -33636,7 +33636,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was created, but its folder could not be opened: {root}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 690
+      "cdmw/ui/new_item/panels_output.py": 686
     }
   },
   {
@@ -34254,7 +34254,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no folder {folder}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_output.py": 87
+      "cdmw/mcp/new_item_output.py": 90
     }
   },
   {
@@ -111406,7 +111406,7 @@ SOURCE_COVERAGE = {
     "report": 3
   },
   "cdmw/mcp/new_item_output.py": {
-    "raise": 6,
+    "raise": 8,
     "report": 1
   },
   "cdmw/mcp/new_item_tools.py": {

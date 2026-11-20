@@ -1456,6 +1456,13 @@
       "tool": "new_item.build"
     },
     {
+      "id": "new_item.send_to_dmm",
+      "area": "Create New Item",
+      "what": "Send to DMM: write the item as a mod straight into DMM's mods folder",
+      "class": "output",
+      "tool": "new_item.send_to_dmm"
+    },
+    {
       "id": "new_item.draft_file",
       "area": "Create New Item",
       "what": "Save and load draft settings, continue or update an item package, check mod updates, and merge mod folders",
