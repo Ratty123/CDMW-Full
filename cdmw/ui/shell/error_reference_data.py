@@ -2890,6 +2890,7 @@ ERROR_REFERENCE = [
     "code": "failed",
     "messages": [
       "Body & Face Finder did not show that row in time. {detail}",
+      "Browse Archives did not find the set's files in time.",
       "Browse Archives did not save the decal copy in time.",
       "Build Package did not finish in time.",
       "Combine into One Mod closed before producing an output.",
@@ -3008,6 +3009,7 @@ ERROR_REFERENCE = [
       "Give key or name",
       "Give key, character_id or appearance_path.",
       "Give key, keys or search",
+      "Give path, set or ticked_parts, not more than one.",
       "Give piece: a .pac path or file name, or a prefab name.",
       "Give the draft's name.",
       "Give the rows of the downloaded copies to delete.",
@@ -3045,6 +3047,7 @@ ERROR_REFERENCE = [
       "The output folder does not exist: {target}",
       "The package path must end in {PACKAGE_EXTENSION}.",
       "The requested region extends outside the image.",
+      "The set names a file twice.",
       "The value does not match the Settings control.",
       "The workspace folder does not exist: {folder}",
       "The {family} commands are: {', '.join(PANEL_COMMANDS[family])}.",
@@ -3570,6 +3573,8 @@ ERROR_REFERENCE = [
       "Animation {args['animation']} has no value {field} (item {item}); files_action_chart_state with animation lists them.",
       "Browse Archives did not finish looking up the files.",
       "Browse Archives did not show the files in time.",
+      "Browse Archives did not show {first} as part of the set.",
+      "Browse Archives did not show {first}.",
       "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
       "Browse Archives did not show {wanted}. search_archive finds a file's path.",
       "Browse Archives has none of these files. search_archive finds a file's path.",
@@ -3608,6 +3613,7 @@ ERROR_REFERENCE = [
       "The Texture Editor has no tool {tool}. textures_state lists them.",
       "The Textures panel has no texture {wanted}. textures_list lists them.",
       "The adjustments are: {', '.join(kinds)}.",
+      "The archives have no file {missing[0]}.",
       "The archives have no {wanted}.",
       "The command {call.tool.command_id} is not registered now.",
       "The decal has no setting {unknown[0]}; files_decal_read lists them.",
@@ -43114,10 +43120,42 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Browse Archives could not show this set.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 401
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Browse Archives did not find the set's files in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 424
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Browse Archives did not show {first} as part of the set.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 451
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Browse Archives did not show {first}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 441
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 403
+      "cdmw/mcp/mesh_tools.py": 519
     }
   },
   {
@@ -46259,7 +46297,7 @@ MESSAGE_REFERENCE = [
     "message": "Export a .glb, .fbx or .obj file, as the editor's Export menu offers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 615
+      "cdmw/mcp/mesh_tools.py": 731
     }
   },
   {
@@ -47711,6 +47749,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/skeleton_tools.py": 80
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Give path, set or ticked_parts, not more than one.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 494
     }
   },
   {
@@ -50111,6 +50157,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Load the archives in Browse Archives first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 413
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Load the game archives before choosing a collision input.",
     "recovery": "internal",
     "sources": {
@@ -50122,7 +50176,7 @@ MESSAGE_REFERENCE = [
     "message": "Load the game archives first: open Browse Archives with the game folder set in Settings > Paths.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 385
+      "cdmw/mcp/mesh_tools.py": 491
     }
   },
   {
@@ -54552,6 +54606,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/modding/mesh_obj_importer.py": 1043
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Offered for a model that is part of a worn set opened from Item Finder.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 458
     }
   },
   {
@@ -59780,7 +59842,7 @@ MESSAGE_REFERENCE = [
     "message": "Select a mesh in Browse Archives first, or give its path.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 407
+      "cdmw/mcp/mesh_tools.py": 523
     }
   },
   {
@@ -61351,11 +61413,19 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The Mesh Editor did not open this set; app_state shows why.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 463
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The Mesh Editor did not take the command.",
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 127,
-      "cdmw/mcp/mesh_tools.py": 500
+      "cdmw/mcp/mesh_tools.py": 616
     }
   },
   {
@@ -61363,7 +61433,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 624
+      "cdmw/mcp/mesh_tools.py": 740
     }
   },
   {
@@ -61371,7 +61441,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 449
+      "cdmw/mcp/mesh_tools.py": 565
     }
   },
   {
@@ -61387,7 +61457,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has no command {call.arguments['command']}. commands_list with context mesh_editor lists them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 477
+      "cdmw/mcp/mesh_tools.py": 593
     }
   },
   {
@@ -61395,7 +61465,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has {len(rows)} open documents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 436
+      "cdmw/mcp/mesh_tools.py": 552
     }
   },
   {
@@ -61403,7 +61473,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor is not asking whether to continue a draft.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 421
+      "cdmw/mcp/mesh_tools.py": 537
     }
   },
   {
@@ -61420,7 +61490,15 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 125,
-      "cdmw/mcp/mesh_tools.py": 622
+      "cdmw/mcp/mesh_tools.py": 738
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Scene panel has no ticked parts of a set to open.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 476
     }
   },
   {
@@ -61469,6 +61547,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_service_body_controls.py": 111
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The archives have no file {missing[0]}.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 398
     }
   },
   {
@@ -62411,6 +62497,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The set names a file twice.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 498
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The setup file and its stored identity disagree.",
     "recovery": "internal",
     "sources": {
@@ -62631,7 +62725,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor cannot light a part up.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 460
+      "cdmw/mcp/mesh_tools.py": 576
     }
   },
   {
@@ -111135,11 +111229,11 @@ SOURCE_COVERAGE = {
     "raise": 5
   },
   "cdmw/mcp/mesh_tools.py": {
-    "code": 11,
-    "diagnostic_field": 2,
-    "failure": 1,
-    "raise": 28,
-    "report": 2,
+    "code": 17,
+    "diagnostic_field": 5,
+    "failure": 5,
+    "raise": 38,
+    "report": 4,
     "validation": 1
   },
   "cdmw/mcp/mod_management_tools.py": {

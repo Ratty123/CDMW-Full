@@ -375,6 +375,112 @@ def _refuse(error: Exception) -> ToolError:
     return ToolError(INVALID_ARGUMENTS if isinstance(error, ValueError) else UNAVAILABLE, str(error))
 
 
+def _scope_set(call, archive, paths: list[str], label: str) -> None:
+    """Scope Browse Archives to a worn set, as Item Finder's Open all parts does (worker thread)."""
+
+    import threading
+
+    from cdmw.domain.archives.catalogue import ArchiveLookupKind
+    from cdmw.ui.archive_browser.remote_entry_lookup import lookup_requests, start_live_catalogue_lookup
+
+    wanted = [path.casefold() for path in paths]
+    done = threading.Event()
+    box: dict[str, object] = {}
+
+    def found(outcome) -> None:
+        by_path: dict[str, int] = {}
+        for dto in outcome.entries:
+            key = dto.path.replace("\\", "/").strip("/").casefold()
+            if key in wanted and (key not in by_path or dto.is_active_override):
+                by_path[key] = dto.entry_id
+        missing = [path for path, key in zip(paths, wanted) if key not in by_path]
+        if missing:
+            box["error"] = ToolError(NOT_FOUND, f"The archives have no file {missing[0]}.")
+        elif not archive.archive_remote_bridge.apply_entry_id_scope(
+                [by_path[key] for key in wanted], label=label, worn_set=True):
+            box["error"] = ToolError(UNAVAILABLE, "Browse Archives could not show this set.")
+        done.set()
+
+    def failed(message) -> None:
+        box["error"] = ToolError(UNAVAILABLE, str(message))
+        done.set()
+
+    def start() -> None:
+        archive._note_archive_ui_activity()
+        bridge = archive.archive_remote_bridge
+        session = getattr(bridge, "current_session", None)
+        if session is None:
+            failed("Load the archives in Browse Archives first.")
+            return
+        start_live_catalogue_lookup(archive, "_mcp_set_lookup",
+                                    lookup_requests(session.session_id, ArchiveLookupKind.EXACT_PATHS, paths),
+                                    on_done=found, on_error=failed)
+
+    call.context.ui_call(start)
+    deadline = time.monotonic() + OPEN_TIMEOUT_S
+    while not done.wait(0.05):
+        call.check_cancelled()
+        if time.monotonic() > deadline:
+            raise ToolError(FAILED, "Browse Archives did not find the set's files in time.")
+    if "error" in box:
+        raise box["error"]
+
+
+def _open_set(call, archive, window, paths: list[str]) -> dict[str, object]:
+    from cdmw.ui.mesh_editor.item_set_preparation import prepare_item_set_for_editor
+
+    context = call.context
+    _scope_set(call, archive, paths, str(call.arguments.get("label") or "Item set"))
+
+    def current() -> str:
+        entry = archive._current_archive_mesh_entry()
+        return str(getattr(entry, "path", "") or "").replace("\\", "/").strip("/")
+
+    first = paths[0]
+    if not context.ui_call(lambda: bool(archive._reveal_archive_path_in_live_catalogue(first))):
+        raise ToolError(NOT_FOUND, f"Browse Archives did not show {first}.")
+    def ready() -> bool:
+        contains = getattr(archive.archive_remote_bridge, "item_set_contains", None)
+        return (current().casefold() == first.casefold() and callable(contains)
+                and bool(contains(archive._current_archive_entry())))
+
+    deadline = time.monotonic() + OPEN_TIMEOUT_S
+    while not context.ui_call(ready):
+        call.check_cancelled()
+        if time.monotonic() > deadline:
+            raise ToolError(NOT_FOUND, f"Browse Archives did not show {first} as part of the set.")
+        time.sleep(0.05)
+
+    def open_it() -> dict[str, object]:
+        entry = archive._current_archive_entry()
+        contains = getattr(archive.archive_remote_bridge, "item_set_contains", None)
+        if entry is None or not (callable(contains) and contains(entry)):
+            raise ToolError(UNAVAILABLE, "Offered for a model that is part of a worn set opened from Item Finder.")
+        take = getattr(window.shell, "_take_pending_hidden_parts_for_open", None)
+        if callable(take):
+            take()
+        if not prepare_item_set_for_editor(window.shell, entry, edit_set=True):
+            raise ToolError(UNAVAILABLE, "The Mesh Editor did not open this set; app_state shows why.")
+        return {"opening": True, "set": paths,
+                "message": "The Mesh Editor is opening this set; mesh_state says when it is ready."}
+
+    return _act(call, open_it)
+
+
+def _open_ticked(call, archive) -> dict[str, object]:
+    def press() -> dict[str, object]:
+        panel = getattr(archive, "archive_item_set_components", None)
+        button = getattr(panel, "edit_set_button", None)
+        if button is None or not button.isVisible() or not button.isEnabled():
+            reason = button.toolTip() if button is not None else ""
+            raise ToolError(UNAVAILABLE, reason or "The Scene panel has no ticked parts of a set to open.")
+        button.click()
+        return {"opening": True, "message": "The Mesh Editor is opening the ticked parts; mesh_state says when "
+                                            "it is ready."}
+
+    return _act(call, press)
+
+
 def _open(call) -> dict[str, object]:
     from cdmw.ui.ai_connections.context import NO_ARCHIVES
 
@@ -383,6 +489,16 @@ def _open(call) -> dict[str, object]:
     archive = getattr(window, "archive", None)
     if archive is None:
         raise ToolError(UNAVAILABLE, NO_ARCHIVES)
+    chosen = [name for name in ("path", "set", "ticked_parts") if call.arguments.get(name)]
+    if len(chosen) > 1:
+        raise ToolError(INVALID_ARGUMENTS, "Give path, set or ticked_parts, not more than one.")
+    if call.arguments.get("set"):
+        paths = [str(path).replace("\\", "/").strip().strip("/") for path in call.arguments["set"]]
+        if len({path.casefold() for path in paths}) != len(paths):
+            raise ToolError(INVALID_ARGUMENTS, "The set names a file twice.")
+        return _open_set(call, archive, window, paths)
+    if call.arguments.get("ticked_parts"):
+        return _open_ticked(call, archive)
     wanted = str(call.arguments.get("path") or "").replace("\\", "/").strip().strip("/")
 
     def current() -> str:
@@ -689,8 +805,16 @@ def mesh_tools() -> list[Tool]:
                          "Open in Mesh Editor does: with 'path' it is selected in Browse Archives first, "
                          "without it the selected mesh is opened. Returns at once; mesh_state says when the "
                          "editor is ready, or 'asks' when it waits for an answer such as whether to continue "
-                         "a saved draft (mesh_draft_choice).",
-             input_schema=object_schema({"path": {"type": "string", "maxLength": 512}}), effect=EDIT,
+                         "a saved draft (mesh_draft_choice). With 'set' (two or more archive paths, such as "
+                         "an item's worn parts from search_items) Browse is scoped to that set and Open set in "
+                         "Mesh Editor edits the pieces together; 'label' names the set. With 'ticked_parts' "
+                         "the Scene panel's Open ticked parts button opens the parts ticked there.",
+             input_schema=object_schema({
+                 "path": {"type": "string", "maxLength": 512},
+                 "set": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 512},
+                         "minItems": 2, "maxItems": 64},
+                 "label": {"type": "string", "maxLength": 120},
+                 "ticked_parts": {"type": "boolean"}}), effect=EDIT,
              route="ui:shell._open_current_archive_mesh_editor", handler=_open, runs_on=ON_WORKER),
         Tool(name="mesh.draft_choice", family="mesh", title="Continue where you left off?",
              description="Answers the question the Mesh Editor asks when the mesh being opened has saved "
