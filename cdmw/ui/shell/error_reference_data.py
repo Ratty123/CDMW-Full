@@ -2889,6 +2889,7 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "failed",
     "messages": [
+      "Browse Archives did not save the decal copy in time.",
       "Build Package did not finish in time.",
       "Combine into One Mod closed before producing an output.",
       "Combine into One Mod did not finish in time.",
@@ -2914,6 +2915,7 @@ ERROR_REFERENCE = [
     ],
     "sources": [
       "cdmw/mcp/action_chart_tools.py",
+      "cdmw/mcp/decal_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/mesh_edit_tools.py",
@@ -2963,6 +2965,7 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "invalid_arguments",
     "messages": [
+      "A decal setting is not valid.",
       "A point is outside the texture.",
       "A point lies outside the texture ({width} x {height}).",
       "Add Mod takes one existing folder or ZIP in paths.",
@@ -2970,6 +2973,7 @@ ERROR_REFERENCE = [
       "An edge of part {part} is not two of its vertices 0 to {count - 1}.",
       "At most {MAX_ROWS * 8} rows at once.",
       "CDMW does not decode {table}. It decodes: {', '.join(sorted(DECODED_TABLES))}",
+      "CDMW does not know DMM's folder yet. Give dmm_folder: the folder that contains DMM.exe.",
       "Choose a factor from {box.minimum()} to {box.maximum()}.",
       "Choose a rate from {dialog.rate_spin.minimum()} to {dialog.rate_spin.maximum()}.",
       "Choose a supported numeric preset or value.",
@@ -2986,6 +2990,7 @@ ERROR_REFERENCE = [
       "Export PAC As writes a .pac file.",
       "Export an .obj or .glb file (FBX needs Blender: use the Export Mesh File button through app_ui_act).",
       "Free Edit writes an editable package: give 'destination', an existing folder outside the game.",
+      "Give 1 to 256 changes.",
       "Give 1 to {MAX_BONES} bones.",
       "Give 1 to {MAX_CHANGES} changes.",
       "Give a file, project or archive texture path.",
@@ -2997,6 +3002,7 @@ ERROR_REFERENCE = [
       "Give key, character_id or appearance_path.",
       "Give key, keys or search",
       "Give piece: a .pac path or file name, or a prefab name.",
+      "Give the table, or the archive path of a .staticinfobody or .staticinfoheader file.",
       "Give translate, rotate_degrees or scale.",
       "Give values, add or remove: nothing would change.",
       "Invalid PNG: {exc}",
@@ -3007,6 +3013,7 @@ ERROR_REFERENCE = [
       "Paint points must be within the {width} by {height} mask.",
       "Part {part} has triangles 0 to {count - 1}.",
       "Part {part} has vertices 0 to {count - 1}.",
+      "Save the decal sequence as a .paseq file.",
       "Save the edited file as a .hkx file.",
       "Supply exactly one PNG path or base64 data.",
       "Supply the list of paths to ignore.",
@@ -3073,6 +3080,8 @@ ERROR_REFERENCE = [
     "sources": [
       "cdmw/mcp/action_chart_tools.py",
       "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/decal_tools.py",
+      "cdmw/mcp/game_table_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/local_file_tools.py",
       "cdmw/mcp/mesh_edit_tools.py",
@@ -3561,7 +3570,10 @@ ERROR_REFERENCE = [
       "Object {change['object']} has no added property {target} to remove.",
       "Object {change['object']} has no value {change['value']}; files_sound_bank_read lists them.",
       "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
+      "Row {key} is not listed in the dialog.",
+      "Row {row.key} has values 0 to {len(row.values) - 1}.",
       "That page is gone: it was already read or is more than 15 minutes old. Run the search again.",
+      "That value is not listed in the dialog.",
       "The Format Explorer has no row for {extension}.",
       "The Mesh Editor has no command {call.arguments['command']}. commands_list with context mesh_editor lists them.",
       "The Mesh Editor has {len(rows)} open documents.",
@@ -3575,15 +3587,19 @@ ERROR_REFERENCE = [
       "The adjustments are: {', '.join(kinds)}.",
       "The archives have no {wanted}.",
       "The command {call.tool.command_id} is not registered now.",
+      "The decal has no setting {unknown[0]}; files_decal_read lists them.",
+      "The dialog lists no table {table}.",
       "The family contains no resolved mesh files.",
       "The list has no item {row}.",
       "The list has no row {wanted}.",
       "The list is empty.",
       "The loaded archive index has no such texture.",
+      "The loaded {index.table} table has no row {key}.",
       "The mesh has parts 0 to {len(parts) - 1}.",
       "There is no animation {index}; files_action_chart_state lists them.",
       "There is no animation {index}; this chart has {len(chart.animations)}.",
       "There is no audio file {source}.",
+      "There is no change with that number; tables_editor_state lists them.",
       "There is no column {column}.",
       "There is no command {command_id} now. commands_list lists them; the Mesh Editor's and the Texture Editor's exist while their tool is open.",
       "There is no control {text} now. Call app_ui for the controls shown.",
@@ -3605,6 +3621,7 @@ ERROR_REFERENCE = [
       "{clean_label(found.text())} has no submenu.",
       "{dialog.table_combo.itemText(table)} has no entry {old}.",
       "{error}. The archives have: {languages}.",
+      "{given} is not DMM's folder (the one that contains DMM.exe).",
       "{key} has no variant {variant}.",
       "{path} is not in the game archives.",
       "{table} has no row {key if key is not None else name}.",
@@ -3616,6 +3633,8 @@ ERROR_REFERENCE = [
       "cdmw/mcp/app_read_tools.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/decal_tools.py",
+      "cdmw/mcp/game_table_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/item_icon_tools.py",
       "cdmw/mcp/jobs.py",
@@ -3791,6 +3810,7 @@ ERROR_REFERENCE = [
       "A path list is a .txt or .csv file.",
       "An icon already exists at {destination}.",
       "CDMW cannot ask you now, so the call was declined.",
+      "CDMW has no proven values to edit in the {table} table.",
       "CDMW is not running or AI connections are off.",
       "Choose an empty folder so the export cannot replace files.",
       "Declined in CDMW.",
@@ -3807,6 +3827,7 @@ ERROR_REFERENCE = [
       "The export was refused.",
       "The review lists warnings; give accept_warnings to save anyway.",
       "This event has no fields CDMW can change.",
+      "This row exists only in the DLC copy; a DMM mod cannot change it.",
       "{destination} already exists; name a new package.",
       "{key} cannot change on this joint.",
       "{what} was refused."
@@ -3816,6 +3837,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/approvals.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/game_table_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/item_icon_tools.py",
       "cdmw/mcp/jobs.py",
@@ -75629,6 +75651,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A decal setting is not valid.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/mcp/decal_tools.py": 99
+    }
+  },
+  {
+    "area": "other",
     "message": "A folder named {folder.name} already exists and CDMW did not write it. Choose another mod name.",
     "recovery": "conflict",
     "sources": {
@@ -76639,6 +76669,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Browse Archives did not save the decal copy in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/decal_tools.py": 105
+    }
+  },
+  {
+    "area": "other",
     "message": "Browse Archives did not show the files in time.",
     "recovery": "internal",
     "sources": {
@@ -76683,6 +76721,8 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/mcp/action_chart_tools.py": 31,
+      "cdmw/mcp/decal_tools.py": 35,
+      "cdmw/mcp/game_table_tools.py": 30,
       "cdmw/mcp/sound_tools.py": 29
     }
   },
@@ -76808,6 +76848,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "CDMW does not know DMM's folder yet. Give dmm_folder: the folder that contains DMM.exe.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 254
+    }
+  },
+  {
+    "area": "other",
     "message": "CDMW does not offer {method}.",
     "recovery": "internal",
     "sources": {
@@ -76852,6 +76900,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/protocol_surface.py": 181
+    }
+  },
+  {
+    "area": "other",
+    "message": "CDMW has no proven values to edit in the {table} table.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 151
     }
   },
   {
@@ -78987,7 +79043,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM already has a mod folder named {folder.name} that CDMW did not write. Rename the mod and send it again.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/dmm_send.py": 136
+      "cdmw/services/dmm_send.py": 140
     }
   },
   {
@@ -79011,7 +79067,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM's mods folder {mods} does not exist. Open DMM once, then send again.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/dmm_send.py": 60
+      "cdmw/services/dmm_send.py": 64
     }
   },
   {
@@ -79280,6 +79336,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/pac_cloth_state.py": 454
+    }
+  },
+  {
+    "area": "other",
+    "message": "Edit Game Table Values is not open. Open it with tables_editor_edit action open.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 37
     }
   },
   {
@@ -80022,6 +80086,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Give 1 to 256 changes.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/decal_tools.py": 69
+    }
+  },
+  {
+    "area": "other",
     "message": "Give an extension or a path",
     "recovery": "internal",
     "sources": {
@@ -80106,6 +80178,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/shader_preset_store.py": 33
+    }
+  },
+  {
+    "area": "other",
+    "message": "Give the table, or the archive path of a .staticinfobody or .staticinfoheader file.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 148
     }
   },
   {
@@ -81820,6 +81900,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/translation_tools.py": 38
+    }
+  },
+  {
+    "area": "other",
+    "message": "Load a table first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 188
     }
   },
   {
@@ -84237,6 +84325,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Row {key} is not listed in the dialog.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 123
+    }
+  },
+  {
+    "area": "other",
+    "message": "Row {row.key} has values 0 to {len(row.values) - 1}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 134
+    }
+  },
+  {
+    "area": "other",
     "message": "Row {row} showed no menu.",
     "recovery": "internal",
     "sources": {
@@ -84256,6 +84360,7 @@ MESSAGE_REFERENCE = [
     "message": "Save the decal sequence as a .paseq file.",
     "recovery": "internal",
     "sources": {
+      "cdmw/mcp/decal_tools.py": 72,
       "cdmw/services/skinned_decal_service.py": 41
     }
   },
@@ -84289,6 +84394,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/problem_report_service.py": 288
+    }
+  },
+  {
+    "area": "other",
+    "message": "Select a .paseq file in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/decal_tools.py": 38
     }
   },
   {
@@ -84336,7 +84449,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one item package to send to DMM.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send.py": 229,
+      "cdmw/services/dmm_send.py": 233,
       "cdmw/services/dmm_send_process.py": 71
     }
   },
@@ -85311,6 +85424,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "That value is not listed in the dialog.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 139
+    }
+  },
+  {
+    "area": "other",
     "message": "The Action Chart Editor did not export in time.",
     "recovery": "internal",
     "sources": {
@@ -85791,6 +85912,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The decal has no setting {unknown[0]}; files_decal_read lists them.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/mcp/decal_tools.py": 77
+    }
+  },
+  {
+    "area": "other",
     "message": "The declared item dependency graph exceeds its item limit.",
     "recovery": "limits",
     "sources": {
@@ -85811,6 +85940,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/services/iteminfo_dependency_graph.py": 145
+    }
+  },
+  {
+    "area": "other",
+    "message": "The dialog lists no table {table}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 172
     }
   },
   {
@@ -86199,6 +86336,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The loaded {index.table} table has no row {key}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 107
+    }
+  },
+  {
+    "area": "other",
     "message": "The local file path must be absolute.",
     "recovery": "input",
     "sources": {
@@ -86298,7 +86443,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod's {OPERATIONS_FILE} cannot be read to add to it: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_send.py": 102
+      "cdmw/services/dmm_send.py": 106
     }
   },
   {
@@ -87049,6 +87194,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "There is no change with that number; tables_editor_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 182
+    }
+  },
+  {
+    "area": "other",
     "message": "There is no column {column}.",
     "recovery": "internal",
     "sources": {
@@ -87381,6 +87534,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/hair_registration.py": 77
+    }
+  },
+  {
+    "area": "other",
+    "message": "This row exists only in the DLC copy; a DMM mod cannot change it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 194
     }
   },
   {
@@ -92520,6 +92681,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{given} is not DMM's folder (the one that contains DMM.exe).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 250
+    }
+  },
+  {
+    "area": "other",
     "message": "{holder} may not write into the game folder.",
     "recovery": "write",
     "sources": {
@@ -92539,7 +92708,7 @@ MESSAGE_REFERENCE = [
     "message": "{install} is not DMM's folder; choose the folder that contains DMM.exe.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_send.py": 51
+      "cdmw/services/dmm_send.py": 55
     }
   },
   {
@@ -108609,6 +108778,8 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/action_chart_tools.py",
     "cdmw/mcp/bridge.py",
     "cdmw/mcp/control_tools.py",
+    "cdmw/mcp/decal_tools.py",
+    "cdmw/mcp/game_table_tools.py",
     "cdmw/mcp/item_icon_tools.py",
     "cdmw/mcp/jobs.py",
     "cdmw/mcp/link.py",
@@ -110393,10 +110564,20 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "cdmw/mcp/coverage.py": {},
+  "cdmw/mcp/decal_tools.py": {
+    "code": 6,
+    "raise": 10,
+    "report": 3
+  },
   "cdmw/mcp/diagnostics_tools.py": {},
   "cdmw/mcp/errors.py": {
     "diagnostic_text": 2,
     "raise": 1
+  },
+  "cdmw/mcp/game_table_tools.py": {
+    "code": 14,
+    "raise": 17,
+    "report": 3
   },
   "cdmw/mcp/hkx_tools.py": {
     "code": 13,
