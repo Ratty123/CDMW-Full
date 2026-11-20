@@ -17,6 +17,7 @@ set(PREVIEW_CORE_OWNER_SOURCES
     src/owners/geometry_pac.cpp
     src/owners/geometry_static.cpp
     src/owners/geometry_pat.cpp
+    src/owners/material_text_scan.cpp
     src/owners/material_semantics.cpp
     src/owners/material_graph.cpp
     src/owners/material_graph_cache.cpp
@@ -45,6 +46,7 @@ set(PREVIEW_CORE_OWNER_SOURCES
     src/owners/mesh_rebuild_dispatch.cpp
     src/owners/name_index_service.cpp
     src/owners/material_parameter_self_tests.cpp
+    src/owners/material_text_scan_self_tests.cpp
     src/owners/material_surface_self_tests.cpp
     src/owners/command_dispatch.cpp
 )

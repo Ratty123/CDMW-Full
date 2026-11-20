@@ -78,6 +78,13 @@ static void append_native_phase_timing_report(std::ostringstream& out, const Nat
     out << "\"native_pamt_index_ms\":" << package.pamt_index_ms << ","
         << "\"native_mesh_parse_ms\":" << package.mesh_parse_ms << ","
         << "\"native_material_binding_ms\":" << package.material_binding_ms << ","
+        << "\"native_material_graph_ms\":" << package.material_graph_ms << ","
+        << "\"native_material_sidecar_lookup_ms\":" << package.material_sidecar_lookup_ms << ","
+        << "\"native_material_sidecar_parse_ms\":" << package.material_sidecar_parse_ms << ","
+        << "\"native_material_declaration_ms\":" << package.material_declaration_ms << ","
+        << "\"native_material_texture_ms\":" << package.material_texture_ms << ","
+        << "\"native_material_finish_ms\":" << package.material_finish_ms << ","
+        << "\"native_material_mesh_reference_ms\":" << package.material_mesh_reference_ms << ","
         << "\"native_package_write_ms\":" << package.package_write_ms << ",";
 }
 
@@ -360,7 +367,10 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     std::vector<TextureBinding> bindings;
     if (job.use_textures) {
         bindings = build_material_bindings(job, *index, parsed.meshes, package);
+        const auto mesh_reference_started = std::chrono::steady_clock::now();
         append_mesh_reference_bindings(job, *index, parsed.meshes, bindings, package);
+        package.material_mesh_reference_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - mesh_reference_started).count();
     } else {
         package.material_index = "disabled";
         package.material_graph_status = "disabled";

@@ -757,6 +757,22 @@ static int material_sidecar_model_property_index(
     return 0;
 }
 
+// Adds the time its scope took to one of the material phase timers of the package.
+struct MaterialPhaseTimer {
+    explicit MaterialPhaseTimer(double& total)
+        : total_(total), started_(std::chrono::steady_clock::now()) {}
+    ~MaterialPhaseTimer() {
+        total_ += std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - started_).count();
+    }
+    MaterialPhaseTimer(const MaterialPhaseTimer&) = delete;
+    MaterialPhaseTimer& operator=(const MaterialPhaseTimer&) = delete;
+
+private:
+    double& total_;
+    std::chrono::steady_clock::time_point started_;
+};
+
 static void process_material_sidecar(MaterialBindingBuildState& state, const ArchiveEntryRef& sidecar) {
     add_asset_family_row(state.package, NativeAssetFamilyRow{
         "Material", sidecar.extension == ".pami" ? "Material Index" : "Material Sidecar",
@@ -776,12 +792,15 @@ static void process_material_sidecar(MaterialBindingBuildState& state, const Arc
             "ambiguous_component_scope:" + sidecar.path);
     }
     const ParsedMaterialSidecar* parsed = nullptr;
-    try {
-        parsed = &cached_parsed_material_sidecar(sidecar, model_property_index);
-    } catch (const std::exception& exc) {
-        state.package.notes.push_back(
-            std::string("native material sidecar read failed:") + sidecar.path + ": " + exc.what());
-        return;
+    {
+        const MaterialPhaseTimer timer(state.package.material_sidecar_parse_ms);
+        try {
+            parsed = &cached_parsed_material_sidecar(sidecar, model_property_index);
+        } catch (const std::exception& exc) {
+            state.package.notes.push_back(
+                std::string("native material sidecar read failed:") + sidecar.path + ": " + exc.what());
+            return;
+        }
     }
     state.package.pbd_hint_count += static_cast<int>(parsed->pbd_hints.size());
     for (const NativePbdSidecarHint& hint : parsed->pbd_hints) {
@@ -805,18 +824,22 @@ static void process_material_sidecar(MaterialBindingBuildState& state, const Arc
     const bool wrapper_order_authoritative = parsed->material_wrapper_count > 0
         && parsed->material_wrapper_count == scoped_count;
     const std::string model_family_key = normalized_material_key(stem_from_path(state.job.path));
-    for (const MaterialWrapperDeclaration& declaration : parsed->declarations) {
-        record_material_wrapper_declaration(
-            state,
-            sidecar,
-            *parsed,
-            declaration,
-            wrapper_order_authoritative,
-            scoped_count,
-            component_key,
-            component_scope.id,
-            model_family_key);
+    {
+        const MaterialPhaseTimer timer(state.package.material_declaration_ms);
+        for (const MaterialWrapperDeclaration& declaration : parsed->declarations) {
+            record_material_wrapper_declaration(
+                state,
+                sidecar,
+                *parsed,
+                declaration,
+                wrapper_order_authoritative,
+                scoped_count,
+                component_key,
+                component_scope.id,
+                model_family_key);
+        }
     }
+    const MaterialPhaseTimer texture_timer(state.package.material_texture_ms);
     int considered = 0;
     for (const SidecarTextureRef& ref : parsed->refs) {
         if (process_sidecar_texture_ref(state, sidecar, *parsed, ref, wrapper_order_authoritative,
@@ -963,11 +986,14 @@ static std::vector<TextureBinding> build_material_bindings(
 ) {
     std::optional<NativeMaterialGraph> bounded_graph;
     const NativeMaterialGraph* graph = nullptr;
-    if (job.archive_dependency_entries_complete) {
-        bounded_graph.emplace(build_bounded_native_material_graph(index));
-        graph = &*bounded_graph;
-    } else {
-        graph = &cached_native_material_graph(job, index);
+    {
+        const MaterialPhaseTimer timer(package.material_graph_ms);
+        if (job.archive_dependency_entries_complete) {
+            bounded_graph.emplace(build_bounded_native_material_graph(index));
+            graph = &*bounded_graph;
+        } else {
+            graph = &cached_native_material_graph(job, index);
+        }
     }
     package.material_graph_status = "active";
     package.material_graph_cache_path = path_utf8(graph->cache_path);
@@ -982,7 +1008,11 @@ static std::vector<TextureBinding> build_material_bindings(
         + "; entries=" + std::to_string(graph->entry_count)
         + "; sidecars=" + std::to_string(graph->material_sidecar_count)
         + "; dds_basenames=" + std::to_string(graph->texture_candidate_count));
-    const std::vector<ArchiveEntryRef> sidecars = material_sidecar_candidates_for_job(job, index);
+    std::vector<ArchiveEntryRef> sidecars;
+    {
+        const MaterialPhaseTimer timer(package.material_sidecar_lookup_ms);
+        sidecars = material_sidecar_candidates_for_job(job, index);
+    }
     if (sidecars.empty()) {
         package.material_index = "native_index_no_sidecar";
         package.texture_resolution = "none";
@@ -997,6 +1027,9 @@ static std::vector<TextureBinding> build_material_bindings(
     }
     MaterialBindingBuildState state{job, index, meshes, package, graph->technique_index};
     for (const ArchiveEntryRef& sidecar : sidecars) process_material_sidecar(state, sidecar);
-    finish_material_bindings(state, sidecars.size());
+    {
+        const MaterialPhaseTimer timer(package.material_finish_ms);
+        finish_material_bindings(state, sidecars.size());
+    }
     return std::move(state.bindings);
 }

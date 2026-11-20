@@ -294,6 +294,14 @@ struct NativePackage {
     double pamt_index_ms = 0.0;
     double mesh_parse_ms = 0.0;
     double material_binding_ms = 0.0;
+    // Where material binding spent its time, in the order the work runs.
+    double material_graph_ms = 0.0;
+    double material_sidecar_lookup_ms = 0.0;
+    double material_sidecar_parse_ms = 0.0;
+    double material_declaration_ms = 0.0;
+    double material_texture_ms = 0.0;
+    double material_finish_ms = 0.0;
+    double material_mesh_reference_ms = 0.0;
     double package_write_ms = 0.0;
     size_t pamt_index_entries = 0;
     bool pamt_index_bounded_snapshot = false;
