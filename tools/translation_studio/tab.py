@@ -878,11 +878,12 @@ class TranslationStudioTab(QWidget):
         if catalogue is None:
             return []
         scopes = []
-        selected = self._selected_row()
-        if selected >= 0:
-            entry = self.model.entry_index(selected)
-            if entry is not None:
-                scopes.append(("The selected line", self._lines_for([entry])))
+        rows = self.table.selectionModel().selectedRows() if self.table.selectionModel() else []
+        entries = [entry for index in sorted(rows, key=lambda index: index.row())
+                   if (entry := self.model.entry_index(index.row())) is not None]
+        if entries:
+            label = "The selected line" if len(entries) == 1 else "The selected lines"
+            scopes.append((label, self._lines_for(entries)))
 
         shown = tuple(self.model.entry_index(row) for row in range(self.model.rowCount()))
         shown = tuple(index for index in shown if index is not None)

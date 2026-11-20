@@ -91,6 +91,14 @@ def _edit(call):
         dialog.source_box.setText(args.get("source_language", ""))
         dialog.instructions.setText(args.get("instructions", ""))
         dialog.skip_mismatch.setChecked(args.get("keep_markup", True))
+        scope = args.get("scope", "selected")
+        wanted = {"selected": ("The selected line",), "shown": ("The lines shown below",),
+                  "all": ("Every line",)}[scope]
+        button = next((button for button, (label, lines) in zip(dialog._scope_buttons, dialog._scopes)
+                       if label.startswith(wanted) and lines), None)
+        if button is None:
+            raise ToolError(UNAVAILABLE, f"The translate dialog offers no '{scope}' lines for this view.")
+        button.setChecked(True)
         press(dialog.start_button)
         previous = getattr(tab, "_mcp_translation_dialog", None)
         if previous is not None:
@@ -133,6 +141,12 @@ def _edit(call):
                     tab.edited_only.setChecked(args["edited_only"])
             elif action == "reset":
                 press(tab.reset_button)
+            elif action == "translate" and (args.get("rows") or args.get("scope", "selected") != "selected"):
+                rows = list(args.get("rows") or ())
+                if any(model.entry_index(row) is None for row in rows):
+                    raise ToolError(NOT_FOUND, "A requested line is absent from the current table.")
+                _select_rows(tab, rows)
+                press(tab.ai_button)
             else:
                 row = required(args, "row")
                 if model.entry_index(row) is None:
@@ -147,6 +161,16 @@ def _edit(call):
         return _state(tab, {})
 
     return ui(call, change, answers, dialogs={TranslateDialog: start_machine})
+
+
+def _select_rows(tab, rows) -> None:
+    from PySide6.QtCore import QItemSelection, QItemSelectionModel
+
+    selection = QItemSelection()
+    for row in rows:
+        selection.select(tab.model.index(row, 0), tab.model.index(row, tab.model.columnCount() - 1))
+    tab.table.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect
+                                      | QItemSelectionModel.SelectionFlag.Rows)
 
 
 def _save(call):
@@ -176,14 +200,16 @@ def _save(call):
 def translation_tools():
     return [
         tool("translation.edit", EDIT, "Open or load a table, filter lines, edit or replace text, revert, reset, "
-             "or machine-translate a selected row using the provider configured in Edit Translations.",
+             "or machine-translate lines using the provider configured in Edit Translations: a row, several rows, the "
+             "lines shown (scope shown) or every line matching the filter or of the language (scope all).",
              "ui:TranslationStudioTab", _edit,
              {"action": choices("open", "load", "refresh_languages", "search", "set", "replace", "revert", "reset",
                                 "translate", "stop_translation"),
               "path": PATH, "game_path": TEXT, "discard_edits": BOOL, "language": TEXT, "reference": TEXT,
               "query": TEXT, "category": {"type": ["string", "integer", "null"]}, "edited_only": BOOL,
               "row": ROW, "rows": ROWS, "text": {"type": "string", "maxLength": 65536}, "find": PATH,
-              "source_language": TEXT, "target_language": TEXT, "instructions": TEXT, "keep_markup": BOOL},
+              "source_language": TEXT, "target_language": TEXT, "instructions": TEXT, "keep_markup": BOOL,
+              "scope": choices("selected", "shown", "all")},
              ("action",)),
         tool("translation.review", READ, "Review the shown lines, pending edits, and translation or export progress.",
              "ui:TranslationStudioTab.model", _review,
