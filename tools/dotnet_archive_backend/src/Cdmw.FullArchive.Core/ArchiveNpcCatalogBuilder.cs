@@ -12,6 +12,9 @@ public static class ArchiveNpcCatalogBuilder
     private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase) {
         ".pac", ".pam", ".pamlod", ".app_xml", ".prefab", ".prefabdata_xml", ".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".xml" };
 
+    /// <summary>The file types <see cref="Build"/> keeps from its inventory.</summary>
+    internal static IReadOnlyCollection<string> InventoryExtensions => Extensions;
+
     public static NpcCatalogSnapshot Build(
         string packageRoot, string signature, IEnumerable<ArchiveEntryDto> inventory,
         Func<ArchiveEntryDto, byte[]> read, CancellationToken token,

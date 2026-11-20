@@ -12,6 +12,9 @@ public static class ArchiveCharacterCatalogBuilder
         ".pac", ".pam", ".pamlod", ".app_xml", ".prefab", ".prefabdata_xml", ".pappt",
         ".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".pab", ".pabc", ".pamt", ".pabv", ".paccd", ".xml", ".dds", ".hkt", ".papr" };
 
+    /// <summary>The file types <see cref="Build"/> keeps from its inventory.</summary>
+    internal static IReadOnlyCollection<string> InventoryExtensions => CharacterExtensions;
+
     public static CharacterCatalogSnapshot Build(
         string packageRoot, string signature, IEnumerable<ArchiveEntryDto> inventory,
         Func<ArchiveEntryDto, byte[]> read, CancellationToken token,

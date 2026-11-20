@@ -117,14 +117,8 @@ public sealed class ArchiveCharacterCatalogService(ArchiveSessionManager session
         return catalog ?? throw new InvalidOperationException("Character catalogue was not published.");
     }
 
-    private static IEnumerable<ArchiveEntryDto> Enumerate(ArchiveSession session, CancellationToken token)
-    {
-        for (long i = 0; i < session.Index.EntryCount; i++)
-        {
-            if ((i & 0x1FFF) == 0) token.ThrowIfCancellationRequested();
-            yield return session.Index.ReadEntry(i, session.Id);
-        }
-    }
+    private static IEnumerable<ArchiveEntryDto> Enumerate(ArchiveSession session, CancellationToken token) =>
+        ArchiveCatalogInventory.CharacterEntries(session, ArchiveCharacterCatalogBuilder.InventoryExtensions, token);
 
     private static BuildCharacterCatalogResult Summary(string sessionId, ArchiveCharacterCatalog catalog, bool cached)
     {

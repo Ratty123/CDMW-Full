@@ -133,14 +133,8 @@ public sealed class ArchiveNpcCatalogService(ArchiveSessionManager sessions, Nat
         return catalog ?? throw new InvalidOperationException("NPC catalogue was not published.");
     }
 
-    private static IEnumerable<ArchiveEntryDto> Enumerate(ArchiveSession session, CancellationToken token)
-    {
-        for (long i = 0; i < session.Index.EntryCount; i++)
-        {
-            if ((i & 0x1FFF) == 0) token.ThrowIfCancellationRequested();
-            yield return session.Index.ReadEntry(i, session.Id);
-        }
-    }
+    private static IEnumerable<ArchiveEntryDto> Enumerate(ArchiveSession session, CancellationToken token) =>
+        ArchiveCatalogInventory.CharacterEntries(session, ArchiveNpcCatalogBuilder.InventoryExtensions, token);
 
     private static BuildNpcCatalogResult Summary(string sessionId, ArchiveNpcCatalog catalog, bool cached)
     {
