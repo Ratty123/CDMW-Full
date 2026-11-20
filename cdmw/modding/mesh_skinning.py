@@ -287,6 +287,48 @@ def pac_skin_export_enabled(original: SubMesh, updated: SubMesh, submesh_index: 
     return True
 
 
+#: Far below one u8 weight step (1/255), and far above float noise. Normalize
+#: Weights divides a row that already sums to 1 by its sum, which moves the
+#: last bits; such a row is unchanged and must keep its bytes.
+_SKIN_WEIGHT_SAME_TOLERANCE = 1e-6
+
+
+def _same_skin_influences(
+    row: tuple[tuple[object, ...], tuple[object, ...]],
+    stored: tuple[tuple[int, ...], tuple[float, ...]],
+) -> bool:
+    """True when two rows carry the same influences, whatever their order or float noise."""
+
+    if row == stored:
+        return True
+
+    def merged(bones, weights) -> dict[int, float] | None:
+        result: dict[int, float] = {}
+        if len(bones) != len(weights):
+            return None
+        for bone, weight in zip(bones, weights):
+            try:
+                bone, weight = int(bone), float(weight)
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if not math.isfinite(weight):
+                return None
+            if weight > 0.0:
+                result[bone] = result.get(bone, 0.0) + weight
+        return result
+
+    left, right = merged(*row), merged(*stored)
+    if left is None or right is None or not left or set(left) != set(right):
+        return False
+    left_total, right_total = sum(left.values()), sum(right.values())
+    if left_total <= 0.0 or right_total <= 0.0:
+        return False
+    return all(
+        abs(left[bone] / left_total - right[bone] / right_total) <= _SKIN_WEIGHT_SAME_TOLERANCE
+        for bone in left
+    )
+
+
 def patch_pac_vertex_skin(
     record: bytearray,
     submesh: SubMesh,
@@ -301,7 +343,7 @@ def patch_pac_vertex_skin(
     # bit-exact inverse of decoding -- u8 weights requantize by a count or two, and a slot left
     # behind a zero weight would be cleared -- and the replacement path depends on an untouched
     # row surviving byte for byte.
-    if (bones, weights) == _decode_pac_skin_influences(bytes(record), 0):
+    if _same_skin_influences((bones, weights), _decode_pac_skin_influences(bytes(record), 0)):
         return
     pack_pac_skin_weights(
         record,

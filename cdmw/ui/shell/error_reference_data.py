@@ -2891,7 +2891,10 @@ ERROR_REFERENCE = [
     "messages": [
       "Combine into One Mod closed before producing an output.",
       "Combine into One Mod did not finish in time.",
-      "Nothing was saved as a mod; the HKX Physics Editor says why.",
+      "Nothing was written: {what} did not finish. CDMW's message says why.",
+      "The Action Chart Editor did not export in time.",
+      "The Action Chart Editor did not finish in time.",
+      "The Action Chart Editor did not open in time. Browse Archives' status says why (a shared action table cannot be edited).",
       "The HKX Physics Editor did not open in time.",
       "The HKX Physics Editor did not save in time.",
       "The Mesh Editor did not take the command.",
@@ -2899,6 +2902,7 @@ ERROR_REFERENCE = [
       "The Mesh Editor did not take the selection.",
       "The archive worker did not answer in time.",
       "The call's safety class could not be worked out.",
+      "The export did not start.",
       "The interface did not answer in time; try again when CDMW is idle.",
       "The preview did not deliver the picture in time.",
       "The reference search did not finish in time.",
@@ -2907,10 +2911,12 @@ ERROR_REFERENCE = [
       "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}"
     ],
     "sources": [
+      "cdmw/mcp/action_chart_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/mesh_edit_tools.py",
       "cdmw/mcp/mesh_tools.py",
+      "cdmw/mcp/mod_ready_prompt.py",
       "cdmw/mcp/new_item_files.py",
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/saved_work_tools.py",
@@ -2962,6 +2968,7 @@ ERROR_REFERENCE = [
       "At most {MAX_ROWS * 8} rows at once.",
       "CDMW does not decode {table}. It decodes: {', '.join(sorted(DECODED_TABLES))}",
       "Choose a factor from {box.minimum()} to {box.maximum()}.",
+      "Choose a rate from {dialog.rate_spin.minimum()} to {dialog.rate_spin.maximum()}.",
       "Choose a supported numeric preset or value.",
       "Choose a supported worker count.",
       "Choose a value from {control.minimum()} to {control.maximum()}.",
@@ -2976,14 +2983,19 @@ ERROR_REFERENCE = [
       "Export PAC As writes a .pac file.",
       "Export an .obj or .glb file (FBX needs Blender: use the Export Mesh File button through app_ui_act).",
       "Free Edit writes an editable package: give 'destination', an existing folder outside the game.",
+      "Give 1 to {MAX_BONES} bones.",
+      "Give 1 to {MAX_CHANGES} changes.",
       "Give a file, project or archive texture path.",
       "Give an extension or a path",
+      "Give at most {_MAX_CHANGES} changes in one write.",
+      "Give clip, blend or both.",
       "Give either factor (with optional offsets or category) or values.",
       "Give key or name",
       "Give key, character_id or appearance_path.",
       "Give key, keys or search",
       "Give piece: a .pac path or file name, or a prefab name.",
       "Give translate, rotate_degrees or scale.",
+      "Give values, add or remove: nothing would change.",
       "Invalid PNG: {exc}",
       "More than one package contains this path. Specify package.",
       "Name the control: widget (its id from app_ui) or text (what it says).",
@@ -3002,6 +3014,7 @@ ERROR_REFERENCE = [
       "The destination must end in {suffix}.",
       "The docked editor opens a mesh texture by texture ID or game path.",
       "The local file path must be absolute.",
+      "The mod needs a name.",
       "The output folder does not exist: {folder}",
       "The output folder does not exist: {target}",
       "The package path must end in {PACKAGE_EXTENSION}.",
@@ -3024,6 +3037,7 @@ ERROR_REFERENCE = [
       "offset is past the end ({size} bytes).",
       "path is required",
       "paths holds 1 to {MAX_PATHS} archive paths.",
+      "position, angles and scale take three numbers each.",
       "row applies to a list, table or tree.",
       "row is needed: a row's number or its text.",
       "rows is needed: a list of row numbers or texts.",
@@ -3033,6 +3047,7 @@ ERROR_REFERENCE = [
       "{action} does not apply to a {kind_of(widget) or 'widget'}.",
       "{args['action']} requires {key}.",
       "{args['action']} takes {minimum} to {maximum} points.",
+      "{label} is not a number: {text}",
       "{len(found)} controls have the text {text}; name one by its widget id.",
       "{name} is required",
       "{name} is required for this action.",
@@ -3050,6 +3065,7 @@ ERROR_REFERENCE = [
       "{where}.{name} is required"
     ],
     "sources": [
+      "cdmw/mcp/action_chart_tools.py",
       "cdmw/mcp/control_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/local_file_tools.py",
@@ -3063,10 +3079,13 @@ ERROR_REFERENCE = [
       "cdmw/mcp/npc_tools.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/placement_tools.py",
+      "cdmw/mcp/prefab_tools.py",
       "cdmw/mcp/rail_actions.py",
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/schema.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/skeleton_tools.py",
+      "cdmw/mcp/sound_tools.py",
       "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
@@ -3508,6 +3527,8 @@ ERROR_REFERENCE = [
       "A requested line is absent from the current table.",
       "A requested package is absent from Mod Management.",
       "A requested row is absent from the current results.",
+      "Animation {args['animation']} has no frame event {event}.",
+      "Animation {args['animation']} has no value {field} (item {item}); files_action_chart_state with animation lists them.",
       "Browse Archives did not finish looking up the files.",
       "Browse Archives did not show the files in time.",
       "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
@@ -3529,6 +3550,9 @@ ERROR_REFERENCE = [
       "No shortcut command matches {command}.",
       "No source folder has that row.",
       "No variant {a['variant']}.",
+      "Object {change['object']} cannot take {name}; files_sound_bank_read lists what each object can add.",
+      "Object {change['object']} has no added property {target} to remove.",
+      "Object {change['object']} has no value {change['value']}; files_sound_bank_read lists them.",
       "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
       "That page is gone: it was already read or is more than 15 minutes old. Run the search again.",
       "The Format Explorer has no row for {extension}.",
@@ -3550,6 +3574,9 @@ ERROR_REFERENCE = [
       "The list is empty.",
       "The loaded archive index has no such texture.",
       "The mesh has parts 0 to {len(parts) - 1}.",
+      "There is no animation {index}; files_action_chart_state lists them.",
+      "There is no animation {index}; this chart has {len(chart.animations)}.",
+      "There is no audio file {source}.",
       "There is no column {column}.",
       "There is no command {command_id} now. commands_list lists them; the Mesh Editor's and the Texture Editor's exist while their tool is open.",
       "There is no control {text} now. Call app_ui for the controls shown.",
@@ -3557,12 +3584,18 @@ ERROR_REFERENCE = [
       "There is no job {job_id}.",
       "There is no joint {index}; files_hkx_state lists them.",
       "There is no name {item}; files_hkx_state lists them.",
+      "There is no pending edit {index}.",
+      "There is no row {row}; files_prefab_read lists them.",
       "There is no supported Settings control for {raw}.",
       "There is no tab {row}.",
+      "There is no table {table}; files_action_chart_state lists them.",
+      "There is no table {table}; tables lists them.",
       "This appearance lists no piece {a['piece']}.",
+      "This event has no field {field}.",
       "This joint has no {key}.",
       "{clean_label(action.text())} has no submenu.",
       "{clean_label(found.text())} has no submenu.",
+      "{dialog.table_combo.itemText(table)} has no entry {old}.",
       "{error}. The archives have: {languages}.",
       "{key} has no variant {variant}.",
       "{path} is not in the game archives.",
@@ -3571,6 +3604,7 @@ ERROR_REFERENCE = [
       "{where} has no entry {part}. It has: {known}."
     ],
     "sources": [
+      "cdmw/mcp/action_chart_tools.py",
       "cdmw/mcp/app_read_tools.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
@@ -3583,11 +3617,13 @@ ERROR_REFERENCE = [
       "cdmw/mcp/mod_management_tools.py",
       "cdmw/mcp/npc_tools.py",
       "cdmw/mcp/paging.py",
+      "cdmw/mcp/prefab_tools.py",
       "cdmw/mcp/rail_actions.py",
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/research_tools.py",
       "cdmw/mcp/saved_work_tools.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/sound_tools.py",
       "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
@@ -3749,31 +3785,43 @@ ERROR_REFERENCE = [
       "CDMW is not running or AI connections are off.",
       "Choose an empty folder so the export cannot replace files.",
       "Declined in CDMW.",
+      "Nothing was built.",
       "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool.",
       "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool. It was put back.",
       "Only you can run this command in CDMW: it can change the AI connection settings or the game folder, or it writes into the game.",
       "Only you can use this control in CDMW: AI connections, their approvals, Full access, the game folder and what writes into the game are never driven by a tool.",
+      "Row {row} ({child.text(0)}) cannot change.",
+      "The Add Bones dialog refused the bones.",
       "The HKX Physics Editor refused the save.",
       "The current animation draft was kept.",
+      "The edit was not applied.",
+      "The export was refused.",
+      "The review lists warnings; give accept_warnings to save anyway.",
+      "This event has no fields CDMW can change.",
       "{destination} already exists; name a new package.",
-      "{key} cannot change on this joint."
+      "{key} cannot change on this joint.",
+      "{what} was refused."
     ],
     "sources": [
+      "cdmw/mcp/action_chart_tools.py",
       "cdmw/mcp/approvals.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/item_icon_tools.py",
       "cdmw/mcp/jobs.py",
+      "cdmw/mcp/mod_ready_prompt.py",
       "cdmw/mcp/model_library_tools.py",
       "cdmw/mcp/new_item_model.py",
       "cdmw/mcp/new_item_tools.py",
       "cdmw/mcp/new_item_workflow.py",
       "cdmw/mcp/placement_tools.py",
+      "cdmw/mcp/prefab_tools.py",
       "cdmw/mcp/rail_actions.py",
       "cdmw/mcp/saved_work_tools.py",
       "cdmw/mcp/server.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/skeleton_tools.py",
       "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/text_search_tools.py",
       "cdmw/mcp/texture_files.py",
@@ -9136,7 +9184,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 510
+      "cdmw/ui/archive_browser/extraction.py": 513
     }
   },
   {
@@ -9152,7 +9200,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 502
+      "cdmw/ui/archive_browser/extraction.py": 505
     }
   },
   {
@@ -9168,7 +9216,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive export item details were truncated by the worker reporting bound.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 493
+      "cdmw/ui/archive_browser/extraction.py": 496
     }
   },
   {
@@ -9176,7 +9224,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 548
+      "cdmw/ui/archive_browser/extraction.py": 551
     }
   },
   {
@@ -9192,7 +9240,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction summary: extracted={extracted}, decompressed={decompressed}, renamed={renamed}, failed={failed}.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 627
+      "cdmw/ui/archive_browser/extraction.py": 630
     }
   },
   {
@@ -9200,7 +9248,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive extraction summary: extracted={payload.exported}, renamed_reported={renamed}, skipped={payload.skipped}, failed={payload.failed}.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/extraction.py": 488
+      "cdmw/ui/archive_browser/extraction.py": 491
     }
   },
   {
@@ -11057,7 +11105,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS metadata unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 342
+      "cdmw/core/archive_preview_result_builder.py": 368
     }
   },
   {
@@ -11129,7 +11177,7 @@ MESSAGE_REFERENCE = [
     "message": "Decoded preview failed: {exc}",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1711
+      "cdmw/core/archive_preview_result_builder.py": 1740
     }
   },
   {
@@ -11330,7 +11378,7 @@ MESSAGE_REFERENCE = [
     "message": "Export destination changed while the export ran and now leads elsewhere. Nothing was published; choose a folder outside the game folder and export again.",
     "recovery": "write",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 531
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 526
     }
   },
   {
@@ -11338,7 +11386,7 @@ MESSAGE_REFERENCE = [
     "message": "Export destination could not be checked: {exception.Message}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 512
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 507
     }
   },
   {
@@ -11354,7 +11402,7 @@ MESSAGE_REFERENCE = [
     "message": "Export destination is inside a game installation or holds game archives. CDMW does not write into the game folder; choose a folder outside it.",
     "recovery": "write",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 506
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 501
     }
   },
   {
@@ -11370,7 +11418,7 @@ MESSAGE_REFERENCE = [
     "message": "Export destination overlaps the archive cache; choose a folder outside it.",
     "recovery": "conflict",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 499
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 494
     }
   },
   {
@@ -11378,7 +11426,7 @@ MESSAGE_REFERENCE = [
     "message": "Export destination overlaps the archive source. CDMW does not write into the game folder; choose a folder outside it.",
     "recovery": "conflict",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 494
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 489
     }
   },
   {
@@ -11394,7 +11442,7 @@ MESSAGE_REFERENCE = [
     "message": "Export destination's path goes through a link (a junction or symbolic link). Choose a folder whose path has no links, outside the game folder.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 485
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 480
     }
   },
   {
@@ -11426,7 +11474,7 @@ MESSAGE_REFERENCE = [
     "message": "Family export requires a seed entry id.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 370
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 371
     }
   },
   {
@@ -11450,7 +11498,7 @@ MESSAGE_REFERENCE = [
     "message": "Filtered export requires a server-side query token.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 328
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 329
     }
   },
   {
@@ -11530,7 +11578,7 @@ MESSAGE_REFERENCE = [
     "message": "Folder export requires a virtual folder path.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 335
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 336
     }
   },
   {
@@ -12563,7 +12611,7 @@ MESSAGE_REFERENCE = [
     "message": "Model preview fallback",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1680
+      "cdmw/core/archive_preview_result_builder.py": 1709
     }
   },
   {
@@ -14364,7 +14412,7 @@ MESSAGE_REFERENCE = [
     "message": "Raw bytes",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1725
+      "cdmw/core/archive_preview_result_builder.py": 1754
     }
   },
   {
@@ -14892,7 +14940,7 @@ MESSAGE_REFERENCE = [
     "message": "Showing raw stored bytes because the decoded preview path failed.",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1725
+      "cdmw/core/archive_preview_result_builder.py": 1754
     }
   },
   {
@@ -15572,7 +15620,7 @@ MESSAGE_REFERENCE = [
     "message": "The action chart could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -15660,7 +15708,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive export selection kind is not supported.",
     "recovery": "unsupported",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 383
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveExportService.cs": 384
     }
   },
   {
@@ -16069,7 +16117,7 @@ MESSAGE_REFERENCE = [
     "message": "The colour atlas could not be shown: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 678
+      "cdmw/core/archive_preview_result_builder.py": 706
     }
   },
   {
@@ -16277,7 +16325,7 @@ MESSAGE_REFERENCE = [
     "message": "The file could not be read as a font or cursor: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -16325,7 +16373,7 @@ MESSAGE_REFERENCE = [
     "message": "The impostor descriptor could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -16589,7 +16637,7 @@ MESSAGE_REFERENCE = [
     "message": "The reflection object could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -16709,7 +16757,7 @@ MESSAGE_REFERENCE = [
     "message": "The shader container could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -16796,10 +16844,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "This TGA image could not be decoded for preview: {exc}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_preview_result_builder.py": 170
+    }
+  },
+  {
+    "area": "archive",
     "message": "This archive DDS is stored as truncated type 1 data. The image shown here is a padded best-effort preview and may be corrupted, noisy, or incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 366
+      "cdmw/core/archive_preview_result_builder.py": 392
     }
   },
   {
@@ -16913,7 +16969,7 @@ MESSAGE_REFERENCE = [
     "message": "Type 1 DDS: Unsupported Preview",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 366
+      "cdmw/core/archive_preview_result_builder.py": 392
     }
   },
   {
@@ -17334,7 +17390,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual PAT preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1444
+      "cdmw/core/archive_preview_result_builder.py": 1473
     }
   },
   {
@@ -17342,7 +17398,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual model preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1318
+      "cdmw/core/archive_preview_result_builder.py": 1347
     }
   },
   {
@@ -17350,7 +17406,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual preview is not available for this model format yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1447
+      "cdmw/core/archive_preview_result_builder.py": 1476
     }
   },
   {
@@ -19087,7 +19143,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_media_preview.py": 698,
       "cdmw/core/archive_mesh_import_supplemental.py": 557,
       "cdmw/core/archive_name_search.py": 1151,
-      "cdmw/core/archive_preview_result_builder.py": 1136,
+      "cdmw/core/archive_preview_result_builder.py": 1165,
       "cdmw/core/archive_preview_support.py": 377,
       "cdmw/core/archive_reverse_references.py": 216,
       "cdmw/core/archive_scan_cache.py": 608,
@@ -19548,7 +19604,7 @@ MESSAGE_REFERENCE = [
     "message": "{backup_dir} does not contain a backup_manifest.json file.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/ui/archive_browser/patch_actions.py": 249
+      "cdmw/ui/archive_browser/patch_actions.py": 251
     }
   },
   {
@@ -20934,7 +20990,8 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/hkx_tools.py": 32
+      "cdmw/mcp/hkx_tools.py": 32,
+      "cdmw/mcp/prefab_tools.py": 32
     }
   },
   {
@@ -21395,6 +21452,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Give 1 to {MAX_CHANGES} changes.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 89
+    }
+  },
+  {
+    "area": "formats",
     "message": "HKX TAG0 marker was not found",
     "recovery": "missing",
     "sources": {
@@ -21462,7 +21527,7 @@ MESSAGE_REFERENCE = [
     "message": "HKX geometry patch document must contain a shapes list.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_hkx_editing.py": 376
+      "cdmw/core/archive_hkx_editing.py": 411
     }
   },
   {
@@ -21971,10 +22036,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "Nothing was saved as a mod; the HKX Physics Editor says why.",
+    "message": "Nothing was built.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/hkx_tools.py": 224
+      "cdmw/mcp/prefab_tools.py": 119
     }
   },
   {
@@ -22159,7 +22224,7 @@ MESSAGE_REFERENCE = [
     "message": "Patch SDK {document_sdk} does not match HKX SDK {summary.sdk_version}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_hkx_editing.py": 370
+      "cdmw/core/archive_hkx_editing.py": 405
     }
   },
   {
@@ -22167,7 +22232,7 @@ MESSAGE_REFERENCE = [
     "message": "Patch payload size {document_size} does not match HKX size {len(data)}.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_hkx_editing.py": 373
+      "cdmw/core/archive_hkx_editing.py": 408
     }
   },
   {
@@ -22287,7 +22352,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab edit JSON is not valid JSON.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_json_apply.py": 153
+      "cdmw/core/prefab_json_apply.py": 154
     }
   },
   {
@@ -23062,6 +23127,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Row {row} ({child.text(0)}) cannot change.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 109
+    }
+  },
+  {
+    "area": "formats",
     "message": "Runtime binding from PASEQ lanes to the 3D model preview is not implemented yet.",
     "recovery": "unsupported",
     "sources": {
@@ -23114,6 +23187,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_hkx_tagfile_model.py": 236
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Select a .prefab file in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 35
     }
   },
   {
@@ -23271,6 +23352,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The HKX document has different edits under \"shapes\" and \"collision_shapes\". They are two copies of the same list; make the edit in one of them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_hkx_editing.py": 389
+    }
+  },
+  {
+    "area": "formats",
     "message": "The chosen file cannot be read safely: {candidate.codec_message}",
     "recovery": "unsupported",
     "sources": {
@@ -23299,6 +23388,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_prefab_package.py": 154
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The export question has no Loose Folder choice.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 126
     }
   },
   {
@@ -23370,7 +23467,8 @@ MESSAGE_REFERENCE = [
     "message": "The output folder does not exist: {folder}",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/hkx_tools.py": 200
+      "cdmw/mcp/hkx_tools.py": 200,
+      "cdmw/mcp/prefab_tools.py": 86
     }
   },
   {
@@ -23543,6 +23641,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The review lists warnings; give accept_warnings to save anyway.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 116
+    }
+  },
+  {
+    "area": "formats",
     "message": "The rewritten prefab declares {stated} bytes but is {len(rebuilt)}",
     "recovery": "internal",
     "sources": {
@@ -23627,6 +23733,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/hkx_tools.py": 162
+    }
+  },
+  {
+    "area": "formats",
+    "message": "There is no row {row}; files_prefab_read lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 107
     }
   },
   {
@@ -23812,7 +23926,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported HKX geometry patch document format.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_hkx_editing.py": 364
+      "cdmw/core/archive_hkx_editing.py": 399
     }
   },
   {
@@ -24458,7 +24572,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_binary_preview_common_0.py": 29,
       "cdmw/core/archive_binary_preview_paa_0.py": 230,
       "cdmw/core/archive_binary_preview_papr_0.py": 432,
-      "cdmw/core/archive_binary_preview_sidecar_0.py": 394,
+      "cdmw/core/archive_binary_preview_sidecar_0.py": 408,
       "cdmw/core/archive_hkx_parser.py": 58,
       "cdmw/core/archive_hkx_schema_helpers_1.py": 61,
       "cdmw/core/crimson_formats.py": 607
@@ -41281,7 +41395,7 @@ MESSAGE_REFERENCE = [
     "message": "A game vertex holds six bones. Remove an existing influence before adding another.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8677
+      "cdmw/services/mesh_rust_authoring.py": 8688
     }
   },
   {
@@ -41353,7 +41467,7 @@ MESSAGE_REFERENCE = [
     "message": "A sculpted slider definition is required.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10376
+      "cdmw/services/mesh_rust_authoring.py": 10387
     }
   },
   {
@@ -41361,7 +41475,7 @@ MESSAGE_REFERENCE = [
     "message": "A sculpted slider or outfit correction requires unchanged topology and source mapping. Undo the incompatible edit, or save/discard the pending work before replacing the mesh.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9793
+      "cdmw/services/mesh_rust_authoring.py": 9804
     }
   },
   {
@@ -41521,7 +41635,7 @@ MESSAGE_REFERENCE = [
     "message": "Adding body or armor Parts requires Free Edit",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9726
+      "cdmw/services/mesh_rust_authoring.py": 9737
     }
   },
   {
@@ -41682,7 +41796,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply or Cancel Restore fitting shape before editing or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10322
+      "cdmw/services/mesh_rust_authoring.py": 10333
     }
   },
   {
@@ -41722,7 +41836,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit preserves each source Part and topology; finish this refit before changing topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10135
+      "cdmw/services/mesh_rust_authoring.py": 10146
     }
   },
   {
@@ -41971,7 +42085,7 @@ MESSAGE_REFERENCE = [
     "message": "Auto Unwrap may split vertices and requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4531
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4562
     }
   },
   {
@@ -42052,7 +42166,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1223,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6469
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6500
     }
   },
   {
@@ -42069,7 +42183,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1205,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6456
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6487
     }
   },
   {
@@ -42414,7 +42528,7 @@ MESSAGE_REFERENCE = [
     "message": "Body and garment Parts must be different",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4962
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4993
     }
   },
   {
@@ -42892,6 +43006,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Browse Archives is unavailable.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 32
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Browse's preview process could not open this window.",
     "recovery": "internal",
     "sources": {
@@ -43319,7 +43441,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add {role} mesh: {blockers[0]}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9743
+      "cdmw/services/mesh_rust_authoring.py": 9754
     }
   },
   {
@@ -43714,7 +43836,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a GLB, FBX or OBJ filename matching the export format.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9979
+      "cdmw/services/mesh_rust_authoring.py": 9990
     }
   },
   {
@@ -44082,7 +44204,7 @@ MESSAGE_REFERENCE = [
     "message": "Cleanup that changes topology requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4329
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4342
     }
   },
   {
@@ -44090,7 +44212,7 @@ MESSAGE_REFERENCE = [
     "message": "Clear Refit before adding body or armor Parts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9730
+      "cdmw/services/mesh_rust_authoring.py": 9741
     }
   },
   {
@@ -44570,7 +44692,7 @@ MESSAGE_REFERENCE = [
     "message": "Convert hair guides to ordinary geometry before using these mesh operations.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10114
+      "cdmw/services/mesh_rust_authoring.py": 10125
     }
   },
   {
@@ -44786,7 +44908,7 @@ MESSAGE_REFERENCE = [
     "message": "Create Part requires selected faces and Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3886
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3892
     }
   },
   {
@@ -45042,7 +45164,7 @@ MESSAGE_REFERENCE = [
     "message": "Delete Part cannot remove every Part because the editable mesh must retain geometry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8565
+      "cdmw/services/mesh_rust_authoring.py": 8576
     }
   },
   {
@@ -45050,7 +45172,7 @@ MESSAGE_REFERENCE = [
     "message": "Delete Part requires at least one explicitly selected Part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8561
+      "cdmw/services/mesh_rust_authoring.py": 8572
     }
   },
   {
@@ -45122,7 +45244,15 @@ MESSAGE_REFERENCE = [
     "message": "Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6160
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6191
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Deleting whole parts requires Free Edit. To remove a part from the exported game file, untick Include instead.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_rust_authoring.py": 8464
     }
   },
   {
@@ -45250,7 +45380,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate and Delete require Free Edit output",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5975
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6006
     }
   },
   {
@@ -45322,7 +45452,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh Finish was rejected and Morph profile rollback also failed: {type(rollback_error).__name__}: {rollback_error}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11180
+      "cdmw/services/mesh_rust_authoring.py": 11191
     }
   },
   {
@@ -45330,7 +45460,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh can import editable GLB, FBX, or OBJ packages.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9819
+      "cdmw/services/mesh_rust_authoring.py": 9830
     }
   },
   {
@@ -45338,7 +45468,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh cannot run {action} under the current output policy.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8477
+      "cdmw/services/mesh_rust_authoring.py": 8488
     }
   },
   {
@@ -45346,7 +45476,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh cannot run {command}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10142
+      "cdmw/services/mesh_rust_authoring.py": 10153
     }
   },
   {
@@ -45362,7 +45492,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh closed before authoritative publication.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10945
+      "cdmw/services/mesh_rust_authoring.py": 10956
     }
   },
   {
@@ -45442,7 +45572,7 @@ MESSAGE_REFERENCE = [
     "message": "Editable package path is required",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9815
+      "cdmw/services/mesh_rust_authoring.py": 9826
     }
   },
   {
@@ -45644,7 +45774,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC LOD0 topology rebuild needs the original parsed mesh, and it is unavailable. Refusing to fall back to the generic rebuild, which would choose donor records.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 482
+      "cdmw/modding/mesh_importer.py": 485
     }
   },
   {
@@ -45676,7 +45806,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement changed an unowned byte at file offset {offset}; only record bytes 20:34 are authorized.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 790
+      "cdmw/modding/mesh_importer.py": 801
     }
   },
   {
@@ -45684,7 +45814,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement changed the file size; byte ownership could not be proven.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 718
+      "cdmw/modding/mesh_importer.py": 729
     }
   },
   {
@@ -45764,7 +45894,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement lacks the proven 40-byte source records for submesh {submesh_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 752
+      "cdmw/modding/mesh_importer.py": 763
     }
   },
   {
@@ -45772,7 +45902,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement may target only valid LOD 0 submeshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 726
+      "cdmw/modding/mesh_importer.py": 737
     }
   },
   {
@@ -45812,7 +45942,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement source record is outside the file for submesh {submesh_index} vertex {vertex_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 760
+      "cdmw/modding/mesh_importer.py": 771
     }
   },
   {
@@ -45820,7 +45950,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact PAC skin-weight replacement targets missing submesh {submesh_index}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 739
+      "cdmw/modding/mesh_importer.py": 750
     }
   },
   {
@@ -45836,7 +45966,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset topology writer did not prove that fallback was disabled.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10643
+      "cdmw/services/mesh_rust_authoring.py": 10654
     }
   },
   {
@@ -45844,7 +45974,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer attempted to use a developer override.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10638
+      "cdmw/services/mesh_rust_authoring.py": 10649
     }
   },
   {
@@ -45852,7 +45982,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer did not return a passing validation report.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10634
+      "cdmw/services/mesh_rust_authoring.py": 10645
     }
   },
   {
@@ -45860,7 +45990,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer rebuilt hash does not match its output.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10665
+      "cdmw/services/mesh_rust_authoring.py": 10676
     }
   },
   {
@@ -45868,7 +45998,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer rebuilt-size evidence does not match its output.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10661
+      "cdmw/services/mesh_rust_authoring.py": 10672
     }
   },
   {
@@ -45876,7 +46006,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer rejected Edit Mesh Finish: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10627
+      "cdmw/services/mesh_rust_authoring.py": 10638
     }
   },
   {
@@ -45884,7 +46014,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer returned no rebuilt bytes.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10651
+      "cdmw/services/mesh_rust_authoring.py": 10662
     }
   },
   {
@@ -45892,7 +46022,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer source hash does not match the session snapshot.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10657
+      "cdmw/services/mesh_rust_authoring.py": 10668
     }
   },
   {
@@ -45900,7 +46030,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer source-size evidence does not match the session snapshot.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10653
+      "cdmw/services/mesh_rust_authoring.py": 10664
     }
   },
   {
@@ -46021,7 +46151,7 @@ MESSAGE_REFERENCE = [
     "message": "Export presets outside the internal profile and edit-session folders",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10425
+      "cdmw/services/mesh_rust_authoring.py": 10436
     }
   },
   {
@@ -46061,7 +46191,7 @@ MESSAGE_REFERENCE = [
     "message": "Extrude requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4239
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4252
     }
   },
   {
@@ -46245,7 +46375,7 @@ MESSAGE_REFERENCE = [
     "message": "FBX sidecar is required for editable mesh package import.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9826,
+      "cdmw/services/mesh_rust_authoring.py": 9837,
       "cdmw/workers/mesh_editor_workers.py": 188
     }
   },
@@ -46350,7 +46480,7 @@ MESSAGE_REFERENCE = [
     "message": "Finish or cancel neutral face editing before loading a different source mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10124
+      "cdmw/services/mesh_rust_authoring.py": 10135
     }
   },
   {
@@ -46963,6 +47093,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Flip Normals reverses face winding, which Exact output cannot write. Choose Free Edit to flip faces.",
+    "recovery": "write",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4427
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Focus loss cancelled the active gesture",
     "recovery": "cancelled",
     "sources": {
@@ -47039,7 +47177,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output folder must still be new; the selected destination now exists: {target}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10759
+      "cdmw/services/mesh_rust_authoring.py": 10770
     }
   },
   {
@@ -47064,7 +47202,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output must not overwrite the source asset.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10751
+      "cdmw/services/mesh_rust_authoring.py": 10762
     }
   },
   {
@@ -47088,7 +47226,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output parent folder no longer exists: {target.parent}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10755
+      "cdmw/services/mesh_rust_authoring.py": 10766
     }
   },
   {
@@ -47112,7 +47250,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit requires a valid new output folder before Finish.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10734
+      "cdmw/services/mesh_rust_authoring.py": 10745
     }
   },
   {
@@ -47120,7 +47258,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit writer rejected Edit Mesh Finish: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10718
+      "cdmw/services/mesh_rust_authoring.py": 10729
     }
   },
   {
@@ -47168,7 +47306,7 @@ MESSAGE_REFERENCE = [
     "message": "GLB integer vertex attribute is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_glb_interchange.py": 563
+      "cdmw/modding/mesh_glb_interchange.py": 567
     }
   },
   {
@@ -47373,7 +47511,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Generate Tangents would split vertices and cannot be written by Exact PAC output. Choose Free Edit before generating tangents for this mesh.",
+    "message": "Generate Tangents would split vertices along a UV seam, and Exact output cannot add vertices. Choose Free Edit before generating tangents for this mesh.",
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_rust_authoring.py": 8426
@@ -47424,7 +47562,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layer visibility cannot change in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6343
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6374
     }
   },
   {
@@ -47432,7 +47570,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layers cannot be activated in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6325
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6356
     }
   },
   {
@@ -47449,6 +47587,14 @@ MESSAGE_REFERENCE = [
     "recovery": "recovery",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8035
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Give 1 to {MAX_BONES} bones.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 80
     }
   },
   {
@@ -48197,7 +48343,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/mesh/export_validation.py": 1799,
-      "cdmw/modding/mesh_importer.py": 835
+      "cdmw/modding/mesh_importer.py": 846
     }
   },
   {
@@ -50384,7 +50530,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor companion parts were skipped",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9225
+      "cdmw/services/mesh_rust_authoring.py": 9236
     }
   },
   {
@@ -50965,7 +51111,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Morph state exceeds the 16 MiB inline protocol limit",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9299
+      "cdmw/services/mesh_rust_authoring.py": 9310
     }
   },
   {
@@ -50981,7 +51127,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action label exceeds the 128-character limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8514
+      "cdmw/services/mesh_rust_authoring.py": 8525
     }
   },
   {
@@ -50989,7 +51135,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action label must be text",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8511
+      "cdmw/services/mesh_rust_authoring.py": 8522
     }
   },
   {
@@ -50997,7 +51143,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action params must be an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8491
+      "cdmw/services/mesh_rust_authoring.py": 8502
     }
   },
   {
@@ -51005,7 +51151,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action received unsupported params: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8495
+      "cdmw/services/mesh_rust_authoring.py": 8506
     }
   },
   {
@@ -51021,7 +51167,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh base revision is invalid",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9175
+      "cdmw/services/mesh_rust_authoring.py": 9186
     }
   },
   {
@@ -51053,7 +51199,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate UV count does not match positions",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9536
+      "cdmw/services/mesh_rust_authoring.py": 9547
     }
   },
   {
@@ -51061,7 +51207,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate belongs to another session",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9615
+      "cdmw/services/mesh_rust_authoring.py": 9626
     }
   },
   {
@@ -51069,7 +51215,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate changed topology outside CDMW topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9538
+      "cdmw/services/mesh_rust_authoring.py": 9549
     }
   },
   {
@@ -51077,7 +51223,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate changed vertex count outside CDMW topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9532
+      "cdmw/services/mesh_rust_authoring.py": 9543
     }
   },
   {
@@ -51109,7 +51255,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate normal count does not match positions",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9534
+      "cdmw/services/mesh_rust_authoring.py": 9545
     }
   },
   {
@@ -51117,7 +51263,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate schema does not match",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9613
+      "cdmw/services/mesh_rust_authoring.py": 9624
     }
   },
   {
@@ -51125,7 +51271,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate submesh count changed outside CDMW topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9635
+      "cdmw/services/mesh_rust_authoring.py": 9646
     }
   },
   {
@@ -51133,7 +51279,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate submesh is malformed",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9512
+      "cdmw/services/mesh_rust_authoring.py": 9523
     }
   },
   {
@@ -51141,7 +51287,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate vertex indices are duplicate, unordered or out of range",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9526
+      "cdmw/services/mesh_rust_authoring.py": 9537
     }
   },
   {
@@ -51149,7 +51295,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate vertex indices must be integers",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9522
+      "cdmw/services/mesh_rust_authoring.py": 9533
     }
   },
   {
@@ -51157,7 +51303,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} contains a boolean",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11330
+      "cdmw/services/mesh_rust_authoring.py": 11341
     }
   },
   {
@@ -51165,7 +51311,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} contains an invalid index",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11336
+      "cdmw/services/mesh_rust_authoring.py": 11347
     }
   },
   {
@@ -51173,7 +51319,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} contains non-finite values",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11319
+      "cdmw/services/mesh_rust_authoring.py": 11330
     }
   },
   {
@@ -51181,7 +51327,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} is not integral",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11334
+      "cdmw/services/mesh_rust_authoring.py": 11345
     }
   },
   {
@@ -51189,7 +51335,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} is not numeric",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11317
+      "cdmw/services/mesh_rust_authoring.py": 11328
     }
   },
   {
@@ -51197,7 +51343,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} must be an array",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11307
+      "cdmw/services/mesh_rust_authoring.py": 11318
     }
   },
   {
@@ -51205,7 +51351,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} rows must contain {width} values",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11311
+      "cdmw/services/mesh_rust_authoring.py": 11322
     }
   },
   {
@@ -51221,7 +51367,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh channel exceeds finite f32 range",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11299
+      "cdmw/services/mesh_rust_authoring.py": 11310
     }
   },
   {
@@ -51229,7 +51375,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh channel row width changed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11286
+      "cdmw/services/mesh_rust_authoring.py": 11297
     }
   },
   {
@@ -51269,7 +51415,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh control payload exceeds the 16 MiB state limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9461
+      "cdmw/services/mesh_rust_authoring.py": 9472
     }
   },
   {
@@ -51301,7 +51447,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh edit operation blocked rebuild: {blockers[0].message}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 847
+      "cdmw/modding/mesh_importer.py": 858
     }
   },
   {
@@ -51518,7 +51664,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh loading was cancelled before the scene changed",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9738
+      "cdmw/services/mesh_rust_authoring.py": 9749
     }
   },
   {
@@ -52008,7 +52154,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh process generation is invalid",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9167
+      "cdmw/services/mesh_rust_authoring.py": 9178
     }
   },
   {
@@ -52016,7 +52162,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh process generation is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9169
+      "cdmw/services/mesh_rust_authoring.py": 9180
     }
   },
   {
@@ -52024,7 +52170,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh protocol version does not match",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9161
+      "cdmw/services/mesh_rust_authoring.py": 9172
     }
   },
   {
@@ -52032,7 +52178,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh refit_fit_to_body received an invalid archive context",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10500
+      "cdmw/services/mesh_rust_authoring.py": 10511
     }
   },
   {
@@ -52040,7 +52186,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh refit_fit_to_body reference_body and body_weights must be boolean",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10496
+      "cdmw/services/mesh_rust_authoring.py": 10507
     }
   },
   {
@@ -52048,7 +52194,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh request is stale: expected shadow revision {current}, received {expected}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9178
+      "cdmw/services/mesh_rust_authoring.py": 9189
     }
   },
   {
@@ -52104,7 +52250,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh session id does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9163
+      "cdmw/services/mesh_rust_authoring.py": 9174
     }
   },
   {
@@ -52176,7 +52322,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh sidecar metadata drift blocked rebuild: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 1010
+      "cdmw/modding/mesh_importer.py": 1021
     }
   },
   {
@@ -52264,7 +52410,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology command received unsupported params: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8541
+      "cdmw/services/mesh_rust_authoring.py": 8552
     }
   },
   {
@@ -52272,7 +52418,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology label exceeds the 128-character limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8574
+      "cdmw/services/mesh_rust_authoring.py": 8585
     }
   },
   {
@@ -52280,7 +52426,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology label must be text",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8571
+      "cdmw/services/mesh_rust_authoring.py": 8582
     }
   },
   {
@@ -52288,7 +52434,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology params must be an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8537
+      "cdmw/services/mesh_rust_authoring.py": 8548
     }
   },
   {
@@ -52296,7 +52442,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh transaction omitted its candidate reference",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9598
+      "cdmw/services/mesh_rust_authoring.py": 9609
     }
   },
   {
@@ -52304,7 +52450,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh transaction selection contains invalid mesh elements",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9676
+      "cdmw/services/mesh_rust_authoring.py": 9687
     }
   },
   {
@@ -52392,7 +52538,7 @@ MESSAGE_REFERENCE = [
     "message": "Mirrored geometry requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4351
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4364
     }
   },
   {
@@ -53000,7 +53146,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile changes cannot be published because CDMW settings are unavailable.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10912
+      "cdmw/services/mesh_rust_authoring.py": 10923
     }
   },
   {
@@ -53032,7 +53178,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile limits were exceeded and rollback did not restore the prior shadow profile tree.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10296
+      "cdmw/services/mesh_rust_authoring.py": 10307
     }
   },
   {
@@ -53040,7 +53186,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile limits were exceeded and rollback validation failed.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10292
+      "cdmw/services/mesh_rust_authoring.py": 10303
     }
   },
   {
@@ -53048,7 +53194,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile limits were exceeded and the shadow transaction could not be rolled back safely.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10267
+      "cdmw/services/mesh_rust_authoring.py": 10278
     }
   },
   {
@@ -53112,7 +53258,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile staging cleanup is pending: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10865
+      "cdmw/services/mesh_rust_authoring.py": 10876
     }
   },
   {
@@ -53184,7 +53330,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profiles changed outside an acknowledged CDMW command.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9194
+      "cdmw/services/mesh_rust_authoring.py": 9205
     }
   },
   {
@@ -53200,7 +53346,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profiles changed while the command result was being finalized.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10302
+      "cdmw/services/mesh_rust_authoring.py": 10313
     }
   },
   {
@@ -53224,7 +53370,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph runtime cleanup is pending: {type(exc).__name__}: {exc}; defer failed: {type(defer_exc).__name__}: {defer_exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10854
+      "cdmw/services/mesh_rust_authoring.py": 10865
     }
   },
   {
@@ -53600,7 +53746,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC normal precision for {part.name} (reconstructed direction error {degrees} degrees). Use a source-coordinate OBJ for this normal edit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 570
+      "cdmw/modding/mesh_importer.py": 573
     }
   },
   {
@@ -53608,7 +53754,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC normal precision for {part.name}: the Blender input contains a zero-length normal. Restore its normal direction before reimport.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 562
+      "cdmw/modding/mesh_importer.py": 565
     }
   },
   {
@@ -53616,7 +53762,7 @@ MESSAGE_REFERENCE = [
     "message": "Neutral OBJ edit exceeds PAC position precision for {part.name} (reconstructed displacement {error}). Use a source-coordinate OBJ or Mesh Replacement for this edit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 554
+      "cdmw/modding/mesh_importer.py": 557
     }
   },
   {
@@ -54041,7 +54187,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed protected PAC tangent bits in submesh {submesh_index} vertex {vertex_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 685
+      "cdmw/modding/mesh_importer.py": 696
     }
   },
   {
@@ -54049,7 +54195,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed protected PAC vertex bytes for submesh {submesh_index} vertex {vertex_index} at record bytes {start}:{end}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 690
+      "cdmw/modding/mesh_importer.py": 701
     }
   },
   {
@@ -54057,7 +54203,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip changed the PAC file size; protected vertex-byte preservation could not be proven.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 636
+      "cdmw/modding/mesh_importer.py": 647
     }
   },
   {
@@ -54065,7 +54211,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip could not prove protected PAC vertex-byte preservation for submesh {submesh_index} vertex {vertex_index}: source record is outside the file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 678
+      "cdmw/modding/mesh_importer.py": 689
     }
   },
   {
@@ -54073,7 +54219,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ round-trip could not prove protected PAC vertex-byte preservation for submesh {submesh_index}: source offsets or stride are incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 662
+      "cdmw/modding/mesh_importer.py": 673
     }
   },
   {
@@ -54338,7 +54484,7 @@ MESSAGE_REFERENCE = [
     "message": "Open one piece separately before importing a replacement",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10129
+      "cdmw/services/mesh_rust_authoring.py": 10140
     }
   },
   {
@@ -54346,7 +54492,7 @@ MESSAGE_REFERENCE = [
     "message": "Open one piece separately before loading a Refit source",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10129
+      "cdmw/services/mesh_rust_authoring.py": 10140
     }
   },
   {
@@ -55276,7 +55422,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC submesh {submesh_index} LOD skin-weight lineage is out of range.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_skinning.py": 297
+      "cdmw/modding/mesh_skinning.py": 339
     }
   },
   {
@@ -56423,7 +56569,7 @@ MESSAGE_REFERENCE = [
     "message": "Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5226
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5257
     }
   },
   {
@@ -57588,7 +57734,7 @@ MESSAGE_REFERENCE = [
     "message": "Python mesh edit fallback blocked while native mesh core is available",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 132
+      "cdmw/modding/mesh_edit_ops.py": 133
     }
   },
   {
@@ -57620,7 +57766,7 @@ MESSAGE_REFERENCE = [
     "message": "Qt Multimedia is not available in this build.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview_widgets.py": 603
+      "cdmw/ui/preview_widgets.py": 614
     }
   },
   {
@@ -57628,7 +57774,7 @@ MESSAGE_REFERENCE = [
     "message": "Qt Multimedia is not available in this build. {detail_text}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview_widgets.py": 603
+      "cdmw/ui/preview_widgets.py": 614
     }
   },
   {
@@ -57636,7 +57782,7 @@ MESSAGE_REFERENCE = [
     "message": "Qt Multimedia is not available in this build. {media_path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview_widgets.py": 603
+      "cdmw/ui/preview_widgets.py": 614
     }
   },
   {
@@ -57828,7 +57974,7 @@ MESSAGE_REFERENCE = [
     "message": "Refit diagnostics could not identify the current Morph state.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10105
+      "cdmw/services/mesh_rust_authoring.py": 10116
     }
   },
   {
@@ -58189,7 +58335,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement is unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5614
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5645
     }
   },
   {
@@ -59181,7 +59327,7 @@ MESSAGE_REFERENCE = [
     "message": "Return to Edit before changing replacement geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9583
+      "cdmw/services/mesh_rust_authoring.py": 9594
     }
   },
   {
@@ -59189,7 +59335,7 @@ MESSAGE_REFERENCE = [
     "message": "Return to Edit comparison before changing the mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10116
+      "cdmw/services/mesh_rust_authoring.py": 10127
     }
   },
   {
@@ -59253,7 +59399,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5740
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5771
     }
   },
   {
@@ -59365,7 +59511,7 @@ MESSAGE_REFERENCE = [
     "message": "Save fitting setups outside the internal profile and edit-session folders",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10416
+      "cdmw/services/mesh_rust_authoring.py": 10427
     }
   },
   {
@@ -59381,7 +59527,7 @@ MESSAGE_REFERENCE = [
     "message": "Save or cancel the outfit correction before changing Morph & Refit or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10325
+      "cdmw/services/mesh_rust_authoring.py": 10336
     }
   },
   {
@@ -59397,7 +59543,7 @@ MESSAGE_REFERENCE = [
     "message": "Save the sculpted slider or discard its captured base before changing Morph & Refit or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10330
+      "cdmw/services/mesh_rust_authoring.py": 10341
     }
   },
   {
@@ -59470,6 +59616,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/pab_skeleton_edit_service.py": 313
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Select a .pab skeleton in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 35
     }
   },
   {
@@ -59654,7 +59808,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_item_set_weights.py": 109,
-      "cdmw/services/mesh_rust_authoring.py": 8633
+      "cdmw/services/mesh_rust_authoring.py": 8644
     }
   },
   {
@@ -60022,7 +60176,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight edit produced a row outside the exact PAC contract; the edit was rolled back.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8774
+      "cdmw/services/mesh_rust_authoring.py": 8785
     }
   },
   {
@@ -60030,7 +60184,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight edit would exceed the exact PAC contract: cloth vertices support only four skeletal influences. Remove an existing influence before adding another.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8688
+      "cdmw/services/mesh_rust_authoring.py": 8699
     }
   },
   {
@@ -60038,7 +60192,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight edit would leave a vertex without any bones, outside the exact PAC contract. Keep at least one influence.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8669
+      "cdmw/services/mesh_rust_authoring.py": 8680
     }
   },
   {
@@ -60046,7 +60200,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight editing is unavailable for selected part(s): {detail}. The parts must retain the exact 40-byte PAC LOD 0 skin layout.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8640
+      "cdmw/services/mesh_rust_authoring.py": 8651
     }
   },
   {
@@ -60375,7 +60529,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse mesh candidate cannot change topology",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9528
+      "cdmw/services/mesh_rust_authoring.py": 9539
     }
   },
   {
@@ -60383,7 +60537,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse mesh candidate cannot create missing attribute channels",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9550
+      "cdmw/services/mesh_rust_authoring.py": 9561
     }
   },
   {
@@ -60391,7 +60545,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse mesh candidate vertex count does not match positions",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9530
+      "cdmw/services/mesh_rust_authoring.py": 9541
     }
   },
   {
@@ -60984,10 +61138,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The Add Bones dialog refused the bones.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 105
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The CDMW Morph & Refit state changed while Edit Mesh was open; Finish was rejected.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10980
+      "cdmw/services/mesh_rust_authoring.py": 10991
     }
   },
   {
@@ -60995,7 +61157,7 @@ MESSAGE_REFERENCE = [
     "message": "The CDMW geometry layers changed while Edit Mesh was open; Finish was rejected.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10972
+      "cdmw/services/mesh_rust_authoring.py": 10983
     }
   },
   {
@@ -61003,7 +61165,7 @@ MESSAGE_REFERENCE = [
     "message": "The CDMW mesh changed while Edit Mesh was open; Finish was rejected.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11050
+      "cdmw/services/mesh_rust_authoring.py": 11061
     }
   },
   {
@@ -61796,6 +61958,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The output folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 77
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The output supports 1 to {capacity} skeletal influences per vertex.",
     "recovery": "limits",
     "sources": {
@@ -61975,7 +62145,7 @@ MESSAGE_REFERENCE = [
     "message": "The sculpted slider contains unsupported metadata.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10382
+      "cdmw/services/mesh_rust_authoring.py": 10393
     }
   },
   {
@@ -62031,7 +62201,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected skeleton bone is not present in the PAC bone palette.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8650
+      "cdmw/services/mesh_rust_authoring.py": 8661
     }
   },
   {
@@ -62588,7 +62758,7 @@ MESSAGE_REFERENCE = [
     "message": "This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5806
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5837
     }
   },
   {
@@ -62676,7 +62846,7 @@ MESSAGE_REFERENCE = [
     "message": "This topology action requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4200
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4213
     }
   },
   {
@@ -62692,7 +62862,7 @@ MESSAGE_REFERENCE = [
     "message": "Tightness requires Surface or Rigid component mode on every selected garment.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5261
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5292
     }
   },
   {
@@ -62804,7 +62974,7 @@ MESSAGE_REFERENCE = [
     "message": "Topology provenance is only rebuildable into PAC; this mesh is {fmt or 'unknown'}.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 601
+      "cdmw/modding/mesh_importer.py": 604
     }
   },
   {
@@ -62884,7 +63054,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency is unavailable for this mesh.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6713
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6744
     }
   },
   {
@@ -62940,7 +63110,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn outfit corrections back on before editing or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10312,
+      "cdmw/services/mesh_rust_authoring.py": 10323,
       "cdmw/services/mesh_service_morph_authoring.py": 295
     }
   },
@@ -63021,7 +63191,7 @@ MESSAGE_REFERENCE = [
     "message": "Undo replacement operations before adding geometry layers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10120
+      "cdmw/services/mesh_rust_authoring.py": 10131
     }
   },
   {
@@ -63320,7 +63490,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh authoring action: {action or '(empty)'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8486
+      "cdmw/services/mesh_rust_authoring.py": 8497
     }
   },
   {
@@ -63328,7 +63498,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh command: {command or '(empty)'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10052
+      "cdmw/services/mesh_rust_authoring.py": 10063
     }
   },
   {
@@ -63336,7 +63506,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh morph command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10515
+      "cdmw/services/mesh_rust_authoring.py": 10526
     }
   },
   {
@@ -63352,7 +63522,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh topology command: {action or '(empty)'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8532
+      "cdmw/services/mesh_rust_authoring.py": 8543
     }
   },
   {
@@ -63488,7 +63658,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh format for rebuild: {fmt}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 532
+      "cdmw/modding/mesh_importer.py": 535
     }
   },
   {
@@ -63721,7 +63891,7 @@ MESSAGE_REFERENCE = [
     "message": "Use Hair grooming, or explicitly convert guides before editing ordinary mesh geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9627
+      "cdmw/services/mesh_rust_authoring.py": 9638
     }
   },
   {
@@ -63865,7 +64035,7 @@ MESSAGE_REFERENCE = [
     "message": "Vertex inspection requires arguments.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10066
+      "cdmw/services/mesh_rust_authoring.py": 10077
     }
   },
   {
@@ -68564,7 +68734,7 @@ MESSAGE_REFERENCE = [
     "message": "mesh editor topology provenance composition failed for submesh {detail}: {detail}",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/edit_topology_06.cpp": 483,
+      "native/cdmw_mesh_core/src/owners/edit_topology_06.cpp": 485,
       "native/cdmw_mesh_core/src/owners/session_topology_provenance_01.cpp": 436
     }
   },
@@ -68810,7 +68980,7 @@ MESSAGE_REFERENCE = [
     "message": "missing edit object",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/edit_topology_06.cpp": 539
+      "native/cdmw_mesh_core/src/owners/edit_topology_06.cpp": 541
     }
   },
   {
@@ -69011,7 +69181,7 @@ MESSAGE_REFERENCE = [
     "message": "missing submeshes array",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/edit_topology_06.cpp": 534,
+      "native/cdmw_mesh_core/src/owners/edit_topology_06.cpp": 536,
       "native/cdmw_mesh_core/src/owners/edit_topology_07.cpp": 128,
       "native/cdmw_mesh_core/src/owners/edit_topology_08.cpp": 62,
       "native/cdmw_mesh_core/src/owners/geometry_uv_01.cpp": 320,
@@ -69935,7 +70105,7 @@ MESSAGE_REFERENCE = [
     "message": "native UV transform unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2940
+      "cdmw/modding/mesh_edit_ops.py": 2946
     }
   },
   {
@@ -69951,7 +70121,7 @@ MESSAGE_REFERENCE = [
     "message": "native auto UV unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2966
+      "cdmw/modding/mesh_edit_ops.py": 2972
     }
   },
   {
@@ -69975,7 +70145,7 @@ MESSAGE_REFERENCE = [
     "message": "native bridge unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2466
+      "cdmw/modding/mesh_edit_ops.py": 2472
     }
   },
   {
@@ -69983,7 +70153,7 @@ MESSAGE_REFERENCE = [
     "message": "native brush history delta unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 886
+      "cdmw/modding/mesh_edit_ops.py": 887
     }
   },
   {
@@ -69991,7 +70161,7 @@ MESSAGE_REFERENCE = [
     "message": "native brush unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 887
+      "cdmw/modding/mesh_edit_ops.py": 888
     }
   },
   {
@@ -69999,7 +70169,7 @@ MESSAGE_REFERENCE = [
     "message": "native compact orphans unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2132
+      "cdmw/modding/mesh_edit_ops.py": 2133
     }
   },
   {
@@ -70007,7 +70177,7 @@ MESSAGE_REFERENCE = [
     "message": "native copy normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2834
+      "cdmw/modding/mesh_edit_ops.py": 2840
     }
   },
   {
@@ -70015,7 +70185,7 @@ MESSAGE_REFERENCE = [
     "message": "native delete unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 962
+      "cdmw/modding/mesh_edit_ops.py": 963
     }
   },
   {
@@ -70023,7 +70193,7 @@ MESSAGE_REFERENCE = [
     "message": "native display triangulate unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2345
+      "cdmw/modding/mesh_edit_ops.py": 2351
     }
   },
   {
@@ -70031,7 +70201,7 @@ MESSAGE_REFERENCE = [
     "message": "native dissolve unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 990
+      "cdmw/modding/mesh_edit_ops.py": 991
     }
   },
   {
@@ -70039,7 +70209,7 @@ MESSAGE_REFERENCE = [
     "message": "native duplicate unavailable",
     "recovery": "conflict",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1329
+      "cdmw/modding/mesh_edit_ops.py": 1330
     }
   },
   {
@@ -70055,7 +70225,7 @@ MESSAGE_REFERENCE = [
     "message": "native edge split unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1805
+      "cdmw/modding/mesh_edit_ops.py": 1806
     }
   },
   {
@@ -70071,7 +70241,7 @@ MESSAGE_REFERENCE = [
     "message": "native extrude unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1475
+      "cdmw/modding/mesh_edit_ops.py": 1476
     }
   },
   {
@@ -70095,7 +70265,7 @@ MESSAGE_REFERENCE = [
     "message": "native fill holes unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2306
+      "cdmw/modding/mesh_edit_ops.py": 2312
     }
   },
   {
@@ -70103,7 +70273,7 @@ MESSAGE_REFERENCE = [
     "message": "native fill unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2036
+      "cdmw/modding/mesh_edit_ops.py": 2037
     }
   },
   {
@@ -70111,7 +70281,7 @@ MESSAGE_REFERENCE = [
     "message": "native fix winding unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2274
+      "cdmw/modding/mesh_edit_ops.py": 2280
     }
   },
   {
@@ -70135,7 +70305,7 @@ MESSAGE_REFERENCE = [
     "message": "native in-place mirror unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1384
+      "cdmw/modding/mesh_edit_ops.py": 1385
     }
   },
   {
@@ -70143,7 +70313,7 @@ MESSAGE_REFERENCE = [
     "message": "native inset unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1582
+      "cdmw/modding/mesh_edit_ops.py": 1583
     }
   },
   {
@@ -70167,7 +70337,7 @@ MESSAGE_REFERENCE = [
     "message": "native loop cut unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1663
+      "cdmw/modding/mesh_edit_ops.py": 1664
     }
   },
   {
@@ -70175,7 +70345,7 @@ MESSAGE_REFERENCE = [
     "message": "native merge unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1902
+      "cdmw/modding/mesh_edit_ops.py": 1903
     }
   },
   {
@@ -70496,7 +70666,7 @@ MESSAGE_REFERENCE = [
     "message": "native mirror unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1426
+      "cdmw/modding/mesh_edit_ops.py": 1427
     }
   },
   {
@@ -70528,7 +70698,7 @@ MESSAGE_REFERENCE = [
     "message": "native normal recompute unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2555
+      "cdmw/modding/mesh_edit_ops.py": 2561
     }
   },
   {
@@ -70536,7 +70706,7 @@ MESSAGE_REFERENCE = [
     "message": "native normal recompute unavailable after binary transform",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 606
+      "cdmw/modding/mesh_edit_ops.py": 607
     }
   },
   {
@@ -70544,7 +70714,7 @@ MESSAGE_REFERENCE = [
     "message": "native normal recompute unavailable after in-place mirror",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1378
+      "cdmw/modding/mesh_edit_ops.py": 1379
     }
   },
   {
@@ -70552,7 +70722,7 @@ MESSAGE_REFERENCE = [
     "message": "native normal recompute unavailable after transform",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 632
+      "cdmw/modding/mesh_edit_ops.py": 633
     }
   },
   {
@@ -70680,7 +70850,7 @@ MESSAGE_REFERENCE = [
     "message": "native refine smooth unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1139
+      "cdmw/modding/mesh_edit_ops.py": 1140
     }
   },
   {
@@ -70696,7 +70866,7 @@ MESSAGE_REFERENCE = [
     "message": "native remove collapsed faces unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2252
+      "cdmw/modding/mesh_edit_ops.py": 2265
     }
   },
   {
@@ -70704,7 +70874,7 @@ MESSAGE_REFERENCE = [
     "message": "native remove doubles unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2111
+      "cdmw/modding/mesh_edit_ops.py": 2112
     }
   },
   {
@@ -70720,7 +70890,7 @@ MESSAGE_REFERENCE = [
     "message": "native selected-face flip normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2709
+      "cdmw/modding/mesh_edit_ops.py": 2715
     }
   },
   {
@@ -70752,7 +70922,7 @@ MESSAGE_REFERENCE = [
     "message": "native separate unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1275
+      "cdmw/modding/mesh_edit_ops.py": 1276
     }
   },
   {
@@ -70760,7 +70930,7 @@ MESSAGE_REFERENCE = [
     "message": "native sharpen normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2776
+      "cdmw/modding/mesh_edit_ops.py": 2782
     }
   },
   {
@@ -70784,7 +70954,7 @@ MESSAGE_REFERENCE = [
     "message": "native split unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1198
+      "cdmw/modding/mesh_edit_ops.py": 1199
     }
   },
   {
@@ -70816,7 +70986,7 @@ MESSAGE_REFERENCE = [
     "message": "native subdivide unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1097
+      "cdmw/modding/mesh_edit_ops.py": 1098
     }
   },
   {
@@ -70824,7 +70994,7 @@ MESSAGE_REFERENCE = [
     "message": "native submesh flip normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2738
+      "cdmw/modding/mesh_edit_ops.py": 2744
     }
   },
   {
@@ -70832,7 +71002,7 @@ MESSAGE_REFERENCE = [
     "message": "native tangent generation unavailable",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2626
+      "cdmw/modding/mesh_edit_ops.py": 2632
     }
   },
   {
@@ -70864,7 +71034,7 @@ MESSAGE_REFERENCE = [
     "message": "native transform history delta unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 639
+      "cdmw/modding/mesh_edit_ops.py": 640
     }
   },
   {
@@ -70872,7 +71042,7 @@ MESSAGE_REFERENCE = [
     "message": "native transform unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 673
+      "cdmw/modding/mesh_edit_ops.py": 674
     }
   },
   {
@@ -70920,7 +71090,7 @@ MESSAGE_REFERENCE = [
     "message": "native weighted normals unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 2574
+      "cdmw/modding/mesh_edit_ops.py": 2580
     }
   },
   {
@@ -70928,7 +71098,7 @@ MESSAGE_REFERENCE = [
     "message": "native weld unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_edit_ops.py": 1963
+      "cdmw/modding/mesh_edit_ops.py": 1964
     }
   },
   {
@@ -71473,6 +71643,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/mesh_interchange_export.py": 245
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "position, angles and scale take three numbers each.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 63
     }
   },
   {
@@ -73056,7 +73234,7 @@ MESSAGE_REFERENCE = [
     "message": "shadow-session cleanup is pending: {type(exc).__name__}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10876
+      "cdmw/services/mesh_rust_authoring.py": 10887
     }
   },
   {
@@ -74192,7 +74370,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported mesh edit operation: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/edit_topology_06.cpp": 345
+      "native/cdmw_mesh_core/src/owners/edit_topology_06.cpp": 347
     }
   },
   {
@@ -75189,7 +75367,7 @@ MESSAGE_REFERENCE = [
     "message": "{target} is a helper material for the inside of the model and cannot take imported textures. Map {part} to a main part, join it with one before exporting, or choose Keep Original Materials.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5797
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5828
     }
   },
   {
@@ -75930,6 +76108,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Animation {args['animation']} has no frame event {event}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 187
+    }
+  },
+  {
+    "area": "other",
+    "message": "Animation {args['animation']} has no value {field} (item {item}); files_action_chart_state with animation lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 170
+    }
+  },
+  {
+    "area": "other",
     "message": "Another app is connected to CDMW. Close it, or its MCP server, and try again.",
     "recovery": "internal",
     "sources": {
@@ -76464,6 +76658,15 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/view_tools.py": 39
+    }
+  },
+  {
+    "area": "other",
+    "message": "Browse Archives is unavailable.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 31,
+      "cdmw/mcp/sound_tools.py": 29
     }
   },
   {
@@ -77054,6 +77257,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/pac_cloth_guide_builder.py": 159
+    }
+  },
+  {
+    "area": "other",
+    "message": "Choose a rate from {dialog.rate_spin.minimum()} to {dialog.rate_spin.maximum()}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 158
     }
   },
   {
@@ -79802,6 +80013,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Give at most {_MAX_CHANGES} changes in one write.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 81
+    }
+  },
+  {
+    "area": "other",
+    "message": "Give clip, blend or both.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 175
+    }
+  },
+  {
+    "area": "other",
     "message": "Give either factor (with optional offsets or category) or values.",
     "recovery": "internal",
     "sources": {
@@ -79862,6 +80089,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/shader_preset_store.py": 33
+    }
+  },
+  {
+    "area": "other",
+    "message": "Give values, add or remove: nothing would change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 79
     }
   },
   {
@@ -82695,10 +82930,42 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Nothing was written: {what} did not finish. CDMW's message says why.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mod_ready_prompt.py": 95
+    }
+  },
+  {
+    "area": "other",
     "message": "Object of type {type(value).__name__} is not JSON serializable",
     "recovery": "internal",
     "sources": {
       "cdmw/core/streaming_json.py": 137
+    }
+  },
+  {
+    "area": "other",
+    "message": "Object {change['object']} cannot take {name}; files_sound_bank_read lists what each object can add.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 97
+    }
+  },
+  {
+    "area": "other",
+    "message": "Object {change['object']} has no added property {target} to remove.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 102
+    }
+  },
+  {
+    "area": "other",
+    "message": "Object {change['object']} has no value {change['value']}; files_sound_bank_read lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 85
     }
   },
   {
@@ -84033,6 +84300,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Select an editable .paac action chart in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 125
+    }
+  },
+  {
+    "area": "other",
     "message": "Select an explicit R, G, B or A channel for a colour image.",
     "recovery": "input",
     "sources": {
@@ -84070,6 +84345,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mod_merge_service.py": 130
+    }
+  },
+  {
+    "area": "other",
+    "message": "Select {what} in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 32
     }
   },
   {
@@ -85011,6 +85294,46 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The Action Chart Editor did not export in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 298
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Action Chart Editor did not finish in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 117
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Action Chart Editor did not open in time. Browse Archives' status says why (a shared action table cannot be edited).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 136
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Action Chart Editor is busy; wait for its task to finish.",
+    "recovery": "locked",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 154
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Action Chart Editor is not open. Select a .paac chart and call files_action_chart_edit with action open.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 42
+    }
+  },
+  {
+    "area": "other",
     "message": "The DMM library changed while it was being read. Refresh it.",
     "recovery": "internal",
     "sources": {
@@ -85491,6 +85814,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The edit was not applied.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 241
+    }
+  },
+  {
+    "area": "other",
     "message": "The effect catalogue could not be cached: {exc}",
     "recovery": "internal",
     "sources": {
@@ -85511,6 +85842,22 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/ui/empty_states.py": 149
+    }
+  },
+  {
+    "area": "other",
+    "message": "The export did not start.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 295
+    }
+  },
+  {
+    "area": "other",
+    "message": "The export was refused.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 282
     }
   },
   {
@@ -85923,6 +86270,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The mod needs a name.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 265
+    }
+  },
+  {
+    "area": "other",
     "message": "The mod's {OPERATIONS_FILE} cannot be read to add to it: {exc}",
     "recovery": "input",
     "sources": {
@@ -85934,7 +86289,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod-ready export prompt has changed; CDMW cannot fill it.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mod_ready_prompt.py": 38
+      "cdmw/mcp/mod_ready_prompt.py": 42
     }
   },
   {
@@ -85942,7 +86297,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod-ready export prompt has no Continue button.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mod_ready_prompt.py": 49
+      "cdmw/mcp/mod_ready_prompt.py": 53
     }
   },
   {
@@ -86007,6 +86362,15 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/game_records.py": 127
+    }
+  },
+  {
+    "area": "other",
+    "message": "The output folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 251,
+      "cdmw/mcp/sound_tools.py": 134
     }
   },
   {
@@ -86612,6 +86976,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "There are no pending edits to apply.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 226
+    }
+  },
+  {
+    "area": "other",
     "message": "There are no speed edits to write.",
     "recovery": "write",
     "sources": {
@@ -86632,6 +87004,30 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/shader_preset_store.py": 67
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no animation {index}; files_action_chart_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 109
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no animation {index}; this chart has {len(chart.animations)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 79
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no audio file {source}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 158
     }
   },
   {
@@ -86668,10 +87064,42 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "There is no pending edit {index}.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 221
+    }
+  },
+  {
+    "area": "other",
     "message": "There is no tab {row}.",
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/ui_tree.py": 640
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no table {table}; files_action_chart_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 206
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no table {table}; tables lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 91
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is nothing to export yet: apply the edits first.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 273
     }
   },
   {
@@ -86756,6 +87184,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "This bank stores nothing the editor can change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 137
+    }
+  },
+  {
+    "area": "other",
     "message": "This collision loop belongs to static meshes, not guide cloth.",
     "recovery": "internal",
     "sources": {
@@ -86824,6 +87260,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/effect_recipe.py": 178
+    }
+  },
+  {
+    "area": "other",
+    "message": "This event has no field {field}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 193
+    }
+  },
+  {
+    "area": "other",
+    "message": "This event has no fields CDMW can change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 189
     }
   },
   {
@@ -91779,6 +92231,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{dialog.table_combo.itemText(table)} has no entry {old}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 215
+    }
+  },
+  {
+    "area": "other",
     "message": "{edit.field} is not an editable chart field",
     "recovery": "input",
     "sources": {
@@ -92215,6 +92675,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/static_table_records.py": 371
+    }
+  },
+  {
+    "area": "other",
+    "message": "{label} is not a number: {text}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 66
     }
   },
   {
@@ -93416,6 +93884,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/animation_speed_service.py": 248
+    }
+  },
+  {
+    "area": "other",
+    "message": "{what} was refused.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/mod_ready_prompt.py": 83
     }
   },
   {
@@ -107623,6 +108099,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/prefab_json_apply.py",
     "cdmw/core/prefab_json_validation.py",
     "cdmw/mcp/hkx_tools.py",
+    "cdmw/mcp/prefab_tools.py",
     "cdmw/services/hkx_edit_service.py",
     "cdmw/services/hkx_physics_editor_service.py",
     "cdmw/services/prefab_speed_service.py",
@@ -107783,6 +108260,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/mesh_edit_tools.py",
     "cdmw/mcp/mesh_tools.py",
     "cdmw/mcp/model_library_tools.py",
+    "cdmw/mcp/skeleton_tools.py",
     "cdmw/modding/mesh_asset.py",
     "cdmw/modding/mesh_glb_interchange.py",
     "cdmw/modding/mesh_importer.py",
@@ -108055,16 +108533,19 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/character_creator.py",
     "cdmw/domain/hair_registration.py",
     "cdmw/domain/library/scene_selection.py",
+    "cdmw/mcp/action_chart_tools.py",
     "cdmw/mcp/bridge.py",
     "cdmw/mcp/control_tools.py",
     "cdmw/mcp/item_icon_tools.py",
     "cdmw/mcp/jobs.py",
     "cdmw/mcp/link.py",
+    "cdmw/mcp/mod_ready_prompt.py",
     "cdmw/mcp/npc_tools.py",
     "cdmw/mcp/rail_actions.py",
     "cdmw/mcp/read_tools.py",
     "cdmw/mcp/saved_work_tools.py",
     "cdmw/mcp/server.py",
+    "cdmw/mcp/sound_tools.py",
     "cdmw/mcp/speed_tools.py",
     "cdmw/mcp/tools.py",
     "cdmw/mcp/transport.py",
@@ -108545,7 +109026,7 @@ SOURCE_COVERAGE = {
   "cdmw/core/archive_hkx_editing.py": {
     "diagnostic_field": 2,
     "finding": 1,
-    "raise": 32
+    "raise": 33
   },
   "cdmw/core/archive_hkx_editor_model.py": {},
   "cdmw/core/archive_hkx_editor_rows_0.py": {},
@@ -108749,10 +109230,11 @@ SOURCE_COVERAGE = {
     "validation": 1
   },
   "cdmw/core/archive_preview_result_builder.py": {
-    "diagnostic_field": 9,
+    "diagnostic_field": 10,
     "diagnostic_text": 2,
     "raise": 11,
-    "report": 14
+    "report": 14,
+    "validation": 1
   },
   "cdmw/core/archive_preview_support.py": {
     "diagnostic_field": 1,
@@ -109797,6 +110279,11 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/mcp/__init__.py": {},
+  "cdmw/mcp/action_chart_tools.py": {
+    "code": 27,
+    "raise": 34,
+    "report": 6
+  },
   "cdmw/mcp/app_read_tools.py": {
     "code": 1,
     "raise": 4
@@ -109838,9 +110325,9 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/mcp/hkx_tools.py": {
-    "code": 16,
-    "raise": 23,
-    "report": 8
+    "code": 13,
+    "raise": 20,
+    "report": 6
   },
   "cdmw/mcp/item_icon_tools.py": {
     "code": 4,
@@ -109881,7 +110368,9 @@ SOURCE_COVERAGE = {
     "raise": 8
   },
   "cdmw/mcp/mod_ready_prompt.py": {
-    "raise": 2
+    "code": 3,
+    "raise": 5,
+    "report": 2
   },
   "cdmw/mcp/model_library_tools.py": {
     "code": 2,
@@ -109938,6 +110427,12 @@ SOURCE_COVERAGE = {
     "raise": 25,
     "report": 14
   },
+  "cdmw/mcp/prefab_tools.py": {
+    "code": 8,
+    "diagnostic_field": 1,
+    "raise": 11,
+    "report": 3
+  },
   "cdmw/mcp/protocol_surface.py": {
     "diagnostic_field": 1,
     "raise": 4
@@ -109978,6 +110473,17 @@ SOURCE_COVERAGE = {
     "report": 3
   },
   "cdmw/mcp/setup_lines.py": {},
+  "cdmw/mcp/skeleton_tools.py": {
+    "code": 8,
+    "diagnostic_field": 1,
+    "raise": 11,
+    "report": 3
+  },
+  "cdmw/mcp/sound_tools.py": {
+    "code": 9,
+    "raise": 13,
+    "report": 2
+  },
   "cdmw/mcp/speed_tools.py": {
     "code": 8,
     "raise": 9,
@@ -110958,7 +111464,7 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 4,
     "finding": 6,
     "log": 1,
-    "raise": 327,
+    "raise": 328,
     "report": 11,
     "validation": 5
   },
@@ -115011,7 +115517,7 @@ SOURCE_COVERAGE = {
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": {
     "native_handoff": 1,
-    "native_message": 27
+    "native_message": 28
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs": {
     "native_handoff": 7,

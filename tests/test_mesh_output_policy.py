@@ -637,3 +637,46 @@ def _duplicate_vertex_mesh() -> ParsedMesh:
         total_faces=3,
         has_uvs=True,
     )
+
+
+@pytest.mark.parametrize("mesh_format", ["pac", "pam", "pamlod"])
+def test_flip_normals_is_blocked_in_exact_output(mesh_format: str) -> None:
+    """Flip reverses winding, which the exact writers refuse at Finish."""
+
+    capability = action_authoring_capability("flip_normals", mesh_format=mesh_format)
+    assert capability is not None and capability.support is AuthoringSupport.BLOCKED
+    assert "Flip Normals" in capability.reason
+    free = action_authoring_capability(
+        "flip_normals", mesh_format=mesh_format, output_policy=MeshOutputPolicy.FREE_EDIT,
+        free_edit_destination_ready=True,
+    )
+    assert free is not None and free.authorable
+    # Import Replacement rebuilds the Part, so flipping stays open there.
+    assert action_authoring_capability(
+        "flip_normals", mesh_format=mesh_format, output_policy=MeshOutputPolicy.REPLACEMENT_GAME_ASSET,
+    ) is None
+
+
+def test_delete_selection_is_exact_on_pac_only() -> None:
+    assert action_authoring_capability("delete", mesh_format="pac").support is AuthoringSupport.EXACT
+    for mesh_format in ("pam", "pamlod"):
+        capability = action_authoring_capability("delete", mesh_format=mesh_format)
+        assert capability.support is AuthoringSupport.BLOCKED
+        assert "PAM and PAMLOD" in capability.reason and "Free Edit" in capability.detail
+        assert mesh_editor_action_authoring_blocker("delete", mesh_format=mesh_format)
+
+
+@pytest.mark.parametrize(
+    "action", ["recalculate_normals", "generate_tangents", "sharpen_normals", "soften_normals",
+               "weighted_normals", "copy_normals"],
+)
+def test_normal_tools_say_static_models_store_no_normals(action: str) -> None:
+    for mesh_format in ("pam", "pamlod"):
+        capability = action_authoring_capability(action, mesh_format=mesh_format)
+        assert capability is not None and capability.support is AuthoringSupport.BLOCKED
+        assert "store no normals" in capability.reason
+    assert action_authoring_capability(action, mesh_format="pac") is None
+    free = action_authoring_capability(
+        action, mesh_format="pam", output_policy=MeshOutputPolicy.FREE_EDIT, free_edit_destination_ready=True,
+    )
+    assert free is not None and free.authorable
