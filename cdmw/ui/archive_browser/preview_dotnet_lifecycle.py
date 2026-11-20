@@ -137,7 +137,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         else:
             enabled = bool(
                 package_dir is None
-                or not self._archive_active_package_has_textures()
+                or not self._archive_active_package_draws_textures()
                 or not bool(getattr(self, "_archive_textures_visible", True))
             )
         if host is None:
@@ -149,14 +149,14 @@ class ArchivePreviewDotNetLifecycleMixin:
         # trusting a local visibility mirror that can lag a renderer event.
         showing = bool(getattr(self, "_archive_textures_visible", False))
         if enabled:
-            if package_dir is None or not self._archive_active_package_has_textures():
+            if package_dir is None or not self._archive_active_package_draws_textures():
                 self._request_archive_preview_textures(automatic=False)
                 return
             host.set_viewport_display_mode("textured")
             self._archive_textures_visible = True
             if not showing:
                 self.shell.set_status_message("Textures shown.")
-        elif package_dir is not None and self._archive_active_package_has_textures():
+        elif package_dir is not None and self._archive_active_package_draws_textures():
             host.set_viewport_display_mode("untextured_wire")
             self._archive_textures_visible = False
             if showing:
@@ -175,6 +175,17 @@ class ArchivePreviewDotNetLifecycleMixin:
                 settings.use_textures_by_default
                 or (texture_request_id and active_request_id == texture_request_id)
             ),
+        )
+
+    def _archive_active_package_draws_textures(self) -> bool:
+        """Textures are on screen: listed ones, or a layered material's own."""
+
+        if self._archive_active_package_has_textures():
+            return True
+        from cdmw.ui.archive_browser.preview_state import archive_model_package_draws_textures
+
+        return archive_model_package_draws_textures(
+            getattr(self, "archive_isolated_renderer_active_package", None)
         )
 
     def _archive_active_package_has_textures(self) -> bool:
@@ -237,7 +248,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         if host is not None and render_settings is not None:
             host.set_render_tuning(render_settings)
             host.set_viewport_display_mode("textured" if show_textures else "untextured_wire")
-        has_textures = self._archive_active_package_has_textures()
+        has_textures = self._archive_active_package_draws_textures()
         request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
         pending_result = getattr(self, "_archive_pending_texture_result", None)
         self._finish_archive_texture_request(
@@ -332,7 +343,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             return
         if bool(getattr(self, "_archive_texture_request_loading", False)):
             return
-        if self._archive_active_package_has_textures():
+        if self._archive_active_package_draws_textures():
             return
         if (
             bool(automatic)
@@ -361,7 +372,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         self._archive_textures_visible = bool(
             success
             and self._current_model_preview_render_settings().use_textures_by_default
-            and self._archive_active_package_has_textures()
+            and self._archive_active_package_draws_textures()
         )
         self._sync_archive_texture_action_state()
         notify_mesh_editor = getattr(
@@ -407,7 +418,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         else:
             checkbox.setText("Load textures")
             checkbox.setEnabled(True)
-            if self._archive_active_package_has_textures() and bool(
+            if self._archive_active_package_draws_textures() and bool(
                 getattr(self, "_archive_textures_visible", False)
             ):
                 checkbox.setToolTip("Textures shown.")

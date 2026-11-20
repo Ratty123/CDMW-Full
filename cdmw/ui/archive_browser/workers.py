@@ -21,6 +21,8 @@ from cdmw.workers.archive_preview_workers import ArchivePreviewWorker, _ArchiveP
 # waits that long and the backoff covers a slow disk without polling.
 ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS = 2500
 ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_LIMIT = 3
+# How often a retry waits for the preview it would replace before giving up on it.
+ARCHIVE_PREVIEW_SECONDARY_INDEX_DEFER_LIMIT = 60
 ARCHIVE_PREVIEW_SELECTION_RETRY_MS = 60
 ARCHIVE_PREVIEW_SELECTION_RETRY_LIMIT = 4
 # Finder thumbnails and Create New Item's table preload pause while a preview
@@ -646,12 +648,37 @@ class ArchivePreviewWorkerMixin:
             lambda: self._retry_archive_preview_for_secondary_index(entry),
         )
 
-    def _retry_archive_preview_for_secondary_index(self, entry: ArchiveEntry) -> None:
+    def _archive_preview_still_building(self) -> bool:
+        """Whether the current entry's preview is still on its way to the screen."""
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        pending = getattr(bridge, "preview_dependencies_pending_for", None)
+        request_id = int(getattr(self, "archive_preview_request_id", 0) or 0)
+        return bool(
+            getattr(self, "archive_preview_worker", None) is not None
+            or getattr(self, "scheduled_archive_preview_request", None) is not None
+            or (callable(pending) and pending(request_id))
+            or getattr(self, "_archive_texture_request_loading", False)
+            or getattr(self, "archive_preview_texture_upgrade_pending", False)
+        )
+
+    def _retry_archive_preview_for_secondary_index(self, entry: ArchiveEntry, *, deferred: int = 0) -> None:
         if self.shell._shutting_down:
             return
         current = getattr(self, "_current_archive_entry", lambda: None)()
         if current is None or getattr(current, "identity", None) != getattr(entry, "identity", None):
             self._archive_preview_secondary_index_retries = 0
+            return
+        if self._archive_preview_still_building():
+            # The preview this would replace is not on screen yet. Asking again now
+            # cancels it, and a model that takes longer than the retry delay was
+            # started over at every retry: 17 seconds for one that needs 5. The
+            # names can wait until it is shown.
+            if deferred < ARCHIVE_PREVIEW_SECONDARY_INDEX_DEFER_LIMIT:
+                QTimer.singleShot(
+                    ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS,
+                    lambda: self._retry_archive_preview_for_secondary_index(entry, deferred=deferred + 1),
+                )
             return
         # The cached result carries the incomplete dependency set, so drop it
         # before asking for the same preview again.

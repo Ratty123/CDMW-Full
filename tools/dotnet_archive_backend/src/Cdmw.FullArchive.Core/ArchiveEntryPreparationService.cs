@@ -407,13 +407,17 @@ public sealed class ArchiveEntryPreparationService(
         var staging = $"{metadataPath}.{Guid.NewGuid():N}.tmp";
         try
         {
+            // The prepared file itself is flushed to disk before this record is written.
+            // The record is not: one that a power cut leaves missing, empty or stale is
+            // read as no record or as a mismatch, and the file is then hashed or decoded
+            // again. Flushing it too doubled the disk waits of a model's first preview.
             await using (var stream = new FileStream(
                 staging,
                 FileMode.CreateNew,
                 FileAccess.Write,
                 FileShare.None,
                 16 * 1024,
-                FileOptions.Asynchronous | FileOptions.WriteThrough))
+                FileOptions.Asynchronous))
             {
                 await JsonSerializer.SerializeAsync(
                     stream,
@@ -425,7 +429,6 @@ public sealed class ArchiveEntryPreparationService(
                         info.LastWriteTimeUtc.Ticks),
                     cancellationToken: cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-                stream.Flush(flushToDisk: true);
             }
             File.Move(staging, metadataPath, overwrite: true);
         }

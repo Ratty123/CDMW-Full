@@ -179,3 +179,40 @@ def test_the_first_launch_on_a_new_package_parses_its_manifest_once(tmp_path, pa
     archive_model_manifest_source_identity(package)
     native_material_package_for_rust_preview(package)
     assert len(parses) == manifest_parses, "a registered question parsed the manifest again"
+
+
+def test_a_layered_material_package_draws_textures_without_listing_any(tmp_path: Path) -> None:
+    import json
+
+    from cdmw.ui.archive_browser.preview_state import (
+        archive_model_package_draws_textures,
+        archive_model_package_has_textures,
+    )
+
+    layered = tmp_path / "layered"
+    layered.mkdir()
+    (layered / "manifest.json").write_text(
+        json.dumps(
+            {
+                "textures": [],
+                "preview_core_material_graph": {"resources_included": True, "copied_resource_count": 52},
+            }
+        ),
+        encoding="utf-8",
+    )
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    (bare / "manifest.json").write_text(
+        json.dumps(
+            {
+                "textures": [],
+                "preview_core_material_graph": {"resources_included": True, "copied_resource_count": 0},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert archive_model_package_has_textures(layered) is False
+    assert archive_model_package_draws_textures(layered) is True
+    assert archive_model_package_draws_textures(bare) is False
+    assert archive_model_package_draws_textures(None) is False

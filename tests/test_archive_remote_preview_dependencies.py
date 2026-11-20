@@ -1153,6 +1153,8 @@ class _SecondaryIndexRetryHarness(_PreviewHarness):
         self.scheduled_delays: list[int] = []
         self.rendered: list[object] = []
         self._entry_override = snapshot.selected_entry
+        # The retry is scheduled after the dependencies' own request was started.
+        self.scheduled_archive_preview_request = None
 
     def _current_archive_entry(self) -> object:
         return self._entry_override
@@ -1175,6 +1177,43 @@ def _pending_snapshot(pending: bool) -> ArchivePreviewDependencySet:
         prepared={7: _prepared(selected)},
         secondary_index_pending=pending,
     )
+
+
+def test_a_secondary_index_retry_waits_for_the_preview_still_being_built() -> None:
+    """Asking again cancels the preview in flight; a slow model was started over at every retry."""
+
+    from cdmw.ui.archive_browser import workers as workers_module
+
+    snapshot = _pending_snapshot(True)
+    harness = _SecondaryIndexRetryHarness(snapshot)
+    waiting: list[tuple[int, object]] = []
+    original_timer = workers_module.QTimer
+    workers_module.QTimer = SimpleNamespace(singleShot=lambda delay, callback: waiting.append((int(delay), callback)))
+    try:
+        for still_building in ("archive_preview_worker", "scheduled_archive_preview_request",
+                               "_archive_texture_request_loading", "archive_preview_texture_upgrade_pending"):
+            setattr(harness, still_building, object())
+            harness._retry_archive_preview_for_secondary_index(snapshot.selected_entry)
+            assert harness.rendered == [], still_building
+            assert [delay for delay, _callback in waiting] == [workers_module.ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS]
+            setattr(harness, still_building, None)
+            waiting.pop()[1]()  # the preview has been shown: now the names are fetched
+            assert harness.rendered == [snapshot.selected_entry]
+            harness.rendered.clear()
+
+        # It stops waiting when another file is selected, and does not wait for ever.
+        harness.archive_preview_worker = object()
+        harness._retry_archive_preview_for_secondary_index(snapshot.selected_entry)
+        harness._entry_override = _pending_snapshot(True).selected_entry.__class__(
+            "character/other.pac", Path("0.pamt"), Path("0.paz"), 0, 1, 1, 0, 0)
+        waiting.pop()[1]()
+        assert harness.rendered == [] and waiting == []
+        harness._entry_override = snapshot.selected_entry
+        harness._retry_archive_preview_for_secondary_index(
+            snapshot.selected_entry, deferred=workers_module.ARCHIVE_PREVIEW_SECONDARY_INDEX_DEFER_LIMIT)
+        assert harness.rendered == [] and waiting == []
+    finally:
+        workers_module.QTimer = original_timer
 
 
 def test_settled_dependencies_do_not_schedule_a_secondary_index_retry() -> None:

@@ -125,6 +125,14 @@ def _manifest_lists_textures(payload: object) -> bool:
     return _lists_resources(payload, "textures")
 
 
+def _manifest_draws_material_layers(payload: object) -> bool:
+    graph = payload.get("preview_core_material_graph") if isinstance(payload, Mapping) else None
+    if not isinstance(graph, Mapping) or graph.get("resources_included") is not True:
+        return False
+    count = graph.get("copied_resource_count")
+    return type(count) is int and count > 0
+
+
 def _net_materials_list_resources(payload: object) -> bool:
     return _lists_resources(payload, "resources")
 
@@ -134,6 +142,7 @@ def _net_materials_list_resources(payload: object) -> bool:
 register_json_file_fact("manifest.json", _manifest_source_path, encoding="utf-8-sig")
 register_json_file_fact("manifest.json", _manifest_source_identity, encoding="utf-8-sig")
 register_json_file_fact("manifest.json", _manifest_lists_textures, encoding="utf-8-sig")
+register_json_file_fact("manifest.json", _manifest_draws_material_layers, encoding="utf-8-sig")
 register_json_file_fact("net_materials.json", _net_materials_list_resources, encoding="utf-8-sig")
 
 
@@ -157,6 +166,28 @@ def archive_model_package_has_textures(package_dir: Path | str | None) -> bool:
         except (OSError, TypeError, ValueError):
             continue
     return False
+
+
+def archive_model_package_draws_textures(package_dir: Path | str | None) -> bool:
+    """Whether the renderer has textures to draw for this package.
+
+    A layered material, as on most world models, draws its textures from the
+    material graph and lists none under ``textures``. Such a package is on
+    screen textured, so Browse must not report its textures as failed or ask
+    for them again. Mesh Editor hand-over keeps the narrower
+    :func:`archive_model_package_has_textures`.
+    """
+
+    if archive_model_package_has_textures(package_dir):
+        return True
+    if package_dir is None:
+        return False
+    try:
+        return bool(
+            json_file_fact(Path(package_dir) / "manifest.json", _manifest_draws_material_layers, encoding="utf-8-sig")
+        )
+    except (OSError, TypeError, ValueError):
+        return False
 
 
 def archive_model_initial_view_state(source_path: object = "") -> dict[str, object]:
