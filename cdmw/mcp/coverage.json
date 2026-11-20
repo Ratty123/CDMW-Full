@@ -876,10 +876,13 @@
     {
       "id": "mesh.stroke",
       "area": "Mesh Editor",
-      "what": "Sculpt strokes",
+      "what": "Sculpt strokes (Grab, Smooth, Inflate, Pinch, Bend)",
       "class": "edit",
-      "gap": "needs_pointer",
-      "by_points": "mesh.stroke"
+      "gap": "not_built",
+      "milestone": "P13 MCP gap plan item 10: a stroke message to the Mesh Editor's helper, replayed as one history step",
+      "also": [
+        "mesh.transform"
+      ]
     },
     {
       "id": "mesh.findings",
@@ -988,8 +991,11 @@
       "area": "Hair Tools",
       "what": "Guides and brushes by numbers (draw, comb, cut, curl, clump ... are pointer brushes)",
       "class": "edit",
-      "gap": "needs_pointer",
-      "by_points": "mesh.hair_stroke"
+      "gap": "not_built",
+      "milestone": "P13 MCP gap plan item 10: a hair stroke message to the Mesh Editor's helper, replayed as one history step",
+      "also": [
+        "mesh.hair"
+      ]
     },
     {
       "id": "hair.colour",

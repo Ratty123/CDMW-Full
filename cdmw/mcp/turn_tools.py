@@ -17,6 +17,9 @@ from cdmw.mcp.ui_actions import run_action
 _EDITOR_FAMILIES = {"mesh", "textures", "new_item", "placement"}
 _GENERIC_EDITORS = {"app.run_command", "app.ui_act"}
 _TURN_TOOLS = {"app.turn_end", "app.undo", "app.redo"}
+# Seconds an editor may take to show its history step after Undo or Redo is pressed.
+_STEP_WAIT = {"mesh": 15.0}
+_STEP_WAIT_DEFAULT = 2.0
 
 
 def _tracks(call):
@@ -258,7 +261,9 @@ class TurnHistory:
             editor.move(direction)
 
         run_action(call.context, move)
-        deadline = time.monotonic() + (15 if editor.kind == "mesh" else 0)
+        # The loop returns the moment the cursor moves, so the wait costs nothing when the
+        # editor's step is synchronous; it covers editors that finish their step a moment later.
+        deadline = time.monotonic() + _STEP_WAIT.get(editor.kind, _STEP_WAIT_DEFAULT)
         while True:
             mark, ready = call.context.ui_call(lambda: (editor.mark(), editor.ready()))
             if mark is not None and mark.cursor != step.current and ready:

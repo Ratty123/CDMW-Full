@@ -53,6 +53,9 @@ def test_every_built_tool_covers_a_capability_and_every_named_tool_exists() -> N
             assert row["class"] == built[row["tool"]].effect, row
         # The generic tools that reach a gap meanwhile exist too.
         assert set(row.get("also", ())) <= set(built), row
+        # A pointer gap names a tool that takes points instead, and that tool exists.
+        if "by_points" in row:
+            assert row["by_points"] in set(built), row
 
 
 def test_nothing_that_changes_writes_or_deletes_is_covered_by_a_tool_that_does_not_ask() -> None:
