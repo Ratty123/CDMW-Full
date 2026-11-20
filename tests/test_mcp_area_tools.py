@@ -370,6 +370,51 @@ def test_build_mod_presses_the_button_with_its_dialog_filled_and_reports_a_refus
     holder.deleteLater()
 
 
+def test_open_a_worn_set_or_the_ticked_parts_as_browse_does(mesh, monkeypatch) -> None:
+    from cdmw.ui.archive_browser import remote_entry_lookup
+    from cdmw.ui.mesh_editor import item_set_preparation
+
+    mcp = mesh.mcp
+    paths = ["character/model/cd_probe_0001.pac", "character/model/cd_probe_0002.pac"]
+    current, scoped, prepared, pressed = [None], [], [], []
+    members = set()
+
+    def lookup(owner, attribute, requests, *, on_done, on_error):
+        entries = [SimpleNamespace(path=path, entry_id=index, is_active_override=False)
+                   for index, path in enumerate(paths, 7)]
+        QTimer.singleShot(20, lambda: on_done(SimpleNamespace(entries=entries)))
+
+    def scope(ids, *, label, worn_set):
+        scoped.append((list(ids), label, worn_set))
+        members.update(paths)
+        return True
+
+    monkeypatch.setattr(remote_entry_lookup, "start_live_catalogue_lookup", lookup)
+    monkeypatch.setattr(remote_entry_lookup, "lookup_requests", lambda *args: args)
+    monkeypatch.setattr(item_set_preparation, "prepare_item_set_for_editor",
+                        lambda shell, entry, edit_set: prepared.append((entry.path, edit_set)) or True)
+    button = SimpleNamespace(isVisible=lambda: bool(members), isEnabled=lambda: True, toolTip=lambda: "",
+                             click=lambda: pressed.append(True))
+    mesh.window.archive = SimpleNamespace(
+        _note_archive_ui_activity=lambda: None,
+        archive_remote_bridge=SimpleNamespace(current_session=SimpleNamespace(session_id="s"),
+                                              apply_entry_id_scope=scope,
+                                              item_set_contains=lambda entry: entry is not None
+                                              and entry.path in members),
+        archive_item_set_components=SimpleNamespace(edit_set_button=button),
+        _reveal_archive_path_in_live_catalogue=lambda path: (
+            QTimer.singleShot(20, lambda: current.__setitem__(0, SimpleNamespace(path=path))), True)[1],
+        _current_archive_mesh_entry=lambda: current[0], _current_archive_entry=lambda: current[0])
+    # Ticked parts need a set in the Scene panel first.
+    assert mcp.error("mesh_open", {"ticked_parts": True})["code"] == "unavailable"
+    assert mcp.error("mesh_open", {"path": paths[0], "set": paths})["code"] == "invalid_arguments"
+    assert mcp.error("mesh_open", {"set": [paths[0], paths[0].upper()]})["code"] == "invalid_arguments"
+    result = mcp.ok("mesh_open", {"set": paths, "label": "Probe armour"})
+    assert result["opening"] and result["set"] == paths
+    assert scoped == [([7, 8], "Probe armour", True)] and prepared == [(paths[0], True)]
+    assert mcp.ok("mesh_open", {"ticked_parts": True})["opening"] and pressed == [True]
+
+
 def test_open_show_document_and_close_go_through_the_shells_own_calls(mesh, settings) -> None:
     mcp = mesh.mcp
     shell = mesh.window.shell

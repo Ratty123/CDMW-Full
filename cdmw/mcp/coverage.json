@@ -805,7 +805,7 @@
     {
       "id": "mesh.open",
       "area": "Mesh Editor",
-      "what": "Open an archive mesh in the Mesh Editor",
+      "what": "Open an archive mesh, a worn set (Open set in Mesh Editor) or the Scene panel's ticked parts in the Mesh Editor",
       "class": "edit",
       "tool": "mesh.open"
     },
