@@ -1752,6 +1752,27 @@
       "milestone": "P13: the current editor offers grain and pattern brush strokes."
     },
     {
+      "id": "textures.replace_queue_read",
+      "area": "Textures > Replace",
+      "what": "The queue: edited files, matched originals and status",
+      "class": "read",
+      "tool": "textures.replace_state"
+    },
+    {
+      "id": "textures.replace_queue",
+      "area": "Textures > Replace",
+      "what": "Add files or a folder, reload, where originals come from, Auto-Match, a local original for a row, remove or clear",
+      "class": "edit",
+      "tool": "textures.replace"
+    },
+    {
+      "id": "textures.replace_build",
+      "area": "Textures > Replace",
+      "what": "Build Package",
+      "class": "output",
+      "tool": "textures.replace_build"
+    },
+    {
       "id": "saved.list",
       "area": "Drafts & Mods",
       "what": "List drafts, mods, item packages and projects",

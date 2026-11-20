@@ -29,6 +29,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **AI connections (experimental):** AI apps can read CDMW's Help topics, the map of what AI tools reach and the recent AI calls as MCP resources, and start from four guided prompts (find and extract files, edit a model, start a new item, review what the AI app changed). Each prompt reminds the AI app that it is a helper you supervise, not a mod maker. **Settings > AI connections** also shows a JSON setup entry for other MCP clients.
 - **AI connections (experimental):** **mesh_session** presses the Mesh Editor's buttons after **Finish Edit Mesh** (Resume current edit, Start next edit pass, Add to Archive Browser, Check mesh, Return to Create New Item) and names the open draft and its project, as **Name Draft...** does.
 - **AI connections (experimental):** tools that answer in pages, such as **search_archive** and **search_characters**, list the shape of their pages (MCP `outputSchema`), so an AI app knows where the rows, the total and the next page token are.
+- **AI connections (experimental):** **textures_replace**, **textures_replace_state** and **textures_replace_build** work **Textures > Replace**: add edited files or a folder, choose where originals come from, Auto-Match, pick a local original, remove rows, and build the package into a folder you allow. Recolor, Upscale and the Review & Export dialog still go through the generic tools.
 
 ### Fixed
 
