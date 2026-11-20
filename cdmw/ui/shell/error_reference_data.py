@@ -29068,7 +29068,7 @@ MESSAGE_REFERENCE = [
     "message": "A mod folder or ZIP already exists for {root.name}. Choose another mod name or add to the existing mod.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/new_item_service.py": 647
+      "cdmw/services/new_item_service.py": 659
     }
   },
   {
@@ -29324,7 +29324,7 @@ MESSAGE_REFERENCE = [
     "message": "An empty default subitem cannot carry a value.",
     "recovery": "empty",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 111
+      "cdmw/domain/new_item/item_behavior.py": 115
     }
   },
   {
@@ -29583,7 +29583,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW cannot find its record of the items in {folder.name}. Its files were changed after export, or it was exported on another computer. Export the new item to a new mod instead.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 287
+      "cdmw/services/new_item_mod_base.py": 299
     }
   },
   {
@@ -29591,7 +29591,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 821
+      "cdmw/services/new_item_planning.py": 832
     }
   },
   {
@@ -29599,7 +29599,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc} {labels} were weighted to different versions of these bones. Select each variant so its model is weighted to the current bones, then build the plan again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 817
+      "cdmw/services/new_item_planning.py": 828
     }
   },
   {
@@ -29607,7 +29607,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot carry the template's bone offsets: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 772
+      "cdmw/services/new_item_planning.py": 783
     }
   },
   {
@@ -29615,7 +29615,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 896
+      "cdmw/services/new_item_planning.py": 907
     }
   },
   {
@@ -29647,7 +29647,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1111
+      "cdmw/services/new_item_planning.py": 1122
     }
   },
   {
@@ -30041,7 +30041,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM field JSON cannot be read as ordinary mod files. For a CDMW export, import cdmw-source/cdmw-semantic.cdmw instead.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 121
+      "cdmw/services/new_item_mod_base.py": 125
     }
   },
   {
@@ -30097,7 +30097,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate currency unit.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 141
+      "cdmw/domain/new_item/item_behavior.py": 148
     }
   },
   {
@@ -30113,7 +30113,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate item behavior group.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 139
+      "cdmw/domain/new_item/item_behavior.py": 146
     }
   },
   {
@@ -30513,6 +30513,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "For DMM: {detail}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_planning.py": 668
+    }
+  },
+  {
+    "area": "items",
     "message": "Forbidden package dependency cycle: {detail}",
     "recovery": "internal",
     "sources": {
@@ -30596,7 +30604,7 @@ MESSAGE_REFERENCE = [
     "message": "Incompatible mod base {folder}: {'legacy' if current else 'current'} item tables cannot extend the active {'current' if current else 'legacy'} generation. Rebuild the affected items; the folder is preserved. Items: {', '.join(affected) or 'see the base ItemInfo table'}. Paths: {', '.join(rejected)}",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 217
+      "cdmw/services/new_item_mod_base.py": 221
     }
   },
   {
@@ -30604,7 +30612,7 @@ MESSAGE_REFERENCE = [
     "message": "Incompatible mod base {folder}: {path} uses a different static-table format. Rebuild the affected items for this game version; the folder is preserved.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 234
+      "cdmw/services/new_item_mod_base.py": 238
     }
   },
   {
@@ -30612,7 +30620,7 @@ MESSAGE_REFERENCE = [
     "message": "Incomplete table pair in mod base: {path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 225
+      "cdmw/services/new_item_mod_base.py": 229
     }
   },
   {
@@ -30644,7 +30652,7 @@ MESSAGE_REFERENCE = [
     "message": "Installing into the game is no longer available. Write a mod folder, or send the item to DMM.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/new_item_service.py": 619
+      "cdmw/services/new_item_service.py": 631
     }
   },
   {
@@ -30748,7 +30756,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid behavior value, range or record structure.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/item_behavior_editor.py": 131
+      "cdmw/ui/new_item/item_behavior_editor.py": 132
     }
   },
   {
@@ -30908,7 +30916,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid or oversized field JSON manifest.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 117
+      "cdmw/services/new_item_mod_base.py": 121
     }
   },
   {
@@ -31092,7 +31100,7 @@ MESSAGE_REFERENCE = [
     "message": "Item behavior flags require booleans.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 100
+      "cdmw/domain/new_item/item_behavior.py": 104
     }
   },
   {
@@ -31100,7 +31108,7 @@ MESSAGE_REFERENCE = [
     "message": "Item behavior integer is outside its storage range.",
     "recovery": "limits",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 95
+      "cdmw/domain/new_item/item_behavior.py": 99
     }
   },
   {
@@ -31108,7 +31116,7 @@ MESSAGE_REFERENCE = [
     "message": "Item behavior requires a closed nonempty fields object.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 134
+      "cdmw/domain/new_item/item_behavior.py": 141
     }
   },
   {
@@ -31116,7 +31124,7 @@ MESSAGE_REFERENCE = [
     "message": "Item behavior signed counter is outside its storage range.",
     "recovery": "limits",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 98
+      "cdmw/domain/new_item/item_behavior.py": 102
     }
   },
   {
@@ -31460,7 +31468,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose root does not exist or is not a folder: {root}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_service.py": 640
+      "cdmw/services/new_item_service.py": 652
     }
   },
   {
@@ -31782,7 +31790,7 @@ MESSAGE_REFERENCE = [
     "message": "New Item manifest is too large: {manifest}",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 283
+      "cdmw/services/new_item_mod_base.py": 295
     }
   },
   {
@@ -31838,7 +31846,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 997
+      "cdmw/services/new_item_planning.py": 1008
     }
   },
   {
@@ -31918,7 +31926,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1027
+      "cdmw/services/new_item_planning.py": 1038
     }
   },
   {
@@ -32177,7 +32185,7 @@ MESSAGE_REFERENCE = [
     "message": "Prefab scale requires finite float32 values.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 106
+      "cdmw/domain/new_item/item_behavior.py": 110
     }
   },
   {
@@ -32497,7 +32505,7 @@ MESSAGE_REFERENCE = [
     "message": "Source folder does not exist.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 77
+      "cdmw/services/new_item_mod_base.py": 81
     }
   },
   {
@@ -33636,7 +33644,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan names no archive to install into.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 769
+      "cdmw/services/new_item_service.py": 781
     }
   },
   {
@@ -33660,7 +33668,7 @@ MESSAGE_REFERENCE = [
     "message": "The previous archive group escapes the mod package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_service.py": 587
+      "cdmw/services/new_item_service.py": 599
     }
   },
   {
@@ -33886,7 +33894,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1164
+      "cdmw/services/new_item_planning.py": 1175
     }
   },
   {
@@ -34006,7 +34014,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 870
+      "cdmw/services/new_item_planning.py": 881
     }
   },
   {
@@ -34014,7 +34022,7 @@ MESSAGE_REFERENCE = [
     "message": "The template {self.template.string_key} has no display {what} in the game's text tables (entry {key} is missing in every language). The game ships it without text, so it cannot be used as a template; choose another one.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_planning.py": 693
+      "cdmw/services/new_item_planning.py": 704
     }
   },
   {
@@ -34150,7 +34158,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} table has no localization for perk {source.string_key}: {old_key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 733
+      "cdmw/services/new_item_planning.py": 744
     }
   },
   {
@@ -34366,7 +34374,7 @@ MESSAGE_REFERENCE = [
     "message": "This mod's source data changed. Use Check mods for game updates and review or rebuild it before adding items. Changed files: {detail}",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 250
+      "cdmw/services/new_item_mod_base.py": 254
     }
   },
   {
@@ -34486,7 +34494,7 @@ MESSAGE_REFERENCE = [
     "message": "This semantic export retains required package intent. Import it through CDMW or select it in Merge; it cannot be used as an ordinary mod folder or a New Item base.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_mod_base.py": 108
+      "cdmw/services/new_item_mod_base.py": 112
     }
   },
   {
@@ -34911,7 +34919,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported application storage descriptor.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 129
+      "cdmw/domain/new_item/item_behavior.py": 136
     }
   },
   {
@@ -34999,7 +35007,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported default-subitem discriminator.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 109
+      "cdmw/domain/new_item/item_behavior.py": 113
     }
   },
   {
@@ -35063,7 +35071,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item behavior list length.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 127
+      "cdmw/domain/new_item/item_behavior.py": 134
     }
   },
   {
@@ -35071,7 +35079,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item behavior record fields.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 122
+      "cdmw/domain/new_item/item_behavior.py": 128
     }
   },
   {
@@ -35079,7 +35087,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item behavior settings type.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 147
+      "cdmw/domain/new_item/item_behavior.py": 154
     }
   },
   {
@@ -35087,7 +35095,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item behavior text.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 103
+      "cdmw/domain/new_item/item_behavior.py": 107
     }
   },
   {
@@ -35231,7 +35239,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item.behavior field.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/new_item/item_behavior.py": 136
+      "cdmw/domain/new_item/item_behavior.py": 143
     }
   },
   {
@@ -35441,7 +35449,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1051
+      "cdmw/services/new_item_planning.py": 1062
     }
   },
   {
@@ -35689,7 +35697,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1058
+      "cdmw/services/new_item_planning.py": 1069
     }
   },
   {
@@ -35697,7 +35705,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1060
+      "cdmw/services/new_item_planning.py": 1071
     }
   },
   {
@@ -35769,7 +35777,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1003
+      "cdmw/services/new_item_planning.py": 1014
     }
   },
   {
@@ -36235,7 +36243,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1040
+      "cdmw/services/new_item_planning.py": 1051
     }
   },
   {
@@ -36243,7 +36251,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1026
+      "cdmw/services/new_item_planning.py": 1037
     }
   },
   {
@@ -36421,7 +36429,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_cloth_check.py": 119,
-      "cdmw/services/new_item_planning.py": 1237
+      "cdmw/services/new_item_planning.py": 1248
     }
   },
   {
@@ -36429,7 +36437,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1214
+      "cdmw/services/new_item_planning.py": 1225
     }
   },
   {
@@ -36485,7 +36493,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 988
+      "cdmw/services/new_item_planning.py": 999
     }
   },
   {
@@ -36501,7 +36509,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 849
+      "cdmw/services/new_item_planning.py": 860
     }
   },
   {
@@ -36509,7 +36517,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1089
+      "cdmw/services/new_item_planning.py": 1100
     }
   },
   {
@@ -36517,7 +36525,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1086
+      "cdmw/services/new_item_planning.py": 1097
     }
   },
   {
@@ -36525,7 +36533,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1063
+      "cdmw/services/new_item_planning.py": 1074
     }
   },
   {
@@ -36734,7 +36742,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 898
+      "cdmw/services/new_item_planning.py": 909
     }
   },
   {
@@ -37023,7 +37031,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 950
+      "cdmw/services/new_item_planning.py": 961
     }
   },
   {
@@ -37095,7 +37103,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is shared by every character on that rig. {PAB_APPEND_NOTES[2]} {PAB_APPEND_NOTES[3]}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 824
+      "cdmw/services/new_item_planning.py": 835
     }
   },
   {
@@ -37263,7 +37271,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 992
+      "cdmw/services/new_item_planning.py": 1003
     }
   },
   {
@@ -37279,7 +37287,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 843
+      "cdmw/services/new_item_planning.py": 854
     }
   },
   {
@@ -37415,7 +37423,7 @@ MESSAGE_REFERENCE = [
     "message": "{template.string_key} has no name key to copy the category from",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 701
+      "cdmw/services/new_item_planning.py": 712
     }
   },
   {
@@ -75723,6 +75731,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A part operation cannot be read back: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 205
+    }
+  },
+  {
+    "area": "other",
     "message": "A render cloth binding refers outside this PAC's guide matrices.",
     "recovery": "internal",
     "sources": {
@@ -75795,6 +75811,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "A shop operation cannot be read back: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 168
+    }
+  },
+  {
+    "area": "other",
     "message": "A stat requires a StatusInfo key.",
     "recovery": "input",
     "sources": {
@@ -75815,6 +75839,22 @@ MESSAGE_REFERENCE = [
     "recovery": "recovery",
     "sources": {
       "cdmw/services/old_install_removal.py": 750
+    }
+  },
+  {
+    "area": "other",
+    "message": "A stock line for shop {row.name} cannot be read back.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 165
+    }
+  },
+  {
+    "area": "other",
+    "message": "A stock line for shop {row.name} names another shop.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 154
     }
   },
   {
@@ -78952,6 +78992,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "DMM V3: the shop stock value does not round-trip.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/dmm_item_fields.py": 187
+    }
+  },
+  {
+    "area": "other",
     "message": "DMM V3: unknown owned ItemInfo symbol.",
     "recovery": "internal",
     "sources": {
@@ -79028,6 +79076,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/dmm_item_export.py": 93
+    }
+  },
+  {
+    "area": "other",
+    "message": "DMM V3: unsupported shop stock value ({exc}).",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/core/dmm_item_fields.py": 185
     }
   },
   {
@@ -81354,7 +81410,7 @@ MESSAGE_REFERENCE = [
     "message": "Item group {changed.name} differs from the game's copy in more than added members, for example by another mounted mod's edits. DMM can only add members; build the item without the other mod's tables.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 67
+      "cdmw/services/dmm_dlc_tables.py": 75
     }
   },
   {
@@ -81362,7 +81418,15 @@ MESSAGE_REFERENCE = [
     "message": "Item group {changed.name} exists only in the DLC's table, which DMM does not take from mods.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 64
+      "cdmw/services/dmm_dlc_tables.py": 72
+    }
+  },
+  {
+    "area": "other",
+    "message": "Item group {row.name} already lists item {item}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 183
     }
   },
   {
@@ -83948,6 +84012,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Part {record.stem} has no prefab in this mod; refusing to register another mod's part.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 208
+    }
+  },
+  {
+    "area": "other",
     "message": "Part-hide helper is context-only; exact body clipping is not simulated.",
     "recovery": "internal",
     "sources": {
@@ -84321,6 +84393,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/structured_binary_editor.py": 399
+    }
+  },
+  {
+    "area": "other",
+    "message": "Row {key} is missing from the table.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 131
     }
   },
   {
@@ -84826,7 +84906,7 @@ MESSAGE_REFERENCE = [
     "message": "Shop {changed.name} differs from the game's copy in more than added stock lines, for example by another mounted mod's edits. DMM can only add stock lines; build the item without the other mod's tables.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 56
+      "cdmw/services/dmm_dlc_tables.py": 64
     }
   },
   {
@@ -84834,7 +84914,7 @@ MESSAGE_REFERENCE = [
     "message": "Shop {changed.name} exists only in the DLC's table, which DMM does not take from mods.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 47
+      "cdmw/services/dmm_dlc_tables.py": 55
     }
   },
   {
@@ -84842,7 +84922,15 @@ MESSAGE_REFERENCE = [
     "message": "Shop {changed.name} replaces an existing stock line (a Swap placement). DMM can only add stock lines to a shop, so choose Add to shop for an item that goes to DMM.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 53
+      "cdmw/services/dmm_dlc_tables.py": 61
+    }
+  },
+  {
+    "area": "other",
+    "message": "Shop {row.name} already stocks item {item}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 156
     }
   },
   {
@@ -85075,7 +85163,7 @@ MESSAGE_REFERENCE = [
     "message": "StoreInfo could not be read: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 38
+      "cdmw/services/dmm_dlc_tables.py": 46
     }
   },
   {
@@ -86139,7 +86227,7 @@ MESSAGE_REFERENCE = [
     "message": "The game has no complete base and DLC copy of {name}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 145
+      "cdmw/services/dmm_dlc_tables.py": 154
     }
   },
   {
@@ -86440,10 +86528,82 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The mod's part operations cannot be read back: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 214
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod's {OPERATIONS_FILE} adds to {name} row {intent['key']}, which this game does not have.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 112
+    }
+  },
+  {
+    "area": "other",
     "message": "The mod's {OPERATIONS_FILE} cannot be read to add to it: {exc}",
     "recovery": "input",
     "sources": {
       "cdmw/services/dmm_send.py": 106
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod's {OPERATIONS_FILE} cannot be read: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 56
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod's {OPERATIONS_FILE} changes {target['file']}, which CDMW does not write.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 65
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod's {OPERATIONS_FILE} has a part operation CDMW does not write.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 197
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod's {OPERATIONS_FILE} has a target CDMW does not write.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 63
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod's {OPERATIONS_FILE} has a {name} operation CDMW does not write.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 109
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod's {OPERATIONS_FILE} is a link or too large to read.",
+    "recovery": "limits",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 52
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod's {OPERATIONS_FILE} is not a DMM V3 operations file written by CDMW.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 59
     }
   },
   {
@@ -86876,7 +87036,7 @@ MESSAGE_REFERENCE = [
     "message": "The shop and item group tables could not all become DMM operations: {detail}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 226
+      "cdmw/services/dmm_dlc_tables.py": 251
     }
   },
   {
@@ -87581,7 +87741,15 @@ MESSAGE_REFERENCE = [
     "message": "This source generation has no inspect catch-tag hash.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/iteminfo_behavior.py": 67
+      "cdmw/core/iteminfo_behavior.py": 69
+    }
+  },
+  {
+    "area": "other",
+    "message": "This source generation has no page texture rotation.",
+    "recovery": "stale",
+    "sources": {
+      "cdmw/core/iteminfo_behavior.py": 84
     }
   },
   {
@@ -87589,7 +87757,7 @@ MESSAGE_REFERENCE = [
     "message": "This source generation stores a texture name, not a hash.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/core/iteminfo_behavior.py": 55
+      "cdmw/core/iteminfo_behavior.py": 57
     }
   },
   {
@@ -92228,7 +92396,7 @@ MESSAGE_REFERENCE = [
     "message": "{'Shop' if name == 'storeinfo' else 'Item group'} {row.name} exists only in the DLC, and DMM does not take a mod's copy of a DLC table.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 154
+      "cdmw/services/dmm_dlc_tables.py": 169
     }
   },
   {
@@ -93100,7 +93268,7 @@ MESSAGE_REFERENCE = [
     "message": "{name} gains or loses rows; DMM operations can only add to existing ones.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 111
+      "cdmw/services/dmm_dlc_tables.py": 119
     }
   },
   {
@@ -93541,7 +93709,7 @@ MESSAGE_REFERENCE = [
     "message": "{row.name} gains items that are not this mod's own; DMM cannot take that.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_dlc_tables.py": 118
+      "cdmw/services/dmm_dlc_tables.py": 126
     }
   },
   {
@@ -94150,6 +94318,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/effect_binary.py": 453
+    }
+  },
+  {
+    "area": "other",
+    "message": "{where} adds item {item}, which is not one of the mod's own new items. CDMW only reads back the {OPERATIONS_FILE} it wrote itself.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_mod_base.py": 75
     }
   },
   {
@@ -109600,7 +109776,7 @@ SOURCE_COVERAGE = {
     "raise": 8
   },
   "cdmw/core/dmm_item_fields.py": {
-    "raise": 8
+    "raise": 11
   },
   "cdmw/core/effect_binary.py": {
     "raise": 20
@@ -109720,7 +109896,7 @@ SOURCE_COVERAGE = {
     "raise": 16
   },
   "cdmw/core/iteminfo_behavior.py": {
-    "raise": 4
+    "raise": 5
   },
   "cdmw/core/iteminfo_compact.py": {
     "raise": 5
@@ -111399,6 +111575,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/dmm_item_export.py": {
     "raise": 30
   },
+  "cdmw/services/dmm_mod_base.py": {
+    "raise": 18
+  },
   "cdmw/services/dmm_part_table.py": {
     "raise": 4
   },
@@ -111990,7 +112169,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/new_item_panel_search.py": {},
   "cdmw/services/new_item_planning.py": {
     "diagnostic_field": 5,
-    "finding": 16,
+    "finding": 17,
     "raise": 39,
     "validation": 1
   },

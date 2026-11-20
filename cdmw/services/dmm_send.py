@@ -22,7 +22,7 @@ from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
 
 DMM_FOLDER_SETTING = "dmm/install_folder"
 # DMM lists this as its own mod next to the folder; enable both.
-OPERATIONS_FILE = "CDMW items - shops and groups.json"
+from cdmw.services.dmm_mod_base import OPERATIONS_FILE  # noqa: E402  (one name for both)
 _CDMW_GENERATOR = "Crimson Desert Mod Workbench"
 
 

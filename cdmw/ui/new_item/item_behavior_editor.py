@@ -27,6 +27,7 @@ def _labels():
         'icons':tr('Conditional icons'), 'prefabs':tr('Prefab entries'),
         'left_texture':tr('Left page texture'), 'right_texture':tr('Right page texture'),
         'left_knowledge':tr('Left page knowledge'), 'right_knowledge':tr('Right page knowledge'),
+        'texture_rotation':tr('Page texture rotation'),
         'item':tr('Item'), 'gimmick':tr('Gimmick'), 'character':tr('Character'), 'spawn_reason_hash':tr('Spawn reason hash'),
         'socket':tr('Socket'), 'speak_character':tr('Speaking character'), 'target_tag':tr('Target tag'),
         'reward_own_knowledge':tr('Reward own knowledge'), 'reward_knowledge':tr('Reward knowledge'),
@@ -153,6 +154,7 @@ class ItemBehaviorEditor(ItemDefinitionEditor):
                 members = dict(shape[1])
                 if part in ('extract_distance_bits','extract_angle_bits','owner_condition'): shape = 'u32'
                 elif part == 'use_cooldown': shape = 'bool'
+                elif part == 'texture_rotation': shape = 'u8'
                 else: shape = members[part]
             elif isinstance(shape,tuple): shape=shape[1]
             else: return 'u8' if part=='type' else 'u32'

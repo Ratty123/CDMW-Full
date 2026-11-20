@@ -27,6 +27,10 @@ def optional(value):
 
 LOCAL = record(category='u8', key='u64', text_key='text')
 PAGE = record(left_texture='text', right_texture='text', left_knowledge='u32', right_knowledge='u32')
+# Game 1.0.0.3732 rows add PageData._uiTextureRotationType (one byte) after the right
+# page's knowledge. Values read from such a row carry it as an extra member; a page
+# written without it gets 0, and older rows cannot store anything else.
+PAGE_ROTATION = 'texture_rotation'
 INSPECTION = record(item='u32', gimmick='u32', character='u32', spawn_reason_hash='u32', socket='text',
     speak_character='u32', target_tag='u32', reward_own_knowledge='bool', reward_knowledge='u32', description=LOCAL,
     board_key='u32', action_type='u8', gimmick_state_hash='u32', target_page='u32', left_page='bool',
@@ -118,10 +122,13 @@ def validate_value(shape, value):
         extra = {'extract_distance_bits','extract_angle_bits'} if shape == INSPECTION and isinstance(value,dict) and 'extract_distance_bits' in value else set()
         if shape == DOCKING and isinstance(value,dict) and 'owner_condition' in value:
             extra = {'owner_condition','use_cooldown'}
+        if shape == PAGE and isinstance(value,dict) and PAGE_ROTATION in value:
+            extra = {PAGE_ROTATION}
         if not isinstance(value, dict) or set(value) != {name for name, _shape in shape[1]} | extra:
             raise ValueError('Unsupported item behavior record fields.')
         for name, child in shape[1]: validate_value(child, value[name])
-        for name in extra: validate_value('bool' if name == 'use_cooldown' else 'u32',value[name])
+        for name in extra:
+            validate_value('bool' if name == 'use_cooldown' else 'u8' if name == PAGE_ROTATION else 'u32',value[name])
     elif kind in ('array', 'list'):
         if not isinstance(value, list) or (len(value) != shape[2] if kind == 'array' else len(value) > shape[2]):
             raise ValueError('Unsupported item behavior list length.')
