@@ -123,7 +123,10 @@ internal sealed class ArchiveDependencyIndex : IDisposable
         string stem,
         int maximumResults = 256,
         CancellationToken cancellationToken = default) =>
-        FindEntryIds(source, stem, maximumResults, _stemRecordsOffset, stem: true, cancellationToken);
+        // A file named by its extension alone, such as ".vce_meta", has no stem to share.
+        string.IsNullOrWhiteSpace(stem)
+            ? new ArchiveDependencyLookupResult([], Truncated: false)
+            : FindEntryIds(source, stem, maximumResults, _stemRecordsOffset, stem: true, cancellationToken);
 
     public ArchiveFacetsResult CreateFacets(string sessionId)
     {

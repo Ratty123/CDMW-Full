@@ -17,6 +17,44 @@ internal static class CatalogInventoryTests
             yield return session.Index.ReadEntry(entryId, session.Id);
     }
 
+    // A texture, sound or film names no other file. Its bytes are not read for
+    // references, so they can neither overflow the lookup nor slow it down.
+    public static async Task OpaquePayloadsAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateOpaquePayloadsAsync();
+        var native = new NativeArchiveCore();
+        var cache = new ArchiveCacheStore(fixture.OutputRoot);
+        using var sessions = new ArchiveSessionManager(native, cache);
+        var opened = await sessions.OpenAsync(new(fixture.Root), CancellationToken.None);
+        var session = sessions.GetRequired(opened.SessionId);
+        var byPath = Everything(session).ToDictionary(static entry => entry.Path, StringComparer.OrdinalIgnoreCase);
+        var lookup = new ArchiveLookupService(sessions, cache, native);
+
+        async Task<(ArchiveAssociationResult Result, List<string> Scanned)> PreviewAsync(string path)
+        {
+            var scanned = new List<string>();
+            var result = await lookup.FindAssociationCandidatesAsync(
+                new ArchiveAssociationRequest(opened.SessionId, byPath[path].EntryId, 4095, ArchiveAssociationPurpose.Preview),
+                CancellationToken.None,
+                update =>
+                {
+                    if (update.Phase == "preview_association_scan" && update.CurrentItem is { } item) scanned.Add(item);
+                    return Task.CompletedTask;
+                });
+            return (result, scanned);
+        }
+
+        var texture = await PreviewAsync("ui/texture/fog.dds");
+        Check(!texture.Result.Truncated, "a texture's pixels made its preview lookup incomplete");
+        Check(!texture.Scanned.Contains("ui/texture/fog.dds"), "a texture's pixels were read for file references");
+        Check(texture.Result.Candidates.Select(static entry => entry.Path).SequenceEqual(["ui/texture/fog.xml"]),
+            "a texture's same-name files are no longer its related files");
+        var sound = await PreviewAsync("sound/windows/voice.wem");
+        Check(!sound.Result.Truncated && sound.Scanned.Count == 0, "a sound's samples were read for file references");
+        var unnamed = await PreviewAsync("sound/windows/.vce_meta");
+        Check(!unnamed.Result.Truncated, "a file named by its extension alone has no related-files answer");
+    }
+
     public static async Task RunAsync()
     {
         foreach (var path in new[] {

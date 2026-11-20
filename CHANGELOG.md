@@ -45,6 +45,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Browse Archives** no longer refuses to preview some files with "Preview dependencies could not be resolved": large uncompressed textures such as the world map fog bitmaps, the ICU `.dat` files, some tree impostors, and files named by an extension alone such as `.vce_meta`. Only a model still needs its complete set of related files before it is shown.
 - **Textures > Upscale:** with **Overwrite existing DDS** off, **Start** reported every DDS it rebuilt with the native encoder as skipped ("output DDS already exists"), because it checked for the file after writing it. Those files now count as converted; only DDS files that were in the output folder before the run are skipped.
 - **Edit Translations:** **AI Translate** offers **The selected lines** when you select several rows, not only the first of them.
 - **Browse Archives** keeps both copies when you export a file that is in the base game and in a DLC. A DLC package now exports under `dlc/dlc_01/0015` instead of `0015`, the **Package** column and the folder view tell base and DLC packages apart, and when two selected files still land on the same output path the report says one replaced the other instead of listing both as exported.

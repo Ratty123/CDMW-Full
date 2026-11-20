@@ -726,7 +726,11 @@ public sealed class ArchiveLookupService(
     {
         if (entry.EntryId == selectedEntryId)
         {
-            return true;
+            // Pixels, samples and frames name no other files. Read as text they
+            // yield thousands of accidental "paths", enough to make the lookup
+            // incomplete, and reading them costs a full decode of the file.
+            return ArchiveEntryClassifier.ClassifyExtensionCategory(entry.Extension)
+                is not (ArchiveExtensionCategory.TextureImage or ArchiveExtensionCategory.AudioVideo);
         }
         return entry.Extension is
             ".xml" or ".pami" or ".pac_xml" or ".pam_xml" or ".pamlod_xml" or ".app_xml" or

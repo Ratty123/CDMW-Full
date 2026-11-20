@@ -19,13 +19,14 @@ from cdmw.domain.archives.catalogue import (
     ArchiveQueryHandle,
     ArchiveViewMode,
 )
-from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult, PrepareEntryResult
+from cdmw.domain.archives.catalogue_operations import PrepareEntriesRequest, PrepareEntriesResult, PrepareEntryResult
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_preview_dependencies import (
     ArchivePreviewDependencySet,
     ArchiveRemotePreviewDependencyProvider,
     MAX_ARCHIVE_PREVIEW_DEPENDENCIES,
     MAX_ARCHIVE_PREVIEW_SNAPSHOTS,
+    MAX_BEST_EFFORT_PREVIEW_DEPENDENCIES,
 )
 from cdmw.ui.archive_browser.workers import ArchivePreviewWorkerMixin
 
@@ -364,6 +365,69 @@ def test_remote_preview_rejects_incomplete_discovery_below_the_candidate_limit()
     assert failures == [(74, "This choice has incomplete or ambiguous dependencies.")]
     assert not ready and len(service.requests) == 1  # No partial preparation/publication.
     assert provider.pending_ui_request_id is None
+
+
+def _texture_request(provider, service):
+    ready, failures = [], []
+    provider.ready.connect(lambda request_id, snapshot: ready.append((request_id, snapshot)))
+    provider.failed.connect(lambda request_id, message: failures.append((request_id, message)))
+    selected = _dto(7, "ui/texture/image/worldmap/fog.dds")
+    assert provider.request(selected, ui_request_id=74)
+    return selected, ready, failures
+
+
+def test_a_texture_previews_when_its_related_files_lookup_is_incomplete() -> None:
+    """A texture is drawn from its own bytes: an incomplete list of related files does not refuse it."""
+
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    selected, ready, failures = _texture_request(provider, service)
+    sidecar = _dto(8, "ui/texture/image/worldmap/fog.xml")
+    service.result_ready.emit(
+        "association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 7, (sidecar,), 1, True),
+    )
+    assert not failures
+    prepare = service.requests[-1][0]
+    assert isinstance(prepare, PrepareEntriesRequest) and prepare.entry_ids == (7, 8)
+    service.result_ready.emit(
+        "prepare-2", "prepare_entry", PrepareEntriesResult("session-a", (_prepared(selected), _prepared(sidecar)), 2, 2, 80),
+    )
+    assert [request_id for request_id, _snapshot in ready] == [74]
+    snapshot = ready[0][1]
+    assert not snapshot.truncated and [entry.path for entry in snapshot.entries] == [selected.path, sidecar.path]
+
+
+def test_a_long_arbitrary_cut_of_related_files_is_dropped_not_prepared() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    selected, ready, failures = _texture_request(provider, service)
+    many = tuple(_dto(100 + index, f"ui/texture/other_{index}.dds") for index in range(MAX_BEST_EFFORT_PREVIEW_DEPENDENCIES + 1))
+    service.result_ready.emit(
+        "association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 7, many, 4096, True),
+    )
+    assert not failures and service.requests[-1][0].entry_ids == (7,)
+    service.result_ready.emit(
+        "prepare-2", "prepare_entry", PrepareEntriesResult("session-a", (_prepared(selected),), 1, 1, 40),
+    )
+    assert len(ready) == 1 and ready[0][1].total_candidates == 0 and not ready[0][1].truncated
+
+
+def test_a_failed_related_files_lookup_still_shows_a_texture_but_not_a_model() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    selected, ready, failures = _texture_request(provider, service)
+    service.request_failed.emit("association-1", "The value cannot be an empty string.")
+    assert not failures and service.requests[-1][0].entry_ids == (7,)
+    # The file itself failing to prepare is still a failure.
+    service.request_failed.emit("prepare-2", "The archive session was closed.")
+    assert failures == [(74, "The archive session was closed.")] and not ready
+
+    model = _dto(9, "character/dress.pac")
+    assert provider.request(model, ui_request_id=75)
+    service.request_failed.emit(f"association-{len(service.requests)}", "lookup failed")
+    assert failures[-1] == (75, "lookup failed") and not ready
 
 
 def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> None:
