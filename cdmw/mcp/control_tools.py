@@ -280,7 +280,8 @@ def _ui_act_effect(call) -> str:
     reason = user_only_reason(widget, getattr(call.context, "window", None))
     if reason:
         raise ToolError(REFUSED, reason)
-    return effect_of_action(widget, str(call.arguments["action"]), call.arguments.get("menu"))
+    return effect_of_action(widget, str(call.arguments["action"]), call.arguments.get("menu"),
+                            call.arguments.get("keys"))
 
 
 def _ui_act_key(call) -> str:
@@ -290,7 +291,9 @@ def _ui_act_key(call) -> str:
     row = describe(widget, rows=False)
     # One control of one window: allowing "OK" in a dialog does not allow every OK button.
     title = widget.window().windowTitle().split(" [AI connections on")[0]
-    entry = f":{call.arguments['menu']}" if call.arguments["action"] == "menu" and call.arguments.get("menu") else ""
+    action = call.arguments["action"]
+    entry = (f":{call.arguments['menu']}" if action == "menu" and call.arguments.get("menu") else
+             f":{call.arguments.get('keys')}" if action == "key" else "")
     return f"{call.arguments['action']}:{title}:{row.get('text') or row.get('name') or row['widget']}{entry}"
 
 
@@ -304,7 +307,8 @@ def _ui_act(call) -> dict[str, object]:
     def run() -> dict[str, object]:
         return act(_target(call), str(a["action"]), value=a.get("value"), row=a.get("row"),
                    window=getattr(context, "window", None), game_folder=context.game_folder(),
-                   menu=a.get("menu"))
+                   menu=a.get("menu"), rows=a.get("rows"), extend=bool(a.get("extend")),
+                   column=a.get("column"), keys=a.get("keys"))
 
     outcome = run_action(context, run, a.get("answers"))
     if "result" not in outcome:
@@ -395,13 +399,26 @@ def control_tools() -> list[Tool]:
                          "'menu' reads the menu a right-click on the control (on 'row' of a list, table or "
                          "tree) or its drop-down button would show, without showing it: without 'menu' it "
                          "returns the entries, with 'menu' (an entry's text, or a path such as 'Export > "
-                         "Export File') it picks that entry, with the entry's own class.",
+                         "Export File') it picks that entry, with the entry's own class. In a list, table or tree: "
+                         "select 'rows' (several, or 'extend' to add), check or uncheck a row's box ('row', "
+                         "'column'), set_cell ('row', 'column', 'value') where the cell is editable, expand or "
+                         "collapse a branch. 'key' presses 'keys' on the control (Esc, Delete, Ctrl+A). "
+                         "app_ui shows which rows are checkable, which columns editable and which branches "
+                         "open.",
              input_schema=object_schema({
                  "widget": _WIDGET, "text": {"type": "string", "maxLength": 256},
                  "kind": {"type": "string", "maxLength": 16}, "inside": _WIDGET,
                  "action": {"type": "string", "enum": list(ACTIONS)},
                  "value": {"type": ["string", "number", "boolean"]},
                  "row": {"type": ["integer", "string"]},
+                 "rows": {"type": "array", "maxItems": 4000, "items": {"type": ["integer", "string"]},
+                          "description": "For select: several rows (numbers or texts), as Ctrl-click does."},
+                 "extend": {"type": "boolean", "default": False,
+                            "description": "For select: add to the selection instead of replacing it."},
+                 "column": {"type": ["integer", "string"],
+                            "description": "For set_cell and a row's check: the column, by number or heading."},
+                 "keys": {"type": "string", "maxLength": 64,
+                          "description": "For key: a key sequence such as 'Esc', 'Delete' or 'Ctrl+A'."},
                  "menu": {"type": "string", "maxLength": 512,
                           "description": "For action 'menu': the entry to pick, or a path through submenus "
                                          "joined by ' > '. Leave it out to list the entries."},
