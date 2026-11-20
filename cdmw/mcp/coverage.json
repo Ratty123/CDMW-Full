@@ -1836,6 +1836,76 @@
       "tool": "files.hkx_save_mod"
     },
     {
+      "id": "files.sound_bank_read",
+      "area": "Browse Archives",
+      "what": "Edit Sound Bank: list a bank's values and what each object can add",
+      "class": "read",
+      "tool": "files.sound_bank_read"
+    },
+    {
+      "id": "files.sound_bank_write",
+      "area": "Browse Archives",
+      "what": "Edit Sound Bank as Loose Mod: change values and properties, write a mod package",
+      "class": "output",
+      "tool": "files.sound_bank_write"
+    },
+    {
+      "id": "files.audio_import",
+      "area": "Browse Archives",
+      "what": "Import WAV as Loose Mod (fills the mod-ready export prompt)",
+      "class": "output",
+      "tool": "files.audio_import"
+    },
+    {
+      "id": "files.action_chart_state",
+      "area": "Browse Archives",
+      "what": "Action Chart Editor: read the chart, an animation's values and events, a names table",
+      "class": "read",
+      "tool": "files.action_chart_state"
+    },
+    {
+      "id": "files.action_chart_edit",
+      "area": "Browse Archives",
+      "what": "Action Chart Editor: open, edit rate, timing, clips, events and names, apply, reset",
+      "class": "edit",
+      "tool": "files.action_chart_edit"
+    },
+    {
+      "id": "files.action_chart_export",
+      "area": "Browse Archives",
+      "what": "Action Chart Editor: Export DMM Mod to a folder",
+      "class": "output",
+      "tool": "files.action_chart_export"
+    },
+    {
+      "id": "files.skeleton_read",
+      "area": "Browse Archives",
+      "what": "Add Bones: list a skeleton's bones",
+      "class": "read",
+      "tool": "files.skeleton_read"
+    },
+    {
+      "id": "files.skeleton_add_bones",
+      "area": "Browse Archives",
+      "what": "Add Bones: add child bones and save the skeleton as a mod package",
+      "class": "output",
+      "tool": "files.skeleton_add_bones"
+    },
+    {
+      "id": "files.prefab_read",
+      "area": "Browse Archives",
+      "what": "Prefab Inspector: list a prefab's objects and fields",
+      "class": "read",
+      "tool": "files.prefab_read"
+    },
+    {
+      "id": "files.prefab_save",
+      "area": "Browse Archives",
+      "what": "Prefab Inspector: change paths and save a loose mod package",
+      "class": "output",
+      "tool": "files.prefab_save"
+    },
+    {
       "id": "archive.export",
       "area": "Browse Archives",
       "what": "Export a file or family, copy the filename, or write a sidecar corpus report",
@@ -2675,15 +2745,11 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_editor_dialog.py|ActionChartEditorDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.action_chart_edit"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_export_dialog.py|ActionChartExportDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.action_chart_export"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_finder_dialog.py|ActionChartFinderDialog",
@@ -2721,9 +2787,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/pab_bone_editor_dialog.py|PabBoneEditorDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.skeleton_add_bones"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/pac_xml_editor_dialog_shell.py|PacXmlEditorDialog",
@@ -2739,15 +2803,11 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_dialog.py|PrefabInspectorDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.prefab_save"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_review.py|PrefabChangeReview",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.prefab_save"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_widgets.py|AssetPickerDialog",
@@ -2781,9 +2841,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/sound_bank_editor.py|SoundBankEditorDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.sound_bank_write"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py|_EmbeddedAlignmentBuilderDialog",

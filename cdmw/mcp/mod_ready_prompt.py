@@ -9,9 +9,13 @@ same folder.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
-from cdmw.mcp.rail_actions import TEXT
+from cdmw.mcp.errors import FAILED, REFUSED, ToolError
+from cdmw.mcp.rail_actions import TEXT, window
+
+SAVE_WAIT_S = 120.0
 
 PROMPT = "layout_cdmw_ui_archive_browser_mod_ready_export__prompt_archive_mod_ready_export_target_dialog"
 
@@ -62,4 +66,35 @@ def children(folder) -> dict[str, int]:
         return {}
 
 
-__all__ = ["FIELDS", "PROMPT", "SCHEMA", "answers", "children", "dialogs"]
+def _busy(call) -> bool:
+    shell = getattr(getattr(window(call), "archive", None), "shell", None)
+    return getattr(shell, "worker_thread", None) is not None
+
+
+def wait_for_package(call, folder, before, outcome, what: str) -> dict[str, object]:
+    """Wait for the mod writer's worker to add a package under folder; report what it added.
+
+    A warning the action showed refuses the call. When the worker has finished and nothing
+    new is under folder, the writer refused or failed; CDMW's own message tells the user why.
+    """
+
+    warned = [ask for ask in outcome.get("asked", ()) if ask.get("kind") == "warning"]
+    if warned:
+        raise ToolError(REFUSED, str(warned[0].get("text") or f"{what} was refused."), {"asked": outcome.get("asked")})
+    folder = Path(str(folder))
+    started = time.monotonic()
+    while True:
+        after = children(folder)
+        added = sorted(name for name, stamp in after.items() if before.get(name) != stamp)
+        if added:
+            return {**outcome, "saved": [str(folder / name) for name in added]}
+        call.check_cancelled()
+        waited = time.monotonic() - started
+        busy = call.context.ui_call(lambda: _busy(call))
+        if (waited > 1.0 and not busy) or waited > SAVE_WAIT_S:
+            raise ToolError(FAILED, f"Nothing was written: {what} did not finish. CDMW's message says why.",
+                            outcome)
+        time.sleep(0.05)
+
+
+__all__ = ["FIELDS", "PROMPT", "SCHEMA", "answers", "children", "dialogs", "wait_for_package"]

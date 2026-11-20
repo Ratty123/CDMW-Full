@@ -207,22 +207,7 @@ def _save_mod(call):
         return {"path": dialog.session.path}
 
     outcome = ui(call, save, mod_ready_prompt.answers(args), dialogs=mod_ready_prompt.dialogs(args))
-    warned = [ask for ask in outcome.get("asked", ()) if ask.get("kind") == "warning"]
-    if warned:
-        raise ToolError(REFUSED, str(warned[0].get("text") or "The HKX Physics Editor refused the save."),
-                        {"asked": outcome.get("asked")})
-    started = time.monotonic()
-    while True:
-        after = mod_ready_prompt.children(folder)
-        added = sorted(name for name, stamp in after.items() if before.get(name) != stamp)
-        if added:
-            return {**outcome, "saved": [str(folder / name) for name in added]}
-        call.check_cancelled()
-        waited = time.monotonic() - started
-        busy = call.context.ui_call(lambda: getattr(window(call).archive.shell, "worker_thread", None) is not None)
-        if (waited > 1.0 and not busy) or waited > SAVE_WAIT_S:
-            raise ToolError(FAILED, "Nothing was saved as a mod; the HKX Physics Editor says why.", outcome)
-        time.sleep(0.05)
+    return mod_ready_prompt.wait_for_package(call, folder, before, outcome, "Save as DMM Mod")
 
 
 def hkx_tools():

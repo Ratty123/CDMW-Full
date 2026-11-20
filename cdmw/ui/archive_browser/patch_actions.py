@@ -143,32 +143,34 @@ class ArchivePatchActionsMixin:
             log(f"Reading {entry.path}...")
             return read_sound_bank_editor_model(entry)
 
-        def _handle_complete(model: object) -> None:
-            if not getattr(model, "rows", None) and not getattr(model, "objects", None):
-                notes = " ".join(getattr(model, "notes", ())) or "This bank stores nothing the editor can change."
-                QMessageBox.information(self, "Edit Sound Bank", notes)
-                return
-            dialog = SoundBankEditorDialog(self, entry.basename, model)
-            if dialog.exec() != dialog.DialogCode.Accepted:
-                return
-            plan = dialog.plan()
-            archive_entries = tuple(getattr(self, "archive_entries", ()) or ())
-
-            def _requests(log, stop_event, notes):
-                data, changes = apply_sound_bank_edits(entry, plan, archive_entries, stop_event=stop_event, on_log=log)
-                for change in changes:
-                    log(change)
-                notes.append(f"{len(changes):,} change(s) written to {entry.basename}.")
-                return [ArchivePatchRequest(entry=entry, payload_data=data)]
-
-            self._write_audio_loose_mod(entry, _requests)
-
         self.shell._run_utility_task(
             status_message=f"Reading {entry.basename}...",
             task=_task,
-            on_complete=_handle_complete,
+            on_complete=lambda model: self._edit_sound_bank_model(entry, model),
             show_archive_progress=True,
         )
+
+    def _edit_sound_bank_model(self, entry: ArchiveEntry, model: object) -> None:
+        """Show the sound bank editor on a bank's read model, then write what it collects as a loose mod."""
+
+        if not getattr(model, "rows", None) and not getattr(model, "objects", None):
+            notes = " ".join(getattr(model, "notes", ())) or "This bank stores nothing the editor can change."
+            QMessageBox.information(self, "Edit Sound Bank", notes)
+            return
+        dialog = SoundBankEditorDialog(self, entry.basename, model)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        plan = dialog.plan()
+        archive_entries = tuple(getattr(self, "archive_entries", ()) or ())
+
+        def _requests(log, stop_event, notes):
+            data, changes = apply_sound_bank_edits(entry, plan, archive_entries, stop_event=stop_event, on_log=log)
+            for change in changes:
+                log(change)
+            notes.append(f"{len(changes):,} change(s) written to {entry.basename}.")
+            return [ArchivePatchRequest(entry=entry, payload_data=data)]
+
+        self._write_audio_loose_mod(entry, _requests)
 
     def _write_audio_loose_mod(
         self,
