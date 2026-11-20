@@ -1029,6 +1029,33 @@ def test_stage4_new_item_build_writes_a_new_folder_and_reports_worker_result(new
     assert mcp.error("new_item_build", {"folder": str(output)})["code"] == "refused"
 
 
+def test_new_item_build_adds_to_an_existing_mod_after_the_plan_is_rebuilt_on_it(new_item_page, tmp_path):
+    mcp, tab = new_item_page
+    _pick_real_new_item(mcp, tab)
+    _name_real_new_item(mcp)
+    assert mcp.ok("new_item_plan", {"action": "refresh"})["current"]
+    output = tmp_path / "mods"
+    output.mkdir()
+    mcp.ok("new_item_build", {"folder": str(output), "mod_name": "Copper Sword"})
+    first = mcp.wait_until(lambda: (lambda build: build["status"] != "running" and build)(
+        mcp.ok("new_item_plan")["build"]))
+    existing = Path(first["path"])
+    # Ticking Add to existing mod builds the plan on that mod, so the first call asks for a refresh.
+    stale = mcp.error("new_item_build", {"folder": str(existing), "add_to_existing": True})
+    assert stale["code"] == "unavailable" and tab.output_panel.add_to_mod.isChecked()
+    # The mod already holds Mcp_Sword, and the planner refuses a second item of that name.
+    assert mcp.ok("new_item_set", {"fields": {
+        "internal_name": "Mcp_Sword_Two", "display_names": {"eng": "MCP Sword Two"},
+    }})["refused"] == {}
+    assert mcp.ok("new_item_plan", {"action": "refresh"})["current"]
+    assert tab.controller.mod_base_folder == existing
+    mcp.ok("new_item_build", {"folder": str(existing), "add_to_existing": True})
+    added = mcp.wait_until(lambda: (lambda build: build["status"] != "running" and build)(
+        mcp.ok("new_item_plan")["build"]))
+    assert added["status"] == "written" and Path(added["path"]) == existing
+    assert tab.output_panel.add_to_mod.isChecked()
+
+
 @pytest.mark.parametrize("new_item_page", ["independent"], indirect=True)
 def test_stage4_new_item_draft_file_continues_settings_and_an_item_package(new_item_page, tmp_path):
     mcp, tab = new_item_page
