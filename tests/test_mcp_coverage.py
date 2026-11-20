@@ -151,3 +151,58 @@ def test_every_registry_command_has_a_row_and_no_row_names_a_missing_command(app
     known = {*commands, *(browse_id(name) for name in BROWSE_BUTTONS.values())}
     stale = sorted(set(load_coverage()["commands"]) - known)
     assert not stale, f"rows for commands that no longer exist: {stale}"
+
+
+# ----- Surfaces: the scan of the source ties the coverage map to the app ---------------------
+
+from cdmw.mcp.coverage import SURFACE_GAPS, SURFACE_KINDS, scan_surfaces, surface_rows
+
+
+def test_every_surface_the_app_offers_has_a_row_and_every_row_is_still_there() -> None:
+    found = scan_surfaces()
+    rows = surface_rows()
+    missing = sorted(set(found) - set(rows))
+    assert not missing, ("these menu entries, dialogs, Mesh Editor host commands, helper controls or rail "
+                         f"pages have no row in coverage.json 'surfaces': {missing}")
+    stale = sorted(set(rows) - set(found))
+    assert not stale, f"these 'surfaces' rows name something the source no longer has: {stale}"
+    assert {key.split(":", 1)[0] for key in found} == set(SURFACE_KINDS)
+
+
+def test_every_surface_row_names_a_tool_a_command_or_a_gap_with_its_reason() -> None:
+    built = {tool.name for tool in ToolTable(typed_tools()).typed() if tool.built}
+    document = load_coverage()
+    commands = set(document["commands"])
+    for row in document["surfaces"]:
+        routes = [name for name in ("tool", "command", "gap") if name in row]
+        assert len(routes) == 1, row
+        if "tool" in row:
+            assert row["tool"] in built, row
+        elif "command" in row:
+            assert row["command"] in commands, row
+        else:
+            assert row["gap"] in SURFACE_GAPS, row
+            if row["gap"] in ("not_built", "generic_only"):
+                assert str(row.get("milestone", "")).startswith("P13"), row
+            if row["gap"] == "generic_only":
+                assert isinstance(row.get("item"), int), row
+            if row["gap"] == "needs_pointer":
+                assert row.get("by_points") in built, row
+            if row["gap"] == "user_only":
+                assert row.get("reason"), row
+
+
+def test_a_new_menu_entry_without_a_row_fails_the_scan(tmp_path, monkeypatch) -> None:
+    from cdmw.mcp import coverage
+
+    module = tmp_path / "cdmw" / "ui" / "new_menu.py"
+    module.parent.mkdir(parents=True)
+    module.write_text("def build(menu):\n    menu.addAction('Brand New Entry...')\n", encoding="utf-8")
+    monkeypatch.setattr(coverage, "_REPO", tmp_path)
+    monkeypatch.setattr(coverage, "_HOST_COMMAND_FILES", ())
+    monkeypatch.setattr(coverage, "scan_helper_controls", lambda: [])
+    monkeypatch.setattr(coverage, "scan_rail_pages", lambda: [])
+    found = coverage.scan_surfaces()
+    assert found == {"menu:cdmw/ui/new_menu.py|Brand New Entry...": ("menu", "cdmw/ui/new_menu.py",
+                                                                     "Brand New Entry...")}
+    assert not set(found) <= set(surface_rows())
