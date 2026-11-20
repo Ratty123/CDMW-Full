@@ -167,8 +167,11 @@ def _binary_sidecar_animation_keyframe_tables(
     sample_limit: int = 262_144,
     max_tables: int = 16,
     max_preview_rows: int = 8,
+    time_budget_seconds: float = 2.0,
 ) -> List[Dict[str, object]]:
     """Recover read-only PAA-style keyframe table candidates."""
+
+    import time
 
     row_size = 10
     component_count = 4
@@ -195,7 +198,17 @@ def _binary_sidecar_animation_keyframe_tables(
 
     candidates: List[Dict[str, object]] = []
     max_rows_per_candidate = 2048
+    # Every row start inside an accepted run is itself a valid start that reads to the
+    # same end. Dense keyframe data made that cost offsets times rows (minutes for a
+    # large cutscene clip), so skip the starts that line up with a run already found,
+    # and stop scanning once the time budget is spent.
+    covered_end_by_alignment: Dict[int, int] = {}
+    deadline = time.monotonic() + time_budget_seconds if time_budget_seconds > 0 else None
     for offset in range(0, scan_limit - row_size * minimum_rows + 1, 2):
+        if offset < covered_end_by_alignment.get(offset % row_size, -1):
+            continue
+        if deadline is not None and (offset & 0x3FF) == 0 and time.monotonic() > deadline:
+            break
         first_rows: List[Tuple[int, Tuple[float, ...], float, int]] = []
         previous_frame: Optional[int] = None
         valid = True
@@ -225,6 +238,7 @@ def _binary_sidecar_animation_keyframe_tables(
             if not (0 < frame - previous_frame <= 256):
                 break
             rows.append((frame, values, norm, row_offset))
+        covered_end_by_alignment[offset % row_size] = offset + len(rows) * row_size
 
         consecutive_steps = sum(1 for index in range(1, len(rows)) if int(rows[index][0]) - int(rows[index - 1][0]) == 1)
         normish_rows = sum(1 for _frame, _values, norm, _row_offset in rows if 0.75 <= norm <= 1.25)

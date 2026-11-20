@@ -448,7 +448,9 @@ class MediaPreviewWidget(QWidget):
         self.info_label.setWordWrap(True)
         # Unbroken cache paths must not set the minimum width of the preview
         # stack and prevent the neighbouring Asset Family pane from expanding.
-        self.info_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        # Maximum keeps the text at its own height: with Preferred, the label took half
+        # of the pane for a sound and pushed the play controls into the middle.
+        self.info_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Maximum)
         self.info_label.setObjectName("HintLabel")
         layout.addWidget(self.info_label)
 
@@ -482,6 +484,7 @@ class MediaPreviewWidget(QWidget):
             self.position_slider.setRange(0, 0)
             self.time_label = QLabel("0:00 / 0:00")
             self.time_label.setObjectName("HintLabel")
+            self.time_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
             controls_row.addWidget(self.play_button)
             controls_row.addWidget(self.stop_button)
             controls_row.addWidget(self.position_slider, stretch=1)
@@ -512,6 +515,12 @@ class MediaPreviewWidget(QWidget):
             self.time_label = QLabel("0:00 / 0:00")
             self.audio_output = None
             self.player = None
+
+        # Takes the spare height while no video is shown, so text and controls stay at
+        # the top of the pane.
+        self.spare_space = QWidget()
+        self.spare_space.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        layout.addWidget(self.spare_space, stretch=1)
 
         self.clear_media(message)
 
@@ -566,7 +575,9 @@ class MediaPreviewWidget(QWidget):
             self.player.setSource(QUrl())
         if self.video_widget is not None:
             self.video_widget.setVisible(False)
+        self.spare_space.setVisible(True)
         self.info_label.setText(message)
+        self.info_label.setToolTip("")
         self.play_button.setEnabled(False)
         self.stop_button.setEnabled(False)
         self.position_slider.setEnabled(False)
@@ -609,9 +620,19 @@ class MediaPreviewWidget(QWidget):
             self.position_slider.setEnabled(False)
             return
 
-        self.info_label.setText(detail_text or normalized_path)
+        full_text = detail_text or normalized_path
+        is_video = normalized_kind == "video" and self.video_widget is not None
+        if is_video:
+            # The picture needs the height; the full details stay one hover away.
+            first_line = next((line for line in full_text.splitlines() if line.strip()), normalized_path)
+            self.info_label.setText(first_line)
+            self.info_label.setToolTip(full_text)
+        else:
+            self.info_label.setText(full_text)
+            self.info_label.setToolTip("")
         if self.video_widget is not None:
-            self.video_widget.setVisible(normalized_kind == "video")
+            self.video_widget.setVisible(is_video)
+        self.spare_space.setVisible(not is_video)
         self.play_button.setEnabled(True)
         self.stop_button.setEnabled(True)
         self.position_slider.setEnabled(True)
