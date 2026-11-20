@@ -6208,6 +6208,135 @@ impl LabApplication {
         None
     }
 
+    /// A `set_view_state` from CDMW: the same fields the user changes in the Selection,
+    /// brush and Overlay appearance panels and the Parts list's eye buttons.
+    pub(super) fn apply_host_view_state(&mut self, change: crate::cdmw_session::ViewStateChange) {
+        use crate::viewport::{BrushFalloff, SelectionTool};
+        use cdmw_interaction::SelectionOperation;
+        match change.reset {
+            Some("overlay") => {
+                self.overlay_wire_colour = Color32::from_rgb(105, 125, 155);
+                self.overlay_vertex_colour = Color32::from_gray(205);
+                self.overlay_selection_colour = Color32::from_rgb(255, 145, 35);
+                self.overlay_live_selection_colour = Color32::from_rgb(80, 190, 255);
+            }
+            Some("colours") => {
+                self.viewport_background_colour = Color32::from_rgb(6, 8, 10);
+                self.viewport_grid_colour = Color32::from_rgb(42, 48, 58);
+            }
+            _ => {}
+        }
+        if let Some(shape) = change.selection_shape {
+            self.selection_tool = match shape {
+                "brush" => SelectionTool::Brush,
+                "rectangle" => SelectionTool::Rectangle,
+                "lasso" => SelectionTool::Lasso,
+                _ => SelectionTool::Click,
+            };
+        }
+        if let Some(operation) = change.selection_operation {
+            self.selection_operation = match operation {
+                "add" => SelectionOperation::Add,
+                "subtract" => SelectionOperation::Subtract,
+                "toggle" => SelectionOperation::Toggle,
+                _ => SelectionOperation::Replace,
+            };
+        }
+        if let Some(xray) = change.selection_xray {
+            self.selection_visible_only = !xray;
+        }
+        if let Some(radius) = change.brush_radius {
+            self.brush_radius = radius;
+        }
+        if let Some(strength) = change.brush_strength {
+            self.brush_strength = strength;
+        }
+        if let Some(falloff) = change.brush_falloff {
+            self.brush_falloff = match falloff {
+                "linear" => BrushFalloff::Linear,
+                "constant" => BrushFalloff::Constant,
+                _ => BrushFalloff::Smooth,
+            };
+        }
+        for (name, [r, g, b]) in change.colours {
+            let colour = Color32::from_rgb(r, g, b);
+            match name {
+                "wire" => self.overlay_wire_colour = colour,
+                "vertex" => self.overlay_vertex_colour = colour,
+                "selection" => self.overlay_selection_colour = colour,
+                "live_selection" => self.overlay_live_selection_colour = colour,
+                _ => self.viewport_grid_colour = colour,
+            }
+        }
+        if let Some(width) = change.wire_width {
+            self.overlay_wire_width = width;
+        }
+        if let Some(size) = change.vertex_size {
+            self.overlay_vertex_size = size;
+        }
+        // The selection overlay is drawn with these colours and this depth rule.
+        self.face_selection_overlay = None;
+        let count = self
+            .document
+            .as_ref()
+            .and_then(|document| document.lods.get(self.active_lod_index))
+            .map_or(0, |lod| lod.submeshes.len());
+        // A number past the parts changes nothing, as for highlight_part.
+        let known = |parts: Vec<u32>| -> Vec<u32> {
+            parts.into_iter().filter(|part| (*part as usize) < count).collect()
+        };
+        let show = known(change.show_parts);
+        if !show.is_empty() {
+            self.set_cdmw_part_visibility(show, true);
+        }
+        let hide = known(change.hide_parts);
+        if !hide.is_empty() {
+            self.set_cdmw_part_visibility(hide, false);
+        }
+    }
+
+    /// What `apply_host_view_state` can change, reported in the `view_state` event.
+    pub(super) fn view_state_report(&self) -> serde_json::Value {
+        use crate::viewport::{BrushFalloff, SelectionTool};
+        use cdmw_interaction::SelectionOperation;
+        let hex = |colour: Color32| crate::view_modes::hex_colour([colour.r(), colour.g(), colour.b()]);
+        let mut hidden: Vec<u32> = self.cdmw_hidden_parts.iter().copied().collect();
+        hidden.sort_unstable();
+        serde_json::json!({
+            "selection_shape": match self.selection_tool {
+                SelectionTool::Click => "click",
+                SelectionTool::Brush => "brush",
+                SelectionTool::Rectangle => "rectangle",
+                SelectionTool::Lasso => "lasso",
+            },
+            "selection_operation": match self.selection_operation {
+                SelectionOperation::Replace => "replace",
+                SelectionOperation::Add => "add",
+                SelectionOperation::Subtract => "subtract",
+                SelectionOperation::Toggle => "toggle",
+            },
+            "selection_xray": !self.selection_visible_only,
+            "brush_radius": self.brush_radius,
+            "brush_strength": self.brush_strength,
+            "brush_falloff": match self.brush_falloff {
+                BrushFalloff::Smooth => "smooth",
+                BrushFalloff::Linear => "linear",
+                BrushFalloff::Constant => "constant",
+            },
+            "colours": {
+                "wire": hex(self.overlay_wire_colour),
+                "vertex": hex(self.overlay_vertex_colour),
+                "selection": hex(self.overlay_selection_colour),
+                "live_selection": hex(self.overlay_live_selection_colour),
+                "grid": hex(self.viewport_grid_colour),
+                "background": hex(self.viewport_background_colour),
+            },
+            "wire_width": self.overlay_wire_width,
+            "vertex_size": self.overlay_vertex_size,
+            "hidden_parts": hidden,
+        })
+    }
+
     pub(super) fn set_cdmw_part_visibility(&mut self, indices: Vec<u32>, visible: bool) {
         for index in indices {
             if visible {

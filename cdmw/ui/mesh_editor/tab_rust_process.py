@@ -21,6 +21,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_HOST_PANEL_COMMANDS_CAPABILITY,
     RUST_HOST_OUTPUT_COMMANDS_CAPABILITY,
     RUST_HOST_CAMERA_CAPABILITY,
+    RUST_HOST_VIEW_STATE_CAPABILITY,
     RUST_HOST_HIGHLIGHT_PART_CAPABILITY,
     RUST_UI_TRANSLATION_PARTS_CAPABILITY,
 )
@@ -516,6 +517,11 @@ class MeshEditorRustProcessMixin:
             camera = payload.get("camera")
             self.standalone_rust_camera = dict(camera) if isinstance(camera, Mapping) else None
             return
+        if event == "view_state":
+            # The answer to set_view_state: selection, brush, overlay and hidden parts.
+            state = payload.get("view_state")
+            self.standalone_rust_view_state = dict(state) if isinstance(state, Mapping) else None
+            return
         if event == "notice":
             # A refusal the editor explained (Delete unavailable): CDMW's status line and
             # activity log carry it, so a driven run sees why nothing happened.
@@ -646,6 +652,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_host_panel_commands_supported = RUST_HOST_PANEL_COMMANDS_CAPABILITY in capability_set
         self.standalone_rust_host_output_commands_supported = RUST_HOST_OUTPUT_COMMANDS_CAPABILITY in capability_set
         self.standalone_rust_camera_supported = RUST_HOST_CAMERA_CAPABILITY in capability_set
+        self.standalone_rust_view_state_supported = RUST_HOST_VIEW_STATE_CAPABILITY in capability_set
         self.standalone_rust_capabilities = tuple(sorted(capability_set))
         self.standalone_rust_highlight_part_supported = RUST_HOST_HIGHLIGHT_PART_CAPABILITY in capability_set
         session = self.standalone_rust_authoring_session
@@ -1005,6 +1012,17 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_camera = None
         return bool(self._send_rust_message(self._rust_host_message(
             "set_camera", request_id=0, extra=dict(values))))
+
+    def set_view_state_in_view(self, values: Mapping[str, object]) -> bool:
+        """Ask a ready editor that takes it to change how it shows and selects
+        (``set_view_state``); it answers with a ``view_state`` event, kept in
+        ``standalone_rust_view_state``. Empty values only ask."""
+
+        if not (self.standalone_rust_ready and getattr(self, "standalone_rust_view_state_supported", False)):
+            return False
+        self.standalone_rust_view_state = None
+        return bool(self._send_rust_message(self._rust_host_message(
+            "set_view_state", request_id=0, extra=dict(values))))
 
     def push_live_texture(self, source_sha256: str, image) -> int:
         """Show an edited texture on the model now; returns the edit's revision."""

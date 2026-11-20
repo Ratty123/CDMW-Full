@@ -686,6 +686,10 @@ pub enum HostEvent {
         target: Option<[f32; 3]>,
         frame: bool,
     },
+    /// Change how the editor shows and selects (`set_view_state`,
+    /// `HOST_VIEW_STATE_CAPABILITY`): nothing in the document changes. The helper answers
+    /// with a `view_state` event either way.
+    SetViewState(ViewStateChange),
     /// Send one of the CDMW commands a panel button sends, as that button does
     /// (`cdmw_command`). Only the commands of `host_cdmw_command` are taken:
     /// CDMW's automated test runs drive Import Replacement and Export Mesh File.
@@ -729,6 +733,43 @@ pub enum HostEvent {
 /// Hello capability: the helper takes `set_camera` (`HostEvent::SetCamera`) and answers it
 /// with a `camera` event.
 pub const HOST_CAMERA_CAPABILITY: &str = "host_camera_v1";
+
+/// Hello capability: the helper takes `set_view_state` (`HostEvent::SetViewState`) and
+/// answers it with a `view_state` event.
+pub const HOST_VIEW_STATE_CAPABILITY: &str = "host_view_state_v1";
+
+/// The overlay colours `set_view_state` takes under `colours`, by the names the
+/// `view_state` event reports them with.
+pub const VIEW_STATE_COLOURS: [&str; 5] = ["wire", "vertex", "selection", "live_selection", "grid"];
+
+/// What one `set_view_state` changes. A field that is `None` (or empty) stays as it is;
+/// `reset` runs before the rest, as the Reset button would before the user changes more.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ViewStateChange {
+    /// `overlay` (the four overlay colours) or `colours` (background and screen grid).
+    pub reset: Option<&'static str>,
+    /// `click`, `brush`, `rectangle` or `lasso`.
+    pub selection_shape: Option<&'static str>,
+    /// `replace`, `add`, `subtract` or `toggle`.
+    pub selection_operation: Option<&'static str>,
+    /// X-ray selection: also select what is behind the front surface.
+    pub selection_xray: Option<bool>,
+    /// Pixels, 4 to 240; also the Grab panel's radius.
+    pub brush_radius: Option<f32>,
+    /// -1 to 1; only Inflate takes a negative strength.
+    pub brush_strength: Option<f32>,
+    /// `smooth`, `linear` or `constant`.
+    pub brush_falloff: Option<&'static str>,
+    /// Overlay colours from [`VIEW_STATE_COLOURS`], each `#RRGGBB`.
+    pub colours: Vec<(&'static str, [u8; 3])>,
+    /// Pixels, 0.5 to 6.
+    pub wire_width: Option<f32>,
+    /// Pixels, 0.5 to 10.
+    pub vertex_size: Option<f32>,
+    /// Parts to show and to hide in the 3D view, by number.
+    pub show_parts: Vec<u32>,
+    pub hide_parts: Vec<u32>,
+}
 
 /// Hello capability: the helper takes `highlight_part` (`HostEvent::HighlightPart`).
 pub const HOST_HIGHLIGHT_PART_CAPABILITY: &str = "host_highlight_part_v1";
@@ -854,6 +895,97 @@ pub fn host_cdmw_panel_command(name: &str) -> Option<(&'static str, &'static str
         "rig_transfer_weights" => Some(("rig_transfer_weights", "Weights")),
         _ => host_cdmw_output_command(name),
     }
+}
+
+/// `set_view_state`: each key is optional; a name outside its list, a number outside its
+/// range or a colour that is not `#RRGGBB` refuses the whole message.
+fn decode_set_view_state(value: &Value) -> Result<ViewStateChange, SessionError> {
+    let bad = |what: String| SessionError::Protocol(format!("set_view_state needs {what}"));
+    let given = |key: &str| value.get(key).filter(|item| !item.is_null());
+    let name = |key: &str, names: &[&'static str]| -> Result<Option<&'static str>, SessionError> {
+        match given(key) {
+            None => Ok(None),
+            Some(item) => item
+                .as_str()
+                .and_then(|text| names.iter().copied().find(|name| *name == text))
+                .map(Some)
+                .ok_or_else(|| bad(format!("{key} to be one of {}", names.join(", ")))),
+        }
+    };
+    let number = |key: &str, low: f32, high: f32| -> Result<Option<f32>, SessionError> {
+        match given(key) {
+            None => Ok(None),
+            Some(item) => item
+                .as_f64()
+                .map(|number| number as f32)
+                .filter(|number| number.is_finite() && (low..=high).contains(number))
+                .map(Some)
+                .ok_or_else(|| bad(format!("{key} from {low} to {high}"))),
+        }
+    };
+    let parts = |key: &str| -> Result<Vec<u32>, SessionError> {
+        match given(key) {
+            None => Ok(Vec::new()),
+            Some(Value::Array(items)) => items
+                .iter()
+                .map(|item| {
+                    item.as_u64()
+                        .and_then(|index| u32::try_from(index).ok())
+                        .ok_or_else(|| bad(format!("{key} to be part numbers")))
+                })
+                .collect(),
+            Some(_) => Err(bad(format!("{key} to be part numbers"))),
+        }
+    };
+    let mut colours = Vec::new();
+    match given("colours") {
+        None => {}
+        Some(Value::Object(map)) => {
+            for (key, item) in map {
+                let name = VIEW_STATE_COLOURS
+                    .iter()
+                    .copied()
+                    .find(|name| name == key)
+                    .ok_or_else(|| {
+                        bad(format!("colours named {}", VIEW_STATE_COLOURS.join(", ")))
+                    })?;
+                let colour = item
+                    .as_str()
+                    .and_then(crate::view_modes::parse_hex_colour)
+                    .ok_or_else(|| bad(format!("colours.{key} as #RRGGBB")))?;
+                colours.push((name, colour));
+            }
+        }
+        Some(_) => return Err(bad("colours as an object".to_owned())),
+    }
+    let selection_xray = match given("selection_xray") {
+        None => None,
+        Some(item) => Some(
+            item.as_bool()
+                .ok_or_else(|| bad("selection_xray as true or false".to_owned()))?,
+        ),
+    };
+    let change = ViewStateChange {
+        reset: name("reset", &["overlay", "colours"])?,
+        selection_shape: name("selection_shape", &["click", "brush", "rectangle", "lasso"])?,
+        selection_operation: name(
+            "selection_operation",
+            &["replace", "add", "subtract", "toggle"],
+        )?,
+        selection_xray,
+        brush_radius: number("brush_radius", 4.0, 240.0)?,
+        brush_strength: number("brush_strength", -1.0, 1.0)?,
+        brush_falloff: name("brush_falloff", &["smooth", "linear", "constant"])?,
+        colours,
+        wire_width: number("wire_width", 0.5, 6.0)?,
+        vertex_size: number("vertex_size", 0.5, 10.0)?,
+        show_parts: parts("show_parts")?,
+        hide_parts: parts("hide_parts")?,
+    };
+    if change.show_parts.iter().any(|part| change.hide_parts.contains(part)) {
+        return Err(bad("a part to be in show_parts or hide_parts, not both".to_owned()));
+    }
+    Ok(change)
 }
 
 /// `set_camera`: angles in radians, a distance above zero and a target of three finite
@@ -1523,6 +1655,7 @@ impl CdmwBridge {
                 HOST_PANEL_COMMANDS_CAPABILITY,
                 HOST_OUTPUT_COMMANDS_CAPABILITY,
                 HOST_CAMERA_CAPABILITY,
+                HOST_VIEW_STATE_CAPABILITY,
                 HOST_HIGHLIGHT_PART_CAPABILITY,
                 translation_transfer::CAPABILITY
             ]
@@ -1804,6 +1937,16 @@ impl CdmwBridge {
             "session_id": self.manifest.session_id,
             "process_generation": self.manifest.process_generation,
             "camera": camera,
+        }))
+    }
+
+    /// How the editor shows and selects, after a `set_view_state` (`HOST_VIEW_STATE_CAPABILITY`).
+    pub fn publish_view_state(&self, state: Value) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "view_state", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation,
+            "view_state": state,
         }))
     }
 
@@ -2403,6 +2546,7 @@ impl CdmwBridge {
                     Ok(HostEvent::HairPreset(preset.to_owned()))
                 }
                 "set_camera" => decode_set_camera(&value),
+                "set_view_state" => decode_set_view_state(&value).map(HostEvent::SetViewState),
                 "cdmw_command" => {
                     let name = value.get("command").and_then(Value::as_str).unwrap_or("");
                     let (command, label) = host_cdmw_command(name).ok_or_else(|| {
@@ -6928,6 +7072,47 @@ pub(crate) mod tests {
             value[key] = bad;
             assert!(matches!(bridge.decode_host_event(value), HostEvent::Fatal(_)), "{key}");
         }
+    }
+
+    #[test]
+    fn set_view_state_takes_only_listed_names_ranges_and_colours() {
+        let root = tempdir().expect("root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
+        let base = json!({"event":"set_view_state", "protocol":PROTOCOL, "session_id":"session",
+            "request_id":0, "base_revision":4, "process_generation":3});
+        let mut value = base.clone();
+        value["selection_shape"] = json!("lasso");
+        value["selection_xray"] = json!(true);
+        value["brush_strength"] = json!(-0.5);
+        value["colours"] = json!({"wire": "#102030"});
+        value["hide_parts"] = json!([2, 0]);
+        value["reset"] = json!("overlay");
+        let HostEvent::SetViewState(change) = bridge.decode_host_event(value) else {
+            panic!("set_view_state was not taken");
+        };
+        assert_eq!(change.selection_shape, Some("lasso"));
+        assert_eq!(change.selection_xray, Some(true));
+        assert_eq!(change.brush_strength, Some(-0.5));
+        assert_eq!(change.colours, vec![("wire", [0x10, 0x20, 0x30])]);
+        assert_eq!(change.hide_parts, vec![2, 0]);
+        assert_eq!(change.reset, Some("overlay"));
+        assert!(matches!(
+            bridge.decode_host_event(base.clone()),
+            HostEvent::SetViewState(change) if change == ViewStateChange::default()
+        ));
+        for (key, bad) in [("selection_shape", json!("circle")), ("brush_radius", json!(2.0)),
+                           ("brush_strength", json!(1.5)), ("wire_width", json!("thick")),
+                           ("colours", json!({"wire": "blue"})), ("colours", json!({"floor": "#000000"})),
+                           ("hide_parts", json!([-1])), ("selection_xray", json!("yes")),
+                           ("reset", json!("everything"))] {
+            let mut value = base.clone();
+            value[key] = bad;
+            assert!(matches!(bridge.decode_host_event(value), HostEvent::Fatal(_)), "{key}");
+        }
+        let mut value = base;
+        value["show_parts"] = json!([1]);
+        value["hide_parts"] = json!([1]);
+        assert!(matches!(bridge.decode_host_event(value), HostEvent::Fatal(_)));
     }
 
     #[test]

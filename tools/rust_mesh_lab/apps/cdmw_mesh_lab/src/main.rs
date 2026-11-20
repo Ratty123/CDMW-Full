@@ -4193,6 +4193,16 @@ impl LabApplication {
                     let _ = bridge.publish_camera(camera_report(&self.camera));
                 }
             }
+            HostEvent::SetViewState(change) => {
+                self.apply_host_view_state(change);
+                self.egui_context.request_repaint();
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                if let Some(bridge) = &self.cdmw_bridge {
+                    let _ = bridge.publish_view_state(self.view_state_report());
+                }
+            }
             HostEvent::HighlightPart(part) => {
                 let count = self
                     .document

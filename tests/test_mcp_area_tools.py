@@ -1724,6 +1724,46 @@ def test_output_commands_and_the_camera_go_to_the_helper(editor, connect, tmp_pa
     assert len(sent) == count
 
 
+@pytest.mark.skipif(not __import__("cdmw.modding.mesh_native_core", fromlist=["x"]).native_mesh_core_available(),
+                    reason="the native mesh core is not built (CDMW_MESH_CORE_BIN names a built one)")
+def test_view_settings_go_to_the_helper_and_come_back_as_it_holds_them(editor, connect) -> None:  # noqa: F811
+    """MCP gap plan item 10: mesh_view sets the selection, brush and overlay settings and part
+    visibility through set_view_state, and reports what the helper holds afterwards."""
+
+    ui = editor.ui
+    mcp = connect(editor.window)
+    supported = ui.standalone_rust_view_state_supported
+    ui.standalone_rust_view_state_supported = False
+    assert "host_view_state_v1" in mcp.error("mesh_view", {})["message"]
+    ui.standalone_rust_view_state_supported = supported
+    if not supported:
+        pytest.skip("this helper is older than host_view_state_v1")
+    sent, forward = [], ui._send_rust_message
+
+    def helper(message):
+        sent.append(message)
+        return forward(message)
+
+    ui._send_rust_message = helper
+    # Bad values are refused before anything is sent.
+    assert mcp.error("mesh_view", {"colours": {"wire": "blue!!"}})["code"] == "invalid_arguments"
+    assert mcp.error("mesh_view", {"show_parts": [0], "hide_parts": [0]})["code"] == "invalid_arguments"
+    assert mcp.error("mesh_view", {"brush_radius": 500})["code"] == "invalid_arguments"
+    assert sent == []
+    before = mcp.ok("mesh_view")["view"]
+    assert before["selection_shape"] == "click" and before["hidden_parts"] == []
+    view = mcp.ok("mesh_view", {"selection_shape": "lasso", "selection_operation": "add", "selection_xray": True,
+                                "brush_radius": 80, "brush_strength": 0.5, "brush_falloff": "linear",
+                                "colours": {"wire": "#102030"}, "wire_width": 2.0, "hide_parts": [0]})["view"]
+    assert sent[-1]["event"] == "set_view_state" and sent[-1]["hide_parts"] == [0]
+    assert (view["selection_shape"], view["selection_operation"], view["selection_xray"]) == ("lasso", "add", True)
+    assert view["brush_radius"] == pytest.approx(80) and view["brush_falloff"] == "linear"
+    assert view["colours"]["wire"] == "#102030" and view["wire_width"] == pytest.approx(2.0)
+    assert view["hidden_parts"] == [0]
+    reset = mcp.ok("mesh_view", {"reset": "overlay", "show_parts": [0]})["view"]
+    assert reset["colours"]["wire"] == before["colours"]["wire"] and reset["hidden_parts"] == []
+
+
 def test_export_pac_runs_the_button_and_reports_its_refusal(editor, connect, tmp_path) -> None:  # noqa: F811
     """Export PAC As before the edit is finished: the button's own warning comes back as 'asked'."""
 
