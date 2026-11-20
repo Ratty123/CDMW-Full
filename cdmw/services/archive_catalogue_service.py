@@ -63,6 +63,13 @@ from cdmw.domain.archives.character_catalogue import (
     CharacterCatalogDetailRequest, CharacterCatalogDetailResult,
     CharacterCatalogScopeRequest, CharacterCatalogScopeResult,
 )
+from cdmw.domain.archives.npc_catalogue import (
+    NPC_CATALOG_CAPABILITY,
+    BuildNpcCatalogRequest, BuildNpcCatalogResult,
+    NpcCatalogSearchRequest, NpcCatalogSearchResult,
+    NpcOutfitRequest, NpcOutfitResult,
+    NpcWearersRequest, NpcWearersResult,
+)
 from cdmw.models import ArchiveEntry
 from cdmw.services.archive_failure_report import ArchiveOperationFailure, archive_failure_report
 
@@ -523,6 +530,39 @@ class ArchiveCatalogueService(QObject):
         session = self._require_session(request.session_id)
         return self._submit(ArchiveBackendOperation.SCOPE_CHARACTER_CATALOG, request,
                             CharacterCatalogScopeResult.from_wire, ui_generation=ui_generation, session=session)
+
+    @property
+    def npc_catalog_available(self) -> bool:
+        return NPC_CATALOG_CAPABILITY in getattr(self._client, "capabilities", ())
+
+    def _require_npc_catalog(self) -> None:
+        if not self.npc_catalog_available:
+            raise ValueError("NPC Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.")
+
+    def build_npc_catalog(self, session_id: str, *, ui_generation: int) -> str:
+        self._require_npc_catalog()
+        session = self._require_session(session_id)
+        return self._submit(ArchiveBackendOperation.BUILD_NPC_CATALOG,
+                            BuildNpcCatalogRequest(session_id), BuildNpcCatalogResult.from_wire,
+                            ui_generation=ui_generation, session=session)
+
+    def search_npc_catalog(self, request: NpcCatalogSearchRequest, *, ui_generation: int) -> str:
+        self._require_npc_catalog()
+        session = self._require_session(request.session_id)
+        return self._submit(ArchiveBackendOperation.SEARCH_NPC_CATALOG, request,
+                            NpcCatalogSearchResult.from_wire, ui_generation=ui_generation, session=session)
+
+    def get_npc_outfit(self, request: NpcOutfitRequest, *, ui_generation: int) -> str:
+        self._require_npc_catalog()
+        session = self._require_session(request.session_id)
+        return self._submit(ArchiveBackendOperation.GET_NPC_OUTFIT, request,
+                            NpcOutfitResult.from_wire, ui_generation=ui_generation, session=session)
+
+    def find_npc_wearers(self, request: NpcWearersRequest, *, ui_generation: int) -> str:
+        self._require_npc_catalog()
+        session = self._require_session(request.session_id)
+        return self._submit(ArchiveBackendOperation.FIND_NPC_WEARERS, request,
+                            NpcWearersResult.from_wire, ui_generation=ui_generation, session=session)
 
     def prepare_entries(self, request: PrepareEntriesRequest, *, ui_generation: int) -> str:
         session = self._require_session(request.session_id)

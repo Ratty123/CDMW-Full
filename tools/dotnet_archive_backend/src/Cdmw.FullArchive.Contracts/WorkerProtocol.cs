@@ -31,6 +31,10 @@ public static class WorkerProtocol
     public const string SearchCharacterCatalog = "search_character_catalog";
     public const string GetCharacterCatalogDetail = "get_character_catalog_detail";
     public const string ScopeCharacterCatalog = "scope_character_catalog";
+    public const string BuildNpcCatalog = "build_npc_catalog";
+    public const string SearchNpcCatalog = "search_npc_catalog";
+    public const string GetNpcOutfit = "get_npc_outfit";
+    public const string FindNpcWearers = "find_npc_wearers";
     public const string PrepareEntry = "prepare_entry";
     public const string TextSearch = "text_search";
     public const string Export = "export";

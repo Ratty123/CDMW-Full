@@ -654,6 +654,12 @@ def test_archive_controls_wire_finder_in_classic_and_compact_layouts(monkeypatch
     assert strip.layout().indexOf(button) == strip.layout().indexOf(window.archive_asset_catalog_button) + 1
     button.click()
     assert len(messages) == 2
+    npc_button = window.archive_npc_finder_button
+    assert npc_button.text() == "NPC Finder" and npc_button.parentWidget() is button.parentWidget()
+    assert strip.layout().indexOf(npc_button) == strip.layout().indexOf(button) + 1
+    npc_button.setEnabled(True)
+    npc_button.click()
+    assert len(messages) == 3 and "NPC Finder requires an updated archive helper" in messages[2]
     from PySide6.QtCore import Qt
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QFrame

@@ -376,7 +376,7 @@ def scroll_state(window, _args: dict) -> dict[str, object]:
 
 
 def _finder(window, which: str):
-    name = "_character_finder_dialogs" if which == "character" else "_remote_archive_finder_dialogs"
+    name = {"character": "_character_finder_dialogs", "npc": "_npc_finder_dialogs"}.get(which, "_remote_archive_finder_dialogs")
     for dialog in tuple(getattr(window.archive, name, None) or ()):
         try:
             if dialog.isVisible() and not getattr(dialog, "_closing", False):
@@ -406,7 +406,9 @@ def finder_open(window, args: dict) -> dict[str, object]:
 
     which = str(args.get("finder", "item"))
     archive = window.archive
-    button = archive.archive_character_finder_button if which == "character" else archive.archive_asset_catalog_button
+    name = {"character": "archive_character_finder_button", "npc": "archive_npc_finder_button"}.get(
+        which, "archive_asset_catalog_button")
+    button = getattr(archive, name)
     state = _button(button)
     if not state["enabled"]:
         return {"opened": False, "button": state}
@@ -419,6 +421,14 @@ def finder_state(window, args: dict) -> dict[str, object]:
     dialog = _finder(window, which)
     if dialog is None:
         return {"shown": False}
+    if which == "npc":
+        table = dialog._results
+        names = [table.item(row, 0).text() for row in range(table.rowCount()) if table.item(row, 0) is not None]
+        current = table.item(table.currentRow(), 0) if table.currentRow() >= 0 else None
+        return {"shown": True, "busy": bool(dialog._requests), "status": _text(dialog._status),
+                "search": _text(dialog._search_edit), "results": len(names), "first_results": names[:8],
+                "selected": "" if current is None else current.text(),
+                "pieces": dialog._pieces.rowCount(), "requests": sorted(dialog._requests)}
     if which == "character":
         grid = dialog._grid
         # The dialog keeps one look-ahead request for the next page outstanding: not busy.

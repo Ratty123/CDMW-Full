@@ -22,7 +22,7 @@ DEFAULT_EFFECT = EDIT
 RESERVED_PREFIXES = (
     "search.", "files.", "view.", "mesh.", "textures.", "materials.", "saved.", "app.",
     "commands.", "new_item.", "mods.", "tables.", "strings.", "placement.",
-    "local_file.", "translation.", "item_icons.", "models.", "research.", "shortcuts.",
+    "local_file.", "translation.", "item_icons.", "models.", "research.", "shortcuts.", "npcs.",
 )
 
 #: Tool names as clients see them. Claude's and OpenAI's tool names allow

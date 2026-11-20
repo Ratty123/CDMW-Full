@@ -217,6 +217,9 @@ class ArchiveFilterControlsMixin:
         character_finder = getattr(self, "archive_character_finder_button", None)
         if character_finder is not None:
             character_finder.setEnabled(self.shell.worker_thread is None and remote_session_ready)
+        npc_finder = getattr(self, "archive_npc_finder_button", None)
+        if npc_finder is not None:
+            npc_finder.setEnabled(self.shell.worker_thread is None and remote_session_ready)
         can_apply = self.shell.worker_thread is None and not remote_pending and self.archive_filters_dirty
         self.archive_filter_apply_button.setEnabled(can_apply)
         self.archive_path_search_button.setEnabled(self.shell.worker_thread is None and not remote_pending)

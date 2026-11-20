@@ -17,6 +17,7 @@ internal sealed class WorkerRuntime : IAsyncDisposable
     private readonly ArchiveItemIconService _itemIcons;
     private readonly ArchiveItemCatalogScopeService _itemScopes;
     private readonly ArchiveCharacterCatalogService _characters;
+    private readonly ArchiveNpcCatalogService _npcs;
     private readonly ArchiveEntryPreparationService _preparation;
     private readonly ArchiveTextSearchService _textSearch;
     private readonly ArchiveExportService _exports;
@@ -39,6 +40,7 @@ internal sealed class WorkerRuntime : IAsyncDisposable
         _itemIcons = new ArchiveItemIconService(_sessions, _itemCatalogBuilder, _preparation);
         _itemScopes = new ArchiveItemCatalogScopeService(_sessions, _itemCatalogBuilder, _lookups);
         _characters = new ArchiveCharacterCatalogService(_sessions, _native);
+        _npcs = new ArchiveNpcCatalogService(_sessions, _native);
         _textSearch = new ArchiveTextSearchService(_sessions, _native);
         _exports = new ArchiveExportService(_sessions, _queries, _lookups, _native);
     }
@@ -254,6 +256,34 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                     var payload = RequirePayload<CharacterCatalogScopeRequest>(request);
                     RequireSession(request, payload.SessionId);
                     var result = await _characters.ScopeAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.BuildNpcCatalog:
+                {
+                    var payload = RequirePayload<BuildNpcCatalogRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _npcs.BuildAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.SearchNpcCatalog:
+                {
+                    var payload = RequirePayload<NpcCatalogSearchRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _npcs.SearchAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.GetNpcOutfit:
+                {
+                    var payload = RequirePayload<NpcOutfitRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _npcs.OutfitAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.FindNpcWearers:
+                {
+                    var payload = RequirePayload<NpcWearersRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _npcs.WearersAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
                 }
             case WorkerProtocol.PrepareEntry:

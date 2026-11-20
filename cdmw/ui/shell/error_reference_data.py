@@ -2955,6 +2955,7 @@ ERROR_REFERENCE = [
       "Add Mod takes one existing folder or ZIP in paths.",
       "Add Textures requires existing files in paths.",
       "An edge of part {part} is not two of its vertices 0 to {count - 1}.",
+      "At most {MAX_ROWS * 8} rows at once.",
       "CDMW does not decode {table}. It decodes: {', '.join(sorted(DECODED_TABLES))}",
       "Choose a supported numeric preset or value.",
       "Choose a supported worker count.",
@@ -2972,17 +2973,22 @@ ERROR_REFERENCE = [
       "Give a file, project or archive texture path.",
       "Give an extension or a path",
       "Give key or name",
+      "Give key, character_id or appearance_path.",
       "Give key, keys or search",
+      "Give piece: a .pac path or file name, or a prefab name.",
       "Give translate, rotate_degrees or scale.",
       "Invalid PNG: {exc}",
       "More than one package contains this path. Specify package.",
       "Name the control: widget (its id from app_ui) or text (what it says).",
+      "Name the file: path, or several with paths.",
       "Name the template: match (text in its row) or row (its number).",
       "Paint points must be within the {width} by {height} mask.",
       "Part {part} has triangles 0 to {count - 1}.",
       "Part {part} has vertices 0 to {count - 1}.",
       "Supply exactly one PNG path or base64 data.",
       "Supply the list of paths to ignore.",
+      "That cell holds a number.",
+      "That cell holds a whole number.",
       "That page token belongs to another tool.",
       "The action is one of {', '.join(ACTIONS)}.",
       "The destination must end in {suffix}.",
@@ -2998,12 +3004,20 @@ ERROR_REFERENCE = [
       "Unknown {name}: {options[name]}.",
       "Unrecognized shortcut {key}.",
       "Use a Create New Item package filename ending in .cdmw.",
+      "action must be one of {', '.join(_ACTIONS)}.",
       "arguments must be an object",
+      "keys is a key sequence such as 'Esc', 'Delete' or 'Ctrl+A' (up to four keys).",
+      "menu names an entry by its text, or a path such as 'Export > Export File'.",
       "offset is past the end ({len(data)} bytes)",
       "offset is past the end ({size} bytes).",
       "path is required",
+      "paths holds 1 to {MAX_PATHS} archive paths.",
+      "row applies to a list, table or tree.",
       "row is needed: a row's number or its text.",
+      "rows is needed: a list of row numbers or texts.",
       "value must be a number.",
+      "{action} applies to a list, table or tree.",
+      "{action} applies to a tree.",
       "{action} does not apply to a {kind_of(widget) or 'widget'}.",
       "{args['action']} requires {key}.",
       "{args['action']} takes {minimum} to {maximum} points.",
@@ -3033,6 +3047,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/new_item_model.py",
       "cdmw/mcp/new_item_tools.py",
       "cdmw/mcp/new_item_workflow.py",
+      "cdmw/mcp/npc_tools.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/placement_tools.py",
       "cdmw/mcp/rail_actions.py",
@@ -3043,7 +3058,9 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_pixels.py",
       "cdmw/mcp/texture_tools.py",
-      "cdmw/mcp/ui_tree.py"
+      "cdmw/mcp/ui_menus.py",
+      "cdmw/mcp/ui_tree.py",
+      "cdmw/mcp/view_tools.py"
     ],
     "severity": [],
     "recovery": "configuration"
@@ -3477,11 +3494,16 @@ ERROR_REFERENCE = [
       "A requested line is absent from the current table.",
       "A requested package is absent from Mod Management.",
       "A requested row is absent from the current results.",
+      "Browse Archives did not finish looking up the files.",
+      "Browse Archives did not show the files in time.",
       "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
       "Browse Archives did not show {wanted}. search_archive finds a file's path.",
+      "Browse Archives has none of these files. search_archive finds a file's path.",
       "Choose a single merge folder by row.",
       "Drafts & Mods has no project {project}.",
       "Help has no topic {wanted}. Call app_manual without a topic for the list.",
+      "NPC Finder found no row {wanted_key}.",
+      "No NPC or appearance matches {key}.",
       "No control choice matches {value}.",
       "No control shown has the text {text}. Call app_ui for the controls shown.",
       "No existing icon target matches {args['target']}.",
@@ -3492,6 +3514,7 @@ ERROR_REFERENCE = [
       "No research note has the key {key}.",
       "No shortcut command matches {command}.",
       "No source folder has that row.",
+      "No variant {a['variant']}.",
       "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
       "That page is gone: it was already read or is more than 15 minutes old. Run the search again.",
       "The Format Explorer has no row for {extension}.",
@@ -3513,15 +3536,21 @@ ERROR_REFERENCE = [
       "The list is empty.",
       "The loaded archive index has no such texture.",
       "The mesh has parts 0 to {len(parts) - 1}.",
+      "There is no column {column}.",
       "There is no command {command_id} now. commands_list lists them; the Mesh Editor's and the Texture Editor's exist while their tool is open.",
       "There is no control {text} now. Call app_ui for the controls shown.",
       "There is no file {wanted}.",
       "There is no job {job_id}.",
       "There is no supported Settings control for {raw}.",
       "There is no tab {row}.",
+      "This appearance lists no piece {a['piece']}.",
+      "{clean_label(action.text())} has no submenu.",
+      "{clean_label(found.text())} has no submenu.",
       "{error}. The archives have: {languages}.",
+      "{key} has no variant {variant}.",
       "{table} has no row {key if key is not None else name}.",
-      "{what}: the mesh has parts 0 to {len(parts) - 1}."
+      "{what}: the mesh has parts 0 to {len(parts) - 1}.",
+      "{where} has no entry {part}. It has: {known}."
     ],
     "sources": [
       "cdmw/mcp/app_read_tools.py",
@@ -3533,6 +3562,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/mesh_edit_tools.py",
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/mod_management_tools.py",
+      "cdmw/mcp/npc_tools.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/rail_actions.py",
       "cdmw/mcp/read_tools.py",
@@ -3545,6 +3575,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_tools.py",
       "cdmw/mcp/tools.py",
       "cdmw/mcp/translation_tools.py",
+      "cdmw/mcp/ui_menus.py",
       "cdmw/mcp/ui_tree.py",
       "cdmw/mcp/view_tools.py"
     ],
@@ -3692,6 +3723,7 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "refused",
     "messages": [
+      "A path list is a .txt or .csv file.",
       "An icon already exists at {destination}.",
       "CDMW cannot ask you now, so the call was declined.",
       "CDMW is not running or AI connections are off.",
@@ -3700,6 +3732,7 @@ ERROR_REFERENCE = [
       "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool.",
       "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool. It was put back.",
       "Only you can run this command in CDMW: it can change the AI connection settings or the game folder, or it writes into the game.",
+      "Only you can use this control in CDMW: AI connections, their approvals, Full access, the game folder and what writes into the game are never driven by a tool.",
       "The current animation draft was kept."
     ],
     "sources": [
@@ -3720,6 +3753,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/text_search_tools.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/ui_actions.py",
+      "cdmw/mcp/ui_menus.py",
       "cdmw/mcp/ui_tree.py"
     ],
     "severity": [],
@@ -7993,6 +8027,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "A path list is a .txt or .csv file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/browse_archive_tools.py": 148
+    }
+  },
+  {
+    "area": "archive",
     "message": "A playlist weight cannot be negative.",
     "recovery": "input",
     "sources": {
@@ -8190,6 +8232,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 90
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Appearance could not be read: {error.Message}",
+    "recovery": "internal",
+    "sources": {
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogBuilder.cs": 92
     }
   },
   {
@@ -8573,7 +8623,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend request payload must serialize to an object.",
     "recovery": "format",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 124
+      "cdmw/domain/archives/catalogue_operations.py": 128
     }
   },
   {
@@ -8613,7 +8663,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 788
+      "cdmw/services/archive_catalogue_service.py": 828
     }
   },
   {
@@ -8621,7 +8671,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend returned an invalid {kind} payload.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1134
+      "cdmw/services/archive_catalogue_service.py": 1174
     }
   },
   {
@@ -8749,7 +8799,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive catalogue is shutting down.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 630
+      "cdmw/services/archive_catalogue_service.py": 670
     }
   },
   {
@@ -9253,7 +9303,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive lookup query does not belong to the requested session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 389
+      "cdmw/services/archive_catalogue_service.py": 396
     }
   },
   {
@@ -9382,7 +9432,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive operation stopped making progress for five minutes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 204
+      "cdmw/services/archive_catalogue_service.py": 211
     }
   },
   {
@@ -9398,7 +9448,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive page does not match the requested query, range or session.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 768
+      "cdmw/services/archive_catalogue_service.py": 808
     }
   },
   {
@@ -9527,7 +9577,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query could not be retried after worker restart.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1010
+      "cdmw/services/archive_catalogue_service.py": 1050
     }
   },
   {
@@ -9543,7 +9593,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query is not available or has expired from the bounded query cache.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": 161
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": 170
     }
   },
   {
@@ -9551,7 +9601,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query operation cannot be safely reconstructed.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1003
+      "cdmw/services/archive_catalogue_service.py": 1043
     }
   },
   {
@@ -9559,7 +9609,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query token is not available or has expired.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1153
+      "cdmw/services/archive_catalogue_service.py": 1193
     }
   },
   {
@@ -9631,7 +9681,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session could not be reopened after worker restart.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 879
+      "cdmw/services/archive_catalogue_service.py": 919
     }
   },
   {
@@ -9639,7 +9689,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session fingerprint changed before the request was issued.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1146
+      "cdmw/services/archive_catalogue_service.py": 1186
     }
   },
   {
@@ -9647,7 +9697,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session is not available in the catalogue service.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1144
+      "cdmw/services/archive_catalogue_service.py": 1184
     }
   },
   {
@@ -9663,7 +9713,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session reopen could not be dispatched.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 914
+      "cdmw/services/archive_catalogue_service.py": 954
     }
   },
   {
@@ -9695,7 +9745,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive sources changed while the worker was restarting; stale queries were not retried.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 930
+      "cdmw/services/archive_catalogue_service.py": 970
     }
   },
   {
@@ -9903,7 +9953,7 @@ MESSAGE_REFERENCE = [
     "message": "Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 500
+      "cdmw/services/archive_catalogue_service.py": 507
     }
   },
   {
@@ -10280,7 +10330,7 @@ MESSAGE_REFERENCE = [
     "message": "Character descriptor exceeds 16 MiB.",
     "recovery": "limits",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 289
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 318
     }
   },
   {
@@ -10288,7 +10338,8 @@ MESSAGE_REFERENCE = [
     "message": "Character metadata exceeds 128 MiB: {entry.Path}",
     "recovery": "limits",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 40
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 40,
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogBuilder.cs": 37
     }
   },
   {
@@ -10296,7 +10347,7 @@ MESSAGE_REFERENCE = [
     "message": "Character names unavailable: {error.Message}",
     "recovery": "missing",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterNames.cs": 111
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterNames.cs": 113
     }
   },
   {
@@ -10352,7 +10403,7 @@ MESSAGE_REFERENCE = [
     "message": "CharacterAppearanceIndexInfo row directory is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterNames.cs": 72
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterNames.cs": 73
     }
   },
   {
@@ -10360,7 +10411,7 @@ MESSAGE_REFERENCE = [
     "message": "CharacterInfo row directory is unsupported.",
     "recovery": "unsupported",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterNames.cs": 39
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterNames.cs": 40
     }
   },
   {
@@ -10401,7 +10452,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an empty folder so the export cannot replace files.",
     "recovery": "empty",
     "sources": {
-      "cdmw/mcp/browse_archive_tools.py": 148
+      "cdmw/mcp/browse_archive_tools.py": 153
     }
   },
   {
@@ -10724,7 +10775,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not decode {entry.Path}: {error.Message}",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 237
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 266
     }
   },
   {
@@ -11546,6 +11597,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Give a model path, a model file name or a prefab name.",
+    "recovery": "internal",
+    "sources": {
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalog.cs": 110
+    }
+  },
+  {
+    "area": "archive",
     "message": "HIRC object {node.object_id} (type {node.kind}) is not decoded and may refer to media {source_id}; refusing to change that media.",
     "recovery": "format",
     "sources": {
@@ -11869,7 +11928,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name indexing did not produce an available catalogue.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 773,
+      "cdmw/services/archive_catalogue_service.py": 813,
       "cdmw/ui/archive_browser/remote_finder_warmup.py": 476
     }
   },
@@ -12495,6 +12554,46 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_resident_index.py": 184
+    }
+  },
+  {
+    "area": "archive",
+    "message": "NPC Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/archive_catalogue_service.py": 540
+    }
+  },
+  {
+    "area": "archive",
+    "message": "NPC Finder result is unavailable. Search again.",
+    "recovery": "missing",
+    "sources": {
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalog.cs": 42
+    }
+  },
+  {
+    "area": "archive",
+    "message": "NPC catalogue was not published.",
+    "recovery": "write",
+    "sources": {
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogService.cs": 133
+    }
+  },
+  {
+    "area": "archive",
+    "message": "NPC kind must be all, npc, creature, mount, player or other.",
+    "recovery": "input",
+    "sources": {
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalog.cs": 47
+    }
+  },
+  {
+    "area": "archive",
+    "message": "NPC row key must start with npc: or appearance:",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/archives/npc_catalogue.py": 124
     }
   },
   {
@@ -14271,7 +14370,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered invalid XML comment hyphens in memory.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 140
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 141
     }
   },
   {
@@ -14279,7 +14378,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered missing whitespace between XML attributes in memory.",
     "recovery": "missing",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 141
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 142
     }
   },
   {
@@ -14287,7 +14386,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered page request has no query definition.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1020
+      "cdmw/services/archive_catalogue_service.py": 1060
     }
   },
   {
@@ -14295,7 +14394,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered query could not be dispatched.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1077
+      "cdmw/services/archive_catalogue_service.py": 1117
     }
   },
   {
@@ -14303,7 +14402,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered query target has an unsupported payload.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1066
+      "cdmw/services/archive_catalogue_service.py": 1106
     }
   },
   {
@@ -14327,7 +14426,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovery open did not return an archive session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 745
+      "cdmw/services/archive_catalogue_service.py": 785
     }
   },
   {
@@ -14335,7 +14434,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovery query did not return a query handle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 750
+      "cdmw/services/archive_catalogue_service.py": 790
     }
   },
   {
@@ -14391,7 +14490,7 @@ MESSAGE_REFERENCE = [
     "message": "Reference tokens truncated: {entry.Path}",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 314
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterReferences.cs": 343
     }
   },
   {
@@ -14620,6 +14719,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Select PAC, PAM or PAMLOD files first (view_open with paths). Folders and other file types are not included.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/browse_archive_tools.py": 289
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Select a .pac model first: the neutral appearance is a character's.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/browse_archive_tools.py": 213
+    }
+  },
+  {
+    "area": "archive",
     "message": "Select a PAC, PAM or PAMLOD model and GLB, FBX or OBJ output.",
     "recovery": "input",
     "sources": {
@@ -14639,7 +14754,7 @@ MESSAGE_REFERENCE = [
     "message": "Select a member of an asset family first.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/browse_archive_tools.py": 214
+      "cdmw/mcp/browse_archive_tools.py": 237
     }
   },
   {
@@ -14663,7 +14778,7 @@ MESSAGE_REFERENCE = [
     "message": "Select an archive file before extracting it.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/browse_archive_tools.py": 189
+      "cdmw/mcp/browse_archive_tools.py": 198
     }
   },
   {
@@ -14672,6 +14787,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/archive_browser/appearance_composite.py": 347
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Select archive files or one archive folder before extracting. (view_open with folder selects one.)",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/browse_archive_tools.py": 206
     }
   },
   {
@@ -14824,6 +14947,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/mesh_archive_refit.py": 469
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Some selected rows are not loaded yet; select the files with view_open paths instead of a folder or a filter.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/browse_archive_tools.py": 280
     }
   },
   {
@@ -15111,7 +15242,7 @@ MESSAGE_REFERENCE = [
     "message": "Structure children require an empty query token and package-root hierarchy mode.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 364
+      "cdmw/services/archive_catalogue_service.py": 371
     }
   },
   {
@@ -15583,7 +15714,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive query is too large to materialize.",
     "recovery": "limits",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": 310
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": 319
     }
   },
   {
@@ -15631,7 +15762,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker exited before this operation could start.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 652
+      "cdmw/services/archive_catalogue_service.py": 692
     }
   },
   {
@@ -15872,7 +16003,7 @@ MESSAGE_REFERENCE = [
     "message": "The catalogue no longer has this family member: {entry.path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/browse_archive_tools.py": 235
+      "cdmw/mcp/browse_archive_tools.py": 258
     }
   },
   {
@@ -16072,7 +16203,7 @@ MESSAGE_REFERENCE = [
     "message": "The family contains no resolved mesh files.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/browse_archive_tools.py": 226
+      "cdmw/mcp/browse_archive_tools.py": 249
     }
   },
   {
@@ -16080,7 +16211,7 @@ MESSAGE_REFERENCE = [
     "message": "The family is being prepared. Retry after its preview is ready.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/browse_archive_tools.py": 217
+      "cdmw/mcp/browse_archive_tools.py": 240
     }
   },
   {
@@ -16448,7 +16579,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected archive family changed. Choose it again.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/browse_archive_tools.py": 242
+      "cdmw/mcp/browse_archive_tools.py": 265
     }
   },
   {
@@ -16575,6 +16706,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The {scope} scope is not available now (select files or a folder first).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/browse_archive_tools.py": 338
+    }
+  },
+  {
+    "area": "archive",
     "message": "The {target_family} asset family has no complete behavior contract; unresolved companions will remain unchanged.",
     "recovery": "internal",
     "sources": {
@@ -16610,7 +16749,7 @@ MESSAGE_REFERENCE = [
     "message": "This archive operation was superseded.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 251
+      "cdmw/services/archive_catalogue_service.py": 258
     }
   },
   {
@@ -17012,7 +17151,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported worker operation '{request.Operation}'.",
     "recovery": "unsupported",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerRuntime.cs": 314
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerRuntime.cs": 344
     }
   },
   {
@@ -17153,7 +17292,7 @@ MESSAGE_REFERENCE = [
     "message": "Wait for the current Browse Archives operation to finish.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/browse_archive_tools.py": 183
+      "cdmw/mcp/browse_archive_tools.py": 192
     }
   },
   {
@@ -17281,7 +17420,7 @@ MESSAGE_REFERENCE = [
     "message": "Worker envelope and payload session ids do not match.",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerRuntime.cs": 401
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerRuntime.cs": 431
     }
   },
   {
@@ -17289,7 +17428,7 @@ MESSAGE_REFERENCE = [
     "message": "Worker operation '{request.Operation}' requires a session id.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerRuntime.cs": 397
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerRuntime.cs": 427
     }
   },
   {
@@ -17313,7 +17452,7 @@ MESSAGE_REFERENCE = [
     "message": "Worker request '{request.Operation}' has no valid payload.",
     "recovery": "empty",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerRuntime.cs": 408
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerRuntime.cs": 438
     }
   },
   {
@@ -17664,7 +17803,7 @@ MESSAGE_REFERENCE = [
     "message": "compatibility_entry requires one bounded ArchiveEntryDto.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 606
+      "cdmw/services/archive_catalogue_service.py": 646
     }
   },
   {
@@ -17688,7 +17827,7 @@ MESSAGE_REFERENCE = [
     "message": "content_analysis_entry_id must be included in entry_ids.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 321
+      "cdmw/domain/archives/catalogue_operations.py": 325
     }
   },
   {
@@ -17995,7 +18134,7 @@ MESSAGE_REFERENCE = [
     "message": "entry_ids must contain at least one entry id.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 307
+      "cdmw/domain/archives/catalogue_operations.py": 311
     }
   },
   {
@@ -18019,7 +18158,7 @@ MESSAGE_REFERENCE = [
     "message": "entry_ids must contain only non-negative integers.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 317
+      "cdmw/domain/archives/catalogue_operations.py": 321
     }
   },
   {
@@ -18027,7 +18166,7 @@ MESSAGE_REFERENCE = [
     "message": "entry_ids must not contain duplicates.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 319
+      "cdmw/domain/archives/catalogue_operations.py": 323
     }
   },
   {
@@ -18035,7 +18174,7 @@ MESSAGE_REFERENCE = [
     "message": "entry_ids must not contain more than {ARCHIVE_BACKEND_MAXIMUM_PREPARE_ENTRIES} values.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 309
+      "cdmw/domain/archives/catalogue_operations.py": 313
     }
   },
   {
@@ -18043,7 +18182,7 @@ MESSAGE_REFERENCE = [
     "message": "error",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 66
+      "cdmw/domain/archives/catalogue_operations.py": 70
     }
   },
   {
@@ -18358,6 +18497,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "kind must be one of {', '.join(NPC_KINDS)}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/archives/npc_catalogue.py": 94
+    }
+  },
+  {
+    "area": "archive",
     "message": "legacy prepared size check was bypassed",
     "recovery": "internal",
     "sources": {
@@ -18402,6 +18549,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_mesh_import_validation.py": 250
+    }
+  },
+  {
+    "area": "archive",
+    "message": "maximum_results must be between 1 and 1000.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/archives/npc_catalogue.py": 230
     }
   },
   {
@@ -18698,7 +18853,15 @@ MESSAGE_REFERENCE = [
     "message": "page_size must be between 1 and {ARCHIVE_BACKEND_MAXIMUM_PAGE_SIZE}.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 263
+      "cdmw/domain/archives/catalogue_operations.py": 267
+    }
+  },
+  {
+    "area": "archive",
+    "message": "page_size must be between 1 and {NPC_CATALOG_MAXIMUM_PAGE_SIZE}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/archives/npc_catalogue.py": 98
     }
   },
   {
@@ -18706,7 +18869,8 @@ MESSAGE_REFERENCE = [
     "message": "page_start must not be negative.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 261
+      "cdmw/domain/archives/catalogue_operations.py": 265,
+      "cdmw/domain/archives/npc_catalogue.py": 96
     }
   },
   {
@@ -18780,6 +18944,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 541
+    }
+  },
+  {
+    "area": "archive",
+    "message": "piece must name a model path, a model file name or a prefab name.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/archives/npc_catalogue.py": 228
     }
   },
   {
@@ -18867,7 +19039,7 @@ MESSAGE_REFERENCE = [
     "message": "request_id must be a UUID.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/archives/catalogue_operations.py": 142
+      "cdmw/domain/archives/catalogue_operations.py": 146
     }
   },
   {
@@ -19563,6 +19735,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "{key} must contain integers",
+    "recovery": "input",
+    "sources": {
+      "cdmw/domain/archives/npc_catalogue.py": 27
+    }
+  },
+  {
+    "area": "archive",
     "message": "{key} must contain nonnegative entry IDs",
     "recovery": "input",
     "sources": {
@@ -19934,7 +20114,7 @@ MESSAGE_REFERENCE = [
     "message": "{unmatched} character appearance link record(s) could not be resolved to one installed appearance; ownership was not guessed.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterNames.cs": 107
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterNames.cs": 109
     }
   },
   {
@@ -26595,6 +26775,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_item_physics.py": 50
+    }
+  },
+  {
+    "area": "independent",
+    "message": "Could not look up the files: {message}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/virtual_path_lookup.py": 160
     }
   },
   {
@@ -75564,6 +75752,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "At most {MAX_ROWS * 8} rows at once.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 689
+    }
+  },
+  {
+    "area": "other",
     "message": "Attach at most three screenshots.",
     "recovery": "internal",
     "sources": {
@@ -75769,7 +75965,7 @@ MESSAGE_REFERENCE = [
     "message": "Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 1178
+      "cdmw/ui/character_finder/dialog.py": 1188
     }
   },
   {
@@ -75886,10 +76082,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Browse Archives did not finish looking up the files.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 106
+    }
+  },
+  {
+    "area": "other",
+    "message": "Browse Archives did not show the files in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 127
+    }
+  },
+  {
+    "area": "other",
     "message": "Browse Archives did not show {wanted}. search_archive finds a file's path.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 97
+      "cdmw/mcp/view_tools.py": 184
     }
   },
   {
@@ -75897,7 +76109,15 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives has no Scene panel yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 108
+      "cdmw/mcp/view_tools.py": 195
+    }
+  },
+  {
+    "area": "other",
+    "message": "Browse Archives has none of these files. search_archive finds a file's path.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 109
     }
   },
   {
@@ -75913,7 +76133,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives shows no 3D preview now: select a model first (view_open).",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/view_tools.py": 151
+      "cdmw/mcp/view_tools.py": 238
     }
   },
   {
@@ -76033,7 +76253,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not offer {method}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 256
+      "cdmw/mcp/server.py": 257
     }
   },
   {
@@ -76070,10 +76290,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "CDMW has no prompt {name}. prompts/list lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/protocol_surface.py": 181
+    }
+  },
+  {
+    "area": "other",
+    "message": "CDMW has no resource {uri}. resources/list lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/protocol_surface.py": 112
+    }
+  },
+  {
+    "area": "other",
     "message": "CDMW has no tool {name or '(none)'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 297
+      "cdmw/mcp/server.py": 318
     }
   },
   {
@@ -76081,7 +76317,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW is not running or AI connections are off.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 345
+      "cdmw/mcp/server.py": 366
     }
   },
   {
@@ -76098,6 +76334,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/control_tools.py": 37,
+      "cdmw/mcp/npc_tools.py": 130,
       "cdmw/mcp/rail_actions.py": 36
     }
   },
@@ -76278,7 +76515,7 @@ MESSAGE_REFERENCE = [
     "message": "Character Creator {error.version or '?'} is not supported yet. CDMW reads the files of version {supported}; a newer version may number its menus differently.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 735
+      "cdmw/ui/character_finder/dialog.py": 743
     }
   },
   {
@@ -77773,10 +78010,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Could not write the list: {error}",
+    "recovery": "write",
+    "sources": {
+      "cdmw/ui/npc_finder/dialog.py": 684
+    }
+  },
+  {
+    "area": "other",
     "message": "Create New Item is not open yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 872
+      "cdmw/automation/review_commands.py": 882
     }
   },
   {
@@ -78894,7 +79139,7 @@ MESSAGE_REFERENCE = [
     "message": "Export failed: {message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 843
+      "cdmw/ui/character_finder/dialog.py": 851
     }
   },
   {
@@ -78910,7 +79155,7 @@ MESSAGE_REFERENCE = [
     "message": "Export needs the selection's complete file set; its details are bounded.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 777
+      "cdmw/ui/character_finder/dialog.py": 785
     }
   },
   {
@@ -79227,10 +79472,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Give key, character_id or appearance_path.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 43
+    }
+  },
+  {
+    "area": "other",
     "message": "Give key, keys or search",
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/read_tools.py": 531
+    }
+  },
+  {
+    "area": "other",
+    "message": "Give piece: a .pac path or file name, or a prefab name.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 107
     }
   },
   {
@@ -79639,6 +79900,14 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/domain/hair_registration.py": 80
+    }
+  },
+  {
+    "area": "other",
+    "message": "Help has no topic {topic_id}. Read {MANUAL_INDEX} for the list.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/protocol_surface.py": 78
     }
   },
   {
@@ -80383,7 +80652,7 @@ MESSAGE_REFERENCE = [
     "message": "It is disabled now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 513
+      "cdmw/mcp/ui_tree.py": 541
     }
   },
   {
@@ -80391,7 +80660,7 @@ MESSAGE_REFERENCE = [
     "message": "It is not shown now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 513
+      "cdmw/mcp/ui_tree.py": 541
     }
   },
   {
@@ -80960,7 +81229,7 @@ MESSAGE_REFERENCE = [
     "message": "Load the game archives first: open Browse Archives with the game folder set in Settings > Paths.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/view_tools.py": 89,
+      "cdmw/mcp/view_tools.py": 101,
       "cdmw/ui/ai_connections/context.py": 61
     }
   },
@@ -81422,10 +81691,66 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "NPC Finder closed.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 174
+    }
+  },
+  {
+    "area": "other",
+    "message": "NPC Finder could not do that for the selected NPC or piece (no item uses this piece).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 209
+    }
+  },
+  {
+    "area": "other",
+    "message": "NPC Finder could not do that for the selected NPC or piece.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 209
+    }
+  },
+  {
+    "area": "other",
+    "message": "NPC Finder found no row {wanted_key}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 183
+    }
+  },
+  {
+    "area": "other",
+    "message": "NPC Finder is still reading the archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 185
+    }
+  },
+  {
+    "area": "other",
+    "message": "NPC Finder needs an updated archive helper. Rebuild the archive worker or install a current CDMW build.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 31
+    }
+  },
+  {
+    "area": "other",
+    "message": "NPC Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/npc_finder/dialog.py": 44
+    }
+  },
+  {
+    "area": "other",
     "message": "Name an action (show_all, isolate), a part or a file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 143
+      "cdmw/mcp/view_tools.py": 230
     }
   },
   {
@@ -81442,6 +81767,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/control_tools.py": 270
+    }
+  },
+  {
+    "area": "other",
+    "message": "Name the file: path, or several with paths.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 166
     }
   },
   {
@@ -81607,10 +81940,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "No NPC or appearance matches {key}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 85
+    }
+  },
+  {
+    "area": "other",
     "message": "No Scene panel is shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 535
+      "cdmw/automation/review_commands.py": 545
     }
   },
   {
@@ -81618,7 +81959,7 @@ MESSAGE_REFERENCE = [
     "message": "No Scene panel row for {wanted or 'any file'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 548
+      "cdmw/automation/review_commands.py": 558
     }
   },
   {
@@ -81666,7 +82007,7 @@ MESSAGE_REFERENCE = [
     "message": "No control shown has the text {text}. Call app_ui for the controls shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 386
+      "cdmw/mcp/ui_tree.py": 399
     }
   },
   {
@@ -81786,7 +82127,7 @@ MESSAGE_REFERENCE = [
     "message": "No matching bodies or faces",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 558
+      "cdmw/ui/character_finder/dialog.py": 561
     }
   },
   {
@@ -81899,6 +82240,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/ui/shell/path_controller.py": 144
+    }
+  },
+  {
+    "area": "other",
+    "message": "No variant {a['variant']}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 195
     }
   },
   {
@@ -82047,6 +82396,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Only you can use this control in CDMW: AI connections, their approvals, Full access, the game folder and what writes into the game are never driven by a tool.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 386
+    }
+  },
+  {
+    "area": "other",
     "message": "Open DDS preview unavailable",
     "recovery": "missing",
     "sources": {
@@ -82058,7 +82415,7 @@ MESSAGE_REFERENCE = [
     "message": "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 308
+      "cdmw/mcp/view_tools.py": 395
     }
   },
   {
@@ -83233,6 +83590,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Row {row} showed no menu.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 404
+    }
+  },
+  {
+    "area": "other",
+    "message": "Rows of this list cannot be selected.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 692
+    }
+  },
+  {
+    "area": "other",
     "message": "Save the decal sequence as a .paseq file.",
     "recovery": "internal",
     "sources": {
@@ -83245,6 +83618,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/character_finder/dialog.py": 56
+    }
+  },
+  {
+    "area": "other",
+    "message": "Scan the archives before opening NPC Finder.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/npc_finder/dialog.py": 68
+    }
+  },
+  {
+    "area": "other",
+    "message": "Scan the archives in Browse Archives first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 141
     }
   },
   {
@@ -84171,6 +84560,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "That cell cannot be edited.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 730
+    }
+  },
+  {
+    "area": "other",
+    "message": "That cell holds a number.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 752
+    }
+  },
+  {
+    "area": "other",
+    "message": "That cell holds a whole number.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 747
+    }
+  },
+  {
+    "area": "other",
     "message": "That hair prefab is already selectable.",
     "recovery": "input",
     "sources": {
@@ -84199,6 +84612,30 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/shader_preset_store.py": 82
+    }
+  },
+  {
+    "area": "other",
+    "message": "That row has no box you can tick.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 723
+    }
+  },
+  {
+    "area": "other",
+    "message": "That row has nothing under it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 713
+    }
+  },
+  {
+    "area": "other",
+    "message": "That row is disabled now.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 719
     }
   },
   {
@@ -84238,7 +84675,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the history command.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/turn_tools.py": 91
+      "cdmw/mcp/turn_tools.py": 94
     }
   },
   {
@@ -84254,7 +84691,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor's view can only be copied from the screen while CDMW is the window in front: click CDMW's window, then ask again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 333
+      "cdmw/mcp/view_tools.py": 420
     }
   },
   {
@@ -84262,7 +84699,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor's view is not on screen: show the Mesh Editor (app_open_tool mesh_editor) with CDMW's window visible.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 330
+      "cdmw/mcp/view_tools.py": 417
     }
   },
   {
@@ -84302,7 +84739,7 @@ MESSAGE_REFERENCE = [
     "message": "The Scene panel has no file {a['file']}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 141
+      "cdmw/mcp/view_tools.py": 228
     }
   },
   {
@@ -84310,7 +84747,7 @@ MESSAGE_REFERENCE = [
     "message": "The Scene panel has no part {a['part']}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 137
+      "cdmw/mcp/view_tools.py": 224
     }
   },
   {
@@ -84318,7 +84755,7 @@ MESSAGE_REFERENCE = [
     "message": "The Scene panel's button is disabled now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 133
+      "cdmw/mcp/view_tools.py": 220
     }
   },
   {
@@ -84334,7 +84771,7 @@ MESSAGE_REFERENCE = [
     "message": "The action is one of {', '.join(ACTIONS)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 509
+      "cdmw/mcp/ui_tree.py": 537
     }
   },
   {
@@ -84518,7 +84955,7 @@ MESSAGE_REFERENCE = [
     "message": "The call's safety class could not be worked out.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 374
+      "cdmw/mcp/server.py": 395
     }
   },
   {
@@ -84718,7 +85155,7 @@ MESSAGE_REFERENCE = [
     "message": "The field is read-only.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 548
+      "cdmw/mcp/ui_tree.py": 594
     }
   },
   {
@@ -84726,7 +85163,7 @@ MESSAGE_REFERENCE = [
     "message": "The finder is not shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 467
+      "cdmw/automation/review_commands.py": 477
     }
   },
   {
@@ -84918,7 +85355,7 @@ MESSAGE_REFERENCE = [
     "message": "The hairstyle's material dependencies are incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 891
+      "cdmw/ui/character_finder/dialog.py": 899
     }
   },
   {
@@ -84958,7 +85395,7 @@ MESSAGE_REFERENCE = [
     "message": "The interactive preview could not load this package.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/character_finder/dialog.py": 935
+      "cdmw/ui/character_finder/dialog.py": 943
     }
   },
   {
@@ -84987,10 +85424,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The list did not take that value.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 756
+    }
+  },
+  {
+    "area": "other",
+    "message": "The list did not take the tick.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 726
+    }
+  },
+  {
+    "area": "other",
     "message": "The list has no item {row}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 586
+      "cdmw/mcp/ui_tree.py": 632
     }
   },
   {
@@ -84998,7 +85451,7 @@ MESSAGE_REFERENCE = [
     "message": "The list has no row {wanted}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 242
+      "cdmw/mcp/ui_tree.py": 255
     }
   },
   {
@@ -85006,7 +85459,7 @@ MESSAGE_REFERENCE = [
     "message": "The list is empty.",
     "recovery": "empty",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 209
+      "cdmw/mcp/ui_tree.py": 222
     }
   },
   {
@@ -85071,6 +85524,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/image_ops.py": 1371
+    }
+  },
+  {
+    "area": "other",
+    "message": "The menu did not answer in time; it was closed.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 297
     }
   },
   {
@@ -85222,7 +85683,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot take a picture now: nothing is shown in it yet.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/view_tools.py": 224
+      "cdmw/mcp/view_tools.py": 311
     }
   },
   {
@@ -85230,7 +85691,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview did not deliver the picture in time.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 206
+      "cdmw/mcp/view_tools.py": 293
     }
   },
   {
@@ -85238,7 +85699,15 @@ MESSAGE_REFERENCE = [
     "message": "The preview did not take the camera now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 169
+      "cdmw/mcp/view_tools.py": 256
+    }
+  },
+  {
+    "area": "other",
+    "message": "The prompt {name} needs {', '.join(missing)}.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/protocol_surface.py": 185
     }
   },
   {
@@ -85454,7 +85923,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available yet.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/view_tools.py": 178
+      "cdmw/mcp/view_tools.py": 265
     }
   },
   {
@@ -85607,7 +86076,7 @@ MESSAGE_REFERENCE = [
     "message": "The text is read-only.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 559
+      "cdmw/mcp/ui_tree.py": 605
     }
   },
   {
@@ -85647,7 +86116,7 @@ MESSAGE_REFERENCE = [
     "message": "The turn is no longer adjacent in the {editor.kind} history.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/turn_tools.py": 235
+      "cdmw/mcp/turn_tools.py": 253
     }
   },
   {
@@ -85679,7 +86148,7 @@ MESSAGE_REFERENCE = [
     "message": "The {editor.kind} editor did not finish the history step.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/turn_tools.py": 272
+      "cdmw/mcp/turn_tools.py": 293
     }
   },
   {
@@ -85687,7 +86156,7 @@ MESSAGE_REFERENCE = [
     "message": "The {editor.kind} history changed during the turn operation.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/turn_tools.py": 257
+      "cdmw/mcp/turn_tools.py": 276
     }
   },
   {
@@ -85695,7 +86164,7 @@ MESSAGE_REFERENCE = [
     "message": "The {editor.kind} history has changed or is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/turn_tools.py": 232
+      "cdmw/mcp/turn_tools.py": 250
     }
   },
   {
@@ -85703,7 +86172,7 @@ MESSAGE_REFERENCE = [
     "message": "The {editor.kind} history moved outside the turn.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/turn_tools.py": 267
+      "cdmw/mcp/turn_tools.py": 288
     }
   },
   {
@@ -85727,7 +86196,7 @@ MESSAGE_REFERENCE = [
     "message": "The {self.kind} editor closed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/turn_tools.py": 88
+      "cdmw/mcp/turn_tools.py": 91
     }
   },
   {
@@ -85756,6 +86225,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "There is no column {column}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 671
+    }
+  },
+  {
+    "area": "other",
     "message": "There is no command {command_id} now. commands_list lists them; the Mesh Editor's and the Texture Editor's exist while their tool is open.",
     "recovery": "internal",
     "sources": {
@@ -85767,7 +86244,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no control {text} now. Call app_ui for the controls shown.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 76
+      "cdmw/mcp/ui_tree.py": 77
     }
   },
   {
@@ -85783,7 +86260,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no tab {row}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 594
+      "cdmw/mcp/ui_tree.py": 640
     }
   },
   {
@@ -85844,6 +86321,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "This appearance lists no piece {a['piece']}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 204
+    }
+  },
+  {
+    "area": "other",
     "message": "This collision loop belongs to static meshes, not guide cloth.",
     "recovery": "internal",
     "sources": {
@@ -85872,6 +86357,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/compact_static.py": 172
+    }
+  },
+  {
+    "area": "other",
+    "message": "This control has no menu.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 357
+    }
+  },
+  {
+    "area": "other",
+    "message": "This control showed no menu here.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 404
     }
   },
   {
@@ -85944,6 +86445,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/item_use_reward.py": 29
+    }
+  },
+  {
+    "area": "other",
+    "message": "This list selects one row at a time.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 695
+    }
+  },
+  {
+    "area": "other",
+    "message": "This list's cells are not edited in place.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 732
     }
   },
   {
@@ -87330,7 +87847,15 @@ MESSAGE_REFERENCE = [
     "message": "action is show_all or isolate",
     "recovery": "internal",
     "sources": {
-      "cdmw/automation/review_commands.py": 555
+      "cdmw/automation/review_commands.py": 565
+    }
+  },
+  {
+    "area": "other",
+    "message": "action must be one of {', '.join(_ACTIONS)}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 126
     }
   },
   {
@@ -89017,6 +89542,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "keys is a key sequence such as 'Esc', 'Delete' or 'Ctrl+A' (up to four keys).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 769
+    }
+  },
+  {
+    "area": "other",
     "message": "kind is catalogue or executable",
     "recovery": "internal",
     "sources": {
@@ -89109,6 +89642,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/iteminfo_row.py": 572
+    }
+  },
+  {
+    "area": "other",
+    "message": "menu names an entry by its text, or a path such as 'Export > Export File'.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 57
     }
   },
   {
@@ -89505,6 +90046,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "paths holds 1 to {MAX_PATHS} archive paths.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/view_tools.py": 89
+    }
+  },
+  {
+    "area": "other",
     "message": "position {position} is outside 0..{len(row.entries)}",
     "recovery": "internal",
     "sources": {
@@ -89614,6 +90163,7 @@ MESSAGE_REFERENCE = [
       "cdmw/domain/xml_text.py": 211,
       "cdmw/mcp/bridge.py": 68,
       "cdmw/mcp/local_file_tools.py": 69,
+      "cdmw/mcp/protocol_surface.py": 94,
       "cdmw/mcp/read_tools.py": 363,
       "cdmw/modding/working_mod_recipe.py": 123,
       "cdmw/services/diagnostic_bundle_service.py": 107,
@@ -89651,6 +90201,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "row applies to a list, table or tree.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 351
+    }
+  },
+  {
+    "area": "other",
     "message": "row ends inside its string key",
     "recovery": "internal",
     "sources": {
@@ -89662,7 +90220,7 @@ MESSAGE_REFERENCE = [
     "message": "row is needed: a row's number or its text.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 582
+      "cdmw/mcp/ui_tree.py": 708
     }
   },
   {
@@ -89754,6 +90312,14 @@ MESSAGE_REFERENCE = [
     "recovery": "integrity",
     "sources": {
       "cdmw/core/stringinfo_table.py": 94
+    }
+  },
+  {
+    "area": "other",
+    "message": "rows is needed: a list of row numbers or texts.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 687
     }
   },
   {
@@ -90540,7 +91106,7 @@ MESSAGE_REFERENCE = [
     "message": "value must be a number.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 565
+      "cdmw/mcp/ui_tree.py": 611
     }
   },
   {
@@ -90609,10 +91175,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{action} applies to a list, table or tree.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 567
+    }
+  },
+  {
+    "area": "other",
+    "message": "{action} applies to a tree.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_tree.py": 711
+    }
+  },
+  {
+    "area": "other",
     "message": "{action} does not apply to a {kind_of(widget) or 'widget'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 520
+      "cdmw/mcp/ui_tree.py": 548
     }
   },
   {
@@ -90637,6 +91219,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/working_mod_recipe.py": 198
+    }
+  },
+  {
+    "area": "other",
+    "message": "{clean_label(action.text())} has no submenu.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 246
+    }
+  },
+  {
+    "area": "other",
+    "message": "{clean_label(found.text())} has no submenu.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 115
     }
   },
   {
@@ -91033,6 +91631,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{key} has no variant {variant}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/npc_tools.py": 89
+    }
+  },
+  {
+    "area": "other",
     "message": "{key}: schema revision 14 containers are read-only.",
     "recovery": "stale",
     "sources": {
@@ -91228,7 +91834,7 @@ MESSAGE_REFERENCE = [
     "message": "{len(found)} controls have the text {text}; name one by its widget id.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_tree.py": 388
+      "cdmw/mcp/ui_tree.py": 401
     }
   },
   {
@@ -91948,7 +92554,7 @@ MESSAGE_REFERENCE = [
     "message": "{source} is not a file.",
     "recovery": "input",
     "sources": {
-      "cdmw/automation/review_commands.py": 932
+      "cdmw/automation/review_commands.py": 942
     }
   },
   {
@@ -92140,7 +92746,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.wire} is a command, not a tool of its own: run it with app_run_command, command {tool.command_id}.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/server.py": 348
+      "cdmw/mcp/server.py": 369
     }
   },
   {
@@ -92148,7 +92754,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.wire} is not built yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 350
+      "cdmw/mcp/server.py": 371
     }
   },
   {
@@ -92365,6 +92971,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/schema.py": 40
+    }
+  },
+  {
+    "area": "other",
+    "message": "{where} has no entry {part}. It has: {known}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/ui_menus.py": 110
     }
   },
   {
@@ -100240,7 +100854,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a supported numeric preset or value.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 151
+      "cdmw/mcp/settings_tools.py": 164
     }
   },
   {
@@ -100248,7 +100862,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a supported worker count.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 146
+      "cdmw/mcp/settings_tools.py": 159
     }
   },
   {
@@ -100256,7 +100870,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a value from {control.minimum()} to {control.maximum()}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 94
+      "cdmw/mcp/settings_tools.py": 101
     }
   },
   {
@@ -100320,7 +100934,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a nonnegative whole number.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 141
+      "cdmw/mcp/settings_tools.py": 154
     }
   },
   {
@@ -100328,7 +100942,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an absolute path or clear the setting.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 115
+      "cdmw/mcp/settings_tools.py": 122
     }
   },
   {
@@ -100336,7 +100950,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter the numeric setting value.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 92
+      "cdmw/mcp/settings_tools.py": 99
     }
   },
   {
@@ -100512,7 +101126,7 @@ MESSAGE_REFERENCE = [
     "message": "No shortcut command matches {command}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 204
+      "cdmw/mcp/settings_tools.py": 217
     }
   },
   {
@@ -100784,7 +101398,7 @@ MESSAGE_REFERENCE = [
     "message": "Settings > Shortcuts is unavailable.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 196
+      "cdmw/mcp/settings_tools.py": 209
     }
   },
   {
@@ -100808,7 +101422,7 @@ MESSAGE_REFERENCE = [
     "message": "Supply the list of paths to ignore.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 130
+      "cdmw/mcp/settings_tools.py": 143
     }
   },
   {
@@ -100816,7 +101430,7 @@ MESSAGE_REFERENCE = [
     "message": "The Settings control is disabled.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 84
+      "cdmw/mcp/settings_tools.py": 91
     }
   },
   {
@@ -100832,7 +101446,7 @@ MESSAGE_REFERENCE = [
     "message": "The requested command has no editable shortcut row.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 209
+      "cdmw/mcp/settings_tools.py": 222
     }
   },
   {
@@ -100848,7 +101462,7 @@ MESSAGE_REFERENCE = [
     "message": "The value does not match the Settings control.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 97
+      "cdmw/mcp/settings_tools.py": 104
     }
   },
   {
@@ -100856,7 +101470,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no supported Settings control for {raw}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 162
+      "cdmw/mcp/settings_tools.py": 175
     }
   },
   {
@@ -100992,7 +101606,7 @@ MESSAGE_REFERENCE = [
     "message": "Unrecognized shortcut {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 184
+      "cdmw/mcp/settings_tools.py": 197
     }
   },
   {
@@ -106319,6 +106933,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/archives/mesh_contracts.py",
     "cdmw/domain/archives/overlay_merge.py",
     "cdmw/domain/archives/safety.py",
+    "cdmw/mcp/browse_archive_tools.py",
     "cdmw/services/archive_catalogue_service.py",
     "cdmw/services/archive_mesh_comparison.py",
     "cdmw/services/archive_path_export.py",
@@ -106338,6 +106953,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/archive_browser/attachment_plan.py",
     "cdmw/ui/archive_browser/character_dependency_export.py",
     "cdmw/ui/archive_browser/character_dependency_live.py",
+    "cdmw/ui/archive_browser/context_commands.py",
     "cdmw/ui/archive_browser/directory_scan_controller.py",
     "cdmw/ui/archive_browser/failure_report.py",
     "cdmw/ui/archive_browser/filter_workers.py",
@@ -106415,6 +107031,9 @@ DYNAMIC_REFERENCE = {
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveLookupService.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexService.cs",
+    "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalog.cs",
+    "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogBuilder.cs",
+    "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogService.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveParallel.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.cs",
     "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs",
@@ -106913,6 +107532,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/item_icon_tools.py",
     "cdmw/mcp/jobs.py",
     "cdmw/mcp/link.py",
+    "cdmw/mcp/npc_tools.py",
     "cdmw/mcp/rail_actions.py",
     "cdmw/mcp/read_tools.py",
     "cdmw/mcp/saved_work_tools.py",
@@ -106920,6 +107540,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/tools.py",
     "cdmw/mcp/transport.py",
     "cdmw/mcp/ui_actions.py",
+    "cdmw/mcp/ui_menus.py",
     "cdmw/mcp/ui_tree.py",
     "cdmw/mcp/view_tools.py",
     "cdmw/modding/pac_cloth_constraints.py",
@@ -106955,6 +107576,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/commands/registry.py",
     "cdmw/ui/item_icons/tab.py",
     "cdmw/ui/item_icons/workers.py",
+    "cdmw/ui/npc_finder/dialog.py",
     "cdmw/ui/panel_widgets.py",
     "cdmw/ui/recolor_variants_tab.py",
     "cdmw/ui/replace_assistant/queue.py",
@@ -108290,6 +108912,9 @@ SOURCE_COVERAGE = {
   "cdmw/domain/archives/mutation.py": {
     "raise": 1
   },
+  "cdmw/domain/archives/npc_catalogue.py": {
+    "raise": 7
+  },
   "cdmw/domain/archives/overlay_merge.py": {
     "raise": 17
   },
@@ -108662,8 +109287,10 @@ SOURCE_COVERAGE = {
     "report": 2
   },
   "cdmw/mcp/browse_archive_tools.py": {
-    "code": 2,
-    "raise": 11,
+    "code": 3,
+    "diagnostic_field": 2,
+    "diagnostic_text": 1,
+    "raise": 18,
     "report": 2
   },
   "cdmw/mcp/catalogue.py": {},
@@ -108755,6 +109382,12 @@ SOURCE_COVERAGE = {
     "code": 2,
     "raise": 13
   },
+  "cdmw/mcp/npc_tools.py": {
+    "code": 8,
+    "diagnostic_field": 1,
+    "raise": 19,
+    "report": 4
+  },
   "cdmw/mcp/paging.py": {
     "code": 2,
     "raise": 2
@@ -108765,6 +109398,10 @@ SOURCE_COVERAGE = {
     "finding": 1,
     "raise": 25,
     "report": 14
+  },
+  "cdmw/mcp/protocol_surface.py": {
+    "diagnostic_field": 1,
+    "raise": 4
   },
   "cdmw/mcp/rail_actions.py": {
     "code": 5,
@@ -108793,7 +109430,7 @@ SOURCE_COVERAGE = {
   "cdmw/mcp/server.py": {
     "code": 8,
     "diagnostic_field": 1,
-    "raise": 12,
+    "raise": 14,
     "report": 10
   },
   "cdmw/mcp/settings_tools.py": {
@@ -108855,15 +109492,21 @@ SOURCE_COVERAGE = {
     "raise": 1,
     "report": 1
   },
-  "cdmw/mcp/ui_tree.py": {
-    "code": 13,
+  "cdmw/mcp/ui_menus.py": {
+    "code": 8,
+    "diagnostic_field": 2,
     "failure": 1,
-    "raise": 23,
-    "report": 1
+    "raise": 12
+  },
+  "cdmw/mcp/ui_tree.py": {
+    "code": 25,
+    "failure": 1,
+    "raise": 44,
+    "report": 3
   },
   "cdmw/mcp/view_tools.py": {
-    "code": 4,
-    "raise": 19,
+    "code": 9,
+    "raise": 25,
     "report": 3
   },
   "cdmw/modding/__init__.py": {},
@@ -109356,7 +109999,7 @@ SOURCE_COVERAGE = {
     "code": 14,
     "diagnostic_field": 27,
     "failure": 16,
-    "raise": 14,
+    "raise": 15,
     "report": 12,
     "signal": 1
   },
@@ -110372,6 +111015,9 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 2
   },
   "cdmw/ui/archive_browser/command_strip.py": {},
+  "cdmw/ui/archive_browser/context_commands.py": {
+    "raise": 1
+  },
   "cdmw/ui/archive_browser/controller.py": {
     "code": 1,
     "display": 1,
@@ -111158,7 +111804,7 @@ SOURCE_COVERAGE = {
   "cdmw/ui/archive_browser/static_replacement_virtual_texture_contract.py": {},
   "cdmw/ui/archive_browser/ui_formatting.py": {},
   "cdmw/ui/archive_browser/virtual_path_lookup.py": {
-    "display": 3
+    "display": 4
   },
   "cdmw/ui/archive_browser/workers.py": {
     "diagnostic_field": 2,
@@ -111871,6 +112517,13 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/new_item/wearer_labels.py": {},
   "cdmw/ui/new_item/workflow_header.py": {
+    "raise": 1
+  },
+  "cdmw/ui/npc_finder/__init__.py": {},
+  "cdmw/ui/npc_finder/dialog.py": {
+    "diagnostic_text": 1,
+    "dialog": 3,
+    "display": 1,
     "raise": 1
   },
   "cdmw/ui/panel_widgets.py": {
@@ -113126,6 +113779,7 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/ArchiveContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/CharacterCatalogContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/ItemCatalogContracts.cs": {},
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/NpcCatalogContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/OperationContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/WorkerProtocol.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveAnimationReferences.cs": {},
@@ -113210,11 +113864,24 @@ SOURCE_COVERAGE = {
     "native_handoff": 4,
     "native_message": 4
   },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalog.cs": {
+    "native_handoff": 3,
+    "native_message": 3
+  },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogBuilder.cs": {
+    "native_handoff": 1,
+    "native_message": 2
+  },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogService.cs": {
+    "native_handoff": 1,
+    "native_message": 1
+  },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveParallel.cs": {
     "native_handoff": 1
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePathOrder.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePbdMaterialReferences.cs": {},
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePrefabModels.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePreviewReferenceScanner.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.cs": {

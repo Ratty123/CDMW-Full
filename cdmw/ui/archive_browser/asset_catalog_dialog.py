@@ -40,6 +40,11 @@ class ArchiveAssetCatalogDialogMixin:
 
         show_character_finder(self)
 
+    def _show_archive_npc_finder_dialog(self) -> None:
+        from cdmw.ui.npc_finder.dialog import show_npc_finder
+
+        show_npc_finder(self)
+
     def _show_archive_asset_catalog_dialog(self) -> None:
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and remote_bridge.displays_v2 and remote_bridge.current_session is not None:

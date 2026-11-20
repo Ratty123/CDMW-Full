@@ -175,6 +175,9 @@ class LogControllerMixin:
         character_finder = getattr(self.archive, "archive_character_finder_button", None)
         if character_finder is not None:
             character_finder.setEnabled(not busy and remote_session_ready)
+        npc_finder = getattr(self.archive, "archive_npc_finder_button", None)
+        if npc_finder is not None:
+            npc_finder.setEnabled(not busy and remote_session_ready)
         action_charts = getattr(self.archive, "archive_action_chart_button", None)
         if action_charts is not None:
             action_charts.setEnabled(not busy)

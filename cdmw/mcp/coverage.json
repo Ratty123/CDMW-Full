@@ -498,6 +498,34 @@
       "tool": "search.characters"
     },
     {
+      "id": "npcs.search",
+      "area": "NPC Finder",
+      "what": "Find NPCs by name, internal name, ID, appearance file or worn piece (experimental)",
+      "class": "read",
+      "tool": "search.npcs"
+    },
+    {
+      "id": "npcs.outfit",
+      "area": "NPC Finder",
+      "what": "List every piece an NPC's appearance lists, armour included (experimental)",
+      "class": "read",
+      "tool": "npcs.outfit"
+    },
+    {
+      "id": "npcs.wearers",
+      "area": "NPC Finder",
+      "what": "List every NPC that wears a piece (experimental)",
+      "class": "read",
+      "tool": "npcs.wearers"
+    },
+    {
+      "id": "npcs.open",
+      "area": "NPC Finder",
+      "what": "Open NPC Finder and use its Browse Archives, Mesh Editor and Create New Item buttons (experimental)",
+      "class": "edit",
+      "tool": "npcs.open"
+    },
+    {
       "id": "text.search",
       "area": "Search File Text",
       "what": "Search inside the archives' text files",
@@ -2680,6 +2708,10 @@
       "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "dialog:cdmw/ui/npc_finder/dialog.py|NpcFinderDialog",
+      "tool": "npcs.open"
     },
     {
       "key": "dialog:cdmw/ui/commands/palette.py|CommandPalette",
