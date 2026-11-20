@@ -1051,6 +1051,113 @@ def _game_root(entry: ArchiveEntry) -> Optional[Path]:
     return Path(pamt).parent.parent if pamt else None
 
 
+def _publish_chart_mod(
+    folder: Path,
+    charts: Sequence[tuple[ArchiveEntry, bytes]],
+    *,
+    parent: Path,
+    title: str,
+    description: str,
+    author: str,
+    version: str,
+    game_root: Optional[Path],
+    extra_manifest: Optional[Mapping[str, object]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+):
+    """Build the mod folder for exactly these charts beside its target, read it back and swap it in.
+
+    `extra_manifest` keys are added after the standard ones. Shared by the one-chart export
+    and `write_action_charts_mod`, so both write the same files for the same charts.
+    """
+
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_format import parse_archive_pamt
+    from cdmw.core.atomic_file import atomic_publish_directory
+    from cdmw.core.protected_roots import check_writable
+    from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
+
+    requests = [ArchivePatchRequest(shipped, data) for shipped, data in charts]
+    check_writable(folder)  # decision 46
+    folder.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".cdmw-chart-", dir=_staging_parent(folder)) as staging:
+        stage = Path(staging) / folder.name
+        stage.mkdir()
+        shared = export_archive_overlay_package(
+            requests, package_root=stage, group=DMM_ARCHIVE_GROUP,
+            game_root=game_root, on_log=on_log, stop_event=stop_event,
+        )
+        wanted = {_normal(request.entry.path).lower(): bytes(request.payload_data) for request in requests}
+        packaged = parse_archive_pamt(stage / shared.group / "0.pamt")
+        if len(packaged) != len(wanted) or any(
+                read_archive_entry_data(item)[0] != wanted.get(_normal(item.path).lower()) for item in packaged):
+            raise ActionChartError("the written mod archive does not read back as the edited charts")
+        manifest = {
+            "format": "v1", "schema_version": 1, "kind": "archive_override_mod", "name": title, "title": title,
+            "game": "Crimson Desert", "target_game": shared.target_game, "version": version, "author": author,
+            "description": description, "generator": f"{CDMW_GENERATOR} - action chart editor",
+            "files_dir": ".", "manager_targets": ["dmm"], "structure": "archive_group",
+            "archive_group": shared.group, "file_count": shared.file_count, "overrides": list(shared.paths),
+        }
+        manifest.update(extra_manifest or {})
+        (stage / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        (stage / "modinfo.json").write_text(json.dumps(
+            {"name": title, "title": title, "version": version, "author": author, "description": description},
+            indent=2) + "\n", encoding="utf-8")
+        (stage / "README.txt").write_text(
+            f"{title}\n\n{description}\n\nEdited action charts:\n" + "".join(f"  {path}\n" for path in shared.paths) +
+            "Add this folder in DMM and enable it there. Action chart edits have not been confirmed in game; "
+            "disable the mod in DMM to undo it. The game's own files were only read.\n", encoding="utf-8")
+        raise_if_cancelled(stop_event, "Action chart export cancelled.")
+        mod_destination(parent, title)  # Refuse a foreign folder that appeared meanwhile.
+        atomic_publish_directory(stage, folder, replace_existing=True)
+    return shared
+
+
+def write_action_charts_mod(
+    charts: Sequence[tuple[ArchiveEntry, bytes]],
+    *,
+    parent: Path,
+    title: str,
+    description: str = "",
+    author: str = "",
+    version: str = "1.0",
+    extra_manifest: Optional[Mapping[str, object]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> ActionChartModResult:
+    """Write exactly these edited charts (game entry, bytes) as the DMM mod `title`, in one build.
+
+    The mod holds these charts and nothing else: the caller decides what an earlier
+    version's charts become. Every chart must be an editable action chart that decodes,
+    and no path may come twice. A folder CDMW did not write is never replaced.
+    """
+
+    title = str(title or "").strip()
+    if not title:
+        raise ActionChartError("Name the mod before exporting it.")
+    charts = [(entry, bytes(data)) for entry, data in charts]
+    if not charts:
+        raise ActionChartError("there are no charts to export")
+    seen: set[str] = set()
+    for entry, data in charts:
+        path = _normal(entry.path)
+        if not is_editable_action_chart_path(path):
+            raise ActionChartError(f"{entry.path} is not an editable action chart")
+        if path.lower() in seen:
+            raise ActionChartError(f"{path} was given twice")
+        seen.add(path.lower())
+        load_editable_chart(data, path)
+    folder, replaced = mod_destination(Path(parent), title)
+    paths = ", ".join(_normal(entry.path) for entry, _data in charts[:3]) + (" and others" if len(charts) > 3 else "")
+    shared = _publish_chart_mod(
+        folder, charts, parent=Path(parent), title=title,
+        description=str(description or "").strip() or f"Action chart edits for {paths}.",
+        author=author, version=version, game_root=_game_root(charts[0][0]), extra_manifest=extra_manifest,
+        on_log=on_log, stop_event=stop_event)
+    return ActionChartModResult(folder, replaced, title, shared.group, None, tuple(shared.paths))
+
+
 def write_action_chart_mod(
     entry: ArchiveEntry,
     original: bytes,
@@ -1082,11 +1189,6 @@ def write_action_chart_mod(
     `linked` replaces clips in other charts of the same mod, on top of the version
     the mod already holds or else the shipped chart (`read_shipped` reads that).
     """
-
-    from cdmw.core.archive_extraction import read_archive_entry_data
-    from cdmw.core.archive_format import parse_archive_pamt
-    from cdmw.core.atomic_file import atomic_publish_directory
-    from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
 
     if not is_editable_action_chart_path(entry.path):
         raise ActionChartError(f"{entry.path} is not an editable action chart")
@@ -1136,44 +1238,12 @@ def write_action_chart_mod(
         charts.pop(own, None)
     else:
         charts[own] = (entry, edited)
-    requests = [ArchivePatchRequest(shipped, data) for shipped, data in charts.values()]
-    if not requests:
+    if not charts:
         raise ActionChartError("the chart has no changes to export")
-    from cdmw.core.protected_roots import check_writable
-
-    check_writable(folder)  # decision 46
-    folder.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".cdmw-chart-", dir=_staging_parent(folder)) as staging:
-        stage = Path(staging) / folder.name
-        stage.mkdir()
-        shared = export_archive_overlay_package(
-            requests, package_root=stage, group=DMM_ARCHIVE_GROUP,
-            game_root=_game_root(entry), on_log=on_log, stop_event=stop_event,
-        )
-        wanted = {_normal(request.entry.path).lower(): bytes(request.payload_data) for request in requests}
-        packaged = parse_archive_pamt(stage / shared.group / "0.pamt")
-        if len(packaged) != len(wanted) or any(
-                read_archive_entry_data(item)[0] != wanted.get(_normal(item.path).lower()) for item in packaged):
-            raise ActionChartError("the written mod archive does not read back as the edited charts")
-        description = str(description or "").strip() or f"Action chart edit for {entry.path}."
-        manifest = {
-            "format": "v1", "schema_version": 1, "kind": "archive_override_mod", "name": title, "title": title,
-            "game": "Crimson Desert", "target_game": shared.target_game, "version": version, "author": author,
-            "description": description, "generator": f"{CDMW_GENERATOR} - action chart editor",
-            "files_dir": ".", "manager_targets": ["dmm"], "structure": "archive_group",
-            "archive_group": shared.group, "file_count": shared.file_count, "overrides": list(shared.paths),
-        }
-        (stage / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-        (stage / "modinfo.json").write_text(json.dumps(
-            {"name": title, "title": title, "version": version, "author": author, "description": description},
-            indent=2) + "\n", encoding="utf-8")
-        (stage / "README.txt").write_text(
-            f"{title}\n\n{description}\n\nEdited action charts:\n" + "".join(f"  {path}\n" for path in shared.paths) +
-            "Add this folder in DMM and enable it there. Action chart edits have not been confirmed in game; "
-            "disable the mod in DMM to undo it. The game's own files were only read.\n", encoding="utf-8")
-        raise_if_cancelled(stop_event, "Action chart export cancelled.")
-        mod_destination(parent, title)  # Refuse a foreign folder that appeared meanwhile.
-        atomic_publish_directory(stage, folder, replace_existing=True)
+    shared = _publish_chart_mod(
+        folder, list(charts.values()), parent=parent, title=title,
+        description=str(description or "").strip() or f"Action chart edit for {entry.path}.",
+        author=author, version=version, game_root=_game_root(entry), on_log=on_log, stop_event=stop_event)
     return ActionChartModResult(folder, replaced, title, shared.group, changes, tuple(shared.paths))
 
 
@@ -1235,4 +1305,5 @@ __all__ = [
     "string_rows",
     "unknown_resources",
     "write_action_chart_mod",
+    "write_action_charts_mod",
 ]
