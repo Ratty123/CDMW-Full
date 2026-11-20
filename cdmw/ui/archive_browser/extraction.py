@@ -477,11 +477,14 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
             if payload.items_truncated
             else f"{renamed:,} renamed"
         )
-        self.shell.set_status_message(f"Extracted {payload.exported:,} archive file(s) to {output_root}.")
+        # Two selected files with the same output path: the later one replaced the other.
+        replaced = sum(item.status == "replaced" for item in items)
+        replaced_note = f" {replaced:,} selected file(s) had the same output path as another and were replaced." if replaced else ""
+        self.shell.set_status_message(f"Extracted {payload.exported:,} archive file(s) to {output_root}.{replaced_note}")
         self._dashboard_last_result_text = (
             "Archive extraction complete: "
             f"{payload.exported:,} extracted, {renamed_summary}, {payload.skipped:,} skipped, "
-            f"{payload.failed:,} failed. Output: {output_root}"
+            f"{payload.failed:,} failed.{replaced_note} Output: {output_root}"
         )
         if payload.manifest_path:
             self.shell.append_archive_log(f"Archive export manifest: {payload.manifest_path}")
@@ -599,8 +602,8 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                 for entry in entries:
                     if not isinstance(entry, ArchiveEntry):
                         continue
-                    package_root = entry.pamt_path.parent.name.strip() or "package"
-                    relative_path = PurePosixPath(package_root, *PurePosixPath(entry.path.replace("\\", "/")).parts).as_posix()
+                    package_root = entry.package_folder
+                    relative_path = PurePosixPath(*package_root.split("/"), *PurePosixPath(entry.path.replace("\\", "/")).parts).as_posix()
                     workflow_filters.append(relative_path)
                 if workflow_filters and len(workflow_filters) <= 256:
                     self.textures.filters_edit.setPlainText("\n".join(workflow_filters))

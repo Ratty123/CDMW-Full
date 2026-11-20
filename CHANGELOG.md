@@ -25,6 +25,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Browse Archives** keeps both copies when you export a file that is in the base game and in a DLC. A DLC package now exports under `dlc/dlc_01/0015` instead of `0015`, the **Package** column and the folder view tell base and DLC packages apart, and when two selected files still land on the same output path the report says one replaced the other instead of listing both as exported.
+- **Browse Archives** search stays fast with filters that have many wildcards, such as `*a*a*a*a*a*b`. One took 18 seconds.
+- **GLB export:** the position bounds match the stored values, so glTF validators no longer report an error for some world-space models.
+- **Import Prefab Edit JSON** accepts a file saved as "UTF-8 with BOM", as Notepad saves it.
+- **Collision (`.hkx`) JSON import** applies edits made under `collision_shapes`, the second copy of the shape list in the export. They were dropped with "no changes". Different edits in the two copies are refused with a message.
 - **Mesh Editor:** on PAM and PAMLOD models, **Export** then **Open Package** then **Finish** works. It was always refused with "Changed geometry requires a source vertex map for every edited vertex", and on a PAMLOD also with "LOD identity metadata was not preserved". The same fix lets **Vertex Parameters** change positions and UV0 on these models, and a continued PAM or PAMLOD draft can be finished without making a new edit first.
 - **Mesh Editor:** a PAMLOD keeps its lower LODs when its LOD0 vertex count changes, for example when **Include** hides a Part. CDMW left the file's level table stale, so a PAMLOD with several Parts was refused with "Lower LOD geometry transfer is unsupported", and a PAMLOD with one Part was written with wrong lower LODs. Not yet checked in game.
 - **Mesh Editor:** **Import Replacement** on a PAMLOD, or on a PAM with a companion PAMLOD, no longer stalls when only a few vertices changed. Carrying the change onto the lower LODs could run for many minutes.

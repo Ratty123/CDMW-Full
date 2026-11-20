@@ -473,6 +473,28 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual(0.25, reparsed_document["shapes"][0]["shape_payload"]["float_slots"][0]["value"])
         self.assertEqual(1, reparsed_document["shapes"][0]["hull_topology"]["face_indices"][0])
 
+    def test_hkx_json_edits_under_collision_shapes_are_applied(self) -> None:
+        import json
+
+        data = self._modern_hkx_bytes()
+        exported = json.loads(json.dumps(build_hkx_editable_geometry_document(data, "object/test.hkx"), default=str))
+        self.assertEqual(exported["shapes"], exported["collision_shapes"])
+        edited = copy.deepcopy(exported)
+        edited["collision_shapes"][0]["vertices"][0] = [-2.0, 0.5, -2.5]
+        result = apply_hkx_editable_geometry_document(data, edited)
+        self.assertIn("shape[0].vertices", result.changed_fields)
+        reparsed = build_hkx_editable_geometry_document(result.data, "object/test.hkx")
+        self.assertEqual([-2.0, 0.5, -2.5], reparsed["shapes"][0]["vertices"][0])
+
+        conflicting = copy.deepcopy(exported)
+        conflicting["collision_shapes"][0]["vertices"][0] = [-2.0, 0.5, -2.5]
+        conflicting["shapes"][0]["vertices"][0] = [1.0, 0.5, -2.5]
+        with self.assertRaisesRegex(ValueError, "collision_shapes"):
+            apply_hkx_editable_geometry_document(data, conflicting)
+
+        unchanged = apply_hkx_editable_geometry_document(data, copy.deepcopy(exported))
+        self.assertEqual(data, unchanged.data)
+
     def test_editable_hkx_geometry_document_no_edit_round_trip_is_byte_identical(self) -> None:
         data = self._modern_hkx_bytes()
         document = build_hkx_editable_geometry_document(data, "object/test.hkx")
