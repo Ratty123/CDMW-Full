@@ -55,7 +55,7 @@ def test_the_reserved_prefixes_are_the_planning_sessions_list() -> None:
     assert set(RESERVED_PREFIXES) == {
         "search.", "files.", "view.", "mesh.", "textures.", "materials.", "saved.", "app.", "commands.",
         "new_item.", "mods.", "tables.", "strings.", "placement.", "local_file.", "translation.", "item_icons.",
-        "models.", "research.", "shortcuts.", "npcs.", "speed."}
+        "models.", "research.", "shortcuts.", "npcs.", "speed.", "characters."}
 
 
 def test_typed_tools_are_checked_when_the_table_is_built() -> None:

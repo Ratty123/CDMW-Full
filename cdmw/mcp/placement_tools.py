@@ -809,6 +809,83 @@ def _playback(w, args):
     return {"playback": _play_state(w)}
 
 
+_SHOW = {"bones": "_show_bones", "labels": "_show_labels", "unused_sockets": "_show_unused",
+         "meshes": "_show_meshes", "solid_body": "_solid_body", "reverse_drag": "_reverse_orbit"}
+
+
+def _view(call):
+    """The window's Show menu and Reset view (R): what the viewport draws, not the mod."""
+
+    args = call.arguments
+
+    def go():
+        w = _window(call.context)
+        for key, name in _SHOW.items():
+            if key in args:
+                getattr(w, name).setChecked(bool(args[key]))
+        if args.get("reset"):
+            w._viewport.reset_view()
+        return {"show": {key: getattr(w, name).isChecked() for key, name in _SHOW.items()}}
+
+    return call.context.ui_call(go)
+
+
+def _export(call):
+    """Export files on their own, as the window's Export buttons do: a Blender GLB of the playing or edited
+    animation, the edited animation as a .paa, or every edited file into a folder."""
+
+    import time
+    from pathlib import Path
+
+    args = call.arguments
+    kind = args["kind"]
+    if kind == "edited_files":
+        if not args.get("folder"):
+            _invalid("Give the folder to export the edited files into.")
+        target = Path(str(args["folder"]))
+        if not target.is_dir():
+            _invalid("Choose an existing folder.")
+        answers = {"folder": str(target)}
+    else:
+        if not args.get("save_file"):
+            _invalid("Give save_file for this export.")
+        target = Path(str(args["save_file"]))
+        suffix = ".glb" if kind == "blender_glb" else ".paa"
+        if target.suffix.lower() != suffix:
+            _invalid(f"Save this export as a {suffix} file.")
+        answers = {"save_file": str(target)}
+    before = target.stat().st_mtime_ns if kind != "edited_files" and target.exists() else None
+
+    def press():
+        w = _window(call.context)
+        if kind == "blender_glb":
+            w._export_for_blender()
+        elif kind == "animation":
+            if w._clip_edit is None:
+                raise ToolError(UNAVAILABLE, "Start an animation edit first (placement_animation start).")
+            w._export_clip_edit()
+        else:
+            if w._edits is None or not w._edits.modified_paths():
+                raise ToolError(UNAVAILABLE, "There are no edited files to export.")
+            w._export()
+        return w.statusBar().currentMessage()
+
+    outcome = run_action(call.context, press, answers)
+    if "result" not in outcome or kind == "edited_files":
+        return outcome
+    deadline = time.monotonic() + 60.0
+    while not (target.exists() and target.stat().st_mtime_ns != before):
+        call.check_cancelled()
+        if any(row.get("kind") == "warning" for row in outcome.get("asked") or ()):
+            raise ToolError(REFUSED, "The export stopped; see asked for the window's message.", outcome)
+        if time.monotonic() > deadline:
+            raise ToolError(UNAVAILABLE, "The export did not finish in time. "
+                            + str(call.context.ui_call(lambda: _window(call.context).statusBar().currentMessage())),
+                            outcome)
+        time.sleep(0.05)
+    return {**outcome, "saved": str(target)}
+
+
 def _capture(call):
     from cdmw.mcp.control_tools import MAX_PICTURE_SIDE, png_of
     from cdmw.mcp.server import ImageResult
@@ -1031,6 +1108,16 @@ def placement_tools() -> list[Tool]:
               "include": {"type": "array", "items": text, "maxItems": 512}, "accept_warnings": flag},
              _save, "SaveModMixin._save_request", required=("folder",), effect=OUTPUT, runs_on=ON_WORKER,
              output_folders=("folder",)),
+        tool("view", "The viewport's Show menu (bones, labels, unused_sockets, meshes, solid_body, reverse_drag) "
+             "and Reset view. Without arguments, what is shown. Take a picture with placement_capture.",
+             {**{key: flag for key in _SHOW}, "reset": flag}, _view, "PlacementStudioWindow._show_actions",
+             effect=READ),
+        tool("export", "Export files on their own (no mod): blender_glb writes the playing or edited animation "
+             "as a .glb for Blender, animation writes the edited animation as a .paa, edited_files writes every "
+             "edited file into an existing folder. Use placement_save_mod for a mod.",
+             {"kind": _enum("blender_glb", "animation", "edited_files"), "save_file": text, "folder": text},
+             _export, "AnimationEditorMixin._export_for_blender|EditPanelMixin._export", required=("kind",),
+             effect=OUTPUT, runs_on=ON_WORKER, output_paths=("save_file",), output_folders=("folder",)),
         tool("playback", "Load an indexed clip by path, play, pause, scrub to seconds, set looping or clear.",
              {"action": _enum("load", "load_file", "play", "pause", "scrub", "loop", "clear"),
               "clip": text, "file": text,
