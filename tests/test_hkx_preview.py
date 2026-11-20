@@ -1317,6 +1317,36 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual((10.0, -0.5, 0.0), shape.capsule_start)
         self.assertEqual((10.0, 0.5, 0.0), shape.capsule_end)
 
+    def test_hkx_preview_document_draws_the_same_as_the_full_editing_document(self) -> None:
+        from cdmw.core.archive_hkx import build_hkx_preview_geometry_document
+
+        data = self._modern_hkx_bytes()
+        descriptor_hint = build_hkx_descriptor_hint_from_xml_text(
+            (
+                '<SkinnedMeshPhysicsAttachmentInstanceDescSet>'
+                '<SkinnedMeshPhysicsAttachmentBodyCreationDesc _bodyName="PhysicsAttachment_Chest" '
+                '_socketName="Spine2" _physicsMaterialName="cloth_body">'
+                '<SkinnedMeshPhysicsAttachmentBoxShapeDesc />'
+                '</SkinnedMeshPhysicsAttachmentBodyCreationDesc>'
+                '</SkinnedMeshPhysicsAttachmentInstanceDescSet>'
+            ),
+            "character/descriptors/physicsattachment/phw_01.xml",
+        )
+        full = build_hkx_editable_geometry_document(data, "object/test.hkx", [descriptor_hint])
+        light = build_hkx_preview_geometry_document(data, "object/test.hkx", [descriptor_hint])
+        for key in ("shapes", "collision_shapes", "physics_body_context", "physics_body_summary",
+                    "physics_constraint_summary"):
+            self.assertEqual(full[key], light[key], key)
+        bones = {"Root": {"name": "Root", "index": 0, "parent_index": -1, "position": (0.0, 0.0, 0.0)}}
+        full_preview = build_hkx_model_preview_from_document(full, source_path="object/test.hkx",
+                                                             skeleton_bone_positions=bones)
+        light_preview = build_hkx_model_preview_from_document(light, source_path="object/test.hkx",
+                                                              skeleton_bone_positions=bones)
+        self.assertIsNotNone(light_preview)
+        self.assertEqual(full_preview.summary, light_preview.summary)
+        self.assertEqual(full_preview.face_count, light_preview.face_count)
+        self.assertEqual(len(full_preview.physics_overlay.shapes), len(light_preview.physics_overlay.shapes))
+
     def test_hkx_model_preview_turns_collision_and_skeleton_context_into_render_batches(self) -> None:
         data = self._modern_hkx_bytes()
         document = build_hkx_editable_geometry_document(data, "object/test.hkx")

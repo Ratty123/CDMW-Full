@@ -494,3 +494,39 @@ def build_hkx_editable_geometry_document(
         descriptor_hints,
         analysis,
     )
+
+
+def build_hkx_preview_geometry_document(
+    data: bytes,
+    virtual_path: str = "",
+    companion_descriptor_hints: Optional[Sequence[Mapping[str, object]]] = None,
+) -> Dict[str, object]:
+    """Build only what the Archive Browser preview draws: shapes and body context.
+
+    ``build_hkx_editable_geometry_document`` also builds the editing, Havok XML view and
+    report documents, which took tens of seconds on large collision files. The preview
+    needs none of them. The shapes carry the same name and body hints as in the full
+    document, so the preview looks the same.
+    """
+
+    from cdmw.core import archive_hkx as hkx
+
+    summary = hkx.parse_hkx_tagfile_summary(data)
+    spans = hkx._hkx_item_record_spans(data, summary.tag_items, summary.item_records)
+    advanced_payloads = hkx._hkx_advanced_record_payloads_document(data, summary, spans)
+    shapes = _hkx_editable_shapes(hkx, data, summary, spans)
+    _hkx_append_unhinted_boxes(hkx, data, summary, spans, shapes)
+    descriptor_hints = [dict(hint) for hint in companion_descriptor_hints or () if isinstance(hint, Mapping)]
+    physics_body_context = hkx._hkx_physics_body_context_document(shapes, descriptor_hints)
+    shape_names = hkx._hkx_shape_name_documents(advanced_payloads)
+    hkx._hkx_attach_shape_name_hints_to_shapes(shapes, shape_names)
+    hkx._hkx_attach_body_contexts_to_shapes(shapes, physics_body_context)
+    return {
+        "source_path": virtual_path,
+        "preview_only": True,
+        "physics_body_context": physics_body_context,
+        "physics_body_summary": hkx._hkx_physics_body_summary_document(shapes),
+        "physics_constraint_summary": hkx._hkx_physics_constraint_summary_document(advanced_payloads, descriptor_hints),
+        "collision_shapes": shapes,
+        "shapes": shapes,
+    }
