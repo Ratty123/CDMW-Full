@@ -24,7 +24,8 @@ from cdmw.mcp.names import DESTRUCTIVE, EDIT, OUTPUT, READ
 ROWS_SHOWN = 30
 MAX_ROWS = 500
 TEXT_LIMIT = 2000
-ACTIONS = ("click", "set_text", "set_value", "check", "uncheck", "select", "activate", "focus", "menu")
+ACTIONS = ("click", "set_text", "set_value", "check", "uncheck", "select", "activate", "focus", "menu", "set_cell",
+           "expand", "collapse", "key")
 #: A button whose text starts with one of these writes a file or deletes something.
 OUTPUT_WORDS = ("build", "export", "save", "extract", "combine", "create", "write", "pack", "send", "generate")
 DESTRUCTIVE_WORDS = ("delete", "remove", "discard", "clear", "reset", "uninstall", "revert")
@@ -187,6 +188,16 @@ def _model_rows(view, offset: int, limit: int) -> tuple[list[dict[str, object]],
                 check = index.data(Qt.ItemDataRole.CheckStateRole)
                 if check is not None:
                     entry["checked"] = check in (Qt.CheckState.Checked, 2)
+                flags = model.flags(index)
+                if flags & Qt.ItemFlag.ItemIsUserCheckable and flags & Qt.ItemFlag.ItemIsEnabled:
+                    entry["checkable"] = True
+                editable = [column for column in range(_columns(model, parent))
+                            if model.flags(model.index(row, column, parent)) & Qt.ItemFlag.ItemIsEditable]
+                if editable:
+                    entry["editable"] = editable
+                if tree and model.hasChildren(index):
+                    entry["children"] = model.rowCount(index)
+                    entry["expanded"] = bool(view.isExpanded(index))
                 if selection is not None and selection.isSelected(index):
                     entry["selected"] = True
                 rows.append(entry)
@@ -470,13 +481,23 @@ def user_only_reason(widget, window=None) -> str:
     return ""
 
 
-def effect_of_action(widget, action: str, menu: object = None) -> str:
-    """The safety class of doing ``action`` to ``widget`` (for ``menu``, of picking that entry)."""
+def effect_of_action(widget, action: str, menu: object = None, keys: object = None) -> str:
+    """The safety class of doing ``action`` to ``widget`` (for ``menu``, of picking that entry; for
+    ``key``, of pressing ``keys``: Delete and Backspace may delete, Ctrl+S saves)."""
 
     from PySide6.QtWidgets import QAbstractButton, QTabBar, QTabWidget
 
-    if action == "focus":
-        return READ
+    if action in ("focus", "expand", "collapse"):
+        return READ  # opening a branch shows more rows and changes no document
+    if action == "key":
+        from PySide6.QtGui import QKeySequence
+
+        pressed = QKeySequence(str(keys or "")).toString(QKeySequence.SequenceFormat.PortableText).casefold()
+        if any(name in pressed for name in ("del", "backspace")):
+            return DESTRUCTIVE
+        if "ctrl+s" in pressed.replace(" ", ""):
+            return OUTPUT
+        return EDIT
     if action == "menu":
         from cdmw.mcp.ui_menus import entry_effect, menu_path
 
@@ -495,7 +516,8 @@ def effect_of_action(widget, action: str, menu: object = None) -> str:
 
 # ----- acting ----------------------------------------------------------------------------------
 def act(widget, action: str, *, value: object = None, row: object = None, window=None,
-        game_folder: str = "", menu: object = None) -> dict[str, object]:
+        game_folder: str = "", menu: object = None, rows: object = None, extend: bool = False,
+        column: object = None, keys: object = None) -> dict[str, object]:
     """Do ``action`` to ``widget`` as the user would; the control as it is afterwards.
 
     Text that names a place in the game is never typed: a field may be where an output
@@ -530,6 +552,17 @@ def act(widget, action: str, *, value: object = None, row: object = None, window
         if "picked" in outcome:
             outcome["control"] = describe(widget, rows=False) if _valid(widget) else {"widget": "", "closed": True}
         return outcome
+    if action == "key":
+        _press_keys(widget, keys)
+        return describe(widget) if _valid(widget) else {"widget": "", "closed": True}
+    if isinstance(widget, QAbstractItemView) and (
+            action in ("set_cell", "expand", "collapse") or (action in ("check", "uncheck") and row is not None)
+            or (action == "select" and (rows is not None or extend))):
+        _act_on_rows(widget, action, row=row, rows=rows, extend=extend, column=column, value=value,
+                     game_folder=game_folder)
+        return describe(widget) if _valid(widget) else {"widget": "", "closed": True}
+    if action in ("set_cell", "expand", "collapse"):
+        raise ToolError(INVALID_ARGUMENTS, f"{action} applies to a list, table or tree.")
     if action == "focus":
         widget.setFocus()
     elif action == "click":
@@ -616,6 +649,160 @@ def act(widget, action: str, *, value: object = None, row: object = None, window
         else:
             raise wrong()
     return describe(widget) if _valid(widget) else {"widget": "", "closed": True}
+
+
+# ----- rows of lists, tables and trees ----------------------------------------------------------
+def _column_of(view, column: object) -> int:
+    from PySide6.QtCore import Qt
+
+    model = view.model()
+    if column is None:
+        return 0
+    if isinstance(column, int) and not isinstance(column, bool):
+        if not 0 <= column < model.columnCount():
+            raise ToolError(NOT_FOUND, f"There is no column {column}.")
+        return column
+    wanted = _clean(column).casefold()
+    for number in range(model.columnCount()):
+        if _clean(model.headerData(number, Qt.Orientation.Horizontal)).casefold() == wanted:
+            return number
+    raise ToolError(NOT_FOUND, f"There is no column {column!r}.")
+
+
+def _act_on_rows(view, action: str, *, row, rows, extend: bool, column, value, game_folder: str) -> None:
+    """Select several rows, tick a row, edit a cell, open or close a branch: through the model and the
+    selection model, as the view's own mouse and keyboard handling does, so the view's signals fire."""
+
+    from PySide6.QtCore import QItemSelectionModel, Qt
+    from PySide6.QtWidgets import QAbstractItemView, QTreeView
+
+    model = view.model()
+    if model is None:
+        raise ToolError(NOT_FOUND, "The list is empty.")
+    if action == "select":
+        wanted = list(rows) if rows is not None else ([] if row is None else [row])
+        if not wanted:
+            raise ToolError(INVALID_ARGUMENTS, "rows is needed: a list of row numbers or texts.")
+        if len(wanted) > MAX_ROWS * 8:
+            raise ToolError(INVALID_ARGUMENTS, f"At most {MAX_ROWS * 8} rows at once.")
+        mode = view.selectionMode()
+        if mode == QAbstractItemView.SelectionMode.NoSelection:
+            raise ToolError(UNAVAILABLE, "Rows of this list cannot be selected.")
+        several = len(wanted) > 1 or extend
+        if several and mode == QAbstractItemView.SelectionMode.SingleSelection:
+            raise ToolError(UNAVAILABLE, "This list selects one row at a time.")
+        indexes = [_index_of_row(view, item) for item in wanted]
+        selection = view.selectionModel()
+        flag = QItemSelectionModel.SelectionFlag
+        for number, index in enumerate(indexes):
+            first = number == 0 and not extend
+            flags = (flag.ClearAndSelect if first else flag.Select) | flag.Rows
+            selection.setCurrentIndex(index, flags) if number == len(indexes) - 1 else selection.select(index, flags)
+        view.scrollTo(indexes[-1])
+        view.clicked.emit(indexes[-1])
+        return
+    index = _index_of_row(view, row) if row is not None else None
+    if index is None:
+        raise ToolError(INVALID_ARGUMENTS, "row is needed: a row's number or its text.")
+    if action in ("expand", "collapse"):
+        if not isinstance(view, QTreeView):
+            raise ToolError(INVALID_ARGUMENTS, f"{action} applies to a tree.")
+        if not model.hasChildren(index):
+            raise ToolError(UNAVAILABLE, "That row has nothing under it.")
+        view.setExpanded(index, action == "expand")
+        return
+    cell = model.index(index.row(), _column_of(view, column), index.parent())
+    flags = model.flags(cell)
+    if not flags & Qt.ItemFlag.ItemIsEnabled:
+        raise ToolError(UNAVAILABLE, "That row is disabled now.")
+    if action in ("check", "uncheck"):
+        if not flags & Qt.ItemFlag.ItemIsUserCheckable:
+            raise ToolError(UNAVAILABLE, "That row has no box you can tick.")
+        state = Qt.CheckState.Checked if action == "check" else Qt.CheckState.Unchecked
+        if not model.setData(cell, state.value, Qt.ItemDataRole.CheckStateRole):
+            raise ToolError(UNAVAILABLE, "The list did not take the tick.")
+        return
+    # set_cell
+    if not flags & Qt.ItemFlag.ItemIsEditable:
+        raise ToolError(UNAVAILABLE, "That cell cannot be edited.")
+    if view.editTriggers() == QAbstractItemView.EditTrigger.NoEditTriggers:
+        raise ToolError(UNAVAILABLE, "This list's cells are not edited in place.")
+    text = "" if value is None else value
+    if isinstance(text, str):
+        from cdmw.domain.output_paths import game_path_reason
+
+        in_game = game_path_reason(text, game_folder=game_folder)
+        if in_game:
+            raise ToolError(REFUSED, in_game)
+    current = cell.data(Qt.ItemDataRole.EditRole)
+    if isinstance(current, bool):
+        data = bool(text)
+    elif isinstance(current, int) and not isinstance(text, bool):
+        try:
+            data = int(text)
+        except (TypeError, ValueError):
+            raise ToolError(INVALID_ARGUMENTS, "That cell holds a whole number.") from None
+    elif isinstance(current, float):
+        try:
+            data = float(text)
+        except (TypeError, ValueError):
+            raise ToolError(INVALID_ARGUMENTS, "That cell holds a number.") from None
+    else:
+        data = str(text)
+    if not model.setData(cell, data, Qt.ItemDataRole.EditRole):
+        raise ToolError(UNAVAILABLE, "The list did not take that value.")
+
+
+def _press_keys(widget, keys: object) -> None:
+    """Press a key sequence (portable text such as 'Esc', 'Delete', 'Ctrl+A') on the control, as typing
+    does: through QTest, so a window's shortcuts see the key as they see the user's."""
+
+    from PySide6.QtTest import QTest
+    from PySide6.QtGui import QKeySequence
+
+    text = str(keys or "").strip()
+    sequence = QKeySequence(text) if text else QKeySequence()
+    if not text or sequence.isEmpty() or sequence.count() > 4:
+        raise ToolError(INVALID_ARGUMENTS, "keys is a key sequence such as 'Esc', 'Delete' or 'Ctrl+A' (up to "
+                                           "four keys).")
+    widget.setFocus()
+    for number in range(sequence.count()):
+        combination = sequence[number]
+        if not _run_shortcut(widget, QKeySequence(combination)):
+            QTest.keyClick(widget, combination.key(), combination.keyboardModifiers())
+
+
+def _run_shortcut(widget, key) -> bool:
+    """Run the window's shortcut for ``key`` the way Qt does for the user's key press, also while CDMW's
+    window is not the active one (Qt routes shortcuts only to the active window). True when one ran."""
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QAction, QShortcut
+
+    window = widget.window()
+    candidates = []
+    for shortcut in window.findChildren(QShortcut):
+        if shortcut.isEnabled() and key in shortcut.keys():
+            owner = shortcut.parent()
+            context = shortcut.context()
+            if context == Qt.ShortcutContext.WidgetShortcut and owner is not widget:
+                continue
+            if context == Qt.ShortcutContext.WidgetWithChildrenShortcut and not (
+                    owner is widget or owner.isAncestorOf(widget)):
+                continue
+            if hasattr(owner, "isVisible") and not owner.isVisible():
+                continue
+            candidates.append(shortcut.activated.emit)
+    for action in window.findChildren(QAction):
+        if action.isEnabled() and key in action.shortcuts():
+            owners = [owner for owner in action.associatedObjects() if hasattr(owner, "isVisible")]
+            if owners and not any(owner.isVisible() for owner in owners):
+                continue
+            candidates.append(action.trigger)
+    if len(candidates) != 1:
+        return False  # none, or ambiguous as Qt finds it: let the key event go where Qt sends it
+    candidates[0]()
+    return True
 
 
 __all__ = ["ACTIONS", "act", "describe", "describe_tree", "effect_of_action", "find_by_text", "kind_of",
