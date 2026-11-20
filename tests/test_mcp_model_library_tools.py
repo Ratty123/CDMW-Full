@@ -95,3 +95,32 @@ def test_model_library_index_and_checked_download_use_the_page_workers(tmp_path,
         tab.request_shutdown()
         wait_for(lambda: not tab.iter_shutdown_workers())
         tab.deleteLater()
+
+
+def test_model_library_deletes_only_downloaded_copies(tmp_path, monkeypatch):
+    from cdmw.workers.model_library_rows import ModelLibraryDeleteTarget, model_library_delete_identity
+
+    _app()
+    tab, _payload, _item = _tab_with_selection(tmp_path)
+    client = RailClient(tmp_path, widgets={"model_library": tab})
+    try:
+        # A local file of the user's is not a download: refused, nothing deleted.
+        monkeypatch.setattr(tab, "_downloaded_model_folder_target_for_payload", lambda payload: None)
+        refused = client.call("models.delete", action="downloads", rows=[0])
+        assert refused["error"]["code"] == "refused"
+
+        folder = tmp_path / "catalogue" / "downloads" / "hero-abc123"
+        folder.mkdir(parents=True)
+        (folder / "hero.glb").write_bytes(b"glb")
+        (folder / "model_metadata.json").write_text('{"uid": "abc123"}', encoding="utf-8")
+        target = ModelLibraryDeleteTarget(str(folder), "Async Hero", "download_dir", str(folder.parent),
+                                          model_library_delete_identity(folder))
+        monkeypatch.setattr(tab, "_downloaded_model_folder_target_for_payload", lambda payload: target)
+        monkeypatch.setattr(tab, "_local_delete_targets_for_payloads", lambda payloads: [target])
+        client.ok("models.delete", action="downloads", rows=[0])
+        wait_for(lambda: not folder.exists())
+        assert client.call("models.delete", action="downloads", rows=[99])["error"]["code"] == "not_found"
+    finally:
+        tab.request_shutdown()
+        wait_for(lambda: not tab.iter_shutdown_workers())
+        tab.deleteLater()

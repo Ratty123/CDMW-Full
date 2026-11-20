@@ -376,7 +376,14 @@ def _restore_protected(settings, before: dict[str, object]) -> list[str]:
     """Put back any protected setting the action changed; the keys that were put back."""
 
     after = _protected_values(settings)
-    changed = sorted(key for key in {*before, *after} if str(before.get(key)) != str(after.get(key)))
+
+    def text(values, key) -> str:
+        # A settings save writes every key it knows, so an unset key can come back as "";
+        # both mean "not set", and only a real change is put back.
+        value = values.get(key)
+        return "" if value is None else str(value)
+
+    changed = sorted(key for key in {*before, *after} if text(before, key) != text(after, key))
     for key in changed:
         if key in before:
             settings.setValue(key, before[key])
@@ -403,6 +410,19 @@ def modal_dialog() -> dict[str, object] | None:
     return row
 
 
+def _detached(error: BaseException) -> BaseException:
+    """The error without the frames it was raised through, dropped here on the UI thread.
+
+    Those frames hold the page the action ran on. Carried to the tool's thread, or kept by a
+    reference cycle until some later garbage collection, they would delete the page's widgets
+    and threads off the UI thread or at a moment nobody chose, and crash the app."""
+
+    error.__traceback__ = None
+    error.__context__ = None
+    error.__cause__ = None
+    return error
+
+
 def run_action(context, function: Callable[[], object], answers: Mapping[str, object] | None = None, *,
                wait_s: float | None = None, dialogs: Mapping[type | str, Callable] | None = None,
                message_boxes: Mapping[str, str] | None = None) -> dict[str, object]:
@@ -425,12 +445,12 @@ def run_action(context, function: Callable[[], object], answers: Mapping[str, ob
             with answering(record):
                 box["result"] = function()
         except CommandRefused as refused:
-            box["error"] = ToolError(UNAVAILABLE, str(refused))
+            box["error"] = _detached(ToolError(UNAVAILABLE, str(refused)))
         except ToolError as error:
-            box["error"] = error
+            box["error"] = _detached(error)
         except Exception as exc:  # the handler's own failure; the log has the trace
             _LOGGER.exception("An AI tool's interface action failed")
-            box["error"] = ToolError(FAILED, str(exc) or type(exc).__name__)
+            box["error"] = _detached(ToolError(FAILED, str(exc) or type(exc).__name__))
         finally:
             try:
                 # Once a dialog was handed over, what changed since may be the user's own
@@ -466,10 +486,13 @@ def run_action(context, function: Callable[[], object], answers: Mapping[str, ob
                 return {"running": True, "asked": list(record.asked),
                         "message": "The action is still running in CDMW; app_state shows what it is doing."}
     if "error" in box:
-        error = box["error"]
+        error = box.pop("error")
         if record.asked and isinstance(error, ToolError):
             error.data.setdefault("asked", list(record.asked))
-        raise error
+        try:
+            raise error
+        finally:
+            del error
     return {"result": box.get("result"), "asked": list(record.asked)}
 
 

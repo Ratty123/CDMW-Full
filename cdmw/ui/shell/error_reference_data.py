@@ -2911,7 +2911,8 @@ ERROR_REFERENCE = [
       "The reference search did not finish in time.",
       "The {editor.kind} editor did not finish the history step.",
       "The {editor.kind} history moved outside the turn.",
-      "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}"
+      "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}",
+      "{what} did not finish in time. CDMW's status line says why."
     ],
     "sources": [
       "cdmw/mcp/action_chart_tools.py",
@@ -2925,6 +2926,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/saved_work_tools.py",
       "cdmw/mcp/server.py",
+      "cdmw/mcp/setup_tools.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/turn_tools.py",
@@ -3003,6 +3005,7 @@ ERROR_REFERENCE = [
       "Give key, keys or search",
       "Give piece: a .pac path or file name, or a prefab name.",
       "Give the draft's name.",
+      "Give the rows of the downloaded copies to delete.",
       "Give the table, or the archive path of a .staticinfobody or .staticinfoheader file.",
       "Give translate, rotate_degrees or scale.",
       "Give values, add or remove: nothing would change.",
@@ -3016,6 +3019,7 @@ ERROR_REFERENCE = [
       "Part {part} has vertices 0 to {count - 1}.",
       "Save the decal sequence as a .paseq file.",
       "Save the edited file as a .hkx file.",
+      "Save the language file as a .json file.",
       "Supply exactly one PNG path or base64 data.",
       "Supply the list of paths to ignore.",
       "That cell holds a number.",
@@ -3033,11 +3037,14 @@ ERROR_REFERENCE = [
       "The package path must end in {PACKAGE_EXTENSION}.",
       "The requested region extends outside the image.",
       "The value does not match the Settings control.",
+      "The workspace folder does not exist: {folder}",
       "The {family} commands are: {', '.join(PANEL_COMMANDS[family])}.",
       "There is no file {original}.",
+      "There is no language file {source}.",
       "There is no such row in Model Library.",
       "These values change nothing.",
       "This action needs '{key}'.",
+      "This is not a CDMW language file: {exc}",
       "Unknown argument {extra[0]}",
       "Unknown category {category}; use one of {', '.join(CATEGORIES)}.",
       "Unknown {name}: {options[name]}.",
@@ -3089,6 +3096,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/mesh_edit_tools.py",
       "cdmw/mcp/mesh_session_tools.py",
       "cdmw/mcp/mesh_tools.py",
+      "cdmw/mcp/model_library_tools.py",
       "cdmw/mcp/new_item_effects.py",
       "cdmw/mcp/new_item_files.py",
       "cdmw/mcp/new_item_model.py",
@@ -3102,6 +3110,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/schema.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/setup_tools.py",
       "cdmw/mcp/skeleton_tools.py",
       "cdmw/mcp/sound_tools.py",
       "cdmw/mcp/speed_tools.py",
@@ -3613,6 +3622,7 @@ ERROR_REFERENCE = [
       "There is no pending edit {index}.",
       "There is no project {project}; make it in Drafts & Mods first.",
       "There is no queue row {min(missing)}.",
+      "There is no result row {row}.",
       "There is no row {row}; files_prefab_read lists them.",
       "There is no supported Settings control for {raw}.",
       "There is no tab {row}.",
@@ -3647,6 +3657,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/mesh_session_tools.py",
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/mod_management_tools.py",
+      "cdmw/mcp/model_library_tools.py",
       "cdmw/mcp/npc_tools.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/prefab_tools.py",
@@ -3825,6 +3836,7 @@ ERROR_REFERENCE = [
       "Only you can run this command in CDMW: it can change the AI connection settings or the game folder, or it writes into the game.",
       "Only you can use this control in CDMW: AI connections, their approvals, Full access, the game folder and what writes into the game are never driven by a tool.",
       "Row {row} ({child.text(0)}) cannot change.",
+      "Row {row} is not a downloaded copy; only downloaded mirror folders can be deleted this way.",
       "The Add Bones dialog refused the bones.",
       "The HKX Physics Editor refused the save.",
       "The current animation draft was kept.",
@@ -47659,6 +47671,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Give the rows of the downloaded copies to delete.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/model_library_tools.py": 179
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Give translate, rotate_degrees or scale.",
     "recovery": "internal",
     "sources": {
@@ -59465,6 +59485,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Row {row} is not a downloaded copy; only downloaded mirror folders can be deleted this way.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/model_library_tools.py": 175
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Run rebuild report",
     "recovery": "internal",
     "sources": {
@@ -61673,6 +61701,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The delete question has no Delete button.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/model_library_tools.py": 158
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The donor game Hair physics profile is missing.",
     "recovery": "missing",
     "sources": {
@@ -62495,6 +62531,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_session_tools.py": 58
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "There is no result row {row}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/model_library_tools.py": 171
     }
   },
   {
@@ -76108,7 +76152,7 @@ MESSAGE_REFERENCE = [
     "message": "An AI tool's interface action failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/ui_actions.py": 432
+      "cdmw/mcp/ui_actions.py": 452
     }
   },
   {
@@ -76172,7 +76216,7 @@ MESSAGE_REFERENCE = [
     "message": "An icon already exists at {destination}.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/mcp/item_icon_tools.py": 94
+      "cdmw/mcp/item_icon_tools.py": 101
     }
   },
   {
@@ -76180,7 +76224,7 @@ MESSAGE_REFERENCE = [
     "message": "An icon output is already running.",
     "recovery": "locked",
     "sources": {
-      "cdmw/mcp/item_icon_tools.py": 96
+      "cdmw/mcp/item_icon_tools.py": 103
     }
   },
   {
@@ -77431,7 +77475,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a source image and an existing target icon path.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/item_icon_tools.py": 88,
+      "cdmw/mcp/item_icon_tools.py": 95,
       "cdmw/ui/item_icons/tab.py": 217
     }
   },
@@ -81961,7 +82005,7 @@ MESSAGE_REFERENCE = [
     "message": "Language importer returned an unexpected result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/language_controller.py": 161
+      "cdmw/ui/shell/language_controller.py": 173
     }
   },
   {
@@ -83228,7 +83272,7 @@ MESSAGE_REFERENCE = [
     "message": "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool. It was put back.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/ui_actions.py": 442
+      "cdmw/mcp/ui_actions.py": 462
     }
   },
   {
@@ -84492,6 +84536,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Save the language file as a .json file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/setup_tools.py": 100
+    }
+  },
+  {
+    "area": "other",
     "message": "Scan the archives before opening Body & Face Finder.",
     "recovery": "internal",
     "sources": {
@@ -84568,6 +84620,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/transparency_masks.py": 49
+    }
+  },
+  {
+    "area": "other",
+    "message": "Select an icon source file first.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/item_icon_tools.py": 73
     }
   },
   {
@@ -85722,6 +85782,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/view_tools.py": 220
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Setup panel is not available.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/setup_tools.py": 73
     }
   },
   {
@@ -87272,6 +87340,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The workspace folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/setup_tools.py": 67
+    }
+  },
+  {
+    "area": "other",
     "message": "The written mod archive does not read back as the edited tables.",
     "recovery": "internal",
     "sources": {
@@ -87436,6 +87512,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/jobs.py": 130
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no language file {source}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/setup_tools.py": 114
     }
   },
   {
@@ -87676,6 +87760,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/installation_lane.py": 43
+    }
+  },
+  {
+    "area": "other",
+    "message": "This is not a CDMW language file: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/setup_tools.py": 118
     }
   },
   {
@@ -94268,6 +94360,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/effect_binary.py": 440
+    }
+  },
+  {
+    "area": "other",
+    "message": "{what} did not finish in time. CDMW's status line says why.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/setup_tools.py": 53
     }
   },
   {
@@ -102271,7 +102371,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a supported numeric preset or value.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 164
+      "cdmw/mcp/settings_tools.py": 192
     }
   },
   {
@@ -102279,7 +102379,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a supported worker count.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 159
+      "cdmw/mcp/settings_tools.py": 187
     }
   },
   {
@@ -102287,7 +102387,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a value from {control.minimum()} to {control.maximum()}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 101
+      "cdmw/mcp/settings_tools.py": 121
     }
   },
   {
@@ -102351,7 +102451,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a nonnegative whole number.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 154
+      "cdmw/mcp/settings_tools.py": 182
     }
   },
   {
@@ -102359,7 +102459,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an absolute path or clear the setting.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 122
+      "cdmw/mcp/settings_tools.py": 142
     }
   },
   {
@@ -102367,7 +102467,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter the numeric setting value.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 99
+      "cdmw/mcp/settings_tools.py": 119
     }
   },
   {
@@ -102543,7 +102643,7 @@ MESSAGE_REFERENCE = [
     "message": "No shortcut command matches {command}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 217
+      "cdmw/mcp/settings_tools.py": 245
     }
   },
   {
@@ -102815,7 +102915,7 @@ MESSAGE_REFERENCE = [
     "message": "Settings > Shortcuts is unavailable.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 209
+      "cdmw/mcp/settings_tools.py": 237
     }
   },
   {
@@ -102839,7 +102939,7 @@ MESSAGE_REFERENCE = [
     "message": "Supply the list of paths to ignore.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 143
+      "cdmw/mcp/settings_tools.py": 171
     }
   },
   {
@@ -102847,7 +102947,7 @@ MESSAGE_REFERENCE = [
     "message": "The Settings control is disabled.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 91
+      "cdmw/mcp/settings_tools.py": 111
     }
   },
   {
@@ -102863,7 +102963,7 @@ MESSAGE_REFERENCE = [
     "message": "The requested command has no editable shortcut row.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 222
+      "cdmw/mcp/settings_tools.py": 250
     }
   },
   {
@@ -102879,7 +102979,7 @@ MESSAGE_REFERENCE = [
     "message": "The value does not match the Settings control.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 104
+      "cdmw/mcp/settings_tools.py": 124
     }
   },
   {
@@ -102887,7 +102987,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no supported Settings control for {raw}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 175
+      "cdmw/mcp/settings_tools.py": 203
     }
   },
   {
@@ -103023,7 +103123,7 @@ MESSAGE_REFERENCE = [
     "message": "Unrecognized shortcut {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 197
+      "cdmw/mcp/settings_tools.py": 225
     }
   },
   {
@@ -109012,6 +109112,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/read_tools.py",
     "cdmw/mcp/saved_work_tools.py",
     "cdmw/mcp/server.py",
+    "cdmw/mcp/setup_tools.py",
     "cdmw/mcp/sound_tools.py",
     "cdmw/mcp/speed_tools.py",
     "cdmw/mcp/tools.py",
@@ -110809,7 +110910,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/item_icon_tools.py": {
     "code": 4,
-    "raise": 7,
+    "raise": 8,
     "report": 2
   },
   "cdmw/mcp/jobs.py": {
@@ -110856,8 +110957,8 @@ SOURCE_COVERAGE = {
     "report": 2
   },
   "cdmw/mcp/model_library_tools.py": {
-    "code": 2,
-    "raise": 6
+    "code": 5,
+    "raise": 11
   },
   "cdmw/mcp/names.py": {},
   "cdmw/mcp/new_item_draft.py": {
@@ -110951,11 +111052,16 @@ SOURCE_COVERAGE = {
     "report": 10
   },
   "cdmw/mcp/settings_tools.py": {
-    "code": 14,
-    "raise": 17,
+    "code": 16,
+    "raise": 18,
     "report": 3
   },
   "cdmw/mcp/setup_lines.py": {},
+  "cdmw/mcp/setup_tools.py": {
+    "code": 6,
+    "raise": 7,
+    "report": 2
+  },
   "cdmw/mcp/skeleton_tools.py": {
     "code": 8,
     "diagnostic_field": 1,
@@ -111024,7 +111130,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/ui_actions.py": {
     "code": 3,
-    "diagnostic_field": 5,
+    "diagnostic_field": 6,
     "failure": 4,
     "log": 1,
     "raise": 1,

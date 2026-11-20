@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from cdmw.mcp.errors import REFUSED, UNAVAILABLE, ToolError
-from cdmw.mcp.names import EDIT, OUTPUT, READ
+from cdmw.mcp.errors import INVALID_ARGUMENTS, NOT_FOUND, REFUSED, UNAVAILABLE, ToolError
+from cdmw.mcp.names import DESTRUCTIVE, EDIT, OUTPUT, READ
 from cdmw.mcp.rail_actions import BOOL, PATH, ROW, ROWS, TEXT, choices, choose, output, page, press, required
 from cdmw.mcp.rail_actions import select_tree_rows, tool, ui
 
@@ -144,6 +144,47 @@ def _produce(call):
     return ui(call, produce)
 
 
+def _delete(call):
+    """Delete downloaded mirror copies only: a user's own local model files are never an AI's to delete."""
+
+    from PySide6.QtWidgets import QMessageBox
+
+    args = call.arguments
+    action = args["action"]
+
+    def confirm(box):
+        button = next((b for b in box.buttons() if box.buttonRole(b) == QMessageBox.ButtonRole.DestructiveRole), None)
+        if button is None:
+            raise ToolError(UNAVAILABLE, "The delete question has no Delete button.")
+        button.click()
+        return 0
+
+    def delete():
+        tab = page(call, "model_library")
+        if tab._task_thread is not None:
+            raise ToolError(UNAVAILABLE, "Wait for the current Model Library task to finish.")
+        if action == "downloads":
+            payloads = []
+            for row in args.get("rows") or ():
+                item = tab.results_tree.topLevelItem(row)
+                if item is None:
+                    raise ToolError(NOT_FOUND, f"There is no result row {row}.")
+                select_tree_rows(tab.results_tree, [row])
+                payload = tab._selected_payload() or {}
+                if tab._downloaded_model_folder_target_for_payload(payload) is None:
+                    raise ToolError(REFUSED, f"Row {row} is not a downloaded copy; only downloaded mirror folders "
+                                             "can be deleted this way.")
+                payloads.append(payload)
+            if not payloads:
+                raise ToolError(INVALID_ARGUMENTS, "Give the rows of the downloaded copies to delete.")
+            tab._delete_local_payloads(payloads)
+        else:
+            tab.delete_no_texture_downloads()
+        return _state(tab, {})
+
+    return ui(call, delete, dialogs={QMessageBox: confirm})
+
+
 def model_library_tools():
     options = {"mirror_url": TEXT, "query": TEXT, "license": TEXT, "creator": TEXT, "exclude_creators": TEXT,
                "format": choices("", "gltf", "glb", "source"), "current_only": BOOL,
@@ -164,4 +205,10 @@ def model_library_tools():
              _produce, {**options, "action": choices("index", "download", "download_use", "icon"),
                         "folder": PATH, "rows": ROWS, "row": ROW}, ("action", "folder"),
              output_folders=("folder",)),
+        tool("models.delete", DESTRUCTIVE,
+             "Delete downloaded Model Library copies: the downloaded mirror folders of rows, or every visible "
+             "download whose textures were not found (More > Delete No-Texture Downloads). Your own local model "
+             "files are never deleted by this tool.",
+             "ui:ModelLibraryTab.results_tree", _delete,
+             {"action": choices("downloads", "no_texture_downloads"), "rows": ROWS}, ("action",)),
     ]
