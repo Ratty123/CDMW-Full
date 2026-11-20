@@ -645,9 +645,17 @@ class _Planner(EffectPlanningMixin):
             self.manifest["item_groups"] = []
             return
         from cdmw.services.new_item_tables import row_pair
-        names = []
+        names, dlc_only = [], []
+        base_pair = self.snapshot.itemgroupinfo
+        base_keys = None
         for group in groups:
             pair = row_pair(self.snapshot,'itemgroupinfo',group.key)
+            if pair is not base_pair:
+                if base_keys is None:
+                    from cdmw.core.structured_binary_editor import parse_pabgh_table
+                    base_keys = {row.row_id for row in parse_pabgh_table(base_pair.header, payload=base_pair.payload).rows}
+                if group.key not in base_keys:
+                    dlc_only.append(group.name)
             payload,header = self.table_data(pair)
             grown = add_group_members(group, [int(self.spec.item_key)], after=template_key if template_key in group.members else None)
             payload, header = apply_item_group_row(payload, header, grown)
@@ -655,6 +663,9 @@ class _Planner(EffectPlanningMixin):
             self.patch(pair.header_entry,header,'ItemGroupInfo directory')
             names.append(group.name)
         self.manifest["item_groups"] = names
+        if dlc_only:
+            from cdmw.services.dmm_dlc_tables import dlc_only_group_note
+            self.warnings.append("For DMM: " + dlc_only_group_note(dlc_only))
 
     def plan_store(self) -> None:
         from cdmw.services.new_item_shops import plan_shops
@@ -681,6 +692,20 @@ class _Planner(EffectPlanningMixin):
         from cdmw.services.new_item_reward_acquisition import plan_reward_acquisition
         plan_reward_acquisition(self)
 
+    def _missing_text_message(self, languages, key, what: str, language: str) -> str:
+        """Say whether one language lacks the template's text, or the whole game does.
+
+        Some shipped equipment rows (development leftovers such as TestSword) have no
+        text in any language. Naming only the first language would read as a language
+        problem when the template itself has nothing to copy.
+        """
+
+        if not any(key in self.snapshot.paloc_table(other).index() for other in languages if other != language):
+            return (f"The template {self.template.string_key} has no display {what} in the game's text tables "
+                    f"(entry {key} is missing in every language). The game ships it without text, so it cannot "
+                    "be used as a template; choose another one.")
+        return f"the {language} table has no entry {key} for the template's {what}"
+
     def plan_names(self) -> None:
         template = self.template
         if not template.name_key:
@@ -693,13 +718,13 @@ class _Planner(EffectPlanningMixin):
             index = table.index()
             template_name = index.get(template.name_key)
             if template_name is None:
-                raise NewItemPlanError(f"the {language} table has no entry {template.name_key} for the template's name")
+                raise NewItemPlanError(self._missing_text_message(languages, template.name_key, "name", language))
             name = text_for_language(self.spec.display_names, language) or template_name.text
             texts = {str(self.spec.name_key): name}
             template_desc = index.get(template.desc_key) if template.desc_key else None
             if self.spec.desc_key and template.desc_key:
                 if template_desc is None:
-                    raise NewItemPlanError(f"the {language} table has no entry {template.desc_key} for the template's description")
+                    raise NewItemPlanError(self._missing_text_message(languages, template.desc_key, "description", language))
                 texts[str(self.spec.desc_key)] = text_for_language(self.spec.descriptions, language) or template_desc.text
             new_entries = entries_like(table, template.name_key, {str(self.spec.name_key): texts[str(self.spec.name_key)]})
             if len(texts) == 2:
@@ -900,7 +925,9 @@ class _Planner(EffectPlanningMixin):
                     payload = strip_template_material_physics(payload)
                 if self.independent:
                     from cdmw.services.new_item_resource_copies import copy_material_textures
-                    payload, copied = copy_material_textures(self, payload, texture_paths)
+                    payload, copied = copy_material_textures(
+                        self, payload, texture_paths,
+                        stock=self.snapshot.payload(item.path) if self.snapshot.has_entry(item.path) else None)
                     written.extend(copied)
                 else:
                     for old_name, new_name in texture_map.items():
@@ -1170,8 +1197,16 @@ def build_plan(
     if capture_independent:
         from cdmw.services.independent_item_package import audit_plan
         assessment = audit_plan(result, snapshot, stop_event=stop_event)
+        from cdmw.services.independent_item_references import STOCK_DANGLING_NOTE
+        # Say in the plan review (and through MCP) which shipped references the package leaves as they are.
+        warnings = list(result.warnings)
+        for note in getattr(assessment, "unresolved", ()):
+            if note.startswith(STOCK_DANGLING_NOTE):
+                missing = note[len(STOCK_DANGLING_NOTE) + 2:].split(" in ", 1)[0]
+                if not any(missing in warning for warning in warnings):
+                    warnings.append(note)
         result = replace(result, source_revision=snapshot.provenance.capture() if snapshot.provenance else None,
-                         reference_assessment=assessment)
+                         reference_assessment=assessment, warnings=tuple(warnings))
     return result
 
 

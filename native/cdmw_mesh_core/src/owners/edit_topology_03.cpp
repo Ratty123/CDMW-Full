@@ -464,6 +464,98 @@ SubmeshMeshEditResult run_compact_orphans_for_submesh(const JsonValue& item) {
     return result;
 }
 
+// Drops faces that repeat a corner or have no area, then (by default) the
+// vertices no face uses. Every other face keeps its corners and order, and the
+// kept vertices keep their channels, since a face with no area adds nothing to
+// shading. A part holding a face with an out-of-range corner is left alone,
+// because rebuilding its face list would drop that face too. Mirrors the
+// Python fallback, remove_collapsed_faces in cdmw/modding/mesh_edit_ops.py.
+SubmeshMeshEditResult run_remove_collapsed_faces_for_submesh(const JsonValue& item, const JsonValue& edit) {
+    SubmeshMeshEditResult result;
+    result.action = "remove_collapsed_faces";
+    result.index = int_or(item.get("index"), -1);
+    const std::vector<Vec3> vertices = mesh_vertices_from_item(item);
+    const JsonValue* raw_faces = item.get("faces");
+    const JsonValue* raw_faces_binary = item.get("faces_binary");
+    const std::vector<std::array<int, 3>> faces = mesh_faces_from_item(item, vertices.size());
+    const std::size_t raw_face_count = raw_faces_binary != nullptr
+        ? faces.size()
+        : raw_faces != nullptr && raw_faces->type == JsonValue::Type::Array
+        ? raw_faces->array_value.size()
+        : faces.size();
+    if (result.index < 0 || vertices.empty() || faces.empty() || raw_face_count != faces.size()) {
+        return result;
+    }
+    double area_epsilon = number_or(edit.get("area_epsilon"), 1e-12);
+    if (!std::isfinite(area_epsilon) || area_epsilon < 0.0) {
+        area_epsilon = 1e-12;
+    }
+    const bool remove_unused = bool_or(edit.get("remove_unused_vertices"), true);
+    const std::vector<int> source_faces = mesh_source_face_indices_from_item(item, faces.size());
+    std::vector<std::array<int, 3>> kept_faces;
+    std::vector<int> kept_source_faces;
+    for (std::size_t face_index = 0; face_index < faces.size(); ++face_index) {
+        const auto& face = faces[face_index];
+        bool collapsed = face[0] == face[1] || face[1] == face[2] || face[0] == face[2];
+        if (!collapsed) {
+            const Vec3& a = vertices[static_cast<std::size_t>(face[0])];
+            const Vec3& b = vertices[static_cast<std::size_t>(face[1])];
+            const Vec3& c = vertices[static_cast<std::size_t>(face[2])];
+            const Vec3 ab = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+            const Vec3 ac = {c[0] - a[0], c[1] - a[1], c[2] - a[2]};
+            const double cx = ab[1] * ac[2] - ab[2] * ac[1];
+            const double cy = ab[2] * ac[0] - ab[0] * ac[2];
+            const double cz = ab[0] * ac[1] - ab[1] * ac[0];
+            collapsed = std::sqrt(cx * cx + cy * cy + cz * cz) <= area_epsilon;
+        }
+        if (collapsed) {
+            ++result.removed_faces;
+            continue;
+        }
+        kept_faces.push_back(face);
+        kept_source_faces.push_back(
+            face_index < source_faces.size() ? source_faces[face_index] : static_cast<int>(face_index)
+        );
+    }
+    if (result.removed_faces <= 0) {
+        return result;
+    }
+    std::vector<int> index_map(vertices.size(), -1);
+    if (remove_unused) {
+        std::set<int> used_vertices;
+        for (const auto& face : kept_faces) {
+            used_vertices.insert(face[0]);
+            used_vertices.insert(face[1]);
+            used_vertices.insert(face[2]);
+        }
+        for (const int old_index : used_vertices) {
+            index_map[static_cast<std::size_t>(old_index)] = static_cast<int>(result.vertices.size());
+            result.vertices.push_back(vertices[static_cast<std::size_t>(old_index)]);
+            result.copy_vertex_indices.push_back(old_index);
+        }
+    } else {
+        result.vertices = vertices;
+        result.copy_vertex_indices.resize(vertices.size());
+        for (std::size_t i = 0; i < vertices.size(); ++i) {
+            result.copy_vertex_indices[i] = static_cast<int>(i);
+            index_map[i] = static_cast<int>(i);
+        }
+    }
+    for (std::size_t kept_index = 0; kept_index < kept_faces.size(); ++kept_index) {
+        const auto& face = kept_faces[kept_index];
+        result.faces.push_back({
+            index_map[static_cast<std::size_t>(face[0])],
+            index_map[static_cast<std::size_t>(face[1])],
+            index_map[static_cast<std::size_t>(face[2])],
+        });
+        result.source_face_indices.push_back(kept_source_faces[kept_index]);
+    }
+    result.index_map = std::move(index_map);
+    result.removed_vertices = static_cast<int>(vertices.size()) - static_cast<int>(result.vertices.size());
+    result.topology_changed = true;
+    return result;
+}
+
 SubmeshMeshEditResult run_split_edit_for_submesh(const JsonValue& item) {
     SubmeshMeshEditResult result;
     result.action = "split";

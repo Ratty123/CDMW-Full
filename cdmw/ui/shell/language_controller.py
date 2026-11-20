@@ -23,6 +23,19 @@ from cdmw.workers.localization_workers import (
 )
 
 
+def language_export_entries(collected, translations):
+    """Every source string with its translation; a string not translated yet keeps its own
+    text, so the file lists it for the translator and still loads (a blank value does not)."""
+
+    entries = {}
+    for source, current in collected.items():
+        entry = translations.get(source) or current
+        if isinstance(entry, str) and not entry.strip():
+            entry = source
+        entries[source] = entry
+    return entries
+
+
 class LanguageControllerMixin:
     """Language switching and translation file import/export for the shell window."""
 
@@ -103,10 +116,9 @@ class LanguageControllerMixin:
         )
         if not selected:
             return
-        translations = bundled_translatable_source_strings()
-        translations.update(self.ui_localizer.collect_source_strings(self))
-        for key in list(translations):
-            translations[key] = self.ui_localizer.translations.get(key, translations.get(key, ""))
+        collected = bundled_translatable_source_strings()
+        collected.update(self.ui_localizer.collect_source_strings(self))
+        translations = language_export_entries(collected, self.ui_localizer.translations)
         controller = request_task_controller_for_guard(
             self,
             self,

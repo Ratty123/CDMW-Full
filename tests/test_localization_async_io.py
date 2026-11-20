@@ -201,3 +201,15 @@ def test_language_handlers_only_snapshot_ui_and_dispatch_workers() -> None:
     assert "run_language_import" in source
     assert "write_language_file(" not in source
     assert "self.ui_localizer.import_language_file(" not in source
+
+
+def test_an_export_keeps_untranslated_strings_as_their_own_text() -> None:
+    from cdmw.services.localization_file_service import language_file_payload
+    from cdmw.ui.shell.language_controller import language_export_entries
+
+    collected = {"*_d.dds": "", "Open {name}": "", "Save": "Spara", "File": {"one": "Fil", "other": "Filer"}}
+    entries = language_export_entries(collected, {"Save": "Spara nu"})
+    assert entries == {"*_d.dds": "*_d.dds", "Open {name}": "Open {name}", "Save": "Spara nu",
+                       "File": {"one": "Fil", "other": "Filer"}}
+    # The file the export writes passes the same checks an import makes.
+    assert language_file_payload(language_code="en", language_name="English", translations=entries)

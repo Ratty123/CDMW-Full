@@ -83,6 +83,26 @@ _PATH_CONTROLS = {
     "chainner/chain_path": ("textures", "chainner_chain_path_edit"),
 }
 
+#: Helper locations Settings and the pages remember outside any field: each is checked as the
+#: page that asks for it checks it, then written straight to the settings file.
+_CHECKED_PATHS = {
+    "new_item/blender_executable": "blender",
+    "dmm/install_folder": "dmm",
+}
+
+
+def _check_helper(kind: str, text: str) -> str:
+    from pathlib import Path
+
+    if kind == "blender":
+        from cdmw.services.fbx_blender_conversion import is_blender_executable
+
+        if not is_blender_executable(text):
+            return "That is not a Blender program (choose blender.exe)."
+    elif kind == "dmm" and not (Path(text) / "DMM.exe").is_file():
+        return "That is not DMM's folder (choose the folder that contains DMM.exe)."
+    return ""
+
 
 def _control_value(control, value):
     from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QSpinBox
@@ -116,7 +136,7 @@ def _set(call):
     if key == LEGACY_VIEW_MODE_KEY:
         key = VIEW_MODE_KEY
     value = call.arguments["value"]
-    if key in _PATH_CONTROLS:
+    if key in _PATH_CONTROLS or key in _CHECKED_PATHS:
         text = value.strip() if isinstance(value, str) else None
         if text is None or (text and not Path(text).is_absolute()):
             raise ToolError(INVALID_ARGUMENTS, "Enter an absolute path or clear the setting.")
@@ -124,9 +144,17 @@ def _set(call):
         if reason:
             raise ToolError(REFUSED, reason)
         value = text
+        problem = _check_helper(_CHECKED_PATHS[key], text) if key in _CHECKED_PATHS and text else ""
+        if problem:
+            raise ToolError(INVALID_ARGUMENTS, problem)
 
     def change():
         tab = page(call, "settings")
+        if key in _CHECKED_PATHS:
+            current = window(call)
+            current.shell.settings.setValue(key, value)
+            current.shell.settings.sync()
+            return {"key": key, "value": current.shell.settings.value(key)}
         if key in _PATH_CONTROLS:
             owner, control = _PATH_CONTROLS[key]
             current = window(call)
@@ -171,7 +199,7 @@ def _set(call):
         elif key in _SETTINGS_CONTROLS:
             _control_value(getattr(tab, _SETTINGS_CONTROLS[key]), value)
         else:
-            keys = _SETTINGS_CONTROLS.keys() | _NUMERIC_MODES.keys() | _PATH_CONTROLS.keys()
+            keys = _SETTINGS_CONTROLS.keys() | _NUMERIC_MODES.keys() | _PATH_CONTROLS.keys() | _CHECKED_PATHS.keys()
             raise ToolError(NOT_FOUND, f"There is no supported Settings control for {raw!r}.",
                             {"keys": sorted(keys | {ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING})})
         tab.flush_settings_save()

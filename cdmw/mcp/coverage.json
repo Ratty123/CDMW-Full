@@ -600,6 +600,41 @@
       "tool": "tables.row"
     },
     {
+      "id": "tables.editor_state",
+      "area": "Browse Archives",
+      "what": "Edit Game Table Values: the loaded table, its rows, a row's values and this mod's changes",
+      "class": "read",
+      "tool": "tables.editor_state"
+    },
+    {
+      "id": "tables.editor_edit",
+      "area": "Browse Archives",
+      "what": "Edit Game Table Values: open, load, set, restore and remove values",
+      "class": "edit",
+      "tool": "tables.editor_edit"
+    },
+    {
+      "id": "tables.editor_write",
+      "area": "Browse Archives",
+      "what": "Edit Game Table Values: Write DMM Mod",
+      "class": "output",
+      "tool": "tables.editor_write"
+    },
+    {
+      "id": "files.decal_read",
+      "area": "Browse Archives",
+      "what": "Edit Skinned Decal: the selected decal's settings",
+      "class": "read",
+      "tool": "files.decal_read"
+    },
+    {
+      "id": "files.decal_save",
+      "area": "Browse Archives",
+      "what": "Edit Skinned Decal: change settings and save a loose .paseq copy",
+      "class": "output",
+      "tool": "files.decal_save"
+    },
+    {
       "id": "strings.get",
       "area": "Translation Studio",
       "what": "Game strings by key or words",
@@ -1209,6 +1244,13 @@
       "tool": "mesh.build_mod"
     },
     {
+      "id": "mesh.session",
+      "area": "Mesh Editor",
+      "what": "After Finish: Resume current edit, Start next edit pass, Add to Archive Browser, Check mesh, Return to Create New Item; and Name Draft",
+      "class": "edit",
+      "tool": "mesh.session"
+    },
+    {
       "id": "placement.pointer",
       "area": "Placement & Animations",
       "what": "Viewport translation and rotation by numbers, and timeline keys by track and time",
@@ -1581,6 +1623,27 @@
       "tool": "app.settings_set"
     },
     {
+      "id": "app.workspace_init",
+      "area": "Settings",
+      "what": "Setup: Init Workspace in a chosen folder",
+      "class": "output",
+      "tool": "app.workspace_init"
+    },
+    {
+      "id": "app.language_export",
+      "area": "Settings",
+      "what": "Appearance: Export Language File",
+      "class": "output",
+      "tool": "app.language_export"
+    },
+    {
+      "id": "app.language_import",
+      "area": "Settings",
+      "what": "Appearance: Import Language File and switch to it",
+      "class": "edit",
+      "tool": "app.language_import"
+    },
+    {
       "id": "shortcuts.change",
       "area": "Settings > Shortcuts",
       "what": "Rebind, unbind, reset",
@@ -1708,6 +1771,27 @@
       "class": "edit",
       "gap": "not_built",
       "milestone": "P13: the current editor offers grain and pattern brush strokes."
+    },
+    {
+      "id": "textures.replace_queue_read",
+      "area": "Textures > Replace",
+      "what": "The queue: edited files, matched originals and status",
+      "class": "read",
+      "tool": "textures.replace_state"
+    },
+    {
+      "id": "textures.replace_queue",
+      "area": "Textures > Replace",
+      "what": "Add files or a folder, reload, where originals come from, Auto-Match, a local original for a row, remove or clear",
+      "class": "edit",
+      "tool": "textures.replace"
+    },
+    {
+      "id": "textures.replace_build",
+      "area": "Textures > Replace",
+      "what": "Build Package",
+      "class": "output",
+      "tool": "textures.replace_build"
     },
     {
       "id": "saved.list",
@@ -1939,6 +2023,13 @@
       "what": "Build the search index, download checked models and generate an icon",
       "class": "output",
       "tool": "models.output"
+    },
+    {
+      "id": "models.delete",
+      "area": "Model Library",
+      "what": "Delete downloaded copies (never the user's own local model files)",
+      "class": "destructive",
+      "tool": "models.delete"
     },
     {
       "id": "item_icons.state",
@@ -2429,9 +2520,7 @@
     },
     {
       "key": "menu:cdmw/ui/item_icons/tab.py|Open In Texture Editor",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "item_icons.change"
     },
     {
       "key": "menu:cdmw/ui/mesh_editor/textures_panel.py|<f'{texture_role_label(row.role)}: {row.file_name}'>",
@@ -2483,9 +2572,7 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Delete Local Copy",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.delete"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Delete Local File / Folder",
@@ -2565,9 +2652,7 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Delete No-Texture Downloads",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.delete"
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Download + Create New Item",
@@ -2771,9 +2856,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/game_table_actions.py|GameTableEditDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "tables.editor_edit"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/hkx_physics_editor_dialog.py|HkxPhysicsEditorDialog",
@@ -2835,9 +2918,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/skinned_decal_dialog.py|SkinnedDecalDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.decal_save"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/sound_bank_editor.py|SoundBankEditorDialog",
@@ -2919,9 +3000,7 @@
     },
     {
       "key": "dialog:cdmw/ui/mesh_editor/saved_work_naming.py|NameDraftDialog",
-      "gap": "generic_only",
-      "item": 8,
-      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+      "tool": "mesh.session"
     },
     {
       "key": "dialog:cdmw/ui/model_preview_settings_dialog.py|ModelPreviewSettingsDialog",

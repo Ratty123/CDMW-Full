@@ -149,3 +149,40 @@ def stock_value(raw):
     result['effect_list'] = array(reader, lambda r: record(r, (('lookup', 'I'), ('raw', 'Q'))))
     reader.finish()
     return result
+
+
+_STOCK_HEAD = (('lookup_a', 'H'), ('raw_a', 'Q'), ('raw_b', 'Q'), ('raw_c', 'I'),
+    ('low_price_threshold_count_116', 'I'), ('raw_d', 'I'), ('raw_e', 'I'), ('order_index_113', 'I'),
+    ('flag_a', 'B'), ('flag_b', 'B'), ('flag_c', 'B'), ('is_restore_item', 'B'))
+_STOCK_VALUE = (('raw_q', 'Q'), ('disc', 'B'), ('lookup_a', 'I'), ('lookup_b', 'I'),
+    ('lookup_c', 'I'), ('raw_a', 'I'), ('raw_b', 'Q'), ('raw_d', 'Q'), ('raw_e', 'Q'),
+    ('raw_f', 'Q'), ('raw_g', 'H'))
+_STOCK_SUB = (('lookup_a', 'I'), ('flag', 'B'), ('lookup_b', 'I'), ('lookup_c', 'I'))
+
+
+def stock_bytes(value):
+    """The StockData bytes of a shop line `stock_value` produced; exactly its inverse.
+
+    Used to read CDMW's own DMM operations back into a mod base. Anything that does not
+    decode back to the same value is refused.
+    """
+    import struct
+
+    def pack(source, fields):
+        return b''.join(struct.pack('<' + fmt, source[name]) for name, fmt in fields)
+    try:
+        item = value['value']
+        out = pack(value, _STOCK_HEAD) + b'\1' + pack(item, _STOCK_VALUE)
+        if 'raw_h' in item:
+            out += struct.pack('<B', item['raw_h'])
+        if item['payload'] != dict(type='Disc0', body=item['payload']['body']):
+            raise RecordError('DMM V3: only item shop stock is supported.')
+        out += struct.pack('<III', item['payload']['body'], value['lookup_b'], value['lookup_c'])
+        out += b'\0' if value['sub_data'] is None else b'\1' + pack(value['sub_data'], _STOCK_SUB)
+        out += struct.pack('<QI', value['max_refill_condition_201'], len(value['effect_list']))
+        out += b''.join(struct.pack('<IQ', effect['lookup'], effect['raw']) for effect in value['effect_list'])
+    except (KeyError, TypeError, struct.error) as exc:
+        raise RecordError(f'DMM V3: unsupported shop stock value ({exc}).') from exc
+    if stock_value(out) != value:
+        raise RecordError('DMM V3: the shop stock value does not round-trip.')
+    return out

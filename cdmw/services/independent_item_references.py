@@ -15,6 +15,9 @@ from cdmw.domain.new_item.independent import IndependentItemError
 # Diagnostics must not turn a bounded source walk into an unbounded edge graph.
 # Overflow makes the report partial while the original audit continues in full.
 MAX_ASSESSMENT_EDGES = 16384
+#: How the assessment notes a reference the game's own unmodified file makes to a
+#: resource the game does not ship. Followed by ": <path> in <file>".
+STOCK_DANGLING_NOTE = "The game's own file names a resource it does not ship (left as it is)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +140,32 @@ def audit_references(plan, snapshot, *, stop_event=None):
         raise_if_cancelled(stop_event)
         record_edge(ReferenceEdge('compiled-additions', path, 'contribution-root', 'Compiled owned resource output'))
 
+    stock_names = None
+
+    def stock_dangling(path):
+        """True when an unmodified shipped file, not the plan, makes this reference."""
+        nonlocal stock_names
+        current = source
+        if current not in visited:
+            return False
+        if current not in outputs:
+            return snapshot.has_entry(current)
+        # An owned material keeps a dangling reference only when the shipped
+        # material it was made from already names it.
+        if stock_names is None:
+            from cdmw.services.new_item_resource_copies import stock_material_names
+            from cdmw.services.new_item_variants import xml_path
+            origins = {resource.path.lower() for resource in family.files
+                       if resource.exists and resource.path.lower().endswith('.pac_xml')}
+            origins.update(original for originals in source_paths.values() for original in originals)
+            for variant in plan.manifest.get('variants', ()):
+                if variant.get('model_path'):
+                    origins.add(xml_path(variant['model_path'].lower()))
+            stock_names = frozenset().union(*(stock_material_names(snapshot.payload(origin))
+                                              for origin in sorted(origins)
+                                              if origin.endswith('.pac_xml') and snapshot.has_entry(origin)))
+        return path in stock_names
+
     def require(raw, *, role='resource-reference', evidence='Decoded resource reference'):
         raise_if_cancelled(stop_event)
         path = str(raw).replace('\\', '/').lower()
@@ -151,7 +180,13 @@ def audit_references(plan, snapshot, *, stop_event=None):
         if path in outputs or path in visited or path in pending:
             return
         if not snapshot.has_entry(path):
-            raise IndependentItemError(f'Unresolved item dependency: {path}')
+            if not stock_dangling(path):
+                raise IndependentItemError(f'Unresolved item dependency: {path}')
+            # The game ships material files that name textures it does not ship
+            # (typos, empty names). The package cannot carry what the game never
+            # had, and the game runs with it, so this is a note, not a refusal.
+            unresolved.add(f"{STOCK_DANGLING_NOTE}: {path} in {source}")
+            return
         # Reading pins the dependency to the exported package's compatibility
         # graph, so another machine cannot silently borrow a modded resource.
         pending[path] = snapshot.payload(path)

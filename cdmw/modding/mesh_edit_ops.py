@@ -28,6 +28,7 @@ from .mesh_native_core import (
     apply_native_mesh_brush_binary_selection,
     apply_native_mesh_brush_selection,
     apply_native_mesh_compact_orphans,
+    apply_native_mesh_remove_collapsed_faces,
     apply_native_mesh_copy_normals,
     apply_native_mesh_delete,
     apply_native_mesh_dissolve,
@@ -2248,11 +2249,6 @@ def _remove_collapsed_faces(
     params: dict[str, object],
 ) -> tuple[MeshEditAffected, MeshEditChangedVertices]:
     target_indices = _submesh_indices(mesh, selection)
-    # The native operation (P17 stage 3) is added beside Weld; until then this is the only route.
-    _record_native_edit_fallback(mesh, "topology.remove_collapsed_faces",
-                                 "native remove collapsed faces unavailable", submesh_indices=target_indices)
-    if not _allow_python_mesh_edit_fallback(mesh, "topology.remove_collapsed_faces", submesh_indices=target_indices):
-        return set(), {}
     epsilon = params.get("area_epsilon", COLLAPSED_FACE_AREA_EPSILON)
     try:
         epsilon = float(epsilon)
@@ -2260,8 +2256,18 @@ def _remove_collapsed_faces(
         epsilon = COLLAPSED_FACE_AREA_EPSILON
     if not math.isfinite(epsilon) or epsilon < 0:
         epsilon = COLLAPSED_FACE_AREA_EPSILON
+    remove_unused = bool(params.get("remove_unused_vertices", True))
+    native_result = apply_native_mesh_remove_collapsed_faces(
+        mesh, target_indices, area_epsilon=epsilon, remove_unused_vertices=remove_unused,
+    )
+    if native_result is not None:
+        return set(native_result.affected_submesh_indices), {}
+    _record_native_edit_fallback(mesh, "topology.remove_collapsed_faces",
+                                 "native remove collapsed faces unavailable", submesh_indices=target_indices)
+    if not _allow_python_mesh_edit_fallback(mesh, "topology.remove_collapsed_faces", submesh_indices=target_indices):
+        return set(), {}
     result = remove_collapsed_faces(mesh, target_indices, area_epsilon=epsilon,
-                                    remove_unused_vertices=bool(params.get("remove_unused_vertices", True)))
+                                    remove_unused_vertices=remove_unused)
     return set(result.affected_submesh_indices), {}
 
 

@@ -156,7 +156,8 @@ def _collection(kind, value):
         elif kind == 'sealable':
             _record(row, ('target_type', 'item', 'count', 'target'))
             _integer(row['target_type'], 5)
-            _integer(row['item'], 0xffffffff, 1)
+            # The game ships empty sealable entries (item 0, count 0) on Kuku Pot templates.
+            _integer(row['item'], 0xffffffff)
             _integer(row['count'], (1 << 64) - 1)
             if row['target_type'] == 2:
                 _text(row['target'], 1024)

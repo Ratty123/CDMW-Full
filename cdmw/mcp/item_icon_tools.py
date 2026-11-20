@@ -65,6 +65,13 @@ def _change(call):
             "use_archive_selection": tab.use_archive_selection_button, "open_editor": tab.open_editor_button,
             "open_target": tab.open_target_archive_button,
         }.get(action)
+        if action == "open_source_in_editor":
+            if "row" in args:
+                select_tree_rows(tab.records_tree, [args["row"]])
+            source = tab.current_source_path()
+            if source is None or not source.is_file():
+                raise ToolError(UNAVAILABLE, "Select an icon source file first.")
+            tab.open_selected_in_texture_editor()
         if button is not None:
             press(button)
         return _state(tab, {})
@@ -116,7 +123,8 @@ def item_icon_tools():
         tool("item_icons.change", EDIT, "Manage source folders and set or preview the selected icon and view.",
              "ui:ItemIconLibraryTab", _change,
              {**view, "action": choices("add_source", "remove_source", "rescan", "view", "preview",
-                                        "refresh_targets", "use_archive_selection", "open_editor", "open_target"),
+                                        "refresh_targets", "use_archive_selection", "open_editor", "open_target",
+                                        "open_source_in_editor"),
               "folder": PATH}, ("action",)),
         tool("item_icons.make", OUTPUT, "Make and export a compatible icon using the selected source and target.",
              "ui:ItemIconLibraryTab.export_generated_button", _export,

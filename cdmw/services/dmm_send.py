@@ -22,7 +22,7 @@ from cdmw.domain.packages.layout import sanitize_mod_package_folder_name
 
 DMM_FOLDER_SETTING = "dmm/install_folder"
 # DMM lists this as its own mod next to the folder; enable both.
-OPERATIONS_FILE = "CDMW items - shops and groups.json"
+from cdmw.services.dmm_mod_base import OPERATIONS_FILE  # noqa: E402  (one name for both)
 _CDMW_GENERATOR = "Crimson Desert Mod Workbench"
 
 
@@ -33,11 +33,15 @@ class DmmSendResult:
     title: str
 
 
+def usual_dmm_places() -> list[str]:
+    """Where DMM is usually installed."""
+    return [r"C:\DMM", os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "DMM"),
+            os.path.join(os.environ.get("ProgramFiles", ""), "DMM")]
+
+
 def find_dmm(saved: str = "") -> Optional[Path]:
     """The DMM folder (the one holding DMM.exe): the saved choice, else a usual place."""
-    candidates = [saved] if saved else []
-    candidates += [r"C:\DMM", os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "DMM"),
-                   os.path.join(os.environ.get("ProgramFiles", ""), "DMM")]
+    candidates = ([saved] if saved else []) + usual_dmm_places()
     for candidate in candidates:
         if candidate and (Path(candidate) / "DMM.exe").is_file():
             return Path(candidate)
