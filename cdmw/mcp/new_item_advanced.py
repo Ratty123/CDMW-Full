@@ -11,7 +11,27 @@ from cdmw.mcp.new_item_workflow import (
 )
 from cdmw.mcp.tools import ON_CALL, Tool, object_schema
 
-EDITORS = ("item_settings", "stats", "inventory", "definition", "behavior", "game_tables")
+EDITORS = ("item_settings", "stats", "inventory", "definition", "behavior", "game_tables", "wearers",
+           "fitting_reference", "rig")
+# Model step groups reached here, by the panel's own control names. Browse installed models and Add bones open
+# their own dialogs, and Export rig GLB writes files (new_item.export_rig).
+_MODEL_GROUPS = {
+    "fitting_reference": (("show_installed_reference", "clear_reference_button"), "reference_name", "reference_group"),
+    "rig": (("clear_skeleton_edit_button",), "rig_summary", "rig_field"),
+}
+
+
+class _Group:
+    """A few of a panel's controls, shown as one editor."""
+
+    def __init__(self, panel, names, message, holder):
+        for name in names:
+            setattr(self, name, getattr(panel, name))
+        self.message = getattr(panel, message)
+        self._holder = getattr(panel, holder)
+
+    def toolTip(self):  # noqa: N802 (Qt's name)
+        return self._holder.toolTip()
 # Writing a stock package is a file save, not an edit of this draft.
 _NOT_HERE = {"write_stock": "Write stock item package is not reached by this tool."}
 _ROWS = 200
@@ -19,6 +39,11 @@ _CHOICES = 30
 
 
 def _editor(page, name):
+    if name == "wearers":
+        return page.template_panel.wearers
+    if name in _MODEL_GROUPS:
+        names, message, holder = _MODEL_GROUPS[name]
+        return _Group(page.model_panel, names, message, holder)
     panel = page.stats_panel
     if name == "game_tables":
         return panel.game_tables
@@ -114,7 +139,7 @@ def _state(page, name, offset=0):
     editor = _editor(page, name)
     fields, buttons, tables = _controls(editor)
     state = {
-        "editor": name, "message": editor.message.text() if hasattr(editor, "message") else "",
+        "editor": name, "message": (editor.message if hasattr(editor, "message") else editor.status).text(),
         "tooltip": editor.toolTip(), "busy": page.controller.busy,
         "fields": {key: {**_value(widget), **({} if widget.isEnabled() else {"enabled": False})}
                    for key, widget in fields.items()},
@@ -127,6 +152,8 @@ def _state(page, name, offset=0):
         state["tree"] = tree
     if name == "game_tables":
         state["edits"] = json_value(editor.edits())
+    if name == "wearers":
+        state["worn_by"] = editor.worn_by.text() if not editor.worn_by.isHidden() else ""
     return state
 
 
@@ -247,14 +274,14 @@ def _advanced(call):
         return {}
 
     result = act(call, edit)
-    if result:
+    if "waiting_on" in result:
         return result
     # A Load button reads references on the worker; answer once it is done.
     state = read_when(call, lambda: None if workflow(context).controller.busy else _state(workflow(context), name,
                                                                                          offset), timeout=60.0)
     if state is None:
         state = {**context.ui_call(lambda: _state(workflow(context), name, offset)), "loading": True}
-    return {"applied_steps": len(done), **state}
+    return {**result, "applied_steps": len(done), **state}
 
 
 def advanced_tool():
@@ -269,8 +296,9 @@ def advanced_tool():
         name="new_item.advanced", family="new_item", title="Work the New Item advanced editors",
         description="Stats & Prices' experimental editors through their own controls: item_settings (item rules, "
                     "repairs, extraction, use and charges, price and stat amounts), stats (stat entries and "
-                    "passive skills), inventory, definition, behavior, and game_tables (values in other game "
-                    "tables). 'state' lists the editor's fields, buttons, tables and tree rows by name; 'apply' "
+                    "passive skills), inventory, definition, behavior, game_tables (values in other game "
+                    "tables), wearers (Wearable by: Kliff, Damiane, Oongka), fitting_reference (show or clear the "
+                    "preview-only reference) and rig (clear added bones). 'state' lists the editor's fields, buttons, tables and tree rows by name; 'apply' "
                     "runs steps in order: set a field, press a button (Load ... references first), edit or tick "
                     "a table cell, select table rows, edit or select tree rows by path (tick override first). "
                     "Each control checks its value as on the page; a refused step stops the rest. In-game "
@@ -278,5 +306,66 @@ def advanced_tool():
         input_schema=action_schema(("state", "apply"), {
             "editor": {**choice(*EDITORS), "default": "item_settings"},
             "steps": array(step, limit=64), "offset": {"type": "integer", "minimum": 0}}),
-        effect=EDIT, route="ui:StatsPanel.item_settings,StatsPanel.game_tables", handler=_advanced,
+        effect=EDIT, route="ui:StatsPanel.item_settings,StatsPanel.game_tables,TemplatePanel.wearers,ModelPanel", handler=_advanced,
         runs_on=ON_CALL)
+
+
+def _export_rig(call):
+    from pathlib import Path, PurePosixPath
+
+    from cdmw.mcp.new_item_workflow import checked_output, idle
+
+    a, context = call.arguments, call.context
+    folder = checked_output(context, a["folder"], existing=True)
+    if not folder.is_dir():
+        raise ToolError(UNAVAILABLE, f"There is no folder {folder}.")
+    messages = []
+
+    def start():
+        page = workflow(context)
+        idle(page)
+        panel, controller = page.model_panel, page.controller
+        entry = controller.template_primary_entry()
+        if entry is None:
+            raise ToolError(UNAVAILABLE, "Choose a template first; its mesh and rig are exported.")
+        target = folder / (PurePosixPath(str(entry.path).replace("\\", "/")).stem + "_rig.glb")
+        if target.exists():
+            raise ToolError(UNAVAILABLE, f"{target} already exists; choose another folder. CDMW does not replace it.")
+        if not panel.export_rig_button.isEnabled():
+            raise ToolError(UNAVAILABLE, widget_reason(panel.export_rig_button))
+        record = lambda message, error: messages.append((str(message), bool(error)))  # noqa: E731
+        controller.status_message.connect(record)
+        capture["record"], capture["controller"] = record, controller
+        panel.export_rig_button.click()  # Its folder prompt is answered with folder.
+        return {}
+
+    capture = {}
+    result = act(call, start, answers={"folder": str(folder)})
+    if "waiting_on" in result or "record" not in capture:
+        return result
+    try:
+        done = read_when(call, lambda: None if capture["controller"].busy else True, timeout=300.0)
+    finally:
+        context.ui_call(lambda: capture["controller"].status_message.disconnect(capture["record"]))
+    if done is None:
+        return {**result, "running": True, "folder": str(folder)}
+    failed = next((message for message, error in messages if error), None)
+    if failed:
+        raise ToolError(UNAVAILABLE, failed)
+    written = sorted(str(path) for path in Path(folder).glob("*_rig*.glb"))
+    return {**result, "folder": str(folder), "written": written, "message": messages[-1][0] if messages else ""}
+
+
+def export_rig_tool():
+    from cdmw.mcp.names import OUTPUT
+    from cdmw.mcp.new_item_workflow import PATH
+    from cdmw.mcp.ui_actions import ANSWERS_SCHEMA
+
+    return Tool(
+        name="new_item.export_rig", family="new_item", title="Export the template rig as GLB",
+        description="Press the Model step's Export rig GLB into a folder you allow: the template mesh skinned to "
+                    "its skeleton, with any added bones, to weight a model against in Blender. It never replaces "
+                    "a GLB already in that folder.",
+        input_schema=object_schema({"folder": PATH, "answers": ANSWERS_SCHEMA}, ["folder"]),
+        effect=OUTPUT, route="ui:ModelPanel.export_rig_button", handler=_export_rig, runs_on=ON_CALL,
+        output_folders=("folder",))

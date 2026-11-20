@@ -1463,6 +1463,21 @@
       "tool": "new_item.send_to_dmm"
     },
     {
+      "id": "new_item.export_rig",
+      "area": "Create New Item",
+      "what": "Export the template rig as GLB to weight a model against",
+      "class": "output",
+      "tool": "new_item.export_rig"
+    },
+    {
+      "id": "new_item.wearers_reference_rig",
+      "area": "Create New Item",
+      "what": "Wearable by, the preview-only fitting reference, and clearing added bones",
+      "class": "edit",
+      "tool": "new_item.advanced",
+      "note": "Browse installed models and Add bones open their own dialogs, which still go through the generic tools."
+    },
+    {
       "id": "new_item.draft_file",
       "area": "Create New Item",
       "what": "Save and load draft settings, continue or update an item package, check mod updates, and merge mod folders",

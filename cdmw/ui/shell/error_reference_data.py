@@ -29866,6 +29866,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Choose a template first; its mesh and rig are exported.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 330
+    }
+  },
+  {
+    "area": "items",
     "message": "Choose a template item first.",
     "recovery": "internal",
     "sources": {
@@ -30658,7 +30666,7 @@ MESSAGE_REFERENCE = [
     "message": "Give steps to apply.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 231
+      "cdmw/mcp/new_item_advanced.py": 258
     }
   },
   {
@@ -32887,7 +32895,7 @@ MESSAGE_REFERENCE = [
     "message": "That cell cannot be edited.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 193
+      "cdmw/mcp/new_item_advanced.py": 220
     }
   },
   {
@@ -32895,7 +32903,7 @@ MESSAGE_REFERENCE = [
     "message": "That cell has no box to tick.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 189
+      "cdmw/mcp/new_item_advanced.py": 216
     }
   },
   {
@@ -32911,7 +32919,7 @@ MESSAGE_REFERENCE = [
     "message": "That row has no box to tick.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 214
+      "cdmw/mcp/new_item_advanced.py": 241
     }
   },
   {
@@ -34084,7 +34092,7 @@ MESSAGE_REFERENCE = [
     "message": "The table has {table.rowCount()} rows.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 177
+      "cdmw/mcp/new_item_advanced.py": 204
     }
   },
   {
@@ -34332,7 +34340,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no cell at row {row}, column {column}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 186
+      "cdmw/mcp/new_item_advanced.py": 213
     }
   },
   {
@@ -34340,6 +34348,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no folder {folder}.",
     "recovery": "internal",
     "sources": {
+      "cdmw/mcp/new_item_advanced.py": 321,
       "cdmw/mcp/new_item_output.py": 90
     }
   },
@@ -34452,7 +34461,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no tree row {list(path)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 145
+      "cdmw/mcp/new_item_advanced.py": 172
     }
   },
   {
@@ -34460,7 +34469,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no {what} {key} here.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 135
+      "cdmw/mcp/new_item_advanced.py": 162
     }
   },
   {
@@ -34548,7 +34557,7 @@ MESSAGE_REFERENCE = [
     "message": "This editor has no tree.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 142
+      "cdmw/mcp/new_item_advanced.py": 169
     }
   },
   {
@@ -34828,7 +34837,7 @@ MESSAGE_REFERENCE = [
     "message": "Tick override first; this row cannot be edited now.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 218
+      "cdmw/mcp/new_item_advanced.py": 245
     }
   },
   {
@@ -35037,7 +35046,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown step kind {kind}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 221
+      "cdmw/mcp/new_item_advanced.py": 248
     }
   },
   {
@@ -35621,7 +35630,7 @@ MESSAGE_REFERENCE = [
     "message": "Wait for the current operation to finish, then try again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_advanced.py": 239,
+      "cdmw/mcp/new_item_advanced.py": 266,
       "cdmw/mcp/new_item_workflow.py": 53,
       "cdmw/ui/new_item/mod_merge_dialog.py": 191,
       "cdmw/ui/new_item/mod_update_dialog.py": 172
@@ -37623,6 +37632,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 538
+    }
+  },
+  {
+    "area": "items",
+    "message": "{target} already exists; choose another folder. CDMW does not replace it.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 333
     }
   },
   {
@@ -111669,8 +111686,8 @@ SOURCE_COVERAGE = {
   "cdmw/mcp/names.py": {},
   "cdmw/mcp/new_item_advanced.py": {
     "code": 9,
-    "raise": 20,
-    "report": 3
+    "raise": 25,
+    "report": 4
   },
   "cdmw/mcp/new_item_draft.py": {
     "raise": 2

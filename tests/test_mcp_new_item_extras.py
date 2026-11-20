@@ -200,3 +200,30 @@ def test_emitters_and_saved_effects_through_the_effects_tool(page):
                        saved_name="Nope")["error"]["code"] == "unavailable"
     assert effects(action="saved", saved_operation="delete", saved_name="My flame")["emitters"]["saved"] == []
 
+
+
+@pytest.mark.parametrize("page", ["independent"], indirect=True)
+def test_wearers_reference_and_rig_export_go_through_the_page(page, tmp_path):
+    client, tab = page
+    wearers = client.ok("new_item.advanced", action="state", editor="wearers")
+    assert set(wearers["fields"]) == {"choices.kliff", "choices.damiane", "choices.oongka"}
+    assert wearers["message"] == "All characters are already allowed by this template."
+    # The boxes are disabled for this template, and the page's reason comes back.
+    refused = client.call("new_item.advanced", action="apply", editor="wearers",
+                          steps=[{"kind": "set", "control": "choices.kliff", "value": False}])
+    assert refused["error"]["code"] == "invalid_arguments"
+    reference = client.ok("new_item.advanced", action="state", editor="fitting_reference")
+    assert "never exported" in reference["tooltip"] and not reference["buttons"]["clear_reference_button"]["enabled"]
+    assert client.ok("new_item.advanced", action="state", editor="rig")["message"] == "Template skeleton"
+
+    # Export rig GLB: the page's folder prompt is answered, and its own failure comes back.
+    out = tmp_path / "rig"
+    out.mkdir()
+    failed = client.call("new_item.export_rig", folder=str(out))
+    assert failed["error"]["code"] == "unavailable" and "rig could not be exported" in failed["error"]["message"]
+    assert not list(out.iterdir())
+    entry = tab.controller.template_primary_entry()
+    (out / (Path(str(entry.path)).stem + "_rig.glb")).write_bytes(b"mine")
+    kept = client.call("new_item.export_rig", folder=str(out))
+    assert "does not replace" in kept["error"]["message"]
+    assert client.call("new_item.export_rig", folder=str(tmp_path / "Crimson Desert"))["error"]["code"] == "refused"
