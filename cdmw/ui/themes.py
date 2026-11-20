@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 from typing import Dict
 
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPalette, QPen
 
 from cdmw.constants import (
     DEFAULT_UI_DATA_FONT_SIZE,
@@ -680,6 +683,66 @@ def _settings_performance_stylesheet(theme: Dict[str, str], metrics: Dict[str, i
     """
 
 
+_MARK_FOLDER = Path(tempfile.gettempdir()) / "cdmw-theme-marks"
+
+
+def _draw_mark(kind: str, color: str, size: int) -> QImage:
+    """One indicator mark on a transparent square, drawn in a 12-unit box scaled to `size`."""
+
+    image = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
+    image.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(image)
+    try:
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.scale(size / 12.0, size / 12.0)
+        if kind == "dot":
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(color))
+            painter.drawEllipse(QPointF(6.0, 6.0), 2.6, 2.6)
+        else:
+            pen = QPen(QColor(color), 1.9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
+                       Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            path = QPainterPath()
+            if kind == "dash":
+                path.moveTo(3.0, 6.0)
+                path.lineTo(9.0, 6.0)
+            else:
+                path.moveTo(2.6, 6.3)
+                path.lineTo(5.0, 8.7)
+                path.lineTo(9.5, 3.5)
+            painter.drawPath(path)
+    finally:
+        painter.end()
+    return image
+
+
+def _indicator_mark(kind: str, color: str) -> str:
+    """Path of a check, dash or dot image in `color` for style sheets, with a @2x copy for HiDPI.
+
+    Style sheets only take images from files, and the colour follows the theme, so the marks
+    are drawn once per colour into a temp folder; a missing or unwritable file just leaves the
+    indicator as a filled box, as before.
+    """
+
+    name = f"{kind}-{QColor(color).name(QColor.NameFormat.HexArgb).lstrip('#')}"
+    path = _MARK_FOLDER / f"{name}.png"
+    try:
+        if not path.is_file() or not (_MARK_FOLDER / f"{name}@2x.png").is_file():
+            _MARK_FOLDER.mkdir(parents=True, exist_ok=True)
+            _draw_mark(kind, color, 12).save(str(path), "PNG")
+            _draw_mark(kind, color, 24).save(str(_MARK_FOLDER / f"{name}@2x.png"), "PNG")
+    except OSError:
+        return ""
+    return path.as_posix()
+
+
+def _image_rule(kind: str, color: str) -> str:
+    mark = _indicator_mark(kind, color)
+    return f'image: url("{mark}");' if mark else ""
+
+
 def _app_status_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> str:
     return f"""
     QLabel#ArchiveCacheStatusChip {{
@@ -727,6 +790,17 @@ def _app_status_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> st
         background: {theme["accent"]};
         border: 2px solid {theme["accent"]};
     }}
+    QCheckBox::indicator:checked, QGroupBox::indicator:checked {{
+        {_image_rule("check", theme["accent_text"])}
+    }}
+    QRadioButton::indicator:checked {{
+        {_image_rule("dot", theme["accent_text"])}
+    }}
+    QCheckBox::indicator:indeterminate {{
+        background: {theme["accent"]};
+        border: 2px solid {theme["accent"]};
+        {_image_rule("dash", theme["accent_text"])}
+    }}
     QCheckBox::indicator:hover, QGroupBox::indicator:hover, QRadioButton::indicator:hover,
     QCheckBox::indicator:focus, QGroupBox::indicator:focus, QRadioButton::indicator:focus {{
         border-color: {theme["text_strong"]};
@@ -739,6 +813,12 @@ def _app_status_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> st
     QRadioButton::indicator:checked:disabled {{
         background: {theme["button_disabled_text"]};
     }}
+    QCheckBox::indicator:checked:disabled, QGroupBox::indicator:checked:disabled {{
+        {_image_rule("check", theme["button_disabled"])}
+    }}
+    QRadioButton::indicator:checked:disabled {{
+        {_image_rule("dot", theme["button_disabled"])}
+    }}
     QTreeWidget#ScenePanelTree::indicator {{
         width: 12px;
         height: 12px;
@@ -750,6 +830,7 @@ def _app_status_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> st
     QTreeWidget#ScenePanelTree::indicator:checked {{
         background: {theme["accent"]};
         border: 2px solid {theme["accent"]};
+        {_image_rule("check", theme["accent_text"])}
     }}
     QTreeWidget#ScenePanelTree::indicator:indeterminate {{
         background: {theme["accent_soft"]};
