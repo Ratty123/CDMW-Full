@@ -25,6 +25,9 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Browse Archives** previews of large animation (`.paa`) and collision (`.hkx`) files open in seconds. The keyframe scan of a large cutscene clip took up to two and a half minutes, and an `.hkx` preview built the whole editing document, which the preview does not show.
+- **Browse Archives** previews run-length encoded `.tga` files, which are most of the game's, instead of showing an empty pane. A TGA that cannot be read says so.
+- **Browse Archives** sound previews keep the details and the play controls at the top of the pane. Video previews show one line of details above the picture, with the rest on hover, so the video gets the height.
 - **Textures > Edit** works again after a visit to **Replace**. The tool buttons, the canvas, Undo, **Actions** and **Save PNG** stayed disabled, with the status stuck on "Preparing replacement review...", until you picked another texture in the list.
 - The **Texture Editor** keeps the colour stored under fully transparent pixels when it saves or exports, so a texture opened and saved without an edit comes out the same. Game textures keep real colour there for mip maps and edge filtering; CDMW set it to black, which can show as dark fringes in game.
 - **Texture Editor:** the selection's **Feather** is applied once. Adding to a selection, **Grow**, **Shrink**, flipping or rotating the image, crop, resize and loading a mask or channel as a selection each blurred the selection's edge again.
