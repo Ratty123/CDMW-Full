@@ -115,3 +115,13 @@ def test_definition_generation_mismatches_and_unknown_seal_variants_refuse():
         set_definition_fields(raw, {'faction': faction})
     with pytest.raises(ValueError, match='Unknown|Unsupported'):
         replace_layout_fields(read_item_layout(raw), {'_sealableItemInfoList': struct.pack('<I', 1) + sealable(6, 1)})
+
+
+def test_shipped_empty_sealable_entries_write_back():
+    # KuKu_Pot_TwoHandSpear and Kuku_Pot_BackPack ship sealable entries with item 0, count 0.
+    fields = definition_fields(True)
+    fields['_sealableItemInfoList'] = struct.pack('<I', 2) + sealable(0, 1000220) + sealable(0, 0, item=0, count=0)
+    raw = full_item(current=True, fields=fields)
+    shipped = read_definition_fields(raw)['sealable_items']
+    assert shipped[1]['item'] == 0 and shipped[1]['count'] == 0
+    assert set_definition_fields(raw, {'sealable_items': shipped}) == raw

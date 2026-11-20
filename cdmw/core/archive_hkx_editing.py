@@ -357,6 +357,41 @@ def _patch_hkx_advanced_payloads(output, spans, records_by_index, document, curr
                 changed_fields.append(f"record[{record.index}].editable_values")
 
 
+def _hkx_json_value(value: object) -> object:
+    import json
+
+    return json.loads(json.dumps(value, default=str))
+
+
+def _hkx_edited_shape_list(
+    document: Mapping[str, object],
+    shapes: List[object],
+    current_document: Mapping[str, object],
+) -> List[object]:
+    """Pick the shape list the user edited.
+
+    The export writes the same shapes twice, as ``shapes`` and ``collision_shapes``.
+    Edits under ``collision_shapes`` used to be dropped without a word.
+    """
+
+    collision_shapes = document.get("collision_shapes")
+    if not isinstance(collision_shapes, list):
+        return shapes
+    edited_shapes = _hkx_json_value(shapes)
+    edited_collision = _hkx_json_value(collision_shapes)
+    if edited_collision == edited_shapes:
+        return shapes
+    current = _hkx_json_value(current_document.get("shapes", []))
+    if edited_shapes == current:
+        return collision_shapes
+    if edited_collision == current:
+        return shapes
+    raise ValueError(
+        "The HKX document has different edits under \"shapes\" and \"collision_shapes\". "
+        "They are two copies of the same list; make the edit in one of them."
+    )
+
+
 def apply_hkx_editable_geometry_document(data: bytes, document: Mapping[str, object]) -> HkxGeometryPatchResult:
     from cdmw.core import archive_hkx as hkx
 
@@ -378,6 +413,7 @@ def apply_hkx_editable_geometry_document(data: bytes, document: Mapping[str, obj
     records_by_index = {record.index: record for record in summary.item_records}
     current_document = hkx.build_hkx_editable_geometry_document(data, "")
     _hkx_validate_converter_invariants(document, current_document)
+    shapes = _hkx_edited_shape_list(document, shapes, current_document)
     current_shapes_by_index = {
         shape.get("index"): shape
         for shape in current_document.get("shapes", [])

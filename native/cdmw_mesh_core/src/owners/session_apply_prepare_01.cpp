@@ -297,7 +297,10 @@ void mesh_editor_capture_apply_history(
         if (found == native_session.end()) {
             continue;
         }
-        if (topology_candidate) {
+        // Generate Tangents can split vertices along UV seams, which turns it
+        // into a topology change after the fact; keep the whole part so the
+        // history can restore it (otherwise the commit throws).
+        if (topology_candidate || state.tangent_operation) {
             state.pre_edit_submeshes[index] = found->second;
         }
         if (topology_candidate && !state.auto_uv_operation && !state.material_operation) {

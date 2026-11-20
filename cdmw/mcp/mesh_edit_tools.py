@@ -420,7 +420,9 @@ def mesh_edit_tools() -> list[Tool]:
                          "smooth_strength, smooth_iterations), loop_cut (cuts, factor), edge_split, split, "
                          "dissolve, bridge, fill, merge, weld (threshold), extrude (offset [x, y, z]), inset "
                          "(amount), separate (Create Part). Most need Free Edit output (mesh_output_policy); "
-                         "CDMW refuses what the output cannot hold, as for the button. One History step.",
+                         "CDMW refuses what the output cannot hold, as for the button. In Exact output, delete "
+                         "works on PAC faces only (not PAM or PAMLOD), and deleting whole Parts (params "
+                         "delete_parts) needs Free Edit; untick Include instead. One History step.",
              input_schema=object_schema({"action": {"type": "string", "enum": list(_topology_actions())},
                                          "params": {"type": "object"}, "label": label}, ["action"]),
              effect=EDIT, route="helper:cdmw_command topology", handler=_labelled("topology"),
@@ -432,7 +434,10 @@ def mesh_edit_tools() -> list[Tool]:
                          "generate_tangents, flip_normals, sharpen_normals, soften_normals, weighted_normals, "
                          "copy_normals, uv_transform (offset, scale, rotate_degrees, pivot, flip_u, flip_v, "
                          "normalize, align_u, align_v ...). CDMW checks each against the output as for the "
-                         "button. One History step.",
+                         "button: in Exact output flip_normals is refused (it reverses face winding), and on PAM "
+                         "and PAMLOD the normal and tangent actions are refused outside Free Edit because those "
+                         "files store no normals or tangents. generate_tangents that would split vertices along a "
+                         "UV seam needs Free Edit. One History step.",
              input_schema=object_schema({"action": {"type": "string", "enum": list(_mesh_actions())},
                                          "params": {"type": "object"}, "label": label}, ["action"]),
              effect=EDIT, route="helper:cdmw_command mesh_action", handler=_labelled("mesh_action"),

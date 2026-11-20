@@ -33,11 +33,15 @@ class DmmSendResult:
     title: str
 
 
+def usual_dmm_places() -> list[str]:
+    """Where DMM is usually installed."""
+    return [r"C:\DMM", os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "DMM"),
+            os.path.join(os.environ.get("ProgramFiles", ""), "DMM")]
+
+
 def find_dmm(saved: str = "") -> Optional[Path]:
     """The DMM folder (the one holding DMM.exe): the saved choice, else a usual place."""
-    candidates = [saved] if saved else []
-    candidates += [r"C:\DMM", os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "DMM"),
-                   os.path.join(os.environ.get("ProgramFiles", ""), "DMM")]
+    candidates = ([saved] if saved else []) + usual_dmm_places()
     for candidate in candidates:
         if candidate and (Path(candidate) / "DMM.exe").is_file():
             return Path(candidate)

@@ -130,3 +130,43 @@ def test_a_bad_tolerance_falls_back_to_the_default(monkeypatch, value):
     mesh = _mesh()
     command = MeshEditCommand(action="remove_collapsed_faces", params={"area_epsilon": value})
     assert apply_mesh_edit_geometry_action(mesh, command, MeshEditSelection())[0] == {0}
+
+
+
+def _native_or_skip():
+    from cdmw.modding import mesh_native_core
+
+    if not mesh_native_core.native_mesh_core_available():
+        pytest.skip("native mesh core binary not available")
+    return mesh_native_core
+
+
+def test_the_native_core_implements_the_operation(monkeypatch):
+    """With the native core present the Python fallback is blocked, so the core has to do it."""
+
+    monkeypatch.delenv("CDMW_DISABLE_NATIVE_MESH_CORE", raising=False)
+    native = _native_or_skip()
+    mesh = _mesh()
+    python_mesh = _mesh()
+    expected = remove_collapsed_faces(python_mesh)
+    command = MeshEditCommand(action="remove_collapsed_faces", params={})
+    native.clear_native_mesh_core_fallback_counts()
+    affected, changed = apply_mesh_edit_geometry_action(mesh, command, MeshEditSelection())
+    assert native.native_mesh_core_fallback_counts() == {}
+    assert affected == set(expected.affected_submesh_indices) == {0} and changed == {}
+    for native_part, python_part in zip(mesh.submeshes, python_mesh.submeshes):
+        assert [tuple(face) for face in native_part.faces] == [tuple(face) for face in python_part.faces]
+        assert [tuple(v) for v in native_part.vertices] == pytest.approx([tuple(v) for v in python_part.vertices])
+        assert [tuple(uv) for uv in native_part.uvs] == pytest.approx([tuple(uv) for uv in python_part.uvs])
+        assert [tuple(b) for b in native_part.bone_indices] == [tuple(b) for b in python_part.bone_indices]
+    assert apply_mesh_edit_geometry_action(mesh, command, MeshEditSelection())[0] == set()
+
+
+def test_the_native_operation_can_keep_unused_vertices(monkeypatch):
+    monkeypatch.delenv("CDMW_DISABLE_NATIVE_MESH_CORE", raising=False)
+    _native_or_skip()
+    mesh = _mesh()
+    command = MeshEditCommand(action="remove_collapsed_faces", params={"remove_unused_vertices": False})
+    assert apply_mesh_edit_geometry_action(mesh, command, MeshEditSelection())[0] == {0}
+    part = mesh.submeshes[0]
+    assert len(part.vertices) == 8 and [tuple(face) for face in part.faces] == [(0, 1, 2), (1, 3, 2)]
