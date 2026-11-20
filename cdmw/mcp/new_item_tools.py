@@ -231,6 +231,7 @@ def _painting_close(call) -> dict[str, object]:
 
 
 def new_item_tools() -> list[Tool]:
+    from cdmw.mcp.new_item_advanced import advanced_tool
     from cdmw.mcp.new_item_draft import draft_tools
     from cdmw.mcp.new_item_effects import effects_tool
     from cdmw.mcp.new_item_fields import field_tool
@@ -259,6 +260,7 @@ def new_item_tools() -> list[Tool]:
              effect=EDIT, route="ui:TemplatePanel.matches", handler=_pick, runs_on=ON_CALL),
         *draft_tools(),
         field_tool(),
+        advanced_tool(),
         model_tool(),
         effects_tool(),
         *output_tools(),

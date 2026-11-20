@@ -3017,6 +3017,7 @@ ERROR_REFERENCE = [
       "Give key, keys or search",
       "Give path, set or ticked_parts, not more than one.",
       "Give piece: a .pac path or file name, or a prefab name.",
+      "Give steps to apply.",
       "Give the draft's name.",
       "Give the rows of the downloaded copies to delete.",
       "Give the table, or the archive path of a .staticinfobody or .staticinfoheader file.",
@@ -3063,10 +3064,12 @@ ERROR_REFERENCE = [
       "There is no such row in Model Library.",
       "These values change nothing.",
       "This action needs '{key}'.",
+      "This editor has no tree.",
       "This is not a CDMW language file: {exc}",
       "Unknown argument {extra[0]}",
       "Unknown category {category}; use one of {', '.join(CATEGORIES)}.",
       "Unknown manager output {sorted(unknown)[0]}; the page offers {sorted(tab.profile_checkboxes)}.",
+      "Unknown step kind {kind}.",
       "Unknown template field {sorted(unknown)[0]}.",
       "Unknown {name}: {options[name]}.",
       "Unknown {what} field {sorted(unknown)[0]}; known: {sorted(table)}.",
@@ -3127,6 +3130,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/mesh_session_tools.py",
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/model_library_tools.py",
+      "cdmw/mcp/new_item_advanced.py",
       "cdmw/mcp/new_item_effects.py",
       "cdmw/mcp/new_item_files.py",
       "cdmw/mcp/new_item_model.py",
@@ -3646,9 +3650,11 @@ ERROR_REFERENCE = [
       "The loaded archive index has no such texture.",
       "The loaded {index.table} table has no row {key}.",
       "The mesh has parts 0 to {len(parts) - 1}.",
+      "The table has {table.rowCount()} rows.",
       "There is no animation {index}; files_action_chart_state lists them.",
       "There is no animation {index}; this chart has {len(chart.animations)}.",
       "There is no audio file {source}.",
+      "There is no cell at row {row}, column {column}.",
       "There is no change with that number; tables_editor_state lists them.",
       "There is no column {column}.",
       "There is no command {command_id} now. commands_list lists them; the Mesh Editor's and the Texture Editor's exist while their tool is open.",
@@ -3667,7 +3673,9 @@ ERROR_REFERENCE = [
       "There is no tab {row}.",
       "There is no table {table}; files_action_chart_state lists them.",
       "There is no table {table}; tables lists them.",
+      "There is no tree row {list(path)}.",
       "There is no workflow profile {profile_id}.",
+      "There is no {what} {key} here.",
       "This appearance lists no piece {a['piece']}.",
       "This event has no field {field}.",
       "This joint has no {key}.",
@@ -3699,6 +3707,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/mod_management_tools.py",
       "cdmw/mcp/model_library_tools.py",
+      "cdmw/mcp/new_item_advanced.py",
       "cdmw/mcp/npc_tools.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/prefab_tools.py",
@@ -30638,6 +30647,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Give steps to apply.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 231
+    }
+  },
+  {
+    "area": "items",
     "message": "Give the item an internal name.",
     "recovery": "internal",
     "sources": {
@@ -32859,10 +32876,34 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "That cell cannot be edited.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 193
+    }
+  },
+  {
+    "area": "items",
+    "message": "That cell has no box to tick.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 189
+    }
+  },
+  {
+    "area": "items",
     "message": "That compression method is not supported",
     "recovery": "unsupported",
     "sources": {
       "native/cdmw_item_composer/src/zip_reader.cpp": 149
+    }
+  },
+  {
+    "area": "items",
+    "message": "That row has no box to tick.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 214
     }
   },
   {
@@ -34024,6 +34065,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The table has {table.rowCount()} rows.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 177
+    }
+  },
+  {
+    "area": "items",
     "message": "The table rejected this check state.",
     "recovery": "input",
     "sources": {
@@ -34264,6 +34313,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "There is no cell at row {row}, column {column}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 186
+    }
+  },
+  {
+    "area": "items",
     "message": "There is no folder {folder}.",
     "recovery": "internal",
     "sources": {
@@ -34360,6 +34417,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "There is no tree row {list(path)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 145
+    }
+  },
+  {
+    "area": "items",
+    "message": "There is no {what} {key} here.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 135
+    }
+  },
+  {
+    "area": "items",
     "message": "These mods cannot be combined into one package. CDMW combines mods built from item packages.",
     "recovery": "input",
     "sources": {
@@ -34436,6 +34509,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/new_item/rust_ui_registry.py": 64
+    }
+  },
+  {
+    "area": "items",
+    "message": "This editor has no tree.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 142
     }
   },
   {
@@ -34704,6 +34785,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Tick override first; this row cannot be edited now.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 218
+    }
+  },
+  {
+    "area": "items",
     "message": "Translucency materials were not found in the exported model: {detail}",
     "recovery": "missing",
     "sources": {
@@ -34901,6 +34990,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/new_item/rust_ui_actions.py": 247
+    }
+  },
+  {
+    "area": "items",
+    "message": "Unknown step kind {kind}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 221
     }
   },
   {
@@ -35484,6 +35581,7 @@ MESSAGE_REFERENCE = [
     "message": "Wait for the current operation to finish, then try again.",
     "recovery": "internal",
     "sources": {
+      "cdmw/mcp/new_item_advanced.py": 239,
       "cdmw/mcp/new_item_workflow.py": 53,
       "cdmw/ui/new_item/mod_merge_dialog.py": 191,
       "cdmw/ui/new_item/mod_update_dialog.py": 172
@@ -109238,6 +109336,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/new_item/iteminfo_operations.py",
     "cdmw/domain/new_item/iteminfo_overrides.py",
     "cdmw/domain/new_item/rules.py",
+    "cdmw/mcp/new_item_advanced.py",
     "cdmw/mcp/new_item_draft.py",
     "cdmw/mcp/new_item_effects.py",
     "cdmw/mcp/new_item_fields.py",
@@ -111512,6 +111611,11 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "cdmw/mcp/names.py": {},
+  "cdmw/mcp/new_item_advanced.py": {
+    "code": 9,
+    "raise": 20,
+    "report": 3
+  },
   "cdmw/mcp/new_item_draft.py": {
     "raise": 2
   },

@@ -1475,12 +1475,8 @@
       "area": "Create New Item",
       "what": "Experimental item definition, behavior, inventory, and shared game table editors",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 typed advanced table editors",
-      "also": [
-        "app.ui",
-        "app.ui_act"
-      ]
+      "tool": "new_item.advanced",
+      "note": "Writing a stock item package from Item settings is not reached by this tool."
     },
     {
       "id": "new_item.effect_emitters",

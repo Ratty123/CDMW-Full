@@ -1,4 +1,4 @@
-"""Create New Item > Send to DMM through the AI tools, on the real page with an owned archive."""
+"""Create New Item extras through the AI tools (Send to DMM, the advanced editors), on the real page with an owned archive."""
 from __future__ import annotations
 
 import os
@@ -13,10 +13,11 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from cdmw.mcp import approvals
 from tests.mcp_rail_helpers import RailClient, wait_for
+from tests.test_independent_item_settings import extended_game  # noqa: F401  (a fixture)
 
 
 @pytest.fixture
-def page(tmp_path, monkeypatch):
+def page(tmp_path, monkeypatch, request):
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.services.settings_service import create_settings
     from cdmw.ui.new_item.controller import NewItemStudioController
@@ -31,7 +32,13 @@ def page(tmp_path, monkeypatch):
     monkeypatch.setattr("cdmw.ui.new_item.panels_output.QDesktopServices.openUrl", lambda _url: True)
     monkeypatch.setattr("cdmw.ui.new_item.panels_output.resolve_settings_file_path", lambda: tmp_path / "CDMW.cfg")
     monkeypatch.setattr("cdmw.services.settings_service.resolve_settings_file_path", lambda: tmp_path / "CDMW.cfg")
-    entries = tuple(parse_archive_pamt(build_package(tmp_path / "snapshot", synthetic_files())))
+    if getattr(request, "param", None) == "independent":
+        # Game data with complete item settings, so the advanced editors can be used.
+        request.getfixturevalue("extended_game")
+        from tests.test_independent_items import setup_game
+        _service, _snapshot, entries = setup_game(tmp_path / "snapshot")
+    else:
+        entries = tuple(parse_archive_pamt(build_package(tmp_path / "snapshot", synthetic_files())))
 
     presenter = QWidget()
     shell = SimpleNamespace(new_item_studio_tab=presenter,
@@ -99,3 +106,52 @@ def test_send_to_dmm_writes_into_the_mods_folder_and_asks_before_replacing(page,
     assert replaced["started"]
     assert _finished(client)["replaced"]
     assert tab.output_panel.mod_name.text() == "Copper Sword"
+
+
+@pytest.mark.parametrize("page", ["independent"], indirect=True)
+def test_advanced_editors_change_the_draft_through_their_controls(page):
+    client, tab = page
+    draft = lambda: tab.controller.draft  # noqa: E731
+    apply = lambda editor, *steps: client.ok("new_item.advanced", action="apply", editor=editor,  # noqa: E731
+                                             steps=list(steps))
+    refused = lambda editor, *steps: client.call("new_item.advanced", action="apply", editor=editor,  # noqa: E731
+                                                 steps=list(steps))["error"]
+    state = apply("item_settings", {"kind": "press", "control": "load"})
+    assert state["fields"]["repair_item"]["count"] and state["buttons"]["reset"]["enabled"]
+    state = apply("item_settings", {"kind": "set", "control": "policies.discardable", "value": False},
+                  {"kind": "set", "control": "override_repairs", "value": True},
+                  {"kind": "set", "control": "repair_item", "value": 1},
+                  {"kind": "press", "control": "add_repair"},
+                  {"kind": "cell", "control": "repairs", "row": 0, "column": 3, "value": str((1 << 64) - 1)},
+                  {"kind": "set", "control": "cooldowns.1", "value": "18,446,744,073,709,551,615"})
+    settings = draft().item_settings
+    assert settings.discardable is False and settings.repairs[0].resource_count == (1 << 64) - 1
+    assert settings.cooldowns == (0, (1 << 64) - 1, 0)
+    assert state["applied_steps"] == 6 and state["tables"]["repairs"]["count"] == 1
+    # The page's own checks refuse: an unknown choice, a control that is not there, a stock package save.
+    error = refused("item_settings", {"kind": "set", "control": "repair_item", "value": 999999999})
+    assert error["code"] == "invalid_arguments" and error["data"]["applied_steps"] == 0
+    assert refused("item_settings", {"kind": "set", "control": "colour", "value": 1})["code"] == "not_found"
+    assert refused("item_settings", {"kind": "press", "control": "write_stock"})["code"] == "unavailable"
+    # A value the editor cannot store leaves the draft as it was.
+    apply("item_settings", {"kind": "cell", "control": "repairs", "row": 0, "column": 3, "value": "1.5"})
+    assert draft().item_settings.repairs[0].resource_count == (1 << 64) - 1
+
+    # The definition page's tree: tick override, then edit a row by its path.
+    definition = client.ok("new_item.advanced", action="state", editor="definition")
+    assert definition["fields"]["section"]["count"]
+    apply("definition", {"kind": "press", "control": "load"})
+    state = apply("definition", {"kind": "set", "control": "section", "value": "text"},
+                  {"kind": "set", "control": "field", "value": "knowledge_key"},
+                  {"kind": "set", "control": "override", "value": True})
+    assert state["tree"]["rows"][0] == {"path": [], "label": "Knowledge link", "value": "0", "editable": True}
+    state = apply("definition", {"kind": "tree_value", "path": [], "value": "77"})
+    assert state["tree"]["rows"][0]["value"] == "77"
+    assert draft().definition_settings.fields == {"knowledge_key": 77}
+    assert refused("definition", {"kind": "tree_value", "path": ["nope"], "value": "1"})["code"] == "not_found"
+    # Game table changes: Set value waits for a loaded table and a chosen value, as on the page.
+    tables = client.ok("new_item.advanced", action="state", editor="game_tables")
+    assert tables["fields"]["table"]["count"] and tables["edits"] == []
+    assert refused("game_tables", {"kind": "press", "control": "set"})["code"] == "unavailable"
+    apply("item_settings", {"kind": "press", "control": "reset"})
+    assert draft().item_settings is None
