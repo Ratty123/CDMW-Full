@@ -2891,6 +2891,9 @@ ERROR_REFERENCE = [
     "messages": [
       "Combine into One Mod closed before producing an output.",
       "Combine into One Mod did not finish in time.",
+      "Nothing was saved as a mod; the HKX Physics Editor says why.",
+      "The HKX Physics Editor did not open in time.",
+      "The HKX Physics Editor did not save in time.",
       "The Mesh Editor did not take the command.",
       "The Mesh Editor did not take the export.",
       "The Mesh Editor did not take the selection.",
@@ -2904,6 +2907,7 @@ ERROR_REFERENCE = [
       "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}"
     ],
     "sources": [
+      "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/mesh_edit_tools.py",
       "cdmw/mcp/mesh_tools.py",
@@ -2957,12 +2961,14 @@ ERROR_REFERENCE = [
       "An edge of part {part} is not two of its vertices 0 to {count - 1}.",
       "At most {MAX_ROWS * 8} rows at once.",
       "CDMW does not decode {table}. It decodes: {', '.join(sorted(DECODED_TABLES))}",
+      "Choose a factor from {box.minimum()} to {box.maximum()}.",
       "Choose a supported numeric preset or value.",
       "Choose a supported worker count.",
       "Choose a value from {control.minimum()} to {control.maximum()}.",
       "Choose editor=tool for the rail's Textures workflow.",
       "Choose existing source mod folders.",
       "Choose one of {', '.join(values)}.",
+      "Choose {key} from {spin.minimum()} to {spin.maximum()}.",
       "Enter a nonnegative whole number.",
       "Enter a valid colour, for example #ff8844.",
       "Enter an absolute path or clear the setting.",
@@ -2986,6 +2992,7 @@ ERROR_REFERENCE = [
       "Paint points must be within the {width} by {height} mask.",
       "Part {part} has triangles 0 to {count - 1}.",
       "Part {part} has vertices 0 to {count - 1}.",
+      "Save the edited file as a .hkx file.",
       "Supply exactly one PNG path or base64 data.",
       "Supply the list of paths to ignore.",
       "That cell holds a number.",
@@ -2995,6 +3002,7 @@ ERROR_REFERENCE = [
       "The destination must end in {suffix}.",
       "The docked editor opens a mesh texture by texture ID or game path.",
       "The local file path must be absolute.",
+      "The output folder does not exist: {folder}",
       "The output folder does not exist: {target}",
       "The package path must end in {PACKAGE_EXTENSION}.",
       "The requested region extends outside the image.",
@@ -3043,6 +3051,7 @@ ERROR_REFERENCE = [
     ],
     "sources": [
       "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/local_file_tools.py",
       "cdmw/mcp/mesh_edit_tools.py",
       "cdmw/mcp/mesh_tools.py",
@@ -3546,9 +3555,12 @@ ERROR_REFERENCE = [
       "There is no control {text} now. Call app_ui for the controls shown.",
       "There is no file {wanted}.",
       "There is no job {job_id}.",
+      "There is no joint {index}; files_hkx_state lists them.",
+      "There is no name {item}; files_hkx_state lists them.",
       "There is no supported Settings control for {raw}.",
       "There is no tab {row}.",
       "This appearance lists no piece {a['piece']}.",
+      "This joint has no {key}.",
       "{clean_label(action.text())} has no submenu.",
       "{clean_label(found.text())} has no submenu.",
       "{error}. The archives have: {languages}.",
@@ -3562,6 +3574,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/app_read_tools.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/item_icon_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/local_file_tools.py",
@@ -3740,13 +3753,16 @@ ERROR_REFERENCE = [
       "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool. It was put back.",
       "Only you can run this command in CDMW: it can change the AI connection settings or the game folder, or it writes into the game.",
       "Only you can use this control in CDMW: AI connections, their approvals, Full access, the game folder and what writes into the game are never driven by a tool.",
+      "The HKX Physics Editor refused the save.",
       "The current animation draft was kept.",
-      "{destination} already exists; name a new package."
+      "{destination} already exists; name a new package.",
+      "{key} cannot change on this joint."
     ],
     "sources": [
       "cdmw/mcp/approvals.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/item_icon_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/model_library_tools.py",
@@ -20915,6 +20931,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Browse Archives is unavailable.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 32
+    }
+  },
+  {
+    "area": "formats",
     "message": "Bytes at 0x{text_at} are not what was read there",
     "recovery": "internal",
     "sources": {
@@ -20923,10 +20947,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Choose a factor from {box.minimum()} to {box.maximum()}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 147
+    }
+  },
+  {
+    "area": "formats",
     "message": "Choose where to write the prefab package.",
     "recovery": "write",
     "sources": {
       "cdmw/services/independent_prefab_authoring.py": 129
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Choose {key} from {spin.minimum()} to {spin.maximum()}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 136
     }
   },
   {
@@ -21627,6 +21667,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Joints cannot change while another file's collision is used.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 86
+    }
+  },
+  {
+    "area": "formats",
     "message": "Likely Havok array capacity and flags word. Rebuilding this safely is not supported yet.",
     "recovery": "unsupported",
     "sources": {
@@ -21919,6 +21967,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 899
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Nothing was saved as a mod; the HKX Physics Editor says why.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 224
     }
   },
   {
@@ -23038,6 +23094,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Save the edited file as a .hkx file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 173
+    }
+  },
+  {
+    "area": "formats",
     "message": "Section {tag} at {offset} overruns its parent.",
     "recovery": "internal",
     "sources": {
@@ -23050,6 +23114,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_hkx_tagfile_model.py": 236
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Select a Crimson Desert .hkx file in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 100
     }
   },
   {
@@ -23159,6 +23231,38 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The HKX Physics Editor did not open in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 111
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The HKX Physics Editor did not save in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 191
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The HKX Physics Editor is not open. Select a .hkx file and call files_hkx_edit with action open.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 41
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The HKX Physics Editor refused the save.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 185
+    }
+  },
+  {
+    "area": "formats",
     "message": "The HKX XML editor is empty.",
     "recovery": "empty",
     "sources": {
@@ -23259,6 +23363,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/hkx_physics_editor_service.py": 275
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The output folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 200
     }
   },
   {
@@ -23503,6 +23615,38 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "There is no joint {index}; files_hkx_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 92
+    }
+  },
+  {
+    "area": "formats",
+    "message": "There is no name {item}; files_hkx_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 162
+    }
+  },
+  {
+    "area": "formats",
+    "message": "This HKX file has no joints CDMW can edit.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 84
+    }
+  },
+  {
+    "area": "formats",
+    "message": "This HKX file has no names CDMW can change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 153
+    }
+  },
+  {
+    "area": "formats",
     "message": "This file cannot be edited.",
     "recovery": "input",
     "sources": {
@@ -23515,6 +23659,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 256
+    }
+  },
+  {
+    "area": "formats",
+    "message": "This joint has no {key}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 130
     }
   },
   {
@@ -26081,6 +26233,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_hkx_joint_limits.py": 263
+    }
+  },
+  {
+    "area": "formats",
+    "message": "{key} cannot change on this joint.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 133
     }
   },
   {
@@ -85739,6 +85899,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The mod-ready export prompt has changed; CDMW cannot fill it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/mod_ready_prompt.py": 38
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod-ready export prompt has no Continue button.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mod_ready_prompt.py": 49
+    }
+  },
+  {
+    "area": "other",
     "message": "The modded copy of {path} has a different layout than the game's.",
     "recovery": "internal",
     "sources": {
@@ -107414,6 +107590,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/prefab_corpus_report_stages_1.py",
     "cdmw/core/prefab_json_apply.py",
     "cdmw/core/prefab_json_validation.py",
+    "cdmw/mcp/hkx_tools.py",
     "cdmw/services/hkx_edit_service.py",
     "cdmw/services/hkx_physics_editor_service.py",
     "cdmw/services/prefab_speed_service.py",
@@ -109628,6 +109805,11 @@ SOURCE_COVERAGE = {
     "diagnostic_text": 2,
     "raise": 1
   },
+  "cdmw/mcp/hkx_tools.py": {
+    "code": 16,
+    "raise": 23,
+    "report": 8
+  },
   "cdmw/mcp/item_icon_tools.py": {
     "code": 4,
     "raise": 7,
@@ -109665,6 +109847,9 @@ SOURCE_COVERAGE = {
   "cdmw/mcp/mod_management_tools.py": {
     "code": 3,
     "raise": 8
+  },
+  "cdmw/mcp/mod_ready_prompt.py": {
+    "raise": 2
   },
   "cdmw/mcp/model_library_tools.py": {
     "code": 2,
