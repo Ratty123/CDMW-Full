@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "about": "Every registry command and every capability of every panel, with the AI tool that covers it or an accepted gap. Gaps: not_built (names the milestone that builds it), needs_pointer (names the tool that takes points instead), writes_into_game (no tool ever covers it), user_only (only the user may do it). A row may add 'also': the generic tools that reach it meanwhile. tests/test_mcp_coverage.py keeps this file current.",
+  "about": "Every registry command and every capability of every panel, with the AI tool that covers it or an accepted gap. Gaps: not_built (names the milestone that builds it), needs_pointer (names the tool that takes points instead), writes_into_game (no tool ever covers it), user_only (only the user may do it). A row may add 'also': the generic tools that reach it meanwhile. tests/test_mcp_coverage.py keeps this file current. 'surfaces' has one row per menu entry, dialog class, Mesh Editor host command, Mesh Editor helper control and rail page found in the source, each with its tool, its registry command or a gap; generic_only is a gap the generic tools already reach and names the plan item that will type it.",
   "commands": {
     "browse.appearance_composite": {
       "tool": "app.run_command",
@@ -1752,6 +1752,2116 @@
       "what": "Export selected item packages for DMM to enable and mount later",
       "class": "output",
       "tool": "mods.export"
+    }
+  ],
+  "surfaces": [
+    {
+      "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Find Action Chart by Character...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 14
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Open Action Chart Mod...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 14
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Add Bones...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 13
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Asset Family...",
+      "command": "browse.asset_family"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Batch Export Selected Models as FBX...",
+      "command": "browse.batch_export_fbx"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Batch Export Selected Models as GLB...",
+      "command": "browse.batch_export_glb"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Batch Export Selected Models as OBJ...",
+      "command": "browse.batch_export_obj"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Continue Earlier Work...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Copy Filename",
+      "command": "browse.copy_filename"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Action Chart...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 14
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Game Table Values...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 13
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Edit HKX Physics...",
+      "command": "browse.hkx_physics_editor"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Skinned Decal...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 13
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Sound Bank as Loose Mod...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 14
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Structured Data Safely...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export Character and Related Game Files...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export Decode JSON...",
+      "command": "browse.sidecar_export_json"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export Family...",
+      "command": "browse.export_family"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export File Paths...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export File...",
+      "command": "browse.export_file"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export Folder...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export Prefab Edit JSON...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 13
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export Skeleton Edit JSON...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 13
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export This Model as FBX...",
+      "command": "browse.export_fbx"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export This Model as GLB...",
+      "command": "browse.export_glb"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export This Model as OBJ (Neutral Appearance)...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export This Model as OBJ...",
+      "command": "browse.export_obj"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Export WAV...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 14
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Extract File...",
+      "command": "browse.extract_file"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Extract Filtered",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Extract Selected",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Filter to Family",
+      "command": "browse.filter_to_family"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Find Action Chart by Character...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 14
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Import Loose Mod Folder...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Import Prefab Edit JSON...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 13
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Import Skeleton Edit JSON...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 13
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Import WAV as Loose Mod...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 14
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Inspect Structured Data...",
+      "command": "browse.sidecar_inspect"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Open Prefab Inspector...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 13
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Open Preview Window...",
+      "command": "browse.open_preview_window"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Open in Mesh Editor",
+      "command": "browse.open_in_mesh_editor"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Open set in Mesh Editor",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Preview",
+      "command": "browse.preview"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Preview only this file",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Replace Embedded Sound as Loose Mod...",
+      "gap": "not_built",
+      "item": 6,
+      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "typed_by": 14
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Show Only This File",
+      "command": "browse.show_only_file"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/command_strip.py|<source.text()>",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/header.py|<label>",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/header.py|Reset Columns",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/header.py|Show All Columns",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/item_set_components.py|<label>",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<change>",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<copy_action>",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<move>",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<retarget>",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<undo>",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<users>",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/prefab_inspector_structure.py|<duplicate>",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/prefab_inspector_structure.py|<remove>",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/preview_d3d11_parts.py|<label>",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/preview_d3d11_parts.py|Hide added prefab pieces",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/preview_d3d11_parts.py|Show all parts",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/preview_layout.py|<action_text>",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/preview_layout.py|<icon>",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/reference_preview.py|<menu_icons[kind]>",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_callbacks_parts_outliner_mapping_part_01.py|<_state.original_part_clipboard_action_text['paste_replacement_source']>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_callbacks_parts_outliner_mapping_part_01.py|<label>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_routing_callbacks.py|<label>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_routing_callbacks.py|<original_part_clipboard_action_text['copy_part_with_textures']>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py|<_state._morph_slider_reload_action_text_helper()>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_source_role_tree_callbacks.py|<original_part_clipboard_action_text['paste_replacement_source']>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_source_role_tree_callbacks.py|<source_part_context_menu_text['apply']>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_source_role_tree_callbacks.py|<spec.label>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_ignored_folders.py|Remove selected",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/commands/shortcuts_page.py|Change...",
+      "tool": "shortcuts.change"
+    },
+    {
+      "key": "menu:cdmw/ui/commands/shortcuts_page.py|Record a new key",
+      "tool": "shortcuts.change"
+    },
+    {
+      "key": "menu:cdmw/ui/commands/shortcuts_page.py|Reset to default",
+      "tool": "shortcuts.change"
+    },
+    {
+      "key": "menu:cdmw/ui/commands/shortcuts_page.py|Unbind",
+      "tool": "shortcuts.change"
+    },
+    {
+      "key": "menu:cdmw/ui/item_icons/tab.py|Delete Source",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/item_icons/tab.py|Open Folder",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/item_icons/tab.py|Open In Texture Editor",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/mesh_editor/textures_panel.py|<f'{texture_role_label(row.role)}: {row.file_name}'>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/mesh_editor/workspace_interaction.py|<label>",
+      "gap": "not_built",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|<'Uncheck Row' if is_checked else 'Check Row'>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|<f'Delete Checked Local Copies ({len(checked_deletable)})'>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|<f'Download + {self._new_item_tool_name()}'>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|<f'Download Checked ({len(checked_mirrors)})'>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|<f'Show Checked File URLs ({len(checked_mirrors)})'>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|<f'Use in {self._new_item_tool_name()}'>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Delete Local Copy",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Delete Local File / Folder",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Download This",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Generate Icon From Preview",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Open Folder",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Open Model Page",
+      "gap": "user_only",
+      "reason": "Opens a web page outside CDMW."
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Open Preferred File URL",
+      "gap": "user_only",
+      "reason": "Opens a web page outside CDMW."
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Preview Here",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Preview In Archive Browser",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Preview This",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Select All",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Select None",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/commands.py|Show File URLs for This",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/panels.py|Delete Local",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/panels.py|Delete No-Texture Downloads",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/panels.py|Download + Create New Item",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/panels.py|Open File URL",
+      "gap": "user_only",
+      "reason": "Opens a web page outside CDMW."
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/panels.py|Open Location",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:cdmw/ui/model_library/panels.py|Open Page",
+      "gap": "user_only",
+      "reason": "Opens a web page outside CDMW."
+    },
+    {
+      "key": "menu:cdmw/ui/new_item/panels_template.py|Copy Filename",
+      "gap": "not_built",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "menu:cdmw/ui/new_item/panels_template.py|Open In Archive Browser",
+      "gap": "not_built",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/activation_controller.py|Exit",
+      "gap": "user_only",
+      "reason": "The tray icon's menu: showing or closing CDMW is the user's."
+    },
+    {
+      "key": "menu:cdmw/ui/shell/activation_controller.py|Show Crimson Desert Mod Workbench",
+      "gap": "user_only",
+      "reason": "The tray icon's menu: showing or closing CDMW is the user's."
+    },
+    {
+      "key": "menu:cdmw/ui/shell/compact/rail.py|<owner.shell.export_diagnostics_action>",
+      "tool": "app.run_command",
+      "note": "The rail's menu repeats the shell menu's commands."
+    },
+    {
+      "key": "menu:cdmw/ui/shell/compact/rail.py|<owner.shell.open_about_action>",
+      "tool": "app.run_command",
+      "note": "The rail's menu repeats the shell menu's commands."
+    },
+    {
+      "key": "menu:cdmw/ui/shell/compact/rail.py|<owner.shell.profile_menu.menuAction()>",
+      "tool": "app.run_command",
+      "note": "The rail's menu repeats the shell menu's commands."
+    },
+    {
+      "key": "menu:cdmw/ui/shell/compact/rail.py|<owner.shell.window_menu.menuAction()>",
+      "tool": "app.run_command",
+      "note": "The rail's menu repeats the shell menu's commands."
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|About",
+      "command": "shell.about"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Copy Latest Problem Summary",
+      "command": "shell.copy_problem_summary"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Detach Current Tool",
+      "command": "shell.detach_tool"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Documentation",
+      "command": "shell.documentation"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Export Diagnostics...",
+      "command": "shell.export_diagnostics"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Export Profile...",
+      "command": "shell.export_profile"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Import Profile...",
+      "gap": "user_only",
+      "reason": "Import Profile can replace protected settings in one step."
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Open Crash Reports Folder",
+      "command": "shell.open_crash_reports"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Reattach All Tools",
+      "command": "shell.attach_all_tools"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Reattach Current Tool",
+      "command": "shell.attach_tool"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Report a Problem...",
+      "command": "shell.report_problem"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/menus.py|Settings",
+      "command": "shell.settings"
+    },
+    {
+      "key": "menu:cdmw/ui/shell/navigation_controller.py|<as_label(f'Show {title}')>",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:cdmw/ui/texture_editor_tab.py|<action>",
+      "gap": "not_built",
+      "item": 11,
+      "milestone": "P13 MCP gap plan item 11: Textures Replace, Recolor, Upscale and Review & Export tools"
+    },
+    {
+      "key": "menu:cdmw/ui/tools/dmm_packages_page.py|<button.text()>",
+      "gap": "not_built",
+      "item": 4,
+      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+    },
+    {
+      "key": "menu:tools/new_item_rust_ui_harness.py|Copy Filename",
+      "gap": "not_built",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "menu:tools/new_item_rust_ui_harness.py|Open In Archive Browser",
+      "gap": "not_built",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "menu:tools/placement_studio/key_timeline.py|Remove this key",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:tools/placement_studio/ui_kit.py|<box.text()>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:tools/placement_studio/window.py|<reset>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:tools/placement_studio/window_tasks.py|<_hang_like_text(source.label)>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "menu:tools/placement_studio/window_tasks.py|<box.text()>",
+      "gap": "not_built",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "dialog:cdmw/ui/ai_connections/approval_prompt.py|ApprovalPrompt",
+      "gap": "user_only",
+      "reason": "The approval prompt answers for the user; a tool never answers its own approval."
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/action_chart_editor_dialog.py|ActionChartEditorDialog",
+      "gap": "not_built",
+      "item": 14,
+      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/action_chart_export_dialog.py|ActionChartExportDialog",
+      "gap": "not_built",
+      "item": 14,
+      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/action_chart_finder_dialog.py|ActionChartFinderDialog",
+      "gap": "not_built",
+      "item": 14,
+      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/action_chart_link_dialog.py|ActionChartLinkDialog",
+      "gap": "not_built",
+      "item": 14,
+      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/failure_report.py|ArchiveFailureDialog",
+      "gap": "generic_only",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/game_table_actions.py|GameTableEditDialog",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/hkx_physics_editor_dialog.py|HkxPhysicsEditorDialog",
+      "gap": "generic_only",
+      "item": 14,
+      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/mesh_batch_export_dialog.py|BatchMeshExportDialog",
+      "gap": "generic_only",
+      "item": 7,
+      "milestone": "P13 MCP gap plan item 7: Browse Archives selection and bulk output"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/pab_bone_editor_dialog.py|PabBoneEditorDialog",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/pac_xml_editor_dialog_shell.py|PacXmlEditorDialog",
+      "gap": "generic_only",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/path_export_dialog.py|ArchivePathExportDialog",
+      "gap": "generic_only",
+      "item": 7,
+      "milestone": "P13 MCP gap plan item 7: Browse Archives selection and bulk output"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_dialog.py|PrefabInspectorDialog",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_review.py|PrefabChangeReview",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_widgets.py|AssetPickerDialog",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_widgets.py|PlacementEditDialog",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_widgets.py|ValueEditDialog",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/remote_finder_dialog.py|RemoteArchiveFinderDialog",
+      "gap": "generic_only",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/skinned_decal_dialog.py|SkinnedDecalDialog",
+      "gap": "not_built",
+      "item": 13,
+      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/sound_bank_editor.py|SoundBankEditorDialog",
+      "gap": "not_built",
+      "item": 14,
+      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py|_EmbeddedAlignmentBuilderDialog",
+      "gap": "generic_only",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py|_MeshEditorSaveAwareDialog",
+      "gap": "generic_only",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/static_replacement_icon_selection.py|AlignmentIconSelectionDialog",
+      "gap": "generic_only",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "dialog:cdmw/ui/character_finder/dialog.py|CharacterFinderDialog",
+      "gap": "generic_only",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "dialog:cdmw/ui/commands/palette.py|CommandPalette",
+      "tool": "commands.list"
+    },
+    {
+      "key": "dialog:cdmw/ui/commands/shortcuts_page.py|KeyDialog",
+      "tool": "shortcuts.change"
+    },
+    {
+      "key": "dialog:cdmw/ui/mesh_editor/folder_model_picker.py|FolderModelPicker",
+      "gap": "generic_only",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "dialog:cdmw/ui/mesh_editor/hair_reference_picker.py|HairReferencePickerDialog",
+      "gap": "generic_only",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "dialog:cdmw/ui/mesh_editor/hair_setup_dialog.py|HairSetupDialog",
+      "gap": "generic_only",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "dialog:cdmw/ui/mesh_editor/mod_export_dialog.py|MeshModExportDialog",
+      "tool": "mesh.build_mod"
+    },
+    {
+      "key": "dialog:cdmw/ui/mesh_editor/replace_from_archive_dialog.py|ReplaceFromArchivePickerDialog",
+      "gap": "generic_only",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "dialog:cdmw/ui/mesh_editor/replace_from_archive_dialog.py|ReplaceFromArchiveReviewDialog",
+      "gap": "generic_only",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "dialog:cdmw/ui/mesh_editor/saved_work_combine.py|SavedWorkCombineDialog",
+      "tool": "saved.combine"
+    },
+    {
+      "key": "dialog:cdmw/ui/mesh_editor/saved_work_naming.py|NameDraftDialog",
+      "gap": "generic_only",
+      "item": 8,
+      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+    },
+    {
+      "key": "dialog:cdmw/ui/model_preview_settings_dialog.py|ModelPreviewSettingsDialog",
+      "tool": "view.settings"
+    },
+    {
+      "key": "dialog:cdmw/ui/new_item/effect_placement_dialog.py|EffectPlacementDialog",
+      "tool": "new_item.effects"
+    },
+    {
+      "key": "dialog:cdmw/ui/new_item/installed_character_models.py|InstalledCharacterModels",
+      "gap": "generic_only",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "dialog:cdmw/ui/new_item/mod_merge_dialog.py|ModMergeDialog",
+      "gap": "generic_only",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "dialog:cdmw/ui/new_item/mod_update_dialog.py|ModUpdateDialog",
+      "gap": "generic_only",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "dialog:cdmw/ui/new_item/painting_dialog.py|PaintingDialog",
+      "tool": "new_item.painting_open"
+    },
+    {
+      "key": "dialog:cdmw/ui/new_item/shop_picker.py|ShopPickerDialog",
+      "gap": "generic_only",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "dialog:cdmw/ui/new_item/skinning_dialog.py|SkinningDialog",
+      "gap": "generic_only",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "dialog:cdmw/ui/new_item/transparency_painter.py|TransparencyPaintDialog",
+      "gap": "generic_only",
+      "item": 12,
+      "milestone": "P13 MCP gap plan item 12: Create New Item extras"
+    },
+    {
+      "key": "dialog:cdmw/ui/policy_preview_dialog.py|TexturePolicyPreviewDialog",
+      "gap": "generic_only",
+      "item": 11,
+      "milestone": "P13 MCP gap plan item 11: Textures Replace, Recolor, Upscale and Review & Export tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/replace_assistant/archive_picker.py|RemoteArchiveOriginalDialog",
+      "gap": "generic_only",
+      "item": 11,
+      "milestone": "P13 MCP gap plan item 11: Textures Replace, Recolor, Upscale and Review & Export tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/replace_assistant/review_dialog.py|ReplaceAssistantReviewDialog",
+      "gap": "generic_only",
+      "item": 11,
+      "milestone": "P13 MCP gap plan item 11: Textures Replace, Recolor, Upscale and Review & Export tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/safe_upscale_wizard.py|SafeUpscaleWizard",
+      "gap": "generic_only",
+      "item": 11,
+      "milestone": "P13 MCP gap plan item 11: Textures Replace, Recolor, Upscale and Review & Export tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/shell/help_dialogs.py|AboutDialog",
+      "tool": "app.manual"
+    },
+    {
+      "key": "dialog:cdmw/ui/shell/problem_report_dialog.py|ProblemReportDialog",
+      "gap": "generic_only",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "dialog:cdmw/ui/shell/startup_dialogs.py|StartupArchivePathDialog",
+      "gap": "user_only",
+      "reason": "Sets the game folder every output check protects."
+    },
+    {
+      "key": "dialog:cdmw/ui/shell/startup_dialogs.py|StartupSplashDialog",
+      "tool": "app.state"
+    },
+    {
+      "key": "dialog:cdmw/ui/startup_splash_host.py|StartupSplashHost",
+      "tool": "app.state"
+    },
+    {
+      "key": "dialog:cdmw/ui/texture_workflow/editor_dialogs.py|ShortcutEditorDialog",
+      "tool": "shortcuts.change"
+    },
+    {
+      "key": "dialog:cdmw/ui/texture_workflow/independent_package_dialog.py|IndependentTexturePackageDialog",
+      "gap": "generic_only",
+      "item": 11,
+      "milestone": "P13 MCP gap plan item 11: Textures Replace, Recolor, Upscale and Review & Export tools"
+    },
+    {
+      "key": "dialog:tools/placement_studio/move_weapon.py|MoveWeaponDialog",
+      "tool": "placement.socket"
+    },
+    {
+      "key": "dialog:tools/placement_studio/new_socket.py|NewSocketDialog",
+      "tool": "placement.socket"
+    },
+    {
+      "key": "dialog:tools/placement_studio/window_carry_guide.py|CarryRowsDialog",
+      "gap": "generic_only",
+      "item": 15,
+      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+    },
+    {
+      "key": "dialog:tools/translation_studio/ai_panel.py|ProviderSettingsDialog",
+      "gap": "user_only",
+      "reason": "AI translation provider keys are secrets."
+    },
+    {
+      "key": "dialog:tools/translation_studio/ai_panel.py|TranslateDialog",
+      "tool": "translation.edit"
+    },
+    {
+      "key": "host_command:cloth_collision_input",
+      "tool": "mesh.cloth"
+    },
+    {
+      "key": "host_command:cloth_paint_set",
+      "tool": "mesh.cloth"
+    },
+    {
+      "key": "host_command:cloth_pin_set",
+      "tool": "mesh.cloth"
+    },
+    {
+      "key": "host_command:configure_output_policy",
+      "tool": "mesh.output_policy"
+    },
+    {
+      "key": "host_command:export_free_edit",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "host_command:export_mesh",
+      "tool": "mesh.export"
+    },
+    {
+      "key": "host_command:hair_begin",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "host_command:hair_color",
+      "tool": "mesh.hair"
+    },
+    {
+      "key": "host_command:hair_texture",
+      "tool": "mesh.hair"
+    },
+    {
+      "key": "host_command:hair_texture_export",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "host_command:import_editable_package",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "host_command:layer_activate",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "host_command:layer_copy",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "host_command:layer_delete",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "host_command:layer_move",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "host_command:layer_paste",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "host_command:layer_rename",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "host_command:layer_visibility",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "host_command:mesh_action",
+      "tool": "mesh.mesh_action"
+    },
+    {
+      "key": "host_command:morph_*",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_activate",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_apply_preset",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_apply_setup",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_bake",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_begin_correction",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_cancel_baseline",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_cancel_correction",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_capture_authored",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_capture_baseline",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_clear_driver_region",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_clear_influence",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_create",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_delete_definition",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_delete_preset",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_delete_profile",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_export_preset",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "host_command:morph_export_recipe",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "host_command:morph_generate_body_controls",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_import_preset",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_import_recipe",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_reset",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_reset_correction",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_reset_macros",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_save_correction",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_save_preset",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_save_profile",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_save_setup",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_set_corrections_enabled",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_set_driver_region",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_set_influence",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_set_macro",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_set_side_value",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_set_symmetry",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:morph_set_value",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "host_command:redo",
+      "tool": "mesh.redo"
+    },
+    {
+      "key": "host_command:refit_*",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_bind",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_choose_archive",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_clear",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_configure",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_diagnostics",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_fit_to_body",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_island_configure",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_load_mesh",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_restore_shape_apply",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_restore_shape_cancel",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_restore_shape_preview",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_set_driver",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:refit_use_loaded_body",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "host_command:replacement_*",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_apply",
+      "tool": "mesh.replacement_apply"
+    },
+    {
+      "key": "host_command:replacement_cancel",
+      "tool": "mesh.replacement_cancel"
+    },
+    {
+      "key": "host_command:replacement_choose",
+      "tool": "mesh.replacement_import"
+    },
+    {
+      "key": "host_command:replacement_cloth",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_collision_volumes",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_compare",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_emission",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_export_rig",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "host_command:replacement_fit",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_guides",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_include",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_islands",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_jiggle",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_physics_profile",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_reset",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_shader_controls",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_translucency",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:replacement_weapon_collisions",
+      "tool": "mesh.part_options"
+    },
+    {
+      "key": "host_command:rig_adjust_weight",
+      "tool": "mesh.weights"
+    },
+    {
+      "key": "host_command:rig_normalize_weights",
+      "tool": "mesh.weights"
+    },
+    {
+      "key": "host_command:rig_select_bone",
+      "tool": "mesh.weights"
+    },
+    {
+      "key": "host_command:rig_transfer_weights",
+      "tool": "mesh.weights"
+    },
+    {
+      "key": "host_command:select",
+      "tool": "mesh.select"
+    },
+    {
+      "key": "host_command:state",
+      "tool": "mesh.state"
+    },
+    {
+      "key": "host_command:topology",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "host_command:undo",
+      "tool": "mesh.undo"
+    },
+    {
+      "key": "host_command:vertex_edit",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "helper_control:brush.falloff",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:brush.radius",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:brush.strength",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:camera.back",
+      "tool": "mesh.command"
+    },
+    {
+      "key": "helper_control:camera.bottom",
+      "tool": "mesh.command"
+    },
+    {
+      "key": "helper_control:camera.fit",
+      "tool": "mesh.command"
+    },
+    {
+      "key": "helper_control:camera.front",
+      "tool": "mesh.command"
+    },
+    {
+      "key": "helper_control:camera.left",
+      "tool": "mesh.command"
+    },
+    {
+      "key": "helper_control:camera.orbit",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:camera.right",
+      "tool": "mesh.command"
+    },
+    {
+      "key": "helper_control:camera.top",
+      "tool": "mesh.command"
+    },
+    {
+      "key": "helper_control:camera.yaw_minus_15",
+      "tool": "mesh.command"
+    },
+    {
+      "key": "helper_control:camera.yaw_plus_15",
+      "tool": "mesh.command"
+    },
+    {
+      "key": "helper_control:display.background_colour",
+      "tool": "view.settings"
+    },
+    {
+      "key": "helper_control:display.colours.reset",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:display.grid_colour",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:display.mode",
+      "tool": "view.settings"
+    },
+    {
+      "key": "helper_control:display.overlay.live_selection_colour",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:display.overlay.reset",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:display.overlay.selection_colour",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:display.overlay.vertex_colour",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:display.overlay.vertex_size",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:display.overlay.wire_colour",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:display.overlay.wire_width",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:history.timeline",
+      "tool": "mesh.state"
+    },
+    {
+      "key": "helper_control:import.open_package",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "helper_control:layers.copy",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "helper_control:layers.delete",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "helper_control:layers.list",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "helper_control:layers.move_down",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "helper_control:layers.move_up",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "helper_control:layers.paste",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "helper_control:layers.rename",
+      "tool": "mesh.layers"
+    },
+    {
+      "key": "helper_control:material_colour.unavailable",
+      "gap": "not_built",
+      "milestone": "P13 full MCP: Material Colour is deliberately unavailable in the helper"
+    },
+    {
+      "key": "helper_control:morph.bake",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.collapse",
+      "tool": "mesh.panels"
+    },
+    {
+      "key": "helper_control:morph.create_profile",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.delete_preset",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.delete_profile",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.delete_slider",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.edit_slider",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.preset",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.profile",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.replace_slider_scope",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.reset",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.save_preset",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.save_profile",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:morph.update_slider",
+      "tool": "mesh.morph"
+    },
+    {
+      "key": "helper_control:output.configure_free_edit",
+      "tool": "mesh.output_policy"
+    },
+    {
+      "key": "helper_control:output.export_free_edit",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "helper_control:output.export_mesh",
+      "tool": "mesh.export"
+    },
+    {
+      "key": "helper_control:page.morph_refit",
+      "tool": "mesh.panels"
+    },
+    {
+      "key": "helper_control:page.topology",
+      "tool": "mesh.panels"
+    },
+    {
+      "key": "helper_control:parts.delete",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:parts.duplicate",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:parts.invert",
+      "tool": "mesh.select_parts"
+    },
+    {
+      "key": "helper_control:parts.select_all",
+      "tool": "mesh.select_parts"
+    },
+    {
+      "key": "helper_control:parts.select_none",
+      "tool": "mesh.select_parts"
+    },
+    {
+      "key": "helper_control:parts.selection",
+      "tool": "mesh.select_parts"
+    },
+    {
+      "key": "helper_control:parts.visibility",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:policy.exact_free_edit",
+      "tool": "mesh.output_policy"
+    },
+    {
+      "key": "helper_control:refit.apply",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.apply_all",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.bind_garment",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.body_weights",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.clear",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.clearance",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.enabled",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.fit_to_body",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.intensity",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.island_apply",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.island_inherit",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.mode",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.reference_body",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.set_driver",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.skin_pull",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.tightness",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:refit.use_loaded_body",
+      "tool": "mesh.refit"
+    },
+    {
+      "key": "helper_control:selection.create_part",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:selection.grow",
+      "tool": "mesh.select"
+    },
+    {
+      "key": "helper_control:selection.operation",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:selection.shape",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:selection.shrink",
+      "tool": "mesh.select"
+    },
+    {
+      "key": "helper_control:selection.target",
+      "tool": "mesh.select"
+    },
+    {
+      "key": "helper_control:selection.xray",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:session.clear_selection",
+      "tool": "mesh.select"
+    },
+    {
+      "key": "helper_control:session.finish",
+      "tool": "mesh.finish"
+    },
+    {
+      "key": "helper_control:session.invert",
+      "tool": "mesh.select"
+    },
+    {
+      "key": "helper_control:session.redo",
+      "tool": "mesh.redo"
+    },
+    {
+      "key": "helper_control:session.select_all",
+      "tool": "mesh.select"
+    },
+    {
+      "key": "helper_control:session.undo",
+      "tool": "mesh.undo"
+    },
+    {
+      "key": "helper_control:tool.bend",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:tool.grab",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:tool.inflate",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:tool.move",
+      "tool": "mesh.transform"
+    },
+    {
+      "key": "helper_control:tool.pinch",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:tool.select",
+      "tool": "mesh.select"
+    },
+    {
+      "key": "helper_control:tool.smooth",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:topology.bridge",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.delete_selection",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.dissolve",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.duplicate_selection",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.edge_split",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.extrude",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.fill",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.inset",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.loop_cut",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.merge",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.refine_smooth",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.separate",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.split",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.subdivide",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:topology.weld",
+      "tool": "mesh.topology"
+    },
+    {
+      "key": "helper_control:transform.grab_radius",
+      "gap": "not_built",
+      "item": 10,
+      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+    },
+    {
+      "key": "helper_control:transform.nudge.+x",
+      "tool": "mesh.transform"
+    },
+    {
+      "key": "helper_control:transform.nudge.+y",
+      "tool": "mesh.transform"
+    },
+    {
+      "key": "helper_control:transform.nudge.+z",
+      "tool": "mesh.transform"
+    },
+    {
+      "key": "helper_control:transform.nudge.-x",
+      "tool": "mesh.transform"
+    },
+    {
+      "key": "helper_control:transform.nudge.-y",
+      "tool": "mesh.transform"
+    },
+    {
+      "key": "helper_control:transform.nudge.-z",
+      "tool": "mesh.transform"
+    },
+    {
+      "key": "helper_control:transform.translate_step",
+      "tool": "mesh.transform"
+    },
+    {
+      "key": "helper_control:vertex.apply",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "helper_control:vertex.inspect",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "helper_control:vertex.open",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "helper_control:vertex.stage",
+      "gap": "not_built",
+      "item": 9,
+      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+    },
+    {
+      "key": "helper_control:viewport.pointer_surface",
+      "gap": "needs_pointer",
+      "by_points": "mesh.select"
+    },
+    {
+      "key": "rail_page:archive_browser",
+      "tool": "files.browser_state"
+    },
+    {
+      "key": "rail_page:format_explorer",
+      "tool": "files.format_report"
+    },
+    {
+      "key": "rail_page:item_icons",
+      "tool": "item_icons.state"
+    },
+    {
+      "key": "rail_page:mesh_editor",
+      "tool": "mesh.state"
+    },
+    {
+      "key": "rail_page:mod_management",
+      "tool": "mods.list"
+    },
+    {
+      "key": "rail_page:model_library",
+      "tool": "models.state"
+    },
+    {
+      "key": "rail_page:new_item_studio",
+      "tool": "new_item.state"
+    },
+    {
+      "key": "rail_page:placement_studio",
+      "tool": "placement.state"
+    },
+    {
+      "key": "rail_page:research",
+      "tool": "research.read"
+    },
+    {
+      "key": "rail_page:saved_work",
+      "tool": "saved.list"
+    },
+    {
+      "key": "rail_page:text_search",
+      "tool": "search.text_state"
+    },
+    {
+      "key": "rail_page:textures",
+      "tool": "textures.list"
+    },
+    {
+      "key": "rail_page:translation_studio",
+      "tool": "translation.review"
     }
   ]
 }
