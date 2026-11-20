@@ -3002,6 +3002,7 @@ ERROR_REFERENCE = [
       "Give key, character_id or appearance_path.",
       "Give key, keys or search",
       "Give piece: a .pac path or file name, or a prefab name.",
+      "Give the draft's name.",
       "Give the table, or the archive path of a .staticinfobody or .staticinfoheader file.",
       "Give translate, rotate_degrees or scale.",
       "Give values, add or remove: nothing would change.",
@@ -3019,6 +3020,7 @@ ERROR_REFERENCE = [
       "Supply the list of paths to ignore.",
       "That cell holds a number.",
       "That cell holds a whole number.",
+      "That name is empty once cleaned up.",
       "That page token belongs to another tool.",
       "The action is one of {', '.join(ACTIONS)}.",
       "The destination must end in {suffix}.",
@@ -3085,6 +3087,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/local_file_tools.py",
       "cdmw/mcp/mesh_edit_tools.py",
+      "cdmw/mcp/mesh_session_tools.py",
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/new_item_effects.py",
       "cdmw/mcp/new_item_files.py",
@@ -3608,6 +3611,7 @@ ERROR_REFERENCE = [
       "There is no joint {index}; files_hkx_state lists them.",
       "There is no name {item}; files_hkx_state lists them.",
       "There is no pending edit {index}.",
+      "There is no project {project}; make it in Drafts & Mods first.",
       "There is no queue row {min(missing)}.",
       "There is no row {row}; files_prefab_read lists them.",
       "There is no supported Settings control for {raw}.",
@@ -3640,6 +3644,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/local_file_tools.py",
       "cdmw/mcp/mesh_edit_tools.py",
+      "cdmw/mcp/mesh_session_tools.py",
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/mod_management_tools.py",
       "cdmw/mcp/npc_tools.py",
@@ -47646,6 +47651,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Give the draft's name.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 42
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Give translate, rotate_degrees or scale.",
     "recovery": "internal",
     "sources": {
@@ -54507,6 +54520,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 199,
+      "cdmw/mcp/mesh_session_tools.py": 85,
       "cdmw/mcp/mesh_tools.py": 64
     }
   },
@@ -61177,10 +61191,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "That button is not shown: finish the edit first (mesh_finish), and Return to Create New Item only shows for a Create New Item model.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 92
+    }
+  },
+  {
+    "area": "mesh",
     "message": "That did not work: {error}",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/saved_work_page.py": 548
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "That name is empty once cleaned up.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 63
     }
   },
   {
@@ -62461,6 +62491,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "There is no project {project}; make it in Drafts & Mods first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 58
+    }
+  },
+  {
+    "area": "mesh",
     "message": "These builds cannot be combined: {detail}",
     "recovery": "input",
     "sources": {
@@ -62774,6 +62812,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/saved_work_bridge.py": 101
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This mesh has no draft to name: open it from Browse Archives first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 45
     }
   },
   {
@@ -108676,6 +108722,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/mesh/ui_state.py",
     "cdmw/domain/mesh/ui_state_reducer.py",
     "cdmw/mcp/mesh_edit_tools.py",
+    "cdmw/mcp/mesh_session_tools.py",
     "cdmw/mcp/mesh_tools.py",
     "cdmw/mcp/model_library_tools.py",
     "cdmw/mcp/skeleton_tools.py",
@@ -110785,6 +110832,11 @@ SOURCE_COVERAGE = {
   "cdmw/mcp/mesh_edit_tools.py": {
     "code": 11,
     "raise": 24
+  },
+  "cdmw/mcp/mesh_session_tools.py": {
+    "code": 3,
+    "failure": 2,
+    "raise": 5
   },
   "cdmw/mcp/mesh_tools.py": {
     "code": 11,

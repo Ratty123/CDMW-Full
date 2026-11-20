@@ -1244,6 +1244,13 @@
       "tool": "mesh.build_mod"
     },
     {
+      "id": "mesh.session",
+      "area": "Mesh Editor",
+      "what": "After Finish: Resume current edit, Start next edit pass, Add to Archive Browser, Check mesh, Return to Create New Item; and Name Draft",
+      "class": "edit",
+      "tool": "mesh.session"
+    },
+    {
       "id": "placement.pointer",
       "area": "Placement & Animations",
       "what": "Viewport translation and rotation by numbers, and timeline keys by track and time",
@@ -2971,9 +2978,7 @@
     },
     {
       "key": "dialog:cdmw/ui/mesh_editor/saved_work_naming.py|NameDraftDialog",
-      "gap": "generic_only",
-      "item": 8,
-      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+      "tool": "mesh.session"
     },
     {
       "key": "dialog:cdmw/ui/model_preview_settings_dialog.py|ModelPreviewSettingsDialog",
