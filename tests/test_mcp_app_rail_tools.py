@@ -7,7 +7,7 @@ from PySide6.QtCore import QSettings
 
 from cdmw.mcp import approvals
 from tests.mcp_rail_helpers import RailClient
-from tests.test_mcp_real_window import app, profile, real
+from tests.test_mcp_real_window import WINDOWS_ONLY, app, profile, real
 from tests.test_translation_studio import ENGLISH
 
 
@@ -26,6 +26,7 @@ def test_local_file_tools_read_owned_content(tmp_path):
     assert client.ok("local_file.parse", path=str(text))["text"] == "<x>owned</x>"
 
 
+@WINDOWS_ONLY
 def test_app_settings_shortcuts_and_diagnostics_reach_the_real_window(real):
     from cdmw.domain.archives.discovery import ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING
 
@@ -60,6 +61,7 @@ def test_app_settings_shortcuts_and_diagnostics_reach_the_real_window(real):
     assert real.ok("app_state")["dialog"] is None
 
 
+@WINDOWS_ONLY
 def test_turn_history_moves_real_texture_edits_and_keeps_user_edits(real, tmp_path):
     source = tmp_path / "asset.png"
     Image.new("RGBA", (8, 8), "red").save(source)

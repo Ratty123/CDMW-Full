@@ -15,7 +15,8 @@ from PySide6.QtWidgets import QApplication
 from cdmw.app import app_folder
 from tests.mcp_full_helpers import McpApp
 
-pytestmark = pytest.mark.skipif(os.name != "nt", reason="AI connections are Windows-only")
+WINDOWS_ONLY = pytest.mark.skipif(os.name != "nt", reason="AI connections are Windows-only")
+pytestmark = WINDOWS_ONLY
 
 
 @pytest.fixture(scope="module")

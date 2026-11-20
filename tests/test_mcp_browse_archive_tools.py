@@ -3,9 +3,10 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication, QDialog
 
 from cdmw.models import ArchiveEntry
-from tests.test_mcp_real_window import app, profile, real
+from tests.test_mcp_real_window import WINDOWS_ONLY, app, profile, real
 
 
+@WINDOWS_ONLY
 def test_browse_archive_controls_export_and_keep_the_game_unchanged(real, tmp_path, monkeypatch):
     from cdmw.services.archive_preview_service import build_archive_preview_result
 

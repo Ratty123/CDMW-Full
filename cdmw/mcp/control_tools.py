@@ -6,8 +6,8 @@
 * ``app.ui``: the controls of the shown window, a dialog or one widget.
 * ``app.ui_act``: press, fill, tick, pick or select one control, as a click does.
 * ``app.screenshot``: a picture of a window, a dialog or one widget.
-* ``app.settings_get``: the settings file's values (settings are changed on the
-  Settings page, through ``app.ui_act``, so every change takes the page's own path).
+* ``app.settings_get``: the settings file's values (``app.settings_set`` changes one
+  through its Settings control, so every change takes the page's own path).
 
 Acting tools run their action through ``ui_actions.run_action``: on the UI
 thread, with the choosers and questions it would show answered from the
@@ -405,8 +405,8 @@ def control_tools() -> list[Tool]:
              effect=READ, route="ui:QWidget.grab", handler=_screenshot, runs_on=ON_UI),
         Tool(name="app.settings_get", family="app", title="Settings",
              description="The values in CDMW's settings file, all or those under a prefix (such as "
-                         "'appearance/'). Secrets are left out. To change a setting, open Settings with "
-                         "app_run_command shell.settings and use its page with app_ui_act.",
+                         "'appearance/'). Secrets are left out. To change a setting, use app_settings_set, which "
+                         "sets it through its own control on the Settings page.",
              input_schema=object_schema({"prefix": {"type": "string", "maxLength": 128}}),
              effect=READ, route="service:settings.allKeys", handler=_settings_get, runs_on=ON_UI,
              paged="settings"),
