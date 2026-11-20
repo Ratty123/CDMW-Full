@@ -1591,6 +1591,20 @@
       "tool": "research.read"
     },
     {
+      "id": "research.change",
+      "area": "Research",
+      "what": "Refresh research data, scan UI rect references, resolve an archive path's references, save a note",
+      "class": "edit",
+      "tool": "research.change"
+    },
+    {
+      "id": "research.export",
+      "area": "Research",
+      "what": "Export the texture analysis report as CSV or JSON",
+      "class": "output",
+      "tool": "research.export"
+    },
+    {
       "id": "app.settings_set",
       "area": "Settings",
       "what": "Change settings (never AI connections, approvals, Full access or the game folder)",

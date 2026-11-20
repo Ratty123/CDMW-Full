@@ -2996,6 +2996,7 @@ ERROR_REFERENCE = [
       "Part {part} has vertices 0 to {count - 1}.",
       "Row {row} is not a mirror model; only those have file URLs.",
       "Save the language file as a .json file.",
+      "Save the report as a .csv or .json file.",
       "Supply exactly one PNG path or base64 data.",
       "Supply the list of paths to ignore.",
       "That cell holds a number.",
@@ -3073,6 +3074,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/placement_tools.py",
       "cdmw/mcp/rail_actions.py",
       "cdmw/mcp/read_tools.py",
+      "cdmw/mcp/research_tools.py",
       "cdmw/mcp/schema.py",
       "cdmw/mcp/settings_tools.py",
       "cdmw/mcp/setup_tools.py",
@@ -20418,7 +20420,7 @@ MESSAGE_REFERENCE = [
     "message": "No format report matches {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/research_tools.py": 41
+      "cdmw/mcp/research_tools.py": 42
     }
   },
   {
@@ -20434,7 +20436,7 @@ MESSAGE_REFERENCE = [
     "message": "No research note has the key {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/research_tools.py": 21
+      "cdmw/mcp/research_tools.py": 22
     }
   },
   {
@@ -20559,6 +20561,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "capture",
+    "message": "References are still being resolved; wait for research_read status.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/research_tools.py": 95
+    }
+  },
+  {
+    "area": "capture",
     "message": "Refusing to sync anything except TestRunSword.",
     "recovery": "input",
     "sources": {
@@ -20579,6 +20589,22 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/workers/research_analysis_workers.py": 38
+    }
+  },
+  {
+    "area": "capture",
+    "message": "Run a research refresh first; the texture analysis report is empty.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/research_tools.py": 119
+    }
+  },
+  {
+    "area": "capture",
+    "message": "Save the report as a .csv or .json file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/research_tools.py": 113
     }
   },
   {
@@ -20627,6 +20653,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/engine_capture.py": 123
+    }
+  },
+  {
+    "area": "capture",
+    "message": "The report export did not finish in time; CDMW's status line says why.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/research_tools.py": 131
     }
   },
   {
@@ -109983,8 +110017,8 @@ SOURCE_COVERAGE = {
     "report": 7
   },
   "cdmw/mcp/research_tools.py": {
-    "code": 2,
-    "raise": 2
+    "code": 3,
+    "raise": 6
   },
   "cdmw/mcp/saved_work_tools.py": {
     "code": 6,
