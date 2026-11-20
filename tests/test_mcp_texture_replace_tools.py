@@ -27,8 +27,12 @@ def test_replace_adds_matches_and_removes_queue_rows(tmp_path):
     first = tmp_path / "0009" / "ui" / "icons" / "legacy.png"
     second = tmp_path / "0009" / "ui" / "icons" / "unknown.png"
     first.parent.mkdir(parents=True)
-    first.write_bytes(b"png")
-    second.write_bytes(b"png")
+    # Real PNGs: Qt reads them with its own PNG reader. For unreadable bytes the preview
+    # worker would ask every image plugin, which crashes Qt off the UI thread in a long run.
+    from PIL import Image
+
+    for path in (first, second):
+        Image.new("RGBA", (4, 4), "red").save(path)
     try:
         wait_for(lambda: not tab.is_busy())
         assert client.call("textures.replace", action="add_files",

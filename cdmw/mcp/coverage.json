@@ -1846,6 +1846,27 @@
       "tool": "textures.recolor_build"
     },
     {
+      "id": "textures.upscale_read",
+      "area": "Textures > Upscale",
+      "what": "Run settings, DDS Output, backend, mod package choices, workflow profiles and rules, matched files, progress and log",
+      "class": "read",
+      "tool": "textures.upscale_state"
+    },
+    {
+      "id": "textures.upscale_setup",
+      "area": "Textures > Upscale",
+      "what": "Change settings, add, change, reorder or remove profiles and rules, assign a profile to matched files, Scan, Preview Policy, Run Summary, Stop",
+      "class": "edit",
+      "tool": "textures.upscale"
+    },
+    {
+      "id": "textures.upscale_start",
+      "area": "Textures > Upscale",
+      "what": "Start",
+      "class": "output",
+      "tool": "textures.upscale_start"
+    },
+    {
       "id": "saved.list",
       "area": "Drafts & Mods",
       "what": "List drafts, mods, item packages and projects",
@@ -3057,9 +3078,7 @@
     },
     {
       "key": "dialog:cdmw/ui/policy_preview_dialog.py|TexturePolicyPreviewDialog",
-      "gap": "generic_only",
-      "item": 11,
-      "milestone": "P13 MCP gap plan item 11: Textures Replace, Recolor, Upscale and Review & Export tools"
+      "tool": "textures.upscale"
     },
     {
       "key": "dialog:cdmw/ui/replace_assistant/archive_picker.py|RemoteArchiveOriginalDialog",
@@ -3075,9 +3094,7 @@
     },
     {
       "key": "dialog:cdmw/ui/safe_upscale_wizard.py|SafeUpscaleWizard",
-      "gap": "generic_only",
-      "item": 11,
-      "milestone": "P13 MCP gap plan item 11: Textures Replace, Recolor, Upscale and Review & Export tools"
+      "tool": "textures.upscale"
     },
     {
       "key": "dialog:cdmw/ui/shell/help_dialogs.py|AboutDialog",

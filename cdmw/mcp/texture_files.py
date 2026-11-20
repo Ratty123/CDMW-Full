@@ -217,6 +217,15 @@ def _plan(call):
             "left_out": list(plan.left_out) if plan else []}
 
 
+#: The typed tools that do what each page of Review & Export offers.
+REVIEW_EXPORT_TOOLS = {
+    "edit": ["textures_export"],
+    "replacement": ["textures_replace_state", "textures_replace_build"],
+    "recolor": ["textures_recolor_state", "textures_recolor_build"],
+    "upscale": ["textures_upscale_state", "textures_upscale_start"],
+}
+
+
 def _workflow(call):
     args = call.arguments
     if args["editor"] != "tool":
@@ -238,6 +247,13 @@ def _workflow(call):
             view._choose_texture_mod(source=paths[0])
         else:
             view.show_texture_review(operation=args.get("operation"))
+            chosen = args.get("operation") or view.job.mode
+            if chosen in ("replace", "replacement"):
+                chosen = "replacement"
+            elif view._review_dialog is not None:
+                chosen = view.export_operation.currentData() or chosen
+            return {"action": action, "mode": view.job.mode, "assets": rail_assets(call.context),
+                    "operation": chosen, "export_with": REVIEW_EXPORT_TOOLS.get(chosen, [])}
         return {"action": action, "mode": view.job.mode, "assets": rail_assets(call.context)}
     return _act(call, run)
 
@@ -257,7 +273,7 @@ def file_tools():
         Tool("textures.output_plan", "textures", "Read the Build Mod texture plan, or the rail job's selected assets and targets.",
              texture_schema({"include_body": {"type": "boolean"}}), READ, "ui:MeshEditor._live_texture_plan", _plan, ON_UI),
         Tool("textures.workflow", "textures", "With editor=tool, add texture files, select a mod folder or ZIP, or open "
-             "Review & Export for the chosen operation.", texture_schema({
+             "Review & Export for the chosen operation; export_with names the tools that export it.", texture_schema({
                  "action": choices("add_textures", "add_mod", "review_export"),
                  "paths": {"type": "array", "items": PATH, "minItems": 1, "maxItems": 256},
                  "operation": choices("edit", "replacement", "recolor", "upscale")}, ["action"]),

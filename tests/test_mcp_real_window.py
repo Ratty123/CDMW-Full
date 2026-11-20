@@ -124,6 +124,7 @@ def test_rail_texture_workflow_uses_the_real_workspace(real, tmp_path):
     start = editor.history_index
     reviewed = mcp.ok("textures_workflow", {**target, "action": "review_export", "operation": "edit"})
     assert workspace._review_dialog.isVisible() and reviewed["history_before"] == reviewed["history_after"] == start
+    assert reviewed["operation"] == "edit" and reviewed["export_with"] == ["textures_export"]
     workspace._review_dialog.close()
     mod = tmp_path / "loose"
     mod.mkdir()

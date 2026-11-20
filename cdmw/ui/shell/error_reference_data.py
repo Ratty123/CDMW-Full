@@ -2899,6 +2899,7 @@ ERROR_REFERENCE = [
       "Combine into One Mod did not finish in time.",
       "Nothing was written: {what} did not finish. CDMW's message says why.",
       "Showing the files did not finish in time.",
+      "Start did not finish in time.",
       "The Action Chart Editor did not export in time.",
       "The Action Chart Editor did not finish in time.",
       "The Action Chart Editor did not open in time. Browse Archives' status says why (a shared action table cannot be edited).",
@@ -2918,6 +2919,7 @@ ERROR_REFERENCE = [
       "The {editor.kind} history moved outside the turn.",
       "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}",
       "{title} did not finish in time. {status}",
+      "{what} did not finish in time.",
       "{what} did not finish in time. CDMW's status line says why."
     ],
     "sources": [
@@ -2937,6 +2939,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_recolor_tools.py",
       "cdmw/mcp/texture_replace_tools.py",
+      "cdmw/mcp/texture_upscale_tools.py",
       "cdmw/mcp/turn_tools.py",
       "cdmw/mcp/ui_actions.py",
       "cdmw/mcp/view_tools.py",
@@ -3066,6 +3069,7 @@ ERROR_REFERENCE = [
       "Unknown manager output {sorted(unknown)[0]}; the page offers {sorted(tab.profile_checkboxes)}.",
       "Unknown template field {sorted(unknown)[0]}.",
       "Unknown {name}: {options[name]}.",
+      "Unknown {what} field {sorted(unknown)[0]}; known: {sorted(table)}.",
       "Unrecognized shortcut {key}.",
       "Use a Create New Item package filename ending in .cdmw.",
       "action must be one of {', '.join(_ACTIONS)}.",
@@ -3082,6 +3086,7 @@ ERROR_REFERENCE = [
       "row applies to a list, table or tree.",
       "row is needed: a row's number or its text.",
       "rows is needed: a list of row numbers or texts.",
+      "settings takes fields.",
       "targets takes targets (ids to build) or active (one id).",
       "value must be a number.",
       "{action} applies to a list, table or tree.",
@@ -3093,8 +3098,10 @@ ERROR_REFERENCE = [
       "{len(found)} controls have the text {text}; name one by its widget id.",
       "{name} is a colour such as #C85A30.",
       "{name} is a whole number from {control.minimum()} to {control.maximum()}.",
+      "{name} is an existing folder; there is none at {path}.",
       "{name} is required",
       "{name} is required for this action.",
+      "{name} is true or false.",
       "{what}: '{key}' is not a part number.",
       "{where} has an unknown field {extra[0]}",
       "{where} must be at least {schema['minimum']}",
@@ -3144,6 +3151,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_recolor_tools.py",
       "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/texture_tools.py",
+      "cdmw/mcp/texture_upscale_tools.py",
       "cdmw/mcp/ui_menus.py",
       "cdmw/mcp/ui_tree.py",
       "cdmw/mcp/view_tools.py"
@@ -3602,6 +3610,7 @@ ERROR_REFERENCE = [
       "No raster layer has ID {layer}.",
       "No regular file exists at {path}.",
       "No research note has the key {key}.",
+      "No row matches that profile or rule.",
       "No shortcut command matches {command}.",
       "No source folder has that row.",
       "No variant {a['variant']}.",
@@ -3653,10 +3662,12 @@ ERROR_REFERENCE = [
       "There is no queue row {min(missing)}.",
       "There is no result row {row}.",
       "There is no row {row}; files_prefab_read lists them.",
+      "There is no rule at index {index}.",
       "There is no supported Settings control for {raw}.",
       "There is no tab {row}.",
       "There is no table {table}; files_action_chart_state lists them.",
       "There is no table {table}; tables lists them.",
+      "There is no workflow profile {profile_id}.",
       "This appearance lists no piece {a['piece']}.",
       "This event has no field {field}.",
       "This joint has no {key}.",
@@ -3666,6 +3677,7 @@ ERROR_REFERENCE = [
       "{error}. The archives have: {languages}.",
       "{given} is not DMM's folder (the one that contains DMM.exe).",
       "{key} has no variant {variant}.",
+      "{missing[0]} is not among the matched files; refresh_matches first.",
       "{path} is not in the game archives.",
       "{table} has no row {key if key is not None else name}.",
       "{what}: the mesh has parts 0 to {len(parts) - 1}.",
@@ -3703,6 +3715,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_recolor_tools.py",
       "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/texture_tools.py",
+      "cdmw/mcp/texture_upscale_tools.py",
       "cdmw/mcp/tools.py",
       "cdmw/mcp/translation_tools.py",
       "cdmw/mcp/ui_menus.py",
@@ -84417,7 +84430,7 @@ MESSAGE_REFERENCE = [
     "message": "Ready mod package export complete: copied={total_copied}, skipped={total_skipped}, failed={total_failed}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pipeline.py": 1301
+      "cdmw/core/pipeline.py": 1304
     }
   },
   {
@@ -89330,7 +89343,7 @@ MESSAGE_REFERENCE = [
     "message": "[{index}/{total}] FAIL {rel_display} -> {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pipeline.py": 1214
+      "cdmw/core/pipeline.py": 1217
     }
   },
   {
@@ -103772,7 +103785,7 @@ MESSAGE_REFERENCE = [
     "message": "Add Mod takes one existing folder or ZIP in paths.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/texture_files.py": 229
+      "cdmw/mcp/texture_files.py": 238
     }
   },
   {
@@ -103780,7 +103793,7 @@ MESSAGE_REFERENCE = [
     "message": "Add Textures requires existing files in paths.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/texture_files.py": 227
+      "cdmw/mcp/texture_files.py": 236
     }
   },
   {
@@ -104004,7 +104017,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose editor=tool for the rail's Textures workflow.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/texture_files.py": 223
+      "cdmw/mcp/texture_files.py": 232
     }
   },
   {
@@ -105241,6 +105254,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "No row matches that profile or rule.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 245
+    }
+  },
+  {
+    "area": "textures",
     "message": "No supported model files were found. Expected one of: {', '.join(sorted(allowed))}",
     "recovery": "empty",
     "sources": {
@@ -105616,6 +105637,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Preview Policy did not open.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 362
+    }
+  },
+  {
+    "area": "textures",
     "message": "Preview helper produced an invalid PNG: {staged_png}",
     "recovery": "input",
     "sources": {
@@ -105864,6 +105893,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Run Summary did not open.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 385
+    }
+  },
+  {
+    "area": "textures",
     "message": "Runtime/config validation warning: {exc} The semantic policy preview below is still valid, but Start would fail until this is fixed.",
     "recovery": "internal",
     "sources": {
@@ -105956,6 +105993,22 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/final_package_texture_plan.py": 678
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Start did not finish in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 511
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Start did not run.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 517
     }
   },
   {
@@ -106392,6 +106445,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Textures is busy; read textures_upscale_state until it is not.",
+    "recovery": "locked",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 342
+    }
+  },
+  {
+    "area": "textures",
     "message": "The PNG exceeds 16 megapixels.",
     "recovery": "limits",
     "sources": {
@@ -106483,7 +106544,7 @@ MESSAGE_REFERENCE = [
     "message": "The Textures workspace is busy.",
     "recovery": "locked",
     "sources": {
-      "cdmw/mcp/texture_files.py": 234
+      "cdmw/mcp/texture_files.py": 243
     }
   },
   {
@@ -106968,6 +107029,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "There is no rule at index {index}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 273
+    }
+  },
+  {
+    "area": "textures",
+    "message": "There is no workflow profile {profile_id}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 291
+    }
+  },
+  {
+    "area": "textures",
     "message": "This DDS preview has not been written back to the game archives yet.",
     "recovery": "internal",
     "sources": {
@@ -107124,6 +107201,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/texture_edits.py": 302
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Unknown {what} field {sorted(unknown)[0]}; known: {sorted(table)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 194
     }
   },
   {
@@ -108174,6 +108259,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "settings takes fields.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 414
+    }
+  },
+  {
+    "area": "textures",
     "message": "specular-glossiness roughness unavailable:{label}",
     "recovery": "missing",
     "sources": {
@@ -108495,6 +108588,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "{missing[0]} is not among the matched files; refresh_matches first.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 303
+    }
+  },
+  {
+    "area": "textures",
     "message": "{name} is a colour such as #C85A30.",
     "recovery": "internal",
     "sources": {
@@ -108506,7 +108607,24 @@ MESSAGE_REFERENCE = [
     "message": "{name} is a whole number from {control.minimum()} to {control.maximum()}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/texture_recolor_tools.py": 120
+      "cdmw/mcp/texture_recolor_tools.py": 120,
+      "cdmw/mcp/texture_upscale_tools.py": 206
+    }
+  },
+  {
+    "area": "textures",
+    "message": "{name} is an existing folder; there is none at {path}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 230
+    }
+  },
+  {
+    "area": "textures",
+    "message": "{name} is true or false.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 211
     }
   },
   {
@@ -108595,6 +108713,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_draft_textures.py": 95
+    }
+  },
+  {
+    "area": "textures",
+    "message": "{what} did not finish in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_upscale_tools.py": 331
     }
   },
   {
@@ -109760,6 +109886,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/texture_pixels.py",
     "cdmw/mcp/texture_recolor_tools.py",
     "cdmw/mcp/texture_replace_tools.py",
+    "cdmw/mcp/texture_upscale_tools.py",
     "cdmw/services/mesh_live_texture_drafts.py",
     "cdmw/services/texture_document_authority.py",
     "cdmw/services/texture_editor_service.py",
@@ -111538,6 +111665,11 @@ SOURCE_COVERAGE = {
   "cdmw/mcp/texture_tools.py": {
     "code": 7,
     "raise": 13
+  },
+  "cdmw/mcp/texture_upscale_tools.py": {
+    "code": 13,
+    "raise": 21,
+    "report": 2
   },
   "cdmw/mcp/tools.py": {
     "code": 1,
