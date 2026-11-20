@@ -1043,6 +1043,10 @@ def test_new_item_build_adds_to_an_existing_mod_after_the_plan_is_rebuilt_on_it(
     # Ticking Add to existing mod builds the plan on that mod, so the first call asks for a refresh.
     stale = mcp.error("new_item_build", {"folder": str(existing), "add_to_existing": True})
     assert stale["code"] == "unavailable" and tab.output_panel.add_to_mod.isChecked()
+    # The mod already holds Mcp_Sword, and the planner refuses a second item of that name.
+    assert mcp.ok("new_item_set", {"fields": {
+        "internal_name": "Mcp_Sword_Two", "display_names": {"eng": "MCP Sword Two"},
+    }})["refused"] == {}
     assert mcp.ok("new_item_plan", {"action": "refresh"})["current"]
     assert tab.controller.mod_base_folder == existing
     mcp.ok("new_item_build", {"folder": str(existing), "add_to_existing": True})
