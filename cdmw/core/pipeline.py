@@ -1148,7 +1148,10 @@ def rebuild_dds_files(
                     emit_phase_progress(index, total, f"{index} / {total} DDS files")
                     continue
 
-                if target_file.exists() and not normalized.overwrite_existing_dds:
+                # The native batch above writes this run's outputs first: only a file that was
+                # already there counts as existing.
+                if (target_file.exists() and not normalized.overwrite_existing_dds
+                        and _resolved_output_key(target_file) not in native_encoded_outputs):
                     note = "output DDS already exists and overwrite is disabled"
                     skipped += 1
                     results.append(
