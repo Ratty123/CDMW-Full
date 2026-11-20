@@ -1864,6 +1864,13 @@
       "tool": "models.output"
     },
     {
+      "id": "models.delete",
+      "area": "Model Library",
+      "what": "Delete downloaded copies (never the user's own local model files)",
+      "class": "destructive",
+      "tool": "models.delete"
+    },
+    {
       "id": "item_icons.state",
       "area": "Item Icons",
       "what": "Read sources, target and preview status",
@@ -2352,9 +2359,7 @@
     },
     {
       "key": "menu:cdmw/ui/item_icons/tab.py|Open In Texture Editor",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "item_icons.change"
     },
     {
       "key": "menu:cdmw/ui/mesh_editor/textures_panel.py|<f'{texture_role_label(row.role)}: {row.file_name}'>",
@@ -2406,9 +2411,7 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Delete Local Copy",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.delete"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Delete Local File / Folder",
@@ -2488,9 +2491,7 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Delete No-Texture Downloads",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.delete"
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Download + Create New Item",

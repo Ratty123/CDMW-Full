@@ -13,6 +13,10 @@ def test_item_icons_changes_and_export_use_the_compatible_output(tmp_path):
         client.ok("item_icons.change", action="view", row=0, target=entry.path, background="keep_source")
         assert tab.settings.value("item_icons/background_mode") == "keep_source"
         assert tab._current_target_path() == entry.path
+        opened = []
+        tab.open_in_texture_editor_requested.connect(lambda path, _binding: opened.append(path))
+        client.ok("item_icons.change", action="open_source_in_editor", row=0)
+        assert opened == [str(source)]
         client.ok("item_icons.change", action="preview")
         wait_for(lambda: tab._final_preview_thread is None)
         out = tmp_path / "output"
