@@ -2891,7 +2891,10 @@ ERROR_REFERENCE = [
     "messages": [
       "Combine into One Mod closed before producing an output.",
       "Combine into One Mod did not finish in time.",
-      "Nothing was saved as a mod; the HKX Physics Editor says why.",
+      "Nothing was written: {what} did not finish. CDMW's message says why.",
+      "The Action Chart Editor did not export in time.",
+      "The Action Chart Editor did not finish in time.",
+      "The Action Chart Editor did not open in time. Browse Archives' status says why (a shared action table cannot be edited).",
       "The HKX Physics Editor did not open in time.",
       "The HKX Physics Editor did not save in time.",
       "The Mesh Editor did not take the command.",
@@ -2899,6 +2902,7 @@ ERROR_REFERENCE = [
       "The Mesh Editor did not take the selection.",
       "The archive worker did not answer in time.",
       "The call's safety class could not be worked out.",
+      "The export did not start.",
       "The interface did not answer in time; try again when CDMW is idle.",
       "The preview did not deliver the picture in time.",
       "The reference search did not finish in time.",
@@ -2907,10 +2911,12 @@ ERROR_REFERENCE = [
       "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}"
     ],
     "sources": [
+      "cdmw/mcp/action_chart_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/mesh_edit_tools.py",
       "cdmw/mcp/mesh_tools.py",
+      "cdmw/mcp/mod_ready_prompt.py",
       "cdmw/mcp/new_item_files.py",
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/saved_work_tools.py",
@@ -2962,6 +2968,7 @@ ERROR_REFERENCE = [
       "At most {MAX_ROWS * 8} rows at once.",
       "CDMW does not decode {table}. It decodes: {', '.join(sorted(DECODED_TABLES))}",
       "Choose a factor from {box.minimum()} to {box.maximum()}.",
+      "Choose a rate from {dialog.rate_spin.minimum()} to {dialog.rate_spin.maximum()}.",
       "Choose a supported numeric preset or value.",
       "Choose a supported worker count.",
       "Choose a value from {control.minimum()} to {control.maximum()}.",
@@ -2976,14 +2983,20 @@ ERROR_REFERENCE = [
       "Export PAC As writes a .pac file.",
       "Export an .obj or .glb file (FBX needs Blender: use the Export Mesh File button through app_ui_act).",
       "Free Edit writes an editable package: give 'destination', an existing folder outside the game.",
+      "Give 1 to {MAX_BONES} bones.",
+      "Give 1 to {MAX_CHANGES} changes.",
       "Give a file, project or archive texture path.",
       "Give an extension or a path",
+      "Give at most {_MAX_CHANGES} changes in one write.",
+      "Give clip, blend or both.",
       "Give either factor (with optional offsets or category) or values.",
       "Give key or name",
       "Give key, character_id or appearance_path.",
       "Give key, keys or search",
       "Give piece: a .pac path or file name, or a prefab name.",
+      "Give the draft's name.",
       "Give translate, rotate_degrees or scale.",
+      "Give values, add or remove: nothing would change.",
       "Invalid PNG: {exc}",
       "More than one package contains this path. Specify package.",
       "Name the control: widget (its id from app_ui) or text (what it says).",
@@ -2997,11 +3010,13 @@ ERROR_REFERENCE = [
       "Supply the list of paths to ignore.",
       "That cell holds a number.",
       "That cell holds a whole number.",
+      "That name is empty once cleaned up.",
       "That page token belongs to another tool.",
       "The action is one of {', '.join(ACTIONS)}.",
       "The destination must end in {suffix}.",
       "The docked editor opens a mesh texture by texture ID or game path.",
       "The local file path must be absolute.",
+      "The mod needs a name.",
       "The output folder does not exist: {folder}",
       "The output folder does not exist: {target}",
       "The package path must end in {PACKAGE_EXTENSION}.",
@@ -3024,6 +3039,7 @@ ERROR_REFERENCE = [
       "offset is past the end ({size} bytes).",
       "path is required",
       "paths holds 1 to {MAX_PATHS} archive paths.",
+      "position, angles and scale take three numbers each.",
       "row applies to a list, table or tree.",
       "row is needed: a row's number or its text.",
       "rows is needed: a list of row numbers or texts.",
@@ -3033,6 +3049,7 @@ ERROR_REFERENCE = [
       "{action} does not apply to a {kind_of(widget) or 'widget'}.",
       "{args['action']} requires {key}.",
       "{args['action']} takes {minimum} to {maximum} points.",
+      "{label} is not a number: {text}",
       "{len(found)} controls have the text {text}; name one by its widget id.",
       "{name} is required",
       "{name} is required for this action.",
@@ -3050,10 +3067,12 @@ ERROR_REFERENCE = [
       "{where}.{name} is required"
     ],
     "sources": [
+      "cdmw/mcp/action_chart_tools.py",
       "cdmw/mcp/control_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/local_file_tools.py",
       "cdmw/mcp/mesh_edit_tools.py",
+      "cdmw/mcp/mesh_session_tools.py",
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/new_item_effects.py",
       "cdmw/mcp/new_item_files.py",
@@ -3063,10 +3082,13 @@ ERROR_REFERENCE = [
       "cdmw/mcp/npc_tools.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/placement_tools.py",
+      "cdmw/mcp/prefab_tools.py",
       "cdmw/mcp/rail_actions.py",
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/schema.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/skeleton_tools.py",
+      "cdmw/mcp/sound_tools.py",
       "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
@@ -3508,6 +3530,8 @@ ERROR_REFERENCE = [
       "A requested line is absent from the current table.",
       "A requested package is absent from Mod Management.",
       "A requested row is absent from the current results.",
+      "Animation {args['animation']} has no frame event {event}.",
+      "Animation {args['animation']} has no value {field} (item {item}); files_action_chart_state with animation lists them.",
       "Browse Archives did not finish looking up the files.",
       "Browse Archives did not show the files in time.",
       "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
@@ -3529,6 +3553,9 @@ ERROR_REFERENCE = [
       "No shortcut command matches {command}.",
       "No source folder has that row.",
       "No variant {a['variant']}.",
+      "Object {change['object']} cannot take {name}; files_sound_bank_read lists what each object can add.",
+      "Object {change['object']} has no added property {target} to remove.",
+      "Object {change['object']} has no value {change['value']}; files_sound_bank_read lists them.",
       "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
       "That page is gone: it was already read or is more than 15 minutes old. Run the search again.",
       "The Format Explorer has no row for {extension}.",
@@ -3550,6 +3577,9 @@ ERROR_REFERENCE = [
       "The list is empty.",
       "The loaded archive index has no such texture.",
       "The mesh has parts 0 to {len(parts) - 1}.",
+      "There is no animation {index}; files_action_chart_state lists them.",
+      "There is no animation {index}; this chart has {len(chart.animations)}.",
+      "There is no audio file {source}.",
       "There is no column {column}.",
       "There is no command {command_id} now. commands_list lists them; the Mesh Editor's and the Texture Editor's exist while their tool is open.",
       "There is no control {text} now. Call app_ui for the controls shown.",
@@ -3557,12 +3587,19 @@ ERROR_REFERENCE = [
       "There is no job {job_id}.",
       "There is no joint {index}; files_hkx_state lists them.",
       "There is no name {item}; files_hkx_state lists them.",
+      "There is no pending edit {index}.",
+      "There is no project {project}; make it in Drafts & Mods first.",
+      "There is no row {row}; files_prefab_read lists them.",
       "There is no supported Settings control for {raw}.",
       "There is no tab {row}.",
+      "There is no table {table}; files_action_chart_state lists them.",
+      "There is no table {table}; tables lists them.",
       "This appearance lists no piece {a['piece']}.",
+      "This event has no field {field}.",
       "This joint has no {key}.",
       "{clean_label(action.text())} has no submenu.",
       "{clean_label(found.text())} has no submenu.",
+      "{dialog.table_combo.itemText(table)} has no entry {old}.",
       "{error}. The archives have: {languages}.",
       "{key} has no variant {variant}.",
       "{path} is not in the game archives.",
@@ -3571,6 +3608,7 @@ ERROR_REFERENCE = [
       "{where} has no entry {part}. It has: {known}."
     ],
     "sources": [
+      "cdmw/mcp/action_chart_tools.py",
       "cdmw/mcp/app_read_tools.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
@@ -3579,15 +3617,18 @@ ERROR_REFERENCE = [
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/local_file_tools.py",
       "cdmw/mcp/mesh_edit_tools.py",
+      "cdmw/mcp/mesh_session_tools.py",
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/mod_management_tools.py",
       "cdmw/mcp/npc_tools.py",
       "cdmw/mcp/paging.py",
+      "cdmw/mcp/prefab_tools.py",
       "cdmw/mcp/rail_actions.py",
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/research_tools.py",
       "cdmw/mcp/saved_work_tools.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/sound_tools.py",
       "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
@@ -3749,31 +3790,43 @@ ERROR_REFERENCE = [
       "CDMW is not running or AI connections are off.",
       "Choose an empty folder so the export cannot replace files.",
       "Declined in CDMW.",
+      "Nothing was built.",
       "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool.",
       "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool. It was put back.",
       "Only you can run this command in CDMW: it can change the AI connection settings or the game folder, or it writes into the game.",
       "Only you can use this control in CDMW: AI connections, their approvals, Full access, the game folder and what writes into the game are never driven by a tool.",
+      "Row {row} ({child.text(0)}) cannot change.",
+      "The Add Bones dialog refused the bones.",
       "The HKX Physics Editor refused the save.",
       "The current animation draft was kept.",
+      "The edit was not applied.",
+      "The export was refused.",
+      "The review lists warnings; give accept_warnings to save anyway.",
+      "This event has no fields CDMW can change.",
       "{destination} already exists; name a new package.",
-      "{key} cannot change on this joint."
+      "{key} cannot change on this joint.",
+      "{what} was refused."
     ],
     "sources": [
+      "cdmw/mcp/action_chart_tools.py",
       "cdmw/mcp/approvals.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/item_icon_tools.py",
       "cdmw/mcp/jobs.py",
+      "cdmw/mcp/mod_ready_prompt.py",
       "cdmw/mcp/model_library_tools.py",
       "cdmw/mcp/new_item_model.py",
       "cdmw/mcp/new_item_tools.py",
       "cdmw/mcp/new_item_workflow.py",
       "cdmw/mcp/placement_tools.py",
+      "cdmw/mcp/prefab_tools.py",
       "cdmw/mcp/rail_actions.py",
       "cdmw/mcp/saved_work_tools.py",
       "cdmw/mcp/server.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/skeleton_tools.py",
       "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/text_search_tools.py",
       "cdmw/mcp/texture_files.py",
@@ -11057,7 +11110,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS metadata unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 342
+      "cdmw/core/archive_preview_result_builder.py": 368
     }
   },
   {
@@ -11129,7 +11182,7 @@ MESSAGE_REFERENCE = [
     "message": "Decoded preview failed: {exc}",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1711
+      "cdmw/core/archive_preview_result_builder.py": 1740
     }
   },
   {
@@ -12563,7 +12616,7 @@ MESSAGE_REFERENCE = [
     "message": "Model preview fallback",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1680
+      "cdmw/core/archive_preview_result_builder.py": 1709
     }
   },
   {
@@ -14364,7 +14417,7 @@ MESSAGE_REFERENCE = [
     "message": "Raw bytes",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1725
+      "cdmw/core/archive_preview_result_builder.py": 1754
     }
   },
   {
@@ -14892,7 +14945,7 @@ MESSAGE_REFERENCE = [
     "message": "Showing raw stored bytes because the decoded preview path failed.",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1725
+      "cdmw/core/archive_preview_result_builder.py": 1754
     }
   },
   {
@@ -15572,7 +15625,7 @@ MESSAGE_REFERENCE = [
     "message": "The action chart could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -16069,7 +16122,7 @@ MESSAGE_REFERENCE = [
     "message": "The colour atlas could not be shown: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 678
+      "cdmw/core/archive_preview_result_builder.py": 706
     }
   },
   {
@@ -16277,7 +16330,7 @@ MESSAGE_REFERENCE = [
     "message": "The file could not be read as a font or cursor: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -16325,7 +16378,7 @@ MESSAGE_REFERENCE = [
     "message": "The impostor descriptor could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -16589,7 +16642,7 @@ MESSAGE_REFERENCE = [
     "message": "The reflection object could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -16709,7 +16762,7 @@ MESSAGE_REFERENCE = [
     "message": "The shader container could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1229
+      "cdmw/core/archive_preview_result_builder.py": 1258
     }
   },
   {
@@ -16796,10 +16849,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "This TGA image could not be decoded for preview: {exc}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/core/archive_preview_result_builder.py": 170
+    }
+  },
+  {
+    "area": "archive",
     "message": "This archive DDS is stored as truncated type 1 data. The image shown here is a padded best-effort preview and may be corrupted, noisy, or incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 366
+      "cdmw/core/archive_preview_result_builder.py": 392
     }
   },
   {
@@ -16913,7 +16974,7 @@ MESSAGE_REFERENCE = [
     "message": "Type 1 DDS: Unsupported Preview",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 366
+      "cdmw/core/archive_preview_result_builder.py": 392
     }
   },
   {
@@ -17334,7 +17395,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual PAT preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1444
+      "cdmw/core/archive_preview_result_builder.py": 1473
     }
   },
   {
@@ -17342,7 +17403,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual model preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1318
+      "cdmw/core/archive_preview_result_builder.py": 1347
     }
   },
   {
@@ -17350,7 +17411,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual preview is not available for this model format yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1447
+      "cdmw/core/archive_preview_result_builder.py": 1476
     }
   },
   {
@@ -19087,7 +19148,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_media_preview.py": 698,
       "cdmw/core/archive_mesh_import_supplemental.py": 557,
       "cdmw/core/archive_name_search.py": 1151,
-      "cdmw/core/archive_preview_result_builder.py": 1136,
+      "cdmw/core/archive_preview_result_builder.py": 1165,
       "cdmw/core/archive_preview_support.py": 377,
       "cdmw/core/archive_reverse_references.py": 216,
       "cdmw/core/archive_scan_cache.py": 608,
@@ -19548,7 +19609,7 @@ MESSAGE_REFERENCE = [
     "message": "{backup_dir} does not contain a backup_manifest.json file.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/ui/archive_browser/patch_actions.py": 249
+      "cdmw/ui/archive_browser/patch_actions.py": 251
     }
   },
   {
@@ -20934,7 +20995,8 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/hkx_tools.py": 32
+      "cdmw/mcp/hkx_tools.py": 32,
+      "cdmw/mcp/prefab_tools.py": 32
     }
   },
   {
@@ -21391,6 +21453,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/report_prefab_json_import_corpus.py": 135
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Give 1 to {MAX_CHANGES} changes.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 89
     }
   },
   {
@@ -21971,10 +22041,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "Nothing was saved as a mod; the HKX Physics Editor says why.",
+    "message": "Nothing was built.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/hkx_tools.py": 224
+      "cdmw/mcp/prefab_tools.py": 119
     }
   },
   {
@@ -23062,6 +23132,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Row {row} ({child.text(0)}) cannot change.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 109
+    }
+  },
+  {
+    "area": "formats",
     "message": "Runtime binding from PASEQ lanes to the 3D model preview is not implemented yet.",
     "recovery": "unsupported",
     "sources": {
@@ -23114,6 +23192,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_hkx_tagfile_model.py": 236
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Select a .prefab file in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 35
     }
   },
   {
@@ -23303,6 +23389,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The export question has no Loose Folder choice.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 126
+    }
+  },
+  {
+    "area": "formats",
     "message": "The factor must be above 0 and at most 100.",
     "recovery": "input",
     "sources": {
@@ -23370,7 +23464,8 @@ MESSAGE_REFERENCE = [
     "message": "The output folder does not exist: {folder}",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/hkx_tools.py": 200
+      "cdmw/mcp/hkx_tools.py": 200,
+      "cdmw/mcp/prefab_tools.py": 86
     }
   },
   {
@@ -23543,6 +23638,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The review lists warnings; give accept_warnings to save anyway.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 116
+    }
+  },
+  {
+    "area": "formats",
     "message": "The rewritten prefab declares {stated} bytes but is {len(rebuilt)}",
     "recovery": "internal",
     "sources": {
@@ -23627,6 +23730,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/hkx_tools.py": 162
+    }
+  },
+  {
+    "area": "formats",
+    "message": "There is no row {row}; files_prefab_read lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/prefab_tools.py": 107
     }
   },
   {
@@ -24458,7 +24569,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_binary_preview_common_0.py": 29,
       "cdmw/core/archive_binary_preview_paa_0.py": 230,
       "cdmw/core/archive_binary_preview_papr_0.py": 432,
-      "cdmw/core/archive_binary_preview_sidecar_0.py": 394,
+      "cdmw/core/archive_binary_preview_sidecar_0.py": 408,
       "cdmw/core/archive_hkx_parser.py": 58,
       "cdmw/core/archive_hkx_schema_helpers_1.py": 61,
       "cdmw/core/crimson_formats.py": 607
@@ -42892,6 +43003,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Browse Archives is unavailable.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 32
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Browse's preview process could not open this window.",
     "recovery": "internal",
     "sources": {
@@ -47449,6 +47568,22 @@ MESSAGE_REFERENCE = [
     "recovery": "recovery",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8035
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Give 1 to {MAX_BONES} bones.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 80
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Give the draft's name.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 42
     }
   },
   {
@@ -54314,6 +54449,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 199,
+      "cdmw/mcp/mesh_session_tools.py": 85,
       "cdmw/mcp/mesh_tools.py": 64
     }
   },
@@ -57620,7 +57756,7 @@ MESSAGE_REFERENCE = [
     "message": "Qt Multimedia is not available in this build.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview_widgets.py": 603
+      "cdmw/ui/preview_widgets.py": 614
     }
   },
   {
@@ -57628,7 +57764,7 @@ MESSAGE_REFERENCE = [
     "message": "Qt Multimedia is not available in this build. {detail_text}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview_widgets.py": 603
+      "cdmw/ui/preview_widgets.py": 614
     }
   },
   {
@@ -57636,7 +57772,7 @@ MESSAGE_REFERENCE = [
     "message": "Qt Multimedia is not available in this build. {media_path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview_widgets.py": 603
+      "cdmw/ui/preview_widgets.py": 614
     }
   },
   {
@@ -59474,6 +59610,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "Select a .pab skeleton in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 35
+    }
+  },
+  {
+    "area": "mesh",
     "message": "Select a mesh in Browse Archives first, or give its path.",
     "recovery": "input",
     "sources": {
@@ -60976,10 +61120,34 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "That button is not shown: finish the edit first (mesh_finish), and Return to Create New Item only shows for a Create New Item model.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 92
+    }
+  },
+  {
+    "area": "mesh",
     "message": "That did not work: {error}",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/saved_work_page.py": 548
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "That name is empty once cleaned up.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 63
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Add Bones dialog refused the bones.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 105
     }
   },
   {
@@ -61796,6 +61964,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The output folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 77
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The output supports 1 to {capacity} skeletal influences per vertex.",
     "recovery": "limits",
     "sources": {
@@ -62244,6 +62420,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "There is no project {project}; make it in Drafts & Mods first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 58
+    }
+  },
+  {
+    "area": "mesh",
     "message": "These builds cannot be combined: {detail}",
     "recovery": "input",
     "sources": {
@@ -62557,6 +62741,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/saved_work_bridge.py": 101
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This mesh has no draft to name: open it from Browse Archives first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_session_tools.py": 45
     }
   },
   {
@@ -71477,6 +71669,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "position, angles and scale take three numbers each.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/skeleton_tools.py": 63
+    }
+  },
+  {
+    "area": "mesh",
     "message": "position_matrix must contain 12 values",
     "recovery": "input",
     "sources": {
@@ -75930,6 +76130,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Animation {args['animation']} has no frame event {event}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 187
+    }
+  },
+  {
+    "area": "other",
+    "message": "Animation {args['animation']} has no value {field} (item {item}); files_action_chart_state with animation lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 170
+    }
+  },
+  {
+    "area": "other",
     "message": "Another app is connected to CDMW. Close it, or its MCP server, and try again.",
     "recovery": "internal",
     "sources": {
@@ -76464,6 +76680,15 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/view_tools.py": 39
+    }
+  },
+  {
+    "area": "other",
+    "message": "Browse Archives is unavailable.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 31,
+      "cdmw/mcp/sound_tools.py": 29
     }
   },
   {
@@ -77054,6 +77279,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/pac_cloth_guide_builder.py": 159
+    }
+  },
+  {
+    "area": "other",
+    "message": "Choose a rate from {dialog.rate_spin.minimum()} to {dialog.rate_spin.maximum()}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 158
     }
   },
   {
@@ -79802,6 +80035,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Give at most {_MAX_CHANGES} changes in one write.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 81
+    }
+  },
+  {
+    "area": "other",
+    "message": "Give clip, blend or both.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 175
+    }
+  },
+  {
+    "area": "other",
     "message": "Give either factor (with optional offsets or category) or values.",
     "recovery": "internal",
     "sources": {
@@ -79862,6 +80111,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/shader_preset_store.py": 33
+    }
+  },
+  {
+    "area": "other",
+    "message": "Give values, add or remove: nothing would change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 79
     }
   },
   {
@@ -82695,10 +82952,42 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Nothing was written: {what} did not finish. CDMW's message says why.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mod_ready_prompt.py": 95
+    }
+  },
+  {
+    "area": "other",
     "message": "Object of type {type(value).__name__} is not JSON serializable",
     "recovery": "internal",
     "sources": {
       "cdmw/core/streaming_json.py": 137
+    }
+  },
+  {
+    "area": "other",
+    "message": "Object {change['object']} cannot take {name}; files_sound_bank_read lists what each object can add.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 97
+    }
+  },
+  {
+    "area": "other",
+    "message": "Object {change['object']} has no added property {target} to remove.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 102
+    }
+  },
+  {
+    "area": "other",
+    "message": "Object {change['object']} has no value {change['value']}; files_sound_bank_read lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 85
     }
   },
   {
@@ -84033,6 +84322,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Select an editable .paac action chart in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 125
+    }
+  },
+  {
+    "area": "other",
     "message": "Select an explicit R, G, B or A channel for a colour image.",
     "recovery": "input",
     "sources": {
@@ -84070,6 +84367,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mod_merge_service.py": 130
+    }
+  },
+  {
+    "area": "other",
+    "message": "Select {what} in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 32
     }
   },
   {
@@ -85011,6 +85316,46 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The Action Chart Editor did not export in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 298
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Action Chart Editor did not finish in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 117
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Action Chart Editor did not open in time. Browse Archives' status says why (a shared action table cannot be edited).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 136
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Action Chart Editor is busy; wait for its task to finish.",
+    "recovery": "locked",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 154
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Action Chart Editor is not open. Select a .paac chart and call files_action_chart_edit with action open.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 42
+    }
+  },
+  {
+    "area": "other",
     "message": "The DMM library changed while it was being read. Refresh it.",
     "recovery": "internal",
     "sources": {
@@ -85491,6 +85836,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The edit was not applied.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 241
+    }
+  },
+  {
+    "area": "other",
     "message": "The effect catalogue could not be cached: {exc}",
     "recovery": "internal",
     "sources": {
@@ -85511,6 +85864,22 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/ui/empty_states.py": 149
+    }
+  },
+  {
+    "area": "other",
+    "message": "The export did not start.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 295
+    }
+  },
+  {
+    "area": "other",
+    "message": "The export was refused.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 282
     }
   },
   {
@@ -85923,6 +86292,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The mod needs a name.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 265
+    }
+  },
+  {
+    "area": "other",
     "message": "The mod's {OPERATIONS_FILE} cannot be read to add to it: {exc}",
     "recovery": "input",
     "sources": {
@@ -85934,7 +86311,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod-ready export prompt has changed; CDMW cannot fill it.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mod_ready_prompt.py": 38
+      "cdmw/mcp/mod_ready_prompt.py": 42
     }
   },
   {
@@ -85942,7 +86319,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod-ready export prompt has no Continue button.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mod_ready_prompt.py": 49
+      "cdmw/mcp/mod_ready_prompt.py": 53
     }
   },
   {
@@ -86007,6 +86384,15 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/game_records.py": 127
+    }
+  },
+  {
+    "area": "other",
+    "message": "The output folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 251,
+      "cdmw/mcp/sound_tools.py": 134
     }
   },
   {
@@ -86612,6 +86998,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "There are no pending edits to apply.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 226
+    }
+  },
+  {
+    "area": "other",
     "message": "There are no speed edits to write.",
     "recovery": "write",
     "sources": {
@@ -86632,6 +87026,30 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/shader_preset_store.py": 67
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no animation {index}; files_action_chart_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 109
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no animation {index}; this chart has {len(chart.animations)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 79
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no audio file {source}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 158
     }
   },
   {
@@ -86668,10 +87086,42 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "There is no pending edit {index}.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 221
+    }
+  },
+  {
+    "area": "other",
     "message": "There is no tab {row}.",
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/ui_tree.py": 640
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no table {table}; files_action_chart_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 206
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is no table {table}; tables lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 91
+    }
+  },
+  {
+    "area": "other",
+    "message": "There is nothing to export yet: apply the edits first.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 273
     }
   },
   {
@@ -86756,6 +87206,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "This bank stores nothing the editor can change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 137
+    }
+  },
+  {
+    "area": "other",
     "message": "This collision loop belongs to static meshes, not guide cloth.",
     "recovery": "internal",
     "sources": {
@@ -86824,6 +87282,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/effect_recipe.py": 178
+    }
+  },
+  {
+    "area": "other",
+    "message": "This event has no field {field}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 193
+    }
+  },
+  {
+    "area": "other",
+    "message": "This event has no fields CDMW can change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 189
     }
   },
   {
@@ -91779,6 +92253,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{dialog.table_combo.itemText(table)} has no entry {old}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/action_chart_tools.py": 215
+    }
+  },
+  {
+    "area": "other",
     "message": "{edit.field} is not an editable chart field",
     "recovery": "input",
     "sources": {
@@ -92215,6 +92697,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/static_table_records.py": 371
+    }
+  },
+  {
+    "area": "other",
+    "message": "{label} is not a number: {text}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/sound_tools.py": 66
     }
   },
   {
@@ -93416,6 +93906,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/animation_speed_service.py": 248
+    }
+  },
+  {
+    "area": "other",
+    "message": "{what} was refused.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/mod_ready_prompt.py": 83
     }
   },
   {
@@ -107623,6 +108121,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/prefab_json_apply.py",
     "cdmw/core/prefab_json_validation.py",
     "cdmw/mcp/hkx_tools.py",
+    "cdmw/mcp/prefab_tools.py",
     "cdmw/services/hkx_edit_service.py",
     "cdmw/services/hkx_physics_editor_service.py",
     "cdmw/services/prefab_speed_service.py",
@@ -107781,8 +108280,10 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/mesh/ui_state.py",
     "cdmw/domain/mesh/ui_state_reducer.py",
     "cdmw/mcp/mesh_edit_tools.py",
+    "cdmw/mcp/mesh_session_tools.py",
     "cdmw/mcp/mesh_tools.py",
     "cdmw/mcp/model_library_tools.py",
+    "cdmw/mcp/skeleton_tools.py",
     "cdmw/modding/mesh_asset.py",
     "cdmw/modding/mesh_glb_interchange.py",
     "cdmw/modding/mesh_importer.py",
@@ -108055,16 +108556,19 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/character_creator.py",
     "cdmw/domain/hair_registration.py",
     "cdmw/domain/library/scene_selection.py",
+    "cdmw/mcp/action_chart_tools.py",
     "cdmw/mcp/bridge.py",
     "cdmw/mcp/control_tools.py",
     "cdmw/mcp/item_icon_tools.py",
     "cdmw/mcp/jobs.py",
     "cdmw/mcp/link.py",
+    "cdmw/mcp/mod_ready_prompt.py",
     "cdmw/mcp/npc_tools.py",
     "cdmw/mcp/rail_actions.py",
     "cdmw/mcp/read_tools.py",
     "cdmw/mcp/saved_work_tools.py",
     "cdmw/mcp/server.py",
+    "cdmw/mcp/sound_tools.py",
     "cdmw/mcp/speed_tools.py",
     "cdmw/mcp/tools.py",
     "cdmw/mcp/transport.py",
@@ -108749,10 +109253,11 @@ SOURCE_COVERAGE = {
     "validation": 1
   },
   "cdmw/core/archive_preview_result_builder.py": {
-    "diagnostic_field": 9,
+    "diagnostic_field": 10,
     "diagnostic_text": 2,
     "raise": 11,
-    "report": 14
+    "report": 14,
+    "validation": 1
   },
   "cdmw/core/archive_preview_support.py": {
     "diagnostic_field": 1,
@@ -109797,6 +110302,11 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/mcp/__init__.py": {},
+  "cdmw/mcp/action_chart_tools.py": {
+    "code": 27,
+    "raise": 34,
+    "report": 6
+  },
   "cdmw/mcp/app_read_tools.py": {
     "code": 1,
     "raise": 4
@@ -109838,9 +110348,9 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/mcp/hkx_tools.py": {
-    "code": 16,
-    "raise": 23,
-    "report": 8
+    "code": 13,
+    "raise": 20,
+    "report": 6
   },
   "cdmw/mcp/item_icon_tools.py": {
     "code": 4,
@@ -109868,6 +110378,11 @@ SOURCE_COVERAGE = {
     "code": 11,
     "raise": 24
   },
+  "cdmw/mcp/mesh_session_tools.py": {
+    "code": 3,
+    "failure": 2,
+    "raise": 5
+  },
   "cdmw/mcp/mesh_tools.py": {
     "code": 11,
     "diagnostic_field": 2,
@@ -109881,7 +110396,9 @@ SOURCE_COVERAGE = {
     "raise": 8
   },
   "cdmw/mcp/mod_ready_prompt.py": {
-    "raise": 2
+    "code": 3,
+    "raise": 5,
+    "report": 2
   },
   "cdmw/mcp/model_library_tools.py": {
     "code": 2,
@@ -109938,6 +110455,12 @@ SOURCE_COVERAGE = {
     "raise": 25,
     "report": 14
   },
+  "cdmw/mcp/prefab_tools.py": {
+    "code": 8,
+    "diagnostic_field": 1,
+    "raise": 11,
+    "report": 3
+  },
   "cdmw/mcp/protocol_surface.py": {
     "diagnostic_field": 1,
     "raise": 4
@@ -109978,6 +110501,17 @@ SOURCE_COVERAGE = {
     "report": 3
   },
   "cdmw/mcp/setup_lines.py": {},
+  "cdmw/mcp/skeleton_tools.py": {
+    "code": 8,
+    "diagnostic_field": 1,
+    "raise": 11,
+    "report": 3
+  },
+  "cdmw/mcp/sound_tools.py": {
+    "code": 9,
+    "raise": 13,
+    "report": 2
+  },
   "cdmw/mcp/speed_tools.py": {
     "code": 8,
     "raise": 9,
