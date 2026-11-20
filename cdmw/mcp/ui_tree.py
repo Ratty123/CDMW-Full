@@ -24,7 +24,7 @@ from cdmw.mcp.names import DESTRUCTIVE, EDIT, OUTPUT, READ
 ROWS_SHOWN = 30
 MAX_ROWS = 500
 TEXT_LIMIT = 2000
-ACTIONS = ("click", "set_text", "set_value", "check", "uncheck", "select", "activate", "focus")
+ACTIONS = ("click", "set_text", "set_value", "check", "uncheck", "select", "activate", "focus", "menu")
 #: A button whose text starts with one of these writes a file or deletes something.
 OUTPUT_WORDS = ("build", "export", "save", "extract", "combine", "create", "write", "pack", "send", "generate")
 DESTRUCTIVE_WORDS = ("delete", "remove", "discard", "clear", "reset", "uninstall", "revert")
@@ -470,13 +470,17 @@ def user_only_reason(widget, window=None) -> str:
     return ""
 
 
-def effect_of_action(widget, action: str) -> str:
-    """The safety class of doing ``action`` to ``widget``."""
+def effect_of_action(widget, action: str, menu: object = None) -> str:
+    """The safety class of doing ``action`` to ``widget`` (for ``menu``, of picking that entry)."""
 
     from PySide6.QtWidgets import QAbstractButton, QTabBar, QTabWidget
 
     if action == "focus":
         return READ
+    if action == "menu":
+        from cdmw.mcp.ui_menus import entry_effect, menu_path
+
+        return entry_effect(menu_path(menu) if menu not in (None, "") else None)
     if isinstance(widget, (QTabWidget, QTabBar)):
         return READ  # showing another page changes no document
     if isinstance(widget, QAbstractButton) and action == "click":
@@ -491,7 +495,7 @@ def effect_of_action(widget, action: str) -> str:
 
 # ----- acting ----------------------------------------------------------------------------------
 def act(widget, action: str, *, value: object = None, row: object = None, window=None,
-        game_folder: str = "") -> dict[str, object]:
+        game_folder: str = "", menu: object = None) -> dict[str, object]:
     """Do ``action`` to ``widget`` as the user would; the control as it is afterwards.
 
     Text that names a place in the game is never typed: a field may be where an output
@@ -519,6 +523,13 @@ def act(widget, action: str, *, value: object = None, row: object = None, window
     def wrong() -> ToolError:
         return ToolError(INVALID_ARGUMENTS, f"{action} does not apply to a {kind_of(widget) or 'widget'}.")
 
+    if action == "menu":
+        from cdmw.mcp.ui_menus import act_menu
+
+        outcome = act_menu(widget, menu, row)
+        if "picked" in outcome:
+            outcome["control"] = describe(widget, rows=False) if _valid(widget) else {"widget": "", "closed": True}
+        return outcome
     if action == "focus":
         widget.setFocus()
     elif action == "click":

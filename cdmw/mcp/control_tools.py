@@ -280,7 +280,7 @@ def _ui_act_effect(call) -> str:
     reason = user_only_reason(widget, getattr(call.context, "window", None))
     if reason:
         raise ToolError(REFUSED, reason)
-    return effect_of_action(widget, str(call.arguments["action"]))
+    return effect_of_action(widget, str(call.arguments["action"]), call.arguments.get("menu"))
 
 
 def _ui_act_key(call) -> str:
@@ -290,7 +290,8 @@ def _ui_act_key(call) -> str:
     row = describe(widget, rows=False)
     # One control of one window: allowing "OK" in a dialog does not allow every OK button.
     title = widget.window().windowTitle().split(" [AI connections on")[0]
-    return f"{call.arguments['action']}:{title}:{row.get('text') or row.get('name') or row['widget']}"
+    entry = f":{call.arguments['menu']}" if call.arguments["action"] == "menu" and call.arguments.get("menu") else ""
+    return f"{call.arguments['action']}:{title}:{row.get('text') or row.get('name') or row['widget']}{entry}"
 
 
 def _ui_act(call) -> dict[str, object]:
@@ -302,12 +303,16 @@ def _ui_act(call) -> dict[str, object]:
 
     def run() -> dict[str, object]:
         return act(_target(call), str(a["action"]), value=a.get("value"), row=a.get("row"),
-                   window=getattr(context, "window", None), game_folder=context.game_folder())
+                   window=getattr(context, "window", None), game_folder=context.game_folder(),
+                   menu=a.get("menu"))
 
     outcome = run_action(context, run, a.get("answers"))
     if "result" not in outcome:
         return {"done": True, **outcome}
-    return {"done": True, "control": outcome["result"], "asked": outcome["asked"]}
+    result = outcome["result"]
+    if a["action"] == "menu":
+        return {"done": True, **result, "asked": outcome["asked"]}
+    return {"done": True, "control": result, "asked": outcome["asked"]}
 
 
 def _screenshot(call):
@@ -386,13 +391,20 @@ def control_tools() -> list[Tool]:
                          "list item or tab ('row': its number or text), activate a row (double-click). Name "
                          "the control by 'widget' (from app_ui) or by 'text'. The control's own handler runs, "
                          "with every rule it has. A button that builds, exports, saves or deletes has that "
-                         "class and may ask the user. Choosers and questions are answered from 'answers'.",
+                         "class and may ask the user. Choosers and questions are answered from 'answers'. "
+                         "'menu' reads the menu a right-click on the control (on 'row' of a list, table or "
+                         "tree) or its drop-down button would show, without showing it: without 'menu' it "
+                         "returns the entries, with 'menu' (an entry's text, or a path such as 'Export > "
+                         "Export File') it picks that entry, with the entry's own class.",
              input_schema=object_schema({
                  "widget": _WIDGET, "text": {"type": "string", "maxLength": 256},
                  "kind": {"type": "string", "maxLength": 16}, "inside": _WIDGET,
                  "action": {"type": "string", "enum": list(ACTIONS)},
                  "value": {"type": ["string", "number", "boolean"]},
                  "row": {"type": ["integer", "string"]},
+                 "menu": {"type": "string", "maxLength": 512,
+                          "description": "For action 'menu': the entry to pick, or a path through submenus "
+                                         "joined by ' > '. Leave it out to list the entries."},
                  "answers": _answers_schema()}, ["action"]),
              effect=EDIT, route="ui:ui_tree.act", handler=_ui_act, runs_on=ON_CALL,
              effect_of=_ui_act_effect, approval_key=_ui_act_key),

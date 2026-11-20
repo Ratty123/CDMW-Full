@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- **AI connections (experimental):** an AI app can open right-click menus and the drop-down menus of buttons such as **Action Charts**, read their entries and pick one, without the menu appearing on screen. A disabled entry is refused with the reason its tooltip gives, and an entry that exports, saves or deletes asks you first as its button would. This reaches every right-click feature of Browse Archives, including **Open Prefab Inspector** and the sound and action chart entries, through the generic **app_ui_act** tool. It is still a helper you supervise, not a mod maker.
+
 ### Fixed
 
 - **Import Replacement** accepts glTF/GLB models with a normal map that were exported without tangents, which is Blender's default. A model whose UVs are mirrored or split where the normal map's tangent direction changes, such as a body, stopped with "glTF UV bake source MikkTSpace requires unsupported topology splitting." CDMW now gives those vertices one copy per tangent direction, as Blender does when you export with **Tangents** ticked, and keeps their skin weights.

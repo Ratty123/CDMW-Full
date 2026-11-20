@@ -1757,21 +1757,21 @@
   "surfaces": [
     {
       "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Find Action Chart by Character...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Open Action Chart Mod...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Add Bones...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 13
@@ -1794,7 +1794,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Continue Earlier Work...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
@@ -1804,14 +1804,14 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Action Chart...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Game Table Values...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 13
@@ -1822,27 +1822,27 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Skinned Decal...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 13
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Sound Bank as Loose Mod...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Structured Data Safely...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export Character and Related Game Files...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
@@ -1856,7 +1856,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export File Paths...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
@@ -1866,20 +1866,20 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export Folder...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export Prefab Edit JSON...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 13
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export Skeleton Edit JSON...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 13
@@ -1894,7 +1894,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export This Model as OBJ (Neutral Appearance)...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
@@ -1904,7 +1904,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export WAV...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 14
@@ -1915,13 +1915,13 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Extract Filtered",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Extract Selected",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
@@ -1931,34 +1931,34 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Find Action Chart by Character...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Import Loose Mod Folder...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Import Prefab Edit JSON...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 13
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Import Skeleton Edit JSON...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 13
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Import WAV as Loose Mod...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 14
@@ -1969,7 +1969,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Open Prefab Inspector...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 13
@@ -1984,7 +1984,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Open set in Mesh Editor",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
@@ -1994,13 +1994,13 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Preview only this file",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Replace Embedded Sound as Loose Mod...",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 6,
       "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
       "typed_by": 14
@@ -2011,171 +2011,147 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/command_strip.py|<source.text()>",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/header.py|<label>",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/header.py|Reset Columns",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/header.py|Show All Columns",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/item_set_components.py|<label>",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<change>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<copy_action>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<move>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<retarget>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<undo>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<users>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/prefab_inspector_structure.py|<duplicate>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/prefab_inspector_structure.py|<remove>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/preview_d3d11_parts.py|<label>",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/preview_d3d11_parts.py|Hide added prefab pieces",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/preview_d3d11_parts.py|Show all parts",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/preview_layout.py|<action_text>",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/preview_layout.py|<icon>",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/reference_preview.py|<menu_icons[kind]>",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_callbacks_parts_outliner_mapping_part_01.py|<_state.original_part_clipboard_action_text['paste_replacement_source']>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_callbacks_parts_outliner_mapping_part_01.py|<label>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_routing_callbacks.py|<label>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_routing_callbacks.py|<original_part_clipboard_action_text['copy_part_with_textures']>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py|<_state._morph_slider_reload_action_text_helper()>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_source_role_tree_callbacks.py|<original_part_clipboard_action_text['paste_replacement_source']>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_source_role_tree_callbacks.py|<source_part_context_menu_text['apply']>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/static_replacement_dialog_source_role_tree_callbacks.py|<spec.label>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/archive_ignored_folders.py|Remove selected",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/commands/shortcuts_page.py|Change...",
@@ -2195,97 +2171,97 @@
     },
     {
       "key": "menu:cdmw/ui/item_icons/tab.py|Delete Source",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/item_icons/tab.py|Open Folder",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/item_icons/tab.py|Open In Texture Editor",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/mesh_editor/textures_panel.py|<f'{texture_role_label(row.role)}: {row.file_name}'>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/mesh_editor/workspace_interaction.py|<label>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 8,
       "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<'Uncheck Row' if is_checked else 'Check Row'>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Delete Checked Local Copies ({len(checked_deletable)})'>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Download + {self._new_item_tool_name()}'>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Download Checked ({len(checked_mirrors)})'>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Show Checked File URLs ({len(checked_mirrors)})'>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Use in {self._new_item_tool_name()}'>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Delete Local Copy",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Delete Local File / Folder",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Download This",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Generate Icon From Preview",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Open Folder",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
@@ -2301,55 +2277,55 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Preview Here",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Preview In Archive Browser",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Preview This",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Select All",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Select None",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Show File URLs for This",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Delete Local",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Delete No-Texture Downloads",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Download + Create New Item",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
@@ -2360,7 +2336,7 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Open Location",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
@@ -2371,13 +2347,13 @@
     },
     {
       "key": "menu:cdmw/ui/new_item/panels_template.py|Copy Filename",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 12,
       "milestone": "P13 MCP gap plan item 12: Create New Item extras"
     },
     {
       "key": "menu:cdmw/ui/new_item/panels_template.py|Open In Archive Browser",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 12,
       "milestone": "P13 MCP gap plan item 12: Create New Item extras"
     },
@@ -2462,61 +2438,57 @@
     },
     {
       "key": "menu:cdmw/ui/shell/navigation_controller.py|<as_label(f'Show {title}')>",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:cdmw/ui/texture_editor_tab.py|<action>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 11,
       "milestone": "P13 MCP gap plan item 11: Textures Replace, Recolor, Upscale and Review & Export tools"
     },
     {
       "key": "menu:cdmw/ui/tools/dmm_packages_page.py|<button.text()>",
-      "gap": "not_built",
-      "item": 4,
-      "milestone": "P13 MCP gap plan item 4: app_ui_act opens menus"
+      "tool": "app.ui_act"
     },
     {
       "key": "menu:tools/new_item_rust_ui_harness.py|Copy Filename",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 12,
       "milestone": "P13 MCP gap plan item 12: Create New Item extras"
     },
     {
       "key": "menu:tools/new_item_rust_ui_harness.py|Open In Archive Browser",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 12,
       "milestone": "P13 MCP gap plan item 12: Create New Item extras"
     },
     {
       "key": "menu:tools/placement_studio/key_timeline.py|Remove this key",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:tools/placement_studio/ui_kit.py|<box.text()>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:tools/placement_studio/window.py|<reset>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:tools/placement_studio/window_tasks.py|<_hang_like_text(source.label)>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
     {
       "key": "menu:tools/placement_studio/window_tasks.py|<box.text()>",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 15,
       "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
     },
@@ -2527,25 +2499,25 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_editor_dialog.py|ActionChartEditorDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 14,
       "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_export_dialog.py|ActionChartExportDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 14,
       "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_finder_dialog.py|ActionChartFinderDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 14,
       "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_link_dialog.py|ActionChartLinkDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 14,
       "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
     },
@@ -2557,7 +2529,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/game_table_actions.py|GameTableEditDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
@@ -2575,7 +2547,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/pab_bone_editor_dialog.py|PabBoneEditorDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
@@ -2593,31 +2565,31 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_dialog.py|PrefabInspectorDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_review.py|PrefabChangeReview",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_widgets.py|AssetPickerDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_widgets.py|PlacementEditDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_widgets.py|ValueEditDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
@@ -2629,13 +2601,13 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/skinned_decal_dialog.py|SkinnedDecalDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 13,
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/sound_bank_editor.py|SoundBankEditorDialog",
-      "gap": "not_built",
+      "gap": "generic_only",
       "item": 14,
       "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
     },
