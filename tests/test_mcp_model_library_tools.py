@@ -124,3 +124,35 @@ def test_model_library_deletes_only_downloaded_copies(tmp_path, monkeypatch):
         tab.request_shutdown()
         wait_for(lambda: not tab.iter_shutdown_workers())
         tab.deleteLater()
+
+
+def test_model_library_previews_a_local_row_in_browse_and_lists_mirror_urls(tmp_path, monkeypatch):
+    from PySide6.QtCore import Qt
+
+    _app()
+    tab, payload, item = _tab_with_selection(tmp_path)
+    client = RailClient(tmp_path, widgets={"model_library": tab})
+    path = tmp_path / "hero.obj"
+    path.write_text("v 0 0 0\n", encoding="utf-8")
+    try:
+        payload.update({"kind": "local", "import_supported": True, "path": str(path)})
+        item.setData(0, Qt.ItemDataRole.UserRole, payload)
+        tab._update_selection_state()
+        seen = []
+        tab.preview_mesh_requested.connect(lambda source, row: seen.append(source))
+        monkeypatch.setattr(tab, "_payload_can_import", lambda row: True)
+        client.ok("models.change", action="preview_in_browser", row=0)
+        wait_for(lambda: bool(seen))
+        assert seen[-1] == str(path)
+        # A local row has no file URLs; a mirror row lists the dialog's text.
+        assert client.call("models.state", urls_for=[0])["error"]["code"] == "invalid_arguments"
+        payload.update({"kind": "mirror", "uid": "abc123", "viewer_url": "https://example.invalid/m/abc123"})
+        item.setData(0, Qt.ItemDataRole.UserRole, payload)
+        monkeypatch.setattr(tab, "_mirror_candidates_for_payload", lambda row: [])
+        text = client.ok("models.state", urls_for=[0])["file_urls"]
+        assert "UID: abc123" in text and "Page: https://example.invalid/m/abc123" in text
+        assert client.call("models.change", action="preview_in_browser", row=0)["error"]["code"] == "unavailable"
+    finally:
+        tab.request_shutdown()
+        wait_for(lambda: not tab.iter_shutdown_workers())
+        tab.deleteLater()

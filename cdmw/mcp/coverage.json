@@ -2347,15 +2347,13 @@
     },
     {
       "key": "menu:cdmw/ui/item_icons/tab.py|Delete Source",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "gap": "user_only",
+      "reason": "Deletes the user's own files from disk; a tool never deletes files the user made outside CDMW's folders."
     },
     {
       "key": "menu:cdmw/ui/item_icons/tab.py|Open Folder",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "gap": "user_only",
+      "reason": "Opens a folder in the system file browser outside CDMW; tools report the path instead."
     },
     {
       "key": "menu:cdmw/ui/item_icons/tab.py|Open In Texture Editor",
@@ -2375,27 +2373,19 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<'Uncheck Row' if is_checked else 'Check Row'>",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.output"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Delete Checked Local Copies ({len(checked_deletable)})'>",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.delete"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Download + {self._new_item_tool_name()}'>",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.output"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Download Checked ({len(checked_mirrors)})'>",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.output"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Show Checked File URLs ({len(checked_mirrors)})'>",
@@ -2405,9 +2395,7 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Use in {self._new_item_tool_name()}'>",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.change"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Delete Local Copy",
@@ -2415,27 +2403,21 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Delete Local File / Folder",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "gap": "user_only",
+      "reason": "Deletes the user's own files from disk; a tool never deletes files the user made outside CDMW's folders."
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Download This",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.output"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Generate Icon From Preview",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.output"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Open Folder",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "gap": "user_only",
+      "reason": "Opens a folder in the system file browser outside CDMW; tools report the path instead."
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Open Model Page",
@@ -2449,45 +2431,31 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Preview Here",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.change"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Preview In Archive Browser",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.change"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Preview This",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.change"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Select All",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.output"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Select None",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.output"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|Show File URLs for This",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.state"
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Delete Local",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.delete"
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Delete No-Texture Downloads",
@@ -2495,9 +2463,7 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Download + Create New Item",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.output"
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Open File URL",
@@ -2506,9 +2472,8 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Open Location",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "gap": "user_only",
+      "reason": "Opens a folder in the system file browser outside CDMW; tools report the path instead."
     },
     {
       "key": "menu:cdmw/ui/model_library/panels.py|Open Page",

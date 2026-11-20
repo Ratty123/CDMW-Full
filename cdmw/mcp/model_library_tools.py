@@ -24,7 +24,32 @@ def _state(tab, args):
 
 def _read(call):
     args = {"count": 100, **call.arguments}
-    return call.context.ui_call(lambda: _state(page(call, "model_library"), args))
+
+    def read():
+        tab = page(call, "model_library")
+        state = _state(tab, args)
+        if "urls_for" in args:
+            # Show File URLs: the same text the menu's dialog shows, for mirror rows only.
+            payloads = []
+            for row in args["urls_for"]:
+                item = tab.results_tree.topLevelItem(row)
+                if item is None:
+                    raise ToolError(NOT_FOUND, f"There is no result row {row}.")
+                payload = _row_payload(item)
+                if payload.get("kind") != "mirror":
+                    raise ToolError(INVALID_ARGUMENTS, f"Row {row} is not a mirror model; only those have file URLs.")
+                payloads.append(payload)
+            state["file_urls"] = tab._selected_file_url_text(payloads)
+        return state
+
+    return call.context.ui_call(read)
+
+
+def _row_payload(item) -> dict:
+    from PySide6.QtCore import Qt
+
+    payload = item.data(0, Qt.ItemDataRole.UserRole)
+    return dict(payload) if isinstance(payload, dict) else {}
 
 
 def _form(tab, args):
@@ -81,7 +106,12 @@ def _change(call):
             payload = tab._selected_payload() or {}
             if action == "use" and payload.get("kind") == "mirror":
                 raise ToolError(UNAVAILABLE, "Use models_output with download_use for a mirror row.")
-            press(tab.preview_button if action == "preview" else tab.use_in_new_item_studio_button)
+            if action == "preview_in_browser":
+                if payload.get("kind") == "mirror" or not tab._payload_can_import(payload):
+                    raise ToolError(UNAVAILABLE, "This row cannot be previewed in Browse Archives; download it first.")
+                tab.preview_selected_model()  # the row menu's Preview In Archive Browser
+            else:
+                press(tab.preview_button if action == "preview" else tab.use_in_new_item_studio_button)
         return _state(tab, {})
 
     return ui(call, change)
@@ -192,12 +222,13 @@ def model_library_tools():
                "result_limit": {"type": "integer", "minimum": 1, "maximum": 5000},
                "formats": {"type": "array", "maxItems": 4, "items": choices("gltf", "glb", "source", "extra")}}
     return [
-        tool("models.state", READ, "Read Model Library sources and result rows.", "ui:ModelLibraryTab.results_tree",
-             _read, {"offset": ROW, "count": {"type": "integer", "minimum": 1, "maximum": 500}}),
-        tool("models.change", EDIT, "Manage sources, configure or search models, preview a row, use it in "
+        tool("models.state", READ, "Read Model Library sources and result rows. urls_for lists the file URLs of "
+             "mirror rows, as Show File URLs does.", "ui:ModelLibraryTab.results_tree",
+             _read, {"offset": ROW, "count": {"type": "integer", "minimum": 1, "maximum": 500}, "urls_for": ROWS}),
+        tool("models.change", EDIT, "Manage sources, configure or search models, preview a row here or in Browse Archives, use it in "
              "Create New Item or cancel work.", "ui:ModelLibraryTab", _change,
              {**options, "action": choices("add_source", "remove_source", "scan_sources", "configure", "search",
-                                           "preview", "use", "cancel"),
+                                           "preview", "preview_in_browser", "use", "cancel"),
               "view": choices("local", "mirror"), "path": PATH, "row": ROW, "catalogue": PATH}, ("action",)),
         tool("models.output", OUTPUT, "Build the mirror search index, download checked results or generate "
              "a preview icon. Download and use a mirror model with download_use. The folder becomes Model Library's "
