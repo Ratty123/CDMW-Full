@@ -32,8 +32,32 @@ def check_owned_resource_budget(planner, size):
         raise NewItemPlanError("The independent owned resources exceed the total size limit.")
 
 
-def copy_material_textures(planner, material, replacements):
+def stock_material_names(stock):
+    """The normalized resource paths a shipped material file names, or an empty set."""
+    from cdmw.services.independent_item_package import virtual_path
+    from cdmw.domain.new_item.independent import IndependentItemError
+
+    if not stock:
+        return frozenset()
+    try:
+        document = parse_pac_xml_references(bytes(stock))
+    except ValueError:
+        return frozenset()
+    names = set()
+    for reference in document.references:
+        try:
+            names.add(virtual_path(reference.path.replace("\\", "/").lower()))
+        except (IndependentItemError, ValueError):
+            continue
+    return frozenset(names)
+
+
+def copy_material_textures(planner, material, replacements, stock=None):
     """Relocate supported DDS paths in one owned material, preserving source pins.
+
+    `stock` is the shipped material the owned one was made from. A texture the
+    game itself does not ship, named by that shipped file, keeps its binding with
+    a warning: the package cannot carry what the game never had.
 
     Explicit imported texture outputs keep their caller's existing destinations.
     Remaining typed DDS references receive unchanged private copies. Unsupported
@@ -52,6 +76,7 @@ def copy_material_textures(planner, material, replacements):
             raise ValueError("Ambiguous private texture source binding.")
         mapping[source] = target
     written, skipped = [], set()
+    stock_names = stock_material_names(stock)
     owned_textures = {request.path.lower() for request in planner.additions if request.path.lower().endswith(".dds")}
     for reference in document.references:
         planner.check()
@@ -62,6 +87,13 @@ def copy_material_textures(planner, material, replacements):
             continue
         # Missing references still refuse, including references absent from an
         # older package's source pins. No fallback supplies unverified bytes.
+        # The one exception is a dangling reference the shipped file itself makes.
+        if source in stock_names and source not in planner.private_texture_copies:
+            if not planner.snapshot.has_entry(source):
+                planner.warnings.append(
+                    f"The game's own material file names a texture it does not ship; the reference is left as it is: {source}")
+                skipped.add(source)
+                continue
         entry = planner.snapshot.entry(source)
         target = planner.private_texture_copies.get(source)
         if target is None:

@@ -62,6 +62,7 @@ def test_imported_obj_reports_free_edit_workflow_without_suggesting_exact_suppor
         neutral_appearance=None,
         pending_replacement=None,
         replacement_comparison="edit",
+        replacement_weight_notes=(),
     )
     try:
         state = replacement_ui_state(host)

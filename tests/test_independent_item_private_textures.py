@@ -280,7 +280,7 @@ def test_private_copy_cost_keeps_portable_inputs_and_source_pins_unchanged(tmp_p
             if not enabled:
                 # The recipe has no supplied DDS. Disabling only automatic
                 # copies reconstructs its previous unchanged-material output.
-                context.setattr(copies, "copy_material_textures", lambda _planner, data, _mapping: (data, ()))
+                context.setattr(copies, "copy_material_textures", lambda _planner, data, _mapping, stock=None: (data, ()))
             start = perf_counter()
             plan = service.plan(choice, snapshot, model=model, capture_independent=True)
             elapsed = perf_counter() - start
