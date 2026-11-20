@@ -71,9 +71,103 @@ std::string json_escape(const std::string& value) {
     return out;
 }
 
+// Python writes every job with ensure_ascii, so a letter outside ASCII in a
+// path (the CDMW folder under a user name such as Jorg with an umlaut, or a
+// Chinese one) arrives as a backslash-u escape. The readers below dropped the
+// backslash and kept the letters "u00f6", so every job under such a folder
+// looked for a file that does not exist.
+void append_utf8(std::string& out, std::uint32_t codepoint) {
+    if (codepoint < 0x80) {
+        out.push_back(static_cast<char>(codepoint));
+    } else if (codepoint < 0x800) {
+        out.push_back(static_cast<char>(0xC0 | (codepoint >> 6)));
+        out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    } else if (codepoint < 0x10000) {
+        out.push_back(static_cast<char>(0xE0 | (codepoint >> 12)));
+        out.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    } else {
+        out.push_back(static_cast<char>(0xF0 | (codepoint >> 18)));
+        out.push_back(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    }
+}
+
+bool read_hex4(const std::string& text, size_t at, std::uint32_t& value) {
+    if (at + 4 > text.size()) return false;
+    value = 0;
+    for (size_t i = at; i < at + 4; ++i) {
+        const char ch = text[i];
+        value <<= 4;
+        if (ch >= '0' && ch <= '9') value |= static_cast<std::uint32_t>(ch - '0');
+        else if (ch >= 'a' && ch <= 'f') value |= static_cast<std::uint32_t>(ch - 'a' + 10);
+        else if (ch >= 'A' && ch <= 'F') value |= static_cast<std::uint32_t>(ch - 'A' + 10);
+        else return false;
+    }
+    return true;
+}
+
+// The text of a JSON string whose opening quote is at text[open]. Sets end to
+// the closing quote, or to text.size() when the string is not closed.
+std::string read_json_string(const std::string& text, size_t open, size_t& end) {
+    std::string out;
+    size_t i = open + 1;
+    for (; i < text.size(); ++i) {
+        const char ch = text[i];
+        if (ch == '"') break;
+        if (ch != '\\' || i + 1 >= text.size()) {
+            out += ch;
+            continue;
+        }
+        const char escaped = text[++i];
+        switch (escaped) {
+        case 'n': out += '\n'; break;
+        case 'r': out += '\r'; break;
+        case 't': out += '\t'; break;
+        case 'b': out += '\b'; break;
+        case 'f': out += '\f'; break;
+        case 'u': {
+            std::uint32_t codepoint = 0;
+            if (!read_hex4(text, i + 1, codepoint)) {
+                append_utf8(out, 0xFFFD);
+                break;
+            }
+            i += 4;
+            if (codepoint >= 0xD800 && codepoint <= 0xDBFF && i + 2 < text.size()
+                && text[i + 1] == '\\' && text[i + 2] == 'u') {
+                std::uint32_t low = 0;
+                if (read_hex4(text, i + 3, low) && low >= 0xDC00 && low <= 0xDFFF) {
+                    codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00);
+                    i += 6;
+                }
+            }
+            if (codepoint >= 0xD800 && codepoint <= 0xDFFF) codepoint = 0xFFFD;
+            append_utf8(out, codepoint);
+            break;
+        }
+        default: out += escaped; break;  // quote, backslash and slash
+        }
+    }
+    end = i;
+    return out;
+}
+
+// Paths in jobs and the entries TSV are UTF-8. fs::path(std::string) reads the
+// ANSI code page on Windows, and path::string() converts back to it, throwing
+// for a letter the code page lacks; both go through UTF-8 here instead.
+fs::path utf8_path(const std::string& text) {
+    return fs::u8path(text);
+}
+
+std::string utf8_text(const fs::path& path) {
+    const auto text = path.u8string();
+    return std::string(text.begin(), text.end());
+}
+
 std::string read_text(const fs::path& path) {
     std::ifstream in(cdmw::long_path(path), std::ios::binary);
-    if (!in) throw std::runtime_error("could not open " + path.string());
+    if (!in) throw std::runtime_error("could not open " + utf8_text(path));
     std::ostringstream ss;
     ss << in.rdbuf();
     return ss.str();
@@ -81,7 +175,7 @@ std::string read_text(const fs::path& path) {
 
 std::vector<char> read_binary(const fs::path& path) {
     std::ifstream in(cdmw::long_path(path), std::ios::binary);
-    if (!in) throw std::runtime_error("could not open " + path.string());
+    if (!in) throw std::runtime_error("could not open " + utf8_text(path));
     return std::vector<char>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 }
 
@@ -93,7 +187,7 @@ std::vector<char> read_binary_if_exists(const fs::path& path) {
 void write_text(const fs::path& path, const std::string& text) {
     if (!path.parent_path().empty()) fs::create_directories(cdmw::long_path(path.parent_path()));
     std::ofstream out(cdmw::long_path(path), std::ios::binary | std::ios::trunc);
-    if (!out) throw std::runtime_error("could not write " + path.string());
+    if (!out) throw std::runtime_error("could not write " + utf8_text(path));
     out.write(text.data(), static_cast<std::streamsize>(text.size()));
 }
 
@@ -105,27 +199,8 @@ std::string find_string_value(const std::string& json, const std::string& key) {
     if (pos == std::string::npos) return {};
     pos = json.find('"', pos + 1);
     if (pos == std::string::npos) return {};
-    std::string out;
-    bool escaped = false;
-    for (size_t i = pos + 1; i < json.size(); ++i) {
-        const char ch = json[i];
-        if (escaped) {
-            switch (ch) {
-            case 'n': out += '\n'; break;
-            case 'r': out += '\r'; break;
-            case 't': out += '\t'; break;
-            default: out += ch; break;
-            }
-            escaped = false;
-        } else if (ch == '\\') {
-            escaped = true;
-        } else if (ch == '"') {
-            break;
-        } else {
-            out += ch;
-        }
-    }
-    return out;
+    size_t end = 0;
+    return read_json_string(json, pos, end);
 }
 
 bool find_bool_value(const std::string& json, const std::string& key, bool fallback = false) {
@@ -175,7 +250,7 @@ std::string slash_copy(std::string value) {
 }
 
 std::string path_text(const fs::path& path) {
-    return path.string();
+    return utf8_text(path);
 }
 
 std::uint32_t read_u32(const std::vector<char>& data, size_t offset) {
@@ -240,7 +315,7 @@ std::uint32_t hashlittle_bytes(const std::string& text, std::uint32_t initval = 
 // here it runs at memory speed in a process of its own.
 std::uint32_t hashlittle_file(const fs::path& path, std::uint64_t& size_out) {
     std::ifstream in(cdmw::long_path(path), std::ios::binary);
-    if (!in) throw std::runtime_error("could not open " + path.string());
+    if (!in) throw std::runtime_error("could not open " + utf8_text(path));
     const std::uint64_t length = static_cast<std::uint64_t>(fs::file_size(cdmw::long_path(path)));
     size_out = length;
     std::uint32_t a = 0xDEADBEEFu + static_cast<std::uint32_t>(length) + 0x000C5EDEu;
@@ -396,7 +471,7 @@ int slash_depth_for(const std::string& path) {
 }
 
 std::string package_label_for(const Entry& entry) {
-    return entry.pamt_path.parent_path().filename().string() + "/" + entry.pamt_path.filename().string();
+    return utf8_text(entry.pamt_path.parent_path().filename()) + "/" + utf8_text(entry.pamt_path.filename());
 }
 
 std::vector<std::string> split_parts(const std::string& text) {
@@ -427,7 +502,7 @@ std::vector<std::string> folder_parts_for_tree(const Entry& entry) {
 
 std::vector<std::string> structure_parts_for(const Entry& entry) {
     std::vector<std::string> parts;
-    std::string package = lower_copy(entry.pamt_path.parent_path().filename().string());
+    std::string package = lower_copy(utf8_text(entry.pamt_path.parent_path().filename()));
     parts.push_back(package.empty() ? "package" : package);
     std::string normalized = lower_copy(slash_copy(entry.path));
     const size_t slash = normalized.find_last_of('/');
@@ -461,7 +536,7 @@ std::string stem_for_path(const std::string& path) {
 }
 
 std::string package_group_for(const Entry& entry) {
-    return lower_copy(entry.pamt_path.parent_path().filename().string());
+    return lower_copy(utf8_text(entry.pamt_path.parent_path().filename()));
 }
 
 bool starts_with(const std::string& text, const std::string& prefix) {
@@ -532,7 +607,7 @@ bool common_technical_suffix(const std::string& path_lower) {
 
 std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
     std::vector<char> data = read_binary(pamt_path);
-    if (data.size() < 12) throw std::runtime_error(pamt_path.string() + " is too small");
+    if (data.size() < 12) throw std::runtime_error(utf8_text(pamt_path) + " is too small");
     size_t off = 0;
     (void)read_u32(data, off);
     const std::uint32_t paz_count = read_u32(data, off + 4);
@@ -608,22 +683,22 @@ std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
 
 std::vector<Entry> scan_package_root(const fs::path& package_root) {
     std::vector<fs::path> pamt_files;
-    if (fs::is_regular_file(cdmw::long_path(package_root)) && lower_copy(package_root.extension().string()) == ".pamt") {
+    if (fs::is_regular_file(cdmw::long_path(package_root)) && lower_copy(utf8_text(package_root.extension())) == ".pamt") {
         pamt_files.push_back(package_root);
     } else {
         // Walk the extended-length form; report each file under the root as given.
         const fs::path long_root = cdmw::long_path(package_root);
         for (fs::recursive_directory_iterator it(long_root), end; it != end; ++it) {
             const fs::directory_entry& item = *it;
-            if (it.depth() == 0 && item.is_directory() && lower_copy(item.path().filename().string()) == "cdmods") {
+            if (it.depth() == 0 && item.is_directory() && lower_copy(utf8_text(item.path().filename())) == "cdmods") {
                 it.disable_recursion_pending();
                 continue;
             }
-            if (item.is_regular_file() && lower_copy(item.path().extension().string()) == ".pamt")
+            if (item.is_regular_file() && lower_copy(utf8_text(item.path().extension())) == ".pamt")
                 pamt_files.push_back(package_root / item.path().lexically_relative(long_root));
         }
     }
-    if (pamt_files.empty()) throw std::runtime_error("no .pamt files were found under " + package_root.string());
+    if (pamt_files.empty()) throw std::runtime_error("no .pamt files were found under " + utf8_text(package_root));
     std::sort(pamt_files.begin(), pamt_files.end());
     std::vector<Entry> all;
     for (const fs::path& pamt : pamt_files) {
@@ -673,8 +748,8 @@ std::vector<Entry> read_entries_tsv(const fs::path& path) {
         Entry e;
         e.source_index = std::stoi(f[0]);
         e.path = f[1];
-        e.pamt_path = fs::path(f[2]);
-        e.paz_file = fs::path(f[3]);
+        e.pamt_path = utf8_path(f[2]);
+        e.paz_file = utf8_path(f[3]);
         e.offset = static_cast<std::uint32_t>(std::stoul(f[4]));
         e.comp_size = static_cast<std::uint32_t>(std::stoul(f[5]));
         e.orig_size = static_cast<std::uint32_t>(std::stoul(f[6]));
@@ -872,7 +947,7 @@ std::string tree_json(const TreeState& state) {
 int run_scan_job(const fs::path& job_path, const fs::path& report_path) {
     try {
         const std::string job = read_text(job_path);
-        const fs::path package_root = fs::path(find_string_value(job, "package_root"));
+        const fs::path package_root = utf8_path(find_string_value(job, "package_root"));
         std::vector<Entry> entries = scan_package_root(package_root);
         write_text(report_path, entries_json(entries));
         return 0;
@@ -897,7 +972,7 @@ int run_browser_state_job(const fs::path& job_path, const fs::path& report_path)
         options.previewable_only = find_bool_value(job, "previewable_only", false);
         options.build_structure_children = find_bool_value(job, "build_structure_children", true);
         options.build_tree_index = find_bool_value(job, "build_tree_index", true);
-        std::vector<Entry> entries = read_entries_tsv(fs::path(find_string_value(job, "entries_tsv")));
+        std::vector<Entry> entries = read_entries_tsv(utf8_path(find_string_value(job, "entries_tsv")));
         std::vector<Entry> filtered;
         std::vector<int> filtered_indexes;
         filtered.reserve(entries.size());
@@ -985,7 +1060,7 @@ int run_derived_index_job(const fs::path& entries_path, const fs::path& report_p
         };
         if (!report_path.parent_path().empty()) fs::create_directories(cdmw::long_path(report_path.parent_path()));
         std::ofstream out(cdmw::long_path(report_path), std::ios::binary | std::ios::trunc);
-        if (!out) throw std::runtime_error("could not write " + report_path.string());
+        if (!out) throw std::runtime_error("could not write " + utf8_text(report_path));
         out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
             << ",\"entry_count\":" << entries.size()
             << ",\"path_rows\":";
@@ -995,7 +1070,7 @@ int run_derived_index_job(const fs::path& entries_path, const fs::path& report_p
         out << ",\"extension_rows\":";
         write_rows_json(out, extension_rows);
         out << "}";
-        if (!out) throw std::runtime_error("could not finish writing " + report_path.string());
+        if (!out) throw std::runtime_error("could not finish writing " + utf8_text(report_path));
         write_progress_json(progress_path, "complete", static_cast<long long>(entries.size()), static_cast<long long>(entries.size()));
         return 0;
     } catch (const std::exception& exc) {
@@ -1885,7 +1960,7 @@ int run_item_index_job(
                 : parse_iteminfo_rows(data, header, loc_tables, icon_hashes, equip_types, resolved,
                     has_string_header ? &prefab_names : nullptr, has_string_header ? &exact_icon_paths : nullptr);
             if (!resolved) {
-                if (dataset != work_dir) throw std::runtime_error("DLC ItemInfo row directory is unsupported: " + dataset.string());
+                if (dataset != work_dir) throw std::runtime_error("DLC ItemInfo row directory is unsupported: " + utf8_text(dataset));
                 rows = parse_iteminfo_bin(data, loc_tables, icon_hashes);
             }
             for (auto& row : rows) {
@@ -2083,19 +2158,9 @@ int run_checksum_job(const fs::path& job_path, const fs::path& report_path) {
             while (pos != std::string::npos && end != std::string::npos) {
                 const size_t open = job.find('"', pos + 1);
                 if (open == std::string::npos || open > end) break;
-                const size_t close = job.find('"', open + 1);
-                if (close == std::string::npos || close > end) break;
-                std::string value = job.substr(open + 1, close - open - 1);
-                std::string unescaped;
-                for (size_t i = 0; i < value.size(); ++i) {
-                    if (value[i] == '\\' && i + 1 < value.size()) {
-                        ++i;
-                        unescaped.push_back(value[i] == 'n' ? '\n' : value[i]);
-                    } else {
-                        unescaped.push_back(value[i]);
-                    }
-                }
-                files.push_back(unescaped);
+                size_t close = 0;
+                files.push_back(read_json_string(job, open, close));
+                if (close >= job.size()) break;
                 pos = close;
             }
         }
@@ -2103,7 +2168,7 @@ int run_checksum_job(const fs::path& job_path, const fs::path& report_path) {
         out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol << ",\"files\":[";
         for (size_t i = 0; i < files.size(); ++i) {
             std::uint64_t size = 0;
-            const std::uint32_t checksum = hashlittle_file(fs::path(files[i]), size);
+            const std::uint32_t checksum = hashlittle_file(utf8_path(files[i]), size);
             if (i) out << ",";
             out << "{\"path\":\"" << json_escape(files[i]) << "\",\"checksum\":" << checksum << ",\"size\":" << size << "}";
         }
@@ -2122,7 +2187,7 @@ int run_checksum_job(const fs::path& job_path, const fs::path& report_path) {
 int run_entry_read_job(const fs::path& job_path, const fs::path& output_path, const fs::path& report_path) {
     try {
         const std::string job = read_text(job_path);
-        const fs::path paz_file = fs::path(find_string_value(job, "paz_file"));
+        const fs::path paz_file = utf8_path(find_string_value(job, "paz_file"));
         const std::string virtual_path = find_string_value(job, "path");
         const std::uint64_t offset = static_cast<std::uint64_t>(find_int_value(job, "offset", 0));
         const std::uint64_t comp_size = static_cast<std::uint64_t>(find_int_value(job, "comp_size", 0));
@@ -2142,7 +2207,7 @@ int run_entry_read_job(const fs::path& job_path, const fs::path& output_path, co
         }
         if (orig_size == 0) throw std::runtime_error("entry has zero original size");
         std::ifstream in(cdmw::long_path(paz_file), std::ios::binary);
-        if (!in) throw std::runtime_error("could not open PAZ " + paz_file.string());
+        if (!in) throw std::runtime_error("could not open PAZ " + utf8_text(paz_file));
         in.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
         std::vector<char> data(static_cast<size_t>(orig_size));
         in.read(data.data(), static_cast<std::streamsize>(data.size()));
@@ -2153,7 +2218,7 @@ int run_entry_read_job(const fs::path& job_path, const fs::path& output_path, co
         out_file.write(data.data(), static_cast<std::streamsize>(data.size()));
         std::ostringstream out;
         out << "{\"status\":\"ok\",\"supported\":true,\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
-            << ",\"path\":\"" << json_escape(virtual_path) << "\",\"output_path\":\"" << json_escape(output_path.string())
+            << ",\"path\":\"" << json_escape(virtual_path) << "\",\"output_path\":\"" << json_escape(utf8_text(output_path))
             << "\",\"bytes_written\":" << data.size() << ",\"decompressed\":false,\"note\":\"NativeRaw\"}";
         write_text(report_path, out.str());
         return 0;
