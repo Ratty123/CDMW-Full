@@ -14,6 +14,7 @@ public sealed class ArchiveSession : IDisposable
     private NameColumn? _nameColumn;
     private ArchiveItemCatalog? _itemCatalog;
     private ArchiveCharacterCatalog? _characterCatalog;
+    private ArchiveNpcCatalog? _npcCatalog;
     private int _disposed;
 
     internal ArchiveSession(string id, ArchiveGenerationLease generation)
@@ -131,6 +132,14 @@ public sealed class ArchiveSession : IDisposable
     internal bool TryGetCharacterCatalog(out ArchiveCharacterCatalog? catalog)
     {
         catalog = Volatile.Read(ref _characterCatalog);
+        return catalog is not null;
+    }
+
+    internal void SetNpcCatalog(ArchiveNpcCatalog catalog) => Volatile.Write(ref _npcCatalog, catalog);
+
+    internal bool TryGetNpcCatalog(out ArchiveNpcCatalog? catalog)
+    {
+        catalog = Volatile.Read(ref _npcCatalog);
         return catalog is not null;
     }
 

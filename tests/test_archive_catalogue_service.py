@@ -396,3 +396,36 @@ def test_catalogue_service_parses_streamed_export_items() -> None:
     assert len(results) == 1
     assert isinstance(results[0][2], ArchiveExportResult)
     assert results[0][2].items == ()
+
+
+def test_catalogue_service_npc_finder_needs_the_helper_capability_and_parses_results() -> None:
+    from cdmw.domain.archives.npc_catalogue import (
+        NpcCatalogSearchRequest, NpcCatalogSearchResult, NpcOutfitRequest, NpcWearersRequest,
+    )
+
+    _app()
+    client = _SignalClient()
+    service = ArchiveCatalogueService(client)
+    session = ArchiveSessionHandle("session-a", "C:/Game", "fingerprint", 2, 2, True)
+    service._sessions[session.session_id] = session
+    service._current_session_id = session.session_id
+    assert not service.npc_catalog_available
+    for start in (lambda: service.build_npc_catalog(session.session_id, ui_generation=1),
+                  lambda: service.search_npc_catalog(NpcCatalogSearchRequest(session.session_id), ui_generation=1),
+                  lambda: service.get_npc_outfit(NpcOutfitRequest(session.session_id, "npc:1"), ui_generation=1),
+                  lambda: service.find_npc_wearers(NpcWearersRequest(session.session_id, "a.pac"), ui_generation=1)):
+        with pytest.raises(ValueError, match="NPC Finder requires an updated archive helper"):
+            start()
+    client.capabilities = ("character_catalog_v1", "npc_catalog_v1")
+    assert service.npc_catalog_available
+    results: list[tuple[str, str, object]] = []
+    service.result_ready.connect(lambda request_id, operation, payload: results.append((request_id, operation, payload)))
+    request_id = service.search_npc_catalog(NpcCatalogSearchRequest(session.session_id, query="Ross"), ui_generation=1)
+    row = {"key": "npc:1001844", "character_id": 1001844, "display_name": "Ross", "internal_name": "NHM_Unique_Russo_622",
+           "kind": "npc", "source_group": "3_npc", "variant_count": 1, "piece_count": 9, "resolution": "resolved",
+           "appearance_path": "character/appearance/3_npc/cd_npc_south/cd_nhm_south/cd_nhm_south_10335.app_xml",
+           "has_armor": True}
+    client.request_succeeded.emit(request_id, {"session_id": session.session_id, "total_matches": 1, "page_start": 0,
+                                               "page_size": 100, "rows": [row], "warnings": []})
+    assert results[0][1] == "search_npc_catalog" and isinstance(results[0][2], NpcCatalogSearchResult)
+    assert results[0][2].rows[0].label == "Ross"

@@ -4,7 +4,8 @@ using Cdmw.FullArchive.Contracts;
 
 namespace Cdmw.FullArchive.Core;
 
-internal sealed record CharacterNameLink(CharacterCatalogOwner Owner, string[] SearchNames);
+// Variant is read only by the NPC catalogue; the character catalogue never stores it.
+internal sealed record CharacterNameLink(CharacterCatalogOwner Owner, string[] SearchNames, int Variant = -1);
 internal sealed record CharacterUnresolvedNameLink(CharacterNameLink Link, int Variant, uint Hash, ArchiveEntryDto Table, long HeaderId);
 
 internal static class ArchiveCharacterNames
@@ -91,7 +92,8 @@ internal static class ArchiveCharacterNames
                 var link = new CharacterNameLink(new(id, name.Name, display, evidence),
                     localized.Values.Select(table => table.GetValueOrDefault(name.NameKey) ?? "")
                         .Append(name.Name).Append(id.ToString(CultureInfo.InvariantCulture))
-                        .Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+                        .Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                    BinaryPrimitives.ReadInt32LittleEndian(row.Key.AsSpan(4)));
                 if (!hashes.TryGetValue(hash, out var matches) || matches.Length != 1)
                 {
                     unmatched++;

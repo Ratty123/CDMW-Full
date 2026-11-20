@@ -7,6 +7,7 @@ using Cdmw.FullArchive.Contracts;
 namespace Cdmw.FullArchive.Core;
 
 internal sealed record CharacterAppearanceNode(string Role, string Name, Dictionary<string, string> Attributes);
+internal sealed record CharacterGearNode(string Section, string Name, string Preview);
 internal sealed record CharacterReferenceResolution(long[] Models, long[] Context, string Resolution, string[] Evidence);
 
 internal sealed class ArchiveCharacterReferences(
@@ -167,6 +168,34 @@ internal sealed class ArchiveCharacterReferences(
                 if (role == "hair" && nameRole == "beard") role = "beard";
                 if (role == "head" && nameRole == "facial_detail") role = "facial_detail";
                 result.Add(new(role, name, attributes));
+            }
+        }
+        return result.ToArray();
+    }
+
+    private static readonly HashSet<string> BodySections = new(StringComparer.OrdinalIgnoreCase)
+        { "customization", "nude", "body", "head", "face", "hair", "audioinfo" };
+
+    // Equipment and any other non-body section of an appearance: <Armor><Prefab Name=".." Preview=".."/>.
+    // Body & Face Finder never reads these; AppearanceNodes stays the body/face source.
+    public static CharacterGearNode[] GearNodes(string text, List<string> evidence)
+    {
+        var document = ReadXml(text, evidence);
+        var result = new List<CharacterGearNode>();
+        var root = document.Root;
+        if (root is null) return [];
+        var sections = BodySections.Contains(root.Name.LocalName) ? [root] : root.Elements();
+        foreach (var section in sections)
+        {
+            var sectionName = section.Name.LocalName;
+            if (BodySections.Contains(sectionName)) continue;
+            var elements = section.Attribute("Name") is not null ? new[] { section } : section.Descendants();
+            foreach (var element in elements)
+            {
+                var name = element.Attributes().FirstOrDefault(static attribute => attribute.Name.LocalName.Equals("Name", StringComparison.OrdinalIgnoreCase))?.Value;
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                var preview = element.Attributes().FirstOrDefault(static attribute => attribute.Name.LocalName.Equals("Preview", StringComparison.OrdinalIgnoreCase))?.Value ?? "";
+                result.Add(new(sectionName.ToLowerInvariant(), name.Trim(), preview));
             }
         }
         return result.ToArray();

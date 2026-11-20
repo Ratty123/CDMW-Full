@@ -15,6 +15,8 @@ internal static class Program
                     ? PreparationAsync()
                     : args.Length == 1 && args[0] == "--character-catalogue"
                         ? CharacterAsync()
+                        : args.Length == 1 && args[0] == "--npc-catalogue"
+                        ? NpcAsync()
                         : FullArchiveTestRunner.RunAsync(
                             archiveQueryOnly: args.Length == 1 && args[0] == "--archive-query",
                             itemCatalogueOnly: args.Length == 1 && args[0] == "--item-catalogue",
@@ -27,6 +29,15 @@ internal static class Program
     {
         await PreviewPreparationTests.ConcurrentAsync();
         await PreviewPreparationTests.CancellationAsync();
+        return 0;
+    }
+
+    private static async Task<int> NpcAsync()
+    {
+        await NpcCatalogTests.PrefabModelsAsync();
+        await NpcCatalogTests.CatalogueAsync();
+        await NpcCatalogTests.CacheAsync();
+        Console.WriteLine("NPC catalogue fixtures: PASS");
         return 0;
     }
 

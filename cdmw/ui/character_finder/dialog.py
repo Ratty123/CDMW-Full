@@ -281,6 +281,9 @@ class CharacterFinderDialog(QDialog):
         self._related.clicked.connect(lambda: self._scope(True))
         self._copy = QPushButton("Copy path")
         self._copy.clicked.connect(self._copy_path)
+        self._open_npc = QPushButton("Open in NPC Finder")
+        self._open_npc.setToolTip("Open NPC Finder on this appearance to list every piece it wears, armour included.")
+        self._open_npc.clicked.connect(self._open_npc_finder)
         self._export = QPushButton("Export FBX…")
         self._export.setToolTip("Export the selected models as FBX with the face shape this appearance gives them.")
         self._export.clicked.connect(self._start_export)
@@ -288,7 +291,7 @@ class CharacterFinderDialog(QDialog):
         self._create_hair.clicked.connect(lambda: self._start_hair("generated"))
         self._edit_hair = QPushButton("Edit Hair")
         self._edit_hair.clicked.connect(lambda: self._start_hair("existing"))
-        for button in (self._exact, self._related, self._copy, self._export, self._create_hair, self._edit_hair):
+        for button in (self._exact, self._related, self._copy, self._open_npc, self._export, self._create_hair, self._edit_hair):
             button.setEnabled(False)
             actions.addWidget(button)
         right_layout.addLayout(actions)
@@ -676,6 +679,11 @@ class CharacterFinderDialog(QDialog):
     def _copy_path(self):
         if self._details is not None:
             QApplication.clipboard().setText(self._details.row.path)
+
+    def _open_npc_finder(self):
+        if self._details is not None and self._details.appearance_path:
+            from cdmw.ui.npc_finder.dialog import show_npc_finder
+            show_npc_finder(self._window, query=self._details.appearance_path)
 
     def _export_busy(self):
         return self._export_pending is not None or self._export_thread is not None
@@ -1084,6 +1092,8 @@ class CharacterFinderDialog(QDialog):
         self._next_button.setEnabled(not busy and not self._invalid and self._page_start + 72 < self._total)
         for button in (self._exact, self._related, self._copy):
             button.setEnabled(self._details is not None and not busy and not self._invalid)
+        self._open_npc.setEnabled(self._details is not None and bool(self._details.appearance_path) and not self._invalid
+                                  and bool(getattr(self._service, "npc_catalog_available", False)))
         self._export.setEnabled(self._details is not None and bool(self._details.models) and not busy
                                 and not self._invalid and not self._export_busy())
         self._kliff_look.setEnabled(self._creator_folder is not None and not self._invalid and not self._export_busy())
@@ -1187,7 +1197,8 @@ def show_character_finder(window):
             dialog.show()
             dialog.raise_()
             dialog.activateWindow()
-            return
+            return dialog
     dialog = CharacterFinderDialog(window)
     retained.add(dialog)
     dialog.show()
+    return dialog
