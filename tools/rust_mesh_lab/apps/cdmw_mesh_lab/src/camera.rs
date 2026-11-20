@@ -372,6 +372,16 @@ impl OrbitCamera {
         }
     }
 
+    /// Set the distance from the target, within the limits zooming keeps.
+    pub fn set_distance(&mut self, distance: f32) {
+        if distance.is_finite() && distance > 0.0 {
+            let minimum = (self.scene_radius * 0.01).max(MIN_DISTANCE);
+            let maximum = (self.scene_radius * 10_000.0).max(10.0);
+            self.distance = distance.clamp(minimum, maximum);
+            self.bump_revision();
+        }
+    }
+
     pub fn set_orbit_state_with_roll(
         &mut self,
         yaw: f32,

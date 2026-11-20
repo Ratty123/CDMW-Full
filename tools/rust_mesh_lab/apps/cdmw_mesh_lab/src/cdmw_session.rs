@@ -676,6 +676,16 @@ pub enum HostEvent {
     /// list does; `None` ends it. CDMW's Textures panel sends it while the pointer is
     /// over a part's row or one of its textures. The selection is not touched.
     HighlightPart(Option<u32>),
+    /// Set the 3D view's camera by numbers (`set_camera`, `HOST_CAMERA_CAPABILITY`): each
+    /// value that is given replaces the camera's own; none given only reports it. The
+    /// helper answers with a `camera` event either way.
+    SetCamera {
+        yaw: Option<f32>,
+        pitch: Option<f32>,
+        distance: Option<f32>,
+        target: Option<[f32; 3]>,
+        frame: bool,
+    },
     /// Send one of the CDMW commands a panel button sends, as that button does
     /// (`cdmw_command`). Only the commands of `host_cdmw_command` are taken:
     /// CDMW's automated test runs drive Import Replacement and Export Mesh File.
@@ -715,6 +725,10 @@ pub enum HostEvent {
     Cancel(String),
     Fatal(String),
 }
+
+/// Hello capability: the helper takes `set_camera` (`HostEvent::SetCamera`) and answers it
+/// with a `camera` event.
+pub const HOST_CAMERA_CAPABILITY: &str = "host_camera_v1";
 
 /// Hello capability: the helper takes `highlight_part` (`HostEvent::HighlightPart`).
 pub const HOST_HIGHLIGHT_PART_CAPABILITY: &str = "host_highlight_part_v1";
@@ -838,6 +852,72 @@ pub fn host_cdmw_panel_command(name: &str) -> Option<(&'static str, &'static str
         "rig_normalize_weights" => Some(("rig_normalize_weights", "Weights")),
         "rig_select_bone" => Some(("rig_select_bone", "Weights")),
         "rig_transfer_weights" => Some(("rig_transfer_weights", "Weights")),
+        _ => host_cdmw_output_command(name),
+    }
+}
+
+/// `set_camera`: angles in radians, a distance above zero and a target of three finite
+/// numbers, each optional; `frame` frames the whole model first.
+fn decode_set_camera(value: &Value) -> Result<HostEvent, SessionError> {
+    let bad = |what: &str| SessionError::Protocol(format!("set_camera needs {what}"));
+    let number = |key: &str| -> Result<Option<f32>, SessionError> {
+        match value.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(item) => item
+                .as_f64()
+                .map(|number| number as f32)
+                .filter(|number| number.is_finite())
+                .map(Some)
+                .ok_or_else(|| bad(&format!("a finite number for {key}"))),
+        }
+    };
+    let distance = number("distance")?;
+    if distance.is_some_and(|distance| distance <= 0.0) {
+        return Err(bad("a distance above zero"));
+    }
+    let target = match value.get("target") {
+        None | Some(Value::Null) => None,
+        Some(Value::Array(items)) if items.len() == 3 => {
+            let mut point = [0.0_f32; 3];
+            for (slot, item) in point.iter_mut().zip(items) {
+                *slot = item
+                    .as_f64()
+                    .map(|number| number as f32)
+                    .filter(|number| number.is_finite())
+                    .ok_or_else(|| bad("a target of three finite numbers"))?;
+            }
+            Some(point)
+        }
+        Some(_) => return Err(bad("a target of three finite numbers")),
+    };
+    Ok(HostEvent::SetCamera {
+        yaw: number("yaw")?,
+        pitch: number("pitch")?,
+        distance,
+        target,
+        frame: value.get("frame").and_then(Value::as_bool).unwrap_or(false),
+    })
+}
+
+/// Hello capability: `cdmw_command` also takes the commands of
+/// [`host_cdmw_output_command`]: the vertex inspector's edit, Hair setup, and the buttons
+/// that write or read files, with the paths CDMW checked first.
+pub const HOST_OUTPUT_COMMANDS_CAPABILITY: &str = "host_output_commands_v1";
+
+/// The commands the editor's own buttons send after their file dialog, or the vertex
+/// inspector's Apply and Hair's setup, with the label those buttons give them. CDMW sends
+/// the path the dialog would have returned; its authoring session checks it as for the
+/// button.
+pub fn host_cdmw_output_command(name: &str) -> Option<(&'static str, &'static str)> {
+    match name {
+        "vertex_edit" => Some(("vertex_edit", "Edit Vertex Parameters")),
+        "hair_begin" => Some(("hair_begin", "Change hair references")),
+        "hair_texture_export" => Some(("hair_texture_export", "Hair texture")),
+        "export_free_edit" => Some(("export_free_edit", "Export Free Edit OBJ")),
+        "import_editable_package" => Some(("import_editable_package", "Import editable package")),
+        "morph_export_recipe" => Some(("morph_export_recipe", "Save fitting setup")),
+        "morph_export_preset" => Some(("morph_export_preset", "Export morph preset")),
+        "replacement_export_rig" => Some(("replacement_export_rig", "Export rig GLB")),
         _ => None,
     }
 }
@@ -1441,6 +1521,8 @@ impl CdmwBridge {
                 HOST_CDMW_COMMAND_CAPABILITY,
                 HOST_EDIT_COMMANDS_CAPABILITY,
                 HOST_PANEL_COMMANDS_CAPABILITY,
+                HOST_OUTPUT_COMMANDS_CAPABILITY,
+                HOST_CAMERA_CAPABILITY,
                 HOST_HIGHLIGHT_PART_CAPABILITY,
                 translation_transfer::CAPABILITY
             ]
@@ -1712,6 +1794,16 @@ impl CdmwBridge {
             "session_id": self.manifest.session_id,
             "process_generation": self.manifest.process_generation,
             "layout": layout
+        }))
+    }
+
+    /// The 3D view's camera, after a `set_camera` (`HOST_CAMERA_CAPABILITY`).
+    pub fn publish_camera(&self, camera: Value) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "camera", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation,
+            "camera": camera,
         }))
     }
 
@@ -2310,6 +2402,7 @@ impl CdmwBridge {
                     }
                     Ok(HostEvent::HairPreset(preset.to_owned()))
                 }
+                "set_camera" => decode_set_camera(&value),
                 "cdmw_command" => {
                     let name = value.get("command").and_then(Value::as_str).unwrap_or("");
                     let (command, label) = host_cdmw_command(name).ok_or_else(|| {
@@ -6810,6 +6903,34 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn set_camera_takes_finite_numbers_and_reports_only_when_none_are_given() {
+        let root = tempdir().expect("root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
+        let base = json!({"event":"set_camera", "protocol":PROTOCOL, "session_id":"session",
+            "request_id":0, "base_revision":4, "process_generation":3});
+        let mut value = base.clone();
+        value["yaw"] = json!(1.5);
+        value["distance"] = json!(2.0);
+        value["target"] = json!([0.0, 1.0, -2.0]);
+        assert!(matches!(
+            bridge.decode_host_event(value),
+            HostEvent::SetCamera { yaw: Some(yaw), pitch: None, distance: Some(distance),
+                target: Some([0.0, 1.0, -2.0]), frame: false }
+                if (yaw - 1.5).abs() < 1e-6 && (distance - 2.0).abs() < 1e-6
+        ));
+        assert!(matches!(
+            bridge.decode_host_event(base.clone()),
+            HostEvent::SetCamera { yaw: None, pitch: None, distance: None, target: None, frame: false }
+        ));
+        for (key, bad) in [("distance", json!(0.0)), ("distance", json!(-1.0)), ("yaw", json!("left")),
+                           ("target", json!([1.0, 2.0])), ("target", json!([1.0, "x", 2.0]))] {
+            let mut value = base.clone();
+            value[key] = bad;
+            assert!(matches!(bridge.decode_host_event(value), HostEvent::Fatal(_)), "{key}");
+        }
+    }
+
+    #[test]
     fn cdmw_command_event_takes_only_the_listed_commands_with_object_arguments() {
         let root = tempdir().expect("root");
         let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
@@ -6858,15 +6979,29 @@ pub(crate) mod tests {
                 HostEvent::CdmwCommand { command, label: l, .. } if command == name && l == label
             ));
         }
-        // Any other command (files written, session setup), or arguments that are not an
+        // The output commands (host_output_commands_v1) come with their buttons' labels.
+        for (name, label) in [
+            ("vertex_edit", "Edit Vertex Parameters"),
+            ("hair_begin", "Change hair references"),
+            ("hair_texture_export", "Hair texture"),
+            ("export_free_edit", "Export Free Edit OBJ"),
+            ("import_editable_package", "Import editable package"),
+            ("morph_export_recipe", "Save fitting setup"),
+            ("morph_export_preset", "Export morph preset"),
+            ("replacement_export_rig", "Export rig GLB"),
+        ] {
+            value["command"] = json!(name);
+            assert!(matches!(
+                bridge.decode_host_event(value.clone()),
+                HostEvent::CdmwCommand { command, label: l, .. } if command == name && l == label
+            ));
+        }
+        // Any other command (session setup, saving), or arguments that are not an
         // object: refused.
         for name in [
-            "replacement_export_rig",
-            "morph_export_preset",
-            "hair_texture_export",
-            "hair_begin",
-            "vertex_edit",
             "finish",
+            "save",
+            "morph_import_preset_dialog",
             "",
         ] {
             value["command"] = json!(name);
