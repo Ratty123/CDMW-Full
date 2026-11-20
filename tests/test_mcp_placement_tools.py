@@ -314,3 +314,28 @@ def test_prepare_uses_the_tab_worker_before_installing_the_window(client, window
         assert client("state")["ready"]
     finally:
         gate.set()
+
+
+def test_export_writes_glb_paa_and_edited_files_without_a_mod(client, window, tmp_path):
+    out = tmp_path / "exports"
+    out.mkdir()
+    client("animation", action="start")
+    glb = client("export", kind="blender_glb", save_file=str(out / "clip.glb"))
+    assert (out / "clip.glb").read_bytes()[:4] == b"glTF", glb
+    paa = client("export", kind="animation", save_file=str(out / "clip.paa"))
+    assert paa["saved"] == str(out / "clip.paa") and (out / "clip.paa").stat().st_size > 0
+    with pytest.raises(ToolError, match=r"\.paa"):
+        client("export", kind="animation", save_file=str(out / "clip.glb"))
+    client("animation", action="retime_event", chart=CHART, animation=0, event=0, seconds=0.45)
+    files = out / "files"
+    files.mkdir()
+    client("export", kind="edited_files", folder=str(files))
+    assert (files / CHART).read_bytes() == window._edits.chart_bytes(CHART)
+
+
+def test_view_sets_the_show_menu_and_resets_the_view(client, window):
+    shown = client("view")["show"]
+    assert shown["bones"] is True and shown["unused_sockets"] is False
+    after = client("view", bones=False, solid_body=True, reset=True)["show"]
+    assert after["bones"] is False and after["solid_body"] is True
+    assert not window._show_bones.isChecked() and window._solid_body.isChecked()

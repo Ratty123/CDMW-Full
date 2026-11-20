@@ -1525,11 +1525,7 @@
       "area": "Placement & Animations",
       "what": "Export loose edited files, an animation PAA, or a Blender GLB",
       "class": "output",
-      "gap": "not_built",
-      "milestone": "P13 standalone file outputs. Stage 5 covers Save Mod.",
-      "also": [
-        "app.ui_act"
-      ]
+      "tool": "placement.export"
     },
     {
       "id": "placement.playback",
@@ -1544,6 +1540,13 @@
       "what": "Capture the placement viewport",
       "class": "read",
       "tool": "placement.capture"
+    },
+    {
+      "id": "placement.view",
+      "area": "Placement & Animations",
+      "what": "What the viewport shows (bones, labels, spare attach points, meshes, solid body, drag direction) and Reset view",
+      "class": "read",
+      "tool": "placement.view"
     },
     {
       "id": "translation.edit",
@@ -2389,9 +2392,7 @@
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Show Checked File URLs ({len(checked_mirrors)})'>",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "models.state"
     },
     {
       "key": "menu:cdmw/ui/model_library/commands.py|<f'Use in {self._new_item_tool_name()}'>",
@@ -2599,9 +2600,7 @@
     },
     {
       "key": "menu:tools/placement_studio/key_timeline.py|Remove this key",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "placement.animation"
     },
     {
       "key": "menu:tools/placement_studio/ui_kit.py|<box.text()>",
@@ -2611,21 +2610,15 @@
     },
     {
       "key": "menu:tools/placement_studio/window.py|<reset>",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "placement.view"
     },
     {
       "key": "menu:tools/placement_studio/window_tasks.py|<_hang_like_text(source.label)>",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "placement.socket"
     },
     {
       "key": "menu:tools/placement_studio/window_tasks.py|<box.text()>",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "placement.view"
     },
     {
       "key": "dialog:cdmw/ui/ai_connections/approval_prompt.py|ApprovalPrompt",
