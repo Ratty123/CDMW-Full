@@ -2891,6 +2891,9 @@ ERROR_REFERENCE = [
     "messages": [
       "Combine into One Mod closed before producing an output.",
       "Combine into One Mod did not finish in time.",
+      "Nothing was saved as a mod; the HKX Physics Editor says why.",
+      "The HKX Physics Editor did not open in time.",
+      "The HKX Physics Editor did not save in time.",
       "The Mesh Editor did not take the command.",
       "The Mesh Editor did not take the export.",
       "The Mesh Editor did not take the selection.",
@@ -2904,6 +2907,7 @@ ERROR_REFERENCE = [
       "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}"
     ],
     "sources": [
+      "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/mesh_edit_tools.py",
       "cdmw/mcp/mesh_tools.py",
@@ -2957,12 +2961,14 @@ ERROR_REFERENCE = [
       "An edge of part {part} is not two of its vertices 0 to {count - 1}.",
       "At most {MAX_ROWS * 8} rows at once.",
       "CDMW does not decode {table}. It decodes: {', '.join(sorted(DECODED_TABLES))}",
+      "Choose a factor from {box.minimum()} to {box.maximum()}.",
       "Choose a supported numeric preset or value.",
       "Choose a supported worker count.",
       "Choose a value from {control.minimum()} to {control.maximum()}.",
       "Choose editor=tool for the rail's Textures workflow.",
       "Choose existing source mod folders.",
       "Choose one of {', '.join(values)}.",
+      "Choose {key} from {spin.minimum()} to {spin.maximum()}.",
       "Enter a nonnegative whole number.",
       "Enter a valid colour, for example #ff8844.",
       "Enter an absolute path or clear the setting.",
@@ -2972,6 +2978,7 @@ ERROR_REFERENCE = [
       "Free Edit writes an editable package: give 'destination', an existing folder outside the game.",
       "Give a file, project or archive texture path.",
       "Give an extension or a path",
+      "Give either factor (with optional offsets or category) or values.",
       "Give key or name",
       "Give key, character_id or appearance_path.",
       "Give key, keys or search",
@@ -2985,6 +2992,7 @@ ERROR_REFERENCE = [
       "Paint points must be within the {width} by {height} mask.",
       "Part {part} has triangles 0 to {count - 1}.",
       "Part {part} has vertices 0 to {count - 1}.",
+      "Save the edited file as a .hkx file.",
       "Supply exactly one PNG path or base64 data.",
       "Supply the list of paths to ignore.",
       "That cell holds a number.",
@@ -2994,13 +3002,17 @@ ERROR_REFERENCE = [
       "The destination must end in {suffix}.",
       "The docked editor opens a mesh texture by texture ID or game path.",
       "The local file path must be absolute.",
+      "The output folder does not exist: {folder}",
       "The output folder does not exist: {target}",
+      "The package path must end in {PACKAGE_EXTENSION}.",
       "The requested region extends outside the image.",
       "The value does not match the Settings control.",
       "The {family} commands are: {', '.join(PANEL_COMMANDS[family])}.",
       "There is no such row in Model Library.",
+      "These values change nothing.",
       "This action needs '{key}'.",
       "Unknown argument {extra[0]}",
+      "Unknown category {category}; use one of {', '.join(CATEGORIES)}.",
       "Unknown {name}: {options[name]}.",
       "Unrecognized shortcut {key}.",
       "Use a Create New Item package filename ending in .cdmw.",
@@ -3039,6 +3051,7 @@ ERROR_REFERENCE = [
     ],
     "sources": [
       "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/local_file_tools.py",
       "cdmw/mcp/mesh_edit_tools.py",
       "cdmw/mcp/mesh_tools.py",
@@ -3054,6 +3067,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/read_tools.py",
       "cdmw/mcp/schema.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_pixels.py",
@@ -3541,13 +3555,17 @@ ERROR_REFERENCE = [
       "There is no control {text} now. Call app_ui for the controls shown.",
       "There is no file {wanted}.",
       "There is no job {job_id}.",
+      "There is no joint {index}; files_hkx_state lists them.",
+      "There is no name {item}; files_hkx_state lists them.",
       "There is no supported Settings control for {raw}.",
       "There is no tab {row}.",
       "This appearance lists no piece {a['piece']}.",
+      "This joint has no {key}.",
       "{clean_label(action.text())} has no submenu.",
       "{clean_label(found.text())} has no submenu.",
       "{error}. The archives have: {languages}.",
       "{key} has no variant {variant}.",
+      "{path} is not in the game archives.",
       "{table} has no row {key if key is not None else name}.",
       "{what}: the mesh has parts 0 to {len(parts) - 1}.",
       "{where} has no entry {part}. It has: {known}."
@@ -3556,6 +3574,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/app_read_tools.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/item_icon_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/local_file_tools.py",
@@ -3569,6 +3588,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/research_tools.py",
       "cdmw/mcp/saved_work_tools.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_pixels.py",
@@ -3733,12 +3753,16 @@ ERROR_REFERENCE = [
       "Only you can change this setting in CDMW: AI connections, their approvals, Full access and the game folder are never changed by a tool. It was put back.",
       "Only you can run this command in CDMW: it can change the AI connection settings or the game folder, or it writes into the game.",
       "Only you can use this control in CDMW: AI connections, their approvals, Full access, the game folder and what writes into the game are never driven by a tool.",
-      "The current animation draft was kept."
+      "The HKX Physics Editor refused the save.",
+      "The current animation draft was kept.",
+      "{destination} already exists; name a new package.",
+      "{key} cannot change on this joint."
     ],
     "sources": [
       "cdmw/mcp/approvals.py",
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
+      "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/item_icon_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/model_library_tools.py",
@@ -3750,6 +3774,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/saved_work_tools.py",
       "cdmw/mcp/server.py",
       "cdmw/mcp/settings_tools.py",
+      "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/text_search_tools.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/ui_actions.py",
@@ -3851,7 +3876,7 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "sidecar_material_name_changed",
     "messages": [
-      "OBJ sidecar material changed for submesh {submesh_index}: expected {expected_material}, got {actual_material}."
+      "Package sidecar material changed for submesh {submesh_index}: expected {expected_material}, got {actual_material}."
     ],
     "sources": [
       "cdmw/modding/mesh_obj_importer.py"
@@ -10178,7 +10203,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot edit {prepared.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 188
+      "cdmw/ui/archive_browser/action_chart_actions.py": 191
     }
   },
   {
@@ -10812,10 +10837,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Could not open Speed Tuning: {result}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 74
+    }
+  },
+  {
+    "area": "archive",
     "message": "Could not open {chart_path}: {result}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 154
+      "cdmw/ui/archive_browser/action_chart_actions.py": 157
     }
   },
   {
@@ -10863,7 +10896,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the character action packages: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 310
+      "cdmw/ui/archive_browser/action_chart_actions.py": 313
     }
   },
   {
@@ -10887,7 +10920,16 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {folder}: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 351
+      "cdmw/ui/archive_browser/action_chart_actions.py": 354
+    }
+  },
+  {
+    "area": "archive",
+    "message": "Could not read {path}: {exc}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 225,
+      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 391
     }
   },
   {
@@ -12723,6 +12765,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_loose_export.py": 207
+    }
+  },
+  {
+    "area": "archive",
+    "message": "No character action charts were found in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 60
     }
   },
   {
@@ -15143,6 +15193,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Speed Tuning export failed: {result}",
+    "recovery": "write",
+    "sources": {
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 169
+    }
+  },
+  {
+    "area": "archive",
     "message": "Staged package is missing planned payloads: {detail}",
     "recovery": "missing",
     "sources": {
@@ -16187,7 +16245,7 @@ MESSAGE_REFERENCE = [
     "message": "The export has no destination.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 267
+      "cdmw/ui/archive_browser/action_chart_actions.py": 270
     }
   },
   {
@@ -16718,6 +16776,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/replace_from_archive_service.py": 179
+    }
+  },
+  {
+    "area": "archive",
+    "message": "These factors cannot be applied: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 541
     }
   },
   {
@@ -19538,7 +19604,7 @@ MESSAGE_REFERENCE = [
     "message": "{chart_path} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_actions.py": 127
+      "cdmw/ui/archive_browser/action_chart_actions.py": 130
     }
   },
   {
@@ -20713,6 +20779,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "A byte outside the edited values changed.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 146
+    }
+  },
+  {
+    "area": "formats",
     "message": "A duplicate or non-prefab replacement target is unsupported: {path}.",
     "recovery": "conflict",
     "sources": {
@@ -20857,10 +20931,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Browse Archives is unavailable.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 32
+    }
+  },
+  {
+    "area": "formats",
     "message": "Bytes at 0x{text_at} are not what was read there",
     "recovery": "internal",
     "sources": {
       "cdmw/core/prefab_binary_edit.py": 315
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Choose a factor from {box.minimum()} to {box.maximum()}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 147
     }
   },
   {
@@ -20873,10 +20963,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Choose {key} from {spin.minimum()} to {spin.maximum()}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 136
+    }
+  },
+  {
+    "area": "formats",
     "message": "Could not check what else uses {path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 674
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 697
     }
   },
   {
@@ -21569,6 +21667,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Joints cannot change while another file's collision is used.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 86
+    }
+  },
+  {
+    "area": "formats",
     "message": "Likely Havok array capacity and flags word. Rebuilding this safely is not supported yet.",
     "recovery": "unsupported",
     "sources": {
@@ -21841,6 +21947,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Not speed values of this prefab: {', '.join(map(str, missing))}.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 172
+    }
+  },
+  {
+    "area": "formats",
     "message": "Nothing removed: you cancelled.",
     "recovery": "cancelled",
     "sources": {
@@ -21852,7 +21966,15 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to apply: nothing was changed.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 876
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 899
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Nothing was saved as a mod; the HKX Physics Editor says why.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 224
     }
   },
   {
@@ -21860,7 +21982,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing written: you cancelled at the review step.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 879
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 902
     }
   },
   {
@@ -21869,6 +21991,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_hkx_tagfile_model.py": 373
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Offset {edit.offset} is not a speed value this prefab holds.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 131
     }
   },
   {
@@ -22021,7 +22151,7 @@ MESSAGE_REFERENCE = [
     "message": "Partly read. {head}{where} What is shown was read from the file; the rest uses a structure this tool cannot follow yet. You can still swap a file for another whose name is exactly the same length - that moves nothing in the file - but anything that would resize it is refused.{caveat}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 303
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 307
     }
   },
   {
@@ -22806,7 +22936,7 @@ MESSAGE_REFERENCE = [
     "message": "Refused: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 916,
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 939,
       "cdmw/ui/archive_browser/prefab_inspector_structure.py": 130
     }
   },
@@ -22964,6 +23094,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "Save the edited file as a .hkx file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 173
+    }
+  },
+  {
+    "area": "formats",
     "message": "Section {tag} at {offset} overruns its parent.",
     "recovery": "internal",
     "sources": {
@@ -22976,6 +23114,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_hkx_tagfile_model.py": 236
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Select a Crimson Desert .hkx file in Browse Archives first (view_open selects one).",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 100
     }
   },
   {
@@ -23085,6 +23231,38 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The HKX Physics Editor did not open in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 111
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The HKX Physics Editor did not save in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 191
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The HKX Physics Editor is not open. Select a .hkx file and call files_hkx_edit with action open.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 41
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The HKX Physics Editor refused the save.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 185
+    }
+  },
+  {
+    "area": "formats",
     "message": "The HKX XML editor is empty.",
     "recovery": "empty",
     "sources": {
@@ -23109,10 +23287,34 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The edited prefab does not read back with the same speed values.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 150
+    }
+  },
+  {
+    "area": "formats",
     "message": "The edited prefab {path} points at files that neither this game nor the package contains: {shown}.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/independent_prefab_package.py": 154
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The factor must be above 0 and at most 100.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/prefab_inspector_editing.py": 333
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The factor must be between {MIN_SCALE} and {MAX_SCALE}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 109
     }
   },
   {
@@ -23165,6 +23367,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The output folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 200
+    }
+  },
+  {
+    "area": "formats",
     "message": "The package contains contradictory writes to its prefab target: {path}.",
     "recovery": "write",
     "sources": {
@@ -23197,6 +23407,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The prefab could not be read: {exc}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 124
+    }
+  },
+  {
+    "area": "formats",
     "message": "The prefab replacement could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
@@ -23217,6 +23435,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/services/independent_prefab_package.py": 44
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The prefab search was cancelled.",
+    "recovery": "cancelled",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 234
     }
   },
   {
@@ -23373,10 +23599,50 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "The value at {edit.offset} reads back as {stored}, not {wanted}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 158
+    }
+  },
+  {
+    "area": "formats",
     "message": "There are no changes to save.",
     "recovery": "internal",
     "sources": {
       "cdmw/services/hkx_physics_editor_service.py": 240
+    }
+  },
+  {
+    "area": "formats",
+    "message": "There is no joint {index}; files_hkx_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 92
+    }
+  },
+  {
+    "area": "formats",
+    "message": "There is no name {item}; files_hkx_state lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 162
+    }
+  },
+  {
+    "area": "formats",
+    "message": "This HKX file has no joints CDMW can edit.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 84
+    }
+  },
+  {
+    "area": "formats",
+    "message": "This HKX file has no names CDMW can change.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 153
     }
   },
   {
@@ -23392,7 +23658,15 @@ MESSAGE_REFERENCE = [
     "message": "This file could not be read as a prefab: {self._error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 252
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 256
+    }
+  },
+  {
+    "area": "formats",
+    "message": "This joint has no {key}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 130
     }
   },
   {
@@ -23401,6 +23675,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/prefab_binary_edit.py": 613
+    }
+  },
+  {
+    "area": "formats",
+    "message": "This prefab holds no speed value to scale.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 174
     }
   },
   {
@@ -25558,7 +25840,7 @@ MESSAGE_REFERENCE = [
     "message": "{companion.role} ({companion.detail}) is MISSING: nothing at {companion.path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 575
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 598
     }
   },
   {
@@ -25951,6 +26233,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_hkx_joint_limits.py": 263
+    }
+  },
+  {
+    "area": "formats",
+    "message": "{key} cannot change on this joint.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/hkx_tools.py": 133
     }
   },
   {
@@ -26455,6 +26745,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/prefab_binary_edit.py": 491
+    }
+  },
+  {
+    "area": "formats",
+    "message": "{value.member} would change size",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 138
+    }
+  },
+  {
+    "area": "formats",
+    "message": "{what} must be finite numbers.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/prefab_speed_service.py": 103
     }
   },
   {
@@ -28529,7 +28835,7 @@ MESSAGE_REFERENCE = [
     "message": "0 or 1",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 91
+      "cdmw/ui/new_item/game_tables_editor.py": 106
     }
   },
   {
@@ -33995,7 +34301,7 @@ MESSAGE_REFERENCE = [
     "message": "This row exists only in the DLC copy; a DMM mod cannot change it.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 325
+      "cdmw/ui/new_item/game_tables_editor.py": 341
     }
   },
   {
@@ -36267,7 +36573,7 @@ MESSAGE_REFERENCE = [
     "message": "{int(rule.minimum)} to {int(rule.maximum)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 93
+      "cdmw/ui/new_item/game_tables_editor.py": 108
     }
   },
   {
@@ -36764,7 +37070,7 @@ MESSAGE_REFERENCE = [
     "message": "{rule.minimum} to {rule.maximum}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 83
+      "cdmw/ui/new_item/game_tables_editor.py": 98
     }
   },
   {
@@ -45980,7 +46286,7 @@ MESSAGE_REFERENCE = [
     "message": "Failed to read OBJ material library %s: %s",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 412
+      "cdmw/modding/mesh_obj_importer.py": 414
     }
   },
   {
@@ -45988,7 +46294,7 @@ MESSAGE_REFERENCE = [
     "message": "Failed to read OBJ round-trip sidecar %s: %s",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 97
+      "cdmw/modding/mesh_obj_importer.py": 99
     }
   },
   {
@@ -47850,7 +48156,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignoring OBJ round-trip sidecar %s because it is not a JSON object.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 100
+      "cdmw/modding/mesh_obj_importer.py": 102
     }
   },
   {
@@ -47858,7 +48164,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignoring OBJ round-trip sidecar %s because it uses unsupported format %r.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 104
+      "cdmw/modding/mesh_obj_importer.py": 106
     }
   },
   {
@@ -47866,7 +48172,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignoring OBJ round-trip sidecar because source format mismatch: %s != %s",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 783
+      "cdmw/modding/mesh_obj_importer.py": 796
     }
   },
   {
@@ -47874,7 +48180,7 @@ MESSAGE_REFERENCE = [
     "message": "Ignoring OBJ round-trip sidecar because source path mismatch: %s != %s",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 774
+      "cdmw/modding/mesh_obj_importer.py": 787
     }
   },
   {
@@ -47971,7 +48277,7 @@ MESSAGE_REFERENCE = [
     "message": "Input is missing the PAR mesh header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2913
+      "cdmw/modding/mesh_parser.py": 2938
     }
   },
   {
@@ -51870,7 +52176,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh sidecar metadata drift blocked rebuild: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_importer.py": 983
+      "cdmw/modding/mesh_importer.py": 1010
     }
   },
   {
@@ -53647,7 +53953,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a valid PAC file: bad magic {data[:4]}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1465
+      "cdmw/modding/mesh_parser.py": 1490
     }
   },
   {
@@ -53695,7 +54001,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ import did not contain any face/object data.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 1020
+      "cdmw/modding/mesh_obj_importer.py": 1033
     }
   },
   {
@@ -53711,7 +54017,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ indices are 1-based and cannot be zero",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 37
+      "cdmw/modding/mesh_obj_importer.py": 39
     }
   },
   {
@@ -53727,7 +54033,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ relative index {value} is outside the {item_count} values defined before this face.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 35
+      "cdmw/modding/mesh_obj_importer.py": 37
     }
   },
   {
@@ -53775,7 +54081,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar LOD entry must be an object.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 147
+      "cdmw/modding/mesh_obj_importer.py": 149
     }
   },
   {
@@ -53783,7 +54089,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar LOD submeshes must be a list.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 150
+      "cdmw/modding/mesh_obj_importer.py": 152
     }
   },
   {
@@ -53791,7 +54097,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar bone metadata declares a skinned mesh but has no weighted submeshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 190
+      "cdmw/modding/mesh_obj_importer.py": 192
     }
   },
   {
@@ -53799,7 +54105,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar bone metadata is missing influence counts for skinned meshes.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 182
+      "cdmw/modding/mesh_obj_importer.py": 184
     }
   },
   {
@@ -53807,7 +54113,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar bone metadata is required for skinned meshes.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 163
+      "cdmw/modding/mesh_obj_importer.py": 165
     }
   },
   {
@@ -53815,7 +54121,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar bone metadata vertex count mismatch for submesh {submesh_index}: expected {expected_vertices}, got {layout_vertices}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 176
+      "cdmw/modding/mesh_obj_importer.py": 178
     }
   },
   {
@@ -53823,7 +54129,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar is required for non-trivial mesh rebuilds.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 613
+      "cdmw/modding/mesh_obj_importer.py": 626
     }
   },
   {
@@ -53831,15 +54137,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar lods must be a list.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 144
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "OBJ sidecar material changed for submesh {submesh_index}: expected {expected_material}, got {actual_material}.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 496
+      "cdmw/modding/mesh_obj_importer.py": 146
     }
   },
   {
@@ -53847,7 +54145,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar raw vertex record count mismatch for submesh {submesh_index}: expected {expected_count}, got {len(records)}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 680
+      "cdmw/modding/mesh_obj_importer.py": 693
     }
   },
   {
@@ -53855,7 +54153,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar raw vertex records changed for submesh {submesh_index}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 685
+      "cdmw/modding/mesh_obj_importer.py": 698
     }
   },
   {
@@ -53863,7 +54161,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar source hash mismatch; re-export from the current source asset before rebuild.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 633
+      "cdmw/modding/mesh_obj_importer.py": 646
     }
   },
   {
@@ -53871,7 +54169,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar source index map contains an out-of-range source index.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 213
+      "cdmw/modding/mesh_obj_importer.py": 215
     }
   },
   {
@@ -53879,7 +54177,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar source index map is required for indexed submeshes.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 202
+      "cdmw/modding/mesh_obj_importer.py": 204
     }
   },
   {
@@ -53887,7 +54185,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar source index map length mismatch for submesh {submesh_index}: expected {expected_indices}, got {len(source_index_map)}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 208
+      "cdmw/modding/mesh_obj_importer.py": 210
     }
   },
   {
@@ -53895,7 +54193,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar source index map must contain integer entries.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 206
+      "cdmw/modding/mesh_obj_importer.py": 208
     }
   },
   {
@@ -53903,7 +54201,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar source size mismatch: expected {expected_size} bytes, got {len(original_data)} bytes.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 624
+      "cdmw/modding/mesh_obj_importer.py": 637
     }
   },
   {
@@ -53911,7 +54209,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar source vertex map is required for skinned meshes.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 188
+      "cdmw/modding/mesh_obj_importer.py": 190
     }
   },
   {
@@ -53919,7 +54217,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar submesh entry must be an object.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 153
+      "cdmw/modding/mesh_obj_importer.py": 155
     }
   },
   {
@@ -53927,7 +54225,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar submesh is missing stable_id.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 155
+      "cdmw/modding/mesh_obj_importer.py": 157
     }
   },
   {
@@ -53935,7 +54233,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar texture changed for submesh {submesh_index}: expected {expected_texture}, got {actual_texture}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 517
+      "cdmw/modding/mesh_obj_importer.py": 530
     }
   },
   {
@@ -53943,7 +54241,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar topology changed for part '{name}' (submesh {submesh_index}): expected {expected_vertices} source vertices, got {actual_vertices}. Blender drops vertices that no face uses; adding or deleting geometry needs a replacement import.",
     "recovery": "stale",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 655
+      "cdmw/modding/mesh_obj_importer.py": 668
     }
   },
   {
@@ -53951,7 +54249,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar topology changed for submesh {submesh_index}: expected {expected_indices} indices, got {actual_indices}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 664
+      "cdmw/modding/mesh_obj_importer.py": 677
     }
   },
   {
@@ -53959,7 +54257,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ sidecar topology changed: expected {len(expected_entries)} submeshes, got {len(submeshes)}.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 646
+      "cdmw/modding/mesh_obj_importer.py": 659
     }
   },
   {
@@ -53975,7 +54273,7 @@ MESSAGE_REFERENCE = [
     "message": "OBJ {channel} index {index + 1} exceeds the {count} defined values.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 1030
+      "cdmw/modding/mesh_obj_importer.py": 1043
     }
   },
   {
@@ -54097,7 +54395,7 @@ MESSAGE_REFERENCE = [
     "message": "Original PAMLOD data required for rebuild",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 564
+      "cdmw/modding/mesh_pamlod_builder.py": 642
     }
   },
   {
@@ -54361,7 +54659,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC LOD index is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2575
+      "cdmw/modding/mesh_parser.py": 2600
     }
   },
   {
@@ -54801,7 +55099,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 3032
+      "cdmw/modding/mesh_parser.py": 3057
     }
   },
   {
@@ -55178,7 +55476,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2958
+      "cdmw/modding/mesh_parser.py": 2983
     }
   },
   {
@@ -55218,7 +55516,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM to PAMLOD transfer requires non-empty source geometry.",
     "recovery": "empty",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 56
+      "cdmw/modding/mesh_pamlod_builder.py": 59
     }
   },
   {
@@ -55234,7 +55532,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD %s has no consistent level block table; scanning for its layout",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1139
+      "cdmw/modding/mesh_parser.py": 1162
     }
   },
   {
@@ -55242,7 +55540,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 entry rebuild supports at most 65535 vertices per entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 467
+      "cdmw/modding/mesh_pamlod_builder.py": 470
     }
   },
   {
@@ -55250,7 +55548,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 original entry mapping is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 347
+      "cdmw/modding/mesh_pamlod_builder.py": 350
     }
   },
   {
@@ -55258,7 +55556,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 rebuild requires either one flattened submesh or one submesh per LOD0 entry.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 358
+      "cdmw/modding/mesh_pamlod_builder.py": 361
     }
   },
   {
@@ -55274,7 +55572,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD face references an out-of-range vertex.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 450
+      "cdmw/modding/mesh_pamlod_builder.py": 453
     }
   },
   {
@@ -55362,7 +55660,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD geometry blocks are still LZ4-compressed; read the archive entry decoded.",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1202
+      "cdmw/modding/mesh_parser.py": 1227
     }
   },
   {
@@ -55371,6 +55669,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "native/cdmw_preview_core/src/owners/geometry_static.cpp": 678
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "PAMLOD lower LOD vertex lies outside its stated level block.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_pamlod_builder.py": 613
     }
   },
   {
@@ -55402,7 +55708,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2993
+      "cdmw/modding/mesh_parser.py": 3018
     }
   },
   {
@@ -55410,7 +55716,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD topology-changing rebuild is currently supported for LOD0 only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 591
+      "cdmw/modding/mesh_pamlod_builder.py": 669
     }
   },
   {
@@ -55418,7 +55724,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: level {lod_i} part {entry_index} indexes vertex {highest} of {e['nv']}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1226
+      "cdmw/modding/mesh_parser.py": 1251
     }
   },
   {
@@ -55426,7 +55732,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: the part descriptors do not account for the stated level blocks with {PAMLOD_VERTEX_STRIDE}-byte vertices.",
     "recovery": "locked",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1216
+      "cdmw/modding/mesh_parser.py": 1241
     }
   },
   {
@@ -55635,6 +55941,14 @@ MESSAGE_REFERENCE = [
     "recovery": "timeout",
     "sources": {
       "cdmw/ui/preview/dotnet_session.py": 2018
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Package sidecar material changed for submesh {submesh_index}: expected {expected_material}, got {actual_material}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/modding/mesh_obj_importer.py": 509
     }
   },
   {
@@ -57379,6 +57693,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 424
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Rebuilt PAMLOD level block table does not validate; the output was not written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_pamlod_builder.py": 632
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Rebuilt PAMLOD lower LODs do not read back as the source levels; the output was not written.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/modding/mesh_pamlod_builder.py": 636
     }
   },
   {
@@ -62030,7 +62360,15 @@ MESSAGE_REFERENCE = [
     "message": "This PAMLOD layout currently supports position-only patching. Topology/UV edits are not supported for it yet ({layout.get('reason', 'unknown layout')}).",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 494
+      "cdmw/modding/mesh_pamlod_builder.py": 497
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This PAMLOD's LOD0 geometry does not match its level block table, so its lower LODs cannot be kept safely after a LOD0 vertex count change.",
+    "recovery": "unsupported",
+    "sources": {
+      "cdmw/modding/mesh_pamlod_builder.py": 509
     }
   },
   {
@@ -63030,7 +63368,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported OBJ sidecar schema version: {schema_version}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 117
+      "cdmw/modding/mesh_obj_importer.py": 119
     }
   },
   {
@@ -64767,7 +65105,7 @@ MESSAGE_REFERENCE = [
     "message": "could not locate PAMLOD LOD0 geometry layout",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 276
+      "cdmw/modding/mesh_pamlod_builder.py": 279
     }
   },
   {
@@ -66745,7 +67083,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/external_model_audit.py": 1722,
       "cdmw/core/mesh_baseline.py": 43,
       "cdmw/core/model_preview.py": 1463,
-      "cdmw/modding/mesh_obj_importer.py": 929,
+      "cdmw/modding/mesh_obj_importer.py": 942,
       "cdmw/modding/static_mesh_scene_frame.py": 504
     }
   },
@@ -66978,7 +67316,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid PAMLOD geometry header",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 215
+      "cdmw/modding/mesh_pamlod_builder.py": 218
     }
   },
   {
@@ -68456,7 +68794,7 @@ MESSAGE_REFERENCE = [
     "message": "missing PAMLOD header",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 211
+      "cdmw/modding/mesh_pamlod_builder.py": 214
     }
   },
   {
@@ -74723,7 +75061,7 @@ MESSAGE_REFERENCE = [
     "message": "{path.name} has no companion of its own, and CDMW cannot choose between the companions of {path.stem} exports in {len(found)} formats ({', '.join((item.name for item in found))}). Rename the companion of the export you edited to {path.name}.meta.json.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_obj_importer.py": 68
+      "cdmw/modding/mesh_obj_importer.py": 70
     }
   },
   {
@@ -75107,7 +75445,7 @@ MESSAGE_REFERENCE = [
     "message": "A folder named {folder.name} already exists and the game table editor did not write it. Choose another mod name.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/game_table_edits.py": 308
+      "cdmw/services/game_table_edits.py": 315
     }
   },
   {
@@ -75243,7 +75581,7 @@ MESSAGE_REFERENCE = [
     "message": "A static table's header and body must come from the same archive.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/static_table_records.py": 207
+      "cdmw/core/static_table_records.py": 219
     }
   },
   {
@@ -78721,7 +79059,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit of row {key} changed bytes outside its fields.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 390
+      "cdmw/core/static_table_records.py": 402
     }
   },
   {
@@ -79460,6 +79798,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/read_tools.py": 426
+    }
+  },
+  {
+    "area": "other",
+    "message": "Give either factor (with optional offsets or category) or values.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 228
     }
   },
   {
@@ -80644,7 +80990,7 @@ MESSAGE_REFERENCE = [
     "message": "Inventory {key}: default slots exceed the maximum.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/static_table_records.py": 384
+      "cdmw/core/static_table_records.py": 396
     }
   },
   {
@@ -81779,6 +82125,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Name the mod (at most 120 characters).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 635
+    }
+  },
+  {
+    "area": "other",
     "message": "Name the mod before exporting it.",
     "recovery": "internal",
     "sources": {
@@ -81790,7 +82144,8 @@ MESSAGE_REFERENCE = [
     "message": "Name the mod before writing it.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/game_table_edits.py": 348
+      "cdmw/services/game_table_edits.py": 355,
+      "cdmw/services/game_table_speed.py": 86
     }
   },
   {
@@ -82023,7 +82378,7 @@ MESSAGE_REFERENCE = [
     "message": "No edits were requested.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 346
+      "cdmw/core/static_table_records.py": 358
     }
   },
   {
@@ -82072,6 +82427,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/painting_records.py": 109
+    }
+  },
+  {
+    "area": "other",
+    "message": "No game folder is set: the user sets it in Settings > Paths.",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 52
     }
   },
   {
@@ -84010,7 +84373,7 @@ MESSAGE_REFERENCE = [
     "message": "Set the game folder in Archive Browser before editing game tables.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/game_table_edits.py": 256
+      "cdmw/services/game_table_edits.py": 263
     }
   },
   {
@@ -84212,6 +84575,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/scene_geometry_utils.py": 311
+    }
+  },
+  {
+    "area": "other",
+    "message": "Speed factors must be an object with set, kinds and moves.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 145
     }
   },
   {
@@ -85243,7 +85614,7 @@ MESSAGE_REFERENCE = [
     "message": "The game archives have no {table} table.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/game_table_edits.py": 274
+      "cdmw/services/game_table_edits.py": 281
     }
   },
   {
@@ -85560,6 +85931,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The mod-ready export prompt has changed; CDMW cannot fill it.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/mod_ready_prompt.py": 38
+    }
+  },
+  {
+    "area": "other",
+    "message": "The mod-ready export prompt has no Continue button.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mod_ready_prompt.py": 49
+    }
+  },
+  {
+    "area": "other",
+    "message": "The modded copy of {path} has a different layout than the game's.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 362
+    }
+  },
+  {
+    "area": "other",
     "message": "The native preview could not decode this model.",
     "recovery": "format",
     "sources": {
@@ -85628,6 +86023,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/output_paths.py": 103
+    }
+  },
+  {
+    "area": "other",
+    "message": "The package path must end in {PACKAGE_EXTENSION}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 215
     }
   },
   {
@@ -85771,7 +86174,7 @@ MESSAGE_REFERENCE = [
     "message": "The row's inline key differs from its directory key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 291
+      "cdmw/core/static_table_records.py": 303
     }
   },
   {
@@ -86140,7 +86543,7 @@ MESSAGE_REFERENCE = [
     "message": "The written mod archive does not read back as the edited tables.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/game_table_edits.py": 367
+      "cdmw/services/game_table_edits.py": 374
     }
   },
   {
@@ -86204,7 +86607,15 @@ MESSAGE_REFERENCE = [
     "message": "There are no edits for {table_label(table)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/game_table_edits.py": 186
+      "cdmw/services/game_table_edits.py": 193
+    }
+  },
+  {
+    "area": "other",
+    "message": "There are no speed edits to write.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/game_table_speed.py": 80
     }
   },
   {
@@ -86212,7 +86623,7 @@ MESSAGE_REFERENCE = [
     "message": "There are no table edits to write.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/game_table_edits.py": 350
+      "cdmw/services/game_table_edits.py": 357
     }
   },
   {
@@ -86277,6 +86688,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/collision_volume_edit.py": 122
+    }
+  },
+  {
+    "area": "other",
+    "message": "These factors change no speed value in this set.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 650
+    }
+  },
+  {
+    "area": "other",
+    "message": "These values change nothing.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 230
     }
   },
   {
@@ -86761,6 +87188,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Unknown category {category}; use one of {', '.join(CATEGORIES)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 171
+    }
+  },
+  {
+    "area": "other",
     "message": "Unknown command context {self.context} for {self.id}",
     "recovery": "internal",
     "sources": {
@@ -86805,6 +87240,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/pac_xml_references.py": 116
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown move kind {kind}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 258
+    }
+  },
+  {
+    "area": "other",
+    "message": "Unknown move kind(s): {', '.join(unknown)}. Kinds are {', '.join(KIND_LABELS)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 150
     }
   },
   {
@@ -90166,6 +90617,7 @@ MESSAGE_REFERENCE = [
       "cdmw/mcp/protocol_surface.py": 94,
       "cdmw/mcp/read_tools.py": 363,
       "cdmw/modding/working_mod_recipe.py": 123,
+      "cdmw/services/animation_speed_service.py": 443,
       "cdmw/services/diagnostic_bundle_service.py": 107,
       "cdmw/services/diagnostics_service.py": 233,
       "cdmw/services/old_install_removal.py": 596,
@@ -91215,6 +91667,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{chart} is not in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 695
+    }
+  },
+  {
+    "area": "other",
     "message": "{child}: read failed: {exc}",
     "recovery": "internal",
     "sources": {
@@ -91303,6 +91763,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{destination} already exists; name a new package.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 217
+    }
+  },
+  {
+    "area": "other",
     "message": "{detail}...<truncated>",
     "recovery": "format",
     "sources": {
@@ -91370,7 +91838,7 @@ MESSAGE_REFERENCE = [
     "message": "{edit.table} is not an editable table name.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/game_table_edits.py": 230
+      "cdmw/services/game_table_edits.py": 237
     }
   },
   {
@@ -91599,6 +92067,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{item.table} {field} is not a game table speed field.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/game_table_speed.py": 84
+    }
+  },
+  {
+    "area": "other",
     "message": "{key} contains invalid collection lookup metadata.",
     "recovery": "input",
     "sources": {
@@ -91658,7 +92134,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no closed record schema.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/static_table_records.py": 261
+      "cdmw/core/static_table_records.py": 273
     }
   },
   {
@@ -91666,7 +92142,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no editable fields.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 344
+      "cdmw/core/static_table_records.py": 356
     }
   },
   {
@@ -91674,7 +92150,15 @@ MESSAGE_REFERENCE = [
     "message": "{kind} has no row with key {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 361
+      "cdmw/core/static_table_records.py": 373
+    }
+  },
+  {
+    "area": "other",
+    "message": "{kind} is not a speed table; use {', '.join(SPEED_TABLES)}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/game_table_speed.py": 51
     }
   },
   {
@@ -91682,7 +92166,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} lists key {key} more than once.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 363
+      "cdmw/core/static_table_records.py": 375
     }
   },
   {
@@ -91690,7 +92174,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} row {key} carries a different inline key; the header does not match the body.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/static_table_records.py": 367
+      "cdmw/core/static_table_records.py": 379
     }
   },
   {
@@ -91698,7 +92182,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} row {key} has {len(found)} values at {target}; exactly one is required.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 323
+      "cdmw/core/static_table_records.py": 335
     }
   },
   {
@@ -91706,7 +92190,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} {member.owner}.{member.name} does not have the proven {rule.width}-byte width.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 329
+      "cdmw/core/static_table_records.py": 341
     }
   },
   {
@@ -91714,7 +92198,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind} {member.owner}.{member.name} is not an editable field.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 327
+      "cdmw/core/static_table_records.py": 339
     }
   },
   {
@@ -91722,7 +92206,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind}.{field} does not have the proven {rule.width}-byte width in row {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 373
+      "cdmw/core/static_table_records.py": 385
     }
   },
   {
@@ -91730,7 +92214,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind}.{field} is not an editable field.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 359
+      "cdmw/core/static_table_records.py": 371
     }
   },
   {
@@ -92154,7 +92638,7 @@ MESSAGE_REFERENCE = [
     "message": "{number} is outside {rule.minimum}-{rule.maximum}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 303
+      "cdmw/core/static_table_records.py": 315
     }
   },
   {
@@ -92179,6 +92663,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/effect_edit.py": 294
+    }
+  },
+  {
+    "area": "other",
+    "message": "{other} is not in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 580
     }
   },
   {
@@ -92259,6 +92751,23 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/ui/character_finder/creator_look.py": 40
+    }
+  },
+  {
+    "area": "other",
+    "message": "{path} is not an editable action chart.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 414
+    }
+  },
+  {
+    "area": "other",
+    "message": "{path} is not in the game archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 189,
+      "cdmw/services/animation_speed_service.py": 411
     }
   },
   {
@@ -92562,7 +93071,7 @@ MESSAGE_REFERENCE = [
     "message": "{stem} has no closed record schema.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/static_table_records.py": 199
+      "cdmw/core/static_table_records.py": 211
     }
   },
   {
@@ -92578,7 +93087,7 @@ MESSAGE_REFERENCE = [
     "message": "{table_label(table)} has no editable fields.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/game_table_edits.py": 150
+      "cdmw/services/game_table_edits.py": 157
     }
   },
   {
@@ -92586,7 +93095,7 @@ MESSAGE_REFERENCE = [
     "message": "{table_label(table)} needs exactly one base table copy; found {len(base)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/game_table_edits.py": 189
+      "cdmw/services/game_table_edits.py": 196
     }
   },
   {
@@ -92594,7 +93103,7 @@ MESSAGE_REFERENCE = [
     "message": "{table_label(table)} row {edit.key} exists only in the DLC copy of the table, and DMM does not take a mod's copy of a DLC table.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/game_table_edits.py": 203
+      "cdmw/services/game_table_edits.py": 210
     }
   },
   {
@@ -92810,7 +93319,7 @@ MESSAGE_REFERENCE = [
     "message": "{value} is not an integer.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/static_table_records.py": 308
+      "cdmw/core/static_table_records.py": 320
     }
   },
   {
@@ -92818,7 +93327,7 @@ MESSAGE_REFERENCE = [
     "message": "{value} is outside {int(rule.minimum)}-{int(rule.maximum)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/static_table_records.py": 310
+      "cdmw/core/static_table_records.py": 322
     }
   },
   {
@@ -92891,6 +93400,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/automation/authoring_commands.py": 48
+    }
+  },
+  {
+    "area": "other",
+    "message": "{what} must be between {MIN_FACTOR} and {MAX_FACTOR}; got {float(value)}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 250
+    }
+  },
+  {
+    "area": "other",
+    "message": "{what} must be numbers between {MIN_FACTOR} and {MAX_FACTOR}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/animation_speed_service.py": 248
     }
   },
   {
@@ -106986,6 +107511,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/archive_browser/skinned_decal_dialog.py",
     "cdmw/ui/archive_browser/source_mix_actions.py",
     "cdmw/ui/archive_browser/source_mix_overlay.py",
+    "cdmw/ui/archive_browser/speed_tuning_actions.py",
     "cdmw/ui/archive_browser/workers.py",
     "cdmw/ui/mesh_editor/replace_from_archive_flow.py",
     "cdmw/ui/shell/archive_backend_client.py",
@@ -107096,8 +107622,10 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/prefab_corpus_report_stages_1.py",
     "cdmw/core/prefab_json_apply.py",
     "cdmw/core/prefab_json_validation.py",
+    "cdmw/mcp/hkx_tools.py",
     "cdmw/services/hkx_edit_service.py",
     "cdmw/services/hkx_physics_editor_service.py",
+    "cdmw/services/prefab_speed_service.py",
     "cdmw/ui/archive_browser/hkx_document_actions.py",
     "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
     "cdmw/ui/archive_browser/hkx_physics_editor_dialog.py",
@@ -107537,6 +108065,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/read_tools.py",
     "cdmw/mcp/saved_work_tools.py",
     "cdmw/mcp/server.py",
+    "cdmw/mcp/speed_tools.py",
     "cdmw/mcp/tools.py",
     "cdmw/mcp/transport.py",
     "cdmw/mcp/ui_actions.py",
@@ -107549,6 +108078,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/modding/scene_gltf_uv.py",
     "cdmw/modding/scene_gltf_uv_bake.py",
     "cdmw/modding/working_mod_recipe.py",
+    "cdmw/services/animation_speed_service.py",
     "cdmw/services/application_shutdown_service.py",
     "cdmw/services/asset_authoring_service.py",
     "cdmw/services/character_context_service.py",
@@ -108921,6 +109451,7 @@ SOURCE_COVERAGE = {
   "cdmw/domain/archives/prefab.py": {},
   "cdmw/domain/archives/prefab_companions.py": {},
   "cdmw/domain/archives/prefab_glossary.py": {},
+  "cdmw/domain/archives/prefab_speed.py": {},
   "cdmw/domain/archives/prefab_values.py": {
     "raise": 4
   },
@@ -109306,6 +109837,11 @@ SOURCE_COVERAGE = {
     "diagnostic_text": 2,
     "raise": 1
   },
+  "cdmw/mcp/hkx_tools.py": {
+    "code": 16,
+    "raise": 23,
+    "report": 8
+  },
   "cdmw/mcp/item_icon_tools.py": {
     "code": 4,
     "raise": 7,
@@ -109343,6 +109879,9 @@ SOURCE_COVERAGE = {
   "cdmw/mcp/mod_management_tools.py": {
     "code": 3,
     "raise": 8
+  },
+  "cdmw/mcp/mod_ready_prompt.py": {
+    "raise": 2
   },
   "cdmw/mcp/model_library_tools.py": {
     "code": 2,
@@ -109439,6 +109978,11 @@ SOURCE_COVERAGE = {
     "report": 3
   },
   "cdmw/mcp/setup_lines.py": {},
+  "cdmw/mcp/speed_tools.py": {
+    "code": 8,
+    "raise": 9,
+    "report": 1
+  },
   "cdmw/mcp/summary.py": {},
   "cdmw/mcp/text_search_tools.py": {
     "code": 1,
@@ -109706,7 +110250,7 @@ SOURCE_COVERAGE = {
     "report": 3
   },
   "cdmw/modding/mesh_pamlod_builder.py": {
-    "raise": 11,
+    "raise": 15,
     "report": 3
   },
   "cdmw/modding/mesh_parser.py": {
@@ -109991,6 +110535,10 @@ SOURCE_COVERAGE = {
     "raise": 26
   },
   "cdmw/services/active_ui_translation.py": {},
+  "cdmw/services/animation_speed_service.py": {
+    "diagnostic_field": 1,
+    "raise": 14
+  },
   "cdmw/services/application_shutdown_service.py": {
     "assertion": 1,
     "raise": 2
@@ -110148,6 +110696,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/game_table_edits.py": {
     "raise": 12
+  },
+  "cdmw/services/game_table_speed.py": {
+    "raise": 4
   },
   "cdmw/services/hair_registration.py": {
     "raise": 16
@@ -110770,6 +111321,9 @@ SOURCE_COVERAGE = {
     "validation": 1
   },
   "cdmw/services/package_service.py": {},
+  "cdmw/services/prefab_speed_service.py": {
+    "raise": 12
+  },
   "cdmw/services/prefab_structure_service.py": {
     "raise": 1
   },
@@ -111248,7 +111802,8 @@ SOURCE_COVERAGE = {
     "validation": 3
   },
   "cdmw/ui/archive_browser/prefab_inspector_editing.py": {
-    "finding": 1
+    "finding": 1,
+    "raise": 1
   },
   "cdmw/ui/archive_browser/prefab_inspector_review.py": {},
   "cdmw/ui/archive_browser/prefab_inspector_rows.py": {},
@@ -111390,6 +111945,14 @@ SOURCE_COVERAGE = {
   "cdmw/ui/archive_browser/source_picker_dialog.py": {
     "display": 2,
     "report": 1
+  },
+  "cdmw/ui/archive_browser/speed_tuning_actions.py": {
+    "dialog": 1,
+    "display": 3,
+    "raise": 1
+  },
+  "cdmw/ui/archive_browser/speed_tuning_dialog.py": {
+    "display": 2
   },
   "cdmw/ui/archive_browser/static_preview_thumbnail.py": {},
   "cdmw/ui/archive_browser/static_replacement_accept_state.py": {
