@@ -473,10 +473,16 @@ def run_action(context, function: Callable[[], object], answers: Mapping[str, ob
                 return {"running": True, "asked": list(record.asked),
                         "message": "The action is still running in CDMW; app_state shows what it is doing."}
     if "error" in box:
-        error = box["error"]
+        # Raise without the handler's traceback and drop every name for the error: its frames
+        # hold the page the action ran on, and a cycle would keep that page alive until some
+        # later garbage collection deletes its widgets and threads at a moment nobody chose.
+        error = box.pop("error").with_traceback(None)
         if record.asked and isinstance(error, ToolError):
             error.data.setdefault("asked", list(record.asked))
-        raise error
+        try:
+            raise error
+        finally:
+            del error, box, function
     return {"result": box.get("result"), "asked": list(record.asked)}
 
 
