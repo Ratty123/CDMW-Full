@@ -124,13 +124,17 @@ def test_mesh_state_says_why_the_editor_cannot_start(connect, app) -> None:
         # "Continue where you left off?": shown as 'asks', answered by its own buttons.
         pressed = []
         page = SimpleNamespace(**{name: SimpleNamespace(click=lambda n=name: pressed.append(n)) for name in (
-            "draft_resume_button", "draft_start_fresh_button", "draft_choice_cancel_button")})
+            "draft_resume_button", "draft_start_fresh_button", "draft_choose_button", "draft_choice_cancel_button")})
         holder.active.__dict__.update(page.__dict__, _draft_choice_showing=lambda: not pressed,
                                       draft_choice_label=SimpleNamespace(text=lambda: "1 saved draft"))
         asks = mcp.ok("mesh_state")["asks"]
-        assert asks["text"] == "1 saved draft" and asks["answers"] == ["cancel", "fresh", "resume"]
+        assert asks["text"] == "1 saved draft" and asks["answers"] == ["cancel", "choose", "fresh", "resume"]
         assert mcp.ok("mesh_draft_choice", {"answer": "fresh"})["answered"] == "fresh"
         assert pressed == ["draft_start_fresh_button"] and "asks" not in mcp.ok("mesh_state")
+        # Choose a Draft... hands over to Drafts & Mods, which the saved tools work.
+        pressed.clear()
+        chosen = mcp.ok("mesh_draft_choice", {"answer": "choose"})
+        assert pressed == ["draft_choose_button"] and "saved_change" in chosen["message"]
     finally:
         holder.deleteLater()
 
@@ -264,12 +268,17 @@ def test_export_and_import_replacement_send_the_panel_buttons_messages(mesh, tmp
     assert (sent["event"], sent["command"]) == ("cdmw_command", "export_mesh")
     assert sent["arguments"] == {"path": str(target), "format": "obj"}
     count = len(mesh.sent)
-    # Never into the game, never over a file, and only the formats the button writes without Blender.
+    # FBX is on the editor's Export menu too.
+    fbx = tmp_path / "part.fbx"
+    assert mcp.ok("mesh_export", {"path": str(fbx)})["format"] == "fbx"
+    assert mesh.sent[-1]["arguments"] == {"path": str(fbx), "format": "fbx"}
+    count = len(mesh.sent)
+    # Never into the game, never over a file, and only the formats the Export menu writes.
     game = _game(tmp_path, settings)
     assert "does not write into" in mcp.error("mesh_export", {"path": str(game / "part.obj")})["message"]
     (tmp_path / "old.obj").write_text("o")
     assert mcp.error("mesh_export", {"path": str(tmp_path / "old.obj")})["code"] == "refused"
-    assert mcp.error("mesh_export", {"path": str(tmp_path / "part.fbx")})["code"] == "invalid_arguments"
+    assert mcp.error("mesh_export", {"path": str(tmp_path / "part.dae")})["code"] == "invalid_arguments"
     assert len(mesh.sent) == count
 
     state = mcp.ok("mesh_replacement_state")

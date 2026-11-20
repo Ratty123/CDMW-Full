@@ -2990,7 +2990,7 @@ ERROR_REFERENCE = [
       "Enter an absolute path or clear the setting.",
       "Enter the numeric setting value.",
       "Export PAC As writes a .pac file.",
-      "Export an .obj or .glb file (FBX needs Blender: use the Export Mesh File button through app_ui_act).",
+      "Export a .glb, .fbx or .obj file, as the editor's Export menu offers.",
       "Free Edit writes an editable package: give 'destination', an existing folder outside the game.",
       "Give 1 to 256 changes.",
       "Give 1 to {MAX_BONES} bones.",
@@ -29824,7 +29824,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an output folder first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_output.py": 100
+      "cdmw/mcp/new_item_output.py": 110
     }
   },
   {
@@ -33522,6 +33522,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The item would be added to {root}, not to {folder}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_output.py": 122
+    }
+  },
+  {
+    "area": "items",
     "message": "The kept settings belong to another template than the package. Remove the package from the list and add it again to continue from the package itself.",
     "recovery": "configuration",
     "sources": {
@@ -34183,7 +34191,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no folder {folder}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_output.py": 85
+      "cdmw/mcp/new_item_output.py": 87
     }
   },
   {
@@ -46204,10 +46212,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Export an .obj or .glb file (FBX needs Blender: use the Export Mesh File button through app_ui_act).",
+    "message": "Export a .glb, .fbx or .obj file, as the editor's Export menu offers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 612
+      "cdmw/mcp/mesh_tools.py": 615
     }
   },
   {
@@ -61295,7 +61303,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 127,
-      "cdmw/mcp/mesh_tools.py": 497
+      "cdmw/mcp/mesh_tools.py": 500
     }
   },
   {
@@ -61303,7 +61311,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 622
+      "cdmw/mcp/mesh_tools.py": 624
     }
   },
   {
@@ -61311,7 +61319,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 446
+      "cdmw/mcp/mesh_tools.py": 449
     }
   },
   {
@@ -61327,7 +61335,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has no command {call.arguments['command']}. commands_list with context mesh_editor lists them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 474
+      "cdmw/mcp/mesh_tools.py": 477
     }
   },
   {
@@ -61335,7 +61343,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has {len(rows)} open documents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 433
+      "cdmw/mcp/mesh_tools.py": 436
     }
   },
   {
@@ -61360,7 +61368,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 125,
-      "cdmw/mcp/mesh_tools.py": 620
+      "cdmw/mcp/mesh_tools.py": 622
     }
   },
   {
@@ -62571,7 +62579,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor cannot light a part up.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 457
+      "cdmw/mcp/mesh_tools.py": 460
     }
   },
   {
@@ -110982,7 +110990,7 @@ SOURCE_COVERAGE = {
     "report": 3
   },
   "cdmw/mcp/new_item_output.py": {
-    "raise": 5,
+    "raise": 6,
     "report": 1
   },
   "cdmw/mcp/new_item_tools.py": {

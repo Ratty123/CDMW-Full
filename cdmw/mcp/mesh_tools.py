@@ -94,7 +94,7 @@ def _unavailable_reason(tab) -> str:
 
 
 DRAFT_ANSWERS = {"resume": "draft_resume_button", "fresh": "draft_start_fresh_button",
-                 "cancel": "draft_choice_cancel_button"}
+                 "choose": "draft_choose_button", "cancel": "draft_choice_cancel_button"}
 
 
 def _draft_question(tab) -> dict[str, object] | None:
@@ -420,8 +420,11 @@ def _draft_choice(call) -> dict[str, object]:
         if _draft_question(tab) is None:
             raise ToolError(UNAVAILABLE, "The Mesh Editor is not asking whether to continue a draft.")
         getattr(tab, DRAFT_ANSWERS[answer]).click()
-        return {"answered": answer,
-                "message": "mesh_state says when the editor is ready." if answer != "cancel" else ""}
+        message = {"cancel": "",
+                   "choose": "Drafts & Mods opens with this file's drafts: read them with saved_list and open "
+                             "one with saved_change (action continue)."}.get(answer,
+                                                                           "mesh_state says when the editor is ready.")
+        return {"answered": answer, "message": message}
 
     return _act(call, press)
 
@@ -608,9 +611,8 @@ def _export(call) -> dict[str, object]:
     context = call.context
     path = Path(str(call.arguments["path"]))
     format_name = path.suffix.lower().lstrip(".")
-    if format_name not in ("obj", "glb"):
-        raise ToolError(INVALID_ARGUMENTS, "Export an .obj or .glb file (FBX needs Blender: use the Export "
-                                           "Mesh File button through app_ui_act).")
+    if format_name not in ("obj", "glb", "fbx"):
+        raise ToolError(INVALID_ARGUMENTS, "Export a .glb, .fbx or .obj file, as the editor's Export menu offers.")
 
     def send() -> dict[str, object]:
         from cdmw.automation.authoring_commands import _send
@@ -693,7 +695,8 @@ def mesh_tools() -> list[Tool]:
         Tool(name="mesh.draft_choice", family="mesh", title="Continue where you left off?",
              description="Answers the question the Mesh Editor asks when the mesh being opened has saved "
                          "drafts (mesh_state shows it as 'asks'): 'resume' the newest draft, start 'fresh' from "
-                         "the file (the drafts are kept either way), or 'cancel' the open.",
+                         "the file (the drafts are kept either way), 'choose' another draft in Drafts & Mods "
+                         "(Choose a Draft...), or 'cancel' the open.",
              input_schema=object_schema({"answer": {"type": "string", "enum": sorted(DRAFT_ANSWERS)}}, ["answer"]),
              effect=EDIT, route="ui:draft_choice buttons", handler=_draft_choice, runs_on=ON_CALL),
         Tool(name="mesh.show_document", family="mesh", title="Show a document",
@@ -767,8 +770,9 @@ def mesh_tools() -> list[Tool]:
              effect=OUTPUT, route="ui:_start_mesh_mod_build_requested", handler=_build_mod, runs_on=ON_CALL,
              output_folders=("output_folder",)),
         Tool(name="mesh.export", family="mesh", title="Export Mesh File",
-             description="Export Mesh File: the shown document's mesh as OBJ or GLB at 'path' (a new file "
-                         "outside the game), as the button does after its file chooser.",
+             description="Export Mesh File: the shown document's mesh as GLB, FBX or OBJ at 'path' (a new "
+                         "file outside the game; the suffix picks the format), as the editor's Export menu does "
+                         "after its file chooser.",
              input_schema=object_schema({"path": {"type": "string", "minLength": 3, "maxLength": 1024}},
                                         ["path"]),
              effect=OUTPUT, route="helper:cdmw_command export_mesh", handler=_export, runs_on=ON_CALL,

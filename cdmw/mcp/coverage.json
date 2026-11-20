@@ -798,7 +798,7 @@
     {
       "id": "mesh.draft_choice",
       "area": "Mesh Editor",
-      "what": "Continue where you left off? (Resume, Start Fresh, Cancel)",
+      "what": "Continue where you left off? (Resume, Start Fresh, Choose a Draft..., Cancel)",
       "class": "edit",
       "tool": "mesh.draft_choice"
     },
